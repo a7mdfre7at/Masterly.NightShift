@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hangfire.Core\Hangfire.Core.csproj" />
     <ProjectReference Include="..\..\src\Hangfire.SqlServer\Hangfire.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Hangfire.SourceGenerator\Hangfire.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

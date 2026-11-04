@@ -22,6 +22,7 @@ namespace ConsoleSample
                 .UseIgnoredAssemblyVersionTypeResolver()
                 .UseRecommendedSerializerSettings()
                 .UseResultsInContinuations()
+                .UseJobInsights()
                 .UseJobDetailsRenderer(10, dto => throw new InvalidOperationException())
                 .UseJobDetailsRenderer(10, dto => new NonEscapedString("<h4>Hello, world!</h4>"))
                 .UseDefaultCulture(CultureInfo.CurrentCulture)
@@ -43,6 +44,15 @@ namespace ConsoleSample
             var job3 = BackgroundJob.ContinueJobWith<Services>(job2, "critical", x => x.WriteIndex(default));
             var job4 = BackgroundJob.ContinueJobWith<Services>(job3, "default",  x => x.WriteIndex(default));
             var job5 = BackgroundJob.ContinueJobWith<Services>(job4, "critical", x => x.WriteIndex(default));
+
+            // Features from docs/whats-new-next.md: a live console, throttling, rate limits, a circuit breaker
+            BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null, CancellationToken.None));
+            BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
+            BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
+            BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
+            BackgroundJob.Enqueue<NextFeatures>(x => x.Transient(null));
+            RecurringJob.AddOrUpdate<NextFeatures>("flaky-api", x => x.CallFlakyApi(), Cron.FromText("every 20 seconds"));
+            RecurringJob.AddOrUpdate<NextFeatures>("sms", x => x.SendSms("+1 555 0100"), Cron.FromText("every 5 seconds"));
 
             RecurringJob.AddOrUpdate("seconds", () => Console.WriteLine("Hello, seconds!"), "*/15 * * * * *");
             RecurringJob.AddOrUpdate("Console.WriteLine", () => Console.WriteLine("Hello, world!"), Cron.Minutely);
