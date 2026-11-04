@@ -115,10 +115,8 @@ namespace Hangfire.Server
 
             _dispatcher = CreateDispatcher();
 
-#if !NETSTANDARD1_3
             AppDomain.CurrentDomain.DomainUnload += OnCurrentDomainUnload;
             AppDomain.CurrentDomain.ProcessExit += OnCurrentDomainUnload;
-#endif
 
             _shutdownRegistration = AspNetShutdownDetector.GetShutdownToken().Register(OnAspNetShutdown);
         }
@@ -166,10 +164,8 @@ namespace Hangfire.Server
 
             if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
 
-#if !NETSTANDARD1_3
             AppDomain.CurrentDomain.DomainUnload -= OnCurrentDomainUnload;
             AppDomain.CurrentDomain.ProcessExit -= OnCurrentDomainUnload;
-#endif
 
             _dispatcher.Dispose();
             _stoppingCts.Dispose();
@@ -208,8 +204,7 @@ namespace Hangfire.Server
                 // When ASP.NET shutdown is detected, we only need to send a stop
                 // signal to our background processing servers to allow correctly
                 // await for background processing server shutdown during a direct
-                // or indirect call to IRegisteredObject.Stop method, such as
-                // OWIN's "onAppDisposing" event.
+                // or indirect call to IRegisteredObject.Stop method.
                 SendStop();
             }
             catch (ObjectDisposedException)

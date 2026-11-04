@@ -20,9 +20,7 @@ using Newtonsoft.Json;
 namespace Hangfire.Common
 {
     public sealed class TypeHelperSerializationBinder : SerializationBinder
-#if NETSTANDARD2_0
             , Newtonsoft.Json.Serialization.ISerializationBinder
-#endif
     {
         public override Type BindToType(string assemblyName, string typeName)
         {

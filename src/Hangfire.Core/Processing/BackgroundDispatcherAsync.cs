@@ -14,9 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
-#if !NETSTANDARD1_3
 using System.Diagnostics;
-#endif
 using System.Threading;
 using System.Threading.Tasks;
 using Hangfire.Annotations;
@@ -52,9 +50,7 @@ namespace Hangfire.Processing
             _taskScheduler = taskScheduler ?? throw new ArgumentNullException(nameof(taskScheduler));
             _ownsScheduler = ownsScheduler;
 
-#if !NETSTANDARD1_3
             AppDomainUnloadMonitor.EnsureInitialized();
-#endif
 
             _stopped = new CountdownEvent(maxConcurrency);
 
@@ -102,9 +98,7 @@ namespace Hangfire.Processing
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-#if !NETSTANDARD1_3
                 if (!(ex is ThreadAbortException) || !AppDomainUnloadMonitor.IsUnloading)
-#endif
                 {
                     try
                     {
@@ -112,9 +106,7 @@ namespace Hangfire.Processing
                     }
                     catch (Exception inner) when (inner.IsCatchableExceptionType())
                     {
-#if !NETSTANDARD1_3
                         Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Hangfire developers: {ex}");
-#endif
                     }
                 }
             }
@@ -126,9 +118,7 @@ namespace Hangfire.Processing
                 }
                 catch (ObjectDisposedException)
                 {
-#if !NETSTANDARD1_3
                     Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
-#endif
                 }
             }
         }

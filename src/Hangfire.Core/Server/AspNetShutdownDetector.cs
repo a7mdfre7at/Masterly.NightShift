@@ -29,7 +29,6 @@ namespace Hangfire.Server
         [SuppressMessage("SonarLint", "S2930:IDisposablesShouldBeDisposed", Justification = "Has static lifetime, disposed on process shutdown.")]
         private static readonly CancellationTokenSource CancellationTokenSource = new CancellationTokenSource();
 
-#if !NETSTANDARD1_3
         private static int _isInitialized;
         private static bool _isSucceeded;
         // ReSharper disable once NotAccessedField.Local
@@ -37,33 +36,21 @@ namespace Hangfire.Server
         private static Func<string> _shutdownReasonFunc;
         private static Func<bool> _checkConfigChangedFunc;
         private static Func<bool> _disposingHttpRuntime;
-#endif
 
         public static bool IsSucceeded =>
-#if !NETSTANDARD1_3
             _isSucceeded
-#else
-            false
-#endif
         ;
 
         public static CancellationToken GetShutdownToken()
         {
-#if !NETSTANDARD1_3
             EnsureInitialized();
-#endif
             return CancellationTokenSource.Token;
         }
 
         public static bool DisposingHttpRuntime =>
-#if !NETSTANDARD1_3
             _disposingHttpRuntime != null && _disposingHttpRuntime()
-#else
-            false
-#endif
             ;
 
-#if !NETSTANDARD1_3
         private static void EnsureInitialized()
         {
             if (Interlocked.Exchange(ref _isInitialized, 1) != 0) return;
@@ -74,9 +61,9 @@ namespace Hangfire.Server
                 // method is called for all the registered objects, and it is the recommended
                 // way for handling shutdowns when we have some custom background threads.
                 // 
-                // Hangfire uses OWIN's "host.OnAppDisposing" and "server.OnDispose" keys that
+                // Hangfire used OWIN's "host.OnAppDisposing" and "server.OnDispose" keys that
                 // provide a cancellation token which is canceled after OWIN's own registered
-                // object is stopped, and this method works most of the time. But...
+                // object is stopped, and this method worked most of the time. But...
 
                 // Long-running web requests can prevent ASP.NET from stopping the registered
                 // objects, because it waits for all the requests to end before shutting down
@@ -306,7 +293,6 @@ namespace Hangfire.Server
             var fieldExp = Expression.Field(convExp, fieldInfo);
             return Expression.Lambda<Func<object, T>>(fieldExp, instExp).Compile();
         }
-#endif
 
         private static ILog GetLogger()
         {

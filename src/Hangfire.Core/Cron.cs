@@ -276,34 +276,5 @@ namespace Hangfire
         {
             return $"0 0 1 */{interval} *";
         }
-
-#if FEATURE_CRONDESCRIPTOR
-        /// <summary>
-        /// Converts a Cron expression string into a description.
-        /// </summary>
-        /// <param name="cronExpression">A Cron expression string.</param>
-        /// <returns>English description.</returns>
-        [Obsolete("Please install `CronExpressionDescriptor` package manually and use it.")]
-        public static string GetDescription(string cronExpression)
-        {
-            string[] expressionParts = cronExpression.Split(' ');
-
-            if (expressionParts.Length != 5)
-            {
-                throw new InvalidCastException("Invalid Cron Expression");
-            }
-
-            foreach (string expressionPart in expressionParts)
-            {
-                int num;
-                if (!Int32.TryParse(expressionPart, out num) && expressionPart != "*")
-                {
-                    throw new InvalidCastException("Invalid Cron Expression");
-                }
-            }
-
-            return CronExpressionDescriptor.ExpressionDescriptor.GetDescription(cronExpression);
-        }
-#endif
     }
 }

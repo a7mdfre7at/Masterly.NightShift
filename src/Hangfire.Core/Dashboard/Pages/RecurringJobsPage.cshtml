@@ -121,19 +121,6 @@
                                                     cronDescription = ex.Message;
                                                     cronError = true;
                                                 }
-
-                                                if (cronDescription == null)
-                                                {
-#if FEATURE_CRONDESCRIPTOR
-                                                    try
-                                                    {
-                                                        cronDescription = CronExpressionDescriptor.ExpressionDescriptor.GetDescription(job.Cron);
-                                                    }
-                                                    catch (FormatException)
-                                                    {
-                                                    }
-#endif
-                                                }
                                             }
                                         }
 

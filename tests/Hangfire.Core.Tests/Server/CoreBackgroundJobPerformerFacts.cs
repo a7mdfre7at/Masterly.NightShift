@@ -102,7 +102,6 @@ namespace Hangfire.Core.Tests.Server
             Assert.True(_methodInvoked);
         }
 
-#if !NETCOREAPP1_0
         [Fact, StaticLock]
         public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingTypeConverter()
         {
@@ -125,7 +124,6 @@ namespace Hangfire.Core.Tests.Server
             // Assert - see also the `MethodWithDateTimeArgument` method.
             Assert.True(_methodInvoked);
         }
-#endif
 
         [Fact, StaticLock]
         public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingOldFormat()
@@ -441,7 +439,6 @@ namespace Hangfire.Core.Tests.Server
             Assert.True(scheduler.TasksPerformed > 1);
         }
 
-#if !NET452
         private static readonly AsyncLocal<string> AsyncLocal = new AsyncLocal<string>();
         
         [Fact]
@@ -653,7 +650,6 @@ namespace Hangfire.Core.Tests.Server
             yield return new object[] { TaskScheduler.Default };
             yield return new object[] { new Hangfire.Processing.BackgroundTaskScheduler(threadCount: 1) };
         }
-#endif
 
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
@@ -814,11 +810,7 @@ namespace Hangfire.Core.Tests.Server
 
             await Task.Delay(1).ConfigureAwait(false);
 
-#if NETCOREAPP1_0
-            if (threadId == Thread.CurrentThread.ManagedThreadId)
-#else
             if (!Thread.CurrentThread.IsThreadPoolThread)
-#endif
             {
                 throw new InvalidOperationException("Not running on ThreadPool after ConfigureAwait(false)");
             }

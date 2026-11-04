@@ -36,7 +36,7 @@ namespace Hangfire.AspNetCore
 
         public override void DisposeScope()
         {
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1
+#if NET8_0_OR_GREATER
             if (_serviceScope is IAsyncDisposable asyncDisposable)
             {
                 // Service scope disposal is triggered inside a dedicated background thread,

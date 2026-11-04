@@ -313,21 +313,13 @@ namespace Hangfire.Core.Tests
 
         private static void SetCurrentCulture(CultureInfo value)
         {
-#if !NETCOREAPP1_0
             System.Threading.Thread.CurrentThread.CurrentCulture = value;
-#else
-            CultureInfo.CurrentCulture = value;
-#endif
         }
 
         // ReSharper disable once InconsistentNaming
         private static void SetCurrentUICulture(CultureInfo value)
         {
-#if !NETCOREAPP1_0
             System.Threading.Thread.CurrentThread.CurrentUICulture = value;
-#else
-            CultureInfo.CurrentUICulture = value;
-#endif
         }
     }
 }

@@ -625,15 +625,11 @@ values (scope_identity(), @queue)";
             {
                 var queue = CreateJobQueue(useMicrosoftDataSqlClient, invisibilityTimeout: null);
 
-#if NETCOREAPP
                 using (var transaction = connection.BeginTransaction())
                 {
                     queue.Enqueue(connection, transaction, "default", "1");
                     transaction.Commit();
                 }
-#else
-                queue.Enqueue(connection, "default", "1");
-#endif
 
                 var record = connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
                 Assert.Equal("1", record.JobId.ToString());
@@ -653,15 +649,11 @@ values (scope_identity(), @queue)";
 
                 var exception = Assert.ThrowsAny<DbException>(() =>
                 {
-#if NETCOREAPP
                     using (var transaction = connection.BeginTransaction())
                     {
                         queue.Enqueue(connection, transaction, queueName, "1");
                         transaction.Commit();
                     }
-#else
-                    queue.Enqueue(connection, queueName, "1");
-#endif
                 });
 
                 var record = connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue").SingleOrDefault();
@@ -678,15 +670,11 @@ values (scope_identity(), @queue)";
             {
                 var queue = CreateJobQueue(useMicrosoftDataSqlClient, invisibilityTimeout: null);
                 
-#if NETCOREAPP
                 using (var transaction = connection.BeginTransaction())
                 {
                     queue.Enqueue(connection, transaction, "default", (int.MaxValue + 1L).ToString());
                     transaction.Commit();
                 }
-#else
-                queue.Enqueue(connection, "default", (int.MaxValue + 1L).ToString());
-#endif
 
                 var record = connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
                 Assert.Equal((int.MaxValue + 1L).ToString(), record.JobId.ToString());

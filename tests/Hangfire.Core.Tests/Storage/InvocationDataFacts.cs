@@ -624,13 +624,8 @@ namespace Hangfire.Core.Tests.Storage
         {
             var deserializedJob = new InvocationData(typeName, method, parameterTypes, serializedArgs).Deserialize();
 
-#if NETCOREAPP1_0 || NETCOREAPP2_1
-            Assert.Equal(job.Type.FullName, deserializedJob.Type.FullName);
-            Assert.Equal(job.Method.Name, deserializedJob.Method.Name);
-#else
             Assert.Equal(job.Type, deserializedJob.Type);
             Assert.Equal(job.Method, deserializedJob.Method);
-#endif
 
             var parameters = job.Method.GetParameters();
             var deserializedParameters = deserializedJob.Method.GetParameters();
@@ -657,9 +652,7 @@ namespace Hangfire.Core.Tests.Storage
                     new object[] { Job.FromExpression(() => ListMethod(new string[0])), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "ListMethod", "[\"System.Collections.Generic.IList`1[[System.String]], mscorlib\"]", "[\"[]\"]" },
 
                     new object[] { Job.FromExpression(() => GenericMethod(1)), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]" },
-#if !NETCOREAPP1_0
                     new object[] { Job.FromExpression(() => GenericMethod((StringDictionary)null)), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "GenericMethod", "[\"System.Collections.Specialized.StringDictionary, System\"]", "[null]" },
-#endif
                     new object[] { Job.FromExpression(() => GenericMethod((InvocationDataFacts)null)), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "GenericMethod", "[\"Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests\"]", "[null]" },
                     new object[] { Job.FromExpression(() => GenericMethod((GlobalType)null)), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "GenericMethod", "[\"GlobalType, Hangfire.Core.Tests\"]", "[null]" },
                     new object[] { Job.FromExpression(() => OtherGenericMethod(1, new List<int>())), "Hangfire.Core.Tests.Storage.InvocationDataFacts, Hangfire.Core.Tests", "OtherGenericMethod", "[\"System.Int32\",\"System.Collections.Generic.List`1[[System.Int32]], mscorlib\"]", "[\"1\",\"[]\"]" },
@@ -915,7 +908,6 @@ namespace Hangfire.Core.Tests.Storage
             Assert.Null((job.Args[1] as SomeClass)?.NullObject);
         }
 
-#if !NET452 && !NET461
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void DeserializeJob_CanPreviousFormat_WhenTypeNameHandlingOptionIsSetToAll()
         {
@@ -934,7 +926,6 @@ namespace Hangfire.Core.Tests.Storage
             Assert.Equal("WriteLine", job.Method.Name);
             Assert.Equal("Hello ", job.Args[0]);
         }
-#endif
 
         [Fact]
         public void DeserializePayload_ThrowsAnException_WhenPayloadIsNull()

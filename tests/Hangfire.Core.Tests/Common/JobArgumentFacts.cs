@@ -159,7 +159,6 @@ namespace Hangfire.Core.Tests.Common
 			CreateAndPerform(Int64Value);
 		}
 
-#if !NETCOREAPP1_0
 		private const UInt64 UInt64Value = UInt64.MaxValue;
 
 		[UsedImplicitly]
@@ -172,7 +171,6 @@ namespace Hangfire.Core.Tests.Common
 		{
 			CreateAndPerform(UInt64Value);
 		}
-#endif
 
 		private const Int16 Int16Value = Int16.MaxValue;
 
@@ -256,7 +254,6 @@ namespace Hangfire.Core.Tests.Common
 			}
 		}
 
-#if !NETCOREAPP1_0
 		private static readonly CultureInfo CultureInfoValue = new CultureInfo("ru-RU");
 
 		[UsedImplicitly]
@@ -269,7 +266,6 @@ namespace Hangfire.Core.Tests.Common
 		{
 			CreateAndPerform(CultureInfoValue);
 		}
-#endif
 
 		private const DayOfWeek EnumValue = DayOfWeek.Saturday;
 
@@ -436,7 +432,6 @@ namespace Hangfire.Core.Tests.Common
 
 			var serializationMethods = new List<Tuple<string, Func<string>>>();
 
-#if !NETCOREAPP1_0
 			if (!checkJsonOnly)
 			{
 				var converter = TypeDescriptor.GetConverter(typeof(T));
@@ -444,7 +439,6 @@ namespace Hangfire.Core.Tests.Common
 					"TypeDescriptor",
 					() => converter.ConvertToInvariantString(argumentValue)));
 			}
-#endif
 
 			serializationMethods.Add(new Tuple<string, Func<string>>(
 				"JSON",

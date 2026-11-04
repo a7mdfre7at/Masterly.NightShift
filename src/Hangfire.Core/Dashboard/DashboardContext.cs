@@ -22,7 +22,7 @@ namespace Hangfire.Dashboard
 {
     /// <summary>
     /// Provides the context for the Dashboard UI. This class serves as a base class for specific web application frameworks,
-    /// such as ASP.NET Core or OWIN, and is accessible from different Dashboard UI request dispatchers (please see
+    /// such as ASP.NET Core, and is accessible from different Dashboard UI request dispatchers (please see
     /// <see cref="IDashboardDispatcher"/>), like pages or other endpoints.
     /// </summary>
     /// <remarks>

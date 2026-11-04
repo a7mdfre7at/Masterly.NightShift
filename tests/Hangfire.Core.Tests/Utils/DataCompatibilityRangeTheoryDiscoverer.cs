@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NETCOREAPP1_0
-using System.Reflection;
-#endif
 using Hangfire.Annotations;
 using Xunit.Abstractions;
 using Xunit.Sdk;

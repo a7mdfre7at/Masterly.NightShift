@@ -23,9 +23,7 @@ namespace Hangfire.Common
     /// be loaded from the storage due to missing or incorrect 
     /// information about its type or method.
     /// </summary>
-#if !NETSTANDARD1_3
     [Serializable]
-#endif
     public class JobLoadException : Exception
     {
         /// <summary>
@@ -36,17 +34,18 @@ namespace Hangfire.Common
         {
         }
 
-#if !NETSTANDARD1_3
         /// <summary>
         /// Initializes a new instance of the <see cref="JobLoadException"/> class
         /// with serialized data.
         /// </summary>
         /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
         /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(DiagnosticId = "SYSLIB0051")]
+#endif
         protected JobLoadException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
         }
-#endif
     }
 }

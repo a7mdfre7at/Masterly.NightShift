@@ -16,9 +16,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-#if !NETSTANDARD1_3
 using System.ComponentModel;
-#endif
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -379,7 +377,6 @@ namespace Hangfire.Storage
                 }
                 else
                 {
-#if !NETSTANDARD1_3
                     try
                     {
                         var converter = TypeDescriptor.GetConverter(type);
@@ -400,9 +397,6 @@ namespace Hangfire.Storage
                         ExceptionDispatchInfo.Capture(jsonException).Throw();
                         throw;
                     }
-#else
-                    throw;
-#endif
                 }
             }
             return value;

@@ -60,11 +60,9 @@ namespace Hangfire
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
 
-#if !NETSTANDARD1_3
             if (!Enum.IsDefined(typeof(CompatibilityLevel), compatibilityLevel))
                 throw new InvalidEnumArgumentException(nameof(compatibilityLevel), (int) compatibilityLevel,
                     typeof(CompatibilityLevel));
-#endif
 
             GlobalConfiguration.CompatibilityLevel = compatibilityLevel;
 

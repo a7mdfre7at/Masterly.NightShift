@@ -26,17 +26,6 @@ namespace Hangfire.Dashboard
         private readonly List<Tuple<string, IDashboardDispatcher>> _dispatchers
             = new List<Tuple<string, IDashboardDispatcher>>();
 
-#if FEATURE_OWIN
-        [Obsolete("Use the Add(string, IDashboardDispatcher) overload instead. Will be removed in 2.0.0.")]
-        public void Add([NotNull] string pathTemplate, [NotNull] IRequestDispatcher dispatcher)
-        {
-            if (pathTemplate == null) throw new ArgumentNullException(nameof(pathTemplate));
-            if (dispatcher == null) throw new ArgumentNullException(nameof(dispatcher));
-
-            _dispatchers.Add(new Tuple<string, IDashboardDispatcher>(pathTemplate, new RequestDispatcherWrapper(dispatcher)));
-        }
-#endif
-
         public void Add([NotNull] string pathTemplate, [NotNull] IDashboardDispatcher dispatcher)
         {
             if (pathTemplate == null) throw new ArgumentNullException(nameof(pathTemplate));

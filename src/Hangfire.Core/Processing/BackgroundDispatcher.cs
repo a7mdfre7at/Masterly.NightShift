@@ -15,9 +15,7 @@
 
 using System;
 using System.Collections.Generic;
-#if !NETSTANDARD1_3
 using System.Diagnostics;
-#endif
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,9 +46,7 @@ namespace Hangfire.Processing
             _action = action ?? throw new ArgumentNullException(nameof(action));
             _state = state;
 
-#if !NETSTANDARD1_3
             AppDomainUnloadMonitor.EnsureInitialized();
-#endif
 
             var threads = threadFactory(DispatchLoop)?.ToArray();
 
@@ -101,9 +97,7 @@ namespace Hangfire.Processing
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-#if !NETSTANDARD1_3
                 if (!(ex is ThreadAbortException) || !AppDomainUnloadMonitor.IsUnloading)
-#endif
                 {
                     try
                     {
@@ -111,9 +105,7 @@ namespace Hangfire.Processing
                     }
                     catch (Exception inner) when (inner.IsCatchableExceptionType())
                     {
-#if !NETSTANDARD1_3
                         Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Hangfire developers: {ex}");
-#endif
                     }
                 }
             }
@@ -125,9 +117,7 @@ namespace Hangfire.Processing
                 }
                 catch (ObjectDisposedException)
                 {
-#if !NETSTANDARD1_3
                     Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
-#endif
                 }
             }
         }

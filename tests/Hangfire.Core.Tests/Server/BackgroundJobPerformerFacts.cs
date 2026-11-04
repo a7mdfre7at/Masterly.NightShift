@@ -550,7 +550,6 @@ namespace Hangfire.Core.Tests.Server
             Assert.IsType<OperationCanceledException>(exception.InnerException);
         }
 
-#if !NET452
         [Theory]
         [MemberData(nameof(GetSchedulers))]
         public void Run_FlowsAsyncLocal_ThroughFilters_AndSynchronousBackgroundJobMethod(TaskScheduler scheduler)
@@ -634,7 +633,6 @@ namespace Hangfire.Core.Tests.Server
             yield return new object[] { TaskScheduler.Default };
             yield return new object[] { new Hangfire.Processing.BackgroundTaskScheduler(threadCount: 1) };
         }
-#endif
 
         private BackgroundJobPerformer CreatePerformer(IBackgroundJobPerformer inner = null)
         {
@@ -650,7 +648,6 @@ namespace Hangfire.Core.Tests.Server
             return filter;
         }
 
-#if !NET452
         private static readonly AsyncLocal<Guid> Identifier = new AsyncLocal<Guid>();
 
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
@@ -700,6 +697,5 @@ namespace Hangfire.Core.Tests.Server
                 Assert.Equal(_identifier, Identifier.Value);
             }
         }
-#endif
     }
 }

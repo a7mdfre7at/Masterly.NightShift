@@ -45,12 +45,10 @@ namespace Hangfire
             DefaultUICultureName = defaultUICultureName;
             CaptureDefault = captureDefault;
 
-#if !NETSTANDARD1_3
             // For backward compatibility, the cached method does not respect user-overridden values.
             // https://blog.codeinside.eu/2018/05/28/cultureinfo-getculture-vs-new-cultureinfo/
             // https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo.-ctor#system-globalization-cultureinfo-ctor(system-string)
             CachedCulture = false;
-#endif
         }
 
         [CanBeNull]
@@ -61,7 +59,6 @@ namespace Hangfire
 
         public bool CaptureDefault { get; }
 
-#if !NETSTANDARD1_3
         /// <summary>
         /// Gets or sets whether to use the <see cref="GetCultureInfo"/> method when getting
         /// a culture by its name, or create a <see cref="CultureInfo"/> instance using its
@@ -69,7 +66,6 @@ namespace Hangfire
         /// with the current culture specified on the OS level.
         /// </summary>
         public bool CachedCulture { get; set; }
-#endif
 
         public void OnCreating(CreatingContext context)
         {
@@ -160,32 +156,22 @@ namespace Hangfire
         
         private static void SetCurrentCulture(CultureInfo value)
         {
-#if !NETSTANDARD1_3
             System.Threading.Thread.CurrentThread.CurrentCulture = value;
-#else
-            CultureInfo.CurrentCulture = value;
-#endif
         }
 
         // ReSharper disable once InconsistentNaming
         private static void SetCurrentUICulture(CultureInfo value)
         {
-#if !NETSTANDARD1_3
             System.Threading.Thread.CurrentThread.CurrentUICulture = value;
-#else
-            CultureInfo.CurrentUICulture = value;
-#endif
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static")]
         private CultureInfo GetCultureInfo(string cultureName)
         {
-#if !NETSTANDARD1_3
             if (CachedCulture)
             {
                 return CultureInfo.GetCultureInfo(cultureName);
             }
-#endif
 
             return new CultureInfo(cultureName);
         }

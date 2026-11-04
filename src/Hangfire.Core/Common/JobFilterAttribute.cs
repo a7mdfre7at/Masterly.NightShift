@@ -49,10 +49,8 @@ namespace Hangfire.Common
             }
         }
 
-#if !NETSTANDARD1_3
         [JsonIgnore]
         public override object TypeId => base.TypeId;
-#endif
 
         private static bool AllowsMultiple(Type attributeType)
         {

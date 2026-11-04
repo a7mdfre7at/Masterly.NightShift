@@ -1,5 +1,4 @@
-﻿using System.Runtime.Serialization.Formatters;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
 namespace Hangfire.SqlServer.Tests
 {
@@ -9,11 +8,7 @@ namespace Hangfire.SqlServer.Tests
         {
             TypeNameHandling = TypeNameHandling.All,
 
-#if NET452 || NET461 || NETCOREAPP3_1
-            TypeNameAssemblyFormat = FormatterAssemblyStyle.Full,
-#else
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Full,
-#endif
 
             DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
 

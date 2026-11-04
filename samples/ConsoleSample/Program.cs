@@ -8,7 +8,6 @@ using Hangfire.Common;
 using Hangfire.Dashboard;
 using Hangfire.SqlServer;
 using Hangfire.States;
-using Microsoft.Owin.Hosting;
 
 namespace ConsoleSample
 {
@@ -28,8 +27,7 @@ namespace ConsoleSample
                 .UseDefaultCulture(CultureInfo.CurrentCulture)
                 .UseSqlServerStorage(@"Server=.\;Database=Hangfire.Sample;Trusted_Connection=True;", new SqlServerStorageOptions
                 {
-                    EnableHeavyMigrations = true,
-                    DisableTransactionScope = true
+                    EnableHeavyMigrations = true
                 });
 
             Console.WriteLine(SerializationHelper.Serialize(new ExceptionInfo(new OperationCanceledException()), SerializationOption.Internal));
@@ -63,7 +61,14 @@ namespace ConsoleSample
                 TimeZone = TimeZoneInfo.Local
             });
 
-            using (WebApp.Start<Startup>("http://localhost:12345"))
+            var serverOptions = new BackgroundJobServerOptions
+            {
+                Queues = new[] { "critical", "default" },
+                TaskScheduler = null,
+                SchedulePollingInterval = TimeSpan.FromSeconds(1)
+            };
+
+            using (new BackgroundJobServer(serverOptions))
             {
                 var count = 1;
 

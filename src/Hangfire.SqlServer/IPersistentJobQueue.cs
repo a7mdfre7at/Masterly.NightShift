@@ -24,14 +24,10 @@ namespace Hangfire.SqlServer
     {
         IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken);
 
-#if FEATURE_TRANSACTIONSCOPE
-        void Enqueue(System.Data.IDbConnection connection, string queue, string jobId);
-#else
         void Enqueue(
             System.Data.Common.DbConnection connection, 
             System.Data.Common.DbTransaction transaction, 
             string queue, 
             string jobId);
-#endif
     }
 }

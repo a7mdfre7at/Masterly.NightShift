@@ -24,9 +24,7 @@ namespace Hangfire.Client
     /// could not create a job due to another exception was thrown.
     /// </summary>
     [Obsolete("Please use the `BackgroundJobClientException` instead. Will be removed in 2.0.0.")]
-#if !NETSTANDARD1_3
     [Serializable]
-#endif
     public class CreateJobFailedException : Exception
     {
         /// <summary>
@@ -41,17 +39,18 @@ namespace Hangfire.Client
         {
         }
         
-#if !NETSTANDARD1_3
         /// <summary>
         /// Initializes a new instance of the <see cref="CreateJobFailedException"/> class
         /// with serialized data.
         /// </summary>
         /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
         /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(DiagnosticId = "SYSLIB0051")]
+#endif
         protected CreateJobFailedException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
         }
-#endif
     }
 }

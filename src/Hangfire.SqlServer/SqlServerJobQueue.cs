@@ -70,22 +70,16 @@ namespace Hangfire.SqlServer
             return DequeueUsingTransaction(queues, cancellationToken);
         }
 
-#if FEATURE_TRANSACTIONSCOPE
-        public void Enqueue(IDbConnection connection, string queue, string jobId)
-#else
         public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
-#endif
         {
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
-            using var command = ((DbConnection)connection).Create(query, timeout: _storage.CommandTimeout);
+            using var command = connection.Create(query, timeout: _storage.CommandTimeout);
             command.AddParameter("@jobId", long.Parse(jobId, CultureInfo.InvariantCulture), DbType.Int64);
             command.AddParameter("@queue", queue, DbType.String);
 
-#if !FEATURE_TRANSACTIONSCOPE
             command.Transaction = transaction;
-#endif
 
             command.ExecuteNonQuery();
         }

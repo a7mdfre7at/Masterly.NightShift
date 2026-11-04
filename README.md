@@ -11,7 +11,7 @@ Hangfire
 
 ## Overview
 
-Incredibly easy way to perform **fire-and-forget**, **delayed** and **recurring jobs** in **.NET applications**. CPU and I/O intensive, long-running and short-running jobs are supported. No Windows Service / Task Scheduler required. Backed by Redis, SQL Server, SQL Azure and MSMQ.
+Incredibly easy way to perform **fire-and-forget**, **delayed** and **recurring jobs** in **.NET applications**. CPU and I/O intensive, long-running and short-running jobs are supported. No Windows Service / Task Scheduler required. Backed by Redis, SQL Server, SQL Azure and many other storages.
 
 Hangfire provides a unified programming model to handle background tasks in a **reliable way** and run them on shared hosting, dedicated hosting or in cloud. You can start with a simple setup and grow computational power for background jobs with time for these scenarios:
 
@@ -40,16 +40,19 @@ Hangfire is available as a NuGet package. You can install it using the NuGet Pac
 PM> Install-Package Hangfire
 ```
 
-After installation, update your existing [OWIN Startup](https://www.asp.net/aspnet/overview/owin-and-katana/owin-startup-class-detection) file with the following lines of code. If you do not have this class in your project or don't know what is it, please read the [Quick start](https://docs.hangfire.io/en/latest/getting-started/index.html) guide to learn about how to install Hangfire.
+After installation, register Hangfire in your ASP.NET Core application. Please read the [Quick start](https://docs.hangfire.io/en/latest/getting-started/index.html) guide for more details.
 
 ```csharp
-public void Configuration(IAppBuilder app)
-{
-    GlobalConfiguration.Configuration.UseSqlServerStorage("<connection string or its name>");
-    
-    app.UseHangfireServer();
-    app.UseHangfireDashboard();
-}
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHangfire(config => config
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Hangfire")));
+builder.Services.AddHangfireServer();
+
+var app = builder.Build();
+
+app.MapHangfireDashboard();
+app.Run();
 ```
 
 Usage
@@ -92,7 +95,7 @@ BackgroundJob.ContinueWith(id, () => Console.WriteLine("world!"));
 
 **Process background tasks inside a web application…**
 
-You can process background tasks in any OWIN-compatible application framework, including [ASP.NET MVC](https://www.asp.net/mvc), [ASP.NET Web API](https://www.asp.net/web-api), [FubuMvc](https://fubu-project.org), [Nancy](https://nancyfx.org), etc. Forget about [AppDomain unloads, Web Garden & Web Farm issues](https://haacked.com/archive/2011/10/16/the-dangers-of-implementing-recurring-background-tasks-in-asp-net.aspx/) – Hangfire is reliable for web applications from scratch, even on shared hosting.
+You can process background tasks in any .NET application, including [ASP.NET Core](https://learn.microsoft.com/aspnet/core/) web apps, worker services and console applications. Forget about [AppDomain unloads, Web Garden & Web Farm issues](https://haacked.com/archive/2011/10/16/the-dangers-of-implementing-recurring-background-tasks-in-asp-net.aspx/) – Hangfire is reliable for web applications from scratch, even on shared hosting.
 
 ```csharp
 app.UseHangfireServer();
@@ -129,7 +132,6 @@ Building the sources
 
 Prerequisites:
 * [Razor Generator](https://marketplace.visualstudio.com/items?itemName=DavidEbbo.RazorGenerator): Required if you intend to edit the cshtml files.
-* Install the MSMQ service (Microsoft Message Queue Server), if not already installed.
 
 Then, create an environment variable with Variable name `Hangfire_SqlServer_ConnectionStringTemplate` and put your connection string in the Variable value field. Example:
 

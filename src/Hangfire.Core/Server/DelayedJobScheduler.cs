@@ -193,7 +193,6 @@ namespace Hangfire.Server
                             jobsProcessed++;
                         }
 
-#if !NETSTANDARD1_3
                         if (MaxDegreeOfParallelism > 1)
                         {
                             Parallel.ForEach(
@@ -213,7 +212,6 @@ namespace Hangfire.Server
                                 });
                         }
                         else
-#endif
                         {
                             foreach (var jobId in toBeSequentiallyEnqueued)
                             {

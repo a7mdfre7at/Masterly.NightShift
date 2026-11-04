@@ -23,6 +23,7 @@ using System.Threading;
 using Dapper;
 using Hangfire.Annotations;
 using Hangfire.Storage;
+using NotNullAttribute = Hangfire.Annotations.NotNullAttribute;
 
 namespace Hangfire.SqlServer
 {

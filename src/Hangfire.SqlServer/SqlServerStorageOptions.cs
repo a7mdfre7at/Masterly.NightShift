@@ -14,13 +14,9 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Data;
 using System.Data.Common;
 using System.Reflection;
-#if FEATURE_TRANSACTIONSCOPE
-using System.Transactions;
-#else
-using System.Data;
-#endif
 
 namespace Hangfire.SqlServer
 {
@@ -44,7 +40,9 @@ namespace Hangfire.SqlServer
             PrepareSchemaIfNecessary = true;
             DashboardJobListLimit = 10000;
             _schemaName = Constants.DefaultSchema;
+#pragma warning disable 618
             TransactionTimeout = TimeSpan.FromMinutes(1);
+#pragma warning restore 618
             DisableGlobalLocks = false;
             DeleteExpiredBatchSize = -1;
             UseTransactionalAcknowledge = false;
@@ -139,7 +137,10 @@ namespace Hangfire.SqlServer
         public TimeSpan CountersAggregateInterval { get; set; }
 
         public int? DashboardJobListLimit { get; set; }
+
+        [Obsolete("This option has no effect, because TransactionScope is no longer used and explicit transactions are always used instead. You can safely remove it. Will be removed in 2.0.0.")]
         public TimeSpan TransactionTimeout { get; set; }
+
         public TimeSpan? CommandTimeout { get; set; }
         public TimeSpan? CommandBatchMaxTimeout { get; set; }
         public TimeSpan InactiveStateExpirationTimeout { get; set; }
@@ -216,20 +217,12 @@ namespace Hangfire.SqlServer
         /// </summary>
         public IPersistentJobQueueProvider DefaultQueueProvider { get; set; }
 
-#if FEATURE_TRANSACTIONSCOPE
         /// <summary>
-        /// Disables the use of the System.Transactions namespace and <see cref="TransactionScope"/> class
-        /// and switches to regular explicit transactions usage in .NET Framework version of <see cref="SqlServerStorage"/>
-        /// (as in .NET Core's implementation). Potentially fixes problems with abandoned locks and exhausted
-        /// connection pool.
+        /// This option has no effect and is kept only for compatibility. <see cref="SqlServerStorage"/>
+        /// no longer uses the System.Transactions namespace, and always uses regular explicit transactions.
         /// </summary>
-        /// <remarks>
-        /// This option only works with the default
-        /// <see cref="IPersistentJobQueueProvider"/>, throwing an exception when external queue providers are used
-        /// (such as MSMQ-based or custom ones).
-        /// </remarks>
+        [Obsolete("This option has no effect, because TransactionScope is no longer used and explicit transactions are always used instead. You can safely remove it. Will be removed in 2.0.0.")]
         public bool DisableTransactionScope { get; set; }
-#endif
 
         /// <summary>
         /// Gets or sets a value indicating whether to disable semaphores used to limit the number

@@ -88,11 +88,7 @@ namespace Hangfire.Common
 
         private static string GetStackTrace(Exception ex, bool includeFileInfo)
         {
-#if NETSTANDARD1_3
-            return ex.StackTrace;
-#else
             return new System.Diagnostics.StackTrace(ex, includeFileInfo).ToString();
-#endif
         }
     }
 }

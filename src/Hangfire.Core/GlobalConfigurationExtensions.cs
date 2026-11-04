@@ -127,7 +127,6 @@ namespace Hangfire
             return configuration.UseLogProvider(new Log4NetLogProvider());
         }
 
-#if !NETSTANDARD1_3
         public static IGlobalConfiguration<ElmahLogProvider> UseElmahLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
@@ -144,9 +143,7 @@ namespace Hangfire
 
             return configuration.UseLogProvider(new ElmahLogProvider(minLevel));
         }
-#endif
 
-#if !NETSTANDARD1_3
         public static IGlobalConfiguration<EntLibLogProvider> UseEntLibLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
@@ -154,7 +151,6 @@ namespace Hangfire
 
             return configuration.UseLogProvider(new EntLibLogProvider());
         }
-#endif
 
         public static IGlobalConfiguration<SerilogLogProvider> UseSerilogLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
@@ -164,7 +160,6 @@ namespace Hangfire
             return configuration.UseLogProvider(new SerilogLogProvider());
         }
 
-#if !NETSTANDARD1_3
         public static IGlobalConfiguration<LoupeLogProvider> UseLoupeLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
@@ -172,7 +167,6 @@ namespace Hangfire
 
             return configuration.UseLogProvider(new LoupeLogProvider());
         }
-#endif
 
         public static IGlobalConfiguration<TFilter> UseFilter<TFilter>(
             [NotNull] this IGlobalConfiguration configuration, 

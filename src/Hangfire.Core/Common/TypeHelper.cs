@@ -74,18 +74,11 @@ namespace Hangfire.Common
         {
             return DefaultTypeResolverCache.GetOrAdd(typeName, static name =>
             {
-#if NETSTANDARD1_3
-                name = name.Replace("System.Private.CoreLib", "mscorlib");
-                return Type.GetType(
-                    name,
-                    throwOnError: true);
-#else
                 return Type.GetType(
                     name,
                     typeResolver: TypeResolver,
                     assemblyResolver: CachedAssemblyResolver,
                     throwOnError: true);
-#endif
             });
         }
 
@@ -212,14 +205,12 @@ namespace Hangfire.Common
 
             var publicKeyToken = assemblyName.GetPublicKeyToken();
 
-#if !NETSTANDARD1_3
             if (assemblyName.Version == null && assemblyName.CultureInfo == null && publicKeyToken == null)
             {
 #pragma warning disable 618
                 return Assembly.LoadWithPartialName(assemblyName.Name);
 #pragma warning restore 618
             }
-#endif
 
             try
             {

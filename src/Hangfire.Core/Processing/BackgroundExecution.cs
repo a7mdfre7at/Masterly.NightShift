@@ -61,9 +61,7 @@ namespace Hangfire.Processing
 
             _stopRegistration = _stopToken.Register(SetStoppedAt);
 
-#if !NETSTANDARD1_3
             AppDomainUnloadMonitor.EnsureInitialized();
-#endif
         }
 
         public bool StopRequested => _disposed || _stopToken.IsCancellationRequested;
@@ -80,9 +78,7 @@ namespace Hangfire.Processing
             // so ManagedThreadId doesn't work there.
             //using (LogProvider.OpenMappedContext("ExecutionId", executionId.ToString()))
             {
-#if !NETSTANDARD1_3
                 try
-#endif
                 {
                     HandleStarted(executionId, out var nextDelay);
 
@@ -118,14 +114,12 @@ namespace Hangfire.Processing
                             callback(executionId, state);
                             HandleSuccess(out nextDelay);
                         }
-#if !NETSTANDARD1_3
                         catch (ThreadAbortException) when (AppDomainUnloadMonitor.IsUnloading)
                         {
                             // Our thread is aborted due to AppDomain unload. It's better to give up to
                             // not to cause the host to be more aggressive.
                             throw;
                         }
-#endif
                         catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
                         {
                             // We are catching general OCE exception without checking its CancellationToken
@@ -143,7 +137,6 @@ namespace Hangfire.Processing
 
                     HandleStop(executionId);
                 }
-#if !NETSTANDARD1_3
                 catch (ThreadAbortException ex)
                 {
                     // This is a rude stop. Since we are handling all the thread aborts
@@ -151,7 +144,6 @@ namespace Hangfire.Processing
                     // case we don't reset thread abort.
                     HandleThreadAbort(executionId, ex);
                 }
-#endif
             }
         }
 
@@ -167,9 +159,7 @@ namespace Hangfire.Processing
             // implementation uses AsyncLocal instead of ThreadLocal ;-)
             //using (LogProvider.OpenMappedContext("ExecutionId", executionId.ToString()))
             {
-#if !NETSTANDARD1_3
                 try
-#endif
                 {
                     HandleStarted(executionId, out var nextDelay);
 
@@ -205,14 +195,12 @@ namespace Hangfire.Processing
                             await callback(executionId, state).ConfigureAwait(true);
                             HandleSuccess(out nextDelay);
                         }
-#if !NETSTANDARD1_3
                         catch (ThreadAbortException) when (AppDomainUnloadMonitor.IsUnloading)
                         {
                             // Our previous task was aborted due to AppDomain unload. It's better to
                             // give up to not to cause the host to be more aggressive.
                             throw;
                         }
-#endif
                         catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
                         {
                             // We are catching general OCE exception without checking its CancellationToken
@@ -230,7 +218,6 @@ namespace Hangfire.Processing
 
                     HandleStop(executionId);
                 }
-#if !NETSTANDARD1_3
                 catch (ThreadAbortException ex)
                 {
                     // This is a rude stop. Since we are handling all the thread aborts
@@ -238,7 +225,6 @@ namespace Hangfire.Processing
                     // case we don't reset thread abort.
                     HandleThreadAbort(executionId, ex);
                 }
-#endif
             }
         }
 
@@ -356,7 +342,6 @@ namespace Hangfire.Processing
 
         private void HandleException(Guid executionId, Exception exception, out TimeSpan delay)
         {
-#if !NETSTANDARD1_3
             // Normally, there should be no checks for AppDomain unload condition, because we can't
             // get here on appdomain unloads. But Mono < 5.4 has an issue with Thread.ResetAbort, and
             // it can prevent appdomain to be unloaded: https://bugzilla.xamarin.com/show_bug.cgi?id=5804.
@@ -365,7 +350,9 @@ namespace Hangfire.Processing
             {
                 try
                 {
+#pragma warning disable SYSLIB0006 // Still required for .NET Framework hosts running the netstandard2.0 build
                     Thread.ResetAbort();
+#pragma warning restore SYSLIB0006
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
@@ -375,7 +362,6 @@ namespace Hangfire.Processing
                     _logger.ErrorException($"{GetExecutionLoopTemplate(executionId)} was unable to reset thread abort request due to an exception. Background execution can be prematurely stopped.", ex);
                 }
             }
-#endif
 
             if (StopRequested)
             {
@@ -411,12 +397,10 @@ namespace Hangfire.Processing
             _logger.Debug($"{GetExecutionLoopTemplate(executionId)} stopped in {stoppedAt?.Elapsed.TotalMilliseconds ?? 0} ms");
         }
 
-#if !NETSTANDARD1_3
         private void HandleThreadAbort(Guid executionId, Exception exception)
         {
             _logger.WarnException($"{GetExecutionLoopTemplate(executionId)} caught ThreadAbortException, see inner exception for details", exception);
         }
-#endif
 
         private void ToRunningState()
         {

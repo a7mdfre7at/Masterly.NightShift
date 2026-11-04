@@ -14,17 +14,11 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
-using System.Collections.Generic;
 using System.Net;
 
 namespace Hangfire.Dashboard
 {
     public class LocalRequestsOnlyAuthorizationFilter : IDashboardAuthorizationFilter
-#if FEATURE_OWIN
-#pragma warning disable 618
-        , IAuthorizationFilter
-#pragma warning restore 618
-#endif
     {
         public bool Authorize(DashboardContext context)
         {
@@ -43,27 +37,5 @@ namespace Hangfire.Dashboard
             // Handle addresses such as ::ffff:127.0.0.1 (IP v4 mapped to IP v6)
             return IPAddress.TryParse(context.Request.RemoteIpAddress, out IPAddress address) && IPAddress.IsLoopback(address);
         }
-
-#if FEATURE_OWIN
-        public bool Authorize(IDictionary<string, object> owinEnvironment)
-        {
-            var context = new Microsoft.Owin.OwinContext(owinEnvironment);
-
-            // if unknown, assume not local
-            if (String.IsNullOrEmpty(context.Request.RemoteIpAddress))
-                return false;
-
-            // check if localhost
-            if (context.Request.RemoteIpAddress == "127.0.0.1" || context.Request.RemoteIpAddress == "::1")
-                return true;
-
-            // compare with local address
-            if (context.Request.RemoteIpAddress == context.Request.LocalIpAddress)
-                return true;
-
-            // Handle addresses such as ::ffff:127.0.0.1 (IP v4 mapped to IP v6)
-            return IPAddress.TryParse(context.Request.RemoteIpAddress, out IPAddress address) && IPAddress.IsLoopback(address);
-        }
-#endif
     }
 }

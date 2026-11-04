@@ -128,7 +128,6 @@ namespace Hangfire.Core.Tests.Common
             Assert.Equal(initialObject.PropertyA, resultingObject.PropertyA);
         }
 
-#if !NET452 && !NET461
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void Serialize_JsonDefaultSettingsAffectResult_WhenOptionIs_User()
         {
@@ -224,7 +223,6 @@ namespace Hangfire.Core.Tests.Common
 
             Assert.Equal(@"{""$type"":""Hangfire.Core.Tests.Common.SerializationHelperFacts+ClassB, Hangfire.Core.Tests"",""StringValue"":""B"",""DateTimeValue"":""1961-04-12T00:00:00""}", result);
         }
-#endif
 
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void Serialize_WithSpecifiedType_DoesNotIncludeTypeProperty_WhenItEqualsToDeclared_AndTypeNameHandlingAutoIsUsed()
@@ -415,9 +413,7 @@ namespace Hangfire.Core.Tests.Common
             var serializerSettings = SerializationHelper.GetInternalSettings();
 
             Assert.Equal(TypeNameHandling.Auto, serializerSettings.TypeNameHandling);
-#if !NET452 && !NET461 && !NETCOREAPP1_0
             Assert.Equal(TypeNameAssemblyFormatHandling.Simple, serializerSettings.TypeNameAssemblyFormatHandling);
-#endif
             Assert.Equal(DefaultValueHandling.IgnoreAndPopulate, serializerSettings.DefaultValueHandling);
             Assert.Equal(NullValueHandling.Ignore, serializerSettings.NullValueHandling);
             Assert.True(serializerSettings.CheckAdditionalContent);

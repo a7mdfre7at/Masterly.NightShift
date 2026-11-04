@@ -93,17 +93,6 @@ namespace Hangfire.SqlServer.Tests
             }
         }
 
-#if NET452 || NET461
-        [Fact, CleanDatabase]
-        public void UseConnection_UsesSystemDataSqlClient_ByDefault_OnNet452Only()
-        {
-            var storage = CreateStorage();
-            storage.UseConnection(null, (_, connection) =>
-            {
-                Assert.IsType<System.Data.SqlClient.SqlConnection>(connection);
-            });
-        }
-#else
         [Fact, CleanDatabase]
         public void UseConnection_UsesMicrosoftDataSqlClient_ByDefault()
         {
@@ -113,9 +102,7 @@ namespace Hangfire.SqlServer.Tests
                 Assert.IsType<Microsoft.Data.SqlClient.SqlConnection>(connection);
             });
         }
-#endif
 
-#if !NET452
         [Fact, CleanDatabase]
         public void UseConnection_UsesSystemDataSqlClient_WhenSqlClientFactoryIsSet()
         {
@@ -126,7 +113,6 @@ namespace Hangfire.SqlServer.Tests
                 Assert.IsType<System.Data.SqlClient.SqlConnection>(connection);
             });
         }
-#endif
 
         [Fact, CleanDatabase]
         public void GetComponents_ReturnsAllNeededComponents()

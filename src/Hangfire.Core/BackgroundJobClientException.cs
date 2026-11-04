@@ -26,9 +26,7 @@ namespace Hangfire
     /// implements the <see cref="IBackgroundJobClient"/> interface is unable
     /// to perform an operation due to an error.
     /// </summary>
-#if !NETSTANDARD1_3
     [Serializable]
-#endif
     public class BackgroundJobClientException : CreateJobFailedException
     {
         /// <summary>
@@ -42,17 +40,18 @@ namespace Hangfire
         {
         }
 
-#if !NETSTANDARD1_3
         /// <summary>
         /// Initializes a new instance of the <see cref="BackgroundJobClientException"/> class
         /// with serialized data.
         /// </summary>
         /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
         /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
+#if NET8_0_OR_GREATER
+        [Obsolete(DiagnosticId = "SYSLIB0051")]
+#endif
         protected BackgroundJobClientException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
         }
-#endif
     }
 }

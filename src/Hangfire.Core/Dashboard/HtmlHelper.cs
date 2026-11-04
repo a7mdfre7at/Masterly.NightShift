@@ -42,11 +42,7 @@ namespace Hangfire.Dashboard
         {
             try
             {
-#if !NETSTANDARD1_3
                 DisplayNameType = typeof(DisplayNameAttribute);
-#else
-                DisplayNameType = Type.GetType("System.ComponentModel.DisplayNameAttribute, System.ComponentModel.Primitives");
-#endif
                 if (DisplayNameType == null) return;
 
                 var p = Expression.Parameter(typeof(object));

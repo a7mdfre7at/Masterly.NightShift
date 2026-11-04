@@ -52,12 +52,6 @@ namespace Hangfire
         /// </summary>
         public string PrefixPath { get; set; }
 
-
-#if FEATURE_OWIN
-        [Obsolete("Please use `Authorization` property instead. Will be removed in 2.0.0.")]
-        public IEnumerable<IAuthorizationFilter> AuthorizationFilters { get; set; }
-#endif
-
         public IEnumerable<IDashboardAuthorizationFilter> Authorization { get; set; }
 
         public IEnumerable<IDashboardAsyncAuthorizationFilter> AsyncAuthorization

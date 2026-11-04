@@ -23,9 +23,7 @@ namespace Hangfire.SqlServer.Tests
             JobHelper.SetSerializerSettings(null);
 #pragma warning restore 618
             GlobalConfiguration.Configuration.UseSerializerSettings(null);
-#if !NET452 && !NET461
             JsonConvert.DefaultSettings = null;
-#endif
         }
     }
 }

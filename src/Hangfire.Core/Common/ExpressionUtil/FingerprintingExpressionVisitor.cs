@@ -118,12 +118,10 @@ namespace Hangfire.Common.ExpressionUtil
             return base.VisitDefault(node);
         }
 
-#if !NETSTANDARD1_3
         protected override Expression VisitDynamic(DynamicExpression node)
         {
             return GiveUp(node);
         }
-#endif
 
         protected override ElementInit VisitElementInit(ElementInit node)
         {

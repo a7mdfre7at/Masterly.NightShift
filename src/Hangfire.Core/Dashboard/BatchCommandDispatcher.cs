@@ -28,14 +28,6 @@ namespace Hangfire.Dashboard
             _command = command;
         }
 
-#if FEATURE_OWIN
-        [Obsolete("Use the `BatchCommandDispatcher(Action<DashboardContext>, string)` instead. Will be removed in 2.0.0.")]
-        public BatchCommandDispatcher(Action<RequestDispatcherContext, string> command)
-        {
-            _command = (context, jobId) => command(RequestDispatcherContext.FromDashboardContext(context), jobId);
-        }
-#endif
-
         public async Task Dispatch(DashboardContext context)
         {
             if (context.IsReadOnly)

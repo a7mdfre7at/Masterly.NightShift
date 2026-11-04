@@ -1,7 +1,4 @@
 ﻿using System;
-#if NETCOREAPP1_0
-using System.Reflection;
-#endif
 using Hangfire.Annotations;
 using Hangfire.Common;
 using Hangfire.Storage;
@@ -262,9 +259,7 @@ namespace Hangfire.Core.Tests.Common
                 JobHelper.SetSerializerSettings(new JsonSerializerSettings
                 {
                     TypeNameHandling = TypeNameHandling.All,
-#if !NET452 && !NET461 && !NETCOREAPP1_0
                     TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple
-#endif
                 });
 
                 var method = typeof (BackgroundJob).GetMethod("DoWork");

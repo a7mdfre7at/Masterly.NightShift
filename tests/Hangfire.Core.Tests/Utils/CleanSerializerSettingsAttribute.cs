@@ -23,9 +23,7 @@ namespace Hangfire.Core.Tests
             JobHelper.SetSerializerSettings(null);
 #pragma warning restore 618
             SerializationHelper.SetUserSerializerSettings(null);
-#if !NET452 && !NET461
             JsonConvert.DefaultSettings = null;
-#endif
         }
     }
 }

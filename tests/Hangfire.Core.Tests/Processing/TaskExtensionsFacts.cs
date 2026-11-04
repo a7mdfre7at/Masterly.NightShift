@@ -105,11 +105,7 @@ namespace Hangfire.Core.Tests.Processing
                 async () => await TaskExtensions.WaitOneAsync(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
             sw.Stop();
 
-#if !NET452
             Assert.Equal(_cts.Token, exception.CancellationToken);
-#else
-            Assert.NotNull(exception);
-#endif
             Assert.True(sw.Elapsed > TimeSpan.FromMilliseconds(450), $"Elapsed: {sw.Elapsed.TotalMilliseconds} ms, Expected: 450 ms");
         }
 
@@ -198,11 +194,7 @@ namespace Hangfire.Core.Tests.Processing
                 () => TaskExtensions.WaitOne(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
             sw.Stop();
 
-#if !NET452
             Assert.Equal(_cts.Token, exception.CancellationToken);
-#else
-            Assert.NotNull(exception);
-#endif
             Assert.True(sw.Elapsed > TimeSpan.FromMilliseconds(450), $"Elapsed: {sw.Elapsed.TotalMilliseconds} ms, Expected: 450 ms");
         }
     }
