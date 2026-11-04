@@ -58,6 +58,7 @@ namespace Hangfire.Dashboard
             Routes = new RouteCollection();
             Routes.AddRazorPage("/", static _ => new HomePage());
             Routes.Add("/stats", new JsonStats());
+            Routes.Add("/ping", new PingDispatcher());
 
             var executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
 
