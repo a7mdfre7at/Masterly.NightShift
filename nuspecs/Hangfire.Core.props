@@ -1,0 +1,8 @@
+<Project>
+  <!-- Lets the Hangfire source generator read these MSBuild properties.
+       Set <HangfireDisableJobInvokerGeneration>true</HangfireDisableJobInvokerGeneration> in a project
+       to skip generating job invokers for it; jobs then use compiled invokers at runtime. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="HangfireDisableJobInvokerGeneration" />
+  </ItemGroup>
+</Project>

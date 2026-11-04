@@ -34,6 +34,8 @@ Task Test -Depends Merge -Description "Run unit and integration tests against me
 
 Task Collect -Depends Test -Description "Copy all artifacts to the build folder." {
     Collect-Assembly "Hangfire.Core" "netstandard2.0"
+    # Shipped inside Hangfire.Core as an analyzer (analyzers/dotnet/cs)
+    Collect-Assembly "Hangfire.SourceGenerator" "netstandard2.0"
     Collect-Assembly "Hangfire.SqlServer" "netstandard2.0"
     Collect-Assembly "Hangfire.NetCore" "netstandard2.0"
     Collect-Assembly "Hangfire.AspNetCore" "netstandard2.0"

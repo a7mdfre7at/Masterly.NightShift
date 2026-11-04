@@ -89,6 +89,11 @@ Please see https://docs.hangfire.io/en/latest/upgrade-guides/upgrading-to-hangfi
     <file src="net10.0\Hangfire.Core.xml" target="lib\net10.0" />
     <file src="net10.0\**\Hangfire.Core.resources.dll" target="lib\net10.0" />
 
+    <!-- The source generator that emits reflection-free job invokers into consumers' assemblies -->
+    <file src="netstandard2.0\Hangfire.SourceGenerator.dll" target="analyzers\dotnet\cs" />
+    <file src="..\nuspecs\Hangfire.Core.props" target="build\Hangfire.Core.props" />
+    <file src="..\nuspecs\Hangfire.Core.props" target="buildTransitive\Hangfire.Core.props" />
+
     <file src="..\nuspecs\icon.png" />
 
     <file src="README.md" />    
