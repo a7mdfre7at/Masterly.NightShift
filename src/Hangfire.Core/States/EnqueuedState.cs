@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -106,7 +108,7 @@ namespace Hangfire.States
         /// The <paramref name="queue"/> argument is not a valid queue name.
         /// </exception>
         [JsonConstructor]
-        public EnqueuedState([CanBeNull] string queue)
+        public EnqueuedState([CanBeNull] string? queue)
         {
             queue = queue ?? DefaultQueue;
 
@@ -167,7 +169,7 @@ namespace Hangfire.States
         public string Name => StateName;
 
         /// <inheritdoc />
-        public string Reason { get; set; }
+        public string? Reason { get; set; }
 
         /// <inheritdoc />
         /// <remarks>

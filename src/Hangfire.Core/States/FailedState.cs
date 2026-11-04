@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -90,7 +92,7 @@ namespace Hangfire.States
         ///
         /// <exception cref="ArgumentNullException">The <paramref name="exception"/>
         /// argument is <see langword="null" /></exception>
-        public FailedState([NotNull] Exception exception, [CanBeNull] string serverId)
+        public FailedState([NotNull] Exception exception, [CanBeNull] string? serverId)
         {
             if (exception == null) throw new ArgumentNullException(nameof(exception));
 
@@ -118,7 +120,7 @@ namespace Hangfire.States
         /// Gets the server identifier on which the exception occurred.
         /// </summary>
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string ServerId { get; }
+        public string? ServerId { get; }
 
         /// <inheritdoc />
         /// <remarks>
@@ -130,7 +132,7 @@ namespace Hangfire.States
         public string Name => StateName;
 
         /// <inheritdoc />
-        public string Reason { get; set; }
+        public string? Reason { get; set; }
 
         /// <inheritdoc />
         /// <remarks>
@@ -197,7 +199,7 @@ namespace Hangfire.States
             var result = new Dictionary<string, string>
             {
                 { "FailedAt", JobHelper.SerializeDateTime(FailedAt) },
-                { "ExceptionType", Exception.GetType().FullName },
+                { "ExceptionType", Exception.GetType().FullName ?? Exception.GetType().Name },
                 { "ExceptionMessage", Exception.Message },
                 { "ExceptionDetails", Exception.ToStringWithOriginalStackTrace(MaxLinesInStackTrace, IncludeFileInfo) }
             };

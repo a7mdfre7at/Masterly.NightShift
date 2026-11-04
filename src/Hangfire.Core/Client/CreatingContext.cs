@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 
 namespace Hangfire.Client
@@ -62,7 +64,7 @@ namespace Hangfire.Client
         /// 
         /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
         /// <exception cref="InvalidOperationException">Could not deserialize the parameter value to the type <typeparamref name="T"/>.</exception>
-        public T GetJobParameter<T>(string name)
+        public T? GetJobParameter<T>(string name)
         {
             if (String.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
 

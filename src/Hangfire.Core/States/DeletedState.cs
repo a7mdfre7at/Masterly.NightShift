@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -70,14 +72,14 @@ namespace Hangfire.States
         {
         }
 
-        public DeletedState([CanBeNull] ExceptionInfo exceptionInfo)
+        public DeletedState([CanBeNull] ExceptionInfo? exceptionInfo)
         {
             ExceptionInfo = exceptionInfo;
             DeletedAt = DateTime.UtcNow;
         }
 
         [JsonProperty("Ex", NullValueHandling = NullValueHandling.Ignore)]
-        public ExceptionInfo ExceptionInfo { get; }
+        public ExceptionInfo? ExceptionInfo { get; }
 
         /// <inheritdoc />
         /// <remarks>
@@ -89,7 +91,7 @@ namespace Hangfire.States
         public string Name => StateName;
 
         /// <inheritdoc />
-        public string Reason { get; set; }
+        public string? Reason { get; set; }
 
         /// <inheritdoc />
         /// <remarks>

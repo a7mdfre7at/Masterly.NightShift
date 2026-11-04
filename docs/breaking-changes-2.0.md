@@ -58,11 +58,19 @@ These runtimes are out of support. They now get the `netstandard2.0` builds, whi
 
 ## Nullable reference type annotations (source-level only)
 
-The client API now carries C# nullable annotations: `BackgroundJob`, `IBackgroundJobClient`, `BackgroundJobClient`, `BackgroundJobClientExtensions`, `RecurringJob`, `IRecurringJobManager`, `RecurringJobManager`, `RecurringJobManagerExtensions` and `RecurringJobOptions`. Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
+These parts of the API now carry C# nullable annotations:
+
+- **Client:** `BackgroundJob`, `IBackgroundJobClient`, `BackgroundJobClient`, `BackgroundJobClientExtensions`, `RecurringJob`, `IRecurringJobManager`, `RecurringJobManager`, `RecurringJobManagerExtensions` and `RecurringJobOptions`.
+- **Server:** `BackgroundJobServer` and `BackgroundJobServerOptions`.
+- **Filters:** the client, server and state filter interfaces and their contexts (`CreateContext`, `CreatingContext`, `CreatedContext`, `PerformContext`, `PerformingContext`, `PerformedContext`, `ElectStateContext`, `ApplyStateContext` and the exception contexts).
+- **States:** `IState` and the built-in states.
+ Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
 
 - **Job IDs are `string?`.** All `Enqueue`, `Schedule`, `ContinueJobWith`, `ContinueWith` and `Create` methods return `null` when creation doesn't happen: a client filter cancels it, an exception filter handles a failure, or the storage returns no ID. Check the result before passing it on, for example to `ContinueJobWith`.
 - **`RecurringJob.TriggerJob` and `RecurringJobManager.TriggerJob` return `string?`.** They return `null` when the recurring job doesn't exist or wasn't triggered.
 - **Optional parameters that accept `null` are marked as nullable**, for example `fromState` and `timeZone`.
+- **In filters:** `CreatedContext.BackgroundJob` is `null` when creation was canceled. `PerformedContext.Exception` and `Result` can be `null`. `GetJobParameter<T>` returns `T?` (`default` when the parameter is missing).
+- **In states:** `IState.Reason` and every built-in state's `Reason` are `string?`, as are `FailedState.ServerId` and `DeletedState.ExceptionInfo`. `BackgroundJobServerOptions.ServerName` is `string?`, where `null` means the machine name is used.
 
 ## Dependency changes
 

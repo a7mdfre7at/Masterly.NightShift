@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -38,7 +40,7 @@ namespace Hangfire.Client
             [NotNull] JobStorage storage,
             [NotNull] IStorageConnection connection,
             [NotNull] Job job,
-            [CanBeNull] IState initialState)
+            [CanBeNull] IState? initialState)
             : this(storage, connection, job, initialState, null)
         {
         }
@@ -47,8 +49,8 @@ namespace Hangfire.Client
             [NotNull] JobStorage storage,
             [NotNull] IStorageConnection connection,
             [NotNull] Job job,
-            [CanBeNull] IState initialState,
-            [CanBeNull] IDictionary<string, object> parameters)
+            [CanBeNull] IState? initialState,
+            [CanBeNull] IDictionary<string, object>? parameters)
             : this(storage, connection, job, initialState, parameters, EmptyProfiler.Instance, null)
         {
         }
@@ -57,10 +59,10 @@ namespace Hangfire.Client
             [NotNull] JobStorage storage, 
             [NotNull] IStorageConnection connection, 
             [NotNull] Job job, 
-            [CanBeNull] IState initialState,
-            [CanBeNull] IDictionary<string, object> parameters,
+            [CanBeNull] IState? initialState,
+            [CanBeNull] IDictionary<string, object>? parameters,
             [NotNull] IProfiler profiler,
-            [CanBeNull] IDictionary<string, object> items)
+            [CanBeNull] IDictionary<string, object>? items)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
             if (connection == null) throw new ArgumentNullException(nameof(connection));
@@ -103,12 +105,12 @@ namespace Hangfire.Client
         /// class are doing their job.
         /// </summary>
         [CanBeNull]
-        public IState InitialState { get; }
+        public IState? InitialState { get; }
 
         [NotNull]
         internal IProfiler Profiler { get; }
         
         [CanBeNull]
-        public IBackgroundJobFactory Factory { get; internal set; }
+        public IBackgroundJobFactory? Factory { get; internal set; }
     }
 }

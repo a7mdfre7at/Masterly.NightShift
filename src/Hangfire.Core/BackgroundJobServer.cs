@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -91,11 +93,11 @@ namespace Hangfire
             [NotNull] BackgroundJobServerOptions options,
             [NotNull] JobStorage storage,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
-            [CanBeNull] IJobFilterProvider filterProvider,
-            [CanBeNull] JobActivator activator,
-            [CanBeNull] IBackgroundJobFactory factory,
-            [CanBeNull] IBackgroundJobPerformer performer,
-            [CanBeNull] IBackgroundJobStateChanger stateChanger)
+            [CanBeNull] IJobFilterProvider? filterProvider,
+            [CanBeNull] JobActivator? activator,
+            [CanBeNull] IBackgroundJobFactory? factory,
+            [CanBeNull] IBackgroundJobPerformer? performer,
+            [CanBeNull] IBackgroundJobStateChanger? stateChanger)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
             if (options == null) throw new ArgumentNullException(nameof(options));
@@ -184,11 +186,11 @@ namespace Hangfire
         }
 
         private IEnumerable<IBackgroundProcessDispatcherBuilder> GetRequiredProcesses(
-            [CanBeNull] IJobFilterProvider filterProvider,
-            [CanBeNull] JobActivator activator,
-            [CanBeNull] IBackgroundJobFactory factory,
-            [CanBeNull] IBackgroundJobPerformer performer,
-            [CanBeNull] IBackgroundJobStateChanger stateChanger)
+            [CanBeNull] IJobFilterProvider? filterProvider,
+            [CanBeNull] JobActivator? activator,
+            [CanBeNull] IBackgroundJobFactory? factory,
+            [CanBeNull] IBackgroundJobPerformer? performer,
+            [CanBeNull] IBackgroundJobStateChanger? stateChanger)
         {
             var processes = new List<IBackgroundProcessDispatcherBuilder>();
             var timeZoneResolver = _options.TimeZoneResolver ?? new DefaultTimeZoneResolver();

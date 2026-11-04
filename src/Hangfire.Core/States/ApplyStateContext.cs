@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -40,7 +42,7 @@ namespace Hangfire.States
             [NotNull] IWriteOnlyTransaction transaction,
             [NotNull] BackgroundJob backgroundJob,
             [NotNull] IState newState,
-            [CanBeNull] string oldStateName)
+            [CanBeNull] string? oldStateName)
             : this(storage, connection, transaction, backgroundJob, newState, oldStateName, EmptyProfiler.Instance, null)
         {
         }
@@ -51,10 +53,10 @@ namespace Hangfire.States
             [NotNull] IWriteOnlyTransaction transaction,
             [NotNull] BackgroundJob backgroundJob,
             [NotNull] IState newState, 
-            [CanBeNull] string oldStateName,
+            [CanBeNull] string? oldStateName,
             [NotNull] IProfiler profiler,
-            [CanBeNull] IStateMachine stateMachine,
-            [CanBeNull] IReadOnlyDictionary<string, object> customData = null)
+            [CanBeNull] IStateMachine? stateMachine,
+            [CanBeNull] IReadOnlyDictionary<string, object>? customData = null)
         {
             BackgroundJob = backgroundJob ?? throw new ArgumentNullException(nameof(backgroundJob));
             Storage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -80,7 +82,7 @@ namespace Hangfire.States
         public override BackgroundJob BackgroundJob { get; }
 
         [CanBeNull]
-        public string OldStateName { get; }
+        public string? OldStateName { get; }
 
         [NotNull]
         public IState NewState { get; }
@@ -91,20 +93,20 @@ namespace Hangfire.States
         internal IProfiler Profiler { get; }
 
         [CanBeNull]
-        public IReadOnlyDictionary<string, object> CustomData { get; }
+        public IReadOnlyDictionary<string, object>? CustomData { get; }
 
         [CanBeNull]
-        public IStateMachine StateMachine { get; }
+        public IStateMachine? StateMachine { get; }
 
-        public T GetJobParameter<T>([NotNull] string name) => GetJobParameter<T>(name, allowStale: false);
+        public T? GetJobParameter<T>([NotNull] string name) => GetJobParameter<T>(name, allowStale: false);
 
-        public T GetJobParameter<T>([NotNull] string name, bool allowStale)
+        public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
 
             try
             {
-                string value;
+                string? value;
 
                 if (allowStale && BackgroundJob.ParametersSnapshot != null)
                 {

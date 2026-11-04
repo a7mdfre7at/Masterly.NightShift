@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +31,7 @@ namespace Hangfire
         private const int MaxDefaultWorkerCount = 20;
 
         private int _workerCount;
-        private string[] _queues;
+        private string[] _queues = { EnqueuedState.DefaultQueue };
         private TimeSpan _serverTimeout;
         private TimeSpan _serverCheckInterval;
         private TimeSpan _heartbeatInterval;
@@ -55,7 +57,7 @@ namespace Hangfire
             TaskScheduler = TaskScheduler.Default;
         }
         
-        public string ServerName { get; set; }
+        public string? ServerName { get; set; }
 
         /// <summary>
         /// Gets or sets whether storage instance will include only <see cref="Worker"/> and required
@@ -171,22 +173,22 @@ namespace Hangfire
         public TimeSpan CancellationCheckInterval { get; set; }
 
         [Obsolete("Please use `ServerTimeout` or `ServerCheckInterval` options instead. Will be removed in 2.0.0.")]
-        public ServerWatchdogOptions ServerWatchdogOptions { get; set; }
+        public ServerWatchdogOptions? ServerWatchdogOptions { get; set; }
 
         [CanBeNull]
-        public IJobFilterProvider FilterProvider { get; set; }
+        public IJobFilterProvider? FilterProvider { get; set; }
 
         [CanBeNull]
-        public JobActivator Activator { get; set; }
+        public JobActivator? Activator { get; set; }
 
         [CanBeNull]
-        public ITimeZoneResolver TimeZoneResolver { get; set; }
+        public ITimeZoneResolver? TimeZoneResolver { get; set; }
 
         [CanBeNull]
-        public TaskScheduler TaskScheduler { get; set; }
+        public TaskScheduler? TaskScheduler { get; set; }
         
         [CanBeNull]
-        public Action<Thread> WorkerThreadConfigurationAction { get; set; }
+        public Action<Thread>? WorkerThreadConfigurationAction { get; set; }
 
         /// <summary>
         /// Experimental option for schedulers, but not for workers. Gets or sets the
