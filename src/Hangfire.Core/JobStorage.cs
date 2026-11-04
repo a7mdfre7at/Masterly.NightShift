@@ -119,5 +119,19 @@ namespace Hangfire
             if (featureId == null) throw new ArgumentNullException(nameof(featureId));
             return false;
         }
+
+        /// <summary>
+        /// Removes all stored job data: jobs with their states, parameters and queue entries, counters, lists,
+        /// sets and hashes. <paramref name="options"/> says whether recurring job definitions and server
+        /// registrations survive. Storages that support it report the <see cref="JobStorageFeatures.Purge"/>
+        /// feature; the dashboard's maintenance actions call this method.
+        /// </summary>
+        /// <param name="options">What to keep.</param>
+        /// <exception cref="NotSupportedException">The storage doesn't implement purging.</exception>
+        public virtual void Purge([NotNull] StoragePurgeOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Purge);
+        }
     }
 }

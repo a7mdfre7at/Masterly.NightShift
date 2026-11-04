@@ -30,6 +30,9 @@ namespace Hangfire.Storage
         public static readonly string ExtendedApi = "Storage.ExtendedApi";
         public static readonly string ProcessesInsteadOfComponents = "Storage.ProcessesInsteadOfComponents";
 
+        /// <summary>The storage implements <see cref="JobStorage.Purge"/>.</summary>
+        public static readonly string Purge = "Storage.Purge";
+
         public static class Connection
         {
             public static readonly string GetUtcDateTime = "Connection.GetUtcDateTime";

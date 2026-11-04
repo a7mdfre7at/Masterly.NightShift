@@ -58,6 +58,7 @@ namespace Hangfire.SqlServer
                 { JobStorageFeatures.Transaction.CreateJob, false },
                 { JobStorageFeatures.Transaction.SetJobParameter, false },
                 { JobStorageFeatures.Monitoring.DeletedStateGraphs, true },
+                { JobStorageFeatures.Purge, true },
                 { JobStorageFeatures.Monitoring.AwaitingJobs, true }
             };
 
@@ -189,9 +190,47 @@ namespace Hangfire.SqlServer
         {
             if (featureId == null) throw new ArgumentNullException(nameof(featureId));
 
-            return _features.TryGetValue(featureId, out var isSupported) 
+            return _features.TryGetValue(featureId, out var isSupported)
                 ? isSupported
                 : base.HasFeature(featureId);
+        }
+
+        /// <inheritdoc />
+        public override void Purge(StoragePurgeOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            UseConnection(null, static (storage, connection, ctx) =>
+            {
+                var schema = storage.SchemaName;
+                var sql = new StringBuilder();
+
+                // Child tables first, so no foreign key gets in the way, in batches to keep the transaction log sane
+                sql.Append($@"
+set xact_abort on;
+begin transaction;
+delete from [{schema}].[JobParameter];
+delete from [{schema}].[State];
+delete from [{schema}].[JobQueue];
+delete from [{schema}].[Job];
+delete from [{schema}].[Counter];
+delete from [{schema}].[AggregatedCounter];
+delete from [{schema}].[List];
+");
+                sql.Append(ctx.KeepRecurringJobs
+                    ? $"delete from [{schema}].[Set] where [Key] <> N'recurring-jobs';\ndelete from [{schema}].[Hash] where [Key] not like N'recurring-job:%';\n"
+                    : $"delete from [{schema}].[Set];\ndelete from [{schema}].[Hash];\n");
+
+                if (!ctx.KeepServers)
+                {
+                    sql.Append($"delete from [{schema}].[Server];\n");
+                }
+
+                sql.Append("commit transaction;");
+
+                connection.Execute(sql.ToString(), commandTimeout: storage.CommandTimeout);
+                return true;
+            }, options);
         }
 
         public override string ToString()
