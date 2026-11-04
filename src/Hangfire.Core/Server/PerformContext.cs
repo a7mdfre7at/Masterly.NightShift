@@ -111,6 +111,28 @@ namespace Hangfire.Server
         [CanBeNull]
         public string? ServerId { get; }
 
+        /// <summary>
+        /// Gets the console the job reports progress, lines and checkpoints to. Shared by every context created
+        /// for this performance, so filters and interceptors write to the same console as the job.
+        /// </summary>
+        [NotNull]
+        public IJobConsole Console
+        {
+            get
+            {
+                if (Items.TryGetValue(ConsoleItemKey, out var existing) && existing is IJobConsole console)
+                {
+                    return console;
+                }
+
+                var created = new JobConsole(this);
+                Items[ConsoleItemKey] = created;
+                return created;
+            }
+        }
+
+        internal const string ConsoleItemKey = "X_HF_Console";
+
         public void SetJobParameter([NotNull] string name, object value)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));

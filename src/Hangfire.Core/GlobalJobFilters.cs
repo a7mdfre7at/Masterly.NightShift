@@ -14,6 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using Hangfire.Common;
+using Hangfire.Server;
 
 namespace Hangfire
 {
@@ -34,6 +35,7 @@ namespace Hangfire
             Filters.Add(new AutomaticRetryAttribute());
             Filters.Add(new StatisticsHistoryAttribute());
             Filters.Add(new ContinuationsSupportAttribute());
+            Filters.Add(new JobConsoleStateFilter());
         }
 
         /// <summary>

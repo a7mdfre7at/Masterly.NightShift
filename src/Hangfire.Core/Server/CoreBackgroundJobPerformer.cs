@@ -1,16 +1,16 @@
 ﻿// This file is part of Hangfire. Copyright © 2015 Hangfire OÜ.
-// 
+//
 // Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as 
-// published by the Free Software Foundation, either version 3 
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation, either version 3
 // of the License, or any later version.
-// 
+//
 // Hangfire is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public 
+//
+// You should have received a copy of the GNU Lesser General Public
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
@@ -32,7 +32,8 @@ namespace Hangfire.Server
             {
                 { typeof (IJobCancellationToken), static x => x.CancellationToken },
                 { typeof (CancellationToken), static x => x.CancellationToken.ShutdownToken },
-                { typeof (PerformContext), static x => x }
+                { typeof (PerformContext), static x => x },
+                { typeof (IJobConsole), static x => x.Console }
             };
 
         private readonly JobActivator _activator;
@@ -50,24 +51,30 @@ namespace Hangfire.Server
             {
                 object instance = null;
 
-                if (context.BackgroundJob.Job == null)
+                var job = context.BackgroundJob.Job;
+                if (job == null)
                 {
                     throw new InvalidOperationException("Can't perform a background job with a null job.");
                 }
-                
-                if (!context.BackgroundJob.Job.Method.IsStatic)
+
+                // The invoker is resolved once per method and cached: a generated one when the job's assembly
+                // was compiled with the Hangfire source generator, a compiled delegate otherwise, reflection last.
+                var invoker = JobInvokerRegistry.GetInvoker(job.Method);
+
+                if (!invoker.IsStatic)
                 {
-                    instance = scope.Resolve(context.BackgroundJob.Job.Type);
+                    instance = scope.Resolve(job.Type);
 
                     if (instance == null)
                     {
                         throw new InvalidOperationException(
-                            $"JobActivator returned NULL instance of the '{context.BackgroundJob.Job.Type}' type.");
+                            $"JobActivator returned NULL instance of the '{job.Type}' type.");
                     }
                 }
 
-                var arguments = SubstituteArguments(context);
-                var result = InvokeMethod(context, instance, arguments);
+                var arguments = SubstituteArguments(context, job, invoker.ParameterTypes);
+                var interceptors = JobInterceptorPipeline.GetInterceptors(job);
+                var result = InvokeMethod(context, invoker, instance, arguments, interceptors);
 
                 return result;
             }
@@ -82,10 +89,10 @@ namespace Hangfire.Server
                 // should NOT be re-queued.
                 ExceptionDispatchInfo.Capture(exception).Throw();
             }
-            
+
             if (exception is OperationCanceledException && cancellationToken.IsAborted())
             {
-                // OperationCanceledException exception is thrown because 
+                // OperationCanceledException exception is thrown because
                 // ServerJobCancellationWatcher has detected the job was aborted.
                 throw new JobAbortedException();
             }
@@ -107,15 +114,17 @@ namespace Hangfire.Server
                 exception, job?.Id);
         }
 
-        private object InvokeMethod(PerformContext context, object instance, object[] arguments)
+        private object InvokeMethod(
+            PerformContext context,
+            JobInvoker invoker,
+            object instance,
+            object[] arguments,
+            IReadOnlyList<IJobInterceptor> interceptors)
         {
-            if (context.BackgroundJob.Job == null) return null;
-
             try
             {
-                var methodInfo = context.BackgroundJob.Job.Method;
-                var method = new BackgroundJobMethod(methodInfo, instance, arguments);
-                var returnType = methodInfo.ReturnType;
+                var method = new BackgroundJobMethod(context, invoker, instance, arguments, interceptors);
+                var returnType = invoker.ReturnType;
 
                 if (returnType.IsTaskLike(out var getTaskFunc))
                 {
@@ -254,39 +263,38 @@ namespace Hangfire.Server
             ((BackgroundJobMethod)state).Invoke();
         }
 
-        private static object[] SubstituteArguments(PerformContext context)
+        private static object[] SubstituteArguments(PerformContext context, Job job, Type[] parameterTypes)
         {
-            if (context.BackgroundJob.Job == null)
+            var result = new object[parameterTypes.Length];
+
+            for (var i = 0; i < parameterTypes.Length; i++)
             {
-                return null;
-            }
+                var argument = job.Args[i];
 
-            var parameters = context.BackgroundJob.Job.Method.GetParameters();
-            var result = new List<object>(context.BackgroundJob.Job.Args.Count);
-
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameter = parameters[i];
-                var argument = context.BackgroundJob.Job.Args[i];
-
-                var value = Substitutions.TryGetValue(parameter.ParameterType, out var substitution) 
-                    ? substitution(context) 
+                result[i] = Substitutions.TryGetValue(parameterTypes[i], out var substitution)
+                    ? substitution(context)
                     : argument;
-
-                result.Add(value);
             }
 
-            return result.ToArray();
+            return result;
         }
 
-        private sealed class BackgroundJobMethod(MethodInfo methodInfo, object instance, object[] parameters)
+        private sealed class BackgroundJobMethod(
+            PerformContext context,
+            JobInvoker invoker,
+            object instance,
+            object[] arguments,
+            IReadOnlyList<IJobInterceptor> interceptors)
         {
-            public Type ReturnType => methodInfo.ReturnType;
+            public Type ReturnType => invoker.ReturnType;
             public object Result { get; private set; }
 
             public object Invoke()
             {
-                Result = methodInfo.Invoke(instance, parameters);
+                Result = interceptors.Count > 0
+                    ? new JobInvocation(context, invoker, instance, arguments, interceptors).Proceed()
+                    : invoker.Invoke(instance, arguments);
+
                 return Result;
             }
         }
