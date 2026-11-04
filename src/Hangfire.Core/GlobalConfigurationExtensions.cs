@@ -23,6 +23,7 @@ using Hangfire.Dashboard;
 using Hangfire.Dashboard.Pages;
 using Hangfire.Logging;
 using Hangfire.Logging.LogProviders;
+using Hangfire.Server;
 using Newtonsoft.Json;
 
 namespace Hangfire
@@ -395,6 +396,54 @@ namespace Hangfire
         }
 
 #endif
+
+        /// <summary>
+        /// Adds an interceptor that runs around every background job method, before the interceptors declared
+        /// with attributes on the job's type and method. See <see cref="IJobInterceptor"/>.
+        /// </summary>
+        /// <param name="configuration">The global configuration.</param>
+        /// <param name="interceptor">The interceptor.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public static IGlobalConfiguration UseJobInterceptor(
+            [NotNull] this IGlobalConfiguration configuration,
+            [NotNull] IJobInterceptor interceptor)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (interceptor == null) throw new ArgumentNullException(nameof(interceptor));
+
+            GlobalJobInterceptors.Add(interceptor);
+            return configuration;
+        }
+
+        /// <summary>
+        /// Records per-method run counts, failure counts and durations for the dashboard's Insights page.
+        /// See <see cref="JobInsightsAttribute"/>.
+        /// </summary>
+        /// <param name="configuration">The global configuration.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public static IGlobalConfiguration UseJobInsights([NotNull] this IGlobalConfiguration configuration)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            return configuration.UseFilter(new JobInsightsAttribute());
+        }
+
+        /// <summary>
+        /// Chooses whether job methods without a generated invoker are called through a delegate compiled
+        /// once per method (the default) or through reflection. See <see cref="JobInvokerRegistry"/>.
+        /// </summary>
+        /// <param name="configuration">The global configuration.</param>
+        /// <param name="enabled"><c>false</c> to use reflection for every method without a generated invoker.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public static IGlobalConfiguration UseCompiledJobInvokers(
+            [NotNull] this IGlobalConfiguration configuration,
+            bool enabled)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+
+            JobInvokerRegistry.UseCompiledInvokers = enabled;
+            return configuration;
+        }
+
         public static IGlobalConfiguration UseDashboardStylesheet(
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] Assembly assembly,
