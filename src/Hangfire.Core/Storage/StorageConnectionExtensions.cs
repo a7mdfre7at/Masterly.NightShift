@@ -171,6 +171,17 @@ namespace Hangfire.Storage
                     dto.RetryAttempt = 0;
                 }
 
+                if (hash.TryGetValue("Paused", out var paused) && paused == "1")
+                {
+                    dto.Paused = true;
+                }
+
+                if (hash.TryGetValue("Misfire", out var misfire) && Int32.TryParse(misfire, out var misfireValue) &&
+                    Enum.IsDefined(typeof(MisfireHandlingMode), misfireValue))
+                {
+                    dto.MisfireHandling = (MisfireHandlingMode)misfireValue;
+                }
+
                 result.Add(dto);
             }
             

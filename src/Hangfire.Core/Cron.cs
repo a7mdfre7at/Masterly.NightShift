@@ -14,6 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Collections.Generic;
 
 namespace Hangfire
 {
@@ -22,6 +23,107 @@ namespace Hangfire
     /// </summary>
     public static class Cron
     {
+        /// <summary>
+        /// Turns an English phrase into a CRON expression, for example "every 15 minutes", "daily at 3:30 pm",
+        /// "weekdays at 9", "every monday and friday at 08:00", "every 10 minutes between 9 and 17 on weekdays",
+        /// "monthly on the 15th at midnight", "last day of month at 23:00" or "every 30 seconds". A phrase that
+        /// already is a CRON expression is returned unchanged.
+        /// </summary>
+        /// <param name="text">The schedule in plain English.</param>
+        /// <returns>A CRON expression accepted by <see cref="RecurringJob"/>.</returns>
+        /// <exception cref="FormatException">The phrase isn't understood or can't be expressed in CRON.</exception>
+        public static string FromText(string text)
+        {
+            return CronTextParser.Parse(text);
+        }
+
+        /// <summary>
+        /// Describes a CRON expression in English, for example "Every 15 minutes, between 09:00 and 17:59,
+        /// Monday to Friday" for <c>*/15 9-17 * * 1-5</c>. Accepts 5- and 6-field expressions and the
+        /// <c>@</c> presets.
+        /// </summary>
+        /// <param name="cronExpression">The expression.</param>
+        /// <exception cref="FormatException">The expression can't be parsed.</exception>
+        public static string Describe(string cronExpression)
+        {
+            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+
+            RecurringJobEntity.ParseCronExpression(cronExpression);
+            return CronDescriber.Describe(cronExpression);
+        }
+
+        /// <summary>
+        /// Like <see cref="Describe"/>, but returns <c>null</c> for expressions it can't parse.
+        /// </summary>
+        /// <param name="cronExpression">The expression.</param>
+        public static string TryDescribe(string cronExpression)
+        {
+            if (cronExpression == null) return null;
+
+            try
+            {
+                return Describe(cronExpression);
+            }
+            catch (Exception ex) when (ex is FormatException || ex is ArgumentException || ex is OverflowException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Starts a fluent <see cref="CronBuilder"/>, for example
+        /// <c>Cron.Builder().EveryMinutes(15).Between(9, 17).OnWeekdays()</c>.
+        /// </summary>
+        public static CronBuilder Builder()
+        {
+            return new CronBuilder();
+        }
+
+        /// <summary>
+        /// Like <see cref="FromText"/>, but returns <c>false</c> instead of throwing.
+        /// </summary>
+        /// <param name="text">The schedule in plain English.</param>
+        /// <param name="cronExpression">The CRON expression, or <c>null</c>.</param>
+        public static bool TryFromText(string text, out string cronExpression)
+        {
+            try
+            {
+                cronExpression = CronTextParser.Parse(text);
+                return true;
+            }
+            catch (Exception ex) when (ex is FormatException || ex is ArgumentException)
+            {
+                cronExpression = null;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Computes the next occurrences of a CRON expression, as the dashboard preview shows them.
+        /// </summary>
+        /// <param name="cronExpression">A 5- or 6-part CRON expression.</param>
+        /// <param name="timeZone">Time zone the expression is evaluated in.</param>
+        /// <param name="fromUtc">Occurrences strictly after this UTC instant are returned.</param>
+        /// <param name="count">How many occurrences to return.</param>
+        /// <returns>Up to <paramref name="count"/> UTC instants; fewer when the expression stops firing.</returns>
+        public static IReadOnlyList<DateTime> GetNextOccurrences(string cronExpression, TimeZoneInfo timeZone, DateTime fromUtc, int count)
+        {
+            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            if (timeZone == null) throw new ArgumentNullException(nameof(timeZone));
+            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+
+            var expression = RecurringJobEntity.ParseCronExpression(cronExpression);
+            var result = new List<DateTime>(count);
+            DateTime? next = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
+
+            while (result.Count < count && (next = expression.GetNextOccurrence(next.Value, timeZone, inclusive: false)) != null)
+            {
+                result.Add(next.Value);
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Returns cron expression that fires every minute.
         /// </summary>

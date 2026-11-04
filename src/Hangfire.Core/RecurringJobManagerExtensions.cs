@@ -26,6 +26,47 @@ namespace Hangfire
 {
     public static class RecurringJobManagerExtensions
     {
+        /// <summary>
+        /// Pauses a recurring job, see <see cref="IRecurringJobManagerV3.Pause"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public static bool Pause([NotNull] this IRecurringJobManager manager, [NotNull] string recurringJobId)
+        {
+            return AsV3(manager).Pause(recurringJobId);
+        }
+
+        /// <summary>
+        /// Resumes a paused recurring job, see <see cref="IRecurringJobManagerV3.Resume"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public static bool Resume([NotNull] this IRecurringJobManager manager, [NotNull] string recurringJobId)
+        {
+            return AsV3(manager).Resume(recurringJobId);
+        }
+
+        /// <summary>
+        /// Changes a recurring job's schedule, see <see cref="IRecurringJobManagerV3.UpdateSchedule"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public static bool UpdateSchedule(
+            [NotNull] this IRecurringJobManager manager,
+            [NotNull] string recurringJobId,
+            [CanBeNull] string? cronExpression,
+            [CanBeNull] TimeZoneInfo? timeZone = null,
+            [CanBeNull] string? queue = null,
+            MisfireHandlingMode? misfireHandling = null)
+        {
+            return AsV3(manager).UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
+        }
+
+        private static IRecurringJobManagerV3 AsV3(IRecurringJobManager manager)
+        {
+            if (manager == null) throw new ArgumentNullException(nameof(manager));
+
+            return manager as IRecurringJobManagerV3
+                ?? throw new NotSupportedException($"The recurring job manager '{manager.GetType()}' doesn't implement {nameof(IRecurringJobManagerV3)}, so recurring jobs can't be paused, resumed or rescheduled through it.");
+        }
+
         public static void AddOrUpdate(
             [NotNull] this IRecurringJobManager manager,
             [NotNull] string recurringJobId,

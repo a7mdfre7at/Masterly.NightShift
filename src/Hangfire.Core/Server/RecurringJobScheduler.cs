@@ -322,7 +322,7 @@ namespace Hangfire.Server
 
                     var executions = recurringJob.ScheduleNext(
                         _timeZoneResolver,
-                        recurringJob.LastExecution ?? recurringJob.CreatedAt?.AddSeconds(-1) ?? now.AddSeconds(-1),
+                        recurringJob.ScheduleFrom ?? recurringJob.CreatedAt?.AddSeconds(-1) ?? now.AddSeconds(-1),
                         now,
                         precision);
 

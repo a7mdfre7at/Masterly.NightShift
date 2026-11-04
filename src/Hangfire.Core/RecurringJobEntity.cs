@@ -1,4 +1,4 @@
-// This file is part of Hangfire. Copyright © 2019 Hangfire OÜ.
+﻿// This file is part of Hangfire. Copyright © 2019 Hangfire OÜ.
 // 
 // Hangfire is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
@@ -109,6 +109,16 @@ namespace Hangfire
             {
                 Error = error;
             }
+
+            if (recurringJob.TryGetValue("Paused", out var paused) && paused == "1")
+            {
+                Paused = true;
+            }
+
+            if (recurringJob.TryGetValue("ResumedAt", out var resumedAt) && !String.IsNullOrWhiteSpace(resumedAt))
+            {
+                ResumedAt = JobHelper.DeserializeDateTime(resumedAt);
+            }
         }
 
         public string RecurringJobId { get; }
@@ -128,6 +138,50 @@ namespace Hangfire
         public int RetryAttempt { get; set; }
         public string Error { get; set; }
 
+        /// <summary>
+        /// A paused job keeps its definition but leaves the schedule: <see cref="ScheduleNext(ITimeZoneResolver, DateTime)"/>
+        /// yields nothing and <see cref="NextExecution"/> stays <c>null</c> until <see cref="Resume"/>.
+        /// </summary>
+        public bool Paused { get; private set; }
+
+        /// <summary>
+        /// When the job was last resumed. The scheduler never looks for missed occurrences before this
+        /// instant, so a resumed job doesn't catch up on the time it was paused.
+        /// </summary>
+        public DateTime? ResumedAt { get; private set; }
+
+        /// <summary>
+        /// The instant the scheduler computes the next occurrences from: the last execution, or the resume
+        /// time when that is later. <c>null</c> for a job that never ran.
+        /// </summary>
+        public DateTime? ScheduleFrom
+        {
+            get
+            {
+                if (LastExecution.HasValue && ResumedAt.HasValue) return LastExecution > ResumedAt ? LastExecution : ResumedAt;
+                return LastExecution ?? ResumedAt;
+            }
+        }
+
+        public void Pause()
+        {
+            Paused = true;
+            NextExecution = null;
+            Error = null;
+            RetryAttempt = 0;
+        }
+
+        /// <summary>
+        /// Resumes a paused job from <paramref name="now"/>: occurrences missed while paused are not caught up,
+        /// whatever the misfire handling mode. The execution history is kept.
+        /// </summary>
+        public void Resume(ITimeZoneResolver timeZoneResolver, DateTime now)
+        {
+            Paused = false;
+            ResumedAt = now;
+            ScheduleNext(timeZoneResolver, now);
+        }
+
         public void ScheduleNext(ITimeZoneResolver timeZoneResolver, DateTime from)
         {
             ScheduleNext(timeZoneResolver, from, from, TimeSpan.Zero);
@@ -142,6 +196,14 @@ namespace Hangfire
             if (timeZoneResolver == null) throw new ArgumentNullException(nameof(timeZoneResolver));
 
             var result = new List<DateTime>();
+
+            if (Paused)
+            {
+                NextExecution = null;
+                Error = null;
+                return result;
+            }
+
             var cron = ParseCronExpression(Cron);
             var timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
 
@@ -263,6 +325,20 @@ namespace Hangfire
             if ((_recurringJob.TryGetValue("Error", out var error) && !String.IsNullOrWhiteSpace(error) ? error : null) != Error)
             {
                 result.Add("Error", Error ?? String.Empty);
+            }
+
+            var serializedResumedAt = ResumedAt.HasValue ? JobHelper.SerializeDateTime(ResumedAt.Value) : null;
+            if (serializedResumedAt != null &&
+                (_recurringJob.TryGetValue("ResumedAt", out var resumedAt) ? resumedAt : null) != serializedResumedAt)
+            {
+                result.Add("ResumedAt", serializedResumedAt);
+            }
+
+            var pausedValue = Paused ? "1" : "0";
+            if ((!_recurringJob.ContainsKey("Paused") && Paused) ||
+                (_recurringJob.TryGetValue("Paused", out var pausedStored) && pausedStored != pausedValue))
+            {
+                result.Add("Paused", pausedValue);
             }
 
             var retryAttemptValue = RetryAttempt.ToString(CultureInfo.InvariantCulture);

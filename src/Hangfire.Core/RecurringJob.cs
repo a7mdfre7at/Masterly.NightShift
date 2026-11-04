@@ -50,6 +50,29 @@ namespace Hangfire
             }
         }
 
+        /// <summary>Pauses a recurring job, see <see cref="IRecurringJobManagerV3.Pause"/>.</summary>
+        public static bool Pause([NotNull] string recurringJobId)
+        {
+            return ManagerFactory().Pause(recurringJobId);
+        }
+
+        /// <summary>Resumes a paused recurring job, see <see cref="IRecurringJobManagerV3.Resume"/>.</summary>
+        public static bool Resume([NotNull] string recurringJobId)
+        {
+            return ManagerFactory().Resume(recurringJobId);
+        }
+
+        /// <summary>Changes a recurring job's schedule, see <see cref="IRecurringJobManagerV3.UpdateSchedule"/>.</summary>
+        public static bool UpdateSchedule(
+            [NotNull] string recurringJobId,
+            [CanBeNull] string? cronExpression,
+            [CanBeNull] TimeZoneInfo? timeZone = null,
+            [CanBeNull] string? queue = null,
+            MisfireHandlingMode? misfireHandling = null)
+        {
+            return ManagerFactory().UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
+        }
+
         [Obsolete("Please use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Will be removed in 2.0.0.")]
         public static void AddOrUpdate(
             [NotNull, InstantHandle] Expression<Action> methodCall,

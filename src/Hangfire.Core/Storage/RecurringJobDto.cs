@@ -34,5 +34,11 @@ namespace Hangfire.Storage
         public string TimeZoneId { get; set; }
         public string Error { get; set; }
         public int RetryAttempt { get; set; }
+
+        /// <summary>Gets or sets whether the job is paused from the dashboard or by <c>IRecurringJobManagerV3.Pause</c>.</summary>
+        public bool Paused { get; set; }
+
+        /// <summary>Gets or sets how missed occurrences are handled.</summary>
+        public MisfireHandlingMode MisfireHandling { get; set; }
     }
 }

@@ -21,6 +21,7 @@ using Hangfire.Client;
 using Hangfire.Common;
 using Hangfire.Logging;
 using Hangfire.Profiling;
+using Hangfire.States;
 using Hangfire.Storage;
 
 namespace Hangfire
@@ -29,7 +30,7 @@ namespace Hangfire
     /// Represents a recurring job manager that allows to create, update
     /// or delete recurring jobs.
     /// </summary>
-    public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2
+    public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2, IRecurringJobManagerV3
     {
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(15);
 
@@ -137,7 +138,8 @@ namespace Hangfire
                 recurringJob.MisfireHandling = options.MisfireHandling;
                 recurringJob.RetryAttempt = 0;
 
-                if (scheduleChanged || recurringJob.Error != null)
+                // A paused job stays paused when the application re-registers it on start-up
+                if ((scheduleChanged || recurringJob.Error != null) && !recurringJob.Paused)
                 {
                     recurringJob.ScheduleNext(_timeZoneResolver, now.AddSeconds(-1));
                 }
@@ -222,6 +224,106 @@ namespace Hangfire
                 }
 
                 return null;
+            }
+        }
+
+        /// <inheritdoc />
+        public bool Pause(string recurringJobId)
+        {
+            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+
+            return UpdateExisting(recurringJobId, static (recurringJob, _) => recurringJob.Pause());
+        }
+
+        /// <inheritdoc />
+        public bool Resume(string recurringJobId)
+        {
+            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+
+            return UpdateExisting(recurringJobId, (recurringJob, now) =>
+            {
+                if (recurringJob.Paused)
+                {
+                    recurringJob.Resume(_timeZoneResolver, now);
+                }
+            });
+        }
+
+        /// <inheritdoc />
+        public bool UpdateSchedule(
+            string recurringJobId,
+            string? cronExpression,
+            TimeZoneInfo? timeZone = null,
+            string? queue = null,
+            MisfireHandlingMode? misfireHandling = null)
+        {
+            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+
+            if (cronExpression != null)
+            {
+                ValidateCronExpression(cronExpression);
+            }
+
+            if (queue != null)
+            {
+                EnqueuedState.ValidateQueueName(nameof(queue), queue);
+            }
+
+            return UpdateExisting(recurringJobId, (recurringJob, now) =>
+            {
+                var scheduleChanged = false;
+
+                if (cronExpression != null && !cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
+                {
+                    recurringJob.Cron = cronExpression;
+                    scheduleChanged = true;
+                }
+
+                if (timeZone != null && !timeZone.Id.Equals(recurringJob.TimeZoneId, StringComparison.OrdinalIgnoreCase))
+                {
+                    recurringJob.TimeZoneId = timeZone.Id;
+                    scheduleChanged = true;
+                }
+
+                if (queue != null)
+                {
+                    recurringJob.Queue = queue;
+                }
+
+                if (misfireHandling.HasValue)
+                {
+                    recurringJob.MisfireHandling = misfireHandling.Value;
+                }
+
+                if (scheduleChanged || recurringJob.Error != null)
+                {
+                    recurringJob.RetryAttempt = 0;
+                    recurringJob.ScheduleNext(_timeZoneResolver, now.AddSeconds(-1));
+                }
+            });
+        }
+
+        private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update)
+        {
+            using (var connection = _storage.GetConnection())
+            using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+            {
+                var now = _nowFactory();
+                var recurringJob = connection.GetRecurringJob(recurringJobId);
+                if (recurringJob == null) return false;
+
+                update(recurringJob, now);
+
+                if (recurringJob.IsChanged(now, out var changedFields))
+                {
+                    using (var transaction = connection.CreateWriteTransaction())
+                    {
+                        transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+                        transaction.Commit();
+                    }
+                }
+
+                return true;
             }
         }
 
