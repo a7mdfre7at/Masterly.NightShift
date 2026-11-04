@@ -2,7 +2,15 @@ Include "packages\Hangfire.Build.0.5.0\tools\psake-common.ps1"
 
 Task Default -Depends Pack
 
-Task Merge -Depends Compile -Description "Run ILRepack /internalize to merge required assemblies." {
+Task Validate -Depends Compile -Description "Compare the public API of every package with the last published release." {
+    # Package validation runs only as part of `dotnet pack`. These packages are thrown away,
+    # the shipped ones are created from nuspecs after merging.
+    @("Hangfire.Core", "Hangfire.SqlServer", "Hangfire.NetCore", "Hangfire.AspNetCore") | % {
+        Exec { dotnet pack --no-build --no-restore -c $config -nologo -verbosity:minimal -o "$temp_dir/validation" "$src_dir/$_" }
+    }
+}
+
+Task Merge -Depends Validate -Description "Run ILRepack /internalize to merge required assemblies." {
     Repack-Assembly @("Hangfire.Core", "netstandard2.0") @("Cronos")
     Repack-Assembly @("Hangfire.Core", "net8.0") @("Cronos")
     Repack-Assembly @("Hangfire.Core", "net10.0") @("Cronos")

@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hangfire.BackgroundJobServerHostedService.#ctor(Hangfire.JobStorage,Hangfire.BackgroundJobServerOptions,System.Collections.Generic.IEnumerable{Hangfire.Server.IBackgroundProcess},Hangfire.Client.IBackgroundJobFactory,Hangfire.Server.IBackgroundJobPerformer,Hangfire.States.IBackgroundJobStateChanger,Microsoft.Extensions.Hosting.IHostApplicationLifetime)</Target>
+    <Left>lib/netstandard2.1/Hangfire.NetCore.dll</Left>
+    <Right>lib/netstandard2.0/Hangfire.NetCore.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hangfire.BackgroundJobServerHostedService.#ctor(Hangfire.JobStorage,Hangfire.BackgroundJobServerOptions,System.Collections.Generic.IEnumerable{Hangfire.Server.IBackgroundProcess},Microsoft.Extensions.Hosting.IHostApplicationLifetime)</Target>
+    <Left>lib/netstandard2.1/Hangfire.NetCore.dll</Left>
+    <Right>lib/netstandard2.0/Hangfire.NetCore.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hangfire.BackgroundProcessingServerHostedService.#ctor(Hangfire.Server.IBackgroundProcessingServer,Microsoft.Extensions.Hosting.IHostApplicationLifetime)</Target>
+    <Left>lib/netstandard2.1/Hangfire.NetCore.dll</Left>
+    <Right>lib/netstandard2.0/Hangfire.NetCore.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>PKV006</DiagnosticId>
+    <Target>.NETFramework,Version=v4.5.1</Target>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>PKV006</DiagnosticId>
+    <Target>.NETStandard,Version=v1.3</Target>
+  </Suppression>
+</Suppressions>

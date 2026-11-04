@@ -26,6 +26,13 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
+    <!-- Every `dotnet pack` compares the public API of each package with the last published release.
+         Intentional breaking changes are listed in each project's CompatibilitySuppressions.xml file. -->
+    <PropertyGroup>
+        <EnablePackageValidation>true</EnablePackageValidation>
+        <PackageValidationBaselineVersion>1.8.25</PackageValidationBaselineVersion>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(APPVEYOR)' == 'True'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <!-- Deterministic paths work bad when using ILRepack, because it combines everything with a wrong repository -->
