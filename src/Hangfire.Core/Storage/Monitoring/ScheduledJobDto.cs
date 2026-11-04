@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Common;
@@ -26,12 +28,12 @@ namespace Hangfire.Storage.Monitoring
             InScheduledState = true;
         }
 
-        public Job Job { get; set; }
-        public JobLoadException LoadException { get; set; }
-        public InvocationData InvocationData { get; set; }
+        public Job? Job { get; set; }
+        public JobLoadException? LoadException { get; set; }
+        public InvocationData? InvocationData { get; set; }
         public DateTime EnqueueAt { get; set; }
         public DateTime? ScheduledAt { get; set; }
         public bool InScheduledState { get; set; }
-        public IDictionary<string, string> StateData { get; set; }
+        public IDictionary<string, string>? StateData { get; set; }
     }
 }

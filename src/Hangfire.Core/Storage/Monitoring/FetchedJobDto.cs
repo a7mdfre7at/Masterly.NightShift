@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using Hangfire.Common;
 
@@ -20,10 +22,10 @@ namespace Hangfire.Storage.Monitoring
 {
     public class FetchedJobDto
     {
-        public Job Job { get; set; }
-        public JobLoadException LoadException { get; set; }
-        public InvocationData InvocationData { get; set; }
-        public string State { get; set; }
+        public Job? Job { get; set; }
+        public JobLoadException? LoadException { get; set; }
+        public InvocationData? InvocationData { get; set; }
+        public string? State { get; set; }
         public DateTime? FetchedAt { get; set; }
     }
 }

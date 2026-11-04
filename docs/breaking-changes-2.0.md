@@ -64,7 +64,8 @@ These parts of the API now carry C# nullable annotations:
 - **Server:** `BackgroundJobServer` and `BackgroundJobServerOptions`.
 - **Filters:** the client, server and state filter interfaces and their contexts (`CreateContext`, `CreatingContext`, `CreatedContext`, `PerformContext`, `PerformingContext`, `PerformedContext`, `ElectStateContext`, `ApplyStateContext` and the exception contexts).
 - **States:** `IState` and the built-in states.
-- **Storage:** `JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData` and `StateData`. `IMonitoringApi` and the dashboard DTOs aren't annotated yet.
+- **Storage:** `JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData` and `StateData`.
+- **Monitoring:** `IMonitoringApi`, `JobStorageMonitor` and the DTOs in `Hangfire.Storage.Monitoring`.
  Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
 
 - **Job IDs are `string?`.** All `Enqueue`, `Schedule`, `ContinueJobWith`, `ContinueWith` and `Create` methods return `null` when creation doesn't happen: a client filter cancels it, an exception filter handles a failure, or the storage returns no ID. Check the result before passing it on, for example to `ContinueJobWith`.
@@ -86,7 +87,14 @@ These annotations are based on what Hangfire passes in and what the SQL Server s
 | `JobData.Job`, `State`, `InvocationData`, `ParametersSnapshot`, `LoadException` | Nullable | `Job` is `null` when it can't be loaded. The others are optional or newer members. |
 | `StateData.Name`, `StateData.Data` | Non-null | Always set when a storage creates a `StateData`. |
 
-Override signatures that use non-nullable types where the contract is nullable get `CS8610`/`CS8765` warnings. These point to places where Hangfire can pass `null`.
+**Monitoring API:**
+
+- `JobDetails` returns `JobDetailsDto?` for an unknown job.
+- Job lists are `JobList<XxxJobDto?>`, because an entry is `null` when its job expires between queries. The dashboard already handles this.
+- Job DTO fields that depend on loading the job or on its current state are nullable: `Job`, `LoadException`, `InvocationData`, `StateData`, `Reason`, `Result`, `ExceptionType`, `ExceptionMessage`, `ExceptionDetails`, `ServerId`, `State` and `ParentStateName`.
+- Fields the dashboard uses without checks stay non-null, and storages must set them: `JobDetailsDto.Properties` and `History`, `ServerDto.Name` and `Queues`, `StateHistoryDto.StateName` and `Data`, `QueueWithTopEnqueuedJobsDto.Name` and `FirstJobs`.
+
+Override signatures that use non-nullable types where the contract is nullable get `CS8609`/`CS8610`/`CS8765` warnings. These point to places where Hangfire can pass `null`.
 
 ## Dependency changes
 

@@ -13,13 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 namespace Hangfire.Storage.Monitoring
 {
     public class QueueWithTopEnqueuedJobsDto
     {
-        public string Name { get; set; }
+        // Storages must set the non-nullable members, the dashboard relies on them
+        public string Name { get; set; } = null!;
         public long Length { get; set; }
         public long? Fetched { get; set; }
-        public JobList<EnqueuedJobDto> FirstJobs { get; set; }
+        public JobList<EnqueuedJobDto?> FirstJobs { get; set; } = null!;
     }
 }

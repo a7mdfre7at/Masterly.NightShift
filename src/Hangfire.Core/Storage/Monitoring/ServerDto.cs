@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 
@@ -20,10 +22,11 @@ namespace Hangfire.Storage.Monitoring
 {
     public class ServerDto
     {
-        public string Name { get; set; }
+        // Storages must set the non-nullable members, the dashboard relies on them
+        public string Name { get; set; } = null!;
         public int WorkersCount { get; set; }
         public DateTime StartedAt { get; set; }
-        public IList<string> Queues { get; set; }
+        public IList<string> Queues { get; set; } = null!;
         public DateTime? Heartbeat { get; set; }
     }
 }

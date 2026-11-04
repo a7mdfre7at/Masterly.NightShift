@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Common;
@@ -21,12 +23,13 @@ namespace Hangfire.Storage.Monitoring
 {
     public class JobDetailsDto
     {
-        public Job Job { get; set; }
-        public JobLoadException LoadException { get; set; }
-        public InvocationData InvocationData { get; set; }
+        public Job? Job { get; set; }
+        public JobLoadException? LoadException { get; set; }
+        public InvocationData? InvocationData { get; set; }
         public DateTime? CreatedAt { get; set; }
-        public IDictionary<string, string> Properties { get; set; }
-        public IList<StateHistoryDto> History { get; set; }
+        // Storages must set the non-nullable members, the dashboard relies on them
+        public IDictionary<string, string> Properties { get; set; } = null!;
+        public IList<StateHistoryDto> History { get; set; } = null!;
         public DateTime? ExpireAt { get; set; }
     }
 }
