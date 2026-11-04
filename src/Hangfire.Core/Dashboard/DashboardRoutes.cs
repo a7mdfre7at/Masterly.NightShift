@@ -41,9 +41,15 @@ namespace Hangfire.Dashboard
         private static readonly List<Tuple<Assembly, string>> Stylesheets = new List<Tuple<Assembly, string>>();
         private static readonly List<Tuple<Assembly, string>> StylesheetsDarkMode = new List<Tuple<Assembly, string>>();
 
-        internal static volatile int JavaScriptsHashCode;
-        internal static volatile int StylesheetsHashCode;
-        internal static volatile int StylesheetsDarkModeHashCode;
+        // The numbers in the bundle URLs, so browsers fetch a bundle again when its content may have changed
+        internal static volatile int JavaScriptsHashCode = InitialResourceHash;
+        internal static volatile int StylesheetsHashCode = InitialResourceHash;
+        internal static volatile int StylesheetsDarkModeHashCode = InitialResourceHash;
+
+        // FNV-1a, kept non-negative because the layout page uses Math.Abs on the result
+        private const uint FnvOffsetBasis = 2166136261;
+        private const uint FnvPrime = 16777619;
+        internal const int InitialResourceHash = (int)(FnvOffsetBasis & 0x7FFFFFFF);
 
         static DashboardRoutes()
         {
@@ -216,7 +222,7 @@ namespace Hangfire.Dashboard
             lock (Stylesheets)
             {
                 Stylesheets.Add(Tuple.Create(assembly, resource));
-                StylesheetsHashCode ^= resource.GetHashCode();
+                StylesheetsHashCode = CombineResourceHash(StylesheetsHashCode, GetModuleVersionId(assembly), resource);
             }
         }
 
@@ -239,7 +245,7 @@ namespace Hangfire.Dashboard
             lock (StylesheetsDarkMode)
             {
                 StylesheetsDarkMode.Add(Tuple.Create(assembly, resource));
-                StylesheetsDarkModeHashCode ^= resource.GetHashCode();
+                StylesheetsDarkModeHashCode = CombineResourceHash(StylesheetsDarkModeHashCode, GetModuleVersionId(assembly), resource);
             }
         }
 
@@ -261,8 +267,37 @@ namespace Hangfire.Dashboard
             lock (JavaScripts)
             {
                 JavaScripts.Add(Tuple.Create(assembly, resource));
-                JavaScriptsHashCode ^= resource.GetHashCode();
+                JavaScriptsHashCode = CombineResourceHash(JavaScriptsHashCode, GetModuleVersionId(assembly), resource);
             }
+        }
+
+        /// <summary>
+        /// Adds a resource to the number in a bundle URL. Unlike <see cref="String.GetHashCode()"/>, which .NET
+        /// randomizes per process, the result is the same in every process and on every server running the same
+        /// binaries. It includes the build (module version id) of the resource's assembly, so the number changes
+        /// when a new build can change the resource's content. It depends on the order resources are added in,
+        /// like the bundle itself, and is never negative.
+        /// </summary>
+        internal static int CombineResourceHash(int current, Guid moduleVersionId, string resource)
+        {
+            unchecked
+            {
+                var hash = (uint)current;
+
+                foreach (var ch in $"{moduleVersionId:N}/{resource}")
+                {
+                    hash ^= ch;
+                    hash *= FnvPrime;
+                }
+
+                return (int)(hash & 0x7FFFFFFF);
+            }
+        }
+
+        private static Guid GetModuleVersionId(Assembly assembly)
+        {
+            // Dynamic assemblies have no stable build identity
+            return assembly.IsDynamic ? Guid.Empty : assembly.ManifestModule.ModuleVersionId;
         }
 
         internal static string GetContentFolderNamespace(string contentFolder)
