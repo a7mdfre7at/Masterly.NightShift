@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +29,7 @@ namespace Hangfire
     public abstract class JobStorage
     {
         private static readonly object LockObject = new object();
-        private static JobStorage _current;
+        private static JobStorage? _current;
 
         private TimeSpan _jobExpirationTimeout = TimeSpan.FromDays(1);
 

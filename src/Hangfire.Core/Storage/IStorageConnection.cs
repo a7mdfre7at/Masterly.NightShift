@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -27,22 +29,22 @@ namespace Hangfire.Storage
         IWriteOnlyTransaction CreateWriteTransaction();
         IDisposable AcquireDistributedLock(string resource, TimeSpan timeout);
 
-        string CreateExpiredJob(
+        string? CreateExpiredJob(
             Job job, 
-            IDictionary<string, string> parameters, 
+            IDictionary<string, string?> parameters, 
             DateTime createdAt,
             TimeSpan expireIn);
 
         IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken);
 
-        void SetJobParameter(string id, string name, string value);
-        string GetJobParameter(string id, string name);
+        void SetJobParameter(string id, string name, string? value);
+        string? GetJobParameter(string id, string name);
 
         [CanBeNull]
-        JobData GetJobData([NotNull] string jobId);
+        JobData? GetJobData([NotNull] string jobId);
 
         [CanBeNull]
-        StateData GetStateData([NotNull] string jobId);
+        StateData? GetStateData([NotNull] string jobId);
 
         void AnnounceServer(string serverId, ServerContext context);
         void RemoveServer(string serverId);
@@ -54,13 +56,13 @@ namespace Hangfire.Storage
         [NotNull]
         HashSet<string> GetAllItemsFromSet([NotNull] string key);
 
-        string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore);
+        string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore);
 
         // Hash operations
 
         void SetRangeInHash([NotNull] string key, [NotNull] IEnumerable<KeyValuePair<string, string>> keyValuePairs);
 
         [CanBeNull]
-        Dictionary<string, string> GetAllEntriesFromHash([NotNull] string key);
+        Dictionary<string, string>? GetAllEntriesFromHash([NotNull] string key);
     }
 }

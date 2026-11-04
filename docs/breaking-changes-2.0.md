@@ -64,6 +64,7 @@ These parts of the API now carry C# nullable annotations:
 - **Server:** `BackgroundJobServer` and `BackgroundJobServerOptions`.
 - **Filters:** the client, server and state filter interfaces and their contexts (`CreateContext`, `CreatingContext`, `CreatedContext`, `PerformContext`, `PerformingContext`, `PerformedContext`, `ElectStateContext`, `ApplyStateContext` and the exception contexts).
 - **States:** `IState` and the built-in states.
+- **Storage:** `JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData` and `StateData`. `IMonitoringApi` and the dashboard DTOs aren't annotated yet.
  Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
 
 - **Job IDs are `string?`.** All `Enqueue`, `Schedule`, `ContinueJobWith`, `ContinueWith` and `Create` methods return `null` when creation doesn't happen: a client filter cancels it, an exception filter handles a failure, or the storage returns no ID. Check the result before passing it on, for example to `ContinueJobWith`.
@@ -71,6 +72,21 @@ These parts of the API now carry C# nullable annotations:
 - **Optional parameters that accept `null` are marked as nullable**, for example `fromState` and `timeZone`.
 - **In filters:** `CreatedContext.BackgroundJob` is `null` when creation was canceled. `PerformedContext.Exception` and `Result` can be `null`. `GetJobParameter<T>` returns `T?` (`default` when the parameter is missing).
 - **In states:** `IState.Reason` and every built-in state's `Reason` are `string?`, as are `FailedState.ServerId` and `DeletedState.ExceptionInfo`. `BackgroundJobServerOptions.ServerName` is `string?`, where `null` means the machine name is used.
+
+### For storage implementers
+
+These annotations are based on what Hangfire passes in and what the SQL Server storage returns. With nullable checking on, you may see these warnings:
+
+| Member | Annotation | Why |
+|---|---|---|
+| `CreateExpiredJob` / `JobStorageTransaction.CreateJob` | `parameters` is `IDictionary<string, string?>`, returns `string?` | A filter can set a parameter to `null`, which serializes to `null`. Hangfire treats a `null` or empty ID as "not created". |
+| `SetJobParameter` | `value` is `string?` | Same reason. |
+| `GetJobParameter`, `GetJobData`, `GetStateData`, `GetFirstByLowestScoreFromSet`, `GetAllEntriesFromHash`, `GetValueFromHash` | Return nullable | Return `null` when nothing is found. |
+| Hash, set and list values | Non-null | Hangfire never writes `null` values, and writes `String.Empty` for optional recurring job fields. |
+| `JobData.Job`, `State`, `InvocationData`, `ParametersSnapshot`, `LoadException` | Nullable | `Job` is `null` when it can't be loaded. The others are optional or newer members. |
+| `StateData.Name`, `StateData.Data` | Non-null | Always set when a storage creates a `StateData`. |
+
+Override signatures that use non-nullable types where the contract is nullable get `CS8610`/`CS8765` warnings. These point to places where Hangfire can pass `null`.
 
 ## Dependency changes
 

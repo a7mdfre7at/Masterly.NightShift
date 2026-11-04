@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -97,12 +99,12 @@ namespace Hangfire.Storage
             throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
         }
         
-        public virtual void SetJobParameter([NotNull] string jobId, [NotNull] string name, [CanBeNull] string value)
+        public virtual void SetJobParameter([NotNull] string jobId, [NotNull] string name, [CanBeNull] string? value)
         {
             throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.SetJobParameter);
         }
 
-        public virtual string CreateJob([NotNull] Job job, [NotNull] IDictionary<string, string> parameters, DateTime createdAt, TimeSpan expireIn)
+        public virtual string? CreateJob([NotNull] Job job, [NotNull] IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
         {
             throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.CreateJob);
         }
