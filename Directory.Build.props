@@ -4,7 +4,7 @@
         <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(APPVEYOR)' == 'True'">
+    <PropertyGroup Condition="'$(APPVEYOR)' == 'True' or '$(GITHUB_ACTIONS)' == 'true'">
         <RestoreLockedMode>true</RestoreLockedMode>
     </PropertyGroup>
 </Project>

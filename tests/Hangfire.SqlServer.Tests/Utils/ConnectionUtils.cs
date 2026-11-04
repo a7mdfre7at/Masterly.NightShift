@@ -11,7 +11,16 @@ namespace Hangfire.SqlServer.Tests
             = "Hangfire_SqlServer_ConnectionStringTemplate";
 
         private const string MasterDatabaseName = "master";
-        private const string DefaultDatabaseName = "Hangfire.SqlServer.Tests.net8_0";
+        // Each target framework gets its own database, because they run in parallel
+        private const string DefaultDatabaseName =
+#if NET10_0
+                "Hangfire.SqlServer.Tests.net10_0"
+#elif NET8_0
+                "Hangfire.SqlServer.Tests.net8_0"
+#else
+                "Hangfire.SqlServer.Tests"
+#endif
+            ;
         private const string DefaultConnectionStringTemplate
             = @"Server=.\;Database={0};Trusted_Connection=True;TrustServerCertificate=True;";
 

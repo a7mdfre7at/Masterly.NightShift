@@ -15,7 +15,7 @@
 
     <!-- Plugging in Roslyn Analysers -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
     </ItemGroup>
 
     <PropertyGroup>
@@ -33,7 +33,7 @@
         <PackageValidationBaselineVersion>1.8.25</PackageValidationBaselineVersion>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(APPVEYOR)' == 'True'">
+    <PropertyGroup Condition="'$(APPVEYOR)' == 'True' or '$(GITHUB_ACTIONS)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <!-- Deterministic paths work bad when using ILRepack, because it combines everything with a wrong repository -->
         <DeterministicSourcePaths>false</DeterministicSourcePaths>

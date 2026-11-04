@@ -1,0 +1,99 @@
+# Builds and tests every push and pull request. Signing and publishing still happen on AppVeyor
+# (appveyor.yml), because they need SignPath and NuGet secrets.
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  windows:
+    name: Windows (full build, merged assemblies, packages)
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      Hangfire_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      - name: Start SQL Server LocalDB
+        run: sqllocaldb start MSSQLLocalDB
+
+      # Compile, Validate (public API vs. last release), Merge (ILRepack), Test, Collect, Pack
+      - name: Build, test and pack
+        run: .\build.bat pack
+        shell: cmd
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            build/*.nupkg
+            build/*.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux (tests on ${{ matrix.framework }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          # Throwaway password for a container that only lives for this job
+          MSSQL_SA_PASSWORD: Password12!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password12!' -C -Q 'SELECT 1' -b"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      Hangfire_SqlServer_ConnectionStringTemplate: Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;PoolBlockingPeriod=NeverBlock
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      - name: Build
+        run: dotnet build Hangfire.sln -c Release
+
+      - name: Test Hangfire.Core
+        run: dotnet test tests/Hangfire.Core.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Hangfire.SqlServer
+        run: dotnet test tests/Hangfire.SqlServer.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-linux-${{ matrix.framework }}
+          path: TestResults
