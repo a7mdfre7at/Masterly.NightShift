@@ -27,6 +27,7 @@ namespace Hangfire.Dashboard
         {
             Items.Add(static page => new MenuItem(Strings.NavigationMenu_Jobs, page.Url.LinkToQueues())
             {
+                Icon = "tasks",
                 Active = page.RequestPath.StartsWith("/jobs", StringComparison.OrdinalIgnoreCase),
                 Metrics = new []
                 {
@@ -37,18 +38,27 @@ namespace Hangfire.Dashboard
 
             Items.Add(static page => new MenuItem(Strings.NavigationMenu_Retries, page.Url.To("/retries"))
             {
+                Icon = "repeat",
                 Active = page.RequestPath.StartsWith("/retries", StringComparison.OrdinalIgnoreCase),
                 Metric = DashboardMetrics.RetriesCount
             });
 
             Items.Add(static page => new MenuItem(Strings.NavigationMenu_RecurringJobs, page.Url.To("/recurring"))
             {
+                Icon = "time",
                 Active = page.RequestPath.StartsWith("/recurring", StringComparison.OrdinalIgnoreCase),
                 Metric = DashboardMetrics.RecurringJobCount
             });
 
+            Items.Add(static page => new MenuItem(Strings.NavigationMenu_Insights, page.Url.To("/insights"))
+            {
+                Icon = "stats",
+                Active = page.RequestPath.StartsWith("/insights", StringComparison.OrdinalIgnoreCase)
+            });
+
             Items.Add(static page => new MenuItem(Strings.NavigationMenu_Servers, page.Url.To("/servers"))
             {
+                Icon = "hdd",
                 Active = page.RequestPath.Equals("/servers", StringComparison.OrdinalIgnoreCase),
                 Metric = DashboardMetrics.ServerCount
             });

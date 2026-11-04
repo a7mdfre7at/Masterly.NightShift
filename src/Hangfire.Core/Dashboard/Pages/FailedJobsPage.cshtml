@@ -19,10 +19,7 @@
 }
 
 <div class="row">
-    <div class="col-md-3">
-        @Html.JobsSidebar()
-    </div>
-    <div class="col-md-9">
+    <div class="col-md-12">
         <h1 id="page-title" class="page-header">@Strings.FailedJobsPage_Title</h1>
 
         @if (pager.TotalPageCount == 0)
@@ -39,6 +36,16 @@
             
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
+                    @if (!IsReadOnly)
+                    {
+                        <button class="btn btn-sm btn-default btn-delete-all"
+                                data-ajax="@Url.To("/jobs/failed/delete-all")"
+                                data-loading-text="@Strings.Common_Deleting"
+                                data-confirm="@Strings.Common_DeleteAllConfirm">
+                            <span class="glyphicon glyphicon-trash"></span>
+                            @Strings.Common_DeleteAll
+                        </button>
+                    }
                     @if (!IsReadOnly)
                     {
                         <button class="js-jobs-list-command btn btn-sm btn-primary"

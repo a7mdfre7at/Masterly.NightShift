@@ -7,6 +7,7 @@
 @using Hangfire.Dashboard
 @using Hangfire.Dashboard.Pages
 @using Hangfire.Dashboard.Resources
+@using Hangfire.Server
 @using Hangfire.States
 @using Hangfire.Storage
 @using Hangfire.Storage.Monitoring
@@ -33,10 +34,7 @@
 }
 
 <div class="row">
-    <div class="col-md-3">
-        @Html.JobsSidebar()
-    </div>
-    <div class="col-md-9">
+    <div class="col-md-12">
         <h1 class="page-header">@title</h1>
 
         @if (job == null)
@@ -70,6 +68,31 @@
                 <div class="alert alert-info">
                     @Html.Raw(String.Format(Strings.JobDetailsPage_JobFinished_Warning_Html, JobHelper.ToTimestamp(job.ExpireAt.Value), job.ExpireAt))
                 </div>
+            }
+
+            if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineMissedParameter, out var deadlineMissedValue))
+            {
+                var deadlineMissed = SerializationHelper.Deserialize<TimeSpan?>(deadlineMissedValue, SerializationOption.User);
+                <div class="alert alert-danger">
+                    <span class="glyphicon glyphicon-time"></span>
+                    @String.Format(Strings.JobDetailsPage_DeadlineMissed, Html.ToHumanDuration(deadlineMissed, false))
+                </div>
+            }
+            else if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineAtParameter, out var deadlineAtValue) && !currentState.StateName.Equals(SucceededState.StateName))
+            {
+                var deadlineAt = SerializationHelper.Deserialize<DateTime?>(deadlineAtValue, SerializationOption.User);
+                if (deadlineAt.HasValue)
+                {
+                    var overdue = deadlineAt.Value < (StorageUtcNow ?? ApplicationUtcNow);
+                    <div class="alert @(overdue ? "alert-danger" : "alert-info")">
+                        <span class="glyphicon glyphicon-time"></span>
+                        @Strings.Common_Deadline: @Html.RelativeTime(deadlineAt.Value)
+                        @if (overdue)
+                        {
+                            <span class="label label-danger text-uppercase">@Strings.Common_Overdue</span>
+                        }
+                    </div>
+                }
             }
 
             if (job.Job != null)
@@ -108,7 +131,92 @@
                 </div>
             }
 
-            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations").ToArray();
+            @* Live view: progress, console and checkpoints reported through IJobConsole *@
+            IReadOnlyList<JobConsoleEntry> consoleEntries;
+            JobProgress progress;
+
+            using (var connection = Storage.GetReadOnlyConnection())
+            {
+                consoleEntries = JobConsole.ReadEntries(connection, JobId);
+                progress = JobConsole.ReadProgress(connection, JobId);
+            }
+
+            var isProcessing = currentState.StateName == ProcessingState.StateName;
+            var liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out var startedAtValue)
+                ? JobHelper.DeserializeNullableDateTime(startedAtValue)
+                : null;
+
+            if (isProcessing || progress != null || consoleEntries.Count > 0)
+            {
+                var percent = progress != null ? progress.Percent : (currentState.StateName == SucceededState.StateName ? 100 : 0);
+                var barClass = currentState.StateName == FailedState.StateName ? "progress-bar-danger"
+                    : currentState.StateName == SucceededState.StateName ? "progress-bar-success"
+                    : isProcessing ? "progress-bar-striped active" : "";
+
+                <div class="job-live" id="jobLive"
+                     data-live-url="@Url.To("/jobs/live")"
+                     data-job-id="@JobId"
+                     data-state="@currentState.StateName"
+                     data-poll="@(isProcessing ? "true" : "false")"
+                     data-started-at="@(liveStartedAt.HasValue ? JobHelper.ToTimestamp(liveStartedAt.Value).ToString() : null)">
+                    <h3 id="job-details-live">
+                        @Strings.JobDetailsPage_Live
+                        @if (isProcessing)
+                        {
+                            <span class="label label-info job-live-indicator">@currentState.StateName</span>
+                        }
+                        <small class="text-muted"><span class="js-live-elapsed">@(liveStartedAt.HasValue ? Html.ToHumanDuration((StorageUtcNow ?? ApplicationUtcNow) - liveStartedAt.Value, false) : null)</span> <span class="js-live-elapsed-label" style="@(liveStartedAt.HasValue ? null : "display: none")">@Strings.JobDetailsPage_Live_Elapsed</span></small>
+                    </h3>
+
+                    <div class="job-live-progress">
+                        <div class="progress">
+                            <div class="progress-bar js-live-bar @barClass" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@percent" style="width: @(percent)%; min-width: 2em;">@(percent)%</div>
+                        </div>
+                        <p class="text-muted js-live-progress-message">@(progress != null ? progress.Message : null)</p>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h4>@Strings.JobDetailsPage_Console</h4>
+                            <div class="job-console js-live-console" aria-live="polite">
+                                @if (consoleEntries.Count == 0)
+                                {
+                                    <div class="job-console-empty text-muted js-live-console-empty">@Strings.JobDetailsPage_NoConsoleOutput</div>
+                                }
+                                @foreach (var entry in consoleEntries)
+                                {
+                                    var entryTime = JobConsole.FromTimestamp(entry.Timestamp);
+                                    if (entry.Checkpoint != null)
+                                    {
+                                        <div class="job-console-line job-console-checkpoint"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span><span class="glyphicon glyphicon-flag"></span> @entry.Checkpoint</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="job-console-line job-console-@(entry.Level.ToString().ToLowerInvariant())"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span>@entry.Message</div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h4>@Strings.JobDetailsPage_Checkpoints</h4>
+                            <ol class="job-checkpoints js-live-checkpoints">
+                                @{
+                                    long? previousCheckpoint = null;
+                                    foreach (var entry in consoleEntries.Where(x => x.Checkpoint != null))
+                                    {
+                                        var delta = previousCheckpoint.HasValue ? TimeSpan.FromMilliseconds(entry.Timestamp - previousCheckpoint.Value) : (TimeSpan?)null;
+                                        <li><span class="job-checkpoint-name">@entry.Checkpoint</span><span class="text-muted job-checkpoint-delta">@(delta.HasValue ? "+" + Html.ToHumanDuration(delta, false) : JobConsole.FromTimestamp(entry.Timestamp).ToString("HH:mm:ss"))</span></li>
+                                        previousCheckpoint = entry.Timestamp;
+                                    }
+                                }
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != JobConsole.ProgressParameter
+                && x.Key != DeadlineAttribute.DeadlineAtParameter && x.Key != DeadlineAttribute.DeadlineMissedParameter).ToArray();
 
             if (displayParameters.Length > 0)
             {

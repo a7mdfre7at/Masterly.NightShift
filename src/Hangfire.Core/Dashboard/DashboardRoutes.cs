@@ -17,8 +17,10 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Hangfire.Annotations;
+using System.Linq;
 using Hangfire.Dashboard.Pages;
 using Hangfire.States;
+using Hangfire.Storage;
 
 namespace Hangfire.Dashboard
 {
@@ -62,6 +64,7 @@ namespace Hangfire.Dashboard
             AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
             AddStylesheet(executingAssembly, GetContentResourceName("css", "Chart.min.css"));
             AddStylesheet(executingAssembly, GetContentResourceName("css", "hangfire.css"));
+            AddStylesheet(executingAssembly, GetContentResourceName("css", "hangfire-ui.css"));
 
             AddStylesheetDarkMode(executingAssembly, GetContentResourceName("css", "hangfire-dark.css"));
 
@@ -114,6 +117,30 @@ namespace Hangfire.Dashboard
 
             Routes.AddClientBatchCommand("/jobs/enqueued/delete", static (client, jobId) => client.ChangeState(jobId, CreateDeletedState()));
             Routes.AddClientBatchCommand("/jobs/enqueued/requeue", static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState()));
+
+            // "Delete all" for every list; registered before the pages whose patterns would also match these paths
+            Routes.AddCommand("/jobs/enqueued/delete-all/(?<Queue>.+)", static context =>
+            {
+                var queue = context.UriMatch.Groups["Queue"].Value;
+                return JobListCommands.DeleteAll(context, (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => x.Key), EnqueuedState.StateName);
+            });
+            Routes.AddCommand("/jobs/scheduled/delete-all", static context =>
+                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.ScheduledJobs(from, count).Select(static x => x.Key), ScheduledState.StateName));
+            Routes.AddCommand("/jobs/processing/delete-all", static context =>
+                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.ProcessingJobs(from, count).Select(static x => x.Key), ProcessingState.StateName));
+            Routes.AddCommand("/jobs/succeeded/delete-all", static context =>
+                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.SucceededJobs(from, count).Select(static x => x.Key), SucceededState.StateName));
+            Routes.AddCommand("/jobs/failed/delete-all", static context =>
+                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => x.Key), FailedState.StateName));
+            Routes.AddCommand("/jobs/awaiting/delete-all", static context =>
+                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor is JobStorageMonitor storageMonitor
+                    ? storageMonitor.AwaitingJobs(from, count).Select(static x => x.Key)
+                    : Enumerable.Empty<string>(), AwaitingState.StateName));
+            Routes.AddCommand("/retries/delete-all", static context => JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName));
+            Routes.AddCommand("/recurring/remove-all", static context => JobListCommands.RemoveAllRecurringJobs(context));
+
+            Routes.Add("/maintenance/clear-jobs", new MaintenanceDispatcher(keepRecurringJobsAndServers: true));
+            Routes.Add("/maintenance/reset", new MaintenanceDispatcher(keepRecurringJobsAndServers: false));
 
             Routes.AddRazorPage(
                 "/jobs/enqueued/(?<Queue>.+)",
@@ -181,6 +208,7 @@ namespace Hangfire.Dashboard
                     return client.ChangeState(context.UriMatch.Groups["JobId"].Value, CreateDeletedState());
                 });
 
+            Routes.Add("/jobs/live", new LiveJobsDispatcher());
             Routes.AddRazorPage("/jobs/details/(?<JobId>.+)", static x => new JobDetailsPage(x.Groups["JobId"].Value));
 
             Routes.AddRazorPage("/recurring", x => new RecurringJobsPage());
@@ -189,11 +217,37 @@ namespace Hangfire.Dashboard
                 static (manager, jobId) => manager.RemoveIfExists(jobId));
 
             Routes.AddRecurringBatchCommand(
-                "/recurring/trigger", 
+                "/recurring/trigger",
                 static (manager, jobId) => manager.Trigger(jobId));
+
+            Routes.AddRecurringBatchCommand(
+                "/recurring/pause",
+                static (manager, jobId) => manager.Pause(jobId));
+
+            Routes.AddRecurringBatchCommand(
+                "/recurring/resume",
+                static (manager, jobId) => manager.Resume(jobId));
+
+            Routes.Add("/recurring/preview", new CronPreviewDispatcher());
+            Routes.Add("/recurring/update/(?<JobId>.+)", new RecurringJobUpdateDispatcher());
 
             Routes.AddRazorPage("/servers", static _ => new ServersPage());
             Routes.AddRazorPage("/retries", static _ => new RetriesPage());
+
+            Routes.AddRazorPage("/insights", static _ => new InsightsPage());
+            Routes.AddCommand(
+                "/insights/circuits/reset/(?<Resource>.+)",
+                static context =>
+                {
+                    using (var connection = context.Storage.GetConnection())
+                    {
+                        CircuitBreakerAttribute.Reset(connection, Uri.UnescapeDataString(context.UriMatch.Groups["Resource"].Value));
+                    }
+
+                    return true;
+                });
+
+            Routes.Add("/search", new SearchDispatcher());
 
             #endregion
         }

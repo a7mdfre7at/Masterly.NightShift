@@ -742,3 +742,233 @@ div.metric-null {
         width: calc(100% - 293px);
     }
 }
+
+/* Recurring job schedule editor
+-------------------------------------------------- */
+
+.js-recurring-edit {
+    white-space: nowrap;
+}
+
+.cron-preview {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+
+.cron-preview h5 {
+    font-weight: 600;
+}
+
+.cron-preview h5 code {
+    margin-left: 6px;
+    font-weight: normal;
+}
+
+.cron-preview ul {
+    margin: 0;
+}
+
+.cron-preview li {
+    padding: 3px 0;
+    border-bottom: 1px dashed #eee;
+}
+
+.cron-preview li:last-child {
+    border-bottom: none;
+}
+
+.cron-preview li .text-muted {
+    margin-left: 8px;
+    font-size: 90%;
+}
+
+.cron-preview .alert {
+    margin: 10px 0 0;
+}
+
+/* Live job view: progress, console, checkpoints
+-------------------------------------------------- */
+
+.job-live {
+    margin-bottom: 20px;
+}
+
+.job-live-indicator {
+    vertical-align: middle;
+    font-size: 55%;
+    margin-left: 6px;
+}
+
+.job-live-progress .progress {
+    height: 22px;
+    margin-bottom: 6px;
+}
+
+.job-live-progress .progress-bar {
+    line-height: 22px;
+    font-weight: 600;
+    transition: width .4s ease;
+}
+
+.job-live-progress p {
+    min-height: 20px;
+    margin-bottom: 8px;
+}
+
+.job-console {
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 4px;
+    padding: 8px 10px;
+    max-height: 420px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.job-console-line {
+    padding: 1px 0;
+}
+
+.job-console-time {
+    color: #7f8c8d;
+    margin-right: 10px;
+    user-select: none;
+}
+
+.job-console-debug { color: #9aa0a6; }
+.job-console-warning { color: #f1c40f; }
+.job-console-error { color: #ff6b6b; }
+
+.job-console-checkpoint {
+    color: #6fcd6d;
+    font-weight: 600;
+}
+
+.job-console-checkpoint .glyphicon {
+    margin-right: 6px;
+    font-size: 11px;
+}
+
+.job-console-empty {
+    font-style: italic;
+}
+
+.job-checkpoints {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.job-checkpoints li {
+    padding: 3px 0;
+    border-bottom: 1px dashed #eee;
+}
+
+.job-checkpoints li:last-child {
+    border-bottom: none;
+}
+
+.job-checkpoint-delta {
+    float: right;
+    font-size: 90%;
+}
+
+.job-live-cell {
+    min-width: 140px;
+}
+
+.job-live-progress-sm {
+    height: 8px;
+    margin: 4px 0 2px;
+}
+
+.job-live-progress-sm .progress-bar {
+    transition: width .4s ease;
+}
+
+/* Insights page
+-------------------------------------------------- */
+
+.insights-summary {
+    margin-bottom: 20px;
+}
+
+.insights-tile {
+    border: 1px solid #e3e3e3;
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background-color: #fafafa;
+}
+
+.insights-tile-value {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.insights-tile-value .label {
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.insights-tile-label {
+    color: #777;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-top: 4px;
+}
+
+.insights-tile-danger {
+    border-color: #ebccd1;
+    background-color: #f2dede;
+}
+
+.insights-table td {
+    vertical-align: middle !important;
+}
+
+.sparkline {
+    display: block;
+}
+
+.sparkline polyline {
+    stroke: #337ab7;
+}
+
+.sparkline .sparkline-last {
+    fill: #62B35F;
+}
+
+.sparkline .sparkline-last-failed {
+    fill: #D55251;
+}
+
+/* Deadlines and invoker statistics
+-------------------------------------------------- */
+
+.table > tbody > tr.overdue > td {
+    background-color: #fdf2f2;
+}
+
+.table > tbody > tr.overdue.hover:hover > td {
+    background-color: #fbe6e6;
+}
+
+.invoker-stats {
+    margin: 10px 0 20px;
+    font-size: 13px;
+}
+
+.invoker-stats .label {
+    margin-right: 4px;
+}
+
+.invoker-stats .glyphicon {
+    margin-right: 4px;
+}

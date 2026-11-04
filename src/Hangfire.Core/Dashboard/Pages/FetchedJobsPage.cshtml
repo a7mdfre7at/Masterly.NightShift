@@ -20,10 +20,7 @@
 }
 
 <div class="row">
-    <div class="col-md-3">
-        @Html.JobsSidebar()
-    </div>
-    <div class="col-md-9">
+    <div class="col-md-12">
         @Html.Breadcrumbs(Strings.FetchedJobsPage_Title, new Dictionary<string, string>
         {
             { "Queues", Url.LinkToQueues() },

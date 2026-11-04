@@ -20,10 +20,7 @@
 }
 
 <div class="row">
-    <div class="col-md-3">
-        @Html.JobsSidebar()
-    </div>
-    <div class="col-md-9">
+    <div class="col-md-12">
         @Html.Breadcrumbs(Queue, new Dictionary<string, string>
         {
             { "Queues", Url.LinkToQueues() }
@@ -41,6 +38,16 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
+                    @if (!IsReadOnly)
+                    {
+                        <button class="btn btn-sm btn-default btn-delete-all"
+                                data-ajax="@Url.To("/jobs/enqueued/delete-all/" + Uri.EscapeDataString(Queue))"
+                                data-loading-text="@Strings.Common_Deleting"
+                                data-confirm="@Strings.Common_DeleteAllConfirm">
+                            <span class="glyphicon glyphicon-trash"></span>
+                            @Strings.Common_DeleteAll
+                        </button>
+                    }
                     @if (!IsReadOnly)
                     {
                         <button class="js-jobs-list-command btn btn-sm btn-default"

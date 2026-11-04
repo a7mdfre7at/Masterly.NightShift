@@ -5,9 +5,11 @@
 @using Hangfire.Dashboard
 @using Hangfire.Dashboard.Pages
 @using Hangfire.Dashboard.Resources
+@using Hangfire.Storage
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.ServersPage_Title);
+    var invokers = JobInvokerRegistry.GetStatistics();
     
     var monitor = Storage.GetMonitoringApi();
     var servers = monitor.Servers();
@@ -80,5 +82,39 @@
                 </table>
             </div>
         }
+
+        @if (!IsReadOnly && Storage.HasFeature(JobStorageFeatures.Purge))
+        {
+            <h3 id="servers-maintenance">@Strings.ServersPage_Maintenance <small class="text-muted">@Strings.ServersPage_Maintenance_Hint</small></h3>
+            <div class="hf-card hf-maintenance" aria-describedby="servers-maintenance">
+                <div class="hf-maintenance-row">
+                    <div>
+                        <strong>@Strings.ServersPage_ClearJobs</strong>
+                        <p class="text-muted">@Strings.ServersPage_ClearJobs_Hint</p>
+                    </div>
+                    <button class="btn btn-sm btn-default" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ClearJobsConfirm">
+                        <span class="glyphicon glyphicon-trash"></span> @Strings.ServersPage_ClearJobs
+                    </button>
+                </div>
+                <div class="hf-maintenance-row">
+                    <div>
+                        <strong>@Strings.ServersPage_ResetStorage</strong>
+                        <p class="text-muted">@Strings.ServersPage_ResetStorage_Hint</p>
+                    </div>
+                    <button class="btn btn-sm btn-death" data-ajax="@Url.To("/maintenance/reset")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ResetStorageConfirm">
+                        <span class="glyphicon glyphicon-fire"></span> @Strings.ServersPage_ResetStorage
+                    </button>
+                </div>
+            </div>
+        }
+
+        <div class="invoker-stats text-muted" title="@Strings.ServersPage_Invokers_Hint">
+            <span class="glyphicon glyphicon-flash"></span>
+            @Strings.ServersPage_Invokers:
+            <span class="label label-success">@invokers.Generated @Strings.ServersPage_Invokers_Generated</span>
+            <span class="label label-info">@invokers.Compiled @Strings.ServersPage_Invokers_Compiled</span>
+            <span class="label label-default">@invokers.Reflection @Strings.ServersPage_Invokers_Reflection</span>
+            <span class="invoker-stats-registered">&middot; @invokers.Registered @Strings.ServersPage_Invokers_Registered</span>
+        </div>
     </div>
 </div>

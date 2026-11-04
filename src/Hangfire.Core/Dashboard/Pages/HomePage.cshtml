@@ -43,45 +43,54 @@
         <h1 class="page-header">@Strings.HomePage_Title</h1>
         @if (Metrics.Count > 0)
         {
-            <div class="row">
+            <div class="hf-kpi-grid">
                 @foreach (var metric in Metrics)
                 {
-                    <div class="col-md-2">
-                        @Html.BlockMetric(metric)
-                    </div>
+                    @Html.BlockMetric(metric)
                 }
             </div>
         }
-        <h3>@Strings.HomePage_RealtimeGraph</h3>
-        <canvas width="1140" height="210" id="realtimeGraph" data-succeeded="@Statistics.Succeeded" data-failed="@Statistics.Failed" data-deleted="@Statistics.Deleted"
-             data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
-             data-failed-string="@Strings.HomePage_GraphHover_Failed"
-             data-deleted-string="@Strings.JobsSidebarMenu_Deleted"></canvas>
-        <div class="display-none">
-            <span data-metric="succeeded:count"></span>
-            <span data-metric="failed:count"></span>
-            <span data-metric="deleted:count"></span>
-        </div>
 
-        <h3>
-            <div class="btn-group pull-right margin-top-2p">
-                <a href="?period=day" class="btn btn-sm btn-default @("day".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodDay</a>
-                <a href="?period=week" class="btn btn-sm btn-default @("week".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodWeek</a>
+        <section class="hf-card">
+            <div class="hf-card-header">
+                <h3>@Strings.HomePage_RealtimeGraph</h3>
+                <span class="hf-pulse"><span class="hf-pulse-dot js-pulse-dot"></span></span>
             </div>
-            @Strings.HomePage_HistoryGraph
-        </h3>
+            <div class="hf-card-body">
+                <canvas width="1140" height="210" id="realtimeGraph" data-succeeded="@Statistics.Succeeded" data-failed="@Statistics.Failed" data-deleted="@Statistics.Deleted"
+                     data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
+                     data-failed-string="@Strings.HomePage_GraphHover_Failed"
+                     data-deleted-string="@Strings.JobsSidebarMenu_Deleted"></canvas>
+                <div class="display-none">
+                    <span data-metric="succeeded:count"></span>
+                    <span data-metric="failed:count"></span>
+                    <span data-metric="deleted:count"></span>
+                </div>
+            </div>
+        </section>
 
-        @if (succeeded != null && failed != null)
-        {
-            <canvas width="1140" height="210" id="historyGraph"
-                 data-succeeded="@JsonConvert.SerializeObject(succeeded)"
-                 data-failed="@JsonConvert.SerializeObject(failed)"
-                 data-deleted="@(deleted != null ? JsonConvert.SerializeObject(deleted) : String.Empty)"
-                 data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
-                 data-failed-string="@Strings.HomePage_GraphHover_Failed"
-                 data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
-                 data-period="@period">
-            </canvas>
-        }
+        <section class="hf-card">
+            <div class="hf-card-header">
+                <h3>@Strings.HomePage_HistoryGraph</h3>
+                <div class="btn-group">
+                    <a href="?period=day" class="btn btn-sm btn-default @("day".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodDay</a>
+                    <a href="?period=week" class="btn btn-sm btn-default @("week".Equals(period, StringComparison.OrdinalIgnoreCase) ? "active" : null)">@Strings.Common_PeriodWeek</a>
+                </div>
+            </div>
+            <div class="hf-card-body">
+                @if (succeeded != null && failed != null)
+                {
+                    <canvas width="1140" height="210" id="historyGraph"
+                         data-succeeded="@JsonConvert.SerializeObject(succeeded)"
+                         data-failed="@JsonConvert.SerializeObject(failed)"
+                         data-deleted="@(deleted != null ? JsonConvert.SerializeObject(deleted) : String.Empty)"
+                         data-succeeded-string="@Strings.HomePage_GraphHover_Succeeded"
+                         data-failed-string="@Strings.HomePage_GraphHover_Failed"
+                         data-deleted-string="@Strings.JobsSidebarMenu_Deleted"
+                         data-period="@period">
+                    </canvas>
+                }
+            </div>
+        </section>
     </div>
 </div>
