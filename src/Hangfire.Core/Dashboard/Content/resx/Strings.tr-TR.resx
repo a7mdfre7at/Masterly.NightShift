@@ -808,4 +808,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Temizleniyor…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Bu süreç</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Süreç</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Çalışma süresi</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>IIS tarafından barındırılıyor</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS, boşta kalan çalışan süreçleri varsayılan olarak 20 dakika sonra durdurur ve işler de onlarla birlikte durur. Uygulama havuzunu ön yükleme ve 0 boşta kalma zaman aşımıyla &lt;code&gt;AlwaysRunning&lt;/code&gt; olarak ayarlayın ya da sürecin kendisini düzenli olarak çağırması için &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) kaydedin. Geri dönüşüm için yine havuz ayarları gerekir.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>yapılandırılmadı</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>ilk istek bekleniyor</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>son istek başarılı</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>son istek başarısız</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>her {0}</value>
+  </data>
 </root>

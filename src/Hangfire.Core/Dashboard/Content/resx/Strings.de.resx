@@ -777,4 +777,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Wird gelöscht…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Dieser Prozess</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Prozess</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Läuft seit</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Gehostet von IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS beendet inaktive Arbeitsprozesse standardmäßig nach 20 Minuten, und damit auch die Jobs. Stellen Sie den Anwendungspool auf &lt;code&gt;AlwaysRunning&lt;/code&gt; mit Vorladen und Leerlauf-Timeout 0, oder registrieren Sie &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;), damit der Prozess sich regelmäßig selbst aufruft. Ein Recycling erfordert weiterhin die Pool-Einstellungen.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>nicht konfiguriert</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>wartet auf die erste Anfrage</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>letzte Anfrage erfolgreich</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>letzte Anfrage fehlgeschlagen</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>alle {0}</value>
+  </data>
 </root>

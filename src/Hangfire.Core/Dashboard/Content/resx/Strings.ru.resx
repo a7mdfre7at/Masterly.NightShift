@@ -824,4 +824,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Очистка…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Этот процесс</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Процесс</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Работает</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Размещён в IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS по умолчанию останавливает неактивные рабочие процессы через 20 минут, и задачи останавливаются вместе с ними. Установите для пула приложений &lt;code&gt;AlwaysRunning&lt;/code&gt; с предзагрузкой и тайм-аутом простоя 0 или зарегистрируйте &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;), чтобы процесс регулярно обращался сам к себе. Перезапуск пула по-прежнему требует его настроек.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>не настроен</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>ожидание первого запроса</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>последний запрос успешен</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>последний запрос не удался</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>каждые {0}</value>
+  </data>
 </root>

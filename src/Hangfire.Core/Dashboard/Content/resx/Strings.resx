@@ -836,4 +836,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Clearing…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>This process</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Process</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Up for</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Hosted by IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS stops idle worker processes after 20 minutes by default, and jobs stop with them. Set the application pool to &lt;code&gt;AlwaysRunning&lt;/code&gt; with preloading and an idle timeout of 0, or register &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) so the process requests itself regularly. A recycle still needs the pool settings.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>not configured</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>waiting for the first request</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>last request succeeded</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>last request failed</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>every {0}</value>
+  </data>
 </root>

@@ -838,4 +838,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Rensar…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Den här processen</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Process</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Igång sedan</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Körs under IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS stoppar inaktiva arbetsprocesser efter 20 minuter som standard, och jobben stoppas med dem. Ställ in programpoolen på &lt;code&gt;AlwaysRunning&lt;/code&gt; med förladdning och inaktivitetstid 0, eller registrera &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) så att processen anropar sig själv regelbundet. En återvinning kräver fortfarande poolinställningarna.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>inte konfigurerad</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>väntar på första anropet</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>senaste anropet lyckades</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>senaste anropet misslyckades</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>var {0}</value>
+  </data>
 </root>

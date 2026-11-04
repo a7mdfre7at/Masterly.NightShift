@@ -797,4 +797,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Wissen…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Dit proces</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Proces</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Actief sinds</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Gehost door IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS stopt inactieve werkprocessen standaard na 20 minuten, en de taken stoppen mee. Zet de toepassingsgroep op &lt;code&gt;AlwaysRunning&lt;/code&gt; met voorladen en een inactiviteitstime-out van 0, of registreer &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) zodat het proces zichzelf regelmatig aanroept. Een recycle vereist nog steeds de groepsinstellingen.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>niet geconfigureerd</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>wacht op de eerste aanvraag</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>laatste aanvraag geslaagd</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>laatste aanvraag mislukt</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>elke {0}</value>
+  </data>
 </root>

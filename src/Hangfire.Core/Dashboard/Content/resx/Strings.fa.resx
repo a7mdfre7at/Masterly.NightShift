@@ -830,4 +830,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>در حال پاک کردن…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>این فرایند</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>فرایند</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>مدت فعالیت</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>میزبانی‌شده توسط IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS به‌طور پیش‌فرض فرایندهای کاری بیکار را پس از ۲۰ دقیقه متوقف می‌کند و کارها هم با آن‌ها متوقف می‌شوند. مخزن برنامه را روی &lt;code&gt;AlwaysRunning&lt;/code&gt; با پیش‌بارگذاری و زمان بیکاری ۰ تنظیم کنید، یا &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) را ثبت کنید تا فرایند به‌طور منظم خودش را فراخوانی کند. بازیافت همچنان به تنظیمات مخزن نیاز دارد.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>زنده‌نگه‌دار</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>پیکربندی نشده</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>در انتظار اولین درخواست</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>آخرین درخواست موفق بود</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>آخرین درخواست ناموفق بود</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>هر {0}</value>
+  </data>
 </root>

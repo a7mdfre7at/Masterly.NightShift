@@ -2176,5 +2176,104 @@ namespace Hangfire.Dashboard.Resources {
                 return ResourceManager.GetString("ServersPage_Clearing", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This process.
+        /// </summary>
+        public static string ServersPage_Hosting {
+            get {
+                return ResourceManager.GetString("ServersPage_Hosting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Process.
+        /// </summary>
+        public static string ServersPage_Hosting_Process {
+            get {
+                return ResourceManager.GetString("ServersPage_Hosting_Process", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Up for.
+        /// </summary>
+        public static string ServersPage_Hosting_Uptime {
+            get {
+                return ResourceManager.GetString("ServersPage_Hosting_Uptime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hosted by IIS.
+        /// </summary>
+        public static string ServersPage_Hosting_Iis {
+            get {
+                return ResourceManager.GetString("ServersPage_Hosting_Iis", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to IIS stops idle worker processes after 20 minutes by default, and jobs stop with them. Set the application pool to &lt;code&gt;AlwaysRunning&lt;/code&gt; with preloading and an idle timeout of 0, or register &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) so the process requests itself regularly. A recycle still needs the pool settings..
+        /// </summary>
+        public static string ServersPage_Hosting_IisWarning_Html {
+            get {
+                return ResourceManager.GetString("ServersPage_Hosting_IisWarning_Html", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep-alive.
+        /// </summary>
+        public static string ServersPage_KeepAlive {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to not configured.
+        /// </summary>
+        public static string ServersPage_KeepAlive_NotConfigured {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive_NotConfigured", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to waiting for the first request.
+        /// </summary>
+        public static string ServersPage_KeepAlive_Pending {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive_Pending", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to last request succeeded.
+        /// </summary>
+        public static string ServersPage_KeepAlive_Ok {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive_Ok", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to last request failed.
+        /// </summary>
+        public static string ServersPage_KeepAlive_Failed {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive_Failed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to every {0}.
+        /// </summary>
+        public static string ServersPage_KeepAlive_Every {
+            get {
+                return ResourceManager.GetString("ServersPage_KeepAlive_Every", resourceCulture);
+            }
+        }
     }
 }

@@ -839,4 +839,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Limpando…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Este processo</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Processo</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Ativo há</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Hospedado pelo IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>O IIS interrompe processos de trabalho ociosos após 20 minutos por padrão, e as tarefas param com eles. Configure o pool de aplicativos como &lt;code&gt;AlwaysRunning&lt;/code&gt; com pré-carregamento e tempo ocioso 0, ou registre &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) para que o processo solicite a si mesmo periodicamente. Uma reciclagem ainda exige as configurações do pool.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>não configurado</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>aguardando a primeira solicitação</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>última solicitação bem-sucedida</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>última solicitação falhou</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>a cada {0}</value>
+  </data>
 </root>

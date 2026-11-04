@@ -785,4 +785,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>正在清除…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>当前进程</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>进程</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>已运行</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>由 IIS 托管</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS 默认在工作进程空闲 20 分钟后将其停止，作业也随之停止。请将应用程序池设置为 &lt;code&gt;AlwaysRunning&lt;/code&gt; 并启用预加载、空闲超时设为 0，或注册 &lt;code&gt;KeepAliveProcess&lt;/code&gt;（&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;）让进程定期请求自身。回收仍需要应用程序池设置。</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>保活</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>未配置</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>等待第一次请求</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>最近一次请求成功</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>最近一次请求失败</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>每 {0}</value>
+  </data>
 </root>

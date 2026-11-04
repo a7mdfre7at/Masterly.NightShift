@@ -775,4 +775,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Esborrant…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Aquest procés</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Procés</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Actiu des de fa</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Allotjat per IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>L’IIS atura els processos de treball inactius al cap de 20 minuts per defecte, i les tasques s’aturen amb ells. Configureu el grup d’aplicacions com a &lt;code&gt;AlwaysRunning&lt;/code&gt; amb precàrrega i temps d’inactivitat 0, o registreu &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) perquè el procés es sol·liciti a si mateix regularment. Un reciclatge encara necessita la configuració del grup.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>no configurat</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>esperant la primera sol·licitud</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>darrera sol·licitud correcta</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>darrera sol·licitud fallida</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>cada {0}</value>
+  </data>
 </root>

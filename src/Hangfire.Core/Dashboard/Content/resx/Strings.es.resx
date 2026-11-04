@@ -775,4 +775,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Borrando…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Este proceso</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Proceso</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Activo desde hace</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Alojado por IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS detiene los procesos de trabajo inactivos tras 20 minutos de forma predeterminada, y los trabajos se detienen con ellos. Configure el grupo de aplicaciones como &lt;code&gt;AlwaysRunning&lt;/code&gt; con precarga y tiempo de inactividad 0, o registre &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) para que el proceso se solicite a sí mismo periódicamente. Un reciclaje sigue necesitando la configuración del grupo.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>no configurado</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>esperando la primera solicitud</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>última solicitud correcta</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>última solicitud fallida</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>cada {0}</value>
+  </data>
 </root>

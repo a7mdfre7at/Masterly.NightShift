@@ -836,4 +836,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Tømmer…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Denne prosessen</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Prosess</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Oppe i</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Kjører under IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS stopper inaktive arbeidsprosesser etter 20 minutter som standard, og jobbene stopper med dem. Sett programpoolen til &lt;code&gt;AlwaysRunning&lt;/code&gt; med forhåndslasting og inaktivitetstid 0, eller registrer &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) slik at prosessen kaller seg selv jevnlig. En resirkulering krever fortsatt poolinnstillingene.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>ikke konfigurert</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>venter på første forespørsel</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>siste forespørsel lyktes</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>siste forespørsel mislyktes</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>hvert {0}</value>
+  </data>
 </root>

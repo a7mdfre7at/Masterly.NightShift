@@ -5,11 +5,17 @@
 @using Hangfire.Dashboard
 @using Hangfire.Dashboard.Pages
 @using Hangfire.Dashboard.Resources
+@using Hangfire.Server
 @using Hangfire.Storage
+@using System.Diagnostics
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.ServersPage_Title);
     var invokers = JobInvokerRegistry.GetStatistics();
+    var keepAlive = KeepAliveProcess.Status;
+    var hostedByIis = KeepAliveProcess.IsHostedByIis;
+    var currentProcess = Process.GetCurrentProcess();
+    var uptime = ApplicationUtcNow - currentProcess.StartTime.ToUniversalTime();
     
     var monitor = Storage.GetMonitoringApi();
     var servers = monitor.Servers();
@@ -82,6 +88,57 @@
                 </table>
             </div>
         }
+
+        <h3 id="servers-hosting">@Strings.ServersPage_Hosting</h3>
+        @if (hostedByIis && keepAlive == null)
+        {
+            <div class="alert alert-warning">
+                <span class="glyphicon glyphicon-warning-sign"></span>
+                @Html.Raw(Strings.ServersPage_Hosting_IisWarning_Html)
+            </div>
+        }
+        <div class="hf-card hf-hosting" aria-describedby="servers-hosting">
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_Hosting_Process</span>
+                <span class="hf-hosting-value">
+                    @currentProcess.ProcessName <span class="text-muted">#@currentProcess.Id</span>
+                    @if (hostedByIis)
+                    {
+                        <span class="label label-warning">@Strings.ServersPage_Hosting_Iis</span>
+                    }
+                </span>
+            </div>
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_Hosting_Uptime</span>
+                <span class="hf-hosting-value">@Html.ToHumanDuration(uptime, false)</span>
+            </div>
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_KeepAlive</span>
+                <span class="hf-hosting-value">
+                    @if (keepAlive == null)
+                    {
+                        <span class="label label-default">@Strings.ServersPage_KeepAlive_NotConfigured</span>
+                    }
+                    else if (keepAlive.LastAttemptAt == null)
+                    {
+                        <span class="label label-info">@Strings.ServersPage_KeepAlive_Pending</span>
+                        <span class="text-muted">@String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false))</span>
+                    }
+                    else if (keepAlive.LastSucceeded == true)
+                    {
+                        <span class="label label-success">@Strings.ServersPage_KeepAlive_Ok</span>
+                        @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
+                        <span class="text-muted">&middot; @String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false)) &middot; <code>@keepAlive.Url</code></span>
+                    }
+                    else
+                    {
+                        <span class="label label-danger" title="@keepAlive.LastError">@Strings.ServersPage_KeepAlive_Failed</span>
+                        @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
+                        <span class="text-muted">&middot; @keepAlive.LastError</span>
+                    }
+                </span>
+            </div>
+        </div>
 
         @if (!IsReadOnly && Storage.HasFeature(JobStorageFeatures.Purge))
         {

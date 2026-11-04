@@ -799,4 +799,37 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>Effacement…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Ce processus</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Processus</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Actif depuis</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Hébergé par IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS arrête les processus de travail inactifs après 20 minutes par défaut, et les tâches s’arrêtent avec eux. Configurez le pool d’applications en &lt;code&gt;AlwaysRunning&lt;/code&gt; avec préchargement et un délai d’inactivité de 0, ou enregistrez &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;) pour que le processus se sollicite régulièrement. Un recyclage nécessite toujours les paramètres du pool.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>non configuré</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>en attente de la première requête</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>dernière requête réussie</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>dernière requête échouée</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>toutes les {0}</value>
+  </data>
 </root>

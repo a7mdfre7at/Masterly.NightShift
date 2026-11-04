@@ -774,4 +774,37 @@
   <data name="ServersPage_Clearing" xml:space="preserve">
     <value>正在清除…</value>
   </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>目前處理序</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>處理序</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>已執行</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>由 IIS 裝載</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS 預設會在工作處理序閒置 20 分鐘後將其停止，工作也隨之停止。請將應用程式集區設為 &lt;code&gt;AlwaysRunning&lt;/code&gt; 並啟用預先載入、閒置逾時設為 0，或註冊 &lt;code&gt;KeepAliveProcess&lt;/code&gt;（&lt;code&gt;services.AddHangfireKeepAlive()&lt;/code&gt;）讓處理序定期要求自身。回收仍需要集區設定。</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>保持連線</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>未設定</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>等待第一次要求</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>最近一次要求成功</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>最近一次要求失敗</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>每 {0}</value>
+  </data>
 </root>
