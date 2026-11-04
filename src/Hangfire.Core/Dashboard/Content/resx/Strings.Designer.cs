@@ -1402,5 +1402,779 @@ namespace Hangfire.Dashboard.Resources {
                 return ResourceManager.GetString("SucceededJobsPage_Title", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pause.
+        /// </summary>
+        public static string RecurringJobsPage_Pause {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Pause", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pausing....
+        /// </summary>
+        public static string RecurringJobsPage_Pausing {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Pausing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resume.
+        /// </summary>
+        public static string RecurringJobsPage_Resume {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Resume", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resuming....
+        /// </summary>
+        public static string RecurringJobsPage_Resuming {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Resuming", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paused.
+        /// </summary>
+        public static string RecurringJobsPage_Paused {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Paused", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paused: it stays out of the schedule until it is resumed. It can still be triggered by hand..
+        /// </summary>
+        public static string RecurringJobsPage_Paused_Tooltip {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Paused_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit.
+        /// </summary>
+        public static string RecurringJobsPage_Edit {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Edit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit schedule.
+        /// </summary>
+        public static string RecurringJobsPage_EditSchedule {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_EditSchedule", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Schedule.
+        /// </summary>
+        public static string RecurringJobsPage_Schedule {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Schedule", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A CRON expression, or plain English such as "every 15 minutes", "weekdays at 9:30" or "last day of month at 23:00"..
+        /// </summary>
+        public static string RecurringJobsPage_ScheduleHint {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_ScheduleHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Next runs.
+        /// </summary>
+        public static string RecurringJobsPage_NextRuns {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_NextRuns", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Missed occurrences.
+        /// </summary>
+        public static string RecurringJobsPage_Misfire {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Misfire", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run once, as soon as possible (relaxed).
+        /// </summary>
+        public static string RecurringJobsPage_Misfire_Relaxed {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Misfire_Relaxed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every missed occurrence (strict).
+        /// </summary>
+        public static string RecurringJobsPage_Misfire_Strict {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Misfire_Strict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skip them (ignorable).
+        /// </summary>
+        public static string RecurringJobsPage_Misfire_Ignorable {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Misfire_Ignorable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Queue.
+        /// </summary>
+        public static string RecurringJobsPage_Queue {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Queue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        public static string RecurringJobsPage_Save {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saving....
+        /// </summary>
+        public static string RecurringJobsPage_Saving {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Saving", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        public static string RecurringJobsPage_Cancel {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The schedule can't be previewed..
+        /// </summary>
+        public static string RecurringJobsPage_PreviewUnavailable {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_PreviewUnavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Live.
+        /// </summary>
+        public static string JobDetailsPage_Live {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Live", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to elapsed.
+        /// </summary>
+        public static string JobDetailsPage_Live_Elapsed {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Live_Elapsed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Progress.
+        /// </summary>
+        public static string JobDetailsPage_Progress {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Progress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Console.
+        /// </summary>
+        public static string JobDetailsPage_Console {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Console", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Checkpoints.
+        /// </summary>
+        public static string JobDetailsPage_Checkpoints {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_Checkpoints", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Nothing reported yet. Jobs can report progress, lines and checkpoints through IJobConsole..
+        /// </summary>
+        public static string JobDetailsPage_NoConsoleOutput {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_NoConsoleOutput", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Progress.
+        /// </summary>
+        public static string ProcessingJobsPage_Table_Progress {
+            get {
+                return ResourceManager.GetString("ProcessingJobsPage_Table_Progress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Insights.
+        /// </summary>
+        public static string InsightsPage_Title {
+            get {
+                return ResourceManager.GetString("InsightsPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Insights.
+        /// </summary>
+        public static string NavigationMenu_Insights {
+            get {
+                return ResourceManager.GetString("NavigationMenu_Insights", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The current storage can't read lists and counters, so insights are not available..
+        /// </summary>
+        public static string InsightsPage_NotSupported {
+            get {
+                return ResourceManager.GetString("InsightsPage_NotSupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No statistics yet. Enable them with &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt;, or put &lt;code&gt;[JobInsights]&lt;/code&gt; on the job classes you want to track..
+        /// </summary>
+        public static string InsightsPage_NoData_Html {
+            get {
+                return ResourceManager.GetString("InsightsPage_NoData_Html", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Circuit breakers.
+        /// </summary>
+        public static string InsightsPage_Circuits {
+            get {
+                return ResourceManager.GetString("InsightsPage_Circuits", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resource.
+        /// </summary>
+        public static string InsightsPage_Circuits_Resource {
+            get {
+                return ResourceManager.GetString("InsightsPage_Circuits_Resource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failures.
+        /// </summary>
+        public static string InsightsPage_Circuits_Failures {
+            get {
+                return ResourceManager.GetString("InsightsPage_Circuits_Failures", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Since.
+        /// </summary>
+        public static string InsightsPage_Circuits_Since {
+            get {
+                return ResourceManager.GetString("InsightsPage_Circuits_Since", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset.
+        /// </summary>
+        public static string InsightsPage_Circuits_Reset {
+            get {
+                return ResourceManager.GetString("InsightsPage_Circuits_Reset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Runs.
+        /// </summary>
+        public static string InsightsPage_Table_Runs {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Runs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed.
+        /// </summary>
+        public static string InsightsPage_Table_Failed {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Failed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Median.
+        /// </summary>
+        public static string InsightsPage_Table_Median {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Median", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to p95.
+        /// </summary>
+        public static string InsightsPage_Table_P95 {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_P95", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Max.
+        /// </summary>
+        public static string InsightsPage_Table_Max {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Max", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Trend.
+        /// </summary>
+        public static string InsightsPage_Table_Trend {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Trend", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invoker.
+        /// </summary>
+        public static string InsightsPage_Table_Invoker {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_Invoker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Last run.
+        /// </summary>
+        public static string InsightsPage_Table_LastRun {
+            get {
+                return ResourceManager.GetString("InsightsPage_Table_LastRun", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The last run took more than three times the p95 of recent runs.
+        /// </summary>
+        public static string InsightsPage_SlowRun_Tooltip {
+            get {
+                return ResourceManager.GetString("InsightsPage_SlowRun_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Methods tracked.
+        /// </summary>
+        public static string InsightsPage_Summary_Methods {
+            get {
+                return ResourceManager.GetString("InsightsPage_Summary_Methods", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Runs recorded.
+        /// </summary>
+        public static string InsightsPage_Summary_Runs {
+            get {
+                return ResourceManager.GetString("InsightsPage_Summary_Runs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failure rate.
+        /// </summary>
+        public static string InsightsPage_Summary_FailureRate {
+            get {
+                return ResourceManager.GetString("InsightsPage_Summary_FailureRate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invokers on this server.
+        /// </summary>
+        public static string InsightsPage_Summary_Invokers {
+            get {
+                return ResourceManager.GetString("InsightsPage_Summary_Invokers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Methods performed with generated, compiled and reflection invokers.
+        /// </summary>
+        public static string InsightsPage_Summary_Invokers_Hint {
+            get {
+                return ResourceManager.GetString("InsightsPage_Summary_Invokers_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Job invokers in this process.
+        /// </summary>
+        public static string ServersPage_Invokers {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to generated invokers registered.
+        /// </summary>
+        public static string ServersPage_Invokers_Registered {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers_Registered", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to generated.
+        /// </summary>
+        public static string ServersPage_Invokers_Generated {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers_Generated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to compiled.
+        /// </summary>
+        public static string ServersPage_Invokers_Compiled {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers_Compiled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to reflection.
+        /// </summary>
+        public static string ServersPage_Invokers_Reflection {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers_Reflection", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How the job methods performed by this process were called. Reference the Hangfire.SourceGenerator analyzer (shipped with Hangfire.Core) to make them all generated..
+        /// </summary>
+        public static string ServersPage_Invokers_Hint {
+            get {
+                return ResourceManager.GetString("ServersPage_Invokers_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Deadline.
+        /// </summary>
+        public static string Common_Deadline {
+            get {
+                return ResourceManager.GetString("Common_Deadline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Overdue.
+        /// </summary>
+        public static string Common_Overdue {
+            get {
+                return ResourceManager.GetString("Common_Overdue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The job is past its deadline.
+        /// </summary>
+        public static string Common_Overdue_Tooltip {
+            get {
+                return ResourceManager.GetString("Common_Overdue_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Finished {0} after its deadline.
+        /// </summary>
+        public static string JobDetailsPage_DeadlineMissed {
+            get {
+                return ResourceManager.GetString("JobDetailsPage_DeadlineMissed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Theme.
+        /// </summary>
+        public static string LayoutPage_Theme {
+            get {
+                return ResourceManager.GetString("LayoutPage_Theme", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Follow the system theme.
+        /// </summary>
+        public static string LayoutPage_Theme_System {
+            get {
+                return ResourceManager.GetString("LayoutPage_Theme_System", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Light theme.
+        /// </summary>
+        public static string LayoutPage_Theme_Light {
+            get {
+                return ResourceManager.GetString("LayoutPage_Theme_Light", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dark theme.
+        /// </summary>
+        public static string LayoutPage_Theme_Dark {
+            get {
+                return ResourceManager.GetString("LayoutPage_Theme_Dark", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Menu.
+        /// </summary>
+        public static string LayoutPage_Menu {
+            get {
+                return ResourceManager.GetString("LayoutPage_Menu", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Live.
+        /// </summary>
+        public static string LayoutPage_Live {
+            get {
+                return ResourceManager.GetString("LayoutPage_Live", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Search….
+        /// </summary>
+        public static string LayoutPage_Search {
+            get {
+                return ResourceManager.GetString("LayoutPage_Search", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Jump to a page, a job id or a recurring job (Ctrl+K).
+        /// </summary>
+        public static string LayoutPage_Search_Hint {
+            get {
+                return ResourceManager.GetString("LayoutPage_Search_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Monitor.
+        /// </summary>
+        public static string NavigationMenu_Section_Monitor {
+            get {
+                return ResourceManager.GetString("NavigationMenu_Section_Monitor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Overview.
+        /// </summary>
+        public static string HomePage_Overview {
+            get {
+                return ResourceManager.GetString("HomePage_Overview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete all.
+        /// </summary>
+        public static string Common_DeleteAll {
+            get {
+                return ResourceManager.GetString("Common_DeleteAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete EVERY job in this list? This cannot be undone..
+        /// </summary>
+        public static string Common_DeleteAllConfirm {
+            get {
+                return ResourceManager.GetString("Common_DeleteAllConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove all.
+        /// </summary>
+        public static string RecurringJobsPage_RemoveAll {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_RemoveAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove ALL recurring jobs? They come back only when the application registers them again..
+        /// </summary>
+        public static string RecurringJobsPage_RemoveAllConfirm {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_RemoveAllConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        public static string LayoutPage_Refresh {
+            get {
+                return ResourceManager.GetString("LayoutPage_Refresh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Live.
+        /// </summary>
+        public static string LayoutPage_LiveToggle {
+            get {
+                return ResourceManager.GetString("LayoutPage_LiveToggle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh this list automatically.
+        /// </summary>
+        public static string LayoutPage_LiveToggle_Hint {
+            get {
+                return ResourceManager.GetString("LayoutPage_LiveToggle_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Maintenance.
+        /// </summary>
+        public static string ServersPage_Maintenance {
+            get {
+                return ResourceManager.GetString("ServersPage_Maintenance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clears job data from the storage. Servers keep running..
+        /// </summary>
+        public static string ServersPage_Maintenance_Hint {
+            get {
+                return ResourceManager.GetString("ServersPage_Maintenance_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear all jobs.
+        /// </summary>
+        public static string ServersPage_ClearJobs {
+            get {
+                return ResourceManager.GetString("ServersPage_ClearJobs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Removes every job with its history, queue entries, counters, consoles and statistics. Recurring job definitions and servers are kept..
+        /// </summary>
+        public static string ServersPage_ClearJobs_Hint {
+            get {
+                return ResourceManager.GetString("ServersPage_ClearJobs_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete ALL jobs and their history from the storage? This cannot be undone..
+        /// </summary>
+        public static string ServersPage_ClearJobsConfirm {
+            get {
+                return ResourceManager.GetString("ServersPage_ClearJobsConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset storage.
+        /// </summary>
+        public static string ServersPage_ResetStorage {
+            get {
+                return ResourceManager.GetString("ServersPage_ResetStorage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Removes everything, including recurring job definitions and server registrations, as if the storage were new..
+        /// </summary>
+        public static string ServersPage_ResetStorage_Hint {
+            get {
+                return ResourceManager.GetString("ServersPage_ResetStorage_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset the WHOLE storage? Recurring jobs disappear until the application registers them again. This cannot be undone..
+        /// </summary>
+        public static string ServersPage_ResetStorageConfirm {
+            get {
+                return ResourceManager.GetString("ServersPage_ResetStorageConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clearing….
+        /// </summary>
+        public static string ServersPage_Clearing {
+            get {
+                return ResourceManager.GetString("ServersPage_Clearing", resourceCulture);
+            }
+        }
     }
 }

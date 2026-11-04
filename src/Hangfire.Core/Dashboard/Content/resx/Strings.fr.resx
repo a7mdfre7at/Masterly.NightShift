@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -540,5 +540,263 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   </data>
   <data name="Arguments" xml:space="preserve">
     <value>Arguments</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Mettre en pause</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Mise en pause…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Reprendre</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Reprise…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>En pause</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>En pause : reste hors de la planification jusqu’à la reprise. Peut toujours être déclenché manuellement.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Modifier la planification</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Planification</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Une expression CRON ou de l’anglais simple comme « every 15 minutes », « weekdays at 9:30 » ou « last day of month at 23:00 ».</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Prochaines exécutions</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Occurrences manquées</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Exécuter une fois dès que possible (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Exécuter chaque occurrence manquée (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Les ignorer (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Enregistrement…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>Impossible de prévisualiser la planification.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>écoulé</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Progression</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Points de contrôle</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Rien de signalé pour l’instant. Les tâches peuvent signaler progression, lignes et points de contrôle via IJobConsole.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Progression</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Analyses</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Analyses</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>Le stockage actuel ne peut pas lire les listes et les compteurs ; les analyses ne sont pas disponibles.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Pas encore de statistiques. Activez-les avec &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; ou ajoutez &lt;code&gt;[JobInsights]&lt;/code&gt; aux classes de tâches à suivre.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Disjoncteurs</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Ressource</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Échecs</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Depuis</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Réinitialiser</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Exécutions</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Échouées</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Médiane</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Tendance</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Invocateur</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Dernière exécution</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>La dernière exécution a duré plus de trois fois le p95 des exécutions récentes</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Méthodes suivies</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Exécutions enregistrées</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Taux d’échec</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Invocateurs sur ce serveur</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Méthodes exécutées avec des invocateurs générés, compilés ou par réflexion</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Invocateurs de tâches dans ce processus</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>invocateurs générés enregistrés</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>générés</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>compilés</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>réflexion</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Comment les méthodes de tâche exécutées par ce processus ont été appelées. Référencez l’analyseur Hangfire.SourceGenerator (fourni avec Hangfire.Core) pour qu’elles soient toutes générées.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Échéance</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>En retard</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>La tâche a dépassé son échéance</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>Terminée {0} après son échéance</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Thème</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Suivre le thème du système</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Thème clair</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Thème sombre</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Rechercher…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Aller à une page, un identifiant de tâche ou une tâche récurrente (Ctrl+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Surveillance</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Vue d’ensemble</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Tout supprimer</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>Supprimer TOUTES les tâches de cette liste ? Cette action est irréversible.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Tout retirer</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>Retirer TOUTES les tâches récurrentes ? Elles ne reviendront que lorsque l’application les enregistrera à nouveau.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Actualiser cette liste automatiquement</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Efface les données des tâches du stockage. Les serveurs continuent de fonctionner.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Effacer toutes les tâches</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Supprime chaque tâche avec son historique, les entrées de files, les compteurs, les consoles et les statistiques. Les tâches récurrentes et les serveurs sont conservés.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>Supprimer TOUTES les tâches et leur historique du stockage ? Cette action est irréversible.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Réinitialiser le stockage</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Supprime tout, y compris les tâches récurrentes et les enregistrements de serveurs, comme si le stockage était neuf.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>Réinitialiser TOUT le stockage ? Les tâches récurrentes disparaissent jusqu’à ce que l’application les enregistre à nouveau. Cette action est irréversible.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Effacement…</value>
   </data>
 </root>

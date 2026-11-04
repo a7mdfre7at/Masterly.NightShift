@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -516,5 +516,263 @@
   </data>
   <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
     <value>Completats</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Pausa</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Pausant…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Reprèn</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Reprenent…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>En pausa</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>En pausa: queda fora de la planificació fins que es reprengui. Encara es pot executar manualment.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Edita la planificació</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Planificació</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Una expressió CRON o anglès senzill com “every 15 minutes”, “weekdays at 9:30” o “last day of month at 23:00”.</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Properes execucions</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Execucions perdudes</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Executa una vegada tan aviat com sigui possible (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Executa cada execució perduda (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Omet-les (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>Cua</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Desant…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>No es pot previsualitzar la planificació.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>En directe</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>transcorregut</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Progrés</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Consola</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Punts de control</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Encara no s’ha informat de res. Les tasques poden informar del progrés, línies i punts de control mitjançant IJobConsole.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Progrés</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Estadístiques</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Estadístiques</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>L’emmagatzematge actual no pot llegir llistes ni comptadors, de manera que les estadístiques no estan disponibles.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Encara no hi ha estadístiques. Activeu-les amb &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; o afegiu &lt;code&gt;[JobInsights]&lt;/code&gt; a les classes de tasques que vulgueu seguir.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Tallacircuits</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Recurs</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Errors</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Des de</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Restableix</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Execucions</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Fallides</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Mediana</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Màx</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Tendència</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Invocador</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Darrera execució</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>La darrera execució ha trigat més de tres vegades el p95 de les execucions recents</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Mètodes seguits</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Execucions registrades</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Taxa d’errors</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Invocadors en aquest servidor</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Mètodes executats amb invocadors generats, compilats i per reflexió</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Invocadors de tasques en aquest procés</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>invocadors generats registrats</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>generats</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>compilats</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>reflexió</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Com s’han cridat els mètodes de tasca executats per aquest procés. Referencieu l’analitzador Hangfire.SourceGenerator (inclòs amb Hangfire.Core) perquè tots siguin generats.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Termini</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>La tasca ha superat el termini</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>Acabada {0} després del termini</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Tema</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Segueix el tema del sistema</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Tema clar</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Tema fosc</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menú</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>En directe</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Cerca…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Vés a una pàgina, un id de tasca o una tasca recurrent (Ctrl+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Supervisió</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Resum</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Suprimeix-ho tot</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>Suprimir TOTES les tasques d’aquesta llista? Això no es pot desfer.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Elimina-les totes</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>Eliminar TOTES les tasques recurrents? Només tornen quan l’aplicació les registra de nou.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Actualitza</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>En directe</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Actualitza aquesta llista automàticament</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Manteniment</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Esborra les dades de tasques de l’emmagatzematge. Els servidors continuen funcionant.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Esborra totes les tasques</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Elimina cada tasca amb el seu historial, entrades de cua, comptadors, consoles i estadístiques. Les tasques recurrents i els servidors es conserven.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>Suprimir TOTES les tasques i el seu historial de l’emmagatzematge? Això no es pot desfer.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Restableix l’emmagatzematge</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Elimina tot, incloses les tasques recurrents i els registres de servidors, com si l’emmagatzematge fos nou.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>Restablir TOT l’emmagatzematge? Les tasques recurrents desapareixen fins que l’aplicació les registri de nou. Això no es pot desfer.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Esborrant…</value>
   </data>
 </root>
