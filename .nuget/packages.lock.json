@@ -19,12 +19,6 @@
         "requested": "[4.4.1, 4.4.1]",
         "resolved": "4.4.1",
         "contentHash": "Hn5kdGPEoapi+wAAjaGjKEZVnuYp7fUrPK3IivLYG6Bn4adhd8l+KXXPMEmte41RmrLvfV7XGZa9KsSTc0gjDA=="
-      },
-      "RazorGenerator.MsBuild": {
-        "type": "Direct",
-        "requested": "[2.5.0, 2.5.0]",
-        "resolved": "2.5.0",
-        "contentHash": "yOu2KEjDFvE20b+YK/+Ovf4czUHWH2DlBB9lIKDXdBjcMh3PXrPJTxPzi468XrFvE1dVEiWu+pGNkVFE9+VpMA=="
       }
     }
   }

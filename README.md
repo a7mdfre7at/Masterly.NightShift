@@ -151,7 +151,6 @@ Building the sources
 Prerequisites:
 * [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), plus the .NET 8 runtime to run tests on `net8.0`.
 * SQL Server for the `Hangfire.SqlServer` tests. SQL Server Express LocalDB, which ships with Visual Studio, is enough.
-* [Razor Generator](https://marketplace.visualstudio.com/items?itemName=DavidEbbo.RazorGenerator): Required if you intend to edit the cshtml files.
 
 Then, create an environment variable with Variable name `Hangfire_SqlServer_ConnectionStringTemplate` and put your connection string in the Variable value field. The `{0}` placeholder is replaced with a database name. Example:
 
@@ -178,7 +177,7 @@ build -docs
 
 Hangfire uses [psake](https://github.com/psake/psake) build automation tool. All psake tasks and functions defined in `psake-build.ps1` (for this project) and `psake-common.ps1` (for other Hangfire projects) files. Thanks to the psake project, they are very simple to use and modify!
 
-Razor templates are compiled upon save with the [Razor Generator Visual Studio extension](https://marketplace.visualstudio.com/items?itemName=DavidEbbo.RazorGenerator).  You will need this installed if you want to modify the Dashboard UI.
+Dashboard pages (`*.cshtml`) are compiled to C# on every build by a source generator in `src/Hangfire.Dashboard.Generator`, so no extension or extra tool is needed to modify the Dashboard UI.
 
 Reporting security issues 
 --------------------------

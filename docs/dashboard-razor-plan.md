@@ -1,5 +1,11 @@
 # Plan: replace RazorGenerator for dashboard pages
 
+> **Status: done.** Option A is implemented in `src/Hangfire.Dashboard.Generator`. All 30 captured dashboard pages (every list page, a details page for every job state, and pagination) render byte for byte the same as before, apart from values that change on every request. Implementing it found three behavior differences in modern Razor, all now handled in the generator:
+>
+> - Attributes that contain C# are written through `BeginWriteAttribute`/`WriteAttributeValue`/`EndWriteAttribute`. `RazorPage` implements these as plain text, without ASP.NET Core's conditional-attribute rules.
+> - A line that holds only a Razor comment is removed entirely, line break included. RazorGenerator kept the line's whitespace and break, so the generator strips only the comment.
+> - The output follows the checkout's line endings. The generator normalizes to `\r\n`, as RazorGenerator produced, so builds on Linux render the same HTML.
+
 ## Why
 
 The 23 dashboard pages (`src/Hangfire.Core/Dashboard/Pages/*.cshtml`) are compiled to C# by RazorGenerator.MsBuild 2.5.0. That's its last release, and the tool has these limits:

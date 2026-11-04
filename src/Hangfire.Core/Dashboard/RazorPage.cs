@@ -29,6 +29,7 @@ namespace Hangfire.Dashboard
 
         private readonly StringBuilder _content = new StringBuilder();
         private string _body;
+        private string _attributeSuffix;
 
         protected RazorPage()
         {
@@ -165,6 +166,37 @@ namespace Hangfire.Dashboard
                 return;
             var html = value as NonEscapedString;
             WriteLiteral(html?.ToString() ?? Encode(value.ToString()));
+        }
+
+        // Razor writes attributes that contain C# through the three methods below. They write the attribute
+        // as plain text, as the pages did before, without ASP.NET Core's conditional attribute rules
+        // (dropping attributes with null or false values), so the rendered HTML doesn't change.
+        private protected void BeginWriteAttribute(
+            string name, string prefix, int prefixOffset, string suffix, int suffixOffset, int attributeValuesCount)
+        {
+            WriteLiteral(prefix);
+            _attributeSuffix = suffix;
+        }
+
+        private protected void WriteAttributeValue(
+            string prefix, int prefixOffset, object value, int valueOffset, int valueLength, bool isLiteral)
+        {
+            WriteLiteral(prefix);
+
+            if (isLiteral)
+            {
+                WriteLiteral(value?.ToString());
+            }
+            else
+            {
+                Write(value);
+            }
+        }
+
+        private protected void EndWriteAttribute()
+        {
+            WriteLiteral(_attributeSuffix);
+            _attributeSuffix = null;
         }
 
         protected virtual object RenderBody()

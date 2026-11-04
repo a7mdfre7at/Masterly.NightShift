@@ -22,24 +22,11 @@
     <PackageReference Include="Microsoft.CSharp" />
   </ItemGroup>
   
-  <!-- Full MSBuild is required to generate Razor classes -->
-  <PropertyGroup>
-    <MSBuild14FullPath>$(MSBuildProgramFiles32)\..\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe</MSBuild14FullPath>
-    <!-- RazorGenerator is a .NET Framework task. The .NET 10 SDK ships its own MSBuild.exe, which can't load it -->
-    <MSBuildCurrentFullPath Condition="'$(MSBuildRuntimeType)' == 'Full'">$(MSBuildBinPath)\MSBuild.exe</MSBuildCurrentFullPath>
-    <RazorProjectFile>Razor.build</RazorProjectFile>
-    <RazorGeneratorTargets>$(MSBuildThisFileDirectory)..\..\packages\RazorGenerator.MsBuild.2.5.0\build\RazorGenerator.MsBuild.targets</RazorGeneratorTargets>
-  </PropertyGroup>
-
-  <Target Name="GenerateRazorClasses" BeforeTargets="Build" Condition="Exists('$(RazorGeneratorTargets)')">
-    <Exec Command="&quot;$(MSBuildCurrentFullPath)&quot; $(RazorProjectFile) /v:quiet /nologo" Condition="Exists('$(MSBuildCurrentFullPath)')" />
-    <Exec Command="&quot;$(MSBuild14FullPath)&quot; $(RazorProjectFile) /v:quiet /nologo" Condition="Exists('$(MSBuild14FullPath)') and !Exists('$(MSBuildCurrentFullPath)')" />
-    <Warning Text="Classes for Razor files (*.cshtml) weren't re-generated: couldn't find the '$(MSBuild14FullPath)' or '$(MSBuildCurrentFullPath)' file" Condition="!Exists('$(MSBuild14FullPath)') and !Exists('$(MSBuildCurrentFullPath)')" />
-  </Target>
-
-  <Target Name="WarnRazorGeneratorMissing" BeforeTargets="Build" Condition="!Exists('$(RazorGeneratorTargets)')">
-    <Warning Text="Classes for Razor files (*.cshtml) weren't re-generated: RazorGenerator.MsBuild isn't restored into the 'packages' folder (run build.bat once)" />
-  </Target>
+  <!-- Dashboard pages (*.cshtml) are compiled to C# during the build by Hangfire.Dashboard.Generator -->
+  <ItemGroup>
+    <ProjectReference Include="..\Hangfire.Dashboard.Generator\Hangfire.Dashboard.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <AdditionalFiles Include="Dashboard\Pages\*.cshtml" />
+  </ItemGroup>
   
   <ItemGroup>
     <EmbeddedResource Include="Dashboard\Content\css\bootstrap.min.css" />
@@ -73,107 +60,38 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Dashboard\Pages\_BlockMetric.cshtml.cs">
-      <DependentUpon>_BlockMetric.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\_BlockMetric.cs">
       <DependentUpon>_BlockMetric.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\_Breadcrumbs.cshtml.cs">
-      <DependentUpon>_Breadcrumbs.cshtml</DependentUpon>
     </Compile>
     <Compile Update="Dashboard\Pages\_Breadcrumbs.cs">
       <DependentUpon>_Breadcrumbs.cshtml</DependentUpon>
     </Compile>
-    <Compile Update="Dashboard\Pages\_ErrorAlert.cshtml.cs">
-      <DependentUpon>_ErrorAlert.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\_InlineMetric.cshtml.cs">
-      <DependentUpon>_InlineMetric.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\_InlineMetric.cs">
       <DependentUpon>_InlineMetric.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\_Navigation.cshtml.cs">
-      <DependentUpon>_Navigation.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\_Paginator.cshtml.cs">
-      <DependentUpon>_Paginator.cshtml</DependentUpon>
     </Compile>
     <Compile Update="Dashboard\Pages\_Paginator.cs">
       <DependentUpon>_Paginator.cshtml</DependentUpon>
     </Compile>
-    <Compile Update="Dashboard\Pages\_PerPageSelector.cshtml.cs">
-      <DependentUpon>_PerPageSelector.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\_PerPageSelector.cs">
       <DependentUpon>_PerPageSelector.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\_SidebarMenu.cshtml.cs">
-      <DependentUpon>_SidebarMenu.cshtml</DependentUpon>
     </Compile>
     <Compile Update="Dashboard\Pages\_SidebarMenu.cs">
       <DependentUpon>_SidebarMenu.cshtml</DependentUpon>
     </Compile>
-    <Compile Update="Dashboard\Pages\AwaitingJobsPage.cshtml.cs">
-      <DependentUpon>AwaitingJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\DeletedJobsPage.cshtml.cs">
-      <DependentUpon>DeletedJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\EnqueuedJobsPage.cshtml.cs">
-      <DependentUpon>EnqueuedJobsPage.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\EnqueuedJobsPage.cs">
       <DependentUpon>EnqueuedJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\FailedJobsPage.cshtml.cs">
-      <DependentUpon>FailedJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\FetchedJobsPage.cshtml.cs">
-      <DependentUpon>FetchedJobsPage.cshtml</DependentUpon>
     </Compile>
     <Compile Update="Dashboard\Pages\FetchedJobsPage.cs">
       <DependentUpon>FetchedJobsPage.cshtml</DependentUpon>
     </Compile>
-    <Compile Update="Dashboard\Pages\HomePage.cshtml.cs">
-      <DependentUpon>HomePage.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\HomePage.cs">
       <DependentUpon>HomePage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\JobDetailsPage.cshtml.cs">
-      <DependentUpon>JobDetailsPage.cshtml</DependentUpon>
     </Compile>
     <Compile Update="Dashboard\Pages\JobDetailsPage.cs">
       <DependentUpon>JobDetailsPage.cshtml</DependentUpon>
     </Compile>
-    <Compile Update="Dashboard\Pages\LayoutPage.cshtml.cs">
-      <DependentUpon>LayoutPage.cshtml</DependentUpon>
-    </Compile>
     <Compile Update="Dashboard\Pages\LayoutPage.cs">
       <DependentUpon>LayoutPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\ProcessingJobsPage.cshtml.cs">
-      <DependentUpon>ProcessingJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\QueuesPage.cshtml.cs">
-      <DependentUpon>QueuesPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\RecurringJobsPage.cshtml.cs">
-      <DependentUpon>RecurringJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\RetriesPage.cshtml.cs">
-      <DependentUpon>RetriesPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\ScheduledJobsPage.cshtml.cs">
-      <DependentUpon>ScheduledJobsPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\ServersPage.cshtml.cs">
-      <DependentUpon>ServersPage.cshtml</DependentUpon>
-    </Compile>
-    <Compile Update="Dashboard\Pages\SucceededJobs.cshtml.cs">
-      <DependentUpon>SucceededJobs.cshtml</DependentUpon>
     </Compile>
   </ItemGroup>
 </Project>
