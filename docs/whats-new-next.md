@@ -107,6 +107,23 @@ that took more than three times the p95.
   canceled; use `[JobTimeout]` for that.
 - The Servers page shows how many methods this process performs with generated, compiled and reflection invokers.
 
+## Keeping the host alive
+
+IIS stops an idle worker process after 20 minutes, and the Hangfire server inside it stops too. The process
+cannot restart itself, so the pool settings (`startMode="AlwaysRunning"`, preload, idle timeout 0) or a
+Windows Service / worker host remain the real fix. What Hangfire can do from the inside:
+
+```csharp
+services.AddHangfireKeepAlive();                                    // requests its own /hangfire/ping every 5 minutes
+services.AddHangfireKeepAlive(o => o.Url = "https://jobs.example.com/hangfire/stats");   // behind IIS: the public URL
+new BackgroundJobServer(options, storage, new[] { new KeepAliveProcess("https://...") });  // without DI
+```
+
+The request counts as activity, so the idle timeout never fires; any answer counts, even an error page.
+`/hangfire/ping` is a new route that answers `pong` without touching the storage, also usable for liveness checks. The Servers page shows the process name,
+whether it runs under IIS, its uptime and the keep-alive status, and warns when an IIS-hosted process has no
+keep-alive configured.
+
 ## Dashboard
 
 A redesigned shell and design system, in light and dark:
