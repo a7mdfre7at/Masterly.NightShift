@@ -1,17 +1,25 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using Xunit;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
-    [XunitTestCaseDiscoverer("Hangfire.Core.Tests.DataCompatibilityRangeTheoryDiscoverer", "Hangfire.Core.Tests")]
+    /// <summary>
+    /// A theory whose every data row runs once for every <see cref="CompatibilityLevel"/> in the
+    /// [<see cref="MinLevel"/>, <see cref="MaxExcludingLevel"/>) range.
+    /// </summary>
+    [XunitTestCaseDiscoverer(typeof(DataCompatibilityRangeTheoryDiscoverer))]
     [AttributeUsage(AttributeTargets.Method)]
-    internal sealed class DataCompatibilityRangeTheoryAttribute : TheoryAttribute
+    internal sealed class DataCompatibilityRangeTheoryAttribute : TheoryAttribute, IDataCompatibilityRangeAttribute
     {
-        public DataCompatibilityRangeTheoryAttribute()
+        public DataCompatibilityRangeTheoryAttribute(
+            [CallerFilePath] string sourceFilePath = null,
+            [CallerLineNumber] int sourceLineNumber = -1)
+            : base(sourceFilePath, sourceLineNumber)
         {
-            MinLevel = DataCompatibilityRangeFactAttribute.PossibleMinLevel;
-            MaxExcludingLevel = DataCompatibilityRangeFactAttribute.PossibleMaxExcludingLevel;
+            MinLevel = DataCompatibilityRange.PossibleMinLevel;
+            MaxExcludingLevel = DataCompatibilityRange.PossibleMaxExcludingLevel;
         }
 
         public CompatibilityLevel MinLevel { get; set; }

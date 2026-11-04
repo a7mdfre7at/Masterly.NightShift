@@ -1,78 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Hangfire.Annotations;
-using Xunit.Abstractions;
 using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
+    /// <summary>
+    /// Lets xUnit's own <see cref="FactDiscoverer"/> create the test case, then repeats it per compatibility level.
+    /// </summary>
     [UsedImplicitly]
-    internal sealed class DataCompatibilityRangeFactDiscoverer : IXunitTestCaseDiscoverer
+    internal sealed class DataCompatibilityRangeFactDiscoverer : FactDiscoverer
     {
-        public IMessageSink DiagnosticMessageSink { get; }
-
-        public DataCompatibilityRangeFactDiscoverer(IMessageSink diagnosticMessageSink)
-        {
-            DiagnosticMessageSink = diagnosticMessageSink;
-        }
-
-        public IEnumerable<IXunitTestCase> Discover(
+        public override async ValueTask<IReadOnlyCollection<IXunitTestCase>> Discover(
             ITestFrameworkDiscoveryOptions discoveryOptions,
-            ITestMethod testMethod,
-            IAttributeInfo factAttribute)
+            IXunitTestMethod testMethod,
+            IFactAttribute factAttribute)
         {
-            if (testMethod.Method.GetParameters().Any())
-            {
-                yield return new ExecutionErrorTestCase(
-                    DiagnosticMessageSink,
-                    discoveryOptions.MethodDisplayOrDefault(),
-                    testMethod,
-                    "[CompatibilityLevelFact] methods are not allowed to have parameters. Did you mean to use [CompatibilityLevelTheory]?");
-            }
-            else if (testMethod.Method.IsGenericMethodDefinition)
-            {
-                yield return new ExecutionErrorTestCase(
-                    DiagnosticMessageSink,
-                    discoveryOptions.MethodDisplayOrDefault(),
-                    testMethod, 
-                    "[CompatibilityLevelFact] methods are not allowed to be generic.");
-            }
-            else
-            {
-                var compatibilityLevels = GetAllowedCompatibilityLevels(factAttribute);
-
-                foreach (var compatibilityLevel in compatibilityLevels)
-                {
-                    yield return new DataCompatibilityRangeTestCase(
-                        DiagnosticMessageSink,
-                        discoveryOptions.MethodDisplayOrDefault(),
-                        testMethod,
-                        new object[] { compatibilityLevel });
-                }
-            }
-        }
-
-        internal static CompatibilityLevel[] GetAllowedCompatibilityLevels(IAttributeInfo attributeInfo)
-        {
-            var compatibilityLevels = Enum.GetValues(typeof(CompatibilityLevel))
-                .Cast<CompatibilityLevel>()
-                .ToArray();
-
-            var minLevel = attributeInfo.GetNamedArgument<CompatibilityLevel>("MinLevel");
-            var maxExcludingLevel = attributeInfo.GetNamedArgument<CompatibilityLevel>("MaxExcludingLevel");
-
-            var result = new List<CompatibilityLevel>();
-
-            foreach (var compatibilityLevel in compatibilityLevels)
-            {
-                if (compatibilityLevel >= minLevel && compatibilityLevel < maxExcludingLevel)
-                {
-                    result.Add(compatibilityLevel);
-                }
-            }
-
-            return result.ToArray();
+            var testCases = await base.Discover(discoveryOptions, testMethod, factAttribute);
+            return DataCompatibilityRange.Expand(testCases, (IDataCompatibilityRangeAttribute)factAttribute);
         }
     }
 }

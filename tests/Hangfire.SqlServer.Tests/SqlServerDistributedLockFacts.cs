@@ -78,7 +78,7 @@ namespace Hangfire.SqlServer.Tests
                 }, useMicrosoftDataSqlClient));
             thread.Start();
 
-            lockAcquired.Wait();
+            lockAcquired.Wait(TestContext.Current.CancellationToken);
 
             UseConnection(connection2 =>
             {

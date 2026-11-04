@@ -1,13 +1,15 @@
 ﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Hangfire.Annotations;
-using Xunit.Abstractions;
 using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
-    internal sealed class DataCompatibilityRangeTheoryTestCase : XunitTestCase
+    /// <summary>
+    /// A theory whose data is enumerated at run time (not serializable, or pre-enumeration is off),
+    /// running all of its rows under one <see cref="CompatibilityLevel"/>.
+    /// </summary>
+    internal sealed class DataCompatibilityRangeTheoryTestCase : XunitDelayEnumeratedTheoryTestCase
     {
         [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
         [UsedImplicitly]
@@ -15,23 +17,50 @@ namespace Hangfire.Core.Tests
         {
         }
 
-        public DataCompatibilityRangeTheoryTestCase(
-            CompatibilityLevel compatibilityLevel,
-            IMessageSink diagnosticMessageSink,
-            TestMethodDisplay defaultMethodDisplay,
-            ITestMethod testMethod)
-            : base(diagnosticMessageSink, defaultMethodDisplay, testMethod, new object[] { compatibilityLevel })
+        public DataCompatibilityRangeTheoryTestCase(CompatibilityLevel level, XunitDelayEnumeratedTheoryTestCase source)
+            : base(
+                source.TestMethod,
+                DataCompatibilityRange.GetDisplayName(source.TestCaseDisplayName, level),
+                DataCompatibilityRange.GetUniqueId(source.UniqueID, level),
+                source.Explicit,
+                source.SkipTestWithoutData,
+                source.SkipExceptions,
+                source.SkipReason,
+                source.SkipType,
+                source.SkipUnless,
+                source.SkipWhen,
+                source.Traits,
+                source.SourceFilePath,
+                source.SourceLineNumber,
+                source.Timeout)
         {
+            Level = level;
         }
 
-        public override Task<RunSummary> RunAsync(
-            IMessageSink diagnosticMessageSink,
-            IMessageBus messageBus,
-            object[] constructorArguments,
-            ExceptionAggregator aggregator,
-            CancellationTokenSource cancellationTokenSource)
+        public CompatibilityLevel Level { get; private set; }
+
+        public override void PreInvoke()
         {
-            return new DataCompatibilityRangeTheoryTestCaseRunner(this, DisplayName, SkipReason, constructorArguments, TestMethodArguments, diagnosticMessageSink, messageBus, aggregator, cancellationTokenSource).RunAsync();
+            base.PreInvoke();
+            DataCompatibilityRange.Enter(Level);
+        }
+
+        public override void PostInvoke()
+        {
+            DataCompatibilityRange.Exit();
+            base.PostInvoke();
+        }
+
+        protected override void Serialize(IXunitSerializationInfo info)
+        {
+            base.Serialize(info);
+            DataCompatibilityRange.Serialize(info, Level);
+        }
+
+        protected override void Deserialize(IXunitSerializationInfo info)
+        {
+            base.Deserialize(info);
+            Level = DataCompatibilityRange.Deserialize(info);
         }
     }
 }

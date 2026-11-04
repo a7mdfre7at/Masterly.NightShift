@@ -214,8 +214,8 @@ select scope_identity() as Id";
 
                 var jobState = sql.Query($"select * from [{Constants.DefaultSchema}].State").Single();
                 Assert.Equal("State", jobState.Name);
-                Assert.Equal(null, jobState.Reason);
-                Assert.Equal(null, jobState.Data);
+                Assert.Null((object)jobState.Reason);
+                Assert.Null((object)jobState.Data);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -306,9 +306,9 @@ select scope_identity() as Id";
                 var jobState = sql.Query($"select * from [{Constants.DefaultSchema}].State").Single();
                 Assert.Equal((string)jobId, jobState.JobId.ToString());
                 Assert.Equal("State", jobState.Name);
-                Assert.Equal(null, jobState.Reason);
+                Assert.Null((object)jobState.Reason);
                 Assert.NotNull(jobState.CreatedAt);
-                Assert.Equal(null, jobState.Data);
+                Assert.Null((object)jobState.Data);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -2212,7 +2212,7 @@ values (@jobId, '', '', getutcdate())";
                     {
                         try
                         {
-                            Assert.True(false, ex.ToString());
+                            Assert.Fail(ex.ToString());
                         }
                         catch
                         {
@@ -2222,7 +2222,7 @@ values (@jobId, '', '', getutcdate())";
                 }, useMicrosoftDataSqlClient, useBatching: true));
             thread.Start();
 
-            if (!lockAcquired.Wait(TimeSpan.FromSeconds(30)))
+            if (!lockAcquired.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken))
             {
                 throw new TimeoutException("Waiting for too long in transaction2 block");
             }

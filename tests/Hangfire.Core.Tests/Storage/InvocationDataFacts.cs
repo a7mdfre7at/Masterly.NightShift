@@ -509,7 +509,7 @@ namespace Hangfire.Core.Tests.Storage
                 Assert.False(job.Type.GetTypeInfo().ContainsGenericParameters);
                 Assert.Equal("Sample", job.Method.Name);
                 Assert.Equal(typeof(string), job.Method.GetParameters()[0].ParameterType);
-                Assert.Equal(1, job.Args.Count);
+                Assert.Single(job.Args);
                 Assert.Equal("Hello", job.Args[0]);
             }
             finally
@@ -530,7 +530,7 @@ namespace Hangfire.Core.Tests.Storage
             Assert.False(job.Type.GetTypeInfo().ContainsGenericParameters);
             Assert.Equal("Empty", job.Method.Name);
             Assert.Empty(job.Method.GetParameters());
-            Assert.Equal(0, job.Args.Count);
+            Assert.Empty(job.Args);
         }
 
         [DataCompatibilityRangeFact]

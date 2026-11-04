@@ -5,22 +5,23 @@ using System.Data.SqlClient;
 using System.Reflection;
 using System.Threading;
 using ReferencedDapper::Dapper;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.SqlServer.Tests
 {
     public class CleanDatabaseAttribute : BeforeAfterTestAttribute
     {
-        private static readonly object GlobalLock = new object();
+        // Not Monitor: xUnit v3 may call After on a different thread than Before
+        private static readonly SemaphoreSlim GlobalLock = new SemaphoreSlim(1, 1);
         private static bool _sqlObjectInstalled;
         
         public CleanDatabaseAttribute()
         {
         }
 
-        public override void Before(MethodInfo methodUnderTest)
+        public override void Before(MethodInfo methodUnderTest, IXunitTest test)
         {
-            Monitor.Enter(GlobalLock);
+            GlobalLock.Wait();
 
             if (!_sqlObjectInstalled)
             {
@@ -45,9 +46,9 @@ truncate table [HangFire].[Server];
             }
         }
 
-        public override void After(MethodInfo methodUnderTest)
+        public override void After(MethodInfo methodUnderTest, IXunitTest test)
         {
-            Monitor.Exit(GlobalLock);
+            GlobalLock.Release();
         }
 
         private static void CreateAndInitializeDatabaseIfNotExists()

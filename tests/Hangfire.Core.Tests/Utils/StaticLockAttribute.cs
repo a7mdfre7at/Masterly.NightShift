@@ -2,26 +2,24 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
     internal sealed class StaticLockAttribute : BeforeAfterTestAttribute
     {
-        private readonly ConcurrentDictionary<Type, object> _locks
-            = new ConcurrentDictionary<Type, object>(); 
-        
-        public override void Before(MethodInfo methodUnderTest)
-        {
-            var type = GetType(methodUnderTest);
-            _locks.TryAdd(type, new object());
+        // Not Monitor: xUnit v3 may call After on a different thread than Before
+        private readonly ConcurrentDictionary<Type, SemaphoreSlim> _locks
+            = new ConcurrentDictionary<Type, SemaphoreSlim>();
 
-            Monitor.Enter(_locks[type]);
+        public override void Before(MethodInfo methodUnderTest, IXunitTest test)
+        {
+            _locks.GetOrAdd(GetType(methodUnderTest), _ => new SemaphoreSlim(1, 1)).Wait();
         }
 
-        public override void After(MethodInfo methodUnderTest)
+        public override void After(MethodInfo methodUnderTest, IXunitTest test)
         {
-            Monitor.Exit(_locks[GetType(methodUnderTest)]);
+            _locks[GetType(methodUnderTest)].Release();
         }
 
         private static Type GetType(MethodInfo methodInfo)

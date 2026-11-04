@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Hangfire.Common;
 using Hangfire.States;
 using Hangfire.Storage;
@@ -235,7 +236,7 @@ namespace Hangfire.Core.Tests
         }
 
         [Fact(Timeout = 20 * 1000)]
-        public void OnStateElection_DoesNotStuckForever_WhenContinuationHasNoCorrespondingStateEntry()
+        public async Task OnStateElection_DoesNotStuckForever_WhenContinuationHasNoCorrespondingStateEntry()
         {
             // Arrange
             _context.ApplyContext.BackgroundJob = new BackgroundJobMock { Id = _parentId };
@@ -249,10 +250,11 @@ namespace Hangfire.Core.Tests
 
             var filter = CreateFilter();
 
-            // Act
-            filter.OnStateElection(_context.Object);
+            // Act: awaiting with the test's token makes the timeout end the test even if the call hangs
+            await Task.Run(() => filter.OnStateElection(_context.Object), TestContext.Current.CancellationToken)
+                .WaitAsync(TestContext.Current.CancellationToken);
 
-            // Asser
+            // Assert
             _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
             Assert.Equal("Succeeded", _context.Object.CandidateState.Name);
         }

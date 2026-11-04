@@ -1,31 +1,25 @@
 ﻿using System;
-using System.Linq;
+using System.Runtime.CompilerServices;
 using Xunit;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
-    [XunitTestCaseDiscoverer("Hangfire.Core.Tests.DataCompatibilityRangeFactDiscoverer", "Hangfire.Core.Tests")]
+    /// <summary>
+    /// A fact that runs once for every <see cref="CompatibilityLevel"/> in the
+    /// [<see cref="MinLevel"/>, <see cref="MaxExcludingLevel"/>) range.
+    /// </summary>
+    [XunitTestCaseDiscoverer(typeof(DataCompatibilityRangeFactDiscoverer))]
     [AttributeUsage(AttributeTargets.Method)]
-    internal sealed class DataCompatibilityRangeFactAttribute : FactAttribute
+    internal sealed class DataCompatibilityRangeFactAttribute : FactAttribute, IDataCompatibilityRangeAttribute
     {
-        internal static readonly CompatibilityLevel PossibleMinLevel;
-        internal static readonly CompatibilityLevel PossibleMaxExcludingLevel;
-
-        static DataCompatibilityRangeFactAttribute()
+        public DataCompatibilityRangeFactAttribute(
+            [CallerFilePath] string sourceFilePath = null,
+            [CallerLineNumber] int sourceLineNumber = -1)
+            : base(sourceFilePath, sourceLineNumber)
         {
-            var compatibilityLevels = Enum.GetValues(typeof(CompatibilityLevel))
-                .Cast<CompatibilityLevel>()
-                .ToArray();
-
-            PossibleMinLevel = compatibilityLevels.Min();
-            PossibleMaxExcludingLevel = compatibilityLevels.Max() + 1;
-        }
-
-        public DataCompatibilityRangeFactAttribute()
-        {
-            MinLevel = PossibleMinLevel;
-            MaxExcludingLevel = PossibleMaxExcludingLevel;
+            MinLevel = DataCompatibilityRange.PossibleMinLevel;
+            MaxExcludingLevel = DataCompatibilityRange.PossibleMaxExcludingLevel;
         }
 
         public CompatibilityLevel MinLevel { get; set; }

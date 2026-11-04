@@ -1,18 +1,18 @@
 ﻿using System.Reflection;
 using Hangfire.Common;
 using Newtonsoft.Json;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
     internal sealed class CleanSerializerSettingsAttribute : BeforeAfterTestAttribute
     {
-        public override void Before(MethodInfo methodUnderTest)
+        public override void Before(MethodInfo methodUnderTest, IXunitTest test)
         {
             ClearSettings();
         }
 
-        public override void After(MethodInfo methodUnderTest)
+        public override void After(MethodInfo methodUnderTest, IXunitTest test)
         {
             ClearSettings();
         }

@@ -54,13 +54,14 @@
 
     <ItemGroup Label="Tests">
         <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.1" />
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
         <!-- Don't upgrade to 4.20 or higher, please refer to https://github.com/HangfireIO/Hangfire/issues/2266 -->
         <PackageVersion Include="Moq" Version="4.10.0" />
         <PackageVersion Include="Moq.Sequences" Version="2.1.0" />
         <PackageVersion Include="System.Data.SqlClient" Version="4.9.0" />
-        <PackageVersion Include="xunit" Version="2.4.0" />
-        <PackageVersion Include="xunit.runner.visualstudio" Version="2.4.0" />
+        <!-- mtp-off: the classic VSTest runner, so `dotnet test` and its filters work as before -->
+        <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
+        <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     </ItemGroup>
 
     <ItemGroup Label="Samples">

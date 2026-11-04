@@ -1,23 +1,24 @@
 using System.Reflection;
 using System.Threading;
-using Xunit.Sdk;
+using Xunit.v3;
 
 namespace Hangfire.Core.Tests
 {
     internal sealed class GlobalLockAttribute : BeforeAfterTestAttribute
     {
-        private readonly object _globalLock = new object();
+        // Not Monitor: xUnit v3 may call After on a different thread than Before
+        private readonly SemaphoreSlim _globalLock = new SemaphoreSlim(1, 1);
 
         public string Reason { get; set; }
 
-        public override void Before(MethodInfo methodUnderTest)
+        public override void Before(MethodInfo methodUnderTest, IXunitTest test)
         {
-            Monitor.Enter(_globalLock);
+            _globalLock.Wait();
         }
 
-        public override void After(MethodInfo methodUnderTest)
+        public override void After(MethodInfo methodUnderTest, IXunitTest test)
         {
-            Monitor.Exit(_globalLock);
+            _globalLock.Release();
         }
     }
 }
