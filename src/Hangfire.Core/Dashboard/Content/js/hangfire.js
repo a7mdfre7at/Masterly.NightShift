@@ -166,7 +166,7 @@
                             gridLines: { color: COLORS[colorScheme].cartesianColor },
                             type: 'realtime',
                             realtime: { duration: 60 * 1000, delay: pollInterval },
-                            time: { unit: 'second', tooltipFormat: 'LL LTS', displayFormats: { second: 'LTS', minute: 'LTS' } },
+                            time: { unit: 'second', tooltipFormat: 'dateTimeWithSeconds', displayFormats: { second: 'timeWithSeconds', minute: 'timeWithSeconds' } },
                             ticks: { maxRotation: 0 }
                         }],
                         yAxes: [{
@@ -217,8 +217,8 @@
     hangfire.HistoryGraph = (function() {
         function HistoryGraph(element, succeeded, failed, deleted, succeededStr, failedStr, deletedStr) {
             var timeOptions = $(element).data('period') === 'week'
-                ? { unit: 'day', tooltipFormat: 'LL', displayFormats: { day: 'll' } }
-                : { unit: 'hour', tooltipFormat: 'LLL', displayFormats: { hour: 'LT', day: 'll' } };
+                ? { unit: 'day', tooltipFormat: 'longDate', displayFormats: { day: 'shortDate' } }
+                : { unit: 'hour', tooltipFormat: 'dateTime', displayFormats: { hour: 'time', day: 'shortDate' } };
 
             this._chart = new Chart(element, {
                 type: 'line',
@@ -397,16 +397,16 @@
         };
 
         Page.prototype._initialize = function (locale) {
-            moment.locale(locale);
+            HangfireIntl.setLocale(locale);
             var updateRelativeDates = function () {
                 $('*[data-moment]').each(function () {
                     var $this = $(this);
                     var timestamp = $this.data('moment');
 
                     if (timestamp) {
-                        var time = moment(timestamp, 'X');
-                        $this.html(time.fromNow())
-                            .attr('title', time.format('llll'))
+                        var time = timestamp * 1000;
+                        $this.html(HangfireIntl.fromNow(time))
+                            .attr('title', HangfireIntl.format(time, 'fullDateTime'))
                             .attr('data-container', 'body');
                     }
                 });
@@ -416,8 +416,8 @@
                     var timestamp = $this.data('moment-title');
 
                     if (timestamp) {
-                        var time = moment(timestamp, 'X');
-                        $this.prop('title', time.format('llll'))
+                        var time = timestamp * 1000;
+                        $this.prop('title', HangfireIntl.format(time, 'fullDateTime'))
                             .attr('data-container', 'body');
                     }
                 });
@@ -427,8 +427,8 @@
                     var timestamp = $this.data('moment-local');
 
                     if (timestamp) {
-                        var time = moment(timestamp, 'X');
-                        $this.html(time.format('l LTS'));
+                        var time = timestamp * 1000;
+                        $this.html(HangfireIntl.format(time, 'numericDateTime'));
                     }
                 });
             };

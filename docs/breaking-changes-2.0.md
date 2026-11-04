@@ -56,6 +56,14 @@ These runtimes are out of support. They now get the `netstandard2.0` builds, whi
 | Hangfire.NetCore | `BackgroundJobServerHostedService` and `BackgroundProcessingServerHostedService` constructors that take `IHostApplicationLifetime` |
 | Hangfire.AspNetCore | `HangfireEndpointRouteBuilderExtensions` (`endpoints.MapHangfireDashboard(...)`). Use `app.UseHangfireDashboard()` instead, or move to .NET 8+ |
 
+## Dashboard: moment.js is no longer bundled
+
+The dashboard formats dates with the browser's built-in `Intl` APIs instead of moment.js, which is 81 KB smaller and supports every locale the browser knows. Chart.js uses a matching date adapter, `Dashboard/Content/js/hangfire-intl.js`.
+
+- **Extensions that use the global `moment` must bundle it themselves**, for example with `DashboardRoutes.AddJavaScript`.
+- The `data-moment`, `data-moment-title` and `data-moment-local` attributes still work, so extensions that render them need no changes. They hold Unix timestamps in seconds.
+- Relative dates use `Intl.RelativeTimeFormat`, so ±1 day now reads "yesterday" or "tomorrow" instead of "a day ago" or "in a day".
+
 ## Nullable reference type annotations (source-level only)
 
 These parts of the API now carry C# nullable annotations:

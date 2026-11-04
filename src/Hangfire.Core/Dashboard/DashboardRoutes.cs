@@ -61,8 +61,8 @@ namespace Hangfire.Dashboard
 
             AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-3.7.1.min.js"));
             AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.min.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "moment-with-locales.min.js"));
             AddJavaScript(executingAssembly, GetContentResourceName("js", "Chart.min.js"));
+            AddJavaScript(executingAssembly, GetContentResourceName("js", "hangfire-intl.js"));
             AddJavaScript(executingAssembly, GetContentResourceName("js", "chartjs-plugin-streaming.min.js"));
             AddJavaScript(executingAssembly, GetContentResourceName("js", "hangfire.js"));
 
