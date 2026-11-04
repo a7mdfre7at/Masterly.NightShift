@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using Hangfire.Annotations;
 using Hangfire.Common;
 
@@ -24,7 +26,7 @@ namespace Hangfire
         JobStorage Storage { get; }
 
         [CanBeNull]
-        string TriggerJob([NotNull] string recurringJobId);
+        string? TriggerJob([NotNull] string recurringJobId);
     }
 
     public interface IRecurringJobManager

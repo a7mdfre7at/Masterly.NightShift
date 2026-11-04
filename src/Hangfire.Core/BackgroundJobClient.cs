@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -140,10 +142,10 @@ namespace Hangfire
         }
 
         /// <inheritdoc />
-        public string Create(Job job, IState state) => Create(job, state, null);
+        public string? Create(Job job, IState state) => Create(job, state, null);
 
         /// <inheritdoc />
-        public string Create(Job job, IState state, IDictionary<string, object> parameters)
+        public string? Create(Job job, IState state, IDictionary<string, object>? parameters)
         {
             if (job == null) throw new ArgumentNullException(nameof(job));
             if (state == null) throw new ArgumentNullException(nameof(state));
@@ -165,7 +167,7 @@ namespace Hangfire
         }
 
         /// <inheritdoc />
-        public bool ChangeState(string jobId, IState state, string expectedState)
+        public bool ChangeState(string jobId, IState state, string? expectedState)
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
             if (state == null) throw new ArgumentNullException(nameof(state));

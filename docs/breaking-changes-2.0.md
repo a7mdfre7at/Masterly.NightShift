@@ -56,6 +56,14 @@ These runtimes are out of support. They now get the `netstandard2.0` builds, whi
 | Hangfire.NetCore | `BackgroundJobServerHostedService` and `BackgroundProcessingServerHostedService` constructors that take `IHostApplicationLifetime` |
 | Hangfire.AspNetCore | `HangfireEndpointRouteBuilderExtensions` (`endpoints.MapHangfireDashboard(...)`). Use `app.UseHangfireDashboard()` instead, or move to .NET 8+ |
 
+## Nullable reference type annotations (source-level only)
+
+The client API now carries C# nullable annotations: `BackgroundJob`, `IBackgroundJobClient`, `BackgroundJobClient`, `BackgroundJobClientExtensions`, `RecurringJob`, `IRecurringJobManager`, `RecurringJobManager`, `RecurringJobManagerExtensions` and `RecurringJobOptions`. Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
+
+- **Job IDs are `string?`.** All `Enqueue`, `Schedule`, `ContinueJobWith`, `ContinueWith` and `Create` methods return `null` when creation doesn't happen: a client filter cancels it, an exception filter handles a failure, or the storage returns no ID. Check the result before passing it on, for example to `ContinueJobWith`.
+- **`RecurringJob.TriggerJob` and `RecurringJobManager.TriggerJob` return `string?`.** They return `null` when the recurring job doesn't exist or wasn't triggered.
+- **Optional parameters that accept `null` are marked as nullable**, for example `fromState` and `timeZone`.
+
 ## Dependency changes
 
 - `Hangfire.AspNetCore` on `netstandard2.0` now requires `System.Security.Cryptography.Xml` 4.7.1+ and `System.Text.Encodings.Web` 4.5.1+. These are the first versions that fix known vulnerabilities in the packages that `Microsoft.AspNetCore.Antiforgery` 2.0.0 depends on.

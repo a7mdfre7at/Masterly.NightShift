@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -48,7 +50,7 @@ namespace Hangfire
         /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
         /// <exception cref="BackgroundJobClientException">Creation failed due to an exception.</exception>
         [CanBeNull]
-        string Create([NotNull] Job job, [NotNull] IState state, [CanBeNull] IDictionary<string, object> parameters);
+        string? Create([NotNull] Job job, [NotNull] IState state, [CanBeNull] IDictionary<string, object>? parameters);
     }
 
     /// <summary>
@@ -91,7 +93,7 @@ namespace Hangfire
         /// election filters.</para>
         /// </remarks>
         [CanBeNull]
-        string Create([NotNull] Job job, [NotNull] IState state);
+        string? Create([NotNull] Job job, [NotNull] IState state);
 
         /// <summary>
         /// Attempts to change a state of a background job with a given
@@ -122,6 +124,6 @@ namespace Hangfire
         /// election filters. If a state was changed, <see langword="false"/> 
         /// value will be returned.</para>
         /// </remarks>
-        bool ChangeState([NotNull] string jobId, [NotNull] IState state, [CanBeNull] string expectedState);
+        bool ChangeState([NotNull] string jobId, [NotNull] IState state, [CanBeNull] string? expectedState);
     }
 }

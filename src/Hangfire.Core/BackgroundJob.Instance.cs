@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using Hangfire.Annotations;
@@ -23,13 +25,13 @@ namespace Hangfire
     partial class BackgroundJob
     {
         /// <exclude />
-        public BackgroundJob([NotNull] string id, [CanBeNull] Job job, DateTime createdAt)
+        public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt)
             : this(id, job, createdAt, null)
         {
         }
 
         /// <exclude />
-        public BackgroundJob([NotNull] string id, [CanBeNull] Job job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string> parametersSnapshot)
+        public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string>? parametersSnapshot)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
@@ -45,13 +47,13 @@ namespace Hangfire
 
         /// <exclude />
         [CanBeNull]
-        public Job Job { get; }
+        public Job? Job { get; }
 
         /// <exclude />
         public DateTime CreatedAt { get; }
 
         /// <exclude />
         [CanBeNull]
-        public IReadOnlyDictionary<string, string> ParametersSnapshot { get; }
+        public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; }
     }
 }

@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using Hangfire.Annotations;
 using Hangfire.States;
@@ -21,8 +23,8 @@ namespace Hangfire
 {
     public class RecurringJobOptions
     {
-        private TimeZoneInfo _timeZone;
-        private string _queueName;
+        private TimeZoneInfo _timeZone = TimeZoneInfo.Utc;
+        private string _queueName = EnqueuedState.DefaultQueue;
 
         public RecurringJobOptions()
         {

@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+#nullable enable
+
 using System;
 using Hangfire.Annotations;
 using Hangfire.Client;
@@ -169,9 +171,9 @@ namespace Hangfire
         public void Trigger(string recurringJobId) => TriggerJob(recurringJobId);
 
         [Obsolete("Please use the `TriggerJob` method instead. Will be removed in 2.0.0.")]
-        public string TriggerExecution(string recurringJobId) => TriggerJob(recurringJobId);
+        public string? TriggerExecution(string recurringJobId) => TriggerJob(recurringJobId);
 
-        public string TriggerJob(string recurringJobId)
+        public string? TriggerJob(string recurringJobId)
         {
             if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
 
@@ -183,7 +185,7 @@ namespace Hangfire
                 var recurringJob = connection.GetRecurringJob(recurringJobId);
                 if (recurringJob == null) return null;
 
-                BackgroundJob backgroundJob;
+                BackgroundJob? backgroundJob;
 
                 try
                 {
