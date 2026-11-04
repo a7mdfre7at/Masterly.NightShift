@@ -113,6 +113,24 @@ using (new BackgroundJobServer())
 }
 ```
 
+**Traces and metrics (.NET 8+)**
+
+Hangfire can emit OpenTelemetry-compatible traces and metrics. A job's execution joins the trace of the request that created it, so you can follow a request into the background work it started.
+
+```csharp
+builder.Services.AddHangfire(config => config
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Hangfire"))
+    .UseTelemetry());
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddSource(HangfireTelemetry.ActivitySourceName))
+    .WithMetrics(metrics => metrics.AddMeter(HangfireTelemetry.MeterName));
+```
+
+* Spans: `create {Job}` when a job is created and `process {Job}` while it runs, with OpenTelemetry messaging attributes (`messaging.message.id` is the job id).
+* Metrics: `hangfire.job.created`, `hangfire.job.duration` (tagged with `hangfire.job.outcome`: `succeeded`, `failed` or `canceled`), and `hangfire.job.active`.
+* Nothing is recorded unless a listener is attached. The trace context is stored in the `TraceParent` job parameter.
+
 Questions? Problems?
 ---------------------
 

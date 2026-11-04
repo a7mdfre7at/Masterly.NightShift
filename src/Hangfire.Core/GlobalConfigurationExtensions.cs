@@ -378,6 +378,23 @@ namespace Hangfire
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name, uiCulture?.Name, captureDefault));
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Emits OpenTelemetry-compatible traces and metrics for background jobs through the
+        /// <see cref="HangfireTelemetry.ActivitySourceName"/> activity source and the
+        /// <see cref="HangfireTelemetry.MeterName"/> meter. The trace context of the code that
+        /// creates a job is stored in the <c>TraceParent</c> job parameter, so the span of the
+        /// job's execution joins the same trace. Nothing is recorded unless a listener is attached.
+        /// </summary>
+        /// <param name="configuration">The global configuration.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public static IGlobalConfiguration UseTelemetry([NotNull] this IGlobalConfiguration configuration)
+        {
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            return configuration.UseFilter(new Diagnostics.TelemetryFilter());
+        }
+
+#endif
         public static IGlobalConfiguration UseDashboardStylesheet(
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] Assembly assembly,
