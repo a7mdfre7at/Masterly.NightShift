@@ -1,212 +1,100 @@
-Hangfire 
-=========
+<p align="center"><img src="https://raw.githubusercontent.com/a7mdfre7at/Masterly.NightShift/main/assets/readme-banner.png" alt="Masterly.NightShift" width="100%"></p>
 
-[![Official Site](https://img.shields.io/badge/site-hangfire.io-blue.svg)](https://www.hangfire.io) [![Latest version](https://img.shields.io/nuget/v/Hangfire.svg?label=release)](https://www.nuget.org/packages?q=hangfire) [![Downloads](https://img.shields.io/nuget/dt/Hangfire.Core.svg)](https://www.nuget.org/packages/Hangfire.Core/) [![License LGPLv3](https://img.shields.io/badge/license-LGPLv3-green.svg)](https://www.gnu.org/licenses/lgpl-3.0.html) [![Coverity Scan](https://scan.coverity.com/projects/4423/badge.svg?flat=1)](https://scan.coverity.com/projects/hangfireio-hangfire)
+# Masterly.NightShift
 
-## Build Status
+Reliable background jobs for .NET: fire-and-forget, delayed, recurring and continuation jobs, persisted to a storage you already run, with a built-in dashboard. No Windows Service or Task Scheduler needed.
 
-&nbsp; | `main` | `dev`
---- | --- | --- 
-**AppVeyor** | [![Windows Build Status](https://ci.appveyor.com/api/projects/status/70m632jkycqpnsp9/branch/main?svg=true)](https://ci.appveyor.com/project/HangfireIO/hangfire-525)  | [![Windows Build Status](https://ci.appveyor.com/api/projects/status/70m632jkycqpnsp9/branch/dev?svg=true)](https://ci.appveyor.com/project/HangfireIO/hangfire-525) 
+[![Build](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml) [![CodeQL Analysis](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml) [![Nuget](https://img.shields.io/nuget/v/Masterly.NightShift?style=flat-square)](https://www.nuget.org/packages/Masterly.NightShift) ![GitHub](https://img.shields.io/github/license/a7mdfre7at/Masterly.NightShift?style=flat-square)
 
-## Overview
+**Documentation:** <https://a7mdfre7at.github.io/Masterly.NightShift/>
 
-Incredibly easy way to perform **fire-and-forget**, **delayed** and **recurring jobs** in **.NET applications**. CPU and I/O intensive, long-running and short-running jobs are supported. No Windows Service / Task Scheduler required. Backed by Redis, SQL Server, SQL Azure and many other storages.
+## Give a Star! :star:
 
-Hangfire provides a unified programming model to handle background tasks in a **reliable way** and run them on shared hosting, dedicated hosting or in cloud. You can start with a simple setup and grow computational power for background jobs with time for these scenarios:
+If you like or are using this project please give it a star. Thanks!
 
-- mass notifications/newsletters
-- batch import from xml, csv or json
-- creation of archives
-- firing off web hooks
-- deleting users
-- building different graphs
-- image/video processing
-- purging temporary files
-- recurring automated reports
-- database maintenance
-- *…and so on*
+## Installation
 
-Hangfire is a .NET alternative to [Resque](https://github.com/resque/resque), [Sidekiq](https://sidekiq.org), [delayed_job](https://github.com/collectiveidea/delayed_job), [Celery](https://www.celeryproject.org).
-
-![Hangfire Dashboard](https://www.hangfire.io/img/ui/dashboard-sm.png)
-
-Installation
--------------
-
-Hangfire is available as a NuGet package. You can install it using the NuGet Package Console window:
+Install the [Masterly.NightShift NuGet package](https://www.nuget.org/packages/Masterly.NightShift). It brings in the core library, SQL Server storage and the ASP.NET Core integration.
 
 ```
-PM> Install-Package Hangfire
+dotnet add package Masterly.NightShift
 ```
 
-After installation, register Hangfire in your ASP.NET Core application. Please read the [Quick start](https://docs.hangfire.io/en/latest/getting-started/index.html) guide for more details.
+| Package | What it is |
+|---|---|
+| `Masterly.NightShift` | Meta-package: Core + SqlServer + AspNetCore |
+| `Masterly.NightShift.Core` | Jobs, the server, filters, the dashboard |
+| `Masterly.NightShift.SqlServer` | SQL Server storage |
+| `Masterly.NightShift.NetCore` | `Microsoft.Extensions.*` integration (DI, hosted service) |
+| `Masterly.NightShift.AspNetCore` | Dashboard middleware and endpoint mapping |
+
+Targets: `netstandard2.0` (.NET Framework 4.6.2+), `net8.0` and `net10.0`.
+
+## Quick start
 
 ```csharp
+using Masterly.NightShift;
+using Masterly.NightShift.SqlServer;
+
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHangfire(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Hangfire")));
-builder.Services.AddHangfireServer();
+builder.Services.AddNightShift(config => config
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+builder.Services.AddNightShiftServer();
 
 var app = builder.Build();
 
-app.MapHangfireDashboard();
+app.MapNightShiftDashboard();   // served at /nightshift
+
 app.Run();
 ```
 
-Usage
-------
-
-This is an incomplete list of features; to see all of them, check the [official site](https://www.hangfire.io) and the [documentation](https://docs.hangfire.io).
-
-[**Fire-and-forget tasks**](https://docs.hangfire.io/en/latest/background-methods/calling-methods-in-background.html)
-
-Dedicated worker pool threads execute queued background jobs as soon as possible, shortening your request's processing time.
+Create jobs from anywhere:
 
 ```csharp
-BackgroundJob.Enqueue(() => Console.WriteLine("Simple!"));
+// Fire-and-forget: runs as soon as a worker is free
+BackgroundJob.Enqueue(() => Console.WriteLine("Hello from a background job"));
+
+// Delayed
+BackgroundJob.Schedule(() => SendReminder(42), TimeSpan.FromHours(1));
+
+// Continuation: runs after the parent succeeds
+string parent = BackgroundJob.Enqueue(() => BuildReport(7));
+BackgroundJob.ContinueJobWith(parent, () => EmailReport(7));
+
+// Recurring
+RecurringJob.AddOrUpdate("nightly-cleanup", () => Cleanup(), Cron.Daily());
 ```
 
-[**Delayed tasks**](https://docs.hangfire.io/en/latest/background-methods/calling-methods-with-delay.html)
+Job arguments are serialized to the storage, so the job runs even if the process that created it has gone away. A job that throws is retried automatically.
 
-Scheduled background jobs are executed only after a given amount of time.
+## What you get
 
-```csharp
-BackgroundJob.Schedule(() => Console.WriteLine("Reliable!"), TimeSpan.FromDays(7));
-```
+- **Job types:** fire-and-forget, delayed, recurring, continuations (including fan-in), batches.
+- **Reliable execution:** automatic retries, deadlines and timeouts, rate limits, throttling, circuit breakers, duplicate prevention, run windows and blackouts, retry-later.
+- **Fast invocation:** a source generator emits direct calls, so job methods are not invoked through reflection.
+- **Dashboard:** live monitoring, search, insights, a job diagnosis ("why isn't it running?"), lineage, failure clusters, a wallboard, a timeline, an activity heatmap, exports and a command palette.
+- **Operations:** drain mode, per-queue and per-server pause, health and Prometheus endpoints, alerts and webhooks, an audit log, a keep-alive for IIS-hosted servers.
+- **Observability:** OpenTelemetry-compatible traces and metrics through `UseTelemetry()`.
 
-[**Recurring tasks**](https://docs.hangfire.io/en/latest/background-methods/performing-recurrent-tasks.html)
+The full list, with examples, is in [docs/whats-new-next.md](docs/whats-new-next.md) and on the [documentation site](https://a7mdfre7at.github.io/Masterly.NightShift/).
 
-Recurring jobs have never been simpler; just call the following method to perform any kind of recurring task using the [CRON expressions](https://en.wikipedia.org/wiki/Cron#CRON_expression).
+## Building from source
 
-```csharp
-RecurringJob.AddOrUpdate(() => Console.WriteLine("Transparent!"), Cron.Daily);
-```
-
-**Continuations**
-
-Continuations allow you to define complex workflows by chaining multiple background jobs together.
-
-```csharp
-var id = BackgroundJob.Enqueue(() => Console.WriteLine("Hello, "));
-BackgroundJob.ContinueWith(id, () => Console.WriteLine("world!"));
-```
-
-**Process background tasks inside a web application…**
-
-You can process background tasks in any .NET application, including [ASP.NET Core](https://learn.microsoft.com/aspnet/core/) web apps, worker services and console applications. Forget about [AppDomain unloads, Web Garden & Web Farm issues](https://haacked.com/archive/2011/10/16/the-dangers-of-implementing-recurring-background-tasks-in-asp-net.aspx/) – Hangfire is reliable for web applications from scratch, even on shared hosting.
-
-```csharp
-app.UseHangfireServer();
-```
-
-**… or anywhere else**
-
-In console applications, Windows Service, Azure Worker Role, etc.
-
-```csharp
-using (new BackgroundJobServer())
-{
-    Console.WriteLine("Hangfire Server started. Press ENTER to exit...");
-    Console.ReadLine();
-}
-```
-
-**Traces and metrics (.NET 8+)**
-
-Hangfire can emit OpenTelemetry-compatible traces and metrics. A job's execution joins the trace of the request that created it, so you can follow a request into the background work it started.
-
-```csharp
-builder.Services.AddHangfire(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Hangfire"))
-    .UseTelemetry());
-
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing => tracing.AddSource(HangfireTelemetry.ActivitySourceName))
-    .WithMetrics(metrics => metrics.AddMeter(HangfireTelemetry.MeterName));
-```
-
-* Spans: `create {Job}` when a job is created and `process {Job}` while it runs, with OpenTelemetry messaging attributes (`messaging.message.id` is the job id).
-* Metrics: `hangfire.job.created`, `hangfire.job.duration` (tagged with `hangfire.job.outcome`: `succeeded`, `failed` or `canceled`), and `hangfire.job.active`.
-* Nothing is recorded unless a listener is attached. The trace context is stored in the `TraceParent` job parameter.
-
-Questions? Problems?
----------------------
-
-Open-source projects develop more smoothly when discussions are public.
-
-If you have any questions, problems related to Hangfire usage or if you want to discuss new features, please visit the [discussion forum](https://discuss.hangfire.io). You can sign in there using your existing Google or GitHub account, so it's very simple to start using it.
-
-If you've discovered a bug, please report it to the [Hangfire GitHub Issues](https://github.com/HangfireIO/Hangfire/issues?state=open). Detailed reports with stack traces, actual and expected behaviours are welcome.
-
-Related Projects
------------------
-
-Please see the [Extensions](https://www.hangfire.io/extensions.html) page on the official site.
-
-Building the sources
----------------------
-
-Prerequisites:
-* [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), plus the .NET 8 runtime to run tests on `net8.0`.
-* SQL Server for the `Hangfire.SqlServer` tests. SQL Server Express LocalDB, which ships with Visual Studio, is enough.
-
-Then, create an environment variable with Variable name `Hangfire_SqlServer_ConnectionStringTemplate` and put your connection string in the Variable value field. The `{0}` placeholder is replaced with a database name. Example:
-
-* Variable name: `Hangfire_SqlServer_ConnectionStringTemplate`
-* Variable value: `Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;`
-
-To build a solution and get assembly files, just run the following command. All build artifacts, including `*.pdb` files, will be placed into the `build` folder. **Before proposing a pull request, please use this command to ensure everything is ok.** Btw, you can execute this command from the Package Manager Console window.
+You need the .NET 10 SDK (see `global.json`).
 
 ```
-build
+dotnet build Masterly.NightShift.slnx -c Release
+dotnet test tests/Masterly.NightShift.Core.Tests -f net10.0
+dotnet pack Masterly.NightShift.slnx -c Release
 ```
 
-To build NuGet packages as well as an archive file, use the `pack` command as shown below. You can find the result files in the `build` folder.
+The SQL Server tests need a reachable SQL Server: set `NightShift_SqlServer_ConnectionStringTemplate` to a connection string with a `{0}` placeholder for the database name, for example `Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;`.
 
-```
-build pack
-```
+## Contributing
 
-To see the full list of available commands, pass the `-docs` switch:
+Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security problem privately, see [SECURITY.md](SECURITY.md).
 
-```
-build -docs
-```
+## License
 
-Hangfire uses [psake](https://github.com/psake/psake) build automation tool. All psake tasks and functions defined in `psake-build.ps1` (for this project) and `psake-common.ps1` (for other Hangfire projects) files. Thanks to the psake project, they are very simple to use and modify!
-
-Dashboard pages (`*.cshtml`) are compiled to C# on every build by a source generator in `src/Hangfire.Dashboard.Generator`, so no extension or extra tool is needed to modify the Dashboard UI.
-
-Reporting security issues 
---------------------------
-
-In order to give the community time to respond and upgrade we strongly urge you report all security issues privately. Please email us at [security@hangfire.io](mailto:security@hangfire.io) with details and we will respond ASAP. Security issues always take precedence over bug fixes and feature work. We can and do mark releases as "urgent" if they contain serious security fixes. 
-
-License
---------
-
-Copyright © 2013-2026 Hangfire OÜ.
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses).
-
-Legal
-------
-
-By submitting a Pull Request, you disavow any rights or claims to any changes submitted to the Hangfire project and assign the copyright of those changes to Hangfire OÜ.
-
-If you cannot or do not want to reassign those rights (your employment contract for your employer may not allow this), you should not submit a PR. Open an issue and someone else can do the work.
-
-This is a legal way of saying "If you submit a PR to us, that code becomes ours". 99.9% of the time that's what you intend anyways; we hope it doesn't scare you away from contributing.
+Masterly.NightShift is released under the [MIT license](LICENSE.txt). Parts of the source derive from earlier work under other licenses; see [NOTICE.md](NOTICE.md) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

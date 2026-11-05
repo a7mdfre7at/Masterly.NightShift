@@ -1,30 +1,34 @@
-# File an Issue
+# Contributing
 
-If you have a question rather than an issue, please post it to the [Hangfire Stack 
-Overflow tag](https://stackoverflow.com/questions/tagged/hangfire). For non-security related bugs please log a new issue:
+Bug reports, ideas and pull requests are welcome.
 
-1. Search the [issue tracker](https://github.com/HangfireIO/Hangfire/issues) for similar issues.
-2. Specify the **version** of `Hangfire.Core` package in which the bug was occurred.
-3. Specify the **storage** package (e.g. `Hangfire.SqlServer`) you are using and its exact version.
-4. Specify the **configuration** logic for Hangfire.
-5. Specify all the custom job **filters** if any, and post their source code.
-6. Describe the problem and your environment in detail (i.e. what happened and what you expected would happen).
+## Reporting a problem
 
-ProTip!
+Open an [issue](https://github.com/a7mdfre7at/Masterly.NightShift/issues/new/choose) and include the package versions, the target framework, the storage you use and the steps that reproduce it. For a security problem, please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
-* Include screenshots from Dashboard UI, to allow us to see the same 
-  problem. You can simply use <kbd>Print Screen</kbd>, then <kbd>Ctrl + V</kbd> directly 
- into the comment window on GitHub.
-* Include log messages, written by Hangfire when a problem occurred. Don't forget to tell your logger to dump all the exception details.
-* Include stack trace dump, if your background processing is stuck. You can use 
-   [`stdump`](https://github.com/odinserj/stdump) utility to get them either from a minidump file,
-   or from a running process without interrupting it: `stdump w3wp > stacktrace.txt`
+## Building and testing
 
-Hints
+You need the .NET 10 SDK (`global.json`).
 
-* Use [syntax highlighting](https://help.github.com/articles/creating-and-highlighting-code-blocks/#syntax-highlighting) for your C#, SQL, etc. code blocks.
-* Use [fenced code blocks](https://help.github.com/articles/creating-and-highlighting-code-blocks/#fenced-code-blocks) for exception details.
+```
+dotnet build Masterly.NightShift.slnx -c Release
+dotnet test tests/Masterly.NightShift.Core.Tests -f net10.0
+dotnet test tests/Masterly.NightShift.AspNetCore.Tests -f net10.0
+dotnet test tests/Masterly.NightShift.SqlServer.Tests -f net10.0
+```
 
-# Reporting security issues 
+The SQL Server tests need a reachable SQL Server. Set `NightShift_SqlServer_ConnectionStringTemplate` to a connection string with a `{0}` placeholder for the database name, for example `Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;`.
 
-In order to give the community time to respond and upgrade we strongly urge you report all security issues privately. Please email us at [security@hangfire.io](mailto:security@hangfire.io) with details and we will respond ASAP. Security issues always take precedence over bug fixes and feature work. We can and do mark releases as "urgent" if they contain serious security fixes. 
+Warnings are errors in `src/`, and the .NET analyzers run in `Recommended` mode, so a clean build matters.
+
+## Pull requests
+
+- Keep a change focused, and match the style of the code around it. `CLAUDE.md` describes the architecture and conventions.
+- Add or update tests for what you change. Run the Core and AspNetCore test projects on both `net8.0` and `net10.0` before you open the pull request.
+- Anything shared must still compile for `netstandard2.0`. Gate newer APIs with `#if NET8_0_OR_GREATER`.
+- Don't add a member to a public storage interface: it breaks third-party storages. Extend through `JobStorage.HasFeature(...)` and the base classes.
+- List behaviour changes that users will notice in `CHANGELOG.md`.
+
+## License of contributions
+
+New files and your changes to files without a license header are accepted under the MIT license in [LICENSE.txt](LICENSE.txt). Some files carry a header naming another license; changes to those stay under that license (see [NOTICE.md](NOTICE.md)), and the header must not be removed.
