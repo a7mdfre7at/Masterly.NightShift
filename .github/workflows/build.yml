@@ -1,0 +1,117 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  windows:
+    name: Windows (build, test, pack)
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      NightShift_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      - name: Start SQL Server LocalDB
+        run: sqllocaldb start MSSQLLocalDB
+
+      - name: Restore
+        run: dotnet restore Masterly.NightShift.slnx
+
+      - name: Build
+        run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
+
+      - name: Test
+        run: |
+          foreach ($framework in 'net8.0', 'net10.0') {
+            foreach ($project in 'Core', 'SqlServer', 'AspNetCore') {
+              dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
+
+      - name: Pack
+        run: |
+          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore') {
+            dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/*.nupkg
+          if-no-files-found: error
+
+  linux:
+    name: Linux (tests on ${{ matrix.framework }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net10.0]
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          # Throwaway password for a container that only lives for this job
+          MSSQL_SA_PASSWORD: Password12!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password12!' -C -Q 'SELECT 1' -b"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NightShift_SqlServer_ConnectionStringTemplate: Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;PoolBlockingPeriod=NeverBlock
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      - name: Build
+        run: dotnet build Masterly.NightShift.slnx -c Release
+
+      - name: Test Masterly.NightShift.Core
+        run: dotnet test tests/Masterly.NightShift.Core.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.SqlServer
+        run: dotnet test tests/Masterly.NightShift.SqlServer.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.NetCore and Masterly.NightShift.AspNetCore
+        run: dotnet test tests/Masterly.NightShift.AspNetCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-linux-${{ matrix.framework }}
+          path: TestResults

@@ -1,0 +1,44 @@
+name: Publish to NuGet
+
+# Runs after a successful Build on main. Packages whose version is already on nuget.org are skipped,
+# so raise <Version> in src/Directory.Build.props to publish a new release.
+on:
+  workflow_run:
+    workflows: ["Build"]
+    branches: [ main ]
+    types: [ completed ]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish packages
+    runs-on: windows-2022
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore and build
+        run: |
+          dotnet restore Masterly.NightShift.slnx
+          dotnet build Masterly.NightShift.slnx -c Release --no-restore
+
+      - name: Pack
+        run: |
+          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore') {
+            dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
+
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$env:NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
