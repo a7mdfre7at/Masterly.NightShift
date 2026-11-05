@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <NoWarn>0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Data.SqlClient" NoWarn="NU1902" />
+    <PackageReference Include="Microsoft.Data.SqlClient" NoWarn="NU1902" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <PackageReference Include="Dapper" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" />
+  </ItemGroup>
+
+  <Target Name="ChangeAliasesOfStrongNameAssemblies" BeforeTargets="FindReferenceAssembliesForReferences;ResolveReferences">
+    <ItemGroup>
+      <ReferencePath Condition="'%(FileName)' == 'Dapper'">
+        <Aliases>ReferencedDapper</Aliases>
+      </ReferencePath>
+    </ItemGroup>
+  </Target>
+</Project>

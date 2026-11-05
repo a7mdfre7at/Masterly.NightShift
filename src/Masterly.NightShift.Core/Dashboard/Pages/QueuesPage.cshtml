@@ -1,0 +1,206 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.QueuesPage_Title);
+
+    var monitor = Storage.GetMonitoringApi();
+    var queues = monitor.Queues();
+
+    IReadOnlyDictionary<string, QueueHealth> health;
+    DrainModeStatus drain;
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        health = QueueInsights.ReadAll(connection);
+        drain = DrainMode.Read(connection);
+    }
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.QueuesPage_Title</h1>
+
+        @if (queues.Count == 0)
+        {
+            <div class="alert alert-warning">
+                @Strings.QueuesPage_NoQueues
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped" aria-describedby="page-title">
+                    <thead>
+                        <tr>
+                            <th class="min-width-200p">@Strings.QueuesPage_Table_Queue</th>
+                            <th>@Strings.QueuesPage_Table_Length</th>
+                            <th>@Strings.Common_Fetched</th>
+                            <th class="min-width" title="@Strings.QueuesPage_Table_Latency_Hint">@Strings.QueuesPage_Table_Latency</th>
+                            <th class="min-width">@Strings.QueuesPage_Table_Throughput</th>
+                            <th class="min-width">@Strings.QueuesPage_Table_ClearsIn</th>
+                            <th>@Strings.QueuesPage_Table_NextsJobs</th>
+                            @if (!IsReadOnly)
+                            {
+                                <th class="min-width"></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var queue in queues)
+                        {
+                            var queueHealth = health.TryGetValue(queue.Name, out var h) ? h : null;
+                            var paused = drain.PausedQueues.TryGetValue(queue.Name, out var pauseReason);
+                            var drainEstimate = queueHealth != null ? queueHealth.EstimateDrain(queue.Length) : null;
+                            var stalled = queueHealth != null && queueHealth.IsStalled(queue.Length) && !paused && !drain.Active;
+                            <tr class="@(paused ? "hf-queue-paused" : null)">
+                                <td>
+                                    @Html.QueueLabel(queue.Name)
+                                    @if (paused)
+                                    {
+                                        <span class="label label-warning text-uppercase" title="@pauseReason">@Strings.QueuesPage_Paused</span>
+                                    }
+                                    @if (stalled)
+                                    {
+                                        <span class="label label-danger text-uppercase" title="@Strings.QueuesPage_Stalled_Tooltip">@Strings.QueuesPage_Stalled</span>
+                                    }
+                                </td>
+                                <td>@queue.Length</td>
+                                <td>
+                                    @if (queue.Fetched.HasValue)
+                                    {
+                                        <a href="@Url.To("/jobs/enqueued/fetched/" + queue.Name)">
+                                            @queue.Fetched
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <em>@Strings.Common_NotAvailable</em>
+                                    }
+                                </td>
+                                <td class="min-width hf-queue-health">
+                                    @if (queueHealth != null && queueHealth.Samples > 0)
+                                    {
+                                        <span title="@Strings.QueuesPage_Table_Latency_Hint">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(queueHealth.MedianLatencyMs), false) <span class="text-muted">&middot; @Html.ToHumanDuration(TimeSpan.FromMilliseconds(queueHealth.P95LatencyMs), false)</span></span>
+                                    }
+                                    else
+                                    {
+                                        <em class="text-muted" title="@Strings.QueuesPage_Insights_Hint">&ndash;</em>
+                                    }
+                                </td>
+                                <td class="min-width hf-queue-health">
+                                    @if (queueHealth != null)
+                                    {
+                                        @queueHealth.PerMinute.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture)
+                                    }
+                                    else
+                                    {
+                                        <em class="text-muted">&ndash;</em>
+                                    }
+                                </td>
+                                <td class="min-width hf-queue-health">
+                                    @if (queue.Length == 0)
+                                    {
+                                        <span class="text-muted">&ndash;</span>
+                                    }
+                                    else if (drainEstimate.HasValue)
+                                    {
+                                        <strong>@Html.ToHumanDuration(drainEstimate, false)</strong>
+                                    }
+                                    else if (queueHealth != null)
+                                    {
+                                        <span class="text-muted">&infin;</span>
+                                    }
+                                    else
+                                    {
+                                        <em class="text-muted">&ndash;</em>
+                                    }
+                                </td>
+                                <td>
+                                    @if (queue.FirstJobs.Count == 0)
+                                    {
+                                        <em>
+                                            @Strings.QueuesPage_NoJobs
+                                        </em>
+                                    }
+                                    else
+                                    {
+                                        <table class="table table-condensed table-inner">
+                                            <thead>
+                                                <tr>
+                                                    <th class="min-width">@Strings.Common_Id</th>
+                                                    <th class="min-width">@Strings.Common_State</th>
+                                                    <th>@Strings.Common_Job</th>
+                                                    <th class="align-right min-width">@Strings.Common_Enqueued</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var job in queue.FirstJobs)
+                                                {
+                                                    <tr class="@(job.Value == null || !job.Value.InEnqueuedState ? "obsolete-data" : null)">
+                                                        <td class="min-width">
+                                                            @Html.JobIdLink(job.Key)
+                                                            @if (job.Value != null && !job.Value.InEnqueuedState)
+                                                            {
+                                                                <span title="@Strings.Common_JobStateChanged_Text" class="glyphicon glyphicon-question-sign"></span>
+                                                            }
+                                                        </td>
+                                                        @if (job.Value == null)
+                                                        {
+                                                            <td colspan="3"><em>@Strings.Common_JobExpired</em></td>
+                                                        }
+                                                        else
+                                                        {
+                                                            <td class="min-width">
+                                                                @Html.StateLabel(job.Value.State)
+                                                            </td>
+                                                            <td class="word-break">
+                                                                @Html.JobNameLink(job.Key, job.Value.Job)
+                                                            </td>
+                                                            <td class="align-right min-width">
+                                                                @if (job.Value.EnqueuedAt.HasValue)
+                                                                {
+                                                                    @Html.RelativeTime(job.Value.EnqueuedAt.Value)
+                                                                }
+                                                                else
+                                                                {
+                                                                    <em>@Strings.Common_NotAvailable</em>
+                                                                }
+                                                            </td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    }
+                                </td>
+                                @if (!IsReadOnly)
+                                {
+                                    <td class="min-width hf-queue-actions">
+                                        @if (paused)
+                                        {
+                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/queues/resume/" + Uri.EscapeDataString(queue.Name))" data-loading-text="@Strings.QueuesPage_Resume">
+                                                <span class="glyphicon glyphicon-play"></span> @Strings.QueuesPage_Resume
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/queues/pause/" + Uri.EscapeDataString(queue.Name))" data-loading-text="@Strings.QueuesPage_Pause" data-confirm="@Strings.QueuesPage_PauseConfirm">
+                                                <span class="glyphicon glyphicon-pause"></span> @Strings.QueuesPage_Pause
+                                            </button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

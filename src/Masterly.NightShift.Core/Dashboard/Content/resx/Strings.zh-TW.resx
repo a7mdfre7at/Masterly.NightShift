@@ -1,0 +1,1581 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Text" xml:space="preserve">
+    <value>別擔心，持續性工作正在按預期執行。 但是，您當前的作業存儲空間不支持顯示此頁面所需的一些查詢。 請嘗試更新您的存儲空間，或者等到完整的命令集被執行。</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Title" xml:space="preserve">
+    <value>工作繼續執行中，但是無法顯示該頁面</value>
+  </data>
+  <data name="AwaitingJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有等待中的工作</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Options" xml:space="preserve">
+    <value>選項</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Parent" xml:space="preserve">
+    <value>父層</value>
+  </data>
+  <data name="AwaitingJobsPage_Title" xml:space="preserve">
+    <value>等待中的工作</value>
+  </data>
+  <data name="Common_Created" xml:space="preserve">
+    <value>建立</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>刪除</value>
+  </data>
+  <data name="Common_DeleteConfirm" xml:space="preserve">
+    <value>您確定要刪除所選的全部工作嗎？</value>
+  </data>
+  <data name="Common_Deleting" xml:space="preserve">
+    <value>刪除中…</value>
+  </data>
+  <data name="Common_DeleteSelected" xml:space="preserve">
+    <value>刪除選取</value>
+  </data>
+  <data name="Common_EnqueueButton_Text" xml:space="preserve">
+    <value>佇列工作</value>
+  </data>
+  <data name="Common_Enqueueing" xml:space="preserve">
+    <value>加入佇列中…</value>
+  </data>
+  <data name="Common_Fetched" xml:space="preserve">
+    <value>獲取到</value>
+  </data>
+  <data name="Common_Id" xml:space="preserve">
+    <value>編號</value>
+  </data>
+  <data name="Common_Job" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="Common_JobExpired" xml:space="preserve">
+    <value>工作過期</value>
+  </data>
+  <data name="Common_JobStateChanged_Text" xml:space="preserve">
+    <value>工作狀態已被變更</value>
+  </data>
+  <data name="Common_LessDetails" xml:space="preserve">
+    <value>收起…</value>
+  </data>
+  <data name="Common_MoreDetails" xml:space="preserve">
+    <value>更多…</value>
+  </data>
+  <data name="Common_NotAvailable" xml:space="preserve">
+    <value>N/A</value>
+  </data>
+  <data name="Common_PeriodDay" xml:space="preserve">
+    <value>天</value>
+  </data>
+  <data name="Common_PeriodWeek" xml:space="preserve">
+    <value>周</value>
+  </data>
+  <data name="Common_Reason" xml:space="preserve">
+    <value>原因</value>
+  </data>
+  <data name="Common_RequeueJobs" xml:space="preserve">
+    <value>重新加入佇列</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="Common_Server" xml:space="preserve">
+    <value>伺服器</value>
+  </data>
+  <data name="Common_State" xml:space="preserve">
+    <value>狀態</value>
+  </data>
+  <data name="Common_Unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="DeletedJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有找到任何已經刪除的工作</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Deleted" xml:space="preserve">
+    <value>刪除</value>
+  </data>
+  <data name="DeletedJobsPage_Title" xml:space="preserve">
+    <value>刪除工作</value>
+  </data>
+  <data name="EnqueuedJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有任何工作</value>
+  </data>
+  <data name="EnqueuedJobsPage_Title" xml:space="preserve">
+    <value>佇列工作</value>
+  </data>
+  <data name="FailedJobsPage_FailedJobsNotExpire_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;不會過期的失敗工作&lt;/strong&gt;&lt;br/&gt;在沒有任何時間限制下，允許你重新執行工作，您應該重新執行或刪除工作或再次加入佇列。&lt;br /&gt;在屬性&lt;code&gt;AutomaticRetry(OnAttemptsExceeded = AttemptsExceededAction.Delete)&lt;/code&gt;
+                設定可自動刪除</value>
+  </data>
+  <data name="FailedJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有失敗的工作</value>
+  </data>
+  <data name="FailedJobsPage_Table_Failed" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="FailedJobsPage_Title" xml:space="preserve">
+    <value>失敗的工作</value>
+  </data>
+  <data name="FetchedJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有任何工作</value>
+  </data>
+  <data name="FetchedJobsPage_Title" xml:space="preserve">
+    <value>擷取工作</value>
+  </data>
+  <data name="HomePage_HistoryGraph" xml:space="preserve">
+    <value>歷史圖表走勢</value>
+  </data>
+  <data name="HomePage_RealtimeGraph" xml:space="preserve">
+    <value>即時圖表走勢</value>
+  </data>
+  <data name="HomePage_Title" xml:space="preserve">
+    <value>儀表板</value>
+  </data>
+  <data name="JobDetailsPage_Created" xml:space="preserve">
+    <value>建立</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>確認刪除這個工作嗎？</value>
+  </data>
+  <data name="JobDetailsPage_State" xml:space="preserve">
+    <value>狀態</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedNotActive_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;工作被終止&lt;/strong&gt; – 在伺服器
+                        &lt;code&gt;{0}&lt;/code&gt; 被終止，此工作不在目前 
+                        &lt;a href="{1}"&gt;執行中伺服器&lt;/a&gt; 清單
+                        工作在逾時後自動重試執行，也可以重新執行或手動刪除它。</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;工作疑似終止&lt;/strong&gt; – 在伺服器
+                        &lt;code&gt;{0}&lt;/code&gt;被終止，執行時間已超過一分鐘，工作將會自動重試執行，也可以重新執行或手動刪除它。</value>
+  </data>
+  <data name="JobDetailsPage_JobExpired" xml:space="preserve">
+    <value>背景工作 '{0}' 逾時或無法在伺服器執行此工作</value>
+  </data>
+  <data name="JobDetailsPage_JobFinished_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;工作結束&lt;/strong&gt;.
+                    工作將被自動移除 &lt;em&gt;&lt;abbr data-moment="{0}"&gt;{1}&lt;/abbr&gt;&lt;/em&gt;.</value>
+  </data>
+  <data name="JobDetailsPage_JobId" xml:space="preserve">
+    <value>Job Id</value>
+  </data>
+  <data name="JobDetailsPage_Requeue" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="LayoutPage_Back" xml:space="preserve">
+    <value>返回</value>
+  </data>
+  <data name="LayoutPage_Footer_Generatedms" xml:space="preserve">
+    <value>耗時：{0}ms</value>
+  </data>
+  <data name="LayoutPage_Footer_Time" xml:space="preserve">
+    <value>時間：</value>
+  </data>
+  <data name="Paginator_Next" xml:space="preserve">
+    <value>下一步</value>
+  </data>
+  <data name="Paginator_Prev" xml:space="preserve">
+    <value>上一步</value>
+  </data>
+  <data name="Paginator_TotalItems" xml:space="preserve">
+    <value>總筆數</value>
+  </data>
+  <data name="PerPageSelector_ItemsPerPage" xml:space="preserve">
+    <value>每頁筆數</value>
+  </data>
+  <data name="ProcessingJobsPage_Aborted" xml:space="preserve">
+    <value>工作疑似終止</value>
+  </data>
+  <data name="ProcessingJobsPage_NoJobs" xml:space="preserve">
+    <value>沒有立即執行的工作</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Started" xml:space="preserve">
+    <value>執行</value>
+  </data>
+  <data name="ProcessingJobsPage_Title" xml:space="preserve">
+    <value>執行中的工作</value>
+  </data>
+  <data name="QueuesPage_NoJobs" xml:space="preserve">
+    <value>無工作</value>
+  </data>
+  <data name="QueuesPage_NoQueues" xml:space="preserve">
+    <value>無佇列工作，嘗試加入工作至佇列</value>
+  </data>
+  <data name="QueuesPage_Table_Length" xml:space="preserve">
+    <value>長度</value>
+  </data>
+  <data name="QueuesPage_Table_NextsJobs" xml:space="preserve">
+    <value>下一個工作</value>
+  </data>
+  <data name="QueuesPage_Table_Queue" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="QueuesPage_Title" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="RecurringJobsPage_Canceled" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="RecurringJobsPage_NoJobs" xml:space="preserve">
+    <value>無工作</value>
+  </data>
+  <data name="RecurringJobsPage_Table_Cron" xml:space="preserve">
+    <value>Cron</value>
+  </data>
+  <data name="RecurringJobsPage_Table_LastExecution" xml:space="preserve">
+    <value>最後執行</value>
+  </data>
+  <data name="RecurringJobsPage_Table_NextExecution" xml:space="preserve">
+    <value>下一個執行</value>
+  </data>
+  <data name="RecurringJobsPage_Table_TimeZone" xml:space="preserve">
+    <value>時區</value>
+  </data>
+  <data name="RecurringJobsPage_Title" xml:space="preserve">
+    <value>定期工作</value>
+  </data>
+  <data name="RecurringJobsPage_Triggering" xml:space="preserve">
+    <value>執行中…</value>
+  </data>
+  <data name="RecurringJobsPage_TriggerNow" xml:space="preserve">
+    <value>立即執行</value>
+  </data>
+  <data name="RetriesPage_NoJobs" xml:space="preserve">
+    <value>沒有重試的工作</value>
+  </data>
+  <data name="RetriesPage_Title" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="RetriesPage_Warning_Html" xml:space="preserve">
+    <value>&lt;h4&gt;重試項目正在執行，但此頁面無法顯示&lt;/h4&gt;
+        &lt;p&gt;
+            別擔心，重試項目正在執行中，目前的工作儲存庫無法支援查詢，請試著更新您的工作儲存庫或等待下一個執行時間點。
+        &lt;/p&gt;
+        &lt;p&gt;
+            請至 &lt;a href="{0}"&gt;計劃&lt;/a&gt;頁查看所有計劃工作及重試項目
+        &lt;/p&gt;</value>
+  </data>
+  <data name="ScheduledJobsPage_EnqueueNow" xml:space="preserve">
+    <value>加入佇列</value>
+  </data>
+  <data name="ScheduledJobsPage_NoJobs" xml:space="preserve">
+    <value>無工作</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Enqueue" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Scheduled" xml:space="preserve">
+    <value>計劃的</value>
+  </data>
+  <data name="ScheduledJobsPage_Title" xml:space="preserve">
+    <value>計劃工作</value>
+  </data>
+  <data name="ServersPage_NoServers" xml:space="preserve">
+    <value>沒有執行中的伺服器，工作將不會被執行</value>
+  </data>
+  <data name="ServersPage_Table_Heartbeat" xml:space="preserve">
+    <value>心跳</value>
+  </data>
+  <data name="ServersPage_Table_Name" xml:space="preserve">
+    <value>名稱</value>
+  </data>
+  <data name="ServersPage_Table_Queues" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="ServersPage_Table_Started" xml:space="preserve">
+    <value>執行</value>
+  </data>
+  <data name="ServersPage_Table_Workers" xml:space="preserve">
+    <value>工作區</value>
+  </data>
+  <data name="ServersPage_Title" xml:space="preserve">
+    <value>伺服器</value>
+  </data>
+  <data name="SucceededJobsPage_NoJobs" xml:space="preserve">
+    <value>無工作</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Succeeded" xml:space="preserve">
+    <value>完成</value>
+  </data>
+  <data name="SucceededJobsPage_Table_TotalDuration" xml:space="preserve">
+    <value>總觸發時間</value>
+  </data>
+  <data name="SucceededJobsPage_Title" xml:space="preserve">
+    <value>完成的工作</value>
+  </data>
+  <data name="JobsSidebarMenu_Awaiting" xml:space="preserve">
+    <value>等待中</value>
+  </data>
+  <data name="JobsSidebarMenu_Deleted" xml:space="preserve">
+    <value>刪除</value>
+  </data>
+  <data name="JobsSidebarMenu_Failed" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="JobsSidebarMenu_Processing" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="JobsSidebarMenu_Scheduled" xml:space="preserve">
+    <value>計劃</value>
+  </data>
+  <data name="JobsSidebarMenu_Succeeded" xml:space="preserve">
+    <value>完成</value>
+  </data>
+  <data name="NavigationMenu_Jobs" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="NavigationMenu_RecurringJobs" xml:space="preserve">
+    <value>定期工作</value>
+  </data>
+  <data name="NavigationMenu_Retries" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="NavigationMenu_Servers" xml:space="preserve">
+    <value>伺服器</value>
+  </data>
+  <data name="Common_CannotFindTargetMethod" xml:space="preserve">
+    <value>無法找到目標的函式</value>
+  </data>
+  <data name="Common_Enqueued" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="Common_NoState" xml:space="preserve">
+    <value>無狀態</value>
+  </data>
+  <data name="JobsSidebarMenu_Enqueued" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="Metrics_ActiveConnections" xml:space="preserve">
+    <value>連線數</value>
+  </data>
+  <data name="Metrics_DeletedJobs" xml:space="preserve">
+    <value>刪除</value>
+  </data>
+  <data name="Metrics_FailedJobs" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="Metrics_ProcessingJobs" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="Metrics_RecurringJobs" xml:space="preserve">
+    <value>定期</value>
+  </data>
+  <data name="Metrics_Retries" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="Metrics_ScheduledJobs" xml:space="preserve">
+    <value>計劃</value>
+  </data>
+  <data name="Metrics_Servers" xml:space="preserve">
+    <value>伺服器</value>
+  </data>
+  <data name="Metrics_SucceededJobs" xml:space="preserve">
+    <value>成功的工作</value>
+  </data>
+  <data name="Metrics_TotalConnections" xml:space="preserve">
+    <value>總連線數</value>
+  </data>
+  <data name="Common_Condition" xml:space="preserve">
+    <value>條件</value>
+  </data>
+  <data name="Common_Continuations" xml:space="preserve">
+    <value>持續</value>
+  </data>
+  <data name="Metrics_AwaitingCount" xml:space="preserve">
+    <value>等待中</value>
+  </data>
+  <data name="Metrics_EnqueuedCountOrNull" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="Metrics_EnqueuedQueuesCount" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="Metrics_FailedCountOrNull" xml:space="preserve">
+    <value>{0} 筆失敗的工作，重試或手動刪除它們</value>
+  </data>
+  <data name="HomePage_GraphHover_Failed" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
+    <value>完成</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>暫停</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>正在暫停…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>恢復</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>正在恢復…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>已暫停：在恢復之前不會依排程執行，但仍可手動觸發。</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>編輯</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>編輯排程</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>排程</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>CRON 運算式，或簡單的英文描述，例如 “every 15 minutes”、“weekdays at 9:30” 或 “last day of month at 23:00”。</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>接下來的執行</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>錯過的執行</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>儘快補跑一次（relaxed）</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>補跑每一次錯過的執行（strict）</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>略過（ignorable）</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>儲存</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>正在儲存…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>無法預覽此排程。</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>即時</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>已經過</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>進度</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>主控台</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>檢查點</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>尚無輸出。工作可以透過 IJobConsole 回報進度、記錄行和檢查點。</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>進度</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>洞察</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>洞察</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>目前的儲存體無法讀取清單和計數器，因此無法提供洞察。</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>尚無統計資料。呼叫 &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; 啟用，或在要追蹤的工作類別加上 &lt;code&gt;[JobInsights]&lt;/code&gt;。</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>斷路器</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>資源</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>失敗次數</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>起始時間</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>重設</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>執行次數</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>中位數</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>最大</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>趨勢</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>呼叫方式</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>最近執行</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>最近一次執行的耗時超過近期執行 p95 的三倍</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>追蹤的方法</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>記錄的執行</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>失敗率</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>此伺服器的呼叫方式</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>分別以產生、編譯和反射方式呼叫的方法數</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>此處理序中的工作呼叫器</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>個已註冊的產生呼叫器</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>產生</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>編譯</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>反射</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>此處理序執行的工作方法是如何被呼叫的。參考 Masterly.NightShift.SourceGenerator 分析器（隨 Masterly.NightShift.Core 提供）即可全部使用產生方式。</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>截止時間</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>已逾期</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>工作已超過截止時間</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>在截止時間後 {0} 完成</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>主題</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>跟隨系統主題</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>淺色主題</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>深色主題</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>選單</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>即時</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>搜尋…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>跳至頁面、工作 ID 或週期性工作（Ctrl+K）</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>監控</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>總覽</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>全部刪除</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>刪除此清單中的所有工作？此操作無法復原。</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>全部移除</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>移除所有週期性工作？只有應用程式重新註冊後它們才會回來。</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>重新整理</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>即時</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>自動重新整理此清單</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>維護</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>從儲存體清除工作資料。伺服器繼續執行。</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>清除全部工作</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>刪除所有工作及其歷程、佇列項目、計數器、主控台和統計資料。保留週期性工作定義和伺服器。</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>從儲存體刪除所有工作及其歷程？此操作無法復原。</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>重設儲存體</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>刪除一切，包括週期性工作定義和伺服器註冊，如同全新的儲存體。</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>重設整個儲存體？週期性工作將消失，直到應用程式重新註冊。此操作無法復原。</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>正在清除…</value>
+  </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>目前處理序</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>處理序</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>已執行</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>由 IIS 裝載</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS 預設會在工作處理序閒置 20 分鐘後將其停止，工作也隨之停止。請將應用程式集區設為 &lt;code&gt;AlwaysRunning&lt;/code&gt; 並啟用預先載入、閒置逾時設為 0，或註冊 &lt;code&gt;KeepAliveProcess&lt;/code&gt;（&lt;code&gt;services.AddNightShiftKeepAlive()&lt;/code&gt;）讓處理序定期要求自身。回收仍需要集區設定。</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>保持連線</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>未設定</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>等待第一次要求</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>最近一次要求成功</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>最近一次要求失敗</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>每 {0}</value>
+  </data>
+  <data name="NavigationMenu_Catalog" xml:space="preserve">
+    <value>目錄</value>
+  </data>
+  <data name="CatalogPage_Title" xml:space="preserve">
+    <value>工作目錄</value>
+  </data>
+  <data name="CatalogPage_Hint" xml:space="preserve">
+    <value>程式碼中的每個工作方法，隨時可執行</value>
+  </data>
+  <data name="CatalogPage_NoEntries_Html" xml:space="preserve">
+    <value>找不到工作方法。請參考 &lt;code&gt;Masterly.NightShift.SourceGenerator&lt;/code&gt; 分析器以便在建置時發現方法，或使用 &lt;code&gt;JobCatalog.Add&amp;lt;T&amp;gt;()&lt;/code&gt; 註冊型別。</value>
+  </data>
+  <data name="CatalogPage_Search" xml:space="preserve">
+    <value>篩選方法…</value>
+  </data>
+  <data name="CatalogPage_Summary_Methods" xml:space="preserve">
+    <value>個方法</value>
+  </data>
+  <data name="CatalogPage_Summary_Types" xml:space="preserve">
+    <value>個型別</value>
+  </data>
+  <data name="CatalogPage_Table_Method" xml:space="preserve">
+    <value>方法</value>
+  </data>
+  <data name="CatalogPage_Table_Parameters" xml:space="preserve">
+    <value>參數</value>
+  </data>
+  <data name="CatalogPage_Table_Filters" xml:space="preserve">
+    <value>篩選器</value>
+  </data>
+  <data name="CatalogPage_Table_Stats" xml:space="preserve">
+    <value>執行</value>
+  </data>
+  <data name="CatalogPage_Static" xml:space="preserve">
+    <value>靜態</value>
+  </data>
+  <data name="CatalogPage_Injected" xml:space="preserve">
+    <value>由伺服器注入</value>
+  </data>
+  <data name="CatalogPage_Run" xml:space="preserve">
+    <value>執行…</value>
+  </data>
+  <data name="CatalogPage_Runner_Title" xml:space="preserve">
+    <value>執行</value>
+  </data>
+  <data name="CatalogPage_Mode_Enqueue" xml:space="preserve">
+    <value>立即執行</value>
+  </data>
+  <data name="CatalogPage_Mode_Schedule" xml:space="preserve">
+    <value>稍後</value>
+  </data>
+  <data name="CatalogPage_Mode_Recurring" xml:space="preserve">
+    <value>週期性</value>
+  </data>
+  <data name="CatalogPage_Delay" xml:space="preserve">
+    <value>延遲（分鐘）</value>
+  </data>
+  <data name="CatalogPage_RecurringId" xml:space="preserve">
+    <value>週期性工作 ID</value>
+  </data>
+  <data name="CatalogPage_Submit" xml:space="preserve">
+    <value>建立</value>
+  </data>
+  <data name="CatalogPage_Created" xml:space="preserve">
+    <value>已建立工作 {0}。</value>
+  </data>
+  <data name="CatalogPage_RecurringCreated" xml:space="preserve">
+    <value>已儲存週期性工作 {0}。</value>
+  </data>
+  <data name="ForecastPage_Title" xml:space="preserve">
+    <value>排程預測</value>
+  </data>
+  <data name="ForecastPage_Hint" xml:space="preserve">
+    <value>週期性工作何時執行以及在哪裡衝突</value>
+  </data>
+  <data name="ForecastPage_Window_24h" xml:space="preserve">
+    <value>未來 24 小時</value>
+  </data>
+  <data name="ForecastPage_Window_7d" xml:space="preserve">
+    <value>未來 7 天</value>
+  </data>
+  <data name="ForecastPage_Summary_Runs" xml:space="preserve">
+    <value>次執行</value>
+  </data>
+  <data name="ForecastPage_Summary_BusyTime" xml:space="preserve">
+    <value>預期佔用時間</value>
+  </data>
+  <data name="ForecastPage_Summary_Busiest" xml:space="preserve">
+    <value>最忙碌的小時</value>
+  </data>
+  <data name="ForecastPage_HotSpots" xml:space="preserve">
+    <value>熱點</value>
+  </data>
+  <data name="ForecastPage_HotSpots_Hint" xml:space="preserve">
+    <value>多個工作在同一個 5 分鐘內啟動</value>
+  </data>
+  <data name="ForecastPage_Paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="ForecastPage_Legend_Expected" xml:space="preserve">
+    <value>預期執行，長度取自 Insights 的中位耗時</value>
+  </data>
+  <data name="ForecastPage_Legend_Default" xml:space="preserve">
+    <value>尚無執行記錄，以 30 秒估算</value>
+  </data>
+  <data name="ForecastPage_Table_Slot" xml:space="preserve">
+    <value>時段</value>
+  </data>
+  <data name="ForecastPage_Table_Jobs" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="RecurringJobsPage_Forecast" xml:space="preserve">
+    <value>預測</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta" xml:space="preserve">
+    <value>約剩 {0}</value>
+  </data>
+  <data name="ProcessingJobsPage_LongerThanUsual" xml:space="preserve">
+    <value>比平常更久</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta_Tooltip" xml:space="preserve">
+    <value>依據過去執行的中位耗時估算</value>
+  </data>
+  <data name="HomePage_Activity" xml:space="preserve">
+    <value>即時動態</value>
+  </data>
+  <data name="HomePage_Activity_Hint" xml:space="preserve">
+    <value>叢集內的每一次狀態變更</value>
+  </data>
+  <data name="HomePage_Activity_Empty" xml:space="preserve">
+    <value>尚未發生任何事件。</value>
+  </data>
+  <data name="LayoutPage_Drain_Banner" xml:space="preserve">
+    <value>處理已暫停：新工作被擱置，執行中的工作會完成。</value>
+  </data>
+  <data name="LayoutPage_Drain_Since" xml:space="preserve">
+    <value>自 {0}</value>
+  </data>
+  <data name="LayoutPage_Drain_Resume" xml:space="preserve">
+    <value>恢復</value>
+  </data>
+  <data name="ServersPage_Processing" xml:space="preserve">
+    <value>處理</value>
+  </data>
+  <data name="ServersPage_Processing_Hint" xml:space="preserve">
+    <value>在部署或維護時段之前暫停</value>
+  </data>
+  <data name="ServersPage_Processing_Running" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="ServersPage_Processing_Paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="ServersPage_Pause" xml:space="preserve">
+    <value>暫停處理</value>
+  </data>
+  <data name="ServersPage_Pause_Reason" xml:space="preserve">
+    <value>原因（選填）</value>
+  </data>
+  <data name="ServersPage_Resume" xml:space="preserve">
+    <value>恢復處理</value>
+  </data>
+  <data name="ServersPage_Paused_Since" xml:space="preserve">
+    <value>已暫停 {0}</value>
+  </data>
+  <data name="ServersPage_Pause_HeldHint" xml:space="preserve">
+    <value>暫停期間，工作執行緒會將新工作退回排程，並每 {0} 重新檢查。</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode" xml:space="preserve">
+    <value>複製為 C#</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode_Hint" xml:space="preserve">
+    <value>複製可重新建立此工作的陳述式</value>
+  </data>
+  <data name="JobDetailsPage_Copied" xml:space="preserve">
+    <value>已複製</value>
+  </data>
+  <data name="JobDetailsPage_FanInContinuations" xml:space="preserve">
+    <value>扇入接續工作</value>
+  </data>
+  <data name="InsightsPage_Anomalies" xml:space="preserve">
+    <value>需要注意</value>
+  </data>
+  <data name="InsightsPage_Anomalies_Hint" xml:space="preserve">
+    <value>行為發生變化的方法</value>
+  </data>
+  <data name="InsightsPage_Anomalies_None" xml:space="preserve">
+    <value>一切看起來正常。</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowingDown" xml:space="preserve">
+    <value>正在變慢：近期 {0}，之前 {1}</value>
+  </data>
+  <data name="InsightsPage_Anomaly_FailureRate" xml:space="preserve">
+    <value>{0} 的執行失敗</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowRun" xml:space="preserve">
+    <value>上次執行耗時 {0}</value>
+  </data>
+  <data name="ForecastPage_Dense" xml:space="preserve">
+    <value>{0} 次執行，過多無法逐一繪製</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>診斷</value>
+  </data>
+  <data name="Diagnostics_Hint" xml:space="preserve">
+    <value>工作為何停在目前狀態，以及什麼能讓它繼續</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>無法完成診斷：{0}</value>
+  </data>
+  <data name="Diagnostics_NoServers" xml:space="preserve">
+    <value>沒有執行中的伺服器。工作會等到有伺服器啟動。</value>
+  </data>
+  <data name="Diagnostics_ServersStale" xml:space="preserve">
+    <value>所有已註冊的伺服器都錯過了心跳；它們可能已被終止或中斷連線。</value>
+  </data>
+  <data name="Diagnostics_QueueUnserved" xml:space="preserve">
+    <value>沒有執行中的伺服器監聽佇列 {0}。執行中的伺服器監聽：{1}</value>
+  </data>
+  <data name="Diagnostics_Drain" xml:space="preserve">
+    <value>處理已暫停{0}。工作執行緒會交回工作，直到恢復處理。</value>
+  </data>
+  <data name="Diagnostics_Waiting" xml:space="preserve">
+    <value>已在佇列 {0} 中等待 {1}，同佇列還有 {2} 個工作。伺服器正在監聽，只是佇列忙碌。</value>
+  </data>
+  <data name="Diagnostics_Healthy" xml:space="preserve">
+    <value>沒有任何阻礙：佇列 {0} 有伺服器監聽，工作很快就會開始。</value>
+  </data>
+  <data name="Diagnostics_RetryPending" xml:space="preserve">
+    <value>第 {0}/{1} 次重試待執行。</value>
+  </data>
+  <data name="Diagnostics_RetryLater" xml:space="preserve">
+    <value>工作要求稍後重試，正在等待其選定的時間。</value>
+  </data>
+  <data name="Diagnostics_ScheduledDue" xml:space="preserve">
+    <value>預計於 {0} 進入佇列。</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue" xml:space="preserve">
+    <value>應在 {0} 執行，但沒有伺服器將其排入佇列。延遲工作排程器在每台伺服器上執行；請檢查其日誌中的儲存體錯誤。</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue_NoServers" xml:space="preserve">
+    <value>應在 {0} 執行，但沒有執行中的伺服器可將其排入佇列。</value>
+  </data>
+  <data name="Diagnostics_ParentMissing" xml:space="preserve">
+    <value>父工作 {0} 已不存在，因此此工作永遠不會自動啟動。請刪除它或手動排入佇列。</value>
+  </data>
+  <data name="Diagnostics_ConditionFailed" xml:space="preserve">
+    <value>父工作 {0} 以 {1} 結束，不符合此接續的條件。它會停留在此，直到手動排入佇列或刪除。</value>
+  </data>
+  <data name="Diagnostics_ParentFinished" xml:space="preserve">
+    <value>父工作 {0} 已以 {1} 結束；此工作本應排入佇列，伺服器趕上後就會排入。</value>
+  </data>
+  <data name="Diagnostics_ParentFailed" xml:space="preserve">
+    <value>父工作 {0} 已失敗且不會重試，因此此工作會停留在此，直到父工作重新排入佇列。</value>
+  </data>
+  <data name="Diagnostics_ParentRetrying" xml:space="preserve">
+    <value>父工作 {0} 處於 {1}，等待重試；父工作完成後此工作才會開始。</value>
+  </data>
+  <data name="Diagnostics_ParentWaiting" xml:space="preserve">
+    <value>正在等待父工作 {0}，目前為 {1}。</value>
+  </data>
+  <data name="Diagnostics_FanIn" xml:space="preserve">
+    <value>扇入：{1} 個父工作中已有 {0} 個完成（{2}）。</value>
+  </data>
+  <data name="Diagnostics_FanIn_All" xml:space="preserve">
+    <value>等待全部完成</value>
+  </data>
+  <data name="Diagnostics_FanIn_Any" xml:space="preserve">
+    <value>首個完成後啟動</value>
+  </data>
+  <data name="Diagnostics_ServerGone" xml:space="preserve">
+    <value>接手此工作的伺服器 {0} 已不再註冊。儲存體會在不可見逾時後將工作退回佇列；要更早啟動，請重新排入佇列。</value>
+  </data>
+  <data name="Diagnostics_ServerStale" xml:space="preserve">
+    <value>伺服器 {0} 最後一次回報於 {1}。若它已被終止，工作會在不可見逾時後回來。</value>
+  </data>
+  <data name="Diagnostics_Slow" xml:space="preserve">
+    <value>已執行 {0}；此方法通常在 {1} 內完成。</value>
+  </data>
+  <data name="Diagnostics_Running" xml:space="preserve">
+    <value>在 {0} 上已執行 {1}。</value>
+  </data>
+  <data name="Diagnostics_Running_Usual" xml:space="preserve">
+    <value>在 {0} 上已執行 {1}；此方法通常在 {2} 內完成。</value>
+  </data>
+  <data name="Diagnostics_RetriesExhausted" xml:space="preserve">
+    <value>已重試 {0} 次均未成功，沒有剩餘的自動重試。請重新排入佇列再試一次。</value>
+  </data>
+  <data name="Diagnostics_RetriesDisabled" xml:space="preserve">
+    <value>此方法已停用自動重試，因此第一次失敗即為最終結果。</value>
+  </data>
+  <data name="Diagnostics_NotRetried" xml:space="preserve">
+    <value>該失敗未被重試：例外類型被排除在重試之外，或重試篩選器未註冊。</value>
+  </data>
+  <data name="Diagnostics_RetryLaterRequests" xml:space="preserve">
+    <value>在此次失敗之前，工作曾 {0} 次要求稍後重試。</value>
+  </data>
+  <data name="Diagnostics_CircuitOpen" xml:space="preserve">
+    <value>斷路器 {0} 於 {1} 開啟。其後的工作在取出時會被推回，直到斷路器半開。</value>
+  </data>
+  <data name="Common_Redacted" xml:space="preserve">
+    <value>已隱藏：此參數標記為 [Redacted]</value>
+  </data>
+  <data name="JobDetailsPage_Lineage" xml:space="preserve">
+    <value>譜系</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Hint" xml:space="preserve">
+    <value>此工作等待過的工作，以及等待它的工作</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Truncated" xml:space="preserve">
+    <value>僅顯示最近的工作。</value>
+  </data>
+  <data name="Lineage_AfterSuccess" xml:space="preserve">
+    <value>成功後</value>
+  </data>
+  <data name="Lineage_AfterFinish" xml:space="preserve">
+    <value>完成後</value>
+  </data>
+  <data name="Lineage_AfterDelete" xml:space="preserve">
+    <value>刪除後</value>
+  </data>
+  <data name="Lineage_All" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="Lineage_Any" xml:space="preserve">
+    <value>任一</value>
+  </data>
+  <data name="JobDetailsPage_Tags" xml:space="preserve">
+    <value>標籤</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain" xml:space="preserve">
+    <value>修改後再次執行…</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain_Hint" xml:space="preserve">
+    <value>以此工作為基礎，用修改後的參數建立新工作，可立即、稍後或按排程執行</value>
+  </data>
+  <data name="CatalogPage_Runner_Redacted" xml:space="preserve">
+    <value>已隱藏，請重新輸入該值</value>
+  </data>
+  <data name="FailedJobsPage_Clusters" xml:space="preserve">
+    <value>失敗叢集</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Hint" xml:space="preserve">
+    <value>最近 {0} 次失敗，依例外與方法分組</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Jobs" xml:space="preserve">
+    <value>{0} 個工作</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_FirstSeen" xml:space="preserve">
+    <value>最早</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_LastSeen" xml:space="preserve">
+    <value>最近</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Requeue" xml:space="preserve">
+    <value>重新排入全部 {0} 個</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Delete" xml:space="preserve">
+    <value>刪除全部 {0} 個</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_DeleteConfirm" xml:space="preserve">
+    <value>刪除此叢集中的所有工作？</value>
+  </data>
+  <data name="RecurringJobsPage_Export" xml:space="preserve">
+    <value>匯出</value>
+  </data>
+  <data name="RecurringJobsPage_Export_Hint" xml:space="preserve">
+    <value>將所有週期性工作下載為 JSON 清單</value>
+  </data>
+  <data name="RecurringJobsPage_Import" xml:space="preserve">
+    <value>匯入…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Title" xml:space="preserve">
+    <value>匯入週期性工作</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Hint" xml:space="preserve">
+    <value>貼上從本環境或其他環境匯出的清單，或選擇檔案。相同 id 的現有工作會被更新。</value>
+  </data>
+  <data name="RecurringJobsPage_Import_File" xml:space="preserve">
+    <value>選擇檔案</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Prune" xml:space="preserve">
+    <value>移除清單中不存在的週期性工作</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Apply" xml:space="preserve">
+    <value>套用</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Applying" xml:space="preserve">
+    <value>正在套用…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Result" xml:space="preserve">
+    <value>新增 {0}，更新 {1}，移除 {2}，失敗 {3}</value>
+  </data>
+  <data name="RecurringJobsPage_Late" xml:space="preserve">
+    <value>延遲</value>
+  </data>
+  <data name="RecurringJobsPage_Late_Tooltip" xml:space="preserve">
+    <value>下次執行應在一分多鐘前進行，但沒有伺服器啟動它</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary" xml:space="preserve">
+    <value>{0} 個週期性工作已延遲：其下次執行應在一分多鐘前進行。請檢查是否有執行中的伺服器啟用了週期性工作排程器並能存取儲存體。</value>
+  </data>
+  <data name="TagsPage_Title" xml:space="preserve">
+    <value>標籤</value>
+  </data>
+  <data name="TagsPage_Hint" xml:space="preserve">
+    <value>依主題尋找工作</value>
+  </data>
+  <data name="TagsPage_NoTags_Html" xml:space="preserve">
+    <value>還沒有標籤。在工作方法上加上 &lt;code&gt;[Tag(&amp;quot;customer:{0}&amp;quot;)]&lt;/code&gt;，用第一個參數為其工作加標籤，或呼叫 &lt;code&gt;JobTags.Add(jobId, &amp;quot;tag&amp;quot;)&lt;/code&gt;。</value>
+  </data>
+  <data name="TagsPage_Table_Tag" xml:space="preserve">
+    <value>標籤</value>
+  </data>
+  <data name="TagsPage_Table_Jobs" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="TagsPage_Forget" xml:space="preserve">
+    <value>忘記</value>
+  </data>
+  <data name="TagsPage_ForgetConfirm" xml:space="preserve">
+    <value>忘記此標籤？工作本身會保留。</value>
+  </data>
+  <data name="TagsPage_Search" xml:space="preserve">
+    <value>篩選標籤…</value>
+  </data>
+  <data name="TaggedJobsPage_Title" xml:space="preserve">
+    <value>標籤為 {0}</value>
+  </data>
+  <data name="TaggedJobsPage_NoJobs" xml:space="preserve">
+    <value>已沒有工作帶有此標籤。</value>
+  </data>
+  <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
+    <value>已從標籤中移除 {0} 個過期工作。</value>
+  </data>
+  <data name="NavigationMenu_Tags" xml:space="preserve">
+    <value>標籤</value>
+  </data>
+  <data name="NavigationMenu_Batches" xml:space="preserve">
+    <value>批次</value>
+  </data>
+  <data name="NavigationMenu_Audit" xml:space="preserve">
+    <value>稽核</value>
+  </data>
+  <data name="Diagnostics_QueuePaused" xml:space="preserve">
+    <value>佇列 {0} 已暫停{1}。工作執行緒會交回其工作，直到恢復。</value>
+  </data>
+  <data name="BatchesPage_Title" xml:space="preserve">
+    <value>批次</value>
+  </data>
+  <data name="BatchesPage_Hint" xml:space="preserve">
+    <value>作為一個整體觀察和接續的工作群組</value>
+  </data>
+  <data name="BatchesPage_NoBatches_Html" xml:space="preserve">
+    <value>還沒有批次。使用 &lt;code&gt;BatchJob.StartNew(b =&amp;gt; { b.Enqueue(...); b.Enqueue(...); })&lt;/code&gt; 建立一個，並用 &lt;code&gt;BatchJob.ContinueWith(batchId, ...)&lt;/code&gt; 接續它。</value>
+  </data>
+  <data name="BatchesPage_Table_Batch" xml:space="preserve">
+    <value>批次</value>
+  </data>
+  <data name="BatchesPage_Table_Progress" xml:space="preserve">
+    <value>進度</value>
+  </data>
+  <data name="BatchesPage_Table_Jobs" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="BatchesPage_Table_Created" xml:space="preserve">
+    <value>建立時間</value>
+  </data>
+  <data name="BatchesPage_State_Running" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="BatchesPage_State_Finished" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="BatchesPage_State_Failed" xml:space="preserve">
+    <value>有失敗工作</value>
+  </data>
+  <data name="BatchesPage_Counts" xml:space="preserve">
+    <value>{0} 成功 · {1} 失敗 · {2} 待處理</value>
+  </data>
+  <data name="BatchDetailsPage_Title" xml:space="preserve">
+    <value>批次 {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Expired" xml:space="preserve">
+    <value>批次 {0} 不存在或已過期。</value>
+  </data>
+  <data name="BatchDetailsPage_RequeueFailed" xml:space="preserve">
+    <value>重新排入失敗工作（{0}）</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePending" xml:space="preserve">
+    <value>刪除未完成工作（{0}）</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePendingConfirm" xml:space="preserve">
+    <value>刪除此批次中所有未完成的工作？</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations" xml:space="preserve">
+    <value>接續工作</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations_Hint" xml:space="preserve">
+    <value>在批次的每個工作完成後啟動</value>
+  </data>
+  <data name="BatchDetailsPage_JobsInBatch" xml:space="preserve">
+    <value>批次中的工作</value>
+  </data>
+  <data name="BatchDetailsPage_MoreJobs" xml:space="preserve">
+    <value>另有 {0} 個工作未顯示。</value>
+  </data>
+  <data name="JobDetailsPage_Batch" xml:space="preserve">
+    <value>批次</value>
+  </data>
+  <data name="JobDetailsPage_BatchContinuation" xml:space="preserve">
+    <value>接續自批次</value>
+  </data>
+  <data name="AuditPage_Title" xml:space="preserve">
+    <value>稽核</value>
+  </data>
+  <data name="AuditPage_Hint" xml:space="preserve">
+    <value>誰在此儀表板上做了什麼</value>
+  </data>
+  <data name="AuditPage_NoEntries" xml:space="preserve">
+    <value>尚未透過儀表板執行任何操作。</value>
+  </data>
+  <data name="AuditPage_Table_When" xml:space="preserve">
+    <value>時間</value>
+  </data>
+  <data name="AuditPage_Table_User" xml:space="preserve">
+    <value>使用者</value>
+  </data>
+  <data name="AuditPage_Table_Action" xml:space="preserve">
+    <value>動作</value>
+  </data>
+  <data name="AuditPage_Table_Targets" xml:space="preserve">
+    <value>對象</value>
+  </data>
+  <data name="AuditPage_Table_Detail" xml:space="preserve">
+    <value>詳細資料</value>
+  </data>
+  <data name="AuditPage_Anonymous" xml:space="preserve">
+    <value>匿名</value>
+  </data>
+  <data name="AuditPage_More" xml:space="preserve">
+    <value>以及另外 {0} 個</value>
+  </data>
+  <data name="AuditPage_Disabled" xml:space="preserve">
+    <value>記錄已關閉（AuditLog.Enabled = false）。</value>
+  </data>
+  <data name="QueuesPage_Table_Latency" xml:space="preserve">
+    <value>等待</value>
+  </data>
+  <data name="QueuesPage_Table_Latency_Hint" xml:space="preserve">
+    <value>最近 200 次啟動中，工作被工作執行緒取走前等待時間的中位數 · p95</value>
+  </data>
+  <data name="QueuesPage_Table_Throughput" xml:space="preserve">
+    <value>每分鐘</value>
+  </data>
+  <data name="QueuesPage_Table_ClearsIn" xml:space="preserve">
+    <value>清空需要</value>
+  </data>
+  <data name="QueuesPage_Stalled" xml:space="preserve">
+    <value>停滯</value>
+  </data>
+  <data name="QueuesPage_Stalled_Tooltip" xml:space="preserve">
+    <value>有工作在等待，但最近五分鐘沒有工作執行緒取走任何工作</value>
+  </data>
+  <data name="QueuesPage_Paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="QueuesPage_Pause" xml:space="preserve">
+    <value>暫停</value>
+  </data>
+  <data name="QueuesPage_Resume" xml:space="preserve">
+    <value>恢復</value>
+  </data>
+  <data name="QueuesPage_PauseConfirm" xml:space="preserve">
+    <value>暫停此佇列？其工作會被保留直到您恢復；其他佇列照常執行。</value>
+  </data>
+  <data name="QueuesPage_Insights_Hint" xml:space="preserve">
+    <value>等待和吞吐量需要 UseJobInsights()。</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused" xml:space="preserve">
+    <value>已暫停的佇列：{0}</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused_Link" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="NavigationMenu_Timeline" xml:space="preserve">
+    <value>時間軸</value>
+  </data>
+  <data name="NavigationMenu_Wallboard" xml:space="preserve">
+    <value>看板</value>
+  </data>
+  <data name="TimelinePage_Title" xml:space="preserve">
+    <value>時間軸</value>
+  </data>
+  <data name="TimelinePage_Hint" xml:space="preserve">
+    <value>根據活動串流，每個工作執行緒最近幾分鐘做了什麼</value>
+  </data>
+  <data name="TimelinePage_Empty" xml:space="preserve">
+    <value>尚未記錄任何執行。隨著工作被處理，時間軸會逐漸填滿。</value>
+  </data>
+  <data name="TimelinePage_Summary" xml:space="preserve">
+    <value>最近 {3} 內，{2} 台伺服器的 {1} 個工作執行緒共 {0} 次執行</value>
+  </data>
+  <data name="TimelinePage_Running" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="TimelinePage_Legend_Held" xml:space="preserve">
+    <value>被保留或重試</value>
+  </data>
+  <data name="WallboardPage_Title" xml:space="preserve">
+    <value>看板</value>
+  </data>
+  <data name="WallboardPage_Healthy" xml:space="preserve">
+    <value>一切正常</value>
+  </data>
+  <data name="WallboardPage_Degraded" xml:space="preserve">
+    <value>需要注意</value>
+  </data>
+  <data name="WallboardPage_Unhealthy" xml:space="preserve">
+    <value>處理已停止</value>
+  </data>
+  <data name="WallboardPage_Servers" xml:space="preserve">
+    <value>台伺服器在線</value>
+  </data>
+  <data name="WallboardPage_Workers" xml:space="preserve">
+    <value>{0} 個工作執行緒</value>
+  </data>
+  <data name="WallboardPage_Waiting" xml:space="preserve">
+    <value>等待中</value>
+  </data>
+  <data name="WallboardPage_Running" xml:space="preserve">
+    <value>執行中</value>
+  </data>
+  <data name="WallboardPage_Scheduled" xml:space="preserve">
+    <value>已排程</value>
+  </data>
+  <data name="WallboardPage_Failed" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="WallboardPage_SuccessRate" xml:space="preserve">
+    <value>最近一小時成功率</value>
+  </data>
+  <data name="WallboardPage_Finished" xml:space="preserve">
+    <value>最近一小時完成</value>
+  </data>
+  <data name="WallboardPage_Queues" xml:space="preserve">
+    <value>佇列</value>
+  </data>
+  <data name="WallboardPage_ClearsIn" xml:space="preserve">
+    <value>{0} 後清空</value>
+  </data>
+  <data name="WallboardPage_Empty" xml:space="preserve">
+    <value>空</value>
+  </data>
+  <data name="WallboardPage_RunningJobs" xml:space="preserve">
+    <value>正在執行</value>
+  </data>
+  <data name="WallboardPage_NothingRunning" xml:space="preserve">
+    <value>沒有正在執行的工作。</value>
+  </data>
+  <data name="WallboardPage_Attention" xml:space="preserve">
+    <value>注意</value>
+  </data>
+  <data name="WallboardPage_NothingToReport" xml:space="preserve">
+    <value>沒有需要回報的內容。</value>
+  </data>
+  <data name="WallboardPage_LateRecurring" xml:space="preserve">
+    <value>{0} 個週期性工作延遲</value>
+  </data>
+  <data name="WallboardPage_PausedQueues" xml:space="preserve">
+    <value>已暫停的佇列：{0}</value>
+  </data>
+  <data name="WallboardPage_PausedServers" xml:space="preserve">
+    <value>已暫停的伺服器：{0}</value>
+  </data>
+  <data name="WallboardPage_OpenCircuits" xml:space="preserve">
+    <value>開啟的斷路器：{0}</value>
+  </data>
+  <data name="WallboardPage_Drain" xml:space="preserve">
+    <value>處理已暫停</value>
+  </data>
+  <data name="WallboardPage_Refresh" xml:space="preserve">
+    <value>每 {0} 秒重新整理</value>
+  </data>
+  <data name="WallboardPage_Exit" xml:space="preserve">
+    <value>儀表板</value>
+  </data>
+  <data name="InsightsPage_Heatmap" xml:space="preserve">
+    <value>最近 7 天的活動</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Hint" xml:space="preserve">
+    <value>每小時完成的工作數（UTC）；失敗多於成功時顯示為紅色</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Cell" xml:space="preserve">
+    <value>{0}：成功 {1}，失敗 {2}</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Empty" xml:space="preserve">
+    <value>工作完成後數字才會出現；從現在起小時歷史保留一週。</value>
+  </data>
+  <data name="JobDetailsPage_Notes" xml:space="preserve">
+    <value>備註</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Hint" xml:space="preserve">
+    <value>留給下一個開啟此工作的人</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Placeholder" xml:space="preserve">
+    <value>你發現了什麼？</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Add" xml:space="preserve">
+    <value>新增備註</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledge" xml:space="preserve">
+    <value>確認</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledged" xml:space="preserve">
+    <value>已確認</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Empty" xml:space="preserve">
+    <value>還沒有備註。</value>
+  </data>
+  <data name="JobDetailsPage_Watch" xml:space="preserve">
+    <value>關注</value>
+  </data>
+  <data name="JobDetailsPage_Watching" xml:space="preserve">
+    <value>關注中</value>
+  </data>
+  <data name="JobDetailsPage_Watch_Hint" xml:space="preserve">
+    <value>在側邊欄追蹤此工作，並在其完成時收到瀏覽器通知</value>
+  </data>
+  <data name="JobDetailsPage_Export" xml:space="preserve">
+    <value>匯出 JSON</value>
+  </data>
+  <data name="JobDetailsPage_StateTimeline" xml:space="preserve">
+    <value>各狀態耗時</value>
+  </data>
+  <data name="FailedJobsPage_Acknowledged" xml:space="preserve">
+    <value>已確認</value>
+  </data>
+  <data name="Common_DownloadCsv" xml:space="preserve">
+    <value>下載 CSV</value>
+  </data>
+  <data name="Common_Anonymous" xml:space="preserve">
+    <value>某人</value>
+  </data>
+  <data name="ServersPage_Resume_Server" xml:space="preserve">
+    <value>恢復</value>
+  </data>
+  <data name="ServersPage_Paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="ServersPage_PauseConfirm" xml:space="preserve">
+    <value>暫停此伺服器？它會把新工作交還給佇列由其他伺服器處理；正在執行的工作會完成。</value>
+  </data>
+  <data name="LayoutPage_ServersPaused" xml:space="preserve">
+    <value>已暫停的伺服器：{0}</value>
+  </data>
+  <data name="LayoutPage_Watchlist" xml:space="preserve">
+    <value>關注中</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Empty" xml:space="preserve">
+    <value>在工作頁面點選「關注」即可在此追蹤。</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Done" xml:space="preserve">
+    <value>工作 {0} 已完成：{1}</value>
+  </data>
+  <data name="LayoutPage_Shortcuts" xml:space="preserve">
+    <value>鍵盤快速鍵</value>
+  </data>
+  <data name="ServersPage_Pause_Server" xml:space="preserve">
+    <value>暫停</value>
+  </data>
+</root>

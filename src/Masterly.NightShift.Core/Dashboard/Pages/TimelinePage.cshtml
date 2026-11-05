@@ -1,0 +1,92 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Globalization
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.States
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.TimelinePage_Title);
+
+    var now = StorageUtcNow ?? ApplicationUtcNow;
+    var nowMs = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
+
+    IReadOnlyList<ActivityEntry> entries;
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        entries = ActivityFeed.Read(connection, ActivityFeed.MaxEntries);
+    }
+
+    var timeline = ClusterTimeline.Build(entries, nowMs, TimeSpan.FromMinutes(15));
+    var windowMs = Math.Max(1, timeline.ToMs - timeline.FromMs);
+    const int ticks = 6;
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.TimelinePage_Title <small class="text-muted">@Strings.TimelinePage_Hint</small></h1>
+
+        @if (timeline.IsEmpty)
+        {
+            <div class="alert alert-info">@Strings.TimelinePage_Empty</div>
+        }
+        else
+        {
+            <p class="text-muted hf-tl-summary">
+                @String.Format(Strings.TimelinePage_Summary, timeline.Runs, timeline.Lanes.Count, timeline.Servers, Html.ToHumanDuration(timeline.Window, false))
+                <span class="hf-tl-legend">
+                    <span><i class="hf-tl-swatch hf-tl-succeeded"></i> @SucceededState.StateName</span>
+                    <span><i class="hf-tl-swatch hf-tl-failed"></i> @FailedState.StateName</span>
+                    <span><i class="hf-tl-swatch hf-tl-held"></i> @Strings.TimelinePage_Legend_Held</span>
+                    <span><i class="hf-tl-swatch hf-tl-deleted"></i> @DeletedState.StateName</span>
+                    <span><i class="hf-tl-swatch hf-tl-running"></i> @Strings.TimelinePage_Running</span>
+                </span>
+            </p>
+
+            <div class="hf-card hf-tl" aria-describedby="page-title">
+                <div class="hf-tl-row hf-tl-axis">
+                    <div class="hf-tl-label"></div>
+                    <div class="hf-tl-track">
+                        @for (var t = 0; t <= ticks; t++)
+                        {
+                            var tickMs = timeline.FromMs + windowMs * t / ticks;
+                            @* Server-side UTC with seconds: windows are often shorter than a minute *@
+                            <span class="hf-tl-tick @(t == ticks ? "hf-tl-tick-last" : t == 0 ? "hf-tl-tick-first" : null)" style="left: @((100.0 * t / ticks).ToString("0.##", CultureInfo.InvariantCulture))%">@JobHelper.FromTimestamp(tickMs / 1000).ToString("HH:mm:ss", CultureInfo.InvariantCulture)@(t == ticks ? " UTC" : "")</span>
+                        }
+                    </div>
+                </div>
+                @{ string lastServer = null; }
+                @foreach (var lane in timeline.Lanes)
+                {
+                    if (lane.ServerId != lastServer)
+                    {
+                        lastServer = lane.ServerId;
+                        <div class="hf-tl-server">@Html.ServerId(lane.ServerId)</div>
+                    }
+                    <div class="hf-tl-row">
+                        <div class="hf-tl-label" title="@lane.WorkerId"><code>@lane.ShortWorkerId</code></div>
+                        <div class="hf-tl-track">
+                            @foreach (var span in lane.Spans)
+                            {
+                                var left = 100.0 * (Math.Max(span.StartMs, timeline.FromMs) - timeline.FromMs) / windowMs;
+                                var width = Math.Max(0.25, 100.0 * (span.EndMs - Math.Max(span.StartMs, timeline.FromMs)) / windowMs);
+                                var css = span.IsRunning ? "hf-tl-running"
+                                    : span.Outcome == SucceededState.StateName ? "hf-tl-succeeded"
+                                    : span.Outcome == FailedState.StateName ? "hf-tl-failed"
+                                    : span.Outcome == DeletedState.StateName ? "hf-tl-deleted"
+                                    : "hf-tl-held";
+                                var title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : span.Outcome) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
+                                <a class="hf-tl-span @css" href="@Url.JobDetails(span.JobId)" style="left: @left.ToString("0.###", CultureInfo.InvariantCulture)%; width: @width.ToString("0.###", CultureInfo.InvariantCulture)%" title="@title"></a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

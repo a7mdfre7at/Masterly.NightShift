@@ -1,14 +1,14 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Hangfire;
-using Hangfire.Server;
+using Masterly.NightShift;
+using Masterly.NightShift.Server;
 
 namespace ConsoleSample
 {
     /// <summary>
     /// Jobs showing the features described in docs/whats-new-next.md. Every method here gets a generated
-    /// invoker because the sample references the Hangfire.SourceGenerator analyzer.
+    /// invoker because the sample references the Masterly.NightShift.SourceGenerator analyzer.
     /// </summary>
     [GenerateJobInvokers]
     public class NextFeatures

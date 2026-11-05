@@ -1,0 +1,1584 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Common_Created" xml:space="preserve">
+    <value>Erstellt</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Text" xml:space="preserve">
+    <value>Keine Sorge, die Ausführungen funktionieren wie erwartet. Die aktuelle Job Speicherung unterstützt jedoch einige Abfragen welche zum Anzeigen dieser Seite erforderlich sind NICHT. Bitte versuchen den Speicher zu aktualisieren oder warten bis der vollständige Ablauf implementiert ist.</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Title" xml:space="preserve">
+    <value>Weitere Ausführungen funktionieren. Nur diese Seite kann nicht angezeigt werden</value>
+  </data>
+  <data name="AwaitingJobsPage_NoJobs" xml:space="preserve">
+    <value>Keine Jobs im wartenden Zustand gefunden.</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Options" xml:space="preserve">
+    <value>Optionen</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Parent" xml:space="preserve">
+    <value>Eltern</value>
+  </data>
+  <data name="AwaitingJobsPage_Title" xml:space="preserve">
+    <value>Warten auf Jobs</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Löschen</value>
+  </data>
+  <data name="Common_DeleteConfirm" xml:space="preserve">
+    <value>Wirklich ALLE ausgewählten Jobs LÖSCHEN?</value>
+  </data>
+  <data name="Common_Deleting" xml:space="preserve">
+    <value>Löschen...</value>
+  </data>
+  <data name="Common_DeleteSelected" xml:space="preserve">
+    <value>Ausgewählte löschen</value>
+  </data>
+  <data name="Common_EnqueueButton_Text" xml:space="preserve">
+    <value>In die Warteschlange</value>
+  </data>
+  <data name="Common_Enqueueing" xml:space="preserve">
+    <value>Warteschlange abarbeiten...</value>
+  </data>
+  <data name="Common_Fetched" xml:space="preserve">
+    <value>Abgerufen</value>
+  </data>
+  <data name="Common_Id" xml:space="preserve">
+    <value>ID</value>
+  </data>
+  <data name="Common_Job" xml:space="preserve">
+    <value>Job</value>
+  </data>
+  <data name="Common_JobExpired" xml:space="preserve">
+    <value>Job abgelaufen.</value>
+  </data>
+  <data name="Common_JobStateChanged_Text" xml:space="preserve">
+    <value>Der Jobstatus wurde beim Abrufen von Daten geändert.</value>
+  </data>
+  <data name="Common_LessDetails" xml:space="preserve">
+    <value>Weniger Details...</value>
+  </data>
+  <data name="Common_MoreDetails" xml:space="preserve">
+    <value>Weitere Details...</value>
+  </data>
+  <data name="Common_NotAvailable" xml:space="preserve">
+    <value>N/A</value>
+  </data>
+  <data name="Common_PeriodDay" xml:space="preserve">
+    <value>Tag</value>
+  </data>
+  <data name="Common_PeriodWeek" xml:space="preserve">
+    <value>Woche</value>
+  </data>
+  <data name="Common_Reason" xml:space="preserve">
+    <value>Grund</value>
+  </data>
+  <data name="Common_RequeueJobs" xml:space="preserve">
+    <value>Wieder in die Warteschlange</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Wiederholen</value>
+  </data>
+  <data name="Common_Server" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Common_State" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Common_Unknown" xml:space="preserve">
+    <value>Unbekannt</value>
+  </data>
+  <data name="DeletedJobsPage_NoJobs" xml:space="preserve">
+    <value>Keine gelöschten Jobs gefunden.</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Deleted" xml:space="preserve">
+    <value>Gelöscht</value>
+  </data>
+  <data name="DeletedJobsPage_Title" xml:space="preserve">
+    <value>Gelöschte Jobs</value>
+  </data>
+  <data name="EnqueuedJobsPage_NoJobs" xml:space="preserve">
+    <value>Die Warteschlange ist leer.</value>
+  </data>
+  <data name="EnqueuedJobsPage_Title" xml:space="preserve">
+    <value>Jobs in Warteschlange</value>
+  </data>
+  <data name="FailedJobsPage_NoJobs" xml:space="preserve">
+    <value>Zur Zeit gibt es keine fehlgeschlagenen Jobs.</value>
+  </data>
+  <data name="FailedJobsPage_Table_Failed" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="FailedJobsPage_Title" xml:space="preserve">
+    <value>Fehlerhafte Jobs</value>
+  </data>
+  <data name="FetchedJobsPage_NoJobs" xml:space="preserve">
+    <value>Die Warteschlange ist leer.</value>
+  </data>
+  <data name="FetchedJobsPage_Title" xml:space="preserve">
+    <value>Jobs abgerufen</value>
+  </data>
+  <data name="HomePage_HistoryGraph" xml:space="preserve">
+    <value>Zeigt für jede CPU-Auslastung ein Verlaufsdiagramm an.</value>
+  </data>
+  <data name="HomePage_RealtimeGraph" xml:space="preserve">
+    <value>Echtzeitdiagramm</value>
+  </data>
+  <data name="HomePage_Title" xml:space="preserve">
+    <value>Übersicht</value>
+  </data>
+  <data name="JobDetailsPage_Created" xml:space="preserve">
+    <value>Erstellt</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Möchten Sie diesen Job wirklich löschen?</value>
+  </data>
+  <data name="JobDetailsPage_State" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Der Job wurde anscheinend abgebrochen&lt;/strong&gt; - er wird vom Server verarbeitet &lt;code&gt;{0}&lt;/code&gt;, welcher sich vor mehr als 1 Minute gemeldet hat. Es wird nach dem Timeout automatisch wiederholt. Alternativ kann der Job kann auch manuell in die Warteschlange gestellt oder löscht werden.</value>
+  </data>
+  <data name="JobDetailsPage_JobExpired" xml:space="preserve">
+    <value>Der Warteschlangen Job '{0}' ist abgelaufen oder wurde auf dem Server nicht gefunden.</value>
+  </data>
+  <data name="JobDetailsPage_JobFinished_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Der Job ist beendet&lt;/strong&gt;. Er wird automatisch entfernt &lt;em&gt;&lt;abbr data-moment="{0}"&gt;{1}&lt;/abbr&gt;&lt;/em&gt;.</value>
+  </data>
+  <data name="JobDetailsPage_JobId" xml:space="preserve">
+    <value>Job ID</value>
+  </data>
+  <data name="JobDetailsPage_Requeue" xml:space="preserve">
+    <value>Erneut in Warteschlange einreihen</value>
+  </data>
+  <data name="LayoutPage_Back" xml:space="preserve">
+    <value>Zurück zur Website</value>
+  </data>
+  <data name="LayoutPage_Footer_Generatedms" xml:space="preserve">
+    <value>Generiert: {0} ms</value>
+  </data>
+  <data name="LayoutPage_Footer_Time" xml:space="preserve">
+    <value>Zeit:</value>
+  </data>
+  <data name="Paginator_Next" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="Paginator_Prev" xml:space="preserve">
+    <value>Zurück</value>
+  </data>
+  <data name="Paginator_TotalItems" xml:space="preserve">
+    <value>Gesamtzahl der Elemente</value>
+  </data>
+  <data name="PerPageSelector_ItemsPerPage" xml:space="preserve">
+    <value>Elemente pro Seite</value>
+  </data>
+  <data name="ProcessingJobsPage_Aborted" xml:space="preserve">
+    <value>Der Job wurde anscheinend abgebrochen</value>
+  </data>
+  <data name="ProcessingJobsPage_NoJobs" xml:space="preserve">
+    <value>Derzeit werden keine Jobs verarbeitet.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Started" xml:space="preserve">
+    <value>Gestartet</value>
+  </data>
+  <data name="ProcessingJobsPage_Title" xml:space="preserve">
+    <value>Jobs bearbeiten</value>
+  </data>
+  <data name="QueuesPage_NoJobs" xml:space="preserve">
+    <value>Keine Jobs in der Warteschlange.</value>
+  </data>
+  <data name="QueuesPage_NoQueues" xml:space="preserve">
+    <value>Es wurden keine Jobs in der Warteschlange gefunden. Versuche einen Job in die Warteschlange zu stellen.</value>
+  </data>
+  <data name="QueuesPage_Table_Length" xml:space="preserve">
+    <value>Länge</value>
+  </data>
+  <data name="QueuesPage_Table_NextsJobs" xml:space="preserve">
+    <value>Nächster Job</value>
+  </data>
+  <data name="QueuesPage_Table_Queue" xml:space="preserve">
+    <value>Warteschlange</value>
+  </data>
+  <data name="QueuesPage_Title" xml:space="preserve">
+    <value>Warteschlangen</value>
+  </data>
+  <data name="RecurringJobsPage_Canceled" xml:space="preserve">
+    <value>Abgebrochen</value>
+  </data>
+  <data name="RecurringJobsPage_NoJobs" xml:space="preserve">
+    <value>Keine wiederkehrenden Jobs gefunden.</value>
+  </data>
+  <data name="RecurringJobsPage_Table_Cron" xml:space="preserve">
+    <value>CRON-Ausdruck</value>
+  </data>
+  <data name="RecurringJobsPage_Table_LastExecution" xml:space="preserve">
+    <value>Zeitpunkt der letzten Ausführung</value>
+  </data>
+  <data name="RecurringJobsPage_Table_NextExecution" xml:space="preserve">
+    <value>Nächste Ausführung</value>
+  </data>
+  <data name="RecurringJobsPage_Table_TimeZone" xml:space="preserve">
+    <value>Zeitzone</value>
+  </data>
+  <data name="RecurringJobsPage_Title" xml:space="preserve">
+    <value>Wiederholte Jobs</value>
+  </data>
+  <data name="RecurringJobsPage_Triggering" xml:space="preserve">
+    <value>Auslöser</value>
+  </data>
+  <data name="RecurringJobsPage_TriggerNow" xml:space="preserve">
+    <value>Jetzt auslösen</value>
+  </data>
+  <data name="RetriesPage_NoJobs" xml:space="preserve">
+    <value>Ausführung abgeschlossen - Wiederholungsversuche notwendig.</value>
+  </data>
+  <data name="RetriesPage_Title" xml:space="preserve">
+    <value>Erneute Versuche</value>
+  </data>
+  <data name="ScheduledJobsPage_EnqueueNow" xml:space="preserve">
+    <value>Jetzt in Warteschlange einfügen</value>
+  </data>
+  <data name="ScheduledJobsPage_NoJobs" xml:space="preserve">
+    <value>Es sind keine Jobs geplant.</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Enqueue" xml:space="preserve">
+    <value>In der Warteschlange </value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Scheduled" xml:space="preserve">
+    <value>Geplant </value>
+  </data>
+  <data name="ScheduledJobsPage_Title" xml:space="preserve">
+    <value>Geplante Jobs</value>
+  </data>
+  <data name="ServersPage_NoServers" xml:space="preserve">
+    <value>Es sind keine Server aktiv. Warteschlange kann nicht nicht verarbeitet werden.</value>
+  </data>
+  <data name="ServersPage_Table_Heartbeat" xml:space="preserve">
+    <value>Rückmeldung</value>
+  </data>
+  <data name="ServersPage_Table_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="ServersPage_Table_Queues" xml:space="preserve">
+    <value>Warteschlangen</value>
+  </data>
+  <data name="ServersPage_Table_Started" xml:space="preserve">
+    <value>Gestartet</value>
+  </data>
+  <data name="ServersPage_Table_Workers" xml:space="preserve">
+    <value>Worker</value>
+  </data>
+  <data name="ServersPage_Title" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="SucceededJobsPage_NoJobs" xml:space="preserve">
+    <value>Es wurden keine erfolgreichen Jobs gefunden.</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Succeeded" xml:space="preserve">
+    <value>Erfolgreich</value>
+  </data>
+  <data name="SucceededJobsPage_Table_TotalDuration" xml:space="preserve">
+    <value>Gesamtdauer</value>
+  </data>
+  <data name="SucceededJobsPage_Title" xml:space="preserve">
+    <value>Erfolgreiche Jobs</value>
+  </data>
+  <data name="JobsSidebarMenu_Awaiting" xml:space="preserve">
+    <value>Warten</value>
+  </data>
+  <data name="JobsSidebarMenu_Deleted" xml:space="preserve">
+    <value>Gelöscht</value>
+  </data>
+  <data name="JobsSidebarMenu_Failed" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="JobsSidebarMenu_Processing" xml:space="preserve">
+    <value>Verarbeiten...</value>
+  </data>
+  <data name="JobsSidebarMenu_Scheduled" xml:space="preserve">
+    <value>Geplant</value>
+  </data>
+  <data name="JobsSidebarMenu_Succeeded" xml:space="preserve">
+    <value>Erfolgreich</value>
+  </data>
+  <data name="NavigationMenu_Jobs" xml:space="preserve">
+    <value>Aufträge</value>
+  </data>
+  <data name="NavigationMenu_RecurringJobs" xml:space="preserve">
+    <value>Wiederholte Aufträge</value>
+  </data>
+  <data name="NavigationMenu_Retries" xml:space="preserve">
+    <value>Erneute Versuche</value>
+  </data>
+  <data name="NavigationMenu_Servers" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Common_CannotFindTargetMethod" xml:space="preserve">
+    <value>Die Zielmethode konnte nicht gefunden wurde. </value>
+  </data>
+  <data name="Common_Enqueued" xml:space="preserve">
+    <value>Zeit in Warteschlange</value>
+  </data>
+  <data name="Common_NoState" xml:space="preserve">
+    <value>Kein Zustand</value>
+  </data>
+  <data name="JobsSidebarMenu_Enqueued" xml:space="preserve">
+    <value>Zeit in Warteschlange</value>
+  </data>
+  <data name="Metrics_ActiveConnections" xml:space="preserve">
+    <value>Aktive Verbindungen</value>
+  </data>
+  <data name="Metrics_DeletedJobs" xml:space="preserve">
+    <value>Gelöschte Jobs</value>
+  </data>
+  <data name="Metrics_FailedJobs" xml:space="preserve">
+    <value>Fehlerhafte Aufträge</value>
+  </data>
+  <data name="Metrics_ProcessingJobs" xml:space="preserve">
+    <value>Warehouseverarbeitungsaufträge werden aktualisiert.</value>
+  </data>
+  <data name="Metrics_RecurringJobs" xml:space="preserve">
+    <value>Wiederholte Aufträge</value>
+  </data>
+  <data name="Metrics_Retries" xml:space="preserve">
+    <value>Erneute Versuche</value>
+  </data>
+  <data name="Metrics_ScheduledJobs" xml:space="preserve">
+    <value>Geplante Aufträge</value>
+  </data>
+  <data name="Metrics_Servers" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Metrics_SucceededJobs" xml:space="preserve">
+    <value>Erfolgreiche Jobs</value>
+  </data>
+  <data name="Metrics_TotalConnections" xml:space="preserve">
+    <value>Verbindungen gesamt</value>
+  </data>
+  <data name="Common_Condition" xml:space="preserve">
+    <value>Bedingung</value>
+  </data>
+  <data name="Common_Continuations" xml:space="preserve">
+    <value>Ausführungen</value>
+  </data>
+  <data name="Metrics_AwaitingCount" xml:space="preserve">
+    <value>Warten</value>
+  </data>
+  <data name="Metrics_EnqueuedCountOrNull" xml:space="preserve">
+    <value>in Warteschlange</value>
+  </data>
+  <data name="Metrics_EnqueuedQueuesCount" xml:space="preserve">
+    <value>Warteschlangen</value>
+  </data>
+  <data name="Metrics_FailedCountOrNull" xml:space="preserve">
+    <value>{0} fehlgeschlagene Jobs gefunden. Manuell wiederholen oder löschen erforderlich.</value>
+  </data>
+  <data name="HomePage_GraphHover_Failed" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
+    <value>Erfolgreich</value>
+  </data>
+  <data name="Common_Disabled" xml:space="preserve">
+    <value>Deaktiviert</value>
+  </data>
+  <data name="RecurringJobsPage_RecurringJobDisabled_Tooltip" xml:space="preserve">
+    <value>Cron Ausdruck ist ungültig</value>
+  </data>
+  <data name="ServersPage_Note_Text" xml:space="preserve">
+    <value>Einige der Server haben innerhalb der letzten Minute keine Rückmeldung zurück gemeldet und werden möglicherweise abgebrochen. Wenn die Server in naher Zukunft keine Rückmeldung geben, werden sie automatisch entfernt, nachdem das Zeitlimit überschritten wurde. Es sind keine manuellen Maßnahmen erforderlich.</value>
+  </data>
+  <data name="ServersPage_Note_Title" xml:space="preserve">
+    <value>Nicht aktive Server werden automatisch entfernt</value>
+  </data>
+  <data name="ServersPage_Active" xml:space="preserve">
+    <value>Aktiv</value>
+  </data>
+  <data name="ServersPage_Possibly_Aborted" xml:space="preserve">
+    <value>Möglicherweise abgebrochen</value>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="JobDetailsPage_Parameters" xml:space="preserve">
+    <value>Parameter</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Pausieren</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Wird pausiert…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Fortsetzen</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Wird fortgesetzt…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>Pausiert</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>Pausiert: bleibt bis zum Fortsetzen außerhalb des Zeitplans. Kann weiterhin manuell ausgelöst werden.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Bearbeiten</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Zeitplan bearbeiten</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Zeitplan</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Ein CRON-Ausdruck oder einfaches Englisch wie „every 15 minutes“, „weekdays at 9:30“ oder „last day of month at 23:00“.</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Nächste Ausführungen</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Verpasste Ausführungen</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Einmal so bald wie möglich ausführen (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Jede verpasste Ausführung nachholen (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Überspringen (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>Warteschlange</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Wird gespeichert…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>Für den Zeitplan ist keine Vorschau möglich.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>vergangen</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Fortschritt</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Konsole</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Kontrollpunkte</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Noch nichts gemeldet. Jobs können Fortschritt, Zeilen und Kontrollpunkte über IJobConsole melden.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Fortschritt</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Einblicke</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Einblicke</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>Der aktuelle Speicher kann keine Listen und Zähler lesen, daher sind keine Einblicke verfügbar.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Noch keine Statistiken. Aktivieren Sie sie mit &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; oder setzen Sie &lt;code&gt;[JobInsights]&lt;/code&gt; auf die gewünschten Job-Klassen.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Sicherungen (Circuit Breaker)</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Ressource</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Seit</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Zurücksetzen</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Läufe</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Fehlgeschlagen</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Median</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Trend</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Aufruf</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Letzter Lauf</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>Der letzte Lauf dauerte mehr als dreimal so lange wie das p95 der letzten Läufe</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Erfasste Methoden</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Erfasste Läufe</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Fehlerquote</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Aufrufe auf diesem Server</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Methoden, die mit generierten, kompilierten und Reflection-Aufrufern ausgeführt wurden</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Job-Aufrufer in diesem Prozess</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>generierte Aufrufer registriert</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>generiert</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>kompiliert</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>Reflection</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Wie die von diesem Prozess ausgeführten Job-Methoden aufgerufen wurden. Referenzieren Sie den Analyzer Masterly.NightShift.SourceGenerator (in Masterly.NightShift.Core enthalten), damit alle generiert werden.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Frist</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>Überfällig</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>Der Job hat seine Frist überschritten</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>{0} nach der Frist beendet</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Design</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Systemeinstellung folgen</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Helles Design</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Dunkles Design</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menü</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Suchen…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Zu einer Seite, einer Job-ID oder einem wiederkehrenden Job springen (Strg+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Überwachung</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Übersicht</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Alle löschen</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>JEDEN Job in dieser Liste löschen? Das kann nicht rückgängig gemacht werden.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Alle entfernen</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>ALLE wiederkehrenden Jobs entfernen? Sie kommen erst zurück, wenn die Anwendung sie erneut registriert.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Aktualisieren</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Diese Liste automatisch aktualisieren</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Wartung</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Entfernt Job-Daten aus dem Speicher. Die Server laufen weiter.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Alle Jobs löschen</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Entfernt jeden Job mit Verlauf, Warteschlangeneinträge, Zähler, Konsolen und Statistiken. Wiederkehrende Jobs und Server bleiben erhalten.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>ALLE Jobs und ihren Verlauf aus dem Speicher löschen? Das kann nicht rückgängig gemacht werden.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Speicher zurücksetzen</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Entfernt alles, auch wiederkehrende Jobs und Serverregistrierungen, als wäre der Speicher neu.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>Den GESAMTEN Speicher zurücksetzen? Wiederkehrende Jobs verschwinden, bis die Anwendung sie erneut registriert. Das kann nicht rückgängig gemacht werden.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Wird gelöscht…</value>
+  </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Dieser Prozess</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Prozess</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Läuft seit</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Gehostet von IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS beendet inaktive Arbeitsprozesse standardmäßig nach 20 Minuten, und damit auch die Jobs. Stellen Sie den Anwendungspool auf &lt;code&gt;AlwaysRunning&lt;/code&gt; mit Vorladen und Leerlauf-Timeout 0, oder registrieren Sie &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddNightShiftKeepAlive()&lt;/code&gt;), damit der Prozess sich regelmäßig selbst aufruft. Ein Recycling erfordert weiterhin die Pool-Einstellungen.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>nicht konfiguriert</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>wartet auf die erste Anfrage</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>letzte Anfrage erfolgreich</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>letzte Anfrage fehlgeschlagen</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>alle {0}</value>
+  </data>
+  <data name="NavigationMenu_Catalog" xml:space="preserve">
+    <value>Katalog</value>
+  </data>
+  <data name="CatalogPage_Title" xml:space="preserve">
+    <value>Job-Katalog</value>
+  </data>
+  <data name="CatalogPage_Hint" xml:space="preserve">
+    <value>jede Job-Methode Ihres Codes, bereit zum Start</value>
+  </data>
+  <data name="CatalogPage_NoEntries_Html" xml:space="preserve">
+    <value>Keine Job-Methoden gefunden. Referenzieren Sie den Analyzer &lt;code&gt;Masterly.NightShift.SourceGenerator&lt;/code&gt;, damit Methoden beim Build erkannt werden, oder registrieren Sie Typen mit &lt;code&gt;JobCatalog.Add&amp;lt;T&amp;gt;()&lt;/code&gt;.</value>
+  </data>
+  <data name="CatalogPage_Search" xml:space="preserve">
+    <value>Methoden filtern…</value>
+  </data>
+  <data name="CatalogPage_Summary_Methods" xml:space="preserve">
+    <value>Methoden</value>
+  </data>
+  <data name="CatalogPage_Summary_Types" xml:space="preserve">
+    <value>Typen</value>
+  </data>
+  <data name="CatalogPage_Table_Method" xml:space="preserve">
+    <value>Methode</value>
+  </data>
+  <data name="CatalogPage_Table_Parameters" xml:space="preserve">
+    <value>Parameter</value>
+  </data>
+  <data name="CatalogPage_Table_Filters" xml:space="preserve">
+    <value>Filter</value>
+  </data>
+  <data name="CatalogPage_Table_Stats" xml:space="preserve">
+    <value>Läufe</value>
+  </data>
+  <data name="CatalogPage_Static" xml:space="preserve">
+    <value>statisch</value>
+  </data>
+  <data name="CatalogPage_Injected" xml:space="preserve">
+    <value>vom Server bereitgestellt</value>
+  </data>
+  <data name="CatalogPage_Run" xml:space="preserve">
+    <value>Ausführen…</value>
+  </data>
+  <data name="CatalogPage_Runner_Title" xml:space="preserve">
+    <value>Ausführen</value>
+  </data>
+  <data name="CatalogPage_Mode_Enqueue" xml:space="preserve">
+    <value>Jetzt ausführen</value>
+  </data>
+  <data name="CatalogPage_Mode_Schedule" xml:space="preserve">
+    <value>Später</value>
+  </data>
+  <data name="CatalogPage_Mode_Recurring" xml:space="preserve">
+    <value>Wiederkehrend</value>
+  </data>
+  <data name="CatalogPage_Delay" xml:space="preserve">
+    <value>Verzögerung (Minuten)</value>
+  </data>
+  <data name="CatalogPage_RecurringId" xml:space="preserve">
+    <value>ID des wiederkehrenden Jobs</value>
+  </data>
+  <data name="CatalogPage_Submit" xml:space="preserve">
+    <value>Erstellen</value>
+  </data>
+  <data name="CatalogPage_Created" xml:space="preserve">
+    <value>Job {0} erstellt.</value>
+  </data>
+  <data name="CatalogPage_RecurringCreated" xml:space="preserve">
+    <value>Wiederkehrender Job {0} gespeichert.</value>
+  </data>
+  <data name="ForecastPage_Title" xml:space="preserve">
+    <value>Zeitplan-Vorschau</value>
+  </data>
+  <data name="ForecastPage_Hint" xml:space="preserve">
+    <value>wann Ihre wiederkehrenden Jobs laufen und wo sie kollidieren</value>
+  </data>
+  <data name="ForecastPage_Window_24h" xml:space="preserve">
+    <value>Nächste 24 Stunden</value>
+  </data>
+  <data name="ForecastPage_Window_7d" xml:space="preserve">
+    <value>Nächste 7 Tage</value>
+  </data>
+  <data name="ForecastPage_Summary_Runs" xml:space="preserve">
+    <value>Läufe</value>
+  </data>
+  <data name="ForecastPage_Summary_BusyTime" xml:space="preserve">
+    <value>erwartete Auslastung</value>
+  </data>
+  <data name="ForecastPage_Summary_Busiest" xml:space="preserve">
+    <value>stärkste Stunde</value>
+  </data>
+  <data name="ForecastPage_HotSpots" xml:space="preserve">
+    <value>Brennpunkte</value>
+  </data>
+  <data name="ForecastPage_HotSpots_Hint" xml:space="preserve">
+    <value>mehrere Jobs starten innerhalb derselben 5 Minuten</value>
+  </data>
+  <data name="ForecastPage_Paused" xml:space="preserve">
+    <value>pausiert</value>
+  </data>
+  <data name="ForecastPage_Legend_Expected" xml:space="preserve">
+    <value>erwarteter Lauf, Länge aus der Median-Dauer der Insights</value>
+  </data>
+  <data name="ForecastPage_Legend_Default" xml:space="preserve">
+    <value>noch keine Läufe aufgezeichnet, 30 Sekunden angenommen</value>
+  </data>
+  <data name="ForecastPage_Table_Slot" xml:space="preserve">
+    <value>Zeitfenster</value>
+  </data>
+  <data name="ForecastPage_Table_Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="RecurringJobsPage_Forecast" xml:space="preserve">
+    <value>Vorschau</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta" xml:space="preserve">
+    <value>noch ~{0}</value>
+  </data>
+  <data name="ProcessingJobsPage_LongerThanUsual" xml:space="preserve">
+    <value>länger als üblich</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta_Tooltip" xml:space="preserve">
+    <value>Geschätzt aus der Median-Dauer vergangener Läufe</value>
+  </data>
+  <data name="HomePage_Activity" xml:space="preserve">
+    <value>Live-Aktivität</value>
+  </data>
+  <data name="HomePage_Activity_Hint" xml:space="preserve">
+    <value>jede Zustandsänderung im gesamten Cluster</value>
+  </data>
+  <data name="HomePage_Activity_Empty" xml:space="preserve">
+    <value>Noch nichts passiert.</value>
+  </data>
+  <data name="LayoutPage_Drain_Banner" xml:space="preserve">
+    <value>Verarbeitung pausiert: neue Jobs warten, laufende werden beendet.</value>
+  </data>
+  <data name="LayoutPage_Drain_Since" xml:space="preserve">
+    <value>seit {0}</value>
+  </data>
+  <data name="LayoutPage_Drain_Resume" xml:space="preserve">
+    <value>Fortsetzen</value>
+  </data>
+  <data name="ServersPage_Processing" xml:space="preserve">
+    <value>Verarbeitung</value>
+  </data>
+  <data name="ServersPage_Processing_Hint" xml:space="preserve">
+    <value>vor einem Deployment oder Wartungsfenster pausieren</value>
+  </data>
+  <data name="ServersPage_Processing_Running" xml:space="preserve">
+    <value>läuft</value>
+  </data>
+  <data name="ServersPage_Processing_Paused" xml:space="preserve">
+    <value>pausiert</value>
+  </data>
+  <data name="ServersPage_Pause" xml:space="preserve">
+    <value>Verarbeitung pausieren</value>
+  </data>
+  <data name="ServersPage_Pause_Reason" xml:space="preserve">
+    <value>Grund (optional)</value>
+  </data>
+  <data name="ServersPage_Resume" xml:space="preserve">
+    <value>Verarbeitung fortsetzen</value>
+  </data>
+  <data name="ServersPage_Paused_Since" xml:space="preserve">
+    <value>pausiert {0}</value>
+  </data>
+  <data name="ServersPage_Pause_HeldHint" xml:space="preserve">
+    <value>Während der Pause geben Worker neue Jobs an den Zeitplan zurück und prüfen alle {0} erneut.</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode" xml:space="preserve">
+    <value>Als C# kopieren</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode_Hint" xml:space="preserve">
+    <value>Kopiert die Anweisung, die diesen Job erneut erstellt</value>
+  </data>
+  <data name="JobDetailsPage_Copied" xml:space="preserve">
+    <value>Kopiert</value>
+  </data>
+  <data name="JobDetailsPage_FanInContinuations" xml:space="preserve">
+    <value>Fan-in-Fortsetzungen</value>
+  </data>
+  <data name="InsightsPage_Anomalies" xml:space="preserve">
+    <value>Braucht Aufmerksamkeit</value>
+  </data>
+  <data name="InsightsPage_Anomalies_Hint" xml:space="preserve">
+    <value>Methoden, deren Verhalten sich geändert hat</value>
+  </data>
+  <data name="InsightsPage_Anomalies_None" xml:space="preserve">
+    <value>Alles sieht normal aus.</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowingDown" xml:space="preserve">
+    <value>wird langsamer: zuletzt {0} statt {1}</value>
+  </data>
+  <data name="InsightsPage_Anomaly_FailureRate" xml:space="preserve">
+    <value>{0} der Läufe schlagen fehl</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowRun" xml:space="preserve">
+    <value>letzter Lauf dauerte {0}</value>
+  </data>
+  <data name="ForecastPage_Dense" xml:space="preserve">
+    <value>{0} Läufe, zu viele für eine Einzeldarstellung</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>Diagnose</value>
+  </data>
+  <data name="Diagnostics_Hint" xml:space="preserve">
+    <value>warum der Job dort steht, wo er steht, und was ihn weiterbringen würde</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>Die Diagnose konnte nicht abgeschlossen werden: {0}</value>
+  </data>
+  <data name="Diagnostics_NoServers" xml:space="preserve">
+    <value>Es läuft kein Server. Jobs warten, bis einer startet.</value>
+  </data>
+  <data name="Diagnostics_ServersStale" xml:space="preserve">
+    <value>Jeder registrierte Server hat seinen Heartbeat verpasst; sie wurden möglicherweise beendet oder haben die Verbindung verloren.</value>
+  </data>
+  <data name="Diagnostics_QueueUnserved" xml:space="preserve">
+    <value>Kein laufender Server bedient die Warteschlange {0}. Laufende Server bedienen: {1}</value>
+  </data>
+  <data name="Diagnostics_Drain" xml:space="preserve">
+    <value>Die Verarbeitung ist pausiert{0}. Worker geben Jobs zurück, bis sie fortgesetzt wird.</value>
+  </data>
+  <data name="Diagnostics_Waiting" xml:space="preserve">
+    <value>Wartet seit {1} in der Warteschlange {0}, zusammen mit {2} weiteren Jobs. Server hören zu, die Warteschlange ist einfach beschäftigt.</value>
+  </data>
+  <data name="Diagnostics_Healthy" xml:space="preserve">
+    <value>Nichts hält ihn auf: Warteschlange {0} wird bedient, er sollte bald starten.</value>
+  </data>
+  <data name="Diagnostics_RetryPending" xml:space="preserve">
+    <value>Wiederholung {0} von {1} steht an.</value>
+  </data>
+  <data name="Diagnostics_RetryLater" xml:space="preserve">
+    <value>Der Job hat um einen späteren Versuch gebeten und wartet auf den gewählten Zeitpunkt.</value>
+  </data>
+  <data name="Diagnostics_ScheduledDue" xml:space="preserve">
+    <value>Wird {0} in die Warteschlange gestellt.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue" xml:space="preserve">
+    <value>War {0} fällig, aber kein Server hat ihn eingereiht. Der Scheduler für verzögerte Jobs läuft auf jedem Server; prüfen Sie deren Protokolle auf Speicherfehler.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue_NoServers" xml:space="preserve">
+    <value>War {0} fällig, aber es läuft kein Server, der ihn einreihen könnte.</value>
+  </data>
+  <data name="Diagnostics_ParentMissing" xml:space="preserve">
+    <value>Der Elternjob {0} existiert nicht mehr, dieser Job wird also nie automatisch gestartet. Löschen Sie ihn oder reihen Sie ihn von Hand ein.</value>
+  </data>
+  <data name="Diagnostics_ConditionFailed" xml:space="preserve">
+    <value>Der Elternjob {0} endete als {1}, was die Bedingung dieser Fortsetzung nicht erfüllt. Er bleibt hier, bis er von Hand eingereiht oder gelöscht wird.</value>
+  </data>
+  <data name="Diagnostics_ParentFinished" xml:space="preserve">
+    <value>Der Elternjob {0} ist bereits als {1} beendet; dieser Job hätte eingereiht werden müssen und wird es, sobald ein Server nachzieht.</value>
+  </data>
+  <data name="Diagnostics_ParentFailed" xml:space="preserve">
+    <value>Der Elternjob {0} ist fehlgeschlagen und wird nicht wiederholt, also bleibt dieser Job hier, bis der Elternjob erneut eingereiht wird.</value>
+  </data>
+  <data name="Diagnostics_ParentRetrying" xml:space="preserve">
+    <value>Der Elternjob {0} ist {1} für eine Wiederholung; dieser Job startet, sobald er fertig ist.</value>
+  </data>
+  <data name="Diagnostics_ParentWaiting" xml:space="preserve">
+    <value>Wartet auf den Elternjob {0}, derzeit {1}.</value>
+  </data>
+  <data name="Diagnostics_FanIn" xml:space="preserve">
+    <value>Fan-in: {0} von {1} Elternjobs sind fertig ({2}).</value>
+  </data>
+  <data name="Diagnostics_FanIn_All" xml:space="preserve">
+    <value>wartet auf alle</value>
+  </data>
+  <data name="Diagnostics_FanIn_Any" xml:space="preserve">
+    <value>startet nach dem ersten</value>
+  </data>
+  <data name="Diagnostics_ServerGone" xml:space="preserve">
+    <value>Server {0}, der diesen Job übernommen hat, ist nicht mehr registriert. Der Speicher gibt den Job nach dem Unsichtbarkeits-Timeout an die Warteschlange zurück; reihen Sie ihn erneut ein, um früher zu starten.</value>
+  </data>
+  <data name="Diagnostics_ServerStale" xml:space="preserve">
+    <value>Server {0} hat sich zuletzt {1} gemeldet. Wurde er beendet, kommt der Job nach dem Unsichtbarkeits-Timeout zurück.</value>
+  </data>
+  <data name="Diagnostics_Slow" xml:space="preserve">
+    <value>Läuft seit {0}; diese Methode ist normalerweise innerhalb von {1} fertig.</value>
+  </data>
+  <data name="Diagnostics_Running" xml:space="preserve">
+    <value>Läuft auf {0} seit {1}.</value>
+  </data>
+  <data name="Diagnostics_Running_Usual" xml:space="preserve">
+    <value>Läuft auf {0} seit {1}; diese Methode ist normalerweise innerhalb von {2} fertig.</value>
+  </data>
+  <data name="Diagnostics_RetriesExhausted" xml:space="preserve">
+    <value>{0}-mal ohne Erfolg wiederholt; keine automatischen Wiederholungen mehr übrig. Reihen Sie ihn erneut ein, um es noch einmal zu versuchen.</value>
+  </data>
+  <data name="Diagnostics_RetriesDisabled" xml:space="preserve">
+    <value>Automatische Wiederholungen sind für diese Methode deaktiviert, der erste Fehler ist also endgültig.</value>
+  </data>
+  <data name="Diagnostics_NotRetried" xml:space="preserve">
+    <value>Der Fehler wurde nicht wiederholt: entweder ist der Ausnahmetyp von Wiederholungen ausgeschlossen oder der Wiederholungsfilter ist nicht registriert.</value>
+  </data>
+  <data name="Diagnostics_RetryLaterRequests" xml:space="preserve">
+    <value>Der Job hat vor diesem Fehler {0}-mal um einen späteren Versuch gebeten.</value>
+  </data>
+  <data name="Diagnostics_CircuitOpen" xml:space="preserve">
+    <value>Der Schutzschalter {0} hat {1} geöffnet. Jobs dahinter werden beim Abholen zurückgestellt, bis er halb öffnet.</value>
+  </data>
+  <data name="Common_Redacted" xml:space="preserve">
+    <value>Verborgen: dieses Argument ist mit [Redacted] markiert</value>
+  </data>
+  <data name="JobDetailsPage_Lineage" xml:space="preserve">
+    <value>Abstammung</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Hint" xml:space="preserve">
+    <value>die Jobs, auf die dieser gewartet hat, und die, die auf ihn warten</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Truncated" xml:space="preserve">
+    <value>Nur die nächsten Jobs werden angezeigt.</value>
+  </data>
+  <data name="Lineage_AfterSuccess" xml:space="preserve">
+    <value>nach Erfolg</value>
+  </data>
+  <data name="Lineage_AfterFinish" xml:space="preserve">
+    <value>nach Abschluss</value>
+  </data>
+  <data name="Lineage_AfterDelete" xml:space="preserve">
+    <value>nach Löschung</value>
+  </data>
+  <data name="Lineage_All" xml:space="preserve">
+    <value>alle von</value>
+  </data>
+  <data name="Lineage_Any" xml:space="preserve">
+    <value>einer von</value>
+  </data>
+  <data name="JobDetailsPage_Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain" xml:space="preserve">
+    <value>Erneut ausführen mit Änderungen…</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain_Hint" xml:space="preserve">
+    <value>Einen neuen Job aus diesem mit geänderten Argumenten erstellen, jetzt, später oder nach Zeitplan</value>
+  </data>
+  <data name="CatalogPage_Runner_Redacted" xml:space="preserve">
+    <value>geschwärzt, bitte erneut eingeben</value>
+  </data>
+  <data name="FailedJobsPage_Clusters" xml:space="preserve">
+    <value>Fehlergruppen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Hint" xml:space="preserve">
+    <value>die letzten {0} Fehler, gruppiert nach Ausnahme und Methode</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Jobs" xml:space="preserve">
+    <value>{0} Jobs</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_FirstSeen" xml:space="preserve">
+    <value>zuerst</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_LastSeen" xml:space="preserve">
+    <value>zuletzt</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Requeue" xml:space="preserve">
+    <value>Alle {0} erneut einreihen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Delete" xml:space="preserve">
+    <value>Alle {0} löschen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_DeleteConfirm" xml:space="preserve">
+    <value>Alle Jobs dieser Gruppe löschen?</value>
+  </data>
+  <data name="RecurringJobsPage_Export" xml:space="preserve">
+    <value>Exportieren</value>
+  </data>
+  <data name="RecurringJobsPage_Export_Hint" xml:space="preserve">
+    <value>Alle wiederkehrenden Jobs als JSON-Manifest herunterladen</value>
+  </data>
+  <data name="RecurringJobsPage_Import" xml:space="preserve">
+    <value>Importieren…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Title" xml:space="preserve">
+    <value>Wiederkehrende Jobs importieren</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Hint" xml:space="preserve">
+    <value>Fügen Sie ein aus dieser oder einer anderen Umgebung exportiertes Manifest ein oder wählen Sie die Datei. Vorhandene Jobs mit derselben Id werden aktualisiert.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_File" xml:space="preserve">
+    <value>Datei wählen</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Prune" xml:space="preserve">
+    <value>Wiederkehrende Jobs entfernen, die nicht im Manifest stehen</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Apply" xml:space="preserve">
+    <value>Anwenden</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Applying" xml:space="preserve">
+    <value>Wird angewendet…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Result" xml:space="preserve">
+    <value>{0} hinzugefügt, {1} aktualisiert, {2} entfernt, {3} fehlgeschlagen</value>
+  </data>
+  <data name="RecurringJobsPage_Late" xml:space="preserve">
+    <value>Verspätet</value>
+  </data>
+  <data name="RecurringJobsPage_Late_Tooltip" xml:space="preserve">
+    <value>Der nächste Lauf war vor über einer Minute fällig und kein Server hat ihn gestartet</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary" xml:space="preserve">
+    <value>{0} wiederkehrende Jobs sind verspätet: ihr nächster Lauf war vor über einer Minute fällig. Prüfen Sie, ob ein laufender Server den Scheduler für wiederkehrende Jobs aktiviert hat und den Speicher erreicht.</value>
+  </data>
+  <data name="TagsPage_Title" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="TagsPage_Hint" xml:space="preserve">
+    <value>Jobs danach finden, worum es geht</value>
+  </data>
+  <data name="TagsPage_NoTags_Html" xml:space="preserve">
+    <value>Noch keine Tags. Setzen Sie &lt;code&gt;[Tag(&amp;quot;customer:{0}&amp;quot;)]&lt;/code&gt; auf eine Jobmethode, um ihre Jobs mit dem ersten Argument zu markieren, oder rufen Sie &lt;code&gt;JobTags.Add(jobId, &amp;quot;tag&amp;quot;)&lt;/code&gt; auf.</value>
+  </data>
+  <data name="TagsPage_Table_Tag" xml:space="preserve">
+    <value>Tag</value>
+  </data>
+  <data name="TagsPage_Table_Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="TagsPage_Forget" xml:space="preserve">
+    <value>Vergessen</value>
+  </data>
+  <data name="TagsPage_ForgetConfirm" xml:space="preserve">
+    <value>Dieses Tag vergessen? Die Jobs selbst bleiben erhalten.</value>
+  </data>
+  <data name="TagsPage_Search" xml:space="preserve">
+    <value>Tags filtern…</value>
+  </data>
+  <data name="TaggedJobsPage_Title" xml:space="preserve">
+    <value>Mit {0} markiert</value>
+  </data>
+  <data name="TaggedJobsPage_NoJobs" xml:space="preserve">
+    <value>Kein Job trägt dieses Tag mehr.</value>
+  </data>
+  <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
+    <value>{0} abgelaufene Jobs wurden aus dem Tag entfernt.</value>
+  </data>
+  <data name="NavigationMenu_Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="NavigationMenu_Batches" xml:space="preserve">
+    <value>Batches</value>
+  </data>
+  <data name="NavigationMenu_Audit" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="Diagnostics_QueuePaused" xml:space="preserve">
+    <value>Die Warteschlange {0} ist pausiert{1}. Worker geben ihre Jobs zurück, bis sie fortgesetzt wird.</value>
+  </data>
+  <data name="BatchesPage_Title" xml:space="preserve">
+    <value>Batches</value>
+  </data>
+  <data name="BatchesPage_Hint" xml:space="preserve">
+    <value>Gruppen von Jobs, die als Einheit beobachtet und fortgesetzt werden</value>
+  </data>
+  <data name="BatchesPage_NoBatches_Html" xml:space="preserve">
+    <value>Noch keine Batches. Erstellen Sie einen mit &lt;code&gt;BatchJob.StartNew(b =&amp;gt; { b.Enqueue(...); b.Enqueue(...); })&lt;/code&gt; und setzen Sie ihn mit &lt;code&gt;BatchJob.ContinueWith(batchId, ...)&lt;/code&gt; fort.</value>
+  </data>
+  <data name="BatchesPage_Table_Batch" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="BatchesPage_Table_Progress" xml:space="preserve">
+    <value>Fortschritt</value>
+  </data>
+  <data name="BatchesPage_Table_Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="BatchesPage_Table_Created" xml:space="preserve">
+    <value>Erstellt</value>
+  </data>
+  <data name="BatchesPage_State_Running" xml:space="preserve">
+    <value>Läuft</value>
+  </data>
+  <data name="BatchesPage_State_Finished" xml:space="preserve">
+    <value>Abgeschlossen</value>
+  </data>
+  <data name="BatchesPage_State_Failed" xml:space="preserve">
+    <value>Fehlgeschlagene Jobs</value>
+  </data>
+  <data name="BatchesPage_Counts" xml:space="preserve">
+    <value>{0} erfolgreich · {1} fehlgeschlagen · {2} ausstehend</value>
+  </data>
+  <data name="BatchDetailsPage_Title" xml:space="preserve">
+    <value>Batch {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Expired" xml:space="preserve">
+    <value>Batch {0} existiert nicht oder ist abgelaufen.</value>
+  </data>
+  <data name="BatchDetailsPage_RequeueFailed" xml:space="preserve">
+    <value>Fehlgeschlagene erneut einreihen ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePending" xml:space="preserve">
+    <value>Unfertige löschen ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePendingConfirm" xml:space="preserve">
+    <value>Alle Jobs dieses Batches löschen, die noch nicht fertig sind?</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations" xml:space="preserve">
+    <value>Fortsetzungen</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations_Hint" xml:space="preserve">
+    <value>starten, wenn jeder Job des Batches fertig ist</value>
+  </data>
+  <data name="BatchDetailsPage_JobsInBatch" xml:space="preserve">
+    <value>Jobs im Batch</value>
+  </data>
+  <data name="BatchDetailsPage_MoreJobs" xml:space="preserve">
+    <value>{0} weitere Jobs werden nicht angezeigt.</value>
+  </data>
+  <data name="JobDetailsPage_Batch" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="JobDetailsPage_BatchContinuation" xml:space="preserve">
+    <value>Fortsetzung von Batch</value>
+  </data>
+  <data name="AuditPage_Title" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="AuditPage_Hint" xml:space="preserve">
+    <value>wer was auf diesem Dashboard getan hat</value>
+  </data>
+  <data name="AuditPage_NoEntries" xml:space="preserve">
+    <value>Über das Dashboard wurde noch nichts ausgeführt.</value>
+  </data>
+  <data name="AuditPage_Table_When" xml:space="preserve">
+    <value>Wann</value>
+  </data>
+  <data name="AuditPage_Table_User" xml:space="preserve">
+    <value>Benutzer</value>
+  </data>
+  <data name="AuditPage_Table_Action" xml:space="preserve">
+    <value>Aktion</value>
+  </data>
+  <data name="AuditPage_Table_Targets" xml:space="preserve">
+    <value>Ziele</value>
+  </data>
+  <data name="AuditPage_Table_Detail" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="AuditPage_Anonymous" xml:space="preserve">
+    <value>anonym</value>
+  </data>
+  <data name="AuditPage_More" xml:space="preserve">
+    <value>und {0} weitere</value>
+  </data>
+  <data name="AuditPage_Disabled" xml:space="preserve">
+    <value>Die Aufzeichnung ist ausgeschaltet (AuditLog.Enabled = false).</value>
+  </data>
+  <data name="QueuesPage_Table_Latency" xml:space="preserve">
+    <value>Wartezeit</value>
+  </data>
+  <data name="QueuesPage_Table_Latency_Hint" xml:space="preserve">
+    <value>Median · p95 der Wartezeit, bis ein Worker den Job übernahm, über die letzten 200 Starts</value>
+  </data>
+  <data name="QueuesPage_Table_Throughput" xml:space="preserve">
+    <value>Pro Minute</value>
+  </data>
+  <data name="QueuesPage_Table_ClearsIn" xml:space="preserve">
+    <value>Leer in</value>
+  </data>
+  <data name="QueuesPage_Stalled" xml:space="preserve">
+    <value>stockt</value>
+  </data>
+  <data name="QueuesPage_Stalled_Tooltip" xml:space="preserve">
+    <value>Jobs warten, aber kein Worker hat in den letzten fünf Minuten einen übernommen</value>
+  </data>
+  <data name="QueuesPage_Paused" xml:space="preserve">
+    <value>Pausiert</value>
+  </data>
+  <data name="QueuesPage_Pause" xml:space="preserve">
+    <value>Pausieren</value>
+  </data>
+  <data name="QueuesPage_Resume" xml:space="preserve">
+    <value>Fortsetzen</value>
+  </data>
+  <data name="QueuesPage_PauseConfirm" xml:space="preserve">
+    <value>Diese Warteschlange pausieren? Ihre Jobs werden gehalten, bis Sie sie fortsetzen; andere Warteschlangen laufen weiter.</value>
+  </data>
+  <data name="QueuesPage_Insights_Hint" xml:space="preserve">
+    <value>Wartezeit und Durchsatz benötigen UseJobInsights().</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused" xml:space="preserve">
+    <value>Pausierte Warteschlangen: {0}</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused_Link" xml:space="preserve">
+    <value>Warteschlangen</value>
+  </data>
+  <data name="NavigationMenu_Timeline" xml:space="preserve">
+    <value>Zeitleiste</value>
+  </data>
+  <data name="NavigationMenu_Wallboard" xml:space="preserve">
+    <value>Wandtafel</value>
+  </data>
+  <data name="TimelinePage_Title" xml:space="preserve">
+    <value>Zeitleiste</value>
+  </data>
+  <data name="TimelinePage_Hint" xml:space="preserve">
+    <value>was jeder Worker in den letzten Minuten getan hat, aus dem Aktivitätsfeed</value>
+  </data>
+  <data name="TimelinePage_Empty" xml:space="preserve">
+    <value>Noch keine Läufe aufgezeichnet. Die Zeitleiste füllt sich, sobald Jobs verarbeitet werden.</value>
+  </data>
+  <data name="TimelinePage_Summary" xml:space="preserve">
+    <value>{0} Läufe auf {1} Workern über {2} Server in den letzten {3}</value>
+  </data>
+  <data name="TimelinePage_Running" xml:space="preserve">
+    <value>läuft</value>
+  </data>
+  <data name="TimelinePage_Legend_Held" xml:space="preserve">
+    <value>gehalten oder wiederholt</value>
+  </data>
+  <data name="WallboardPage_Title" xml:space="preserve">
+    <value>Wandtafel</value>
+  </data>
+  <data name="WallboardPage_Healthy" xml:space="preserve">
+    <value>Alles in Ordnung</value>
+  </data>
+  <data name="WallboardPage_Degraded" xml:space="preserve">
+    <value>Aufmerksamkeit nötig</value>
+  </data>
+  <data name="WallboardPage_Unhealthy" xml:space="preserve">
+    <value>Verarbeitung steht</value>
+  </data>
+  <data name="WallboardPage_Servers" xml:space="preserve">
+    <value>Server aktiv</value>
+  </data>
+  <data name="WallboardPage_Workers" xml:space="preserve">
+    <value>{0} Worker</value>
+  </data>
+  <data name="WallboardPage_Waiting" xml:space="preserve">
+    <value>wartend</value>
+  </data>
+  <data name="WallboardPage_Running" xml:space="preserve">
+    <value>laufend</value>
+  </data>
+  <data name="WallboardPage_Scheduled" xml:space="preserve">
+    <value>geplant</value>
+  </data>
+  <data name="WallboardPage_Failed" xml:space="preserve">
+    <value>fehlgeschlagen</value>
+  </data>
+  <data name="WallboardPage_SuccessRate" xml:space="preserve">
+    <value>Erfolgsquote, letzte Stunde</value>
+  </data>
+  <data name="WallboardPage_Finished" xml:space="preserve">
+    <value>abgeschlossen, letzte Stunde</value>
+  </data>
+  <data name="WallboardPage_Queues" xml:space="preserve">
+    <value>Warteschlangen</value>
+  </data>
+  <data name="WallboardPage_ClearsIn" xml:space="preserve">
+    <value>leer in {0}</value>
+  </data>
+  <data name="WallboardPage_Empty" xml:space="preserve">
+    <value>leer</value>
+  </data>
+  <data name="WallboardPage_RunningJobs" xml:space="preserve">
+    <value>Läuft gerade</value>
+  </data>
+  <data name="WallboardPage_NothingRunning" xml:space="preserve">
+    <value>Nichts läuft.</value>
+  </data>
+  <data name="WallboardPage_Attention" xml:space="preserve">
+    <value>Aufmerksamkeit</value>
+  </data>
+  <data name="WallboardPage_NothingToReport" xml:space="preserve">
+    <value>Nichts zu melden.</value>
+  </data>
+  <data name="WallboardPage_LateRecurring" xml:space="preserve">
+    <value>{0} wiederkehrende Jobs sind verspätet</value>
+  </data>
+  <data name="WallboardPage_PausedQueues" xml:space="preserve">
+    <value>Pausierte Warteschlangen: {0}</value>
+  </data>
+  <data name="WallboardPage_PausedServers" xml:space="preserve">
+    <value>Pausierte Server: {0}</value>
+  </data>
+  <data name="WallboardPage_OpenCircuits" xml:space="preserve">
+    <value>Offene Schutzschalter: {0}</value>
+  </data>
+  <data name="WallboardPage_Drain" xml:space="preserve">
+    <value>Verarbeitung ist pausiert</value>
+  </data>
+  <data name="WallboardPage_Refresh" xml:space="preserve">
+    <value>aktualisiert sich alle {0} Sekunden</value>
+  </data>
+  <data name="WallboardPage_Exit" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="InsightsPage_Heatmap" xml:space="preserve">
+    <value>Aktivität, letzte 7 Tage</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Hint" xml:space="preserve">
+    <value>abgeschlossene Jobs pro Stunde (UTC); rot, wenn mehr fehlschlagen als gelingen</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Cell" xml:space="preserve">
+    <value>{0}: {1} erfolgreich, {2} fehlgeschlagen</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Empty" xml:space="preserve">
+    <value>Zahlen erscheinen, sobald Jobs abschließen; ab jetzt wird die Stundenhistorie eine Woche aufbewahrt.</value>
+  </data>
+  <data name="JobDetailsPage_Notes" xml:space="preserve">
+    <value>Notizen</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Hint" xml:space="preserve">
+    <value>für die nächste Person, die diesen Job öffnet</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Placeholder" xml:space="preserve">
+    <value>Was haben Sie herausgefunden?</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Add" xml:space="preserve">
+    <value>Notiz hinzufügen</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledge" xml:space="preserve">
+    <value>Bestätigen</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledged" xml:space="preserve">
+    <value>Bestätigt</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Empty" xml:space="preserve">
+    <value>Noch keine Notizen.</value>
+  </data>
+  <data name="JobDetailsPage_Watch" xml:space="preserve">
+    <value>Beobachten</value>
+  </data>
+  <data name="JobDetailsPage_Watching" xml:space="preserve">
+    <value>Beobachtet</value>
+  </data>
+  <data name="JobDetailsPage_Watch_Hint" xml:space="preserve">
+    <value>Diesen Job in der Seitenleiste verfolgen und eine Browser-Benachrichtigung erhalten, wenn er fertig ist</value>
+  </data>
+  <data name="JobDetailsPage_Export" xml:space="preserve">
+    <value>JSON exportieren</value>
+  </data>
+  <data name="JobDetailsPage_StateTimeline" xml:space="preserve">
+    <value>Zeit in jedem Zustand</value>
+  </data>
+  <data name="FailedJobsPage_Acknowledged" xml:space="preserve">
+    <value>Bestätigt</value>
+  </data>
+  <data name="Common_DownloadCsv" xml:space="preserve">
+    <value>CSV herunterladen</value>
+  </data>
+  <data name="Common_Anonymous" xml:space="preserve">
+    <value>jemand</value>
+  </data>
+  <data name="ServersPage_Resume_Server" xml:space="preserve">
+    <value>Fortsetzen</value>
+  </data>
+  <data name="ServersPage_Paused" xml:space="preserve">
+    <value>Pausiert</value>
+  </data>
+  <data name="ServersPage_PauseConfirm" xml:space="preserve">
+    <value>Diesen Server pausieren? Er gibt neue Jobs an die anderen Server zurück; seine laufenden Jobs werden beendet.</value>
+  </data>
+  <data name="LayoutPage_ServersPaused" xml:space="preserve">
+    <value>Pausierte Server: {0}</value>
+  </data>
+  <data name="LayoutPage_Watchlist" xml:space="preserve">
+    <value>Beobachtet</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Empty" xml:space="preserve">
+    <value>Beobachten Sie einen Job auf seiner Seite, um ihn hier zu verfolgen.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Done" xml:space="preserve">
+    <value>Job {0} ist fertig: {1}</value>
+  </data>
+  <data name="LayoutPage_Shortcuts" xml:space="preserve">
+    <value>Tastenkürzel</value>
+  </data>
+  <data name="ServersPage_Pause_Server" xml:space="preserve">
+    <value>Pausieren</value>
+  </data>
+</root>

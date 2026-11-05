@@ -1,0 +1,100 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Globalization
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.BatchesPage_Title);
+
+    int from, perPage;
+    int.TryParse(Query("from"), out from);
+    int.TryParse(Query("count"), out perPage);
+
+    IReadOnlyList<JobBatch> batches;
+    Pager pager;
+
+    using (var connection = Storage.GetConnection())
+    {
+        pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, BatchJob.Count(connection));
+        batches = BatchJob.List(connection, pager.FromRecord, pager.RecordsPerPage);
+    }
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.BatchesPage_Title <small class="text-muted">@Strings.BatchesPage_Hint</small></h1>
+
+        @if (batches.Count == 0)
+        {
+            <div class="alert alert-info">@Html.Raw(Strings.BatchesPage_NoBatches_Html)</div>
+        }
+        else
+        {
+            <div class="js-jobs-list">
+                <div class="btn-toolbar btn-toolbar-top">
+                    @Html.PerPageSelector(pager)
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table hf-batches" aria-describedby="page-title">
+                        <thead>
+                            <tr>
+                                <th>@Strings.BatchesPage_Table_Batch</th>
+                                <th class="hf-batch-progress-col">@Strings.BatchesPage_Table_Progress</th>
+                                <th class="min-width align-right">@Strings.BatchesPage_Table_Jobs</th>
+                                <th class="min-width align-right">@Strings.BatchesPage_Table_Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var batch in batches)
+                            {
+                                var total = Math.Max(1, batch.Total);
+                                var successPercent = 100.0 * batch.Succeeded / total;
+                                var failedPercent = 100.0 * batch.Failed / total;
+                                var processingPercent = 100.0 * batch.Processing / total;
+                                var deletedPercent = 100.0 * batch.Deleted / total;
+                                var stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
+                                var stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
+
+                                <tr class="hover">
+                                    <td>
+                                        <a class="hf-batch-link" href="@Url.To("/batches/" + Uri.EscapeDataString(batch.Id))">
+                                            <span class="label @stateCss text-uppercase">@stateText</span>
+                                            <strong>@(batch.Description ?? batch.Id)</strong>
+                                            @if (batch.Description != null)
+                                            {
+                                                <code class="hf-batch-id">@batch.Id</code>
+                                            }
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="hf-batch-bar" title="@String.Format(Strings.BatchesPage_Counts, batch.Succeeded, batch.Failed, batch.Pending)">
+                                            <span class="hf-batch-seg hf-batch-seg-success" style="width: @successPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                                            <span class="hf-batch-seg hf-batch-seg-failed" style="width: @failedPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                                            <span class="hf-batch-seg hf-batch-seg-processing" style="width: @processingPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                                            <span class="hf-batch-seg hf-batch-seg-deleted" style="width: @deletedPercent.ToString("0.#", CultureInfo.InvariantCulture)%"></span>
+                                        </div>
+                                        <div class="hf-batch-counts text-muted">@String.Format(Strings.BatchesPage_Counts, batch.Succeeded, batch.Failed, batch.Pending)</div>
+                                    </td>
+                                    <td class="align-right">@batch.Total</td>
+                                    <td class="align-right min-width">
+                                        @if (batch.CreatedAt.HasValue)
+                                        {
+                                            @Html.RelativeTime(batch.CreatedAt.Value)
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @Html.Paginator(pager)
+            </div>
+        }
+    </div>
+</div>

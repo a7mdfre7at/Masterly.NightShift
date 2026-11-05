@@ -1,0 +1,283 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.InsightsPage_Title);
+
+    IReadOnlyList<JobInsight> insights = new List<JobInsight>();
+    var circuits = new List<CircuitBreakerAttribute.CircuitState>();
+    bool supported;
+
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        supported = connection is JobStorageConnection;
+
+        if (supported)
+        {
+            insights = JobInsightsAttribute.ReadAll(connection);
+            circuits = connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey)
+                .Select(resource => CircuitBreakerAttribute.ReadCircuit(connection, resource))
+                .OrderBy(circuit => circuit.State == CircuitBreakerAttribute.ClosedState ? 1 : 0)
+                .ThenBy(circuit => circuit.Resource)
+                .ToList();
+        }
+    }
+
+    var invokers = JobInvokerRegistry.GetStatistics();
+    var totalRuns = insights.Sum(x => x.Total);
+    var totalFailed = insights.Sum(x => x.Failed);
+    var now = StorageUtcNow ?? ApplicationUtcNow;
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.InsightsPage_Title</h1>
+
+        @if (!supported)
+        {
+            <div class="alert alert-warning">@Strings.InsightsPage_NotSupported</div>
+        }
+        else
+        {
+            <div class="row insights-summary">
+                <div class="col-sm-3">
+                    <div class="insights-tile">
+                        <div class="insights-tile-value">@insights.Count</div>
+                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Methods</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile">
+                        <div class="insights-tile-value">@totalRuns.ToString("N0")</div>
+                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Runs</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile @(totalRuns > 0 && totalFailed * 10 > totalRuns ? "insights-tile-danger" : null)">
+                        <div class="insights-tile-value">@(totalRuns == 0 ? "–" : ((double)totalFailed / totalRuns).ToString("P1"))</div>
+                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_FailureRate</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile" title="@Strings.InsightsPage_Summary_Invokers_Hint">
+                        <div class="insights-tile-value">
+                            <span class="label label-success">@invokers.Generated</span>
+                            <span class="label label-info">@invokers.Compiled</span>
+                            <span class="label label-default">@invokers.Reflection</span>
+                        </div>
+                        <div class="insights-tile-label">@Strings.InsightsPage_Summary_Invokers</div>
+                    </div>
+                </div>
+            </div>
+
+            var anomalies = insights.Where(x => x.IsAnomalous).ToList();
+            if (insights.Count > 0)
+            {
+                <h3 id="insights-anomalies">@Strings.InsightsPage_Anomalies <small class="text-muted">@Strings.InsightsPage_Anomalies_Hint</small></h3>
+                if (anomalies.Count == 0)
+                {
+                    <div class="hf-card hf-anomalies hf-anomalies-ok"><span class="glyphicon glyphicon-ok-circle text-success"></span> @Strings.InsightsPage_Anomalies_None</div>
+                }
+                else
+                {
+                    <div class="hf-card hf-anomalies" aria-describedby="insights-anomalies">
+                        @foreach (var anomaly in anomalies)
+                        {
+                            <div class="hf-anomaly">
+                                <span class="glyphicon glyphicon-exclamation-sign text-warning"></span>
+                                <code>@anomaly.Key</code>
+                                <span class="hf-anomaly-reasons">
+                                    @if (anomaly.IsSlowingDown)
+                                    {
+                                        <span class="label label-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowingDown, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.RecentMedianMs), false), Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.EarlierMedianMs), false))</span>
+                                    }
+                                    @if (anomaly.HasHighFailureRate)
+                                    {
+                                        <span class="label label-danger">@String.Format(Strings.InsightsPage_Anomaly_FailureRate, anomaly.FailureRate.ToString("P0"))</span>
+                                    }
+                                    @if (anomaly.LastRunWasSlow)
+                                    {
+                                        <span class="label label-warning">@String.Format(Strings.InsightsPage_Anomaly_SlowRun, Html.ToHumanDuration(TimeSpan.FromMilliseconds(anomaly.LastDurationMs), false))</span>
+                                    }
+                                </span>
+                                @if (anomaly.LastJobId != null)
+                                {
+                                    <span class="hf-anomaly-link">@Html.JobIdLink(anomaly.LastJobId)</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            {
+                @* Activity heatmap: seven days, hour by hour *@
+                var heatNow = StorageUtcNow ?? ApplicationUtcNow;
+                IReadOnlyList<IReadOnlyList<HeatmapCell>> heatRows;
+                using (var heatConnection = Storage.GetReadOnlyConnection())
+                {
+                    heatRows = ActivityHeatmap.Read(heatConnection, heatNow);
+                }
+                var heatMax = ActivityHeatmap.Max(heatRows);
+
+                <h3 id="insights-heatmap">@Strings.InsightsPage_Heatmap <small class="text-muted">@Strings.InsightsPage_Heatmap_Hint</small></h3>
+                <div class="hf-card hf-heatmap-card" aria-describedby="insights-heatmap">
+                    @if (ActivityHeatmap.IsEmpty(heatRows))
+                    {
+                        <p class="text-muted hf-heatmap-empty">@Strings.InsightsPage_Heatmap_Empty</p>
+                    }
+                    <div class="hf-heatmap">
+                        <div class="hf-heatmap-corner"></div>
+                        @for (var hour = 0; hour < 24; hour++)
+                        {
+                            <div class="hf-heatmap-hour">@(hour % 3 == 0 ? hour.ToString("00", System.Globalization.CultureInfo.InvariantCulture) : "")</div>
+                        }
+                        @foreach (var row in heatRows)
+                        {
+                            <div class="hf-heatmap-day">@row[0].HourUtc.ToString("ddd", System.Globalization.CultureInfo.CurrentCulture)</div>
+                            foreach (var cell in row)
+                            {
+                                var intensity = cell.Total == 0 ? 0 : Math.Max(0.15, Math.Sqrt((double)cell.Total / heatMax));
+                                var future = cell.HourUtc > heatNow;
+                                <div class="hf-heatmap-cell @(future ? "hf-heatmap-future" : cell.Failed > cell.Succeeded ? "hf-heatmap-bad" : null)"
+                                     style="--hf-heat: @intensity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                                     title="@String.Format(Strings.InsightsPage_Heatmap_Cell, cell.HourUtc.ToString("ddd HH:00", System.Globalization.CultureInfo.CurrentCulture), cell.Succeeded, cell.Failed)"></div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+
+            if (circuits.Count > 0)
+            {
+                <h3 id="insights-circuits">@Strings.InsightsPage_Circuits</h3>
+                <div class="table-responsive">
+                    <table class="table" aria-describedby="insights-circuits">
+                        <thead>
+                            <tr>
+                                <th>@Strings.InsightsPage_Circuits_Resource</th>
+                                <th class="min-width">@Strings.Common_State</th>
+                                <th class="min-width">@Strings.InsightsPage_Circuits_Failures</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Circuits_Since</th>
+                                @if (!IsReadOnly)
+                                {
+                                    <th class="min-width"></th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var circuit in circuits)
+                            {
+                                var labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "label-danger"
+                                    : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "label-warning"
+                                    : "label-success";
+
+                                <tr>
+                                    <td class="word-break"><code>@circuit.Resource</code></td>
+                                    <td class="min-width"><span class="label @labelClass text-uppercase">@circuit.State</span></td>
+                                    <td class="min-width">@circuit.Failures</td>
+                                    <td class="min-width align-right">
+                                        @if (circuit.OpenedAt > DateTime.MinValue)
+                                        {
+                                            @Html.RelativeTime(circuit.OpenedAt)
+                                        }
+                                    </td>
+                                    @if (!IsReadOnly)
+                                    {
+                                        <td class="min-width">
+                                            @if (circuit.State != CircuitBreakerAttribute.ClosedState || circuit.Failures > 0)
+                                            {
+                                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/insights/circuits/reset/" + Uri.EscapeDataString(circuit.Resource))" data-loading-text="@Strings.InsightsPage_Circuits_Reset">
+                                                    <span class="glyphicon glyphicon-refresh"></span> @Strings.InsightsPage_Circuits_Reset
+                                                </button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            if (insights.Count == 0)
+            {
+                <div class="alert alert-info">@Html.Raw(Strings.InsightsPage_NoData_Html)</div>
+            }
+            else
+            {
+                <h3 id="insights-jobs">@Strings.Common_Job</h3>
+                <div class="table-responsive">
+                    <table class="table insights-table" aria-describedby="insights-jobs">
+                        <thead>
+                            <tr>
+                                <th>@Strings.Common_Job</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_Runs</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_Failed</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_Median</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_P95</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_Max</th>
+                                <th class="min-width">@Strings.InsightsPage_Table_Trend</th>
+                                <th class="min-width">@Strings.InsightsPage_Table_Invoker</th>
+                                <th class="min-width align-right">@Strings.InsightsPage_Table_LastRun</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var insight in insights)
+                            {
+                                var failureClass = insight.FailureRate >= 0.25 ? "label-danger" : insight.FailureRate > 0 ? "label-warning" : "label-default";
+
+                                <tr>
+                                    <td class="word-break">
+                                        <code>@insight.Key</code>
+                                        @if (insight.LastRunWasSlow)
+                                        {
+                                            <span class="glyphicon glyphicon-warning-sign text-warning" title="@Strings.InsightsPage_SlowRun_Tooltip"></span>
+                                        }
+                                    </td>
+                                    <td class="min-width align-right">@insight.Total.ToString("N0")</td>
+                                    <td class="min-width align-right">
+                                        <span class="label @failureClass">@insight.Failed.ToString("N0") (@insight.FailureRate.ToString("P0"))</span>
+                                    </td>
+                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</td>
+                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.P95Ms), false)</td>
+                                    <td class="min-width align-right">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MaxMs), false)</td>
+                                    <td class="min-width">@Sparkline.Render(insight.Durations, 120, 26, insight.LastFailed)</td>
+                                    <td class="min-width">
+                                        @if (insight.Invoker != null)
+                                        {
+                                            var invokerClass = insight.Invoker == "Generated" ? "label-success" : insight.Invoker == "Compiled" ? "label-info" : "label-default";
+                                            <span class="label @invokerClass">@insight.Invoker</span>
+                                        }
+                                    </td>
+                                    <td class="min-width align-right">
+                                        @if (insight.LastRunAt.HasValue)
+                                        {
+                                            if (insight.LastJobId != null)
+                                            {
+                                                <a href="@Url.JobDetails(insight.LastJobId)" class="text-decoration-none">@Html.RelativeTime(insight.LastRunAt.Value)</a>
+                                            }
+                                            else
+                                            {
+                                                @Html.RelativeTime(insight.LastRunAt.Value)
+                                            }
+                                            <span class="text-muted">(@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.LastDurationMs), false))</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>

@@ -1,0 +1,174 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Globalization
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.ForecastPage_Title);
+
+    var windowQuery = Query("window");
+    var week = "7d".Equals(windowQuery, StringComparison.OrdinalIgnoreCase);
+    var window = week ? TimeSpan.FromDays(7) : TimeSpan.FromHours(24);
+    var now = StorageUtcNow ?? ApplicationUtcNow;
+
+    ScheduleForecast forecast;
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        forecast = ScheduleForecast.Build(connection, now, window, DashboardOptions.TimeZoneResolver);
+    }
+
+    var ticks = week ? 7 : 12;
+    var tickFormat = week ? "shortDate" : "time";
+    const int denseThreshold = 300;
+    var busiest = forecast.BusiestHour;
+    var hotSlots = new HashSet<DateTime>(forecast.HotSpots.Select(h => h.Slot));
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.ForecastPage_Title <small class="text-muted">@Strings.ForecastPage_Hint</small></h1>
+
+        <div class="btn-toolbar btn-toolbar-top">
+            <div class="btn-group">
+                <a href="?window=24h" class="btn btn-sm btn-default @(!week ? "active" : null)">@Strings.ForecastPage_Window_24h</a>
+                <a href="?window=7d" class="btn btn-sm btn-default @(week ? "active" : null)">@Strings.ForecastPage_Window_7d</a>
+            </div>
+            <a href="@Url.To("/recurring")" class="btn btn-sm btn-default"><span class="glyphicon glyphicon-time"></span> @Strings.NavigationMenu_RecurringJobs</a>
+        </div>
+
+        @if (forecast.Rows.Count == 0)
+        {
+            <div class="alert alert-info">@Strings.RecurringJobsPage_NoJobs</div>
+        }
+        else
+        {
+            <div class="row insights-summary">
+                <div class="col-sm-3">
+                    <div class="insights-tile">
+                        <div class="insights-tile-value">@forecast.TotalRuns.ToString("N0")</div>
+                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_Runs</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile">
+                        <div class="insights-tile-value">@Html.ToHumanDuration(forecast.TotalBusyTime, false)</div>
+                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_BusyTime</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile">
+                        <div class="insights-tile-value">@if (busiest.HasValue) { <span data-moment-local="@JobHelper.ToTimestamp(busiest.Value)" data-moment-local-format="@(week ? "shortDateTime" : "time")">@busiest.Value.ToString("HH:mm", CultureInfo.InvariantCulture)</span> } else { <text>&ndash;</text> }</div>
+                        <div class="insights-tile-label">@Strings.ForecastPage_Summary_Busiest</div>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="insights-tile @(forecast.HotSpots.Count > 0 ? "insights-tile-danger" : null)">
+                        <div class="insights-tile-value">@forecast.HotSpots.Count</div>
+                        <div class="insights-tile-label">@Strings.ForecastPage_HotSpots</div>
+                    </div>
+                </div>
+            </div>
+
+            <section class="hf-card hf-forecast">
+                <div class="hf-forecast-axis">
+                    <div class="hf-forecast-label"></div>
+                    <div class="hf-forecast-ticks">
+                        @for (var i = 0; i <= ticks; i++)
+                        {
+                            var tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
+                            <span class="hf-forecast-tick" style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                        }
+                    </div>
+                </div>
+                @foreach (var row in forecast.Rows)
+                {
+                    <div class="hf-forecast-row @(row.Dto.Paused ? "hf-forecast-row-paused" : null)">
+                        <div class="hf-forecast-label" title="@row.Dto.Cron">
+                            <a href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(row.Id))">@row.Id</a>
+                            <small class="text-muted">
+                                @if (row.Dto.Paused)
+                                {
+                                    <span class="label label-warning">@Strings.ForecastPage_Paused</span>
+                                }
+                                else
+                                {
+                                    @row.Occurrences.Count<text>&times; &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                }
+                            </small>
+                        </div>
+                        <div class="hf-forecast-track">
+                            @if (row.Error != null)
+                            {
+                                <span class="text-danger hf-forecast-error" title="@row.Error"><span class="glyphicon glyphicon-warning-sign"></span> @row.Error</span>
+                            }
+                            @if (row.Occurrences.Count > denseThreshold)
+                            {
+                                var firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
+                                var lastLeft = 100.0 * (row.Occurrences[row.Occurrences.Count - 1] - forecast.From).Ticks / window.Ticks;
+                                <span class="hf-forecast-run hf-forecast-run-dense @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
+                                      style="left: @(firstLeft.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Max(0.5, lastLeft - firstLeft).ToString("F3", CultureInfo.InvariantCulture))%"
+                                      title="@String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count)"></span>
+                            }
+                            else
+                            {
+                                foreach (var occurrence in row.Occurrences)
+                                {
+                                    var left = 100.0 * (occurrence - forecast.From).Ticks / window.Ticks;
+                                    var width = Math.Max(0.25, 100.0 * row.ExpectedDuration.Ticks / window.Ticks);
+                                    var slot = new DateTime(occurrence.Ticks - occurrence.Ticks % ScheduleForecast.SlotSize.Ticks, DateTimeKind.Utc);
+
+                                    <span class="hf-forecast-run @(hotSlots.Contains(slot) ? "hf-forecast-run-hot" : null) @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
+                                          style="left: @(left.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Min(width, 100 - left).ToString("F3", CultureInfo.InvariantCulture))%"
+                                          title="@occurrence.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) UTC &middot; @Html.ToHumanDuration(row.ExpectedDuration, false)"></span>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+                <div class="hf-forecast-legend text-muted">
+                    <span class="hf-forecast-run"></span> @Strings.ForecastPage_Legend_Expected
+                    <span class="hf-forecast-run hf-forecast-run-hot"></span> @Strings.ForecastPage_HotSpots_Hint
+                    <span>* @Strings.ForecastPage_Legend_Default</span>
+                </div>
+            </section>
+
+            if (forecast.HotSpots.Count > 0)
+            {
+                <h3 id="forecast-hotspots">@Strings.ForecastPage_HotSpots <small class="text-muted">@Strings.ForecastPage_HotSpots_Hint</small></h3>
+                <div class="table-responsive">
+                    <table class="table" aria-describedby="forecast-hotspots">
+                        <thead>
+                            <tr>
+                                <th class="min-width">@Strings.ForecastPage_Table_Slot</th>
+                                <th class="min-width">@Strings.ForecastPage_Table_Jobs</th>
+                                <th>@Strings.NavigationMenu_RecurringJobs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var hotSpot in forecast.HotSpots)
+                            {
+                                <tr>
+                                    <td class="min-width">@Html.LocalTime(hotSpot.Slot) <span class="text-muted">@Html.RelativeTime(hotSpot.Slot)</span></td>
+                                    <td class="min-width"><span class="label label-danger">@hotSpot.JobIds.Count</span></td>
+                                    <td class="word-break">
+                                        @foreach (var id in hotSpot.JobIds)
+                                        {
+                                            <a class="hf-chip" href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(id))">@id</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>

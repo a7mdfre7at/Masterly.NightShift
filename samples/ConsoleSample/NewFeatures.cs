@@ -1,5 +1,5 @@
 ﻿using System;
-using Hangfire;
+using Masterly.NightShift;
 
 namespace ConsoleSample
 {

@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <NoWarn>0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Moq.Sequences" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
+    <!-- Every job lambda in the suite gets a generated invoker, so the generator is exercised by the whole suite -->
+    <ProjectReference Include="..\..\src\Masterly.NightShift.SourceGenerator\Masterly.NightShift.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="ChangeAliasesOfStrongNameAssemblies" BeforeTargets="FindReferenceAssembliesForReferences;ResolveReferences">
+    <ItemGroup>
+      <ReferencePath Condition="'%(FileName)' == 'Cronos'">
+        <Aliases>ReferencedCronos</Aliases>
+      </ReferencePath>
+    </ItemGroup>
+  </Target>
+</Project>

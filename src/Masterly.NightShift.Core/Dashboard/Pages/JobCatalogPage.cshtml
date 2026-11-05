@@ -1,0 +1,139 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.CatalogPage_Title);
+
+    var entries = JobCatalog.GetEntries();
+    var insightsByKey = new Dictionary<string, JobInsight>(StringComparer.Ordinal);
+
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        if (connection is JobStorageConnection storageConnection)
+        {
+            foreach (var key in entries.Select(e => e.InsightsKey).Distinct(StringComparer.Ordinal))
+            {
+                var insight = JobInsightsAttribute.Read(storageConnection, key);
+                if (insight != null) insightsByKey[key] = insight;
+            }
+        }
+    }
+
+    var typeCount = entries.Select(e => e.Type).Distinct().Count();
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.CatalogPage_Title <small class="text-muted">@Strings.CatalogPage_Hint</small></h1>
+
+        @if (entries.Count == 0)
+        {
+            <div class="alert alert-info">@Html.Raw(Strings.CatalogPage_NoEntries_Html)</div>
+        }
+        else
+        {
+            <div class="hf-catalog-toolbar">
+                <input type="search" class="form-control js-catalog-filter" placeholder="@Strings.CatalogPage_Search" autocomplete="off" spellcheck="false" />
+                <span class="text-muted hf-catalog-summary">@entries.Count @Strings.CatalogPage_Summary_Methods &middot; @typeCount @Strings.CatalogPage_Summary_Types</span>
+            </div>
+
+            foreach (var group in entries.GroupBy(e => e.Type))
+            {
+                <section class="hf-card hf-catalog-group js-catalog-group" data-type="@group.Key.FullName">
+                    <div class="hf-card-header">
+                        <h3>@if (!String.IsNullOrEmpty(group.Key.Namespace)) { <span class="text-muted">@(group.Key.Namespace).</span> }@JobMethodCallRenderer.GetNameWithoutGenericArity(group.Key)</h3>
+                        <span class="text-muted">@group.Count() @Strings.CatalogPage_Summary_Methods</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table hf-catalog-table" aria-describedby="page-title">
+                            <thead>
+                                <tr>
+                                    <th>@Strings.CatalogPage_Table_Method</th>
+                                    <th>@Strings.CatalogPage_Table_Parameters</th>
+                                    <th>@Strings.CatalogPage_Table_Filters</th>
+                                    <th class="min-width">@Strings.CatalogPage_Table_Stats</th>
+                                    @if (!IsReadOnly)
+                                    {
+                                        <th class="min-width"></th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entry in group)
+                                {
+                                    var insight = insightsByKey.TryGetValue(entry.InsightsKey, out var found) ? found : null;
+                                    var userParameters = entry.UserParameters.ToList();
+
+                                    <tr class="js-catalog-entry" data-search="@(entry.Type.FullName + " " + entry.Method.Name + " " + String.Join(" ", userParameters.Select(p => p.Name)))">
+                                        <td class="word-break">
+                                            <code class="hf-catalog-method">@(entry.IsAsync ? "async " : null)@entry.Method.Name</code>
+                                            @if (entry.Method.IsStatic)
+                                            {
+                                                <span class="label label-default">@Strings.CatalogPage_Static</span>
+                                            }
+                                        </td>
+                                        <td class="word-break">
+                                            @if (entry.Parameters.Count == 0)
+                                            {
+                                                <span class="text-muted">&ndash;</span>
+                                            }
+                                            @foreach (var parameter in entry.Parameters)
+                                            {
+                                                <span class="hf-param @(parameter.Injected ? "hf-param-injected" : null)" title="@(parameter.Injected ? Strings.CatalogPage_Injected : parameter.TypeName)">
+                                                    <span class="hf-param-type">@parameter.TypeName</span> @parameter.Name
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="word-break">
+                                            @foreach (var filter in entry.Filters)
+                                            {
+                                                <span class="label label-info">@filter</span>
+                                            }
+                                        </td>
+                                        <td class="min-width hf-catalog-stats">
+                                            @if (insight != null)
+                                            {
+                                                <span title="@Strings.InsightsPage_Table_Runs">@insight.Total.ToString("N0")&times;</span>
+                                                <span class="text-muted" title="@Strings.InsightsPage_Table_Median">@Html.ToHumanDuration(TimeSpan.FromMilliseconds(insight.MedianMs), false)</span>
+                                                @if (insight.Failed > 0)
+                                                {
+                                                    <span class="text-danger" title="@Strings.InsightsPage_Table_Failed">@insight.FailureRate.ToString("P0")</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">&ndash;</span>
+                                            }
+                                        </td>
+                                        @if (!IsReadOnly)
+                                        {
+                                            <td class="min-width">
+                                                <button type="button" class="btn btn-sm btn-primary js-catalog-run"
+                                                        data-id="@entry.Id"
+                                                        data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type)"
+                                                        data-method="@entry.Method.Name"
+                                                        data-parameters="@DashboardJson.Serialize(userParameters.Select(p => new { name = p.Name, type = p.TypeName, input = p.InputKind, @default = JobCatalog.FormatDefault(p.DefaultValue), hasDefault = p.HasDefaultValue, options = p.InputKind == "select" ? Enum.GetNames(Nullable.GetUnderlyingType(p.Type) ?? p.Type) : null }))">
+                                                    <span class="glyphicon glyphicon-play"></span> @Strings.CatalogPage_Run
+                                                </button>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        }
+    </div>
+</div>
+
+@Html.RenderPartial(new JobRunner())

@@ -1,0 +1,115 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.AuditPage_Title);
+
+    int count;
+    if (!int.TryParse(Query("count"), out count) || count <= 0) count = 100;
+    count = Math.Min(count, AuditLog.MaxEntries);
+
+    IReadOnlyList<AuditEntry> entries;
+    long total;
+
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        entries = AuditLog.Read(connection, count);
+        total = AuditLog.Count(connection);
+    }
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.AuditPage_Title <small class="text-muted">@Strings.AuditPage_Hint</small></h1>
+
+        @if (!AuditLog.Enabled)
+        {
+            <div class="alert alert-warning">@Strings.AuditPage_Disabled</div>
+        }
+
+        @if (entries.Count == 0)
+        {
+            <div class="alert alert-info">@Strings.AuditPage_NoEntries</div>
+        }
+        else
+        {
+            <div class="btn-toolbar btn-toolbar-top">
+                <span class="hf-catalog-summary text-muted">@entries.Count / @total</span>
+                <div class="btn-group pull-right">
+                    @foreach (var size in new[] { 50, 100, 250, 1000 })
+                    {
+                        <a class="btn btn-sm @(size == count ? "btn-primary active" : "btn-default")" href="@Url.To("/audit?count=" + size)">@size</a>
+                    }
+                </div>
+            </div>
+
+            <div class="table-responsive hf-card">
+                <table class="table hf-audit" aria-describedby="page-title">
+                    <thead>
+                        <tr>
+                            <th class="min-width">@Strings.AuditPage_Table_When</th>
+                            <th class="min-width">@Strings.AuditPage_Table_User</th>
+                            <th>@Strings.AuditPage_Table_Action</th>
+                            <th>@Strings.AuditPage_Table_Targets</th>
+                            <th>@Strings.AuditPage_Table_Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in entries)
+                        {
+                            <tr>
+                                <td class="min-width">@Html.RelativeTime(entry.OccurredAt)</td>
+                                <td class="min-width">
+                                    @if (String.IsNullOrEmpty(entry.User))
+                                    {
+                                        <em class="text-muted">@Strings.AuditPage_Anonymous</em>
+                                    }
+                                    else
+                                    {
+                                        <strong>@entry.User</strong>
+                                    }
+                                    @if (!String.IsNullOrEmpty(entry.RemoteIpAddress))
+                                    {
+                                        <div class="text-muted hf-audit-ip">@entry.RemoteIpAddress</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="@(entry.Status >= 400 ? "text-danger" : null)">@AuditLog.Describe(entry.Action)</span>
+                                    <div class="text-muted"><code>@entry.Action</code> @if (entry.Status >= 400) { <span class="label label-danger">@entry.Status</span> }</div>
+                                </td>
+                                <td class="word-break">
+                                    @if (entry.Targets != null)
+                                    {
+                                        foreach (var target in entry.Targets)
+                                        {
+                                            if (target.All(Char.IsDigit) && entry.Action.StartsWith("/jobs", StringComparison.OrdinalIgnoreCase) || entry.Action.StartsWith("/catalog", StringComparison.OrdinalIgnoreCase) && target.All(Char.IsDigit))
+                                            {
+                                                @Html.JobIdLink(target)
+                                            }
+                                            else
+                                            {
+                                                <code>@target</code>
+                                            }
+                                            <text> </text>
+                                        }
+                                        if (entry.TargetCount.HasValue)
+                                        {
+                                            <span class="text-muted">@String.Format(Strings.AuditPage_More, entry.TargetCount.Value - entry.Targets.Count)</span>
+                                        }
+                                    }
+                                </td>
+                                <td class="word-break text-muted">@entry.Detail</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

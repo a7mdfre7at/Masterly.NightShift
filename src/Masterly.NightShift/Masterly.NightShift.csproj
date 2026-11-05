@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <Description>Masterly.NightShift: reliable background jobs for .NET. Installs the core library, SQL Server storage and the ASP.NET Core integration.</Description>
+    <RootNamespace>Masterly.NightShift</RootNamespace>
+    <!-- A meta-package: it has no assembly of its own, only the dependencies below -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnablePackageValidation>false</EnablePackageValidation>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" PrivateAssets="none" />
+    <ProjectReference Include="..\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" PrivateAssets="none" />
+  </ItemGroup>
+</Project>

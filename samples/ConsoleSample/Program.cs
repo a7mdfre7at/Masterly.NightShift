@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using Hangfire;
-using Hangfire.Common;
-using Hangfire.Dashboard;
-using Hangfire.SqlServer;
-using Hangfire.States;
+using Masterly.NightShift;
+using Masterly.NightShift.Common;
+using Masterly.NightShift.Dashboard;
+using Masterly.NightShift.SqlServer;
+using Masterly.NightShift.States;
 
 namespace ConsoleSample
 {
@@ -26,7 +26,7 @@ namespace ConsoleSample
                 .UseJobDetailsRenderer(10, dto => throw new InvalidOperationException())
                 .UseJobDetailsRenderer(10, dto => new NonEscapedString("<h4>Hello, world!</h4>"))
                 .UseDefaultCulture(CultureInfo.CurrentCulture)
-                .UseSqlServerStorage(@"Server=.\;Database=Hangfire.Sample;Trusted_Connection=True;", new SqlServerStorageOptions
+                .UseSqlServerStorage(@"Server=.\;Database=Masterly.NightShift.Sample;Trusted_Connection=True;", new SqlServerStorageOptions
                 {
                     EnableHeavyMigrations = true
                 });
@@ -246,7 +246,7 @@ namespace ConsoleSample
 
                     if (command.StartsWith("continuations", StringComparison.OrdinalIgnoreCase))
                     {
-                        WriteString("Hello, Hangfire continuations!");
+                        WriteString("Hello, Masterly.NightShift continuations!");
                     }
                 }
             }

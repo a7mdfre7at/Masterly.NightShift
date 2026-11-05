@@ -1,0 +1,106 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Masterly.NightShift core: fire-and-forget, delayed, recurring and continuation background jobs, the job server, filters and the dashboard. Add a storage package, for example Masterly.NightShift.SqlServer.</Description>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>Masterly.NightShift</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Source-only packages: the code compiled is the vendored copy in App_Packages/ and MoreLinq/, adapted for this
+         library (LibLog's public logging API, tighter regex timeouts). Their source files are excluded, or newer
+         versions would add a second copy. -->
+    <PackageReference Include="MoreLinq.Source.MoreEnumerable.Pairwise" PrivateAssets="all" ExcludeAssets="contentFiles" />
+    <PackageReference Include="LibLog" PrivateAssets="all" ExcludeAssets="contentFiles" />
+    <PackageReference Include="StackTraceFormatter.Source" PrivateAssets="all" ExcludeAssets="contentFiles" />
+    <PackageReference Include="StackTraceParser.Source" PrivateAssets="all" ExcludeAssets="contentFiles" />
+    <PackageReference Include="Cronos" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(TargetFramework)'=='netstandard2.0'">
+    <PackageReference Include="Microsoft.CSharp" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  
+  <!-- The source generator ships inside the package as an analyzer, and emits reflection-free job invokers
+       into the consumer's assembly. The props file lets it read NightShiftDisableJobInvokerGeneration. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Masterly.NightShift.SourceGenerator\Masterly.NightShift.SourceGenerator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="../Masterly.NightShift.SourceGenerator/bin/$(Configuration)/netstandard2.0/Masterly.NightShift.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="build/Masterly.NightShift.Core.props" Pack="true" PackagePath="build;buildTransitive" />
+  </ItemGroup>
+
+  <!-- Dashboard pages (*.cshtml) are compiled to C# during the build by Masterly.NightShift.Dashboard.Generator -->
+  <ItemGroup>
+    <ProjectReference Include="..\Masterly.NightShift.Dashboard.Generator\Masterly.NightShift.Dashboard.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <AdditionalFiles Include="Dashboard\Pages\*.cshtml" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <EmbeddedResource Include="Dashboard\Content\css\bootstrap.min.css" />
+    <EmbeddedResource Include="Dashboard\Content\css\Chart.min.css" />
+    <EmbeddedResource Include="Dashboard\Content\css\nightshift.css" />
+    <EmbeddedResource Include="Dashboard\Content\css\nightshift-ui.css" />
+    <EmbeddedResource Include="Dashboard\Content\css\nightshift-dark.css" />
+    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.eot" />
+    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.svg" />
+    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.ttf" />
+    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff" />
+    <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff2" />
+    <EmbeddedResource Include="Dashboard\Content\js\bootstrap.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\nightshift.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\jquery-3.7.1.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\nightshift-intl.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\Chart.min.js" />
+    <EmbeddedResource Include="Dashboard\Content\js\chartjs-plugin-streaming.min.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Dashboard\Content\resx\Strings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      <CustomToolNamespace>Masterly.NightShift.Dashboard.Resources</CustomToolNamespace>
+    </EmbeddedResource>
+    <Compile Update="Dashboard\Content\resx\Strings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Strings.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Dashboard\Pages\_BlockMetric.cs">
+      <DependentUpon>_BlockMetric.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\_Breadcrumbs.cs">
+      <DependentUpon>_Breadcrumbs.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\_InlineMetric.cs">
+      <DependentUpon>_InlineMetric.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\_Paginator.cs">
+      <DependentUpon>_Paginator.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\_PerPageSelector.cs">
+      <DependentUpon>_PerPageSelector.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\_SidebarMenu.cs">
+      <DependentUpon>_SidebarMenu.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\EnqueuedJobsPage.cs">
+      <DependentUpon>EnqueuedJobsPage.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\FetchedJobsPage.cs">
+      <DependentUpon>FetchedJobsPage.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\HomePage.cs">
+      <DependentUpon>HomePage.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\JobDetailsPage.cs">
+      <DependentUpon>JobDetailsPage.cshtml</DependentUpon>
+    </Compile>
+    <Compile Update="Dashboard\Pages\LayoutPage.cs">
+      <DependentUpon>LayoutPage.cshtml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+</Project>

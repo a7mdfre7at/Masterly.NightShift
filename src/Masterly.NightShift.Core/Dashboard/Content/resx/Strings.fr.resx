@@ -1,0 +1,1606 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Text" xml:space="preserve">
+    <value>Ne vous inquiétez pas, les prolongations marchent comme prévu. Votre système de stockage ne supporte pas certaines requêtes nécessaires pour afficher cette page. Merci de mettre à jour votre système de stockage ou d'attendre le support complet de celui-ci.</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Title" xml:space="preserve">
+    <value>Les prolongations fonctionnent, mais cette page ne peut pas être affichée</value>
+  </data>
+  <data name="AwaitingJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche en attente trouvée.</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Options" xml:space="preserve">
+    <value>Options</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Parent" xml:space="preserve">
+    <value>Parent</value>
+  </data>
+  <data name="AwaitingJobsPage_Title" xml:space="preserve">
+    <value>Tâches en attente</value>
+  </data>
+  <data name="Common_Created" xml:space="preserve">
+    <value>Créée</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="Common_DeleteConfirm" xml:space="preserve">
+    <value>Voulez-vous vraiment SUPPRIMER TOUTES les tâches sélectionnées ?</value>
+  </data>
+  <data name="Common_Deleting" xml:space="preserve">
+    <value>Suppression…</value>
+  </data>
+  <data name="Common_DeleteSelected" xml:space="preserve">
+    <value>Supprimer la sélection</value>
+  </data>
+  <data name="Common_EnqueueButton_Text" xml:space="preserve">
+    <value>Mettre en file d'attente</value>
+  </data>
+  <data name="Common_Enqueueing" xml:space="preserve">
+    <value>Mise en file d'attente…</value>
+  </data>
+  <data name="Common_Fetched" xml:space="preserve">
+    <value>Récupérées</value>
+  </data>
+  <data name="Common_Id" xml:space="preserve">
+    <value>Id</value>
+  </data>
+  <data name="Common_Job" xml:space="preserve">
+    <value>Tâche</value>
+  </data>
+  <data name="Common_JobExpired" xml:space="preserve">
+    <value>Tâche expirée.</value>
+  </data>
+  <data name="Common_JobStateChanged_Text" xml:space="preserve">
+    <value>L'état de la tâche a changé pendant la récupération des données.</value>
+  </data>
+  <data name="Common_LessDetails" xml:space="preserve">
+    <value>Moins de détails…</value>
+  </data>
+  <data name="Common_MoreDetails" xml:space="preserve">
+    <value>Plus de détails…</value>
+  </data>
+  <data name="Common_NotAvailable" xml:space="preserve">
+    <value>N/A</value>
+  </data>
+  <data name="Common_PeriodDay" xml:space="preserve">
+    <value>Jour</value>
+  </data>
+  <data name="Common_PeriodWeek" xml:space="preserve">
+    <value>Semaine</value>
+  </data>
+  <data name="Common_Reason" xml:space="preserve">
+    <value>Raison</value>
+  </data>
+  <data name="Common_RequeueJobs" xml:space="preserve">
+    <value>Remettre en file d'attente</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Retenter</value>
+  </data>
+  <data name="Common_Server" xml:space="preserve">
+    <value>Serveur</value>
+  </data>
+  <data name="Common_State" xml:space="preserve">
+    <value>État</value>
+  </data>
+  <data name="Common_Unknown" xml:space="preserve">
+    <value>Inconnu</value>
+  </data>
+  <data name="DeletedJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche supprimée trouvée.</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Deleted" xml:space="preserve">
+    <value>Supprimée</value>
+  </data>
+  <data name="DeletedJobsPage_Title" xml:space="preserve">
+    <value>Tâches supprimées</value>
+  </data>
+  <data name="EnqueuedJobsPage_NoJobs" xml:space="preserve">
+    <value>La file d'attente est vide.</value>
+  </data>
+  <data name="EnqueuedJobsPage_Title" xml:space="preserve">
+    <value>Tâches en file d'attente</value>
+  </data>
+  <data name="FailedJobsPage_FailedJobsNotExpire_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Les tâches échouées n'expirent pas&lt;/strong&gt; pour vous permettre de les remettre en file d'attente sans pression. 
+Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou appliquer l'attribut &lt;code&gt;AutomaticRetry(OnAttemptsExceeded = AttemptsExceededAction.Delete)&lt;/code&gt; pour les supprimer automatiquement.</value>
+  </data>
+  <data name="FailedJobsPage_NoJobs" xml:space="preserve">
+    <value>Vous n'avez aucune tâche échouée pour le moment.</value>
+  </data>
+  <data name="FailedJobsPage_Table_Failed" xml:space="preserve">
+    <value>Échouée</value>
+  </data>
+  <data name="FailedJobsPage_Title" xml:space="preserve">
+    <value>Tâches échouées</value>
+  </data>
+  <data name="FetchedJobsPage_NoJobs" xml:space="preserve">
+    <value>La file d'attente est vide.</value>
+  </data>
+  <data name="FetchedJobsPage_Title" xml:space="preserve">
+    <value>Tâches récupérées</value>
+  </data>
+  <data name="HomePage_HistoryGraph" xml:space="preserve">
+    <value>Historique</value>
+  </data>
+  <data name="HomePage_RealtimeGraph" xml:space="preserve">
+    <value>Graphique temps réel</value>
+  </data>
+  <data name="HomePage_Title" xml:space="preserve">
+    <value>Aperçu</value>
+  </data>
+  <data name="JobDetailsPage_Created" xml:space="preserve">
+    <value>Créée</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Voulez-vous vraiment supprimer cette tâche ?</value>
+  </data>
+  <data name="JobDetailsPage_State" xml:space="preserve">
+    <value>État</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedNotActive_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;La tâche a été annulée&lt;/strong&gt; – elle est en cours de traitement par le serveur
+                        &lt;code&gt;{0}&lt;/code&gt; qui n'est pas dans la liste des
+                        &lt;a href="{1}"&gt;serveurs actifs&lt;/a&gt; pour le moment.
+                        Elle sera retentée automatiquement après un temps d'attente d'invisibilité, mais vous pouvez aussi la remettre en file d'attente ou la supprimer manuellement.</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Il semble que la tâche ait été annulée&lt;/strong&gt; – elle est en cours de traitement par le serveur 
+                        &lt;code&gt;{0}&lt;/code&gt;, qui a répondu il y a moins d'une minute.
+                        Elle sera retentée automatiquement après un temps d'attente d'invisibilité, mais vous pouvez aussi la remettre en file d'attente ou la supprimer manuellement.</value>
+  </data>
+  <data name="JobDetailsPage_JobExpired" xml:space="preserve">
+    <value>La tâche '{0}' a expirée ou ne peut pas être trouvée sur le serveur.</value>
+  </data>
+  <data name="JobDetailsPage_JobFinished_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;La tâche est terminée&lt;/strong&gt;.
+                    Elle sera retirée automatiquement &lt;em&gt;&lt;abbr data-moment="{0}"&gt;{1}&lt;/abbr&gt;&lt;/em&gt;.</value>
+  </data>
+  <data name="JobDetailsPage_JobId" xml:space="preserve">
+    <value>ID Tâche</value>
+  </data>
+  <data name="JobDetailsPage_Requeue" xml:space="preserve">
+    <value>Remettre en file d'attente</value>
+  </data>
+  <data name="LayoutPage_Back" xml:space="preserve">
+    <value>Retour au site</value>
+  </data>
+  <data name="LayoutPage_Footer_Generatedms" xml:space="preserve">
+    <value>Généré : {0}ms</value>
+  </data>
+  <data name="LayoutPage_Footer_Time" xml:space="preserve">
+    <value>Temps :</value>
+  </data>
+  <data name="Paginator_Next" xml:space="preserve">
+    <value>Suiv.</value>
+  </data>
+  <data name="Paginator_Prev" xml:space="preserve">
+    <value>Prec.</value>
+  </data>
+  <data name="Paginator_TotalItems" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="PerPageSelector_ItemsPerPage" xml:space="preserve">
+    <value>Éléments par page</value>
+  </data>
+  <data name="ProcessingJobsPage_Aborted" xml:space="preserve">
+    <value>La tâche semble avoir été annulée</value>
+  </data>
+  <data name="ProcessingJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche en cours actuellement.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Started" xml:space="preserve">
+    <value>Démarrée</value>
+  </data>
+  <data name="ProcessingJobsPage_Title" xml:space="preserve">
+    <value>Tâches en cours</value>
+  </data>
+  <data name="QueuesPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche en file d'attente.</value>
+  </data>
+  <data name="QueuesPage_NoQueues" xml:space="preserve">
+    <value>Aucune tâche trouvée en file d'attente. Essayez de mettre une tâche en file d'attente.</value>
+  </data>
+  <data name="QueuesPage_Table_Length" xml:space="preserve">
+    <value>Longueur</value>
+  </data>
+  <data name="QueuesPage_Table_NextsJobs" xml:space="preserve">
+    <value>Prochaines tâches</value>
+  </data>
+  <data name="QueuesPage_Table_Queue" xml:space="preserve">
+    <value>File d'attente</value>
+  </data>
+  <data name="QueuesPage_Title" xml:space="preserve">
+    <value>Files d'attente</value>
+  </data>
+  <data name="RecurringJobsPage_Canceled" xml:space="preserve">
+    <value>Annulée</value>
+  </data>
+  <data name="RecurringJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche récurrente trouvée.</value>
+  </data>
+  <data name="RecurringJobsPage_Table_Cron" xml:space="preserve">
+    <value>Cron</value>
+  </data>
+  <data name="RecurringJobsPage_Table_LastExecution" xml:space="preserve">
+    <value>Dernière exécution</value>
+  </data>
+  <data name="RecurringJobsPage_Table_NextExecution" xml:space="preserve">
+    <value>Prochaine exécution</value>
+  </data>
+  <data name="RecurringJobsPage_Table_TimeZone" xml:space="preserve">
+    <value>Fuseau horaire</value>
+  </data>
+  <data name="RecurringJobsPage_Title" xml:space="preserve">
+    <value>Tâches récurrentes</value>
+  </data>
+  <data name="RecurringJobsPage_Triggering" xml:space="preserve">
+    <value>Déclenchement</value>
+  </data>
+  <data name="RecurringJobsPage_TriggerNow" xml:space="preserve">
+    <value>Déclencher maintenant</value>
+  </data>
+  <data name="RetriesPage_NoJobs" xml:space="preserve">
+    <value>Tout est OK — aucune nouvelle tentative.</value>
+  </data>
+  <data name="RetriesPage_Title" xml:space="preserve">
+    <value>Tentatives</value>
+  </data>
+  <data name="RetriesPage_Warning_Html" xml:space="preserve">
+    <value>&lt;h4&gt;Les tentatives fonctionnent, mais cette page ne peut être affichée&lt;/h4&gt;
+        &lt;p&gt;
+            Ne vous inquiétez pas, les tentatives fonctionnent comme prévu. Votre système de stockage ne supporte pas certaines requêtes nécessaires pour afficher cette page. Merci de mettre à jour votre système de stockage ou d'attendre le support complet de celui-ci.
+        &lt;/p&gt;
+        &lt;p&gt;
+            Allez sur la page &lt;a href="{0}"&gt;Tâches programmées&lt;/a&gt; pour voir toutes les tâches programmées (y compris les nouvelles tentatives).
+        &lt;/p&gt;</value>
+  </data>
+  <data name="ScheduledJobsPage_EnqueueNow" xml:space="preserve">
+    <value>Mettre en file d'attente maintenant</value>
+  </data>
+  <data name="ScheduledJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche programmée.</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Enqueue" xml:space="preserve">
+    <value>Mettre en file d'attente</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Scheduled" xml:space="preserve">
+    <value>Programmée</value>
+  </data>
+  <data name="ScheduledJobsPage_Title" xml:space="preserve">
+    <value>Tâches programmées</value>
+  </data>
+  <data name="ServersPage_NoServers" xml:space="preserve">
+    <value>Aucun serveur actif. Les tâches de fond ne seront pas exécutées.</value>
+  </data>
+  <data name="ServersPage_Table_Heartbeat" xml:space="preserve">
+    <value>Pulsation</value>
+  </data>
+  <data name="ServersPage_Table_Name" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="ServersPage_Table_Queues" xml:space="preserve">
+    <value>Files d'attente</value>
+  </data>
+  <data name="ServersPage_Table_Started" xml:space="preserve">
+    <value>Démarré</value>
+  </data>
+  <data name="ServersPage_Table_Workers" xml:space="preserve">
+    <value>Unités de travail</value>
+  </data>
+  <data name="ServersPage_Title" xml:space="preserve">
+    <value>Serveurs</value>
+  </data>
+  <data name="SucceededJobsPage_NoJobs" xml:space="preserve">
+    <value>Aucune tâche réussie trouvée.</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Succeeded" xml:space="preserve">
+    <value>Réussie</value>
+  </data>
+  <data name="SucceededJobsPage_Table_TotalDuration" xml:space="preserve">
+    <value>Durée totale</value>
+  </data>
+  <data name="SucceededJobsPage_Title" xml:space="preserve">
+    <value>Tâches réussies</value>
+  </data>
+  <data name="JobsSidebarMenu_Awaiting" xml:space="preserve">
+    <value>En attente</value>
+  </data>
+  <data name="JobsSidebarMenu_Deleted" xml:space="preserve">
+    <value>Supprimées</value>
+  </data>
+  <data name="JobsSidebarMenu_Failed" xml:space="preserve">
+    <value>Échouées</value>
+  </data>
+  <data name="JobsSidebarMenu_Processing" xml:space="preserve">
+    <value>En cours</value>
+  </data>
+  <data name="JobsSidebarMenu_Scheduled" xml:space="preserve">
+    <value>Programmées</value>
+  </data>
+  <data name="JobsSidebarMenu_Succeeded" xml:space="preserve">
+    <value>Réussies</value>
+  </data>
+  <data name="NavigationMenu_Jobs" xml:space="preserve">
+    <value>Tâches</value>
+  </data>
+  <data name="NavigationMenu_RecurringJobs" xml:space="preserve">
+    <value>Tâches récurrentes</value>
+  </data>
+  <data name="NavigationMenu_Retries" xml:space="preserve">
+    <value>Nouvelles tentatives</value>
+  </data>
+  <data name="NavigationMenu_Servers" xml:space="preserve">
+    <value>Serveurs</value>
+  </data>
+  <data name="Common_CannotFindTargetMethod" xml:space="preserve">
+    <value>Impossible de trouver la méthode de destination.</value>
+  </data>
+  <data name="Common_Enqueued" xml:space="preserve">
+    <value>En file d'attente</value>
+  </data>
+  <data name="Common_NoState" xml:space="preserve">
+    <value>Pas d'état</value>
+  </data>
+  <data name="JobsSidebarMenu_Enqueued" xml:space="preserve">
+    <value>En file d'attente</value>
+  </data>
+  <data name="Metrics_ActiveConnections" xml:space="preserve">
+    <value>Connexions actives</value>
+  </data>
+  <data name="Metrics_DeletedJobs" xml:space="preserve">
+    <value>Tâches supprimées</value>
+  </data>
+  <data name="Metrics_FailedJobs" xml:space="preserve">
+    <value>Tâches échouées</value>
+  </data>
+  <data name="Metrics_ProcessingJobs" xml:space="preserve">
+    <value>Tâches en cours</value>
+  </data>
+  <data name="Metrics_RecurringJobs" xml:space="preserve">
+    <value>Tâches récurrentes</value>
+  </data>
+  <data name="Metrics_Retries" xml:space="preserve">
+    <value>Nouvelles tentatives</value>
+  </data>
+  <data name="Metrics_ScheduledJobs" xml:space="preserve">
+    <value>Tâches programmées</value>
+  </data>
+  <data name="Metrics_Servers" xml:space="preserve">
+    <value>Serveurs</value>
+  </data>
+  <data name="Metrics_SucceededJobs" xml:space="preserve">
+    <value>Tâches réussies</value>
+  </data>
+  <data name="Metrics_TotalConnections" xml:space="preserve">
+    <value>Connexions totales</value>
+  </data>
+  <data name="Common_Condition" xml:space="preserve">
+    <value>Condition</value>
+  </data>
+  <data name="Common_Continuations" xml:space="preserve">
+    <value>Prolongations</value>
+  </data>
+  <data name="Metrics_AwaitingCount" xml:space="preserve">
+    <value>En attente</value>
+  </data>
+  <data name="Metrics_EnqueuedCountOrNull" xml:space="preserve">
+    <value>En file d'attente</value>
+  </data>
+  <data name="Metrics_EnqueuedQueuesCount" xml:space="preserve">
+    <value>En file d'attente / Files d'attente</value>
+  </data>
+  <data name="Metrics_FailedCountOrNull" xml:space="preserve">
+    <value>{0} tâche(s) supprimé(e)s. Réessayez ou supprimez-les manuellement.</value>
+  </data>
+  <data name="HomePage_GraphHover_Failed" xml:space="preserve">
+    <value>Échouée</value>
+  </data>
+  <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
+    <value>Réussies</value>
+  </data>
+  <data name="Common_Disabled" xml:space="preserve">
+    <value>Désactivée</value>
+  </data>
+  <data name="RecurringJobsPage_RecurringJobDisabled_Tooltip" xml:space="preserve">
+    <value>L'expression Cron est invalide ou n'a pas d'occurrence dans les 100 prochaines années.</value>
+  </data>
+  <data name="ServersPage_Note_Text" xml:space="preserve">
+    <value>Certains serveurs n'ont pas eu de pulsation dans la dernière minute et pourraient être abandonnés. S'ils ne reportent pas de pulsation dans un futur proche ils seront automatiquement retirés une fois le temps d'attente dépassé, aucune action manuelle n'est requise. Les tâches de fond incomplètes de ces serveurs seront remises en file d'attente automatiquement, mais vous pouvez accélérer le processus en vérifiant la page &lt;a href="{0}"&gt;Tâches en cours&lt;/a&gt;.</value>
+  </data>
+  <data name="ServersPage_Note_Title" xml:space="preserve">
+    <value>Les serveurs abandonnés seront retirés automatiquement</value>
+  </data>
+  <data name="ServersPage_Active" xml:space="preserve">
+    <value>Actif</value>
+  </data>
+  <data name="ServersPage_Possibly_Aborted" xml:space="preserve">
+    <value>Potentiellement abandonné</value>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>Erreur</value>
+  </data>
+  <data name="Arguments" xml:space="preserve">
+    <value>Arguments</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Mettre en pause</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Mise en pause…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Reprendre</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Reprise…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>En pause</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>En pause : reste hors de la planification jusqu’à la reprise. Peut toujours être déclenché manuellement.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Modifier la planification</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Planification</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Une expression CRON ou de l’anglais simple comme « every 15 minutes », « weekdays at 9:30 » ou « last day of month at 23:00 ».</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Prochaines exécutions</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Occurrences manquées</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Exécuter une fois dès que possible (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Exécuter chaque occurrence manquée (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Les ignorer (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Enregistrement…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>Impossible de prévisualiser la planification.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>écoulé</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Progression</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Points de contrôle</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Rien de signalé pour l’instant. Les tâches peuvent signaler progression, lignes et points de contrôle via IJobConsole.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Progression</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Analyses</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Analyses</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>Le stockage actuel ne peut pas lire les listes et les compteurs ; les analyses ne sont pas disponibles.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Pas encore de statistiques. Activez-les avec &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; ou ajoutez &lt;code&gt;[JobInsights]&lt;/code&gt; aux classes de tâches à suivre.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Disjoncteurs</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Ressource</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Échecs</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Depuis</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Réinitialiser</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Exécutions</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Échouées</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Médiane</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Tendance</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Invocateur</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Dernière exécution</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>La dernière exécution a duré plus de trois fois le p95 des exécutions récentes</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Méthodes suivies</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Exécutions enregistrées</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Taux d’échec</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Invocateurs sur ce serveur</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Méthodes exécutées avec des invocateurs générés, compilés ou par réflexion</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Invocateurs de tâches dans ce processus</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>invocateurs générés enregistrés</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>générés</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>compilés</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>réflexion</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Comment les méthodes de tâche exécutées par ce processus ont été appelées. Référencez l’analyseur Masterly.NightShift.SourceGenerator (fourni avec Masterly.NightShift.Core) pour qu’elles soient toutes générées.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Échéance</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>En retard</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>La tâche a dépassé son échéance</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>Terminée {0} après son échéance</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Thème</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Suivre le thème du système</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Thème clair</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Thème sombre</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Rechercher…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Aller à une page, un identifiant de tâche ou une tâche récurrente (Ctrl+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Surveillance</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Vue d’ensemble</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Tout supprimer</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>Supprimer TOUTES les tâches de cette liste ? Cette action est irréversible.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Tout retirer</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>Retirer TOUTES les tâches récurrentes ? Elles ne reviendront que lorsque l’application les enregistrera à nouveau.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>En direct</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Actualiser cette liste automatiquement</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Efface les données des tâches du stockage. Les serveurs continuent de fonctionner.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Effacer toutes les tâches</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Supprime chaque tâche avec son historique, les entrées de files, les compteurs, les consoles et les statistiques. Les tâches récurrentes et les serveurs sont conservés.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>Supprimer TOUTES les tâches et leur historique du stockage ? Cette action est irréversible.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Réinitialiser le stockage</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Supprime tout, y compris les tâches récurrentes et les enregistrements de serveurs, comme si le stockage était neuf.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>Réinitialiser TOUT le stockage ? Les tâches récurrentes disparaissent jusqu’à ce que l’application les enregistre à nouveau. Cette action est irréversible.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Effacement…</value>
+  </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Ce processus</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Processus</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Actif depuis</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Hébergé par IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS arrête les processus de travail inactifs après 20 minutes par défaut, et les tâches s’arrêtent avec eux. Configurez le pool d’applications en &lt;code&gt;AlwaysRunning&lt;/code&gt; avec préchargement et un délai d’inactivité de 0, ou enregistrez &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddNightShiftKeepAlive()&lt;/code&gt;) pour que le processus se sollicite régulièrement. Un recyclage nécessite toujours les paramètres du pool.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>non configuré</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>en attente de la première requête</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>dernière requête réussie</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>dernière requête échouée</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>toutes les {0}</value>
+  </data>
+  <data name="NavigationMenu_Catalog" xml:space="preserve">
+    <value>Catalogue</value>
+  </data>
+  <data name="CatalogPage_Title" xml:space="preserve">
+    <value>Catalogue des tâches</value>
+  </data>
+  <data name="CatalogPage_Hint" xml:space="preserve">
+    <value>chaque méthode de tâche de votre code, prête à être lancée</value>
+  </data>
+  <data name="CatalogPage_NoEntries_Html" xml:space="preserve">
+    <value>Aucune méthode de tâche trouvée. Référencez l’analyseur &lt;code&gt;Masterly.NightShift.SourceGenerator&lt;/code&gt; pour les détecter à la compilation, ou enregistrez des types avec &lt;code&gt;JobCatalog.Add&amp;lt;T&amp;gt;()&lt;/code&gt;.</value>
+  </data>
+  <data name="CatalogPage_Search" xml:space="preserve">
+    <value>Filtrer les méthodes…</value>
+  </data>
+  <data name="CatalogPage_Summary_Methods" xml:space="preserve">
+    <value>méthodes</value>
+  </data>
+  <data name="CatalogPage_Summary_Types" xml:space="preserve">
+    <value>types</value>
+  </data>
+  <data name="CatalogPage_Table_Method" xml:space="preserve">
+    <value>Méthode</value>
+  </data>
+  <data name="CatalogPage_Table_Parameters" xml:space="preserve">
+    <value>Paramètres</value>
+  </data>
+  <data name="CatalogPage_Table_Filters" xml:space="preserve">
+    <value>Filtres</value>
+  </data>
+  <data name="CatalogPage_Table_Stats" xml:space="preserve">
+    <value>Exécutions</value>
+  </data>
+  <data name="CatalogPage_Static" xml:space="preserve">
+    <value>statique</value>
+  </data>
+  <data name="CatalogPage_Injected" xml:space="preserve">
+    <value>injecté par le serveur</value>
+  </data>
+  <data name="CatalogPage_Run" xml:space="preserve">
+    <value>Lancer…</value>
+  </data>
+  <data name="CatalogPage_Runner_Title" xml:space="preserve">
+    <value>Lancer</value>
+  </data>
+  <data name="CatalogPage_Mode_Enqueue" xml:space="preserve">
+    <value>Lancer maintenant</value>
+  </data>
+  <data name="CatalogPage_Mode_Schedule" xml:space="preserve">
+    <value>Plus tard</value>
+  </data>
+  <data name="CatalogPage_Mode_Recurring" xml:space="preserve">
+    <value>Récurrente</value>
+  </data>
+  <data name="CatalogPage_Delay" xml:space="preserve">
+    <value>Délai (minutes)</value>
+  </data>
+  <data name="CatalogPage_RecurringId" xml:space="preserve">
+    <value>Identifiant de la tâche récurrente</value>
+  </data>
+  <data name="CatalogPage_Submit" xml:space="preserve">
+    <value>Créer</value>
+  </data>
+  <data name="CatalogPage_Created" xml:space="preserve">
+    <value>Tâche {0} créée.</value>
+  </data>
+  <data name="CatalogPage_RecurringCreated" xml:space="preserve">
+    <value>Tâche récurrente {0} enregistrée.</value>
+  </data>
+  <data name="ForecastPage_Title" xml:space="preserve">
+    <value>Prévision du planning</value>
+  </data>
+  <data name="ForecastPage_Hint" xml:space="preserve">
+    <value>quand vos tâches récurrentes s’exécuteront et où elles se chevauchent</value>
+  </data>
+  <data name="ForecastPage_Window_24h" xml:space="preserve">
+    <value>24 prochaines heures</value>
+  </data>
+  <data name="ForecastPage_Window_7d" xml:space="preserve">
+    <value>7 prochains jours</value>
+  </data>
+  <data name="ForecastPage_Summary_Runs" xml:space="preserve">
+    <value>exécutions</value>
+  </data>
+  <data name="ForecastPage_Summary_BusyTime" xml:space="preserve">
+    <value>temps d’occupation prévu</value>
+  </data>
+  <data name="ForecastPage_Summary_Busiest" xml:space="preserve">
+    <value>heure la plus chargée</value>
+  </data>
+  <data name="ForecastPage_HotSpots" xml:space="preserve">
+    <value>Points chauds</value>
+  </data>
+  <data name="ForecastPage_HotSpots_Hint" xml:space="preserve">
+    <value>plusieurs tâches démarrent dans les mêmes 5 minutes</value>
+  </data>
+  <data name="ForecastPage_Paused" xml:space="preserve">
+    <value>en pause</value>
+  </data>
+  <data name="ForecastPage_Legend_Expected" xml:space="preserve">
+    <value>exécution prévue, dimensionnée par la durée médiane des Insights</value>
+  </data>
+  <data name="ForecastPage_Legend_Default" xml:space="preserve">
+    <value>aucune exécution enregistrée, 30 secondes supposées</value>
+  </data>
+  <data name="ForecastPage_Table_Slot" xml:space="preserve">
+    <value>Créneau</value>
+  </data>
+  <data name="ForecastPage_Table_Jobs" xml:space="preserve">
+    <value>Tâches</value>
+  </data>
+  <data name="RecurringJobsPage_Forecast" xml:space="preserve">
+    <value>Prévision</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta" xml:space="preserve">
+    <value>~{0} restantes</value>
+  </data>
+  <data name="ProcessingJobsPage_LongerThanUsual" xml:space="preserve">
+    <value>plus long que d’habitude</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta_Tooltip" xml:space="preserve">
+    <value>Estimé à partir de la durée médiane des exécutions passées</value>
+  </data>
+  <data name="HomePage_Activity" xml:space="preserve">
+    <value>Activité en direct</value>
+  </data>
+  <data name="HomePage_Activity_Hint" xml:space="preserve">
+    <value>chaque changement d’état dans tout le cluster</value>
+  </data>
+  <data name="HomePage_Activity_Empty" xml:space="preserve">
+    <value>Rien ne s’est encore passé.</value>
+  </data>
+  <data name="LayoutPage_Drain_Banner" xml:space="preserve">
+    <value>Le traitement est en pause : les nouvelles tâches attendent, celles en cours se terminent.</value>
+  </data>
+  <data name="LayoutPage_Drain_Since" xml:space="preserve">
+    <value>depuis {0}</value>
+  </data>
+  <data name="LayoutPage_Drain_Resume" xml:space="preserve">
+    <value>Reprendre</value>
+  </data>
+  <data name="ServersPage_Processing" xml:space="preserve">
+    <value>Traitement</value>
+  </data>
+  <data name="ServersPage_Processing_Hint" xml:space="preserve">
+    <value>mettez en pause avant un déploiement ou une fenêtre de maintenance</value>
+  </data>
+  <data name="ServersPage_Processing_Running" xml:space="preserve">
+    <value>en cours</value>
+  </data>
+  <data name="ServersPage_Processing_Paused" xml:space="preserve">
+    <value>en pause</value>
+  </data>
+  <data name="ServersPage_Pause" xml:space="preserve">
+    <value>Mettre en pause</value>
+  </data>
+  <data name="ServersPage_Pause_Reason" xml:space="preserve">
+    <value>Motif (facultatif)</value>
+  </data>
+  <data name="ServersPage_Resume" xml:space="preserve">
+    <value>Reprendre le traitement</value>
+  </data>
+  <data name="ServersPage_Paused_Since" xml:space="preserve">
+    <value>en pause {0}</value>
+  </data>
+  <data name="ServersPage_Pause_HeldHint" xml:space="preserve">
+    <value>Pendant la pause, les workers rendent les nouvelles tâches au planning et revérifient toutes les {0}.</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode" xml:space="preserve">
+    <value>Copier en C#</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode_Hint" xml:space="preserve">
+    <value>Copie l’instruction qui recrée cette tâche</value>
+  </data>
+  <data name="JobDetailsPage_Copied" xml:space="preserve">
+    <value>Copié</value>
+  </data>
+  <data name="JobDetailsPage_FanInContinuations" xml:space="preserve">
+    <value>Continuations fan-in</value>
+  </data>
+  <data name="InsightsPage_Anomalies" xml:space="preserve">
+    <value>À surveiller</value>
+  </data>
+  <data name="InsightsPage_Anomalies_Hint" xml:space="preserve">
+    <value>méthodes dont le comportement a changé</value>
+  </data>
+  <data name="InsightsPage_Anomalies_None" xml:space="preserve">
+    <value>Tout semble normal.</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowingDown" xml:space="preserve">
+    <value>ralentit : {0} récemment contre {1} avant</value>
+  </data>
+  <data name="InsightsPage_Anomaly_FailureRate" xml:space="preserve">
+    <value>{0} des exécutions échouent</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowRun" xml:space="preserve">
+    <value>la dernière exécution a duré {0}</value>
+  </data>
+  <data name="ForecastPage_Dense" xml:space="preserve">
+    <value>{0} exécutions, trop nombreuses pour être dessinées une à une</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>Diagnostic</value>
+  </data>
+  <data name="Diagnostics_Hint" xml:space="preserve">
+    <value>pourquoi la tâche en est là, et ce qui la ferait avancer</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>Le diagnostic n’a pas pu être terminé : {0}</value>
+  </data>
+  <data name="Diagnostics_NoServers" xml:space="preserve">
+    <value>Aucun serveur ne tourne. Les tâches attendent qu’un serveur démarre.</value>
+  </data>
+  <data name="Diagnostics_ServersStale" xml:space="preserve">
+    <value>Tous les serveurs enregistrés ont manqué leur battement de cœur ; ils ont peut-être été arrêtés ou ont perdu la connexion.</value>
+  </data>
+  <data name="Diagnostics_QueueUnserved" xml:space="preserve">
+    <value>Aucun serveur en marche n’écoute la file {0}. Les serveurs en marche écoutent : {1}</value>
+  </data>
+  <data name="Diagnostics_Drain" xml:space="preserve">
+    <value>Le traitement est en pause{0}. Les workers rendent les tâches jusqu’à la reprise.</value>
+  </data>
+  <data name="Diagnostics_Waiting" xml:space="preserve">
+    <value>En attente dans la file {0} depuis {1}, avec {2} autres tâches. Des serveurs écoutent, la file est simplement chargée.</value>
+  </data>
+  <data name="Diagnostics_Healthy" xml:space="preserve">
+    <value>Rien ne la retient : la file {0} est servie et elle devrait démarrer bientôt.</value>
+  </data>
+  <data name="Diagnostics_RetryPending" xml:space="preserve">
+    <value>La nouvelle tentative {0} sur {1} est en attente.</value>
+  </data>
+  <data name="Diagnostics_RetryLater" xml:space="preserve">
+    <value>La tâche a demandé à être réessayée plus tard et attend l’heure qu’elle a choisie.</value>
+  </data>
+  <data name="Diagnostics_ScheduledDue" xml:space="preserve">
+    <value>Programmée pour être mise en file {0}.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue" xml:space="preserve">
+    <value>Était due {0}, mais aucun serveur ne l’a mise en file. Le planificateur de tâches différées tourne sur chaque serveur ; vérifiez leurs journaux pour des erreurs de stockage.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue_NoServers" xml:space="preserve">
+    <value>Était due {0}, mais aucun serveur en marche ne peut la mettre en file.</value>
+  </data>
+  <data name="Diagnostics_ParentMissing" xml:space="preserve">
+    <value>La tâche parente {0} n’existe plus : cette tâche ne démarrera jamais automatiquement. Supprimez-la ou mettez-la en file à la main.</value>
+  </data>
+  <data name="Diagnostics_ConditionFailed" xml:space="preserve">
+    <value>La tâche parente {0} s’est terminée en {1}, ce qui ne satisfait pas la condition de cette continuation. Elle reste ici jusqu’à être mise en file ou supprimée à la main.</value>
+  </data>
+  <data name="Diagnostics_ParentFinished" xml:space="preserve">
+    <value>La tâche parente {0} s’est déjà terminée en {1} ; cette tâche aurait dû être mise en file et le sera quand un serveur rattrapera son retard.</value>
+  </data>
+  <data name="Diagnostics_ParentFailed" xml:space="preserve">
+    <value>La tâche parente {0} a échoué et ne sera pas réessayée : cette tâche reste ici jusqu’à ce que le parent soit remis en file.</value>
+  </data>
+  <data name="Diagnostics_ParentRetrying" xml:space="preserve">
+    <value>La tâche parente {0} est {1} pour une nouvelle tentative ; cette tâche démarre quand le parent se termine.</value>
+  </data>
+  <data name="Diagnostics_ParentWaiting" xml:space="preserve">
+    <value>En attente de la tâche parente {0}, actuellement {1}.</value>
+  </data>
+  <data name="Diagnostics_FanIn" xml:space="preserve">
+    <value>Fan-in : {0} parents sur {1} sont terminés ({2}).</value>
+  </data>
+  <data name="Diagnostics_FanIn_All" xml:space="preserve">
+    <value>attend tous</value>
+  </data>
+  <data name="Diagnostics_FanIn_Any" xml:space="preserve">
+    <value>démarre après le premier</value>
+  </data>
+  <data name="Diagnostics_ServerGone" xml:space="preserve">
+    <value>Le serveur {0}, qui a pris cette tâche, n’est plus enregistré. Le stockage rend la tâche à sa file après le délai d’invisibilité ; remettez-la en file pour démarrer plus tôt.</value>
+  </data>
+  <data name="Diagnostics_ServerStale" xml:space="preserve">
+    <value>Le serveur {0} s’est signalé pour la dernière fois {1}. S’il a été arrêté, la tâche revient après le délai d’invisibilité.</value>
+  </data>
+  <data name="Diagnostics_Slow" xml:space="preserve">
+    <value>En cours depuis {0} ; cette méthode se termine habituellement en {1}.</value>
+  </data>
+  <data name="Diagnostics_Running" xml:space="preserve">
+    <value>En cours sur {0} depuis {1}.</value>
+  </data>
+  <data name="Diagnostics_Running_Usual" xml:space="preserve">
+    <value>En cours sur {0} depuis {1} ; cette méthode se termine habituellement en {2}.</value>
+  </data>
+  <data name="Diagnostics_RetriesExhausted" xml:space="preserve">
+    <value>Réessayée {0} fois sans succès ; plus aucune tentative automatique. Remettez-la en file pour réessayer.</value>
+  </data>
+  <data name="Diagnostics_RetriesDisabled" xml:space="preserve">
+    <value>Les nouvelles tentatives automatiques sont désactivées pour cette méthode : le premier échec est définitif.</value>
+  </data>
+  <data name="Diagnostics_NotRetried" xml:space="preserve">
+    <value>L’échec n’a pas été réessayé : soit le type d’exception est exclu des tentatives, soit le filtre de nouvelle tentative n’est pas enregistré.</value>
+  </data>
+  <data name="Diagnostics_RetryLaterRequests" xml:space="preserve">
+    <value>La tâche a demandé {0} fois à être réessayée plus tard avant cet échec.</value>
+  </data>
+  <data name="Diagnostics_CircuitOpen" xml:space="preserve">
+    <value>Le disjoncteur {0} s’est ouvert {1}. Les tâches derrière lui sont repoussées à la récupération jusqu’à ce qu’il s’entrouvre.</value>
+  </data>
+  <data name="Common_Redacted" xml:space="preserve">
+    <value>Masqué : cet argument est marqué [Redacted]</value>
+  </data>
+  <data name="JobDetailsPage_Lineage" xml:space="preserve">
+    <value>Lignée</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Hint" xml:space="preserve">
+    <value>les tâches que celle-ci a attendues, et celles qui l’attendent</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Truncated" xml:space="preserve">
+    <value>Seules les tâches les plus proches sont affichées.</value>
+  </data>
+  <data name="Lineage_AfterSuccess" xml:space="preserve">
+    <value>après succès</value>
+  </data>
+  <data name="Lineage_AfterFinish" xml:space="preserve">
+    <value>après fin</value>
+  </data>
+  <data name="Lineage_AfterDelete" xml:space="preserve">
+    <value>après suppression</value>
+  </data>
+  <data name="Lineage_All" xml:space="preserve">
+    <value>toutes</value>
+  </data>
+  <data name="Lineage_Any" xml:space="preserve">
+    <value>l’une de</value>
+  </data>
+  <data name="JobDetailsPage_Tags" xml:space="preserve">
+    <value>Étiquettes</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain" xml:space="preserve">
+    <value>Relancer avec des modifications…</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain_Hint" xml:space="preserve">
+    <value>Créer une nouvelle tâche à partir de celle-ci avec des arguments modifiés, maintenant, plus tard ou selon un planning</value>
+  </data>
+  <data name="CatalogPage_Runner_Redacted" xml:space="preserve">
+    <value>masqué, saisissez de nouveau la valeur</value>
+  </data>
+  <data name="FailedJobsPage_Clusters" xml:space="preserve">
+    <value>Groupes d’échecs</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Hint" xml:space="preserve">
+    <value>les {0} derniers échecs, groupés par exception et méthode</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Jobs" xml:space="preserve">
+    <value>{0} tâches</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_FirstSeen" xml:space="preserve">
+    <value>premier</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_LastSeen" xml:space="preserve">
+    <value>dernier</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Requeue" xml:space="preserve">
+    <value>Remettre en file les {0}</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Delete" xml:space="preserve">
+    <value>Supprimer les {0}</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_DeleteConfirm" xml:space="preserve">
+    <value>Supprimer toutes les tâches de ce groupe ?</value>
+  </data>
+  <data name="RecurringJobsPage_Export" xml:space="preserve">
+    <value>Exporter</value>
+  </data>
+  <data name="RecurringJobsPage_Export_Hint" xml:space="preserve">
+    <value>Télécharger toutes les tâches récurrentes en manifeste JSON</value>
+  </data>
+  <data name="RecurringJobsPage_Import" xml:space="preserve">
+    <value>Importer…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Title" xml:space="preserve">
+    <value>Importer des tâches récurrentes</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Hint" xml:space="preserve">
+    <value>Collez un manifeste exporté depuis cet environnement ou un autre, ou choisissez le fichier. Les tâches existantes de même id sont mises à jour.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_File" xml:space="preserve">
+    <value>Choisir un fichier</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Prune" xml:space="preserve">
+    <value>Supprimer les tâches récurrentes absentes du manifeste</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Apply" xml:space="preserve">
+    <value>Appliquer</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Applying" xml:space="preserve">
+    <value>Application…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Result" xml:space="preserve">
+    <value>{0} ajoutées, {1} mises à jour, {2} supprimées, {3} en échec</value>
+  </data>
+  <data name="RecurringJobsPage_Late" xml:space="preserve">
+    <value>En retard</value>
+  </data>
+  <data name="RecurringJobsPage_Late_Tooltip" xml:space="preserve">
+    <value>La prochaine exécution était due il y a plus d’une minute et aucun serveur ne l’a lancée</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary" xml:space="preserve">
+    <value>{0} tâches récurrentes sont en retard : leur prochaine exécution était due il y a plus d’une minute. Vérifiez qu’un serveur en marche a le planificateur de tâches récurrentes activé et atteint le stockage.</value>
+  </data>
+  <data name="TagsPage_Title" xml:space="preserve">
+    <value>Étiquettes</value>
+  </data>
+  <data name="TagsPage_Hint" xml:space="preserve">
+    <value>retrouver les tâches par leur sujet</value>
+  </data>
+  <data name="TagsPage_NoTags_Html" xml:space="preserve">
+    <value>Pas encore d’étiquettes. Placez &lt;code&gt;[Tag(&amp;quot;customer:{0}&amp;quot;)]&lt;/code&gt; sur une méthode de tâche pour étiqueter ses tâches avec leur premier argument, ou appelez &lt;code&gt;JobTags.Add(jobId, &amp;quot;tag&amp;quot;)&lt;/code&gt;.</value>
+  </data>
+  <data name="TagsPage_Table_Tag" xml:space="preserve">
+    <value>Étiquette</value>
+  </data>
+  <data name="TagsPage_Table_Jobs" xml:space="preserve">
+    <value>Tâches</value>
+  </data>
+  <data name="TagsPage_Forget" xml:space="preserve">
+    <value>Oublier</value>
+  </data>
+  <data name="TagsPage_ForgetConfirm" xml:space="preserve">
+    <value>Oublier cette étiquette ? Les tâches elles-mêmes sont conservées.</value>
+  </data>
+  <data name="TagsPage_Search" xml:space="preserve">
+    <value>Filtrer les étiquettes…</value>
+  </data>
+  <data name="TaggedJobsPage_Title" xml:space="preserve">
+    <value>Étiquetées {0}</value>
+  </data>
+  <data name="TaggedJobsPage_NoJobs" xml:space="preserve">
+    <value>Plus aucune tâche ne porte cette étiquette.</value>
+  </data>
+  <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
+    <value>{0} tâches expirées ont été retirées de l’étiquette.</value>
+  </data>
+  <data name="NavigationMenu_Tags" xml:space="preserve">
+    <value>Étiquettes</value>
+  </data>
+  <data name="NavigationMenu_Batches" xml:space="preserve">
+    <value>Lots</value>
+  </data>
+  <data name="NavigationMenu_Audit" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="Diagnostics_QueuePaused" xml:space="preserve">
+    <value>La file {0} est en pause{1}. Les workers rendent ses tâches jusqu’à la reprise.</value>
+  </data>
+  <data name="BatchesPage_Title" xml:space="preserve">
+    <value>Lots</value>
+  </data>
+  <data name="BatchesPage_Hint" xml:space="preserve">
+    <value>groupes de tâches suivis et poursuivis comme un tout</value>
+  </data>
+  <data name="BatchesPage_NoBatches_Html" xml:space="preserve">
+    <value>Pas encore de lots. Créez-en un avec &lt;code&gt;BatchJob.StartNew(b =&amp;gt; { b.Enqueue(...); b.Enqueue(...); })&lt;/code&gt; et poursuivez-le avec &lt;code&gt;BatchJob.ContinueWith(batchId, ...)&lt;/code&gt;.</value>
+  </data>
+  <data name="BatchesPage_Table_Batch" xml:space="preserve">
+    <value>Lot</value>
+  </data>
+  <data name="BatchesPage_Table_Progress" xml:space="preserve">
+    <value>Progression</value>
+  </data>
+  <data name="BatchesPage_Table_Jobs" xml:space="preserve">
+    <value>Tâches</value>
+  </data>
+  <data name="BatchesPage_Table_Created" xml:space="preserve">
+    <value>Créé</value>
+  </data>
+  <data name="BatchesPage_State_Running" xml:space="preserve">
+    <value>En cours</value>
+  </data>
+  <data name="BatchesPage_State_Finished" xml:space="preserve">
+    <value>Terminé</value>
+  </data>
+  <data name="BatchesPage_State_Failed" xml:space="preserve">
+    <value>Tâches en échec</value>
+  </data>
+  <data name="BatchesPage_Counts" xml:space="preserve">
+    <value>{0} réussies · {1} en échec · {2} en attente</value>
+  </data>
+  <data name="BatchDetailsPage_Title" xml:space="preserve">
+    <value>Lot {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Expired" xml:space="preserve">
+    <value>Le lot {0} n’existe pas ou a expiré.</value>
+  </data>
+  <data name="BatchDetailsPage_RequeueFailed" xml:space="preserve">
+    <value>Remettre en file les échecs ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePending" xml:space="preserve">
+    <value>Supprimer les inachevées ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePendingConfirm" xml:space="preserve">
+    <value>Supprimer toutes les tâches de ce lot qui ne sont pas terminées ?</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations" xml:space="preserve">
+    <value>Continuations</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations_Hint" xml:space="preserve">
+    <value>démarrent quand toutes les tâches du lot sont terminées</value>
+  </data>
+  <data name="BatchDetailsPage_JobsInBatch" xml:space="preserve">
+    <value>Tâches du lot</value>
+  </data>
+  <data name="BatchDetailsPage_MoreJobs" xml:space="preserve">
+    <value>{0} tâches de plus ne sont pas affichées.</value>
+  </data>
+  <data name="JobDetailsPage_Batch" xml:space="preserve">
+    <value>Lot</value>
+  </data>
+  <data name="JobDetailsPage_BatchContinuation" xml:space="preserve">
+    <value>Continuation du lot</value>
+  </data>
+  <data name="AuditPage_Title" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="AuditPage_Hint" xml:space="preserve">
+    <value>qui a fait quoi sur ce tableau de bord</value>
+  </data>
+  <data name="AuditPage_NoEntries" xml:space="preserve">
+    <value>Rien n’a encore été fait depuis le tableau de bord.</value>
+  </data>
+  <data name="AuditPage_Table_When" xml:space="preserve">
+    <value>Quand</value>
+  </data>
+  <data name="AuditPage_Table_User" xml:space="preserve">
+    <value>Utilisateur</value>
+  </data>
+  <data name="AuditPage_Table_Action" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="AuditPage_Table_Targets" xml:space="preserve">
+    <value>Cibles</value>
+  </data>
+  <data name="AuditPage_Table_Detail" xml:space="preserve">
+    <value>Détail</value>
+  </data>
+  <data name="AuditPage_Anonymous" xml:space="preserve">
+    <value>anonyme</value>
+  </data>
+  <data name="AuditPage_More" xml:space="preserve">
+    <value>et {0} de plus</value>
+  </data>
+  <data name="AuditPage_Disabled" xml:space="preserve">
+    <value>L’enregistrement est désactivé (AuditLog.Enabled = false).</value>
+  </data>
+  <data name="QueuesPage_Table_Latency" xml:space="preserve">
+    <value>Attente</value>
+  </data>
+  <data name="QueuesPage_Table_Latency_Hint" xml:space="preserve">
+    <value>médiane · p95 de l’attente avant qu’un worker prenne la tâche, sur les 200 derniers démarrages</value>
+  </data>
+  <data name="QueuesPage_Table_Throughput" xml:space="preserve">
+    <value>Par minute</value>
+  </data>
+  <data name="QueuesPage_Table_ClearsIn" xml:space="preserve">
+    <value>Vide dans</value>
+  </data>
+  <data name="QueuesPage_Stalled" xml:space="preserve">
+    <value>bloquée</value>
+  </data>
+  <data name="QueuesPage_Stalled_Tooltip" xml:space="preserve">
+    <value>Des tâches attendent mais aucun worker n’en a pris depuis cinq minutes</value>
+  </data>
+  <data name="QueuesPage_Paused" xml:space="preserve">
+    <value>En pause</value>
+  </data>
+  <data name="QueuesPage_Pause" xml:space="preserve">
+    <value>Mettre en pause</value>
+  </data>
+  <data name="QueuesPage_Resume" xml:space="preserve">
+    <value>Reprendre</value>
+  </data>
+  <data name="QueuesPage_PauseConfirm" xml:space="preserve">
+    <value>Mettre cette file en pause ? Ses tâches sont retenues jusqu’à la reprise ; les autres files continuent.</value>
+  </data>
+  <data name="QueuesPage_Insights_Hint" xml:space="preserve">
+    <value>L’attente et le débit nécessitent UseJobInsights().</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused" xml:space="preserve">
+    <value>Files en pause : {0}</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused_Link" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="NavigationMenu_Timeline" xml:space="preserve">
+    <value>Chronologie</value>
+  </data>
+  <data name="NavigationMenu_Wallboard" xml:space="preserve">
+    <value>Tableau mural</value>
+  </data>
+  <data name="TimelinePage_Title" xml:space="preserve">
+    <value>Chronologie</value>
+  </data>
+  <data name="TimelinePage_Hint" xml:space="preserve">
+    <value>ce que chaque worker a fait ces dernières minutes, d’après le fil d’activité</value>
+  </data>
+  <data name="TimelinePage_Empty" xml:space="preserve">
+    <value>Aucune exécution enregistrée pour l’instant. La chronologie se remplit au fil des traitements.</value>
+  </data>
+  <data name="TimelinePage_Summary" xml:space="preserve">
+    <value>{0} exécutions sur {1} workers de {2} serveurs ces {3}</value>
+  </data>
+  <data name="TimelinePage_Running" xml:space="preserve">
+    <value>en cours</value>
+  </data>
+  <data name="TimelinePage_Legend_Held" xml:space="preserve">
+    <value>retenu ou réessayé</value>
+  </data>
+  <data name="WallboardPage_Title" xml:space="preserve">
+    <value>Tableau mural</value>
+  </data>
+  <data name="WallboardPage_Healthy" xml:space="preserve">
+    <value>Tout va bien</value>
+  </data>
+  <data name="WallboardPage_Degraded" xml:space="preserve">
+    <value>À surveiller</value>
+  </data>
+  <data name="WallboardPage_Unhealthy" xml:space="preserve">
+    <value>Le traitement est arrêté</value>
+  </data>
+  <data name="WallboardPage_Servers" xml:space="preserve">
+    <value>serveurs actifs</value>
+  </data>
+  <data name="WallboardPage_Workers" xml:space="preserve">
+    <value>{0} workers</value>
+  </data>
+  <data name="WallboardPage_Waiting" xml:space="preserve">
+    <value>en attente</value>
+  </data>
+  <data name="WallboardPage_Running" xml:space="preserve">
+    <value>en cours</value>
+  </data>
+  <data name="WallboardPage_Scheduled" xml:space="preserve">
+    <value>planifiées</value>
+  </data>
+  <data name="WallboardPage_Failed" xml:space="preserve">
+    <value>en échec</value>
+  </data>
+  <data name="WallboardPage_SuccessRate" xml:space="preserve">
+    <value>taux de réussite, dernière heure</value>
+  </data>
+  <data name="WallboardPage_Finished" xml:space="preserve">
+    <value>terminées, dernière heure</value>
+  </data>
+  <data name="WallboardPage_Queues" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="WallboardPage_ClearsIn" xml:space="preserve">
+    <value>vide dans {0}</value>
+  </data>
+  <data name="WallboardPage_Empty" xml:space="preserve">
+    <value>vide</value>
+  </data>
+  <data name="WallboardPage_RunningJobs" xml:space="preserve">
+    <value>En cours maintenant</value>
+  </data>
+  <data name="WallboardPage_NothingRunning" xml:space="preserve">
+    <value>Rien ne tourne.</value>
+  </data>
+  <data name="WallboardPage_Attention" xml:space="preserve">
+    <value>Attention</value>
+  </data>
+  <data name="WallboardPage_NothingToReport" xml:space="preserve">
+    <value>Rien à signaler.</value>
+  </data>
+  <data name="WallboardPage_LateRecurring" xml:space="preserve">
+    <value>{0} tâches récurrentes sont en retard</value>
+  </data>
+  <data name="WallboardPage_PausedQueues" xml:space="preserve">
+    <value>Files en pause : {0}</value>
+  </data>
+  <data name="WallboardPage_PausedServers" xml:space="preserve">
+    <value>Serveurs en pause : {0}</value>
+  </data>
+  <data name="WallboardPage_OpenCircuits" xml:space="preserve">
+    <value>Disjoncteurs ouverts : {0}</value>
+  </data>
+  <data name="WallboardPage_Drain" xml:space="preserve">
+    <value>Le traitement est en pause</value>
+  </data>
+  <data name="WallboardPage_Refresh" xml:space="preserve">
+    <value>se rafraîchit toutes les {0} secondes</value>
+  </data>
+  <data name="WallboardPage_Exit" xml:space="preserve">
+    <value>Tableau de bord</value>
+  </data>
+  <data name="InsightsPage_Heatmap" xml:space="preserve">
+    <value>Activité, 7 derniers jours</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Hint" xml:space="preserve">
+    <value>tâches terminées par heure (UTC) ; rouge quand les échecs dépassent les réussites</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Cell" xml:space="preserve">
+    <value>{0} : {1} réussies, {2} en échec</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Empty" xml:space="preserve">
+    <value>Les compteurs apparaissent à mesure que des tâches se terminent ; l’historique horaire est désormais conservé une semaine.</value>
+  </data>
+  <data name="JobDetailsPage_Notes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Hint" xml:space="preserve">
+    <value>pour la prochaine personne qui ouvrira cette tâche</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Placeholder" xml:space="preserve">
+    <value>Qu’avez-vous découvert ?</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Add" xml:space="preserve">
+    <value>Ajouter une note</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledge" xml:space="preserve">
+    <value>Prendre en charge</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledged" xml:space="preserve">
+    <value>Pris en charge</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Empty" xml:space="preserve">
+    <value>Pas encore de notes.</value>
+  </data>
+  <data name="JobDetailsPage_Watch" xml:space="preserve">
+    <value>Suivre</value>
+  </data>
+  <data name="JobDetailsPage_Watching" xml:space="preserve">
+    <value>Suivi</value>
+  </data>
+  <data name="JobDetailsPage_Watch_Hint" xml:space="preserve">
+    <value>Suivre cette tâche dans la barre latérale et recevoir une notification du navigateur quand elle se termine</value>
+  </data>
+  <data name="JobDetailsPage_Export" xml:space="preserve">
+    <value>Exporter en JSON</value>
+  </data>
+  <data name="JobDetailsPage_StateTimeline" xml:space="preserve">
+    <value>Temps passé dans chaque état</value>
+  </data>
+  <data name="FailedJobsPage_Acknowledged" xml:space="preserve">
+    <value>Pris en charge</value>
+  </data>
+  <data name="Common_DownloadCsv" xml:space="preserve">
+    <value>Télécharger le CSV</value>
+  </data>
+  <data name="Common_Anonymous" xml:space="preserve">
+    <value>quelqu’un</value>
+  </data>
+  <data name="ServersPage_Resume_Server" xml:space="preserve">
+    <value>Reprendre</value>
+  </data>
+  <data name="ServersPage_Paused" xml:space="preserve">
+    <value>En pause</value>
+  </data>
+  <data name="ServersPage_PauseConfirm" xml:space="preserve">
+    <value>Mettre ce serveur en pause ? Il rend les nouvelles tâches à la file pour les autres serveurs ; ses tâches en cours se terminent.</value>
+  </data>
+  <data name="LayoutPage_ServersPaused" xml:space="preserve">
+    <value>Serveurs en pause : {0}</value>
+  </data>
+  <data name="LayoutPage_Watchlist" xml:space="preserve">
+    <value>Suivi</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Empty" xml:space="preserve">
+    <value>Suivez une tâche depuis sa page pour la retrouver ici.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Done" xml:space="preserve">
+    <value>La tâche {0} est terminée : {1}</value>
+  </data>
+  <data name="LayoutPage_Shortcuts" xml:space="preserve">
+    <value>Raccourcis clavier</value>
+  </data>
+  <data name="ServersPage_Pause_Server" xml:space="preserve">
+    <value>Mettre en pause</value>
+  </data>
+</root>

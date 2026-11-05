@@ -1,0 +1,198 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Globalization
+@using System.Linq
+@using System.Reflection
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage
+@using Masterly.NightShift.Storage.Monitoring
+@inherits RazorPage
+@{
+    // A full-screen status board for a wall display: no navigation, large numbers, refreshes itself.
+    const int refreshSeconds = 10;
+    var now = StorageUtcNow ?? ApplicationUtcNow;
+    var report = DashboardHealth.Check(Storage, DashboardOptions, now);
+    var monitor = Storage.GetMonitoringApi();
+
+    var hourlySucceeded = monitor.HourlySucceededJobs();
+    var hourlyFailed = monitor.HourlyFailedJobs();
+    var succeededHour = hourlySucceeded.OrderByDescending(p => p.Key).Take(2).Sum(p => p.Value);
+    var failedHour = hourlyFailed.OrderByDescending(p => p.Key).Take(2).Sum(p => p.Value);
+    var finishedHour = succeededHour + failedHour;
+    double? successRate = finishedHour == 0 ? (double?)null : 100.0 * succeededHour / finishedHour;
+
+    var processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto>(new List<KeyValuePair<string, ProcessingJobDto>>()) : monitor.ProcessingJobs(0, 8);
+    var totalWorkers = monitor.Servers().Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= now - DashboardOptions.ServerPossiblyAbortedThreshold).Sum(s => s.WorkersCount);
+
+    IReadOnlyDictionary<string, QueueHealth> queueHealth = new Dictionary<string, QueueHealth>();
+    var insights = new Dictionary<string, JobInsight>(StringComparer.Ordinal);
+    var openCircuits = new List<string>();
+    DrainModeStatus drain = DrainModeStatus.Inactive;
+
+    try
+    {
+        using (var connection = Storage.GetReadOnlyConnection())
+        {
+            queueHealth = QueueInsights.ReadAll(connection);
+            drain = DrainMode.Read(connection);
+
+            foreach (var resource in connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey) ?? new HashSet<string>())
+            {
+                if (CircuitBreakerAttribute.ReadCircuit(connection, resource).State == CircuitBreakerAttribute.OpenState) openCircuits.Add(resource);
+            }
+
+            if (connection is JobStorageConnection storageConnection)
+            {
+                foreach (var key in processing.Where(p => p.Value != null && p.Value.Job != null).Select(p => JobInsightsAttribute.GetKey(p.Value.Job)).Distinct(StringComparer.Ordinal))
+                {
+                    var insight = JobInsightsAttribute.Read(storageConnection, key);
+                    if (insight != null) insights[key] = insight;
+                }
+            }
+        }
+    }
+    catch (Exception)
+    {
+        // The storage check above already reports the outage
+    }
+
+    var attention = report.Checks.Where(c => c.Status != HealthStatus.Healthy).Select(c => c.Name + ": " + c.Detail).ToList();
+    if (openCircuits.Count > 0) attention.Add(String.Format(Strings.WallboardPage_OpenCircuits, String.Join(", ", openCircuits)));
+
+    var statusClass = report.Status == HealthStatus.Healthy ? "hf-wb-ok" : report.Status == HealthStatus.Degraded ? "hf-wb-warn" : "hf-wb-down";
+    var statusText = report.Status == HealthStatus.Healthy ? Strings.WallboardPage_Healthy : report.Status == HealthStatus.Degraded ? Strings.WallboardPage_Degraded : Strings.WallboardPage_Unhealthy;
+
+    var version = GetType().GetTypeInfo().Assembly.GetName().Version;
+    var statistics = report.Statistics;
+}<!DOCTYPE html>
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" data-theme="dark" class="hf-wb-html">
+<head>
+    <title>@Strings.WallboardPage_Title – @(DashboardOptions.DashboardTitle.Contains("<") ? "Masterly.NightShift Dashboard" : DashboardOptions.DashboardTitle)</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="none">
+    <meta http-equiv="refresh" content="@refreshSeconds">
+    <link rel="stylesheet" href="@Url.To($"/css{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.StylesheetsHashCode)}")">
+    <link rel="stylesheet" media="all" href="@Url.To($"/css-dark{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.StylesheetsDarkModeHashCode)}")">
+</head>
+<body class="hf-app hf-wallboard @statusClass">
+    <header class="hf-wb-header">
+        <div class="hf-wb-brand">
+            <span class="hf-brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M3 1.5h2v5.3h6V1.5h2v13h-2V8.8H5v5.7H3z"/></svg></span>
+            <span>@Html.Raw(DashboardOptions.DashboardTitle)</span>
+        </div>
+        <div class="hf-wb-status"><span class="hf-wb-status-dot"></span>@statusText</div>
+        <div class="hf-wb-clock">
+            <span class="hf-wb-time" data-moment-local="@JobHelper.ToTimestamp(now)" data-moment-local-format="time">@now.ToString("HH:mm", CultureInfo.CurrentCulture)</span>
+            <a class="hf-wb-exit" href="@Url.Home()">@Strings.WallboardPage_Exit &rarr;</a>
+        </div>
+    </header>
+
+    <main class="hf-wb-grid">
+        <section class="hf-wb-tile hf-wb-tile-servers">
+            <div class="hf-wb-value">@report.Servers</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_Servers</div>
+            <div class="hf-wb-sub">@String.Format(Strings.WallboardPage_Workers, totalWorkers)</div>
+        </section>
+        <section class="hf-wb-tile">
+            <div class="hf-wb-value">@(statistics != null ? statistics.Processing.ToString("N0", CultureInfo.CurrentCulture) : "–")</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_Running</div>
+        </section>
+        <section class="hf-wb-tile">
+            <div class="hf-wb-value">@(statistics != null ? statistics.Enqueued.ToString("N0", CultureInfo.CurrentCulture) : "–")</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_Waiting</div>
+        </section>
+        <section class="hf-wb-tile">
+            <div class="hf-wb-value">@(statistics != null ? statistics.Scheduled.ToString("N0", CultureInfo.CurrentCulture) : "–")</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_Scheduled</div>
+        </section>
+        <section class="hf-wb-tile @(statistics != null && statistics.Failed > 0 ? "hf-wb-tile-bad" : null)">
+            <div class="hf-wb-value">@(statistics != null ? statistics.Failed.ToString("N0", CultureInfo.CurrentCulture) : "–")</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_Failed</div>
+        </section>
+        <section class="hf-wb-tile @(successRate.HasValue && successRate < 95 ? "hf-wb-tile-bad" : successRate.HasValue ? "hf-wb-tile-good" : null)">
+            <div class="hf-wb-value">@(successRate.HasValue ? successRate.Value.ToString("0.#", CultureInfo.CurrentCulture) + "%" : "–")</div>
+            <div class="hf-wb-label">@Strings.WallboardPage_SuccessRate</div>
+            <div class="hf-wb-sub">@finishedHour.ToString("N0", CultureInfo.CurrentCulture) @Strings.WallboardPage_Finished</div>
+        </section>
+
+        <section class="hf-wb-card hf-wb-queues">
+            <h2>@Strings.WallboardPage_Queues</h2>
+            @{ var maxLength = Math.Max(1, report.Queues.Count == 0 ? 1 : report.Queues.Max(q => q.Length)); }
+            @if (report.Queues.Count == 0)
+            {
+                <p class="hf-wb-muted">@Strings.WallboardPage_Empty</p>
+            }
+            @foreach (var queue in report.Queues.OrderByDescending(q => q.Length))
+            {
+                var health = queueHealth.TryGetValue(queue.Name, out var h) ? h : null;
+                var eta = health != null ? health.EstimateDrain(queue.Length) : null;
+                var paused = drain.PausedQueues.ContainsKey(queue.Name);
+                <div class="hf-wb-queue @(paused ? "hf-wb-queue-paused" : null)">
+                    <div class="hf-wb-queue-head">
+                        <span class="hf-wb-queue-name">@queue.Name @if (paused) { <span class="hf-wb-pill">@Strings.QueuesPage_Paused</span> }</span>
+                        <span class="hf-wb-queue-count">@queue.Length.ToString("N0", CultureInfo.CurrentCulture)</span>
+                    </div>
+                    <div class="hf-wb-bar"><span style="width: @((100.0 * queue.Length / maxLength).ToString("0.#", CultureInfo.InvariantCulture))%"></span></div>
+                    <div class="hf-wb-queue-sub">
+                        @if (queue.Length == 0) { @Strings.WallboardPage_Empty }
+                        else if (eta.HasValue) { @String.Format(Strings.WallboardPage_ClearsIn, Html.ToHumanDuration(eta, false)) }
+                        else if (health != null) { <text>&infin;</text> }
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section class="hf-wb-card hf-wb-running">
+            <h2>@Strings.WallboardPage_RunningJobs</h2>
+            @if (processing.Count == 0)
+            {
+                <p class="hf-wb-muted">@Strings.WallboardPage_NothingRunning</p>
+            }
+            @foreach (var job in processing)
+            {
+                if (job.Value == null || !job.Value.InProcessingState) continue;
+                var elapsed = job.Value.StartedAt.HasValue ? now - job.Value.StartedAt.Value : (TimeSpan?)null;
+                var insight = job.Value.Job != null && insights.TryGetValue(JobInsightsAttribute.GetKey(job.Value.Job), out var i) ? i : null;
+                var expectedEnd = insight != null && job.Value.StartedAt.HasValue ? insight.EstimateCompletion(job.Value.StartedAt.Value) : null;
+                double percent = 0;
+                if (expectedEnd.HasValue && job.Value.StartedAt.HasValue)
+                {
+                    var totalMs = (expectedEnd.Value - job.Value.StartedAt.Value).TotalMilliseconds;
+                    percent = totalMs <= 0 ? 100 : Math.Min(100, 100.0 * (now - job.Value.StartedAt.Value).TotalMilliseconds / totalMs);
+                }
+                <div class="hf-wb-job">
+                    <div class="hf-wb-job-head">
+                        <span class="hf-wb-job-name">@(job.Value.Job != null ? JobMethodCallRenderer.GetNameWithoutGenericArity(job.Value.Job.Type) + "." + job.Value.Job.Method.Name : Strings.Common_CannotFindTargetMethod)</span>
+                        <span class="hf-wb-job-meta">@Html.ServerId(job.Value.ServerId ?? String.Empty) &middot; @(elapsed.HasValue ? Html.ToHumanDuration(elapsed, false) : null)</span>
+                    </div>
+                    <div class="hf-wb-bar hf-wb-bar-job @(expectedEnd.HasValue && expectedEnd < now ? "hf-wb-bar-late" : null)"><span style="width: @(expectedEnd.HasValue ? percent.ToString("0.#", CultureInfo.InvariantCulture) : "100")%"></span></div>
+                </div>
+            }
+        </section>
+
+        <section class="hf-wb-card hf-wb-attention @(attention.Count == 0 ? "hf-wb-attention-ok" : null)">
+            <h2>@Strings.WallboardPage_Attention</h2>
+            @if (attention.Count == 0)
+            {
+                <p class="hf-wb-muted">@Strings.WallboardPage_NothingToReport</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var item in attention)
+                    {
+                        <li>@item</li>
+                    }
+                </ul>
+            }
+        </section>
+    </main>
+
+    <footer class="hf-wb-footer">@String.Format(Strings.WallboardPage_Refresh, refreshSeconds) &middot; @Strings.LayoutPage_Footer_StorageTime @now.ToString("u", CultureInfo.InvariantCulture)</footer>
+</body>
+</html>

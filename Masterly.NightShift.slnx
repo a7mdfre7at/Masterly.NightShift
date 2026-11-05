@@ -1,0 +1,37 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/build/">
+    <File Path="NuGet.config" />
+    <File Path="src/Directory.Build.props" />
+    <File Path="src/SharedAssemblyInfo.cs" />
+  </Folder>
+  <Folder Name="/.github/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".github/workflows/codeql-analysis.yml" />
+    <File Path=".github/workflows/pages.yml" />
+    <File Path=".github/workflows/publish.yml" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ConsoleSample/ConsoleSample.csproj" />
+    <Project Path="samples/NetCoreSample/NetCoreSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Masterly.NightShift/Masterly.NightShift.csproj" />
+    <Project Path="src/Masterly.NightShift.AspNetCore/Masterly.NightShift.AspNetCore.csproj" />
+    <Project Path="src/Masterly.NightShift.Core/Masterly.NightShift.Core.csproj" />
+    <Project Path="src/Masterly.NightShift.Dashboard.Generator/Masterly.NightShift.Dashboard.Generator.csproj" />
+    <Project Path="src/Masterly.NightShift.NetCore/Masterly.NightShift.NetCore.csproj" />
+    <Project Path="src/Masterly.NightShift.SourceGenerator/Masterly.NightShift.SourceGenerator.csproj" />
+    <Project Path="src/Masterly.NightShift.SqlServer/Masterly.NightShift.SqlServer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests/Directory.Build.props" />
+    <Project Path="tests/Masterly.NightShift.AspNetCore.Tests/Masterly.NightShift.AspNetCore.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.Core.Tests/Masterly.NightShift.Core.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.SqlServer.Tests/Masterly.NightShift.SqlServer.Tests.csproj" />
+  </Folder>
+</Solution>

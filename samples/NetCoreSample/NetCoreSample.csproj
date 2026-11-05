@@ -9,9 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Hangfire.Core\Hangfire.Core.csproj" />
-    <ProjectReference Include="..\..\src\Hangfire.AspNetCore\Hangfire.AspNetCore.csproj" />
-    <ProjectReference Include="..\..\src\Hangfire.SqlServer\Hangfire.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

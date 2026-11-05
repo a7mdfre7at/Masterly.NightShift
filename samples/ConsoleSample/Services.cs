@@ -4,8 +4,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Hangfire;
-using Hangfire.States;
+using Masterly.NightShift;
+using Masterly.NightShift.States;
 
 namespace ConsoleSample
 {

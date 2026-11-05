@@ -1,0 +1,35 @@
+﻿// This file is part of Hangfire. Copyright © 2013-2014 Hangfire OÜ.
+// 
+// Hangfire is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as 
+// published by the Free Software Foundation, either version 3 
+// of the License, or any later version.
+// 
+// Hangfire is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+// 
+// You should have received a copy of the GNU Lesser General Public 
+// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using Masterly.NightShift.Common;
+
+namespace Masterly.NightShift.Storage.Monitoring
+{
+    public class JobDetailsDto
+    {
+        public Job? Job { get; set; }
+        public JobLoadException? LoadException { get; set; }
+        public InvocationData? InvocationData { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        // Storages must set the non-nullable members, the dashboard relies on them
+        public IDictionary<string, string> Properties { get; set; } = null!;
+        public IList<StateHistoryDto> History { get; set; } = null!;
+        public DateTime? ExpireAt { get; set; }
+    }
+}

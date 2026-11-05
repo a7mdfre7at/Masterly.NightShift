@@ -1,0 +1,1639 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Text" xml:space="preserve">
+    <value>As sequências estão a funcionar conforme o esperado. O sistema atual de armazenamento não permite algumas consultas necessárias à apresentação da página. Altere o sistema de armazenamento ou aguarde até que sejam implementadas.</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Title" xml:space="preserve">
+    <value>As sequências estão a funcionar, mas não é possivel apresentar a página</value>
+  </data>
+  <data name="AwaitingJobsPage_NoJobs" xml:space="preserve">
+    <value>Nenhuma tarefa pendente encontrada.</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Options" xml:space="preserve">
+    <value>Opções</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Parent" xml:space="preserve">
+    <value>Pai</value>
+  </data>
+  <data name="AwaitingJobsPage_Title" xml:space="preserve">
+    <value>Tarefas em espera</value>
+  </data>
+  <data name="Common_Created" xml:space="preserve">
+    <value>Criado</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Remover</value>
+  </data>
+  <data name="Common_DeleteConfirm" xml:space="preserve">
+    <value>Tem certeza de que deseja REMOVER TODAS as tarefas selecionadas?</value>
+  </data>
+  <data name="Common_Deleting" xml:space="preserve">
+    <value>Removendo...</value>
+  </data>
+  <data name="Common_DeleteSelected" xml:space="preserve">
+    <value>Remover registos seleccionados</value>
+  </data>
+  <data name="Common_EnqueueButton_Text" xml:space="preserve">
+    <value>Colocar tarefas em fila</value>
+  </data>
+  <data name="Common_Enqueueing" xml:space="preserve">
+    <value>A colocar em fila...</value>
+  </data>
+  <data name="Common_Fetched" xml:space="preserve">
+    <value>Obtidos</value>
+  </data>
+  <data name="Common_Id" xml:space="preserve">
+    <value>Id</value>
+  </data>
+  <data name="Common_Job" xml:space="preserve">
+    <value>Tarefa</value>
+  </data>
+  <data name="Common_JobExpired" xml:space="preserve">
+    <value>Tarefa expirada.</value>
+  </data>
+  <data name="Common_JobStateChanged_Text" xml:space="preserve">
+    <value>O estado da tarefa foi alterado enquanto os dados estavam sendo obtidos.</value>
+  </data>
+  <data name="Common_LessDetails" xml:space="preserve">
+    <value>Menos detalhes...</value>
+  </data>
+  <data name="Common_MoreDetails" xml:space="preserve">
+    <value>Mais detalhes...</value>
+  </data>
+  <data name="Common_NotAvailable" xml:space="preserve">
+    <value>Indisponível</value>
+  </data>
+  <data name="Common_PeriodDay" xml:space="preserve">
+    <value>Dia</value>
+  </data>
+  <data name="Common_PeriodWeek" xml:space="preserve">
+    <value>Semana</value>
+  </data>
+  <data name="Common_Reason" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="Common_RequeueJobs" xml:space="preserve">
+    <value>Reagendar tarefas</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Tentar novamente</value>
+  </data>
+  <data name="Common_Server" xml:space="preserve">
+    <value>Servidor</value>
+  </data>
+  <data name="Common_State" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="Common_Unknown" xml:space="preserve">
+    <value>Desconhecido</value>
+  </data>
+  <data name="DeletedJobsPage_NoJobs" xml:space="preserve">
+    <value>Nenhuma tarefa removida encontrada.</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Deleted" xml:space="preserve">
+    <value>Removidas</value>
+  </data>
+  <data name="DeletedJobsPage_Title" xml:space="preserve">
+    <value>Tarefas removidas</value>
+  </data>
+  <data name="EnqueuedJobsPage_NoJobs" xml:space="preserve">
+    <value>A fila está vazia.</value>
+  </data>
+  <data name="EnqueuedJobsPage_Title" xml:space="preserve">
+    <value>Tarefas em fila</value>
+  </data>
+  <data name="FailedJobsPage_FailedJobsNotExpire_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;As tarefas com erros não expiram&lt;/strong&gt; para permitir que sejam colocadas novamente em fila a qualquer momento. Deve recolocá-las em fila, removê-las manualmente ou definir o atributo &lt;code&gt; AutomaticRetry
+                (OnAttemptsExceeded = AttemptsExceededAction.Delete)&lt;/code&gt; para removê-las automaticamente.</value>
+  </data>
+  <data name="FailedJobsPage_NoJobs" xml:space="preserve">
+    <value>Não existem tarefas com erro neste momento.</value>
+  </data>
+  <data name="FailedJobsPage_Table_Failed" xml:space="preserve">
+    <value>Erros</value>
+  </data>
+  <data name="FailedJobsPage_Title" xml:space="preserve">
+    <value>Tarefas com erro</value>
+  </data>
+  <data name="FetchedJobsPage_NoJobs" xml:space="preserve">
+    <value>A fila está vazia.</value>
+  </data>
+  <data name="FetchedJobsPage_Title" xml:space="preserve">
+    <value>Tarefas obtidas</value>
+  </data>
+  <data name="HomePage_HistoryGraph" xml:space="preserve">
+    <value>Gráfico histórico</value>
+  </data>
+  <data name="HomePage_RealtimeGraph" xml:space="preserve">
+    <value>Gráfico em tempo real</value>
+  </data>
+  <data name="HomePage_Title" xml:space="preserve">
+    <value>Painel de controlo</value>
+  </data>
+  <data name="JobDetailsPage_Created" xml:space="preserve">
+    <value>Criado</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Tem certeza de que deseja remover esta tarefa?</value>
+  </data>
+  <data name="JobDetailsPage_State" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedNotActive_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;A tarefa foi cancelada&lt;/strong&gt; – processada pelo servidor
+                        &lt;code&gt;{0}&lt;/code&gt; que não está na lista 
+                        &lt;a href="{1}"&gt; de servidores ativos&lt;/a&gt; neste momento.
+                        Será repetida automaticamente depois de um intervalo de invisibilidade,
+                        no entanto pode ser recolocá-la em fila ou removê-la manualmente.</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;A tarefa foi aparentemente cancelada&lt;/strong&gt; – processada pelo servidor
+                        &lt;code&gt;{0}&lt;/code&gt;, que reportou um sinal  há mais de 1 minute.
+                        O servidor será restaurado automáticamente após um tempo de invisibilidade,
+                        no entanto pode ser recolocado em fila ou removido manualmente.</value>
+  </data>
+  <data name="JobDetailsPage_JobExpired" xml:space="preserve">
+    <value>A tarefa com o Id '{0}' expirou ou não foi encontrada no servidor.</value>
+  </data>
+  <data name="JobDetailsPage_JobFinished_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;A tarefa terminou&lt;/strong&gt;.
+                    Será removida automaticamente em &lt;em&gt;&lt;abbr data-moment="{0}"&gt;{1}&lt;/abbr&gt;&lt;/em&gt;.</value>
+  </data>
+  <data name="JobDetailsPage_JobId" xml:space="preserve">
+    <value>Id da Tarefa</value>
+  </data>
+  <data name="JobDetailsPage_Requeue" xml:space="preserve">
+    <value>Colocar novamente na fila</value>
+  </data>
+  <data name="LayoutPage_Back" xml:space="preserve">
+    <value>Voltar</value>
+  </data>
+  <data name="LayoutPage_Footer_Generatedms" xml:space="preserve">
+    <value>Gerado: {0}ms</value>
+  </data>
+  <data name="LayoutPage_Footer_Time" xml:space="preserve">
+    <value>Hora:</value>
+  </data>
+  <data name="Paginator_Next" xml:space="preserve">
+    <value>Próxima</value>
+  </data>
+  <data name="Paginator_Prev" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Paginator_TotalItems" xml:space="preserve">
+    <value>Total registos</value>
+  </data>
+  <data name="PerPageSelector_ItemsPerPage" xml:space="preserve">
+    <value>Registos por página</value>
+  </data>
+  <data name="ProcessingJobsPage_Aborted" xml:space="preserve">
+    <value>A tarefa foi aparentamente cancelada</value>
+  </data>
+  <data name="ProcessingJobsPage_NoJobs" xml:space="preserve">
+    <value>Nenhuma tarefa em processamento.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Started" xml:space="preserve">
+    <value>Iniciadas</value>
+  </data>
+  <data name="ProcessingJobsPage_Title" xml:space="preserve">
+    <value>Tarefas em processamento</value>
+  </data>
+  <data name="QueuesPage_NoJobs" xml:space="preserve">
+    <value>Sem tarefas na fila.</value>
+  </data>
+  <data name="QueuesPage_NoQueues" xml:space="preserve">
+    <value>Sem tarefas na fila. Coloque uma tarefa em fila.</value>
+  </data>
+  <data name="QueuesPage_Table_Length" xml:space="preserve">
+    <value>Quantidade</value>
+  </data>
+  <data name="QueuesPage_Table_NextsJobs" xml:space="preserve">
+    <value>Próximas tarefas</value>
+  </data>
+  <data name="QueuesPage_Table_Queue" xml:space="preserve">
+    <value>Fila</value>
+  </data>
+  <data name="QueuesPage_Title" xml:space="preserve">
+    <value>Filas</value>
+  </data>
+  <data name="RecurringJobsPage_Canceled" xml:space="preserve">
+    <value>Cancelado</value>
+  </data>
+  <data name="RecurringJobsPage_NoJobs" xml:space="preserve">
+    <value>Não foram encontradas tarefas recorrentes.</value>
+  </data>
+  <data name="RecurringJobsPage_Table_Cron" xml:space="preserve">
+    <value>Cron</value>
+  </data>
+  <data name="RecurringJobsPage_Table_LastExecution" xml:space="preserve">
+    <value>Última execução</value>
+  </data>
+  <data name="RecurringJobsPage_Table_NextExecution" xml:space="preserve">
+    <value>Próxima execução</value>
+  </data>
+  <data name="RecurringJobsPage_Table_TimeZone" xml:space="preserve">
+    <value>Fuso horário</value>
+  </data>
+  <data name="RecurringJobsPage_Title" xml:space="preserve">
+    <value>Tarefas recorrentes</value>
+  </data>
+  <data name="RecurringJobsPage_Triggering" xml:space="preserve">
+    <value>Acionando...</value>
+  </data>
+  <data name="RecurringJobsPage_TriggerNow" xml:space="preserve">
+    <value>Executar agora</value>
+  </data>
+  <data name="RetriesPage_NoJobs" xml:space="preserve">
+    <value>Tudo OK – não há reagendamentos.</value>
+  </data>
+  <data name="RetriesPage_Title" xml:space="preserve">
+    <value>Reagendamentos</value>
+  </data>
+  <data name="RetriesPage_Warning_Html" xml:space="preserve">
+    <value>&lt;h4&gt;O reagendamento está a funcionar, mas esta página não consegue ser apresentada&lt;/h4&gt;
+        &lt;p&gt;
+            O reagendamento está a funcionar como esperado. O sistema de armazenamento atual não permite algumas consultas necessárias à apresentação da página.  Altere o sistema de armazenamento ou aguarde que as funcionalidades sejam implementadas.
+        &lt;/p&gt;
+        &lt;p&gt;
+            Aceda a &lt;a href="{0}"&gt;Tarefas agendadas&lt;/a&gt; para ver todas as tarefas agendadas e reagendadas.
+        &lt;/p&gt;</value>
+  </data>
+  <data name="ScheduledJobsPage_EnqueueNow" xml:space="preserve">
+    <value>Colocar em fila agora</value>
+  </data>
+  <data name="ScheduledJobsPage_NoJobs" xml:space="preserve">
+    <value>Sem tarefas agendadas.</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Enqueue" xml:space="preserve">
+    <value>Reagendar</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Scheduled" xml:space="preserve">
+    <value>Agendado</value>
+  </data>
+  <data name="ScheduledJobsPage_Title" xml:space="preserve">
+    <value>Tarefas Agendadas</value>
+  </data>
+  <data name="ServersPage_NoServers" xml:space="preserve">
+    <value>Não existem servidores activos. As tarefas não serão executadas.</value>
+  </data>
+  <data name="ServersPage_Table_Heartbeat" xml:space="preserve">
+    <value>Sinal</value>
+  </data>
+  <data name="ServersPage_Table_Name" xml:space="preserve">
+    <value>Nome</value>
+  </data>
+  <data name="ServersPage_Table_Queues" xml:space="preserve">
+    <value>Filas</value>
+  </data>
+  <data name="ServersPage_Table_Started" xml:space="preserve">
+    <value>Iniciadas</value>
+  </data>
+  <data name="ServersPage_Table_Workers" xml:space="preserve">
+    <value>Workers</value>
+  </data>
+  <data name="ServersPage_Title" xml:space="preserve">
+    <value>Servidores</value>
+  </data>
+  <data name="SucceededJobsPage_NoJobs" xml:space="preserve">
+    <value>Nenhuma tarefa concluída encontrada.</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Succeeded" xml:space="preserve">
+    <value>Concluídas</value>
+  </data>
+  <data name="SucceededJobsPage_Table_TotalDuration" xml:space="preserve">
+    <value>Duração</value>
+  </data>
+  <data name="SucceededJobsPage_Title" xml:space="preserve">
+    <value>Tarefas concluídas</value>
+  </data>
+  <data name="JobsSidebarMenu_Awaiting" xml:space="preserve">
+    <value>Em espera</value>
+  </data>
+  <data name="JobsSidebarMenu_Deleted" xml:space="preserve">
+    <value>Removidas</value>
+  </data>
+  <data name="JobsSidebarMenu_Failed" xml:space="preserve">
+    <value>Com Erro</value>
+  </data>
+  <data name="JobsSidebarMenu_Processing" xml:space="preserve">
+    <value>Processando</value>
+  </data>
+  <data name="JobsSidebarMenu_Scheduled" xml:space="preserve">
+    <value>Agendadas</value>
+  </data>
+  <data name="JobsSidebarMenu_Succeeded" xml:space="preserve">
+    <value>Concluídas</value>
+  </data>
+  <data name="NavigationMenu_Jobs" xml:space="preserve">
+    <value>Tarefas</value>
+  </data>
+  <data name="NavigationMenu_RecurringJobs" xml:space="preserve">
+    <value>Tarefas Recorrentes</value>
+  </data>
+  <data name="NavigationMenu_Retries" xml:space="preserve">
+    <value>Reagendamentos</value>
+  </data>
+  <data name="NavigationMenu_Servers" xml:space="preserve">
+    <value>Servidores</value>
+  </data>
+  <data name="Common_CannotFindTargetMethod" xml:space="preserve">
+    <value>Não foi possível encontrar o método alvo.</value>
+  </data>
+  <data name="Common_Enqueued" xml:space="preserve">
+    <value>Em Fila</value>
+  </data>
+  <data name="Common_NoState" xml:space="preserve">
+    <value>Sem estado</value>
+  </data>
+  <data name="JobsSidebarMenu_Enqueued" xml:space="preserve">
+    <value>Em Fila</value>
+  </data>
+  <data name="Metrics_ActiveConnections" xml:space="preserve">
+    <value>Ligações activas</value>
+  </data>
+  <data name="Metrics_DeletedJobs" xml:space="preserve">
+    <value>Tarefas Removidas</value>
+  </data>
+  <data name="Metrics_FailedJobs" xml:space="preserve">
+    <value>Tarefas com erro</value>
+  </data>
+  <data name="Metrics_ProcessingJobs" xml:space="preserve">
+    <value>Tarefas em processamento</value>
+  </data>
+  <data name="Metrics_RecurringJobs" xml:space="preserve">
+    <value>Tarefas recorrentes</value>
+  </data>
+  <data name="Metrics_Retries" xml:space="preserve">
+    <value>Reagendamentos</value>
+  </data>
+  <data name="Metrics_ScheduledJobs" xml:space="preserve">
+    <value>Tarefas Agendadas</value>
+  </data>
+  <data name="Metrics_Servers" xml:space="preserve">
+    <value>Servidores</value>
+  </data>
+  <data name="Metrics_SucceededJobs" xml:space="preserve">
+    <value>Tarefas com sucesso</value>
+  </data>
+  <data name="Metrics_TotalConnections" xml:space="preserve">
+    <value>Total de Ligações</value>
+  </data>
+  <data name="Common_Condition" xml:space="preserve">
+    <value>Condição</value>
+  </data>
+  <data name="Common_Continuations" xml:space="preserve">
+    <value>Sequências</value>
+  </data>
+  <data name="Metrics_AwaitingCount" xml:space="preserve">
+    <value>Em espera</value>
+  </data>
+  <data name="Metrics_EnqueuedCountOrNull" xml:space="preserve">
+    <value>Em fila</value>
+  </data>
+  <data name="Metrics_EnqueuedQueuesCount" xml:space="preserve">
+    <value>Em fila / Filas</value>
+  </data>
+  <data name="Metrics_FailedCountOrNull" xml:space="preserve">
+    <value>{0} tarefa(s) com erro encontradas. Reagendar ou remover manualmente.</value>
+  </data>
+  <data name="HomePage_GraphHover_Failed" xml:space="preserve">
+    <value>Com erro</value>
+  </data>
+  <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
+    <value>Com sucesso</value>
+  </data>
+  <data name="Common_Disabled" xml:space="preserve">
+    <value>Inactivo</value>
+  </data>
+  <data name="RecurringJobsPage_RecurringJobDisabled_Tooltip" xml:space="preserve">
+    <value>A expressão Cron é inválida ou não tem nenhuma ocorência nos próximos 100 anos</value>
+  </data>
+  <data name="ServersPage_Note_Text" xml:space="preserve">
+    <value>Alguns servidores não reportaram nehum sinal no último minuto e podem ser cancelados. Se não reportarem nenhum sinal brevemente serão cancelados assim que o tempo limite seja ultrapassado, não é necessária nenhuma acção manual.
+                    Tarefas incompletas nesses servidores serão repetidas automaticamente, no entanto o processo pode ser acelarado acedendo e verificando a seguinte página &lt;a href="{0}"&gt;Tarefas em Processamento&lt;/a&gt;.</value>
+  </data>
+  <data name="ServersPage_Note_Title" xml:space="preserve">
+    <value>Servidores cancelados serão removidos automaticamente</value>
+  </data>
+  <data name="ServersPage_Active" xml:space="preserve">
+    <value>Activo</value>
+  </data>
+  <data name="ServersPage_Possibly_Aborted" xml:space="preserve">
+    <value>Possivelmente cancelados</value>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>Erro</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Exception" xml:space="preserve">
+    <value>Exceção</value>
+  </data>
+  <data name="LayoutPage_Footer_StorageTime" xml:space="preserve">
+    <value>Tempo de armazenamento:</value>
+  </data>
+  <data name="LayoutPage_Footer_TimeIsOutOfSync" xml:space="preserve">
+    <value>A hora da aplicação está dessincronizada com a hora do sistema de armazenamento</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Latency" xml:space="preserve">
+    <value>Latência</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Duration" xml:space="preserve">
+    <value>Duração</value>
+  </data>
+  <data name="JobDetailsPage_Parameters" xml:space="preserve">
+    <value>Parâmetros</value>
+  </data>
+  <data name="Metrics_SQLServer_SchemaVersion" xml:space="preserve">
+    <value>Versão Schema</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Since" xml:space="preserve">
+    <value>Desde</value>
+  </data>
+  <data name="Metrics_SQLServer_ActiveTransactions" xml:space="preserve">
+    <value>Transações Ativas</value>
+  </data>
+  <data name="Metrics_SQLServer_DataFilesSize" xml:space="preserve">
+    <value>Ficheiro(s) Dados Usadas (MB)</value>
+  </data>
+  <data name="Metrics_SQLServer_LogFilesSize" xml:space="preserve">
+    <value>Ficheiro(s) Log Usados (MB)</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Pausar</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Pausando…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Retomar</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Retomando…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>Pausado</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>Pausado: fica fora do agendamento até ser retomado. Ainda pode ser disparado manualmente.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Editar agendamento</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Agendamento</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Uma expressão CRON ou inglês simples como “every 15 minutes”, “weekdays at 9:30” ou “last day of month at 23:00”.</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Próximas execuções</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Execuções perdidas</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Executar uma vez assim que possível (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Executar cada execução perdida (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Ignorá-las (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>Fila</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Salvar</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Salvando…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>Não é possível pré-visualizar o agendamento.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>Ao vivo</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>decorrido</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Progresso</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Pontos de controle</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Nada reportado ainda. As tarefas podem reportar progresso, linhas e pontos de controle via IJobConsole.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Progresso</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Estatísticas</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Estatísticas</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>O armazenamento atual não consegue ler listas e contadores, por isso as estatísticas não estão disponíveis.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Ainda não há estatísticas. Ative-as com &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; ou coloque &lt;code&gt;[JobInsights]&lt;/code&gt; nas classes de tarefas que deseja acompanhar.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Disjuntores</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Recurso</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Falhas</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Desde</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Redefinir</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Execuções</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Falhas</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Mediana</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Máx</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Tendência</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Invocador</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Última execução</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>A última execução levou mais de três vezes o p95 das execuções recentes</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Métodos acompanhados</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Execuções registradas</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Taxa de falhas</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Invocadores neste servidor</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Métodos executados com invocadores gerados, compilados e por reflexão</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Invocadores de tarefas neste processo</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>invocadores gerados registrados</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>gerados</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>compilados</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>reflexão</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Como os métodos de tarefa executados por este processo foram chamados. Referencie o analisador Masterly.NightShift.SourceGenerator (incluído no Masterly.NightShift.Core) para que todos sejam gerados.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Prazo</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>Atrasado</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>A tarefa ultrapassou o prazo</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>Concluída {0} após o prazo</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Tema</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Seguir o tema do sistema</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Tema claro</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Tema escuro</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>Ao vivo</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Pesquisar…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Ir para uma página, um id de tarefa ou uma tarefa recorrente (Ctrl+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Monitoramento</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Visão geral</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Excluir tudo</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>Excluir TODAS as tarefas desta lista? Isso não pode ser desfeito.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Remover todas</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>Remover TODAS as tarefas recorrentes? Elas só voltam quando a aplicação as registrar novamente.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Atualizar</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>Ao vivo</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Atualizar esta lista automaticamente</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Manutenção</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Limpa os dados de tarefas do armazenamento. Os servidores continuam em execução.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Limpar todas as tarefas</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Remove todas as tarefas com seu histórico, entradas de fila, contadores, consoles e estatísticas. As tarefas recorrentes e os servidores são mantidos.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>Excluir TODAS as tarefas e seu histórico do armazenamento? Isso não pode ser desfeito.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Redefinir armazenamento</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Remove tudo, incluindo tarefas recorrentes e registros de servidores, como se o armazenamento fosse novo.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>Redefinir TODO o armazenamento? As tarefas recorrentes desaparecem até a aplicação registrá-las novamente. Isso não pode ser desfeito.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Limpando…</value>
+  </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Este processo</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Processo</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Ativo há</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Hospedado pelo IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>O IIS interrompe processos de trabalho ociosos após 20 minutos por padrão, e as tarefas param com eles. Configure o pool de aplicativos como &lt;code&gt;AlwaysRunning&lt;/code&gt; com pré-carregamento e tempo ocioso 0, ou registre &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddNightShiftKeepAlive()&lt;/code&gt;) para que o processo solicite a si mesmo periodicamente. Uma reciclagem ainda exige as configurações do pool.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>não configurado</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>aguardando a primeira solicitação</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>última solicitação bem-sucedida</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>última solicitação falhou</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>a cada {0}</value>
+  </data>
+  <data name="NavigationMenu_Catalog" xml:space="preserve">
+    <value>Catálogo</value>
+  </data>
+  <data name="CatalogPage_Title" xml:space="preserve">
+    <value>Catálogo de tarefas</value>
+  </data>
+  <data name="CatalogPage_Hint" xml:space="preserve">
+    <value>cada método de tarefa do seu código, pronto para executar</value>
+  </data>
+  <data name="CatalogPage_NoEntries_Html" xml:space="preserve">
+    <value>Nenhum método de tarefa encontrado. Referencie o analisador &lt;code&gt;Masterly.NightShift.SourceGenerator&lt;/code&gt; para detectá-los na compilação, ou registre tipos com &lt;code&gt;JobCatalog.Add&amp;lt;T&amp;gt;()&lt;/code&gt;.</value>
+  </data>
+  <data name="CatalogPage_Search" xml:space="preserve">
+    <value>Filtrar métodos…</value>
+  </data>
+  <data name="CatalogPage_Summary_Methods" xml:space="preserve">
+    <value>métodos</value>
+  </data>
+  <data name="CatalogPage_Summary_Types" xml:space="preserve">
+    <value>tipos</value>
+  </data>
+  <data name="CatalogPage_Table_Method" xml:space="preserve">
+    <value>Método</value>
+  </data>
+  <data name="CatalogPage_Table_Parameters" xml:space="preserve">
+    <value>Parâmetros</value>
+  </data>
+  <data name="CatalogPage_Table_Filters" xml:space="preserve">
+    <value>Filtros</value>
+  </data>
+  <data name="CatalogPage_Table_Stats" xml:space="preserve">
+    <value>Execuções</value>
+  </data>
+  <data name="CatalogPage_Static" xml:space="preserve">
+    <value>estático</value>
+  </data>
+  <data name="CatalogPage_Injected" xml:space="preserve">
+    <value>injetado pelo servidor</value>
+  </data>
+  <data name="CatalogPage_Run" xml:space="preserve">
+    <value>Executar…</value>
+  </data>
+  <data name="CatalogPage_Runner_Title" xml:space="preserve">
+    <value>Executar</value>
+  </data>
+  <data name="CatalogPage_Mode_Enqueue" xml:space="preserve">
+    <value>Executar agora</value>
+  </data>
+  <data name="CatalogPage_Mode_Schedule" xml:space="preserve">
+    <value>Mais tarde</value>
+  </data>
+  <data name="CatalogPage_Mode_Recurring" xml:space="preserve">
+    <value>Recorrente</value>
+  </data>
+  <data name="CatalogPage_Delay" xml:space="preserve">
+    <value>Atraso (minutos)</value>
+  </data>
+  <data name="CatalogPage_RecurringId" xml:space="preserve">
+    <value>Id da tarefa recorrente</value>
+  </data>
+  <data name="CatalogPage_Submit" xml:space="preserve">
+    <value>Criar</value>
+  </data>
+  <data name="CatalogPage_Created" xml:space="preserve">
+    <value>Tarefa {0} criada.</value>
+  </data>
+  <data name="CatalogPage_RecurringCreated" xml:space="preserve">
+    <value>Tarefa recorrente {0} salva.</value>
+  </data>
+  <data name="ForecastPage_Title" xml:space="preserve">
+    <value>Previsão do agendamento</value>
+  </data>
+  <data name="ForecastPage_Hint" xml:space="preserve">
+    <value>quando suas tarefas recorrentes vão rodar e onde colidem</value>
+  </data>
+  <data name="ForecastPage_Window_24h" xml:space="preserve">
+    <value>Próximas 24 horas</value>
+  </data>
+  <data name="ForecastPage_Window_7d" xml:space="preserve">
+    <value>Próximos 7 dias</value>
+  </data>
+  <data name="ForecastPage_Summary_Runs" xml:space="preserve">
+    <value>execuções</value>
+  </data>
+  <data name="ForecastPage_Summary_BusyTime" xml:space="preserve">
+    <value>tempo ocupado previsto</value>
+  </data>
+  <data name="ForecastPage_Summary_Busiest" xml:space="preserve">
+    <value>hora mais cheia</value>
+  </data>
+  <data name="ForecastPage_HotSpots" xml:space="preserve">
+    <value>Pontos quentes</value>
+  </data>
+  <data name="ForecastPage_HotSpots_Hint" xml:space="preserve">
+    <value>várias tarefas começam nos mesmos 5 minutos</value>
+  </data>
+  <data name="ForecastPage_Paused" xml:space="preserve">
+    <value>pausada</value>
+  </data>
+  <data name="ForecastPage_Legend_Expected" xml:space="preserve">
+    <value>execução prevista, com a duração mediana dos Insights</value>
+  </data>
+  <data name="ForecastPage_Legend_Default" xml:space="preserve">
+    <value>sem execuções registradas, 30 segundos assumidos</value>
+  </data>
+  <data name="ForecastPage_Table_Slot" xml:space="preserve">
+    <value>Janela</value>
+  </data>
+  <data name="ForecastPage_Table_Jobs" xml:space="preserve">
+    <value>Tarefas</value>
+  </data>
+  <data name="RecurringJobsPage_Forecast" xml:space="preserve">
+    <value>Previsão</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta" xml:space="preserve">
+    <value>faltam ~{0}</value>
+  </data>
+  <data name="ProcessingJobsPage_LongerThanUsual" xml:space="preserve">
+    <value>mais longo que o normal</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta_Tooltip" xml:space="preserve">
+    <value>Estimado pela duração mediana das execuções anteriores</value>
+  </data>
+  <data name="HomePage_Activity" xml:space="preserve">
+    <value>Atividade ao vivo</value>
+  </data>
+  <data name="HomePage_Activity_Hint" xml:space="preserve">
+    <value>cada mudança de estado em todo o cluster</value>
+  </data>
+  <data name="HomePage_Activity_Empty" xml:space="preserve">
+    <value>Nada aconteceu ainda.</value>
+  </data>
+  <data name="LayoutPage_Drain_Banner" xml:space="preserve">
+    <value>O processamento está pausado: tarefas novas aguardam, as em execução terminam.</value>
+  </data>
+  <data name="LayoutPage_Drain_Since" xml:space="preserve">
+    <value>desde {0}</value>
+  </data>
+  <data name="LayoutPage_Drain_Resume" xml:space="preserve">
+    <value>Retomar</value>
+  </data>
+  <data name="ServersPage_Processing" xml:space="preserve">
+    <value>Processamento</value>
+  </data>
+  <data name="ServersPage_Processing_Hint" xml:space="preserve">
+    <value>pause antes de um deploy ou de uma janela de manutenção</value>
+  </data>
+  <data name="ServersPage_Processing_Running" xml:space="preserve">
+    <value>em execução</value>
+  </data>
+  <data name="ServersPage_Processing_Paused" xml:space="preserve">
+    <value>pausado</value>
+  </data>
+  <data name="ServersPage_Pause" xml:space="preserve">
+    <value>Pausar processamento</value>
+  </data>
+  <data name="ServersPage_Pause_Reason" xml:space="preserve">
+    <value>Motivo (opcional)</value>
+  </data>
+  <data name="ServersPage_Resume" xml:space="preserve">
+    <value>Retomar processamento</value>
+  </data>
+  <data name="ServersPage_Paused_Since" xml:space="preserve">
+    <value>pausado {0}</value>
+  </data>
+  <data name="ServersPage_Pause_HeldHint" xml:space="preserve">
+    <value>Durante a pausa, os workers devolvem tarefas novas ao agendamento e verificam de novo a cada {0}.</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode" xml:space="preserve">
+    <value>Copiar como C#</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode_Hint" xml:space="preserve">
+    <value>Copia a instrução que cria esta tarefa novamente</value>
+  </data>
+  <data name="JobDetailsPage_Copied" xml:space="preserve">
+    <value>Copiado</value>
+  </data>
+  <data name="JobDetailsPage_FanInContinuations" xml:space="preserve">
+    <value>Continuações fan-in</value>
+  </data>
+  <data name="InsightsPage_Anomalies" xml:space="preserve">
+    <value>Precisa de atenção</value>
+  </data>
+  <data name="InsightsPage_Anomalies_Hint" xml:space="preserve">
+    <value>métodos cujo comportamento mudou</value>
+  </data>
+  <data name="InsightsPage_Anomalies_None" xml:space="preserve">
+    <value>Tudo parece normal.</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowingDown" xml:space="preserve">
+    <value>ficando mais lento: {0} recentemente contra {1} antes</value>
+  </data>
+  <data name="InsightsPage_Anomaly_FailureRate" xml:space="preserve">
+    <value>{0} das execuções falham</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowRun" xml:space="preserve">
+    <value>a última execução levou {0}</value>
+  </data>
+  <data name="ForecastPage_Dense" xml:space="preserve">
+    <value>{0} execuções, demais para desenhar uma a uma</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>Diagnóstico</value>
+  </data>
+  <data name="Diagnostics_Hint" xml:space="preserve">
+    <value>por que a tarefa está onde está e o que a faria avançar</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>Não foi possível concluir o diagnóstico: {0}</value>
+  </data>
+  <data name="Diagnostics_NoServers" xml:space="preserve">
+    <value>Nenhum servidor está em execução. As tarefas esperam até que um inicie.</value>
+  </data>
+  <data name="Diagnostics_ServersStale" xml:space="preserve">
+    <value>Todos os servidores registrados perderam o batimento; podem ter sido encerrados ou perdido a conexão.</value>
+  </data>
+  <data name="Diagnostics_QueueUnserved" xml:space="preserve">
+    <value>Nenhum servidor em execução escuta a fila {0}. Os servidores em execução escutam: {1}</value>
+  </data>
+  <data name="Diagnostics_Drain" xml:space="preserve">
+    <value>O processamento está pausado{0}. Os workers devolvem as tarefas até que seja retomado.</value>
+  </data>
+  <data name="Diagnostics_Waiting" xml:space="preserve">
+    <value>Aguardando na fila {0} há {1}, junto com outras {2} tarefas. Há servidores escutando, a fila apenas está ocupada.</value>
+  </data>
+  <data name="Diagnostics_Healthy" xml:space="preserve">
+    <value>Nada a impede: a fila {0} é atendida e ela deve iniciar em breve.</value>
+  </data>
+  <data name="Diagnostics_RetryPending" xml:space="preserve">
+    <value>A tentativa {0} de {1} está pendente.</value>
+  </data>
+  <data name="Diagnostics_RetryLater" xml:space="preserve">
+    <value>A tarefa pediu para ser repetida mais tarde e aguarda o horário que escolheu.</value>
+  </data>
+  <data name="Diagnostics_ScheduledDue" xml:space="preserve">
+    <value>Agendada para entrar na fila {0}.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue" xml:space="preserve">
+    <value>Deveria ter executado {0}, mas nenhum servidor a colocou na fila. O agendador de tarefas adiadas roda em cada servidor; verifique os logs por erros de armazenamento.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue_NoServers" xml:space="preserve">
+    <value>Deveria ter executado {0}, mas não há servidor em execução para colocá-la na fila.</value>
+  </data>
+  <data name="Diagnostics_ParentMissing" xml:space="preserve">
+    <value>A tarefa pai {0} não existe mais, então esta tarefa nunca iniciará automaticamente. Exclua-a ou coloque-a na fila manualmente.</value>
+  </data>
+  <data name="Diagnostics_ConditionFailed" xml:space="preserve">
+    <value>A tarefa pai {0} terminou como {1}, o que não satisfaz a condição desta continuação. Ela fica aqui até ser enfileirada ou excluída manualmente.</value>
+  </data>
+  <data name="Diagnostics_ParentFinished" xml:space="preserve">
+    <value>A tarefa pai {0} já terminou como {1}; esta tarefa deveria ter sido enfileirada e será quando um servidor alcançar.</value>
+  </data>
+  <data name="Diagnostics_ParentFailed" xml:space="preserve">
+    <value>A tarefa pai {0} falhou e não será repetida, então esta tarefa fica aqui até que a pai seja reenfileirada.</value>
+  </data>
+  <data name="Diagnostics_ParentRetrying" xml:space="preserve">
+    <value>A tarefa pai {0} está {1} para uma nova tentativa; esta tarefa inicia quando a pai terminar.</value>
+  </data>
+  <data name="Diagnostics_ParentWaiting" xml:space="preserve">
+    <value>Aguardando a tarefa pai {0}, atualmente {1}.</value>
+  </data>
+  <data name="Diagnostics_FanIn" xml:space="preserve">
+    <value>Fan-in: {0} de {1} pais terminaram ({2}).</value>
+  </data>
+  <data name="Diagnostics_FanIn_All" xml:space="preserve">
+    <value>aguarda todos</value>
+  </data>
+  <data name="Diagnostics_FanIn_Any" xml:space="preserve">
+    <value>inicia após o primeiro</value>
+  </data>
+  <data name="Diagnostics_ServerGone" xml:space="preserve">
+    <value>O servidor {0}, que pegou esta tarefa, não está mais registrado. O armazenamento devolve a tarefa à fila após o tempo de invisibilidade; reenfileire-a para iniciar antes.</value>
+  </data>
+  <data name="Diagnostics_ServerStale" xml:space="preserve">
+    <value>O servidor {0} reportou pela última vez {1}. Se foi encerrado, a tarefa volta após o tempo de invisibilidade.</value>
+  </data>
+  <data name="Diagnostics_Slow" xml:space="preserve">
+    <value>Em execução há {0}; este método costuma terminar em {1}.</value>
+  </data>
+  <data name="Diagnostics_Running" xml:space="preserve">
+    <value>Em execução em {0} há {1}.</value>
+  </data>
+  <data name="Diagnostics_Running_Usual" xml:space="preserve">
+    <value>Em execução em {0} há {1}; este método costuma terminar em {2}.</value>
+  </data>
+  <data name="Diagnostics_RetriesExhausted" xml:space="preserve">
+    <value>Repetida {0} vezes sem sucesso; não restam tentativas automáticas. Reenfileire-a para tentar de novo.</value>
+  </data>
+  <data name="Diagnostics_RetriesDisabled" xml:space="preserve">
+    <value>As tentativas automáticas estão desativadas para este método, então a primeira falha é definitiva.</value>
+  </data>
+  <data name="Diagnostics_NotRetried" xml:space="preserve">
+    <value>A falha não foi repetida: ou o tipo de exceção está excluído das tentativas ou o filtro de repetição não está registrado.</value>
+  </data>
+  <data name="Diagnostics_RetryLaterRequests" xml:space="preserve">
+    <value>A tarefa pediu para ser repetida mais tarde {0} vezes antes desta falha.</value>
+  </data>
+  <data name="Diagnostics_CircuitOpen" xml:space="preserve">
+    <value>O circuito {0} abriu {1}. As tarefas atrás dele são devolvidas ao serem buscadas até que ele semiabra.</value>
+  </data>
+  <data name="Common_Redacted" xml:space="preserve">
+    <value>Oculto: este argumento está marcado com [Redacted]</value>
+  </data>
+  <data name="JobDetailsPage_Lineage" xml:space="preserve">
+    <value>Linhagem</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Hint" xml:space="preserve">
+    <value>as tarefas pelas quais esta esperou e as que esperam por ela</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Truncated" xml:space="preserve">
+    <value>Apenas as tarefas mais próximas são mostradas.</value>
+  </data>
+  <data name="Lineage_AfterSuccess" xml:space="preserve">
+    <value>após sucesso</value>
+  </data>
+  <data name="Lineage_AfterFinish" xml:space="preserve">
+    <value>após término</value>
+  </data>
+  <data name="Lineage_AfterDelete" xml:space="preserve">
+    <value>após exclusão</value>
+  </data>
+  <data name="Lineage_All" xml:space="preserve">
+    <value>todas de</value>
+  </data>
+  <data name="Lineage_Any" xml:space="preserve">
+    <value>qualquer de</value>
+  </data>
+  <data name="JobDetailsPage_Tags" xml:space="preserve">
+    <value>Etiquetas</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain" xml:space="preserve">
+    <value>Executar de novo com alterações…</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain_Hint" xml:space="preserve">
+    <value>Criar uma nova tarefa a partir desta com argumentos editados, agora, mais tarde ou em um agendamento</value>
+  </data>
+  <data name="CatalogPage_Runner_Redacted" xml:space="preserve">
+    <value>oculto, informe o valor novamente</value>
+  </data>
+  <data name="FailedJobsPage_Clusters" xml:space="preserve">
+    <value>Grupos de falhas</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Hint" xml:space="preserve">
+    <value>as últimas {0} falhas, agrupadas por exceção e método</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Jobs" xml:space="preserve">
+    <value>{0} tarefas</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_FirstSeen" xml:space="preserve">
+    <value>primeira</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_LastSeen" xml:space="preserve">
+    <value>última</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Requeue" xml:space="preserve">
+    <value>Reenfileirar todas as {0}</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Delete" xml:space="preserve">
+    <value>Excluir todas as {0}</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_DeleteConfirm" xml:space="preserve">
+    <value>Excluir todas as tarefas deste grupo?</value>
+  </data>
+  <data name="RecurringJobsPage_Export" xml:space="preserve">
+    <value>Exportar</value>
+  </data>
+  <data name="RecurringJobsPage_Export_Hint" xml:space="preserve">
+    <value>Baixar todas as tarefas recorrentes como um manifesto JSON</value>
+  </data>
+  <data name="RecurringJobsPage_Import" xml:space="preserve">
+    <value>Importar…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Title" xml:space="preserve">
+    <value>Importar tarefas recorrentes</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Hint" xml:space="preserve">
+    <value>Cole um manifesto exportado deste ou de outro ambiente, ou escolha o arquivo. Tarefas existentes com o mesmo id são atualizadas.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_File" xml:space="preserve">
+    <value>Escolher arquivo</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Prune" xml:space="preserve">
+    <value>Remover as tarefas recorrentes que não estão no manifesto</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Apply" xml:space="preserve">
+    <value>Aplicar</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Applying" xml:space="preserve">
+    <value>Aplicando…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Result" xml:space="preserve">
+    <value>{0} adicionadas, {1} atualizadas, {2} removidas, {3} com falha</value>
+  </data>
+  <data name="RecurringJobsPage_Late" xml:space="preserve">
+    <value>Atrasada</value>
+  </data>
+  <data name="RecurringJobsPage_Late_Tooltip" xml:space="preserve">
+    <value>A próxima execução deveria ter ocorrido há mais de um minuto e nenhum servidor a iniciou</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary" xml:space="preserve">
+    <value>{0} tarefas recorrentes estão atrasadas: a próxima execução deveria ter ocorrido há mais de um minuto. Verifique se um servidor em execução tem o agendador de tarefas recorrentes ativado e alcança o armazenamento.</value>
+  </data>
+  <data name="TagsPage_Title" xml:space="preserve">
+    <value>Etiquetas</value>
+  </data>
+  <data name="TagsPage_Hint" xml:space="preserve">
+    <value>encontrar tarefas pelo assunto</value>
+  </data>
+  <data name="TagsPage_NoTags_Html" xml:space="preserve">
+    <value>Ainda não há etiquetas. Coloque &lt;code&gt;[Tag(&amp;quot;customer:{0}&amp;quot;)]&lt;/code&gt; em um método de tarefa para etiquetar suas tarefas com o primeiro argumento, ou chame &lt;code&gt;JobTags.Add(jobId, &amp;quot;tag&amp;quot;)&lt;/code&gt;.</value>
+  </data>
+  <data name="TagsPage_Table_Tag" xml:space="preserve">
+    <value>Etiqueta</value>
+  </data>
+  <data name="TagsPage_Table_Jobs" xml:space="preserve">
+    <value>Tarefas</value>
+  </data>
+  <data name="TagsPage_Forget" xml:space="preserve">
+    <value>Esquecer</value>
+  </data>
+  <data name="TagsPage_ForgetConfirm" xml:space="preserve">
+    <value>Esquecer esta etiqueta? As tarefas em si são mantidas.</value>
+  </data>
+  <data name="TagsPage_Search" xml:space="preserve">
+    <value>Filtrar etiquetas…</value>
+  </data>
+  <data name="TaggedJobsPage_Title" xml:space="preserve">
+    <value>Etiquetadas com {0}</value>
+  </data>
+  <data name="TaggedJobsPage_NoJobs" xml:space="preserve">
+    <value>Nenhuma tarefa carrega mais esta etiqueta.</value>
+  </data>
+  <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
+    <value>{0} tarefas expiradas foram removidas da etiqueta.</value>
+  </data>
+  <data name="NavigationMenu_Tags" xml:space="preserve">
+    <value>Etiquetas</value>
+  </data>
+  <data name="NavigationMenu_Batches" xml:space="preserve">
+    <value>Lotes</value>
+  </data>
+  <data name="NavigationMenu_Audit" xml:space="preserve">
+    <value>Auditoria</value>
+  </data>
+  <data name="Diagnostics_QueuePaused" xml:space="preserve">
+    <value>A fila {0} está pausada{1}. Os workers devolvem suas tarefas até que seja retomada.</value>
+  </data>
+  <data name="BatchesPage_Title" xml:space="preserve">
+    <value>Lotes</value>
+  </data>
+  <data name="BatchesPage_Hint" xml:space="preserve">
+    <value>grupos de tarefas acompanhados e continuados como um só</value>
+  </data>
+  <data name="BatchesPage_NoBatches_Html" xml:space="preserve">
+    <value>Ainda não há lotes. Crie um com &lt;code&gt;BatchJob.StartNew(b =&amp;gt; { b.Enqueue(...); b.Enqueue(...); })&lt;/code&gt; e continue-o com &lt;code&gt;BatchJob.ContinueWith(batchId, ...)&lt;/code&gt;.</value>
+  </data>
+  <data name="BatchesPage_Table_Batch" xml:space="preserve">
+    <value>Lote</value>
+  </data>
+  <data name="BatchesPage_Table_Progress" xml:space="preserve">
+    <value>Progresso</value>
+  </data>
+  <data name="BatchesPage_Table_Jobs" xml:space="preserve">
+    <value>Tarefas</value>
+  </data>
+  <data name="BatchesPage_Table_Created" xml:space="preserve">
+    <value>Criado</value>
+  </data>
+  <data name="BatchesPage_State_Running" xml:space="preserve">
+    <value>Em andamento</value>
+  </data>
+  <data name="BatchesPage_State_Finished" xml:space="preserve">
+    <value>Concluído</value>
+  </data>
+  <data name="BatchesPage_State_Failed" xml:space="preserve">
+    <value>Tarefas com falha</value>
+  </data>
+  <data name="BatchesPage_Counts" xml:space="preserve">
+    <value>{0} bem-sucedidas · {1} com falha · {2} pendentes</value>
+  </data>
+  <data name="BatchDetailsPage_Title" xml:space="preserve">
+    <value>Lote {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Expired" xml:space="preserve">
+    <value>O lote {0} não existe ou expirou.</value>
+  </data>
+  <data name="BatchDetailsPage_RequeueFailed" xml:space="preserve">
+    <value>Reenfileirar com falha ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePending" xml:space="preserve">
+    <value>Excluir inacabadas ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePendingConfirm" xml:space="preserve">
+    <value>Excluir todas as tarefas deste lote que ainda não terminaram?</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations" xml:space="preserve">
+    <value>Continuações</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations_Hint" xml:space="preserve">
+    <value>iniciam quando todas as tarefas do lote terminarem</value>
+  </data>
+  <data name="BatchDetailsPage_JobsInBatch" xml:space="preserve">
+    <value>Tarefas do lote</value>
+  </data>
+  <data name="BatchDetailsPage_MoreJobs" xml:space="preserve">
+    <value>Mais {0} tarefas não são mostradas.</value>
+  </data>
+  <data name="JobDetailsPage_Batch" xml:space="preserve">
+    <value>Lote</value>
+  </data>
+  <data name="JobDetailsPage_BatchContinuation" xml:space="preserve">
+    <value>Continuação do lote</value>
+  </data>
+  <data name="AuditPage_Title" xml:space="preserve">
+    <value>Auditoria</value>
+  </data>
+  <data name="AuditPage_Hint" xml:space="preserve">
+    <value>quem fez o quê neste painel</value>
+  </data>
+  <data name="AuditPage_NoEntries" xml:space="preserve">
+    <value>Nada foi feito pelo painel ainda.</value>
+  </data>
+  <data name="AuditPage_Table_When" xml:space="preserve">
+    <value>Quando</value>
+  </data>
+  <data name="AuditPage_Table_User" xml:space="preserve">
+    <value>Usuário</value>
+  </data>
+  <data name="AuditPage_Table_Action" xml:space="preserve">
+    <value>Ação</value>
+  </data>
+  <data name="AuditPage_Table_Targets" xml:space="preserve">
+    <value>Alvos</value>
+  </data>
+  <data name="AuditPage_Table_Detail" xml:space="preserve">
+    <value>Detalhe</value>
+  </data>
+  <data name="AuditPage_Anonymous" xml:space="preserve">
+    <value>anônimo</value>
+  </data>
+  <data name="AuditPage_More" xml:space="preserve">
+    <value>e mais {0}</value>
+  </data>
+  <data name="AuditPage_Disabled" xml:space="preserve">
+    <value>O registro está desativado (AuditLog.Enabled = false).</value>
+  </data>
+  <data name="QueuesPage_Table_Latency" xml:space="preserve">
+    <value>Espera</value>
+  </data>
+  <data name="QueuesPage_Table_Latency_Hint" xml:space="preserve">
+    <value>mediana · p95 da espera até um worker pegar a tarefa, nos últimos 200 inícios</value>
+  </data>
+  <data name="QueuesPage_Table_Throughput" xml:space="preserve">
+    <value>Por minuto</value>
+  </data>
+  <data name="QueuesPage_Table_ClearsIn" xml:space="preserve">
+    <value>Esvazia em</value>
+  </data>
+  <data name="QueuesPage_Stalled" xml:space="preserve">
+    <value>parada</value>
+  </data>
+  <data name="QueuesPage_Stalled_Tooltip" xml:space="preserve">
+    <value>Há tarefas esperando, mas nenhum worker pegou uma nos últimos cinco minutos</value>
+  </data>
+  <data name="QueuesPage_Paused" xml:space="preserve">
+    <value>Pausada</value>
+  </data>
+  <data name="QueuesPage_Pause" xml:space="preserve">
+    <value>Pausar</value>
+  </data>
+  <data name="QueuesPage_Resume" xml:space="preserve">
+    <value>Retomar</value>
+  </data>
+  <data name="QueuesPage_PauseConfirm" xml:space="preserve">
+    <value>Pausar esta fila? Suas tarefas ficam retidas até você retomá-la; as outras filas continuam.</value>
+  </data>
+  <data name="QueuesPage_Insights_Hint" xml:space="preserve">
+    <value>Espera e vazão precisam de UseJobInsights().</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused" xml:space="preserve">
+    <value>Filas pausadas: {0}</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused_Link" xml:space="preserve">
+    <value>Filas</value>
+  </data>
+  <data name="NavigationMenu_Timeline" xml:space="preserve">
+    <value>Linha do tempo</value>
+  </data>
+  <data name="NavigationMenu_Wallboard" xml:space="preserve">
+    <value>Painel de parede</value>
+  </data>
+  <data name="TimelinePage_Title" xml:space="preserve">
+    <value>Linha do tempo</value>
+  </data>
+  <data name="TimelinePage_Hint" xml:space="preserve">
+    <value>o que cada worker fez nos últimos minutos, a partir do feed de atividade</value>
+  </data>
+  <data name="TimelinePage_Empty" xml:space="preserve">
+    <value>Nenhuma execução registrada ainda. A linha do tempo se preenche conforme as tarefas são processadas.</value>
+  </data>
+  <data name="TimelinePage_Summary" xml:space="preserve">
+    <value>{0} execuções em {1} workers de {2} servidores nos últimos {3}</value>
+  </data>
+  <data name="TimelinePage_Running" xml:space="preserve">
+    <value>em execução</value>
+  </data>
+  <data name="TimelinePage_Legend_Held" xml:space="preserve">
+    <value>retida ou repetida</value>
+  </data>
+  <data name="WallboardPage_Title" xml:space="preserve">
+    <value>Painel de parede</value>
+  </data>
+  <data name="WallboardPage_Healthy" xml:space="preserve">
+    <value>Tudo certo</value>
+  </data>
+  <data name="WallboardPage_Degraded" xml:space="preserve">
+    <value>Precisa de atenção</value>
+  </data>
+  <data name="WallboardPage_Unhealthy" xml:space="preserve">
+    <value>O processamento está parado</value>
+  </data>
+  <data name="WallboardPage_Servers" xml:space="preserve">
+    <value>servidores ativos</value>
+  </data>
+  <data name="WallboardPage_Workers" xml:space="preserve">
+    <value>{0} workers</value>
+  </data>
+  <data name="WallboardPage_Waiting" xml:space="preserve">
+    <value>aguardando</value>
+  </data>
+  <data name="WallboardPage_Running" xml:space="preserve">
+    <value>em execução</value>
+  </data>
+  <data name="WallboardPage_Scheduled" xml:space="preserve">
+    <value>agendadas</value>
+  </data>
+  <data name="WallboardPage_Failed" xml:space="preserve">
+    <value>com falha</value>
+  </data>
+  <data name="WallboardPage_SuccessRate" xml:space="preserve">
+    <value>taxa de sucesso, última hora</value>
+  </data>
+  <data name="WallboardPage_Finished" xml:space="preserve">
+    <value>concluídas, última hora</value>
+  </data>
+  <data name="WallboardPage_Queues" xml:space="preserve">
+    <value>Filas</value>
+  </data>
+  <data name="WallboardPage_ClearsIn" xml:space="preserve">
+    <value>esvazia em {0}</value>
+  </data>
+  <data name="WallboardPage_Empty" xml:space="preserve">
+    <value>vazia</value>
+  </data>
+  <data name="WallboardPage_RunningJobs" xml:space="preserve">
+    <value>Em execução agora</value>
+  </data>
+  <data name="WallboardPage_NothingRunning" xml:space="preserve">
+    <value>Nada em execução.</value>
+  </data>
+  <data name="WallboardPage_Attention" xml:space="preserve">
+    <value>Atenção</value>
+  </data>
+  <data name="WallboardPage_NothingToReport" xml:space="preserve">
+    <value>Nada a relatar.</value>
+  </data>
+  <data name="WallboardPage_LateRecurring" xml:space="preserve">
+    <value>{0} tarefas recorrentes estão atrasadas</value>
+  </data>
+  <data name="WallboardPage_PausedQueues" xml:space="preserve">
+    <value>Filas pausadas: {0}</value>
+  </data>
+  <data name="WallboardPage_PausedServers" xml:space="preserve">
+    <value>Servidores pausados: {0}</value>
+  </data>
+  <data name="WallboardPage_OpenCircuits" xml:space="preserve">
+    <value>Circuitos abertos: {0}</value>
+  </data>
+  <data name="WallboardPage_Drain" xml:space="preserve">
+    <value>O processamento está pausado</value>
+  </data>
+  <data name="WallboardPage_Refresh" xml:space="preserve">
+    <value>atualiza a cada {0} segundos</value>
+  </data>
+  <data name="WallboardPage_Exit" xml:space="preserve">
+    <value>Painel</value>
+  </data>
+  <data name="InsightsPage_Heatmap" xml:space="preserve">
+    <value>Atividade, últimos 7 dias</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Hint" xml:space="preserve">
+    <value>tarefas concluídas por hora (UTC); vermelho quando as falhas superam os sucessos</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Cell" xml:space="preserve">
+    <value>{0}: {1} bem-sucedidas, {2} com falha</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Empty" xml:space="preserve">
+    <value>Os números aparecem conforme as tarefas terminam; a partir de agora o histórico por hora é mantido por uma semana.</value>
+  </data>
+  <data name="JobDetailsPage_Notes" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Hint" xml:space="preserve">
+    <value>para a próxima pessoa que abrir esta tarefa</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Placeholder" xml:space="preserve">
+    <value>O que você descobriu?</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Add" xml:space="preserve">
+    <value>Adicionar nota</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledge" xml:space="preserve">
+    <value>Reconhecer</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledged" xml:space="preserve">
+    <value>Reconhecida</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Empty" xml:space="preserve">
+    <value>Ainda não há notas.</value>
+  </data>
+  <data name="JobDetailsPage_Watch" xml:space="preserve">
+    <value>Acompanhar</value>
+  </data>
+  <data name="JobDetailsPage_Watching" xml:space="preserve">
+    <value>Acompanhando</value>
+  </data>
+  <data name="JobDetailsPage_Watch_Hint" xml:space="preserve">
+    <value>Acompanhe esta tarefa na barra lateral e receba uma notificação do navegador quando ela terminar</value>
+  </data>
+  <data name="JobDetailsPage_Export" xml:space="preserve">
+    <value>Exportar JSON</value>
+  </data>
+  <data name="JobDetailsPage_StateTimeline" xml:space="preserve">
+    <value>Tempo em cada estado</value>
+  </data>
+  <data name="FailedJobsPage_Acknowledged" xml:space="preserve">
+    <value>Reconhecida</value>
+  </data>
+  <data name="Common_DownloadCsv" xml:space="preserve">
+    <value>Baixar CSV</value>
+  </data>
+  <data name="Common_Anonymous" xml:space="preserve">
+    <value>alguém</value>
+  </data>
+  <data name="ServersPage_Resume_Server" xml:space="preserve">
+    <value>Retomar</value>
+  </data>
+  <data name="ServersPage_Paused" xml:space="preserve">
+    <value>Pausado</value>
+  </data>
+  <data name="ServersPage_PauseConfirm" xml:space="preserve">
+    <value>Pausar este servidor? Ele devolve as novas tarefas à fila para os outros servidores; as tarefas em execução terminam.</value>
+  </data>
+  <data name="LayoutPage_ServersPaused" xml:space="preserve">
+    <value>Servidores pausados: {0}</value>
+  </data>
+  <data name="LayoutPage_Watchlist" xml:space="preserve">
+    <value>Acompanhando</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Empty" xml:space="preserve">
+    <value>Acompanhe uma tarefa pela página dela para vê-la aqui.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Done" xml:space="preserve">
+    <value>A tarefa {0} terminou: {1}</value>
+  </data>
+  <data name="LayoutPage_Shortcuts" xml:space="preserve">
+    <value>Atalhos de teclado</value>
+  </data>
+  <data name="ServersPage_Pause_Server" xml:space="preserve">
+    <value>Pausar</value>
+  </data>
+</root>

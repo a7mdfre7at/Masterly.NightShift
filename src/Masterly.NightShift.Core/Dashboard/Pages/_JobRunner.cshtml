@@ -1,0 +1,65 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True TrimLeadingUnderscores : true *@
+@using System
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Resources
+@inherits RazorPage
+@* The modal behind "Run…" on the Catalog page and "Run again with changes…" on the job details page. *@
+@if (!IsReadOnly)
+{
+    <div class="modal fade" id="catalogRunner" tabindex="-1" role="dialog" aria-labelledby="catalogRunnerTitle"
+         data-run-url="@Url.To("/catalog/run")"
+         data-preview-url="@Url.To("/recurring/preview")"
+         data-job-url="@Url.To("/jobs/details/")"
+         data-recurring-url="@Url.To("/recurring")"
+         data-text-created="@Strings.CatalogPage_Created"
+         data-text-recurring-created="@Strings.CatalogPage_RecurringCreated"
+         data-text-injected="@Strings.CatalogPage_Injected"
+         data-text-redacted="@Strings.CatalogPage_Runner_Redacted">
+        <div class="modal-dialog" role="document">
+            <form class="modal-content js-catalog-form">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="@Strings.RecurringJobsPage_Cancel"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="catalogRunnerTitle">@Strings.CatalogPage_Runner_Title <code class="js-catalog-title"></code></h4>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="id" class="js-catalog-id" />
+                    <input type="hidden" name="source" class="js-catalog-source" />
+                    <div class="js-catalog-arguments"></div>
+
+                    <div class="hf-segmented js-catalog-modes" role="radiogroup">
+                        <label class="active"><input type="radio" name="mode" value="enqueue" checked /> <span class="glyphicon glyphicon-play"></span> @Strings.CatalogPage_Mode_Enqueue</label>
+                        <label><input type="radio" name="mode" value="schedule" /> <span class="glyphicon glyphicon-time"></span> @Strings.CatalogPage_Mode_Schedule</label>
+                        <label><input type="radio" name="mode" value="recurring" /> <span class="glyphicon glyphicon-repeat"></span> @Strings.CatalogPage_Mode_Recurring</label>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group col-sm-5">
+                            <label for="catalogQueue">@Strings.RecurringJobsPage_Queue</label>
+                            <input type="text" class="form-control" id="catalogQueue" name="queue" placeholder="default" autocomplete="off" spellcheck="false" />
+                        </div>
+                        <div class="form-group col-sm-7 js-catalog-mode-field" data-mode="schedule" style="display: none">
+                            <label for="catalogDelay">@Strings.CatalogPage_Delay</label>
+                            <input type="number" class="form-control" id="catalogDelay" name="delay" value="5" min="0" step="any" />
+                        </div>
+                        <div class="form-group col-sm-7 js-catalog-mode-field" data-mode="recurring" style="display: none">
+                            <label for="catalogRecurringId">@Strings.CatalogPage_RecurringId</label>
+                            <input type="text" class="form-control" id="catalogRecurringId" name="recurringId" autocomplete="off" spellcheck="false" />
+                        </div>
+                    </div>
+                    <div class="form-group js-catalog-mode-field" data-mode="recurring" style="display: none">
+                        <label for="catalogCron">@Strings.RecurringJobsPage_Schedule</label>
+                        <input type="text" class="form-control js-catalog-cron" id="catalogCron" name="cron" placeholder="every day at 3am" autocomplete="off" spellcheck="false" />
+                        <p class="cron-description js-catalog-cron-description" aria-live="polite"></p>
+                    </div>
+
+                    <div class="alert alert-danger js-catalog-error" style="display: none"></div>
+                    <div class="alert alert-success js-catalog-success" style="display: none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">@Strings.RecurringJobsPage_Cancel</button>
+                    <button type="submit" class="btn btn-primary js-catalog-submit" data-loading-text="@Strings.RecurringJobsPage_Saving">@Strings.CatalogPage_Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

@@ -18,24 +18,51 @@
         <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
     </ItemGroup>
 
+    <!-- CA1510-CA1513, CA1837, CA1845-CA1847, CA1850, CA1863-CA1867, CA1870, CA2249 and CA2263 suggest APIs that
+         netstandard2.0 doesn't have (ArgumentNullException.ThrowIfNull, span overloads, SearchValues, generic Enum
+         methods...). Every file also compiles for netstandard2.0, so following them would need #if at each call. -->
     <PropertyGroup>
-        <NoWarn>CA1200;CA1859;1591</NoWarn>
+        <NoWarn>CA1200;CA1859;1591;CA1510;CA1511;CA1512;CA1513;CA1837;CA1845;CA1846;CA1847;CA1850;CA1863;CA1864;CA1865;CA1866;CA1867;CA1870;CA2249;CA2263</NoWarn>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <AnalysisLevel>latest</AnalysisLevel>
         <AnalysisMode>Recommended</AnalysisMode>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
-    <!-- Every `dotnet pack` compares the public API of each package with the last published release.
-         Intentional breaking changes are listed in each project's CompatibilitySuppressions.xml file. -->
+    <!-- Package metadata shared by every Masterly.NightShift package. Raise <Version> to publish a new release;
+         keep AssemblyVersion in SharedAssemblyInfo.cs in step with it. -->
     <PropertyGroup>
-        <EnablePackageValidation>true</EnablePackageValidation>
-        <PackageValidationBaselineVersion>1.8.25</PackageValidationBaselineVersion>
+        <Version>1.0.0</Version>
+        <Authors>Ahmad Omar Al-Freihat</Authors>
+        <Company>Masterly</Company>
+        <Product>Masterly.NightShift</Product>
+        <Copyright>Copyright © 2026 Ahmad Al-Freihat</Copyright>
+        <PackageProjectUrl>https://a7mdfre7at.github.io/Masterly.NightShift/</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron</PackageTags>
+        <PackageReadmeFile>README.nuget.md</PackageReadmeFile>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+        <PackageReleaseNotes>See https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(APPVEYOR)' == 'True' or '$(GITHUB_ACTIONS)' == 'true'">
+    <!-- What every package ships next to the assemblies -->
+    <ItemGroup>
+        <None Include="..\..\README.nuget.md" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\assets\logo.png" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\NOTICE.md" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
+    </ItemGroup>
+
+    <!-- Every `dotnet pack` checks that the public API agrees across target frameworks. There is no
+         baseline release yet. Set PackageValidationBaselineVersion once the first release is on nuget.org. -->
+    <PropertyGroup>
+        <EnablePackageValidation>true</EnablePackageValidation>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-        <!-- Deterministic paths work bad when using ILRepack, because it combines everything with a wrong repository -->
-        <DeterministicSourcePaths>false</DeterministicSourcePaths>
     </PropertyGroup>
 </Project>

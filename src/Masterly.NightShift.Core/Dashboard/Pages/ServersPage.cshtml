@@ -1,0 +1,256 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Linq
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Server
+@using Masterly.NightShift.Storage
+@using System.Diagnostics
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.ServersPage_Title);
+    var invokers = JobInvokerRegistry.GetStatistics();
+    var keepAlive = KeepAliveProcess.Status;
+    var hostedByIis = KeepAliveProcess.IsHostedByIis;
+    var currentProcess = Process.GetCurrentProcess();
+    var uptime = ApplicationUtcNow - currentProcess.StartTime.ToUniversalTime();
+    
+    var monitor = Storage.GetMonitoringApi();
+    var servers = monitor.Servers();
+
+    DrainModeStatus drain;
+    using (var connection = Storage.GetReadOnlyConnection())
+    {
+        drain = DrainMode.Read(connection);
+    }
+    var now = StorageUtcNow ?? ApplicationUtcNow;
+    var inconclusiveThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
+    var possiblyAbortedThreshold = TimeSpan.FromSeconds(inconclusiveThreshold.TotalSeconds * 2);
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.ServersPage_Title</h1>
+
+        @if (servers.Count == 0)
+        {
+            <div class="alert alert-warning">
+                @Strings.ServersPage_NoServers
+            </div>
+        }
+        else
+        {
+            if (servers.Any(x => x.Heartbeat.HasValue && x.Heartbeat.Value < now.Add(-possiblyAbortedThreshold)))
+            {
+                <div class="alert alert-info">
+                    <h4>@Strings.ServersPage_Note_Title</h4>
+                    @Html.Raw(string.Format(Strings.ServersPage_Note_Text, Url.To("/jobs/processing")))
+                </div>
+            }
+
+            <div class="table-responsive">
+                <table class="table" aria-describedby="page-title">
+                    <thead>
+                        <tr>
+                            <th>@Strings.ServersPage_Table_Name</th>
+                            <th>@Strings.ServersPage_Table_Workers</th>
+                            <th>@Strings.ServersPage_Table_Queues</th>
+                            <th>@Strings.ServersPage_Table_Started</th>
+                            <th>@Strings.ServersPage_Table_Heartbeat</th>
+                            @if (!IsReadOnly)
+                            {
+                                <th class="min-width"></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var server in servers)
+                        {
+                            <tr>
+                                <td>
+                                    @if (server.Heartbeat < now.Add(-possiblyAbortedThreshold))
+                                    {
+                                        @:<span class="glyphicon glyphicon-alert text-danger" title="@Strings.ServersPage_Possibly_Aborted"></span>&nbsp;@Html.ServerId(server.Name)
+                                    }
+                                    else if (server.Heartbeat < now.Add(-inconclusiveThreshold))
+                                    {
+                                        @:<span class="glyphicon margin-right-14p"></span>&nbsp;@Html.ServerId(server.Name)
+                                    }
+                                    else
+                                    {
+                                        @:<span class="glyphicon glyphicon-ok text-success" title="@Strings.ServersPage_Active"></span>&nbsp;@Html.ServerId(server.Name)
+                                    }
+                                </td>
+                                <td>
+                                    @server.WorkersCount
+                                    @if (drain.PausedServers.TryGetValue(server.Name, out var serverPauseReason))
+                                    {
+                                        <span class="label label-warning text-uppercase" title="@serverPauseReason">@Strings.ServersPage_Paused</span>
+                                    }
+                                </td>
+                                <td>@Html.Raw(String.Join(", ", server.Queues.Select(Html.QueueLabel)))</td>
+                                <td>@Html.RelativeTime(server.StartedAt)</td>
+                                <td>
+                                    @if (server.Heartbeat.HasValue)
+                                    {
+                                        @Html.RelativeTime(server.Heartbeat.Value)
+                                    }
+                                </td>
+                                @if (!IsReadOnly)
+                                {
+                                    <td class="min-width">
+                                        @if (drain.PausedServers.ContainsKey(server.Name))
+                                        {
+                                            <button class="btn btn-xs btn-success" data-ajax="@Url.To("/servers/resume/" + Uri.EscapeDataString(server.Name))" data-loading-text="@Strings.ServersPage_Resume_Server">
+                                                <span class="glyphicon glyphicon-play"></span> @Strings.ServersPage_Resume_Server
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/pause/" + Uri.EscapeDataString(server.Name))" data-loading-text="@Strings.ServersPage_Pause_Server" data-confirm="@Strings.ServersPage_PauseConfirm">
+                                                <span class="glyphicon glyphicon-pause"></span> @Strings.ServersPage_Pause_Server
+                                            </button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <h3 id="servers-hosting">@Strings.ServersPage_Hosting</h3>
+        @if (hostedByIis && keepAlive == null)
+        {
+            <div class="alert alert-warning">
+                <span class="glyphicon glyphicon-warning-sign"></span>
+                @Html.Raw(Strings.ServersPage_Hosting_IisWarning_Html)
+            </div>
+        }
+        <div class="hf-card hf-hosting" aria-describedby="servers-hosting">
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_Hosting_Process</span>
+                <span class="hf-hosting-value">
+                    @currentProcess.ProcessName <span class="text-muted">#@currentProcess.Id</span>
+                    @if (hostedByIis)
+                    {
+                        <span class="label label-warning">@Strings.ServersPage_Hosting_Iis</span>
+                    }
+                </span>
+            </div>
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_Hosting_Uptime</span>
+                <span class="hf-hosting-value">@Html.ToHumanDuration(uptime, false)</span>
+            </div>
+            <div class="hf-hosting-item">
+                <span class="hf-hosting-label">@Strings.ServersPage_KeepAlive</span>
+                <span class="hf-hosting-value">
+                    @if (keepAlive == null)
+                    {
+                        <span class="label label-default">@Strings.ServersPage_KeepAlive_NotConfigured</span>
+                    }
+                    else if (keepAlive.LastAttemptAt == null)
+                    {
+                        <span class="label label-info">@Strings.ServersPage_KeepAlive_Pending</span>
+                        <span class="text-muted">@String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false))</span>
+                    }
+                    else if (keepAlive.LastSucceeded == true)
+                    {
+                        <span class="label label-success">@Strings.ServersPage_KeepAlive_Ok</span>
+                        @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
+                        <span class="text-muted">&middot; @String.Format(Strings.ServersPage_KeepAlive_Every, Html.ToHumanDuration(keepAlive.Interval, false)) &middot; <code>@keepAlive.Url</code></span>
+                    }
+                    else
+                    {
+                        <span class="label label-danger" title="@keepAlive.LastError">@Strings.ServersPage_KeepAlive_Failed</span>
+                        @Html.RelativeTime(keepAlive.LastAttemptAt.Value)
+                        <span class="text-muted">&middot; @keepAlive.LastError</span>
+                    }
+                </span>
+            </div>
+        </div>
+
+        <h3 id="servers-processing">@Strings.ServersPage_Processing <small class="text-muted">@Strings.ServersPage_Processing_Hint</small></h3>
+        <div class="hf-card hf-maintenance hf-drain @(drain.Active ? "hf-drain-active" : null)" aria-describedby="servers-processing">
+            <div class="hf-maintenance-row">
+                <div>
+                    @if (drain.Active)
+                    {
+                        <strong><span class="label label-warning text-uppercase">@Strings.ServersPage_Processing_Paused</span></strong>
+                        if (drain.Since.HasValue)
+                        {
+                            <span class="text-muted">@Html.Raw(String.Format(Strings.ServersPage_Paused_Since, Html.RelativeTime(drain.Since.Value)))</span>
+                        }
+                        <p class="text-muted">
+                            @if (!String.IsNullOrEmpty(drain.Reason))
+                            {
+                                <em>@drain.Reason</em><text> &middot; </text>
+                            }
+                            @String.Format(Strings.ServersPage_Pause_HeldHint, Html.ToHumanDuration(DrainMode.HoldInterval, false))
+                        </p>
+                    }
+                    else
+                    {
+                        <strong><span class="label label-success text-uppercase">@Strings.ServersPage_Processing_Running</span></strong>
+                        <p class="text-muted">@String.Format(Strings.ServersPage_Pause_HeldHint, Html.ToHumanDuration(DrainMode.HoldInterval, false))</p>
+                    }
+                </div>
+                @if (!IsReadOnly)
+                {
+                    if (drain.Active)
+                    {
+                        <button class="btn btn-sm btn-success" data-ajax="@Url.To("/maintenance/resume")" data-loading-text="@Strings.ServersPage_Resume">
+                            <span class="glyphicon glyphicon-play"></span> @Strings.ServersPage_Resume
+                        </button>
+                    }
+                    else
+                    {
+                        <form class="hf-drain-form js-drain-form" data-url="@Url.To("/maintenance/pause")">
+                            <input type="text" class="form-control input-sm" name="reason" placeholder="@Strings.ServersPage_Pause_Reason" maxlength="200" autocomplete="off" />
+                            <button type="submit" class="btn btn-sm btn-warning" data-loading-text="@Strings.ServersPage_Pause">
+                                <span class="glyphicon glyphicon-pause"></span> @Strings.ServersPage_Pause
+                            </button>
+                        </form>
+                    }
+                }
+            </div>
+        </div>
+
+        @if (!IsReadOnly && Storage.HasFeature(JobStorageFeatures.Purge))
+        {
+            <h3 id="servers-maintenance">@Strings.ServersPage_Maintenance <small class="text-muted">@Strings.ServersPage_Maintenance_Hint</small></h3>
+            <div class="hf-card hf-maintenance" aria-describedby="servers-maintenance">
+                <div class="hf-maintenance-row">
+                    <div>
+                        <strong>@Strings.ServersPage_ClearJobs</strong>
+                        <p class="text-muted">@Strings.ServersPage_ClearJobs_Hint</p>
+                    </div>
+                    <button class="btn btn-sm btn-default" data-ajax="@Url.To("/maintenance/clear-jobs")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ClearJobsConfirm">
+                        <span class="glyphicon glyphicon-trash"></span> @Strings.ServersPage_ClearJobs
+                    </button>
+                </div>
+                <div class="hf-maintenance-row">
+                    <div>
+                        <strong>@Strings.ServersPage_ResetStorage</strong>
+                        <p class="text-muted">@Strings.ServersPage_ResetStorage_Hint</p>
+                    </div>
+                    <button class="btn btn-sm btn-death" data-ajax="@Url.To("/maintenance/reset")" data-loading-text="@Strings.ServersPage_Clearing" data-confirm="@Strings.ServersPage_ResetStorageConfirm">
+                        <span class="glyphicon glyphicon-fire"></span> @Strings.ServersPage_ResetStorage
+                    </button>
+                </div>
+            </div>
+        }
+
+        <div class="invoker-stats text-muted" title="@Strings.ServersPage_Invokers_Hint">
+            <span class="glyphicon glyphicon-flash"></span>
+            @Strings.ServersPage_Invokers:
+            <span class="label label-success">@invokers.Generated @Strings.ServersPage_Invokers_Generated</span>
+            <span class="label label-info">@invokers.Compiled @Strings.ServersPage_Invokers_Compiled</span>
+            <span class="label label-default">@invokers.Reflection @Strings.ServersPage_Invokers_Reflection</span>
+            <span class="invoker-stats-registered">&middot; @invokers.Registered @Strings.ServersPage_Invokers_Registered</span>
+        </div>
+    </div>
+</div>

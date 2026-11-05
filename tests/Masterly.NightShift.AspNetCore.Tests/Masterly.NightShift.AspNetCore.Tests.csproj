@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <!-- Masterly.NightShift.AspNetCore and Masterly.NightShift.NetCore are tested together: the first depends on the second -->
+    <RootNamespace>Masterly.NightShift.AspNetCore.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" />
+  </ItemGroup>
+</Project>

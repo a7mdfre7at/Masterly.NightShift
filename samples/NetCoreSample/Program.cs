@@ -2,13 +2,13 @@
 using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
-using Hangfire;
-using Hangfire.Annotations;
-using Hangfire.Client;
-using Hangfire.Common;
-using Hangfire.Server;
-using Hangfire.SqlServer;
-using Hangfire.States;
+using Masterly.NightShift;
+using Masterly.NightShift.Annotations;
+using Masterly.NightShift.Client;
+using Masterly.NightShift.Common;
+using Masterly.NightShift.Server;
+using Masterly.NightShift.SqlServer;
+using Masterly.NightShift.States;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -49,16 +49,16 @@ namespace NetCoreSample
                     services.TryAddSingleton<IBackgroundJobStateChanger>(x => new CustomBackgroundJobStateChanger(
                             new BackgroundJobStateChanger(x.GetRequiredService<IJobFilterProvider>())));
 
-                    services.AddHangfire((provider, configuration) => configuration
+                    services.AddNightShift((provider, configuration) => configuration
                         .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
                         .UseSimpleAssemblyNameTypeSerializer()
                         .UseTelemetry()
                         .UseSqlServerStorage(
-                            @"Server=.\;Database=Hangfire.Sample;Trusted_Connection=True;", 
+                            @"Server=.\;Database=Masterly.NightShift.Sample;Trusted_Connection=True;", 
                             provider.GetRequiredService<SqlServerStorageOptions>()));
 
                     services.AddHostedService<RecurringJobsService>();
-                    services.AddHangfireServer(options =>
+                    services.AddNightShiftServer(options =>
                     {
                         options.StopTimeout = TimeSpan.FromSeconds(15);
                         options.ShutdownTimeout = TimeSpan.FromSeconds(30);

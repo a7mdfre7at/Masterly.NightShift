@@ -1,0 +1,1604 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Text" xml:space="preserve">
+    <value>Geen paniek, voortzettingen werken zoals verwacht. De huidige opslagmethode voor taken ondersteund niet alle functies die nodig zijn om deze pagina te laten zien. Werk de opslagmethode bij, of wacht tot een complete implementatie gereed is.</value>
+  </data>
+  <data name="AwaitingJobsPage_ContinuationsWarning_Title" xml:space="preserve">
+    <value>Voortzettingen werken zoals verwacht, maar de pagina kan niet worden getoond.</value>
+  </data>
+  <data name="AwaitingJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen afwachtende taken gevonden.</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Options" xml:space="preserve">
+    <value>Opties</value>
+  </data>
+  <data name="AwaitingJobsPage_Table_Parent" xml:space="preserve">
+    <value>Bovenliggende</value>
+  </data>
+  <data name="AwaitingJobsPage_Title" xml:space="preserve">
+    <value>Wachtende taken</value>
+  </data>
+  <data name="Common_Created" xml:space="preserve">
+    <value>Aangemaakt</value>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Verwijderen</value>
+  </data>
+  <data name="Common_DeleteConfirm" xml:space="preserve">
+    <value>Weet u zeker dat u alle geselecteeerde taken wilt VERWIJDEREN?</value>
+  </data>
+  <data name="Common_Deleting" xml:space="preserve">
+    <value>Verwijderen...</value>
+  </data>
+  <data name="Common_DeleteSelected" xml:space="preserve">
+    <value>Verwijder selectie</value>
+  </data>
+  <data name="Common_EnqueueButton_Text" xml:space="preserve">
+    <value>Taken inplannen</value>
+  </data>
+  <data name="Common_Enqueueing" xml:space="preserve">
+    <value>Inplannen...</value>
+  </data>
+  <data name="Common_Fetched" xml:space="preserve">
+    <value>Opgehaald</value>
+  </data>
+  <data name="Common_Id" xml:space="preserve">
+    <value>Id</value>
+  </data>
+  <data name="Common_Job" xml:space="preserve">
+    <value>Taak</value>
+  </data>
+  <data name="Common_JobExpired" xml:space="preserve">
+    <value>Taak verlopen.</value>
+  </data>
+  <data name="Common_JobStateChanged_Text" xml:space="preserve">
+    <value>De status van de taak is gewijzigd tijdens het ophalen.</value>
+  </data>
+  <data name="Common_LessDetails" xml:space="preserve">
+    <value>Minder details...</value>
+  </data>
+  <data name="Common_MoreDetails" xml:space="preserve">
+    <value>Meer details...</value>
+  </data>
+  <data name="Common_NotAvailable" xml:space="preserve">
+    <value>n.v.t.</value>
+  </data>
+  <data name="Common_PeriodDay" xml:space="preserve">
+    <value>Dag</value>
+  </data>
+  <data name="Common_PeriodWeek" xml:space="preserve">
+    <value>Week</value>
+  </data>
+  <data name="Common_Reason" xml:space="preserve">
+    <value>Reden</value>
+  </data>
+  <data name="Common_RequeueJobs" xml:space="preserve">
+    <value>Taken opnieuw inplannen</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Opnieuw</value>
+  </data>
+  <data name="Common_Server" xml:space="preserve">
+    <value>Server</value>
+  </data>
+  <data name="Common_State" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Common_Unknown" xml:space="preserve">
+    <value>Onbekend</value>
+  </data>
+  <data name="DeletedJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen verwijderde taken gevonden.</value>
+  </data>
+  <data name="DeletedJobsPage_Table_Deleted" xml:space="preserve">
+    <value>Verwijderd</value>
+  </data>
+  <data name="DeletedJobsPage_Title" xml:space="preserve">
+    <value>Verwijderde taken</value>
+  </data>
+  <data name="EnqueuedJobsPage_NoJobs" xml:space="preserve">
+    <value>De wachtrij is leeg.</value>
+  </data>
+  <data name="EnqueuedJobsPage_Title" xml:space="preserve">
+    <value>Ingeplande taken</value>
+  </data>
+  <data name="FailedJobsPage_FailedJobsNotExpire_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Mislukte taken verlopen niet&lt;/strong&gt; zodat ze opnieuw ingepland kunnen worden zonder 
+                tijdsdruk. Deze taken dienen handmatig opnieuw ingepland of gewist te worden, of het attribuut &lt;code&gt;AutomaticRetry(OnAttemptsExceeded = AttemptsExceededAction.Delete)&lt;/code&gt;
+                kan worden toegevoegd in code om deze taken automatisch te wissen.</value>
+  </data>
+  <data name="FailedJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen mislukte taken gevonden.</value>
+  </data>
+  <data name="FailedJobsPage_Table_Failed" xml:space="preserve">
+    <value>Mislukt</value>
+  </data>
+  <data name="FailedJobsPage_Title" xml:space="preserve">
+    <value>Mislukte taken</value>
+  </data>
+  <data name="FetchedJobsPage_NoJobs" xml:space="preserve">
+    <value>De lijst met opgehaalde taken is leeg.</value>
+  </data>
+  <data name="FetchedJobsPage_Title" xml:space="preserve">
+    <value>Opgehaalde taken</value>
+  </data>
+  <data name="HomePage_HistoryGraph" xml:space="preserve">
+    <value>Historische grafiek</value>
+  </data>
+  <data name="HomePage_RealtimeGraph" xml:space="preserve">
+    <value>Realtime grafiek</value>
+  </data>
+  <data name="HomePage_Title" xml:space="preserve">
+    <value>Overzicht</value>
+  </data>
+  <data name="JobDetailsPage_Created" xml:space="preserve">
+    <value>Aangemaakt</value>
+  </data>
+  <data name="JobDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Wilt u deze taak echt verwijderen?</value>
+  </data>
+  <data name="JobDetailsPage_State" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedNotActive_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;De taak is afgebroken&lt;/strong&gt; – de taak is verwerkt door server
+                        &lt;code&gt;{0}&lt;/code&gt; welke op dit moment niet voorkomt in de lijst met
+                        &lt;a href="{1}"&gt;actieve servers&lt;/a&gt;.
+                        De taak wordt automatisch herstart na de time-out die is ingesteld voor niet zichtbare taken, maar de taak kan ook handmatig opnieuw worden gestart, of verwijderd.</value>
+  </data>
+  <data name="JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;Het lijkt erop dat de taak is afgebroken&lt;/strong&gt; – de taak is verwerkt door server
+                        &lt;code&gt;{0}&lt;/code&gt;, welke meer dan 1 minuut geleden voor het laatst activiteit heeft gemeld.
+                        De taak wordt automatisch herstart na de time-out die is ingesteld voor niet zichtbare taken, maar de taak kan ook handmatig opnieuw worden gestart, of verwijderd.</value>
+  </data>
+  <data name="JobDetailsPage_JobExpired" xml:space="preserve">
+    <value>Taak '{0}' is verlopen, of kan niet worden gevonden op de server.</value>
+  </data>
+  <data name="JobDetailsPage_JobFinished_Warning_Html" xml:space="preserve">
+    <value>&lt;strong&gt;De taak is afgerond&lt;/strong&gt;.
+                    De taak zal automatisch worden verwijderd op &lt;em&gt;&lt;abbr data-moment="{0}"&gt;{1}&lt;/abbr&gt;&lt;/em&gt;.</value>
+  </data>
+  <data name="JobDetailsPage_JobId" xml:space="preserve">
+    <value>Taak Id</value>
+  </data>
+  <data name="JobDetailsPage_Requeue" xml:space="preserve">
+    <value>Opnieuw inplannen</value>
+  </data>
+  <data name="LayoutPage_Back" xml:space="preserve">
+    <value>Terug naar de site</value>
+  </data>
+  <data name="LayoutPage_Footer_Generatedms" xml:space="preserve">
+    <value>Gegenereerd: {0}ms</value>
+  </data>
+  <data name="LayoutPage_Footer_Time" xml:space="preserve">
+    <value>Tijd:</value>
+  </data>
+  <data name="Paginator_Next" xml:space="preserve">
+    <value>Volgende</value>
+  </data>
+  <data name="Paginator_Prev" xml:space="preserve">
+    <value>Vorige</value>
+  </data>
+  <data name="Paginator_TotalItems" xml:space="preserve">
+    <value>Aantal items</value>
+  </data>
+  <data name="PerPageSelector_ItemsPerPage" xml:space="preserve">
+    <value>Items per pagina</value>
+  </data>
+  <data name="ProcessingJobsPage_Aborted" xml:space="preserve">
+    <value>Het lijkt erop dat de taak is afgebroken</value>
+  </data>
+  <data name="ProcessingJobsPage_NoJobs" xml:space="preserve">
+    <value>Op dit moment worden er geen taken uitgevoerd.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Started" xml:space="preserve">
+    <value>Gestart</value>
+  </data>
+  <data name="ProcessingJobsPage_Title" xml:space="preserve">
+    <value>Uitvoerende taken</value>
+  </data>
+  <data name="QueuesPage_NoJobs" xml:space="preserve">
+    <value>Geen taken in de wachtrij.</value>
+  </data>
+  <data name="QueuesPage_NoQueues" xml:space="preserve">
+    <value>Geen taken in de wachtrij gevonden. Probeer een taak uit te voeren.</value>
+  </data>
+  <data name="QueuesPage_Table_Length" xml:space="preserve">
+    <value>Lengte</value>
+  </data>
+  <data name="QueuesPage_Table_NextsJobs" xml:space="preserve">
+    <value>Volgende taken</value>
+  </data>
+  <data name="QueuesPage_Table_Queue" xml:space="preserve">
+    <value>Wachtrij</value>
+  </data>
+  <data name="QueuesPage_Title" xml:space="preserve">
+    <value>Wachtrijen</value>
+  </data>
+  <data name="RecurringJobsPage_Canceled" xml:space="preserve">
+    <value>Geannuleerd</value>
+  </data>
+  <data name="RecurringJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen herhalende taken gevonden.</value>
+  </data>
+  <data name="RecurringJobsPage_Table_Cron" xml:space="preserve">
+    <value>Cron</value>
+  </data>
+  <data name="RecurringJobsPage_Table_LastExecution" xml:space="preserve">
+    <value>Laatst uitgevoerd</value>
+  </data>
+  <data name="RecurringJobsPage_Table_NextExecution" xml:space="preserve">
+    <value>Volgende keer</value>
+  </data>
+  <data name="RecurringJobsPage_Table_TimeZone" xml:space="preserve">
+    <value>Tijdzone</value>
+  </data>
+  <data name="RecurringJobsPage_Title" xml:space="preserve">
+    <value>Herhalende taken</value>
+  </data>
+  <data name="RecurringJobsPage_Triggering" xml:space="preserve">
+    <value>Uitvoeren...</value>
+  </data>
+  <data name="RecurringJobsPage_TriggerNow" xml:space="preserve">
+    <value>Nu uitvoeren</value>
+  </data>
+  <data name="RetriesPage_NoJobs" xml:space="preserve">
+    <value>Alles in orde – er zijn geen taken om opnieuw te proberen.</value>
+  </data>
+  <data name="RetriesPage_Title" xml:space="preserve">
+    <value>Opnieuw proberen</value>
+  </data>
+  <data name="RetriesPage_Warning_Html" xml:space="preserve">
+    <value>&lt;h4&gt;Opnieuw proberen werkt, maar de pagina kan niet worden getoond&lt;/h4&gt;
+        &lt;p&gt;
+            Geen paniek, taken worden wel opnieuw geprobeerd. De huidige opslagmethode voor taken ondersteund
+            niet alle functies die nodig zijn om deze pagina te laten zien. Werk de opslagmethode bij, of
+            wacht tot een complete implementatie gereed is.
+        &lt;/p&gt;
+        &lt;p&gt;
+            Voor een overzicht van alle ingeplande taken, inclusief taken die opnieuw geprobeerd worden, ga naar de &lt;a href="{0}"&gt;Ingeplande taken&lt;/a&gt;.
+        &lt;/p&gt;</value>
+  </data>
+  <data name="ScheduledJobsPage_EnqueueNow" xml:space="preserve">
+    <value>Nu in wachtrij plaatsen</value>
+  </data>
+  <data name="ScheduledJobsPage_NoJobs" xml:space="preserve">
+    <value>Er zijn geen ingeplande taken.</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Enqueue" xml:space="preserve">
+    <value>In wachtrij</value>
+  </data>
+  <data name="ScheduledJobsPage_Table_Scheduled" xml:space="preserve">
+    <value>Ingepland</value>
+  </data>
+  <data name="ScheduledJobsPage_Title" xml:space="preserve">
+    <value>Ingeplande taken</value>
+  </data>
+  <data name="ServersPage_NoServers" xml:space="preserve">
+    <value>Er zijn geen actieve servers. Achtergrondtaken worden niet uitgevoerd.</value>
+  </data>
+  <data name="ServersPage_Table_Heartbeat" xml:space="preserve">
+    <value>Hartslag</value>
+  </data>
+  <data name="ServersPage_Table_Name" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="ServersPage_Table_Queues" xml:space="preserve">
+    <value>Wachtrijen</value>
+  </data>
+  <data name="ServersPage_Table_Started" xml:space="preserve">
+    <value>Gestart</value>
+  </data>
+  <data name="ServersPage_Table_Workers" xml:space="preserve">
+    <value>Werkprocessen</value>
+  </data>
+  <data name="ServersPage_Title" xml:space="preserve">
+    <value>Servers</value>
+  </data>
+  <data name="SucceededJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen geslaagde taken gevonden.</value>
+  </data>
+  <data name="SucceededJobsPage_Table_Succeeded" xml:space="preserve">
+    <value>Geslaagd</value>
+  </data>
+  <data name="SucceededJobsPage_Table_TotalDuration" xml:space="preserve">
+    <value>Totale duur</value>
+  </data>
+  <data name="SucceededJobsPage_Title" xml:space="preserve">
+    <value>Geslaagde taken</value>
+  </data>
+  <data name="JobsSidebarMenu_Awaiting" xml:space="preserve">
+    <value>In afwachting</value>
+  </data>
+  <data name="JobsSidebarMenu_Deleted" xml:space="preserve">
+    <value>Verwijderd</value>
+  </data>
+  <data name="JobsSidebarMenu_Failed" xml:space="preserve">
+    <value>Mislukt</value>
+  </data>
+  <data name="JobsSidebarMenu_Processing" xml:space="preserve">
+    <value>Verwerken</value>
+  </data>
+  <data name="JobsSidebarMenu_Scheduled" xml:space="preserve">
+    <value>Ingepland</value>
+  </data>
+  <data name="JobsSidebarMenu_Succeeded" xml:space="preserve">
+    <value>Geslaagd</value>
+  </data>
+  <data name="NavigationMenu_Jobs" xml:space="preserve">
+    <value>Taken</value>
+  </data>
+  <data name="NavigationMenu_RecurringJobs" xml:space="preserve">
+    <value>Herhalende taken</value>
+  </data>
+  <data name="NavigationMenu_Retries" xml:space="preserve">
+    <value>Opnieuw proberen</value>
+  </data>
+  <data name="NavigationMenu_Servers" xml:space="preserve">
+    <value>Servers</value>
+  </data>
+  <data name="Common_CannotFindTargetMethod" xml:space="preserve">
+    <value>Kan de doelmethode niet vinden.</value>
+  </data>
+  <data name="Common_Enqueued" xml:space="preserve">
+    <value>Ingepland</value>
+  </data>
+  <data name="Common_NoState" xml:space="preserve">
+    <value>Geen status</value>
+  </data>
+  <data name="JobsSidebarMenu_Enqueued" xml:space="preserve">
+    <value>In wachtrij</value>
+  </data>
+  <data name="Metrics_ActiveConnections" xml:space="preserve">
+    <value>Actieve verbindingen</value>
+  </data>
+  <data name="Metrics_DeletedJobs" xml:space="preserve">
+    <value>Verwijderde taken</value>
+  </data>
+  <data name="Metrics_FailedJobs" xml:space="preserve">
+    <value>Mislukte taken</value>
+  </data>
+  <data name="Metrics_ProcessingJobs" xml:space="preserve">
+    <value>Uitvoerende taken</value>
+  </data>
+  <data name="Metrics_RecurringJobs" xml:space="preserve">
+    <value>Herhalende taken</value>
+  </data>
+  <data name="Metrics_Retries" xml:space="preserve">
+    <value>Opnieuw proberen</value>
+  </data>
+  <data name="Metrics_ScheduledJobs" xml:space="preserve">
+    <value>Ingeplande taken</value>
+  </data>
+  <data name="Metrics_Servers" xml:space="preserve">
+    <value>Servers</value>
+  </data>
+  <data name="Metrics_SucceededJobs" xml:space="preserve">
+    <value>Geslaagde taken</value>
+  </data>
+  <data name="Metrics_TotalConnections" xml:space="preserve">
+    <value>Totaal aantal verbindingen</value>
+  </data>
+  <data name="Common_Condition" xml:space="preserve">
+    <value>Voorwaarde</value>
+  </data>
+  <data name="Common_Continuations" xml:space="preserve">
+    <value>Voorzettingen</value>
+  </data>
+  <data name="Metrics_AwaitingCount" xml:space="preserve">
+    <value>In afwachting</value>
+  </data>
+  <data name="Metrics_EnqueuedCountOrNull" xml:space="preserve">
+    <value>In wachtrij</value>
+  </data>
+  <data name="Metrics_EnqueuedQueuesCount" xml:space="preserve">
+    <value>In wachtrij/Wachtrijen</value>
+  </data>
+  <data name="Metrics_FailedCountOrNull" xml:space="preserve">
+    <value>{0} mislukte taken gevonden. Herstart of verwijder deze handmatig.</value>
+  </data>
+  <data name="HomePage_GraphHover_Failed" xml:space="preserve">
+    <value>Mislukt</value>
+  </data>
+  <data name="HomePage_GraphHover_Succeeded" xml:space="preserve">
+    <value>Geslaagd</value>
+  </data>
+  <data name="Common_Disabled" xml:space="preserve">
+    <value>Uitgeschakeld</value>
+  </data>
+  <data name="RecurringJobsPage_RecurringJobDisabled_Tooltip" xml:space="preserve">
+    <value>Cron expressie is ongeldig, of bevat geen gebeurtenis in de komende 100 jaar</value>
+  </data>
+  <data name="ServersPage_Note_Text" xml:space="preserve">
+    <value>Sommige servers hebben geen hartslag gerapporteerd in de afgelopen minuut, en kunnen zijn gestopt. Als er niet spoedig een hartslag wordt gerapporteerd, worden ze automatisch verwijderd. Een handmatige actie is niet nodig.
+	Niet afgeronde taken die op deze servers worden uitgevoerd zullen automatisch opnieuw in de wachtrij worden geplaatst, maar dit proces kan worden versneld op de &lt;a href="{0}"&gt;Uitvoerende taken&lt;/a&gt; pagina.</value>
+  </data>
+  <data name="ServersPage_Note_Title" xml:space="preserve">
+    <value>Gestopte servers worden automatisch verwijderd</value>
+  </data>
+  <data name="ServersPage_Active" xml:space="preserve">
+    <value>Actief</value>
+  </data>
+  <data name="ServersPage_Possibly_Aborted" xml:space="preserve">
+    <value>Mogelijk afgebroken</value>
+  </data>
+  <data name="RecurringJobsPage_Pause" xml:space="preserve">
+    <value>Pauzeren</value>
+  </data>
+  <data name="RecurringJobsPage_Pausing" xml:space="preserve">
+    <value>Pauzeren…</value>
+  </data>
+  <data name="RecurringJobsPage_Resume" xml:space="preserve">
+    <value>Hervatten</value>
+  </data>
+  <data name="RecurringJobsPage_Resuming" xml:space="preserve">
+    <value>Hervatten…</value>
+  </data>
+  <data name="RecurringJobsPage_Paused" xml:space="preserve">
+    <value>Gepauzeerd</value>
+  </data>
+  <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
+    <value>Gepauzeerd: blijft buiten de planning tot het wordt hervat. Kan nog steeds handmatig worden gestart.</value>
+  </data>
+  <data name="RecurringJobsPage_Edit" xml:space="preserve">
+    <value>Bewerken</value>
+  </data>
+  <data name="RecurringJobsPage_EditSchedule" xml:space="preserve">
+    <value>Planning bewerken</value>
+  </data>
+  <data name="RecurringJobsPage_Schedule" xml:space="preserve">
+    <value>Planning</value>
+  </data>
+  <data name="RecurringJobsPage_ScheduleHint" xml:space="preserve">
+    <value>Een CRON-expressie of eenvoudig Engels zoals “every 15 minutes”, “weekdays at 9:30” of “last day of month at 23:00”.</value>
+  </data>
+  <data name="RecurringJobsPage_NextRuns" xml:space="preserve">
+    <value>Volgende uitvoeringen</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire" xml:space="preserve">
+    <value>Gemiste uitvoeringen</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Relaxed" xml:space="preserve">
+    <value>Eén keer zo snel mogelijk uitvoeren (relaxed)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Strict" xml:space="preserve">
+    <value>Elke gemiste uitvoering inhalen (strict)</value>
+  </data>
+  <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
+    <value>Overslaan (ignorable)</value>
+  </data>
+  <data name="RecurringJobsPage_Queue" xml:space="preserve">
+    <value>Wachtrij</value>
+  </data>
+  <data name="RecurringJobsPage_Save" xml:space="preserve">
+    <value>Opslaan</value>
+  </data>
+  <data name="RecurringJobsPage_Saving" xml:space="preserve">
+    <value>Opslaan…</value>
+  </data>
+  <data name="RecurringJobsPage_Cancel" xml:space="preserve">
+    <value>Annuleren</value>
+  </data>
+  <data name="RecurringJobsPage_PreviewUnavailable" xml:space="preserve">
+    <value>De planning kan niet worden voorvertoond.</value>
+  </data>
+  <data name="JobDetailsPage_Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="JobDetailsPage_Live_Elapsed" xml:space="preserve">
+    <value>verstreken</value>
+  </data>
+  <data name="JobDetailsPage_Progress" xml:space="preserve">
+    <value>Voortgang</value>
+  </data>
+  <data name="JobDetailsPage_Console" xml:space="preserve">
+    <value>Console</value>
+  </data>
+  <data name="JobDetailsPage_Checkpoints" xml:space="preserve">
+    <value>Controlepunten</value>
+  </data>
+  <data name="JobDetailsPage_NoConsoleOutput" xml:space="preserve">
+    <value>Nog niets gemeld. Taken kunnen voortgang, regels en controlepunten melden via IJobConsole.</value>
+  </data>
+  <data name="ProcessingJobsPage_Table_Progress" xml:space="preserve">
+    <value>Voortgang</value>
+  </data>
+  <data name="InsightsPage_Title" xml:space="preserve">
+    <value>Inzichten</value>
+  </data>
+  <data name="NavigationMenu_Insights" xml:space="preserve">
+    <value>Inzichten</value>
+  </data>
+  <data name="InsightsPage_NotSupported" xml:space="preserve">
+    <value>De huidige opslag kan geen lijsten en tellers lezen, dus inzichten zijn niet beschikbaar.</value>
+  </data>
+  <data name="InsightsPage_NoData_Html" xml:space="preserve">
+    <value>Nog geen statistieken. Schakel ze in met &lt;code&gt;GlobalConfiguration.Configuration.UseJobInsights()&lt;/code&gt; of zet &lt;code&gt;[JobInsights]&lt;/code&gt; op de taakklassen die u wilt volgen.</value>
+  </data>
+  <data name="InsightsPage_Circuits" xml:space="preserve">
+    <value>Stroomonderbrekers</value>
+  </data>
+  <data name="InsightsPage_Circuits_Resource" xml:space="preserve">
+    <value>Resource</value>
+  </data>
+  <data name="InsightsPage_Circuits_Failures" xml:space="preserve">
+    <value>Fouten</value>
+  </data>
+  <data name="InsightsPage_Circuits_Since" xml:space="preserve">
+    <value>Sinds</value>
+  </data>
+  <data name="InsightsPage_Circuits_Reset" xml:space="preserve">
+    <value>Herstellen</value>
+  </data>
+  <data name="InsightsPage_Table_Runs" xml:space="preserve">
+    <value>Uitvoeringen</value>
+  </data>
+  <data name="InsightsPage_Table_Failed" xml:space="preserve">
+    <value>Mislukt</value>
+  </data>
+  <data name="InsightsPage_Table_Median" xml:space="preserve">
+    <value>Mediaan</value>
+  </data>
+  <data name="InsightsPage_Table_P95" xml:space="preserve">
+    <value>p95</value>
+  </data>
+  <data name="InsightsPage_Table_Max" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="InsightsPage_Table_Trend" xml:space="preserve">
+    <value>Trend</value>
+  </data>
+  <data name="InsightsPage_Table_Invoker" xml:space="preserve">
+    <value>Aanroep</value>
+  </data>
+  <data name="InsightsPage_Table_LastRun" xml:space="preserve">
+    <value>Laatste uitvoering</value>
+  </data>
+  <data name="InsightsPage_SlowRun_Tooltip" xml:space="preserve">
+    <value>De laatste uitvoering duurde meer dan drie keer de p95 van recente uitvoeringen</value>
+  </data>
+  <data name="InsightsPage_Summary_Methods" xml:space="preserve">
+    <value>Gevolgde methoden</value>
+  </data>
+  <data name="InsightsPage_Summary_Runs" xml:space="preserve">
+    <value>Geregistreerde uitvoeringen</value>
+  </data>
+  <data name="InsightsPage_Summary_FailureRate" xml:space="preserve">
+    <value>Foutpercentage</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers" xml:space="preserve">
+    <value>Aanroepen op deze server</value>
+  </data>
+  <data name="InsightsPage_Summary_Invokers_Hint" xml:space="preserve">
+    <value>Methoden uitgevoerd met gegenereerde, gecompileerde en reflectie-aanroepen</value>
+  </data>
+  <data name="ServersPage_Invokers" xml:space="preserve">
+    <value>Taakaanroepen in dit proces</value>
+  </data>
+  <data name="ServersPage_Invokers_Registered" xml:space="preserve">
+    <value>gegenereerde aanroepen geregistreerd</value>
+  </data>
+  <data name="ServersPage_Invokers_Generated" xml:space="preserve">
+    <value>gegenereerd</value>
+  </data>
+  <data name="ServersPage_Invokers_Compiled" xml:space="preserve">
+    <value>gecompileerd</value>
+  </data>
+  <data name="ServersPage_Invokers_Reflection" xml:space="preserve">
+    <value>reflectie</value>
+  </data>
+  <data name="ServersPage_Invokers_Hint" xml:space="preserve">
+    <value>Hoe de door dit proces uitgevoerde taakmethoden zijn aangeroepen. Verwijs naar de analyzer Masterly.NightShift.SourceGenerator (meegeleverd met Masterly.NightShift.Core) om ze allemaal te genereren.</value>
+  </data>
+  <data name="Common_Deadline" xml:space="preserve">
+    <value>Deadline</value>
+  </data>
+  <data name="Common_Overdue" xml:space="preserve">
+    <value>Te laat</value>
+  </data>
+  <data name="Common_Overdue_Tooltip" xml:space="preserve">
+    <value>De taak is over zijn deadline heen</value>
+  </data>
+  <data name="JobDetailsPage_DeadlineMissed" xml:space="preserve">
+    <value>{0} na de deadline voltooid</value>
+  </data>
+  <data name="LayoutPage_Theme" xml:space="preserve">
+    <value>Thema</value>
+  </data>
+  <data name="LayoutPage_Theme_System" xml:space="preserve">
+    <value>Systeemthema volgen</value>
+  </data>
+  <data name="LayoutPage_Theme_Light" xml:space="preserve">
+    <value>Licht thema</value>
+  </data>
+  <data name="LayoutPage_Theme_Dark" xml:space="preserve">
+    <value>Donker thema</value>
+  </data>
+  <data name="LayoutPage_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="LayoutPage_Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="LayoutPage_Search" xml:space="preserve">
+    <value>Zoeken…</value>
+  </data>
+  <data name="LayoutPage_Search_Hint" xml:space="preserve">
+    <value>Ga naar een pagina, een taak-id of een terugkerende taak (Ctrl+K)</value>
+  </data>
+  <data name="NavigationMenu_Section_Monitor" xml:space="preserve">
+    <value>Bewaking</value>
+  </data>
+  <data name="HomePage_Overview" xml:space="preserve">
+    <value>Overzicht</value>
+  </data>
+  <data name="Common_DeleteAll" xml:space="preserve">
+    <value>Alles verwijderen</value>
+  </data>
+  <data name="Common_DeleteAllConfirm" xml:space="preserve">
+    <value>ELKE taak in deze lijst verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAll" xml:space="preserve">
+    <value>Alles verwijderen</value>
+  </data>
+  <data name="RecurringJobsPage_RemoveAllConfirm" xml:space="preserve">
+    <value>ALLE terugkerende taken verwijderen? Ze komen pas terug als de toepassing ze opnieuw registreert.</value>
+  </data>
+  <data name="LayoutPage_Refresh" xml:space="preserve">
+    <value>Vernieuwen</value>
+  </data>
+  <data name="LayoutPage_LiveToggle" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="LayoutPage_LiveToggle_Hint" xml:space="preserve">
+    <value>Deze lijst automatisch vernieuwen</value>
+  </data>
+  <data name="ServersPage_Maintenance" xml:space="preserve">
+    <value>Onderhoud</value>
+  </data>
+  <data name="ServersPage_Maintenance_Hint" xml:space="preserve">
+    <value>Wist taakgegevens uit de opslag. De servers blijven draaien.</value>
+  </data>
+  <data name="ServersPage_ClearJobs" xml:space="preserve">
+    <value>Alle taken wissen</value>
+  </data>
+  <data name="ServersPage_ClearJobs_Hint" xml:space="preserve">
+    <value>Verwijdert elke taak met geschiedenis, wachtrij-items, tellers, consoles en statistieken. Terugkerende taken en servers blijven behouden.</value>
+  </data>
+  <data name="ServersPage_ClearJobsConfirm" xml:space="preserve">
+    <value>ALLE taken en hun geschiedenis uit de opslag verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
+  </data>
+  <data name="ServersPage_ResetStorage" xml:space="preserve">
+    <value>Opslag resetten</value>
+  </data>
+  <data name="ServersPage_ResetStorage_Hint" xml:space="preserve">
+    <value>Verwijdert alles, ook terugkerende taken en serverregistraties, alsof de opslag nieuw is.</value>
+  </data>
+  <data name="ServersPage_ResetStorageConfirm" xml:space="preserve">
+    <value>De HELE opslag resetten? Terugkerende taken verdwijnen tot de toepassing ze opnieuw registreert. Dit kan niet ongedaan worden gemaakt.</value>
+  </data>
+  <data name="ServersPage_Clearing" xml:space="preserve">
+    <value>Wissen…</value>
+  </data>
+  <data name="ServersPage_Hosting" xml:space="preserve">
+    <value>Dit proces</value>
+  </data>
+  <data name="ServersPage_Hosting_Process" xml:space="preserve">
+    <value>Proces</value>
+  </data>
+  <data name="ServersPage_Hosting_Uptime" xml:space="preserve">
+    <value>Actief sinds</value>
+  </data>
+  <data name="ServersPage_Hosting_Iis" xml:space="preserve">
+    <value>Gehost door IIS</value>
+  </data>
+  <data name="ServersPage_Hosting_IisWarning_Html" xml:space="preserve">
+    <value>IIS stopt inactieve werkprocessen standaard na 20 minuten, en de taken stoppen mee. Zet de toepassingsgroep op &lt;code&gt;AlwaysRunning&lt;/code&gt; met voorladen en een inactiviteitstime-out van 0, of registreer &lt;code&gt;KeepAliveProcess&lt;/code&gt; (&lt;code&gt;services.AddNightShiftKeepAlive()&lt;/code&gt;) zodat het proces zichzelf regelmatig aanroept. Een recycle vereist nog steeds de groepsinstellingen.</value>
+  </data>
+  <data name="ServersPage_KeepAlive" xml:space="preserve">
+    <value>Keep-alive</value>
+  </data>
+  <data name="ServersPage_KeepAlive_NotConfigured" xml:space="preserve">
+    <value>niet geconfigureerd</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Pending" xml:space="preserve">
+    <value>wacht op de eerste aanvraag</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Ok" xml:space="preserve">
+    <value>laatste aanvraag geslaagd</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Failed" xml:space="preserve">
+    <value>laatste aanvraag mislukt</value>
+  </data>
+  <data name="ServersPage_KeepAlive_Every" xml:space="preserve">
+    <value>elke {0}</value>
+  </data>
+  <data name="NavigationMenu_Catalog" xml:space="preserve">
+    <value>Catalogus</value>
+  </data>
+  <data name="CatalogPage_Title" xml:space="preserve">
+    <value>Taakcatalogus</value>
+  </data>
+  <data name="CatalogPage_Hint" xml:space="preserve">
+    <value>elke taakmethode in je code, klaar om te starten</value>
+  </data>
+  <data name="CatalogPage_NoEntries_Html" xml:space="preserve">
+    <value>Geen taakmethoden gevonden. Verwijs naar de analyzer &lt;code&gt;Masterly.NightShift.SourceGenerator&lt;/code&gt; zodat methoden bij het bouwen worden gevonden, of registreer typen met &lt;code&gt;JobCatalog.Add&amp;lt;T&amp;gt;()&lt;/code&gt;.</value>
+  </data>
+  <data name="CatalogPage_Search" xml:space="preserve">
+    <value>Methoden filteren…</value>
+  </data>
+  <data name="CatalogPage_Summary_Methods" xml:space="preserve">
+    <value>methoden</value>
+  </data>
+  <data name="CatalogPage_Summary_Types" xml:space="preserve">
+    <value>typen</value>
+  </data>
+  <data name="CatalogPage_Table_Method" xml:space="preserve">
+    <value>Methode</value>
+  </data>
+  <data name="CatalogPage_Table_Parameters" xml:space="preserve">
+    <value>Parameters</value>
+  </data>
+  <data name="CatalogPage_Table_Filters" xml:space="preserve">
+    <value>Filters</value>
+  </data>
+  <data name="CatalogPage_Table_Stats" xml:space="preserve">
+    <value>Uitvoeringen</value>
+  </data>
+  <data name="CatalogPage_Static" xml:space="preserve">
+    <value>statisch</value>
+  </data>
+  <data name="CatalogPage_Injected" xml:space="preserve">
+    <value>ingevuld door de server</value>
+  </data>
+  <data name="CatalogPage_Run" xml:space="preserve">
+    <value>Uitvoeren…</value>
+  </data>
+  <data name="CatalogPage_Runner_Title" xml:space="preserve">
+    <value>Uitvoeren</value>
+  </data>
+  <data name="CatalogPage_Mode_Enqueue" xml:space="preserve">
+    <value>Nu uitvoeren</value>
+  </data>
+  <data name="CatalogPage_Mode_Schedule" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="CatalogPage_Mode_Recurring" xml:space="preserve">
+    <value>Terugkerend</value>
+  </data>
+  <data name="CatalogPage_Delay" xml:space="preserve">
+    <value>Vertraging (minuten)</value>
+  </data>
+  <data name="CatalogPage_RecurringId" xml:space="preserve">
+    <value>Id van terugkerende taak</value>
+  </data>
+  <data name="CatalogPage_Submit" xml:space="preserve">
+    <value>Aanmaken</value>
+  </data>
+  <data name="CatalogPage_Created" xml:space="preserve">
+    <value>Taak {0} aangemaakt.</value>
+  </data>
+  <data name="CatalogPage_RecurringCreated" xml:space="preserve">
+    <value>Terugkerende taak {0} opgeslagen.</value>
+  </data>
+  <data name="ForecastPage_Title" xml:space="preserve">
+    <value>Planningsprognose</value>
+  </data>
+  <data name="ForecastPage_Hint" xml:space="preserve">
+    <value>wanneer je terugkerende taken draaien en waar ze botsen</value>
+  </data>
+  <data name="ForecastPage_Window_24h" xml:space="preserve">
+    <value>Komende 24 uur</value>
+  </data>
+  <data name="ForecastPage_Window_7d" xml:space="preserve">
+    <value>Komende 7 dagen</value>
+  </data>
+  <data name="ForecastPage_Summary_Runs" xml:space="preserve">
+    <value>uitvoeringen</value>
+  </data>
+  <data name="ForecastPage_Summary_BusyTime" xml:space="preserve">
+    <value>verwachte bezette tijd</value>
+  </data>
+  <data name="ForecastPage_Summary_Busiest" xml:space="preserve">
+    <value>drukste uur</value>
+  </data>
+  <data name="ForecastPage_HotSpots" xml:space="preserve">
+    <value>Knelpunten</value>
+  </data>
+  <data name="ForecastPage_HotSpots_Hint" xml:space="preserve">
+    <value>meerdere taken starten binnen dezelfde 5 minuten</value>
+  </data>
+  <data name="ForecastPage_Paused" xml:space="preserve">
+    <value>gepauzeerd</value>
+  </data>
+  <data name="ForecastPage_Legend_Expected" xml:space="preserve">
+    <value>verwachte uitvoering, lengte op basis van de mediane duur uit Insights</value>
+  </data>
+  <data name="ForecastPage_Legend_Default" xml:space="preserve">
+    <value>nog geen uitvoeringen vastgelegd, 30 seconden aangenomen</value>
+  </data>
+  <data name="ForecastPage_Table_Slot" xml:space="preserve">
+    <value>Tijdvak</value>
+  </data>
+  <data name="ForecastPage_Table_Jobs" xml:space="preserve">
+    <value>Taken</value>
+  </data>
+  <data name="RecurringJobsPage_Forecast" xml:space="preserve">
+    <value>Prognose</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta" xml:space="preserve">
+    <value>nog ~{0}</value>
+  </data>
+  <data name="ProcessingJobsPage_LongerThanUsual" xml:space="preserve">
+    <value>langer dan gewoonlijk</value>
+  </data>
+  <data name="ProcessingJobsPage_Eta_Tooltip" xml:space="preserve">
+    <value>Geschat op basis van de mediane duur van eerdere uitvoeringen</value>
+  </data>
+  <data name="HomePage_Activity" xml:space="preserve">
+    <value>Live activiteit</value>
+  </data>
+  <data name="HomePage_Activity_Hint" xml:space="preserve">
+    <value>elke statuswijziging in het hele cluster</value>
+  </data>
+  <data name="HomePage_Activity_Empty" xml:space="preserve">
+    <value>Er is nog niets gebeurd.</value>
+  </data>
+  <data name="LayoutPage_Drain_Banner" xml:space="preserve">
+    <value>Verwerking is gepauzeerd: nieuwe taken wachten, lopende worden afgerond.</value>
+  </data>
+  <data name="LayoutPage_Drain_Since" xml:space="preserve">
+    <value>sinds {0}</value>
+  </data>
+  <data name="LayoutPage_Drain_Resume" xml:space="preserve">
+    <value>Hervatten</value>
+  </data>
+  <data name="ServersPage_Processing" xml:space="preserve">
+    <value>Verwerking</value>
+  </data>
+  <data name="ServersPage_Processing_Hint" xml:space="preserve">
+    <value>pauzeer vóór een deploy of onderhoudsvenster</value>
+  </data>
+  <data name="ServersPage_Processing_Running" xml:space="preserve">
+    <value>actief</value>
+  </data>
+  <data name="ServersPage_Processing_Paused" xml:space="preserve">
+    <value>gepauzeerd</value>
+  </data>
+  <data name="ServersPage_Pause" xml:space="preserve">
+    <value>Verwerking pauzeren</value>
+  </data>
+  <data name="ServersPage_Pause_Reason" xml:space="preserve">
+    <value>Reden (optioneel)</value>
+  </data>
+  <data name="ServersPage_Resume" xml:space="preserve">
+    <value>Verwerking hervatten</value>
+  </data>
+  <data name="ServersPage_Paused_Since" xml:space="preserve">
+    <value>gepauzeerd {0}</value>
+  </data>
+  <data name="ServersPage_Pause_HeldHint" xml:space="preserve">
+    <value>Tijdens de pauze geven workers nieuwe taken terug aan de planning en controleren ze elke {0} opnieuw.</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode" xml:space="preserve">
+    <value>Kopiëren als C#</value>
+  </data>
+  <data name="JobDetailsPage_CopyAsCode_Hint" xml:space="preserve">
+    <value>Kopieert de instructie die deze taak opnieuw aanmaakt</value>
+  </data>
+  <data name="JobDetailsPage_Copied" xml:space="preserve">
+    <value>Gekopieerd</value>
+  </data>
+  <data name="JobDetailsPage_FanInContinuations" xml:space="preserve">
+    <value>Fan-in-vervolgtaken</value>
+  </data>
+  <data name="InsightsPage_Anomalies" xml:space="preserve">
+    <value>Vraagt aandacht</value>
+  </data>
+  <data name="InsightsPage_Anomalies_Hint" xml:space="preserve">
+    <value>methoden waarvan het gedrag veranderde</value>
+  </data>
+  <data name="InsightsPage_Anomalies_None" xml:space="preserve">
+    <value>Alles ziet er normaal uit.</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowingDown" xml:space="preserve">
+    <value>wordt trager: {0} recent tegenover {1} eerder</value>
+  </data>
+  <data name="InsightsPage_Anomaly_FailureRate" xml:space="preserve">
+    <value>{0} van de uitvoeringen mislukt</value>
+  </data>
+  <data name="InsightsPage_Anomaly_SlowRun" xml:space="preserve">
+    <value>laatste uitvoering duurde {0}</value>
+  </data>
+  <data name="ForecastPage_Dense" xml:space="preserve">
+    <value>{0} uitvoeringen, te veel om één voor één te tekenen</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>Diagnose</value>
+  </data>
+  <data name="Diagnostics_Hint" xml:space="preserve">
+    <value>waarom de taak staat waar ze staat, en wat haar verder zou helpen</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>De diagnose kon niet worden afgerond: {0}</value>
+  </data>
+  <data name="Diagnostics_NoServers" xml:space="preserve">
+    <value>Er draait geen server. Taken wachten tot er een start.</value>
+  </data>
+  <data name="Diagnostics_ServersStale" xml:space="preserve">
+    <value>Elke geregistreerde server heeft zijn heartbeat gemist; ze zijn mogelijk gestopt of hebben de verbinding verloren.</value>
+  </data>
+  <data name="Diagnostics_QueueUnserved" xml:space="preserve">
+    <value>Geen draaiende server luistert naar wachtrij {0}. Draaiende servers luisteren naar: {1}</value>
+  </data>
+  <data name="Diagnostics_Drain" xml:space="preserve">
+    <value>De verwerking is gepauzeerd{0}. Workers geven taken terug tot ze wordt hervat.</value>
+  </data>
+  <data name="Diagnostics_Waiting" xml:space="preserve">
+    <value>Wacht al {1} in wachtrij {0}, samen met {2} andere taken. Servers luisteren, de wachtrij is gewoon druk.</value>
+  </data>
+  <data name="Diagnostics_Healthy" xml:space="preserve">
+    <value>Niets houdt haar tegen: wachtrij {0} wordt bediend en ze zou snel moeten starten.</value>
+  </data>
+  <data name="Diagnostics_RetryPending" xml:space="preserve">
+    <value>Poging {0} van {1} staat gepland.</value>
+  </data>
+  <data name="Diagnostics_RetryLater" xml:space="preserve">
+    <value>De taak vroeg om later opnieuw te proberen en wacht op het gekozen tijdstip.</value>
+  </data>
+  <data name="Diagnostics_ScheduledDue" xml:space="preserve">
+    <value>Wordt {0} in de wachtrij gezet.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue" xml:space="preserve">
+    <value>Was {0} verschuldigd, maar geen server heeft haar in de wachtrij gezet. De planner voor uitgestelde taken draait op elke server; controleer hun logs op opslagfouten.</value>
+  </data>
+  <data name="Diagnostics_ScheduledOverdue_NoServers" xml:space="preserve">
+    <value>Was {0} verschuldigd, maar er draait geen server om haar in de wachtrij te zetten.</value>
+  </data>
+  <data name="Diagnostics_ParentMissing" xml:space="preserve">
+    <value>Oudertaak {0} bestaat niet meer, dus deze taak start nooit automatisch. Verwijder haar of zet haar handmatig in de wachtrij.</value>
+  </data>
+  <data name="Diagnostics_ConditionFailed" xml:space="preserve">
+    <value>Oudertaak {0} eindigde als {1}, wat niet aan de voorwaarde van deze vervolgtaak voldoet. Ze blijft hier tot ze handmatig wordt ingepland of verwijderd.</value>
+  </data>
+  <data name="Diagnostics_ParentFinished" xml:space="preserve">
+    <value>Oudertaak {0} is al geëindigd als {1}; deze taak had in de wachtrij moeten staan en komt er zodra een server bijtrekt.</value>
+  </data>
+  <data name="Diagnostics_ParentFailed" xml:space="preserve">
+    <value>Oudertaak {0} is mislukt en wordt niet opnieuw geprobeerd, dus deze taak blijft hier tot de ouder opnieuw wordt ingepland.</value>
+  </data>
+  <data name="Diagnostics_ParentRetrying" xml:space="preserve">
+    <value>Oudertaak {0} is {1} voor een nieuwe poging; deze taak start zodra de ouder klaar is.</value>
+  </data>
+  <data name="Diagnostics_ParentWaiting" xml:space="preserve">
+    <value>Wacht op oudertaak {0}, momenteel {1}.</value>
+  </data>
+  <data name="Diagnostics_FanIn" xml:space="preserve">
+    <value>Fan-in: {0} van {1} ouders zijn klaar ({2}).</value>
+  </data>
+  <data name="Diagnostics_FanIn_All" xml:space="preserve">
+    <value>wacht op allemaal</value>
+  </data>
+  <data name="Diagnostics_FanIn_Any" xml:space="preserve">
+    <value>start na de eerste</value>
+  </data>
+  <data name="Diagnostics_ServerGone" xml:space="preserve">
+    <value>Server {0}, die deze taak oppakte, is niet meer geregistreerd. De opslag geeft de taak na de onzichtbaarheidstime-out terug aan haar wachtrij; plan haar opnieuw in om eerder te starten.</value>
+  </data>
+  <data name="Diagnostics_ServerStale" xml:space="preserve">
+    <value>Server {0} meldde zich voor het laatst {1}. Als hij is gestopt, komt de taak terug na de onzichtbaarheidstime-out.</value>
+  </data>
+  <data name="Diagnostics_Slow" xml:space="preserve">
+    <value>Draait al {0}; deze methode is meestal binnen {1} klaar.</value>
+  </data>
+  <data name="Diagnostics_Running" xml:space="preserve">
+    <value>Draait op {0} al {1}.</value>
+  </data>
+  <data name="Diagnostics_Running_Usual" xml:space="preserve">
+    <value>Draait op {0} al {1}; deze methode is meestal binnen {2} klaar.</value>
+  </data>
+  <data name="Diagnostics_RetriesExhausted" xml:space="preserve">
+    <value>{0} keer zonder succes opnieuw geprobeerd; er zijn geen automatische pogingen meer. Plan haar opnieuw in om het nog eens te proberen.</value>
+  </data>
+  <data name="Diagnostics_RetriesDisabled" xml:space="preserve">
+    <value>Automatische pogingen zijn voor deze methode uitgeschakeld, dus de eerste fout is definitief.</value>
+  </data>
+  <data name="Diagnostics_NotRetried" xml:space="preserve">
+    <value>De fout is niet opnieuw geprobeerd: het uitzonderingstype is uitgesloten van pogingen of het retry-filter is niet geregistreerd.</value>
+  </data>
+  <data name="Diagnostics_RetryLaterRequests" xml:space="preserve">
+    <value>De taak vroeg vóór deze fout {0} keer om later opnieuw te proberen.</value>
+  </data>
+  <data name="Diagnostics_CircuitOpen" xml:space="preserve">
+    <value>Stroomonderbreker {0} ging {1} open. Taken erachter worden bij het ophalen teruggezet tot hij halfopen gaat.</value>
+  </data>
+  <data name="Common_Redacted" xml:space="preserve">
+    <value>Verborgen: dit argument is gemarkeerd met [Redacted]</value>
+  </data>
+  <data name="JobDetailsPage_Lineage" xml:space="preserve">
+    <value>Afstamming</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Hint" xml:space="preserve">
+    <value>de taken waarop deze wachtte, en de taken die op haar wachten</value>
+  </data>
+  <data name="JobDetailsPage_Lineage_Truncated" xml:space="preserve">
+    <value>Alleen de dichtstbijzijnde taken worden getoond.</value>
+  </data>
+  <data name="Lineage_AfterSuccess" xml:space="preserve">
+    <value>na succes</value>
+  </data>
+  <data name="Lineage_AfterFinish" xml:space="preserve">
+    <value>na afronding</value>
+  </data>
+  <data name="Lineage_AfterDelete" xml:space="preserve">
+    <value>na verwijdering</value>
+  </data>
+  <data name="Lineage_All" xml:space="preserve">
+    <value>alle van</value>
+  </data>
+  <data name="Lineage_Any" xml:space="preserve">
+    <value>een van</value>
+  </data>
+  <data name="JobDetailsPage_Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain" xml:space="preserve">
+    <value>Opnieuw uitvoeren met wijzigingen…</value>
+  </data>
+  <data name="JobDetailsPage_RunAgain_Hint" xml:space="preserve">
+    <value>Een nieuwe taak maken op basis van deze met aangepaste argumenten, nu, later of volgens schema</value>
+  </data>
+  <data name="CatalogPage_Runner_Redacted" xml:space="preserve">
+    <value>verborgen, voer de waarde opnieuw in</value>
+  </data>
+  <data name="FailedJobsPage_Clusters" xml:space="preserve">
+    <value>Foutgroepen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Hint" xml:space="preserve">
+    <value>de laatste {0} fouten, gegroepeerd op uitzondering en methode</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Jobs" xml:space="preserve">
+    <value>{0} taken</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_FirstSeen" xml:space="preserve">
+    <value>eerste</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_LastSeen" xml:space="preserve">
+    <value>laatste</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Requeue" xml:space="preserve">
+    <value>Alle {0} opnieuw inplannen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_Delete" xml:space="preserve">
+    <value>Alle {0} verwijderen</value>
+  </data>
+  <data name="FailedJobsPage_Clusters_DeleteConfirm" xml:space="preserve">
+    <value>Alle taken in deze groep verwijderen?</value>
+  </data>
+  <data name="RecurringJobsPage_Export" xml:space="preserve">
+    <value>Exporteren</value>
+  </data>
+  <data name="RecurringJobsPage_Export_Hint" xml:space="preserve">
+    <value>Alle terugkerende taken downloaden als JSON-manifest</value>
+  </data>
+  <data name="RecurringJobsPage_Import" xml:space="preserve">
+    <value>Importeren…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Title" xml:space="preserve">
+    <value>Terugkerende taken importeren</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Hint" xml:space="preserve">
+    <value>Plak een manifest dat uit deze of een andere omgeving is geëxporteerd, of kies het bestand. Bestaande taken met dezelfde id worden bijgewerkt.</value>
+  </data>
+  <data name="RecurringJobsPage_Import_File" xml:space="preserve">
+    <value>Bestand kiezen</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Prune" xml:space="preserve">
+    <value>Terugkerende taken verwijderen die niet in het manifest staan</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Apply" xml:space="preserve">
+    <value>Toepassen</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Applying" xml:space="preserve">
+    <value>Toepassen…</value>
+  </data>
+  <data name="RecurringJobsPage_Import_Result" xml:space="preserve">
+    <value>{0} toegevoegd, {1} bijgewerkt, {2} verwijderd, {3} mislukt</value>
+  </data>
+  <data name="RecurringJobsPage_Late" xml:space="preserve">
+    <value>Te laat</value>
+  </data>
+  <data name="RecurringJobsPage_Late_Tooltip" xml:space="preserve">
+    <value>De volgende uitvoering was meer dan een minuut geleden verschuldigd en geen server heeft haar gestart</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary" xml:space="preserve">
+    <value>{0} terugkerende taken zijn te laat: hun volgende uitvoering was meer dan een minuut geleden verschuldigd. Controleer of een draaiende server de planner voor terugkerende taken heeft ingeschakeld en de opslag bereikt.</value>
+  </data>
+  <data name="TagsPage_Title" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="TagsPage_Hint" xml:space="preserve">
+    <value>taken vinden op waar ze over gaan</value>
+  </data>
+  <data name="TagsPage_NoTags_Html" xml:space="preserve">
+    <value>Nog geen tags. Zet &lt;code&gt;[Tag(&amp;quot;customer:{0}&amp;quot;)]&lt;/code&gt; op een taakmethode om haar taken met het eerste argument te taggen, of roep &lt;code&gt;JobTags.Add(jobId, &amp;quot;tag&amp;quot;)&lt;/code&gt; aan.</value>
+  </data>
+  <data name="TagsPage_Table_Tag" xml:space="preserve">
+    <value>Tag</value>
+  </data>
+  <data name="TagsPage_Table_Jobs" xml:space="preserve">
+    <value>Taken</value>
+  </data>
+  <data name="TagsPage_Forget" xml:space="preserve">
+    <value>Vergeten</value>
+  </data>
+  <data name="TagsPage_ForgetConfirm" xml:space="preserve">
+    <value>Deze tag vergeten? De taken zelf blijven bewaard.</value>
+  </data>
+  <data name="TagsPage_Search" xml:space="preserve">
+    <value>Tags filteren…</value>
+  </data>
+  <data name="TaggedJobsPage_Title" xml:space="preserve">
+    <value>Getagd met {0}</value>
+  </data>
+  <data name="TaggedJobsPage_NoJobs" xml:space="preserve">
+    <value>Geen taak draagt deze tag nog.</value>
+  </data>
+  <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
+    <value>{0} verlopen taken zijn uit de tag verwijderd.</value>
+  </data>
+  <data name="NavigationMenu_Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="NavigationMenu_Batches" xml:space="preserve">
+    <value>Batches</value>
+  </data>
+  <data name="NavigationMenu_Audit" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="Diagnostics_QueuePaused" xml:space="preserve">
+    <value>Wachtrij {0} is gepauzeerd{1}. Workers geven haar taken terug tot ze wordt hervat.</value>
+  </data>
+  <data name="BatchesPage_Title" xml:space="preserve">
+    <value>Batches</value>
+  </data>
+  <data name="BatchesPage_Hint" xml:space="preserve">
+    <value>groepen taken die als één geheel worden gevolgd en vervolgd</value>
+  </data>
+  <data name="BatchesPage_NoBatches_Html" xml:space="preserve">
+    <value>Nog geen batches. Maak er een met &lt;code&gt;BatchJob.StartNew(b =&amp;gt; { b.Enqueue(...); b.Enqueue(...); })&lt;/code&gt; en vervolg hem met &lt;code&gt;BatchJob.ContinueWith(batchId, ...)&lt;/code&gt;.</value>
+  </data>
+  <data name="BatchesPage_Table_Batch" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="BatchesPage_Table_Progress" xml:space="preserve">
+    <value>Voortgang</value>
+  </data>
+  <data name="BatchesPage_Table_Jobs" xml:space="preserve">
+    <value>Taken</value>
+  </data>
+  <data name="BatchesPage_Table_Created" xml:space="preserve">
+    <value>Aangemaakt</value>
+  </data>
+  <data name="BatchesPage_State_Running" xml:space="preserve">
+    <value>Bezig</value>
+  </data>
+  <data name="BatchesPage_State_Finished" xml:space="preserve">
+    <value>Klaar</value>
+  </data>
+  <data name="BatchesPage_State_Failed" xml:space="preserve">
+    <value>Mislukte taken</value>
+  </data>
+  <data name="BatchesPage_Counts" xml:space="preserve">
+    <value>{0} geslaagd · {1} mislukt · {2} in afwachting</value>
+  </data>
+  <data name="BatchDetailsPage_Title" xml:space="preserve">
+    <value>Batch {0}</value>
+  </data>
+  <data name="BatchDetailsPage_Expired" xml:space="preserve">
+    <value>Batch {0} bestaat niet of is verlopen.</value>
+  </data>
+  <data name="BatchDetailsPage_RequeueFailed" xml:space="preserve">
+    <value>Mislukte opnieuw inplannen ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePending" xml:space="preserve">
+    <value>Onvoltooide verwijderen ({0})</value>
+  </data>
+  <data name="BatchDetailsPage_DeletePendingConfirm" xml:space="preserve">
+    <value>Alle taken van deze batch verwijderen die nog niet klaar zijn?</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations" xml:space="preserve">
+    <value>Vervolgtaken</value>
+  </data>
+  <data name="BatchDetailsPage_Continuations_Hint" xml:space="preserve">
+    <value>starten zodra elke taak van de batch klaar is</value>
+  </data>
+  <data name="BatchDetailsPage_JobsInBatch" xml:space="preserve">
+    <value>Taken in de batch</value>
+  </data>
+  <data name="BatchDetailsPage_MoreJobs" xml:space="preserve">
+    <value>{0} taken meer worden niet getoond.</value>
+  </data>
+  <data name="JobDetailsPage_Batch" xml:space="preserve">
+    <value>Batch</value>
+  </data>
+  <data name="JobDetailsPage_BatchContinuation" xml:space="preserve">
+    <value>Vervolg van batch</value>
+  </data>
+  <data name="AuditPage_Title" xml:space="preserve">
+    <value>Audit</value>
+  </data>
+  <data name="AuditPage_Hint" xml:space="preserve">
+    <value>wie wat deed op dit dashboard</value>
+  </data>
+  <data name="AuditPage_NoEntries" xml:space="preserve">
+    <value>Er is nog niets vanuit het dashboard gedaan.</value>
+  </data>
+  <data name="AuditPage_Table_When" xml:space="preserve">
+    <value>Wanneer</value>
+  </data>
+  <data name="AuditPage_Table_User" xml:space="preserve">
+    <value>Gebruiker</value>
+  </data>
+  <data name="AuditPage_Table_Action" xml:space="preserve">
+    <value>Actie</value>
+  </data>
+  <data name="AuditPage_Table_Targets" xml:space="preserve">
+    <value>Doelen</value>
+  </data>
+  <data name="AuditPage_Table_Detail" xml:space="preserve">
+    <value>Detail</value>
+  </data>
+  <data name="AuditPage_Anonymous" xml:space="preserve">
+    <value>anoniem</value>
+  </data>
+  <data name="AuditPage_More" xml:space="preserve">
+    <value>en nog {0}</value>
+  </data>
+  <data name="AuditPage_Disabled" xml:space="preserve">
+    <value>Registratie staat uit (AuditLog.Enabled = false).</value>
+  </data>
+  <data name="QueuesPage_Table_Latency" xml:space="preserve">
+    <value>Wachttijd</value>
+  </data>
+  <data name="QueuesPage_Table_Latency_Hint" xml:space="preserve">
+    <value>mediaan · p95 van de wachttijd tot een worker de taak oppakte, over de laatste 200 starts</value>
+  </data>
+  <data name="QueuesPage_Table_Throughput" xml:space="preserve">
+    <value>Per minuut</value>
+  </data>
+  <data name="QueuesPage_Table_ClearsIn" xml:space="preserve">
+    <value>Leeg over</value>
+  </data>
+  <data name="QueuesPage_Stalled" xml:space="preserve">
+    <value>vastgelopen</value>
+  </data>
+  <data name="QueuesPage_Stalled_Tooltip" xml:space="preserve">
+    <value>Taken wachten, maar geen worker pakte er een op in de laatste vijf minuten</value>
+  </data>
+  <data name="QueuesPage_Paused" xml:space="preserve">
+    <value>Gepauzeerd</value>
+  </data>
+  <data name="QueuesPage_Pause" xml:space="preserve">
+    <value>Pauzeren</value>
+  </data>
+  <data name="QueuesPage_Resume" xml:space="preserve">
+    <value>Hervatten</value>
+  </data>
+  <data name="QueuesPage_PauseConfirm" xml:space="preserve">
+    <value>Deze wachtrij pauzeren? Haar taken worden vastgehouden tot u hervat; andere wachtrijen lopen door.</value>
+  </data>
+  <data name="QueuesPage_Insights_Hint" xml:space="preserve">
+    <value>Wachttijd en doorvoer vereisen UseJobInsights().</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused" xml:space="preserve">
+    <value>Gepauzeerde wachtrijen: {0}</value>
+  </data>
+  <data name="LayoutPage_QueuesPaused_Link" xml:space="preserve">
+    <value>Wachtrijen</value>
+  </data>
+  <data name="NavigationMenu_Timeline" xml:space="preserve">
+    <value>Tijdlijn</value>
+  </data>
+  <data name="NavigationMenu_Wallboard" xml:space="preserve">
+    <value>Wandbord</value>
+  </data>
+  <data name="TimelinePage_Title" xml:space="preserve">
+    <value>Tijdlijn</value>
+  </data>
+  <data name="TimelinePage_Hint" xml:space="preserve">
+    <value>wat elke worker de afgelopen minuten deed, uit de activiteitenfeed</value>
+  </data>
+  <data name="TimelinePage_Empty" xml:space="preserve">
+    <value>Nog geen uitvoeringen vastgelegd. De tijdlijn vult zich terwijl taken worden verwerkt.</value>
+  </data>
+  <data name="TimelinePage_Summary" xml:space="preserve">
+    <value>{0} uitvoeringen op {1} workers over {2} servers in de afgelopen {3}</value>
+  </data>
+  <data name="TimelinePage_Running" xml:space="preserve">
+    <value>bezig</value>
+  </data>
+  <data name="TimelinePage_Legend_Held" xml:space="preserve">
+    <value>vastgehouden of opnieuw geprobeerd</value>
+  </data>
+  <data name="WallboardPage_Title" xml:space="preserve">
+    <value>Wandbord</value>
+  </data>
+  <data name="WallboardPage_Healthy" xml:space="preserve">
+    <value>Alles in orde</value>
+  </data>
+  <data name="WallboardPage_Degraded" xml:space="preserve">
+    <value>Aandacht nodig</value>
+  </data>
+  <data name="WallboardPage_Unhealthy" xml:space="preserve">
+    <value>Verwerking ligt stil</value>
+  </data>
+  <data name="WallboardPage_Servers" xml:space="preserve">
+    <value>servers actief</value>
+  </data>
+  <data name="WallboardPage_Workers" xml:space="preserve">
+    <value>{0} workers</value>
+  </data>
+  <data name="WallboardPage_Waiting" xml:space="preserve">
+    <value>wachtend</value>
+  </data>
+  <data name="WallboardPage_Running" xml:space="preserve">
+    <value>bezig</value>
+  </data>
+  <data name="WallboardPage_Scheduled" xml:space="preserve">
+    <value>gepland</value>
+  </data>
+  <data name="WallboardPage_Failed" xml:space="preserve">
+    <value>mislukt</value>
+  </data>
+  <data name="WallboardPage_SuccessRate" xml:space="preserve">
+    <value>slagingspercentage, laatste uur</value>
+  </data>
+  <data name="WallboardPage_Finished" xml:space="preserve">
+    <value>afgerond, laatste uur</value>
+  </data>
+  <data name="WallboardPage_Queues" xml:space="preserve">
+    <value>Wachtrijen</value>
+  </data>
+  <data name="WallboardPage_ClearsIn" xml:space="preserve">
+    <value>leeg over {0}</value>
+  </data>
+  <data name="WallboardPage_Empty" xml:space="preserve">
+    <value>leeg</value>
+  </data>
+  <data name="WallboardPage_RunningJobs" xml:space="preserve">
+    <value>Nu bezig</value>
+  </data>
+  <data name="WallboardPage_NothingRunning" xml:space="preserve">
+    <value>Er draait niets.</value>
+  </data>
+  <data name="WallboardPage_Attention" xml:space="preserve">
+    <value>Aandacht</value>
+  </data>
+  <data name="WallboardPage_NothingToReport" xml:space="preserve">
+    <value>Niets te melden.</value>
+  </data>
+  <data name="WallboardPage_LateRecurring" xml:space="preserve">
+    <value>{0} terugkerende taken zijn te laat</value>
+  </data>
+  <data name="WallboardPage_PausedQueues" xml:space="preserve">
+    <value>Gepauzeerde wachtrijen: {0}</value>
+  </data>
+  <data name="WallboardPage_PausedServers" xml:space="preserve">
+    <value>Gepauzeerde servers: {0}</value>
+  </data>
+  <data name="WallboardPage_OpenCircuits" xml:space="preserve">
+    <value>Open stroomonderbrekers: {0}</value>
+  </data>
+  <data name="WallboardPage_Drain" xml:space="preserve">
+    <value>Verwerking is gepauzeerd</value>
+  </data>
+  <data name="WallboardPage_Refresh" xml:space="preserve">
+    <value>ververst elke {0} seconden</value>
+  </data>
+  <data name="WallboardPage_Exit" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="InsightsPage_Heatmap" xml:space="preserve">
+    <value>Activiteit, laatste 7 dagen</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Hint" xml:space="preserve">
+    <value>afgeronde taken per uur (UTC); rood als er meer mislukken dan slagen</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Cell" xml:space="preserve">
+    <value>{0}: {1} geslaagd, {2} mislukt</value>
+  </data>
+  <data name="InsightsPage_Heatmap_Empty" xml:space="preserve">
+    <value>Aantallen verschijnen zodra taken afronden; vanaf nu wordt de uurgeschiedenis een week bewaard.</value>
+  </data>
+  <data name="JobDetailsPage_Notes" xml:space="preserve">
+    <value>Notities</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Hint" xml:space="preserve">
+    <value>voor de volgende die deze taak opent</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Placeholder" xml:space="preserve">
+    <value>Wat heb je ontdekt?</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Add" xml:space="preserve">
+    <value>Notitie toevoegen</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledge" xml:space="preserve">
+    <value>Bevestigen</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Acknowledged" xml:space="preserve">
+    <value>Bevestigd</value>
+  </data>
+  <data name="JobDetailsPage_Notes_Empty" xml:space="preserve">
+    <value>Nog geen notities.</value>
+  </data>
+  <data name="JobDetailsPage_Watch" xml:space="preserve">
+    <value>Volgen</value>
+  </data>
+  <data name="JobDetailsPage_Watching" xml:space="preserve">
+    <value>Gevolgd</value>
+  </data>
+  <data name="JobDetailsPage_Watch_Hint" xml:space="preserve">
+    <value>Volg deze taak in de zijbalk en krijg een browsermelding wanneer ze klaar is</value>
+  </data>
+  <data name="JobDetailsPage_Export" xml:space="preserve">
+    <value>JSON exporteren</value>
+  </data>
+  <data name="JobDetailsPage_StateTimeline" xml:space="preserve">
+    <value>Tijd per status</value>
+  </data>
+  <data name="FailedJobsPage_Acknowledged" xml:space="preserve">
+    <value>Bevestigd</value>
+  </data>
+  <data name="Common_DownloadCsv" xml:space="preserve">
+    <value>CSV downloaden</value>
+  </data>
+  <data name="Common_Anonymous" xml:space="preserve">
+    <value>iemand</value>
+  </data>
+  <data name="ServersPage_Resume_Server" xml:space="preserve">
+    <value>Hervatten</value>
+  </data>
+  <data name="ServersPage_Paused" xml:space="preserve">
+    <value>Gepauzeerd</value>
+  </data>
+  <data name="ServersPage_PauseConfirm" xml:space="preserve">
+    <value>Deze server pauzeren? Hij geeft nieuwe taken terug aan de wachtrij voor de andere servers; lopende taken maken af.</value>
+  </data>
+  <data name="LayoutPage_ServersPaused" xml:space="preserve">
+    <value>Gepauzeerde servers: {0}</value>
+  </data>
+  <data name="LayoutPage_Watchlist" xml:space="preserve">
+    <value>Gevolgd</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Empty" xml:space="preserve">
+    <value>Volg een taak vanaf haar pagina om haar hier te zien.</value>
+  </data>
+  <data name="LayoutPage_Watchlist_Done" xml:space="preserve">
+    <value>Taak {0} is klaar: {1}</value>
+  </data>
+  <data name="LayoutPage_Shortcuts" xml:space="preserve">
+    <value>Sneltoetsen</value>
+  </data>
+  <data name="ServersPage_Pause_Server" xml:space="preserve">
+    <value>Pauzeren</value>
+  </data>
+</root>

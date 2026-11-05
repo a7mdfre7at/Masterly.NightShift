@@ -1,0 +1,633 @@
+﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Server
+@using Masterly.NightShift.States
+@using Masterly.NightShift.Storage
+@using Masterly.NightShift.Storage.Monitoring
+@inherits RazorPage
+@{
+    var monitor = Storage.GetMonitoringApi();
+    var job = monitor.JobDetails(JobId);
+    var dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
+    
+    string title = null;
+
+    if (job != null)
+    {
+        title = job.Job != null ? Html.JobName(job.Job) : null;
+
+        var historyList = new List<StateHistoryDto>(job.History);
+        historyList.Add(new StateHistoryDto { StateName = "Created", CreatedAt = job.CreatedAt ?? default(DateTime) });
+
+        job.History = historyList;
+    }
+
+    title = title ?? Strings.Common_Job;
+    Layout = new LayoutPage(title);
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="page-header">@title</h1>
+
+        @if (job == null)
+        {
+            <div class="alert alert-warning">
+                @String.Format(Strings.JobDetailsPage_JobExpired, JobId)
+            </div>
+        }
+        else
+        {
+            var currentState = job.History[0];
+            if (currentState.StateName == ProcessingState.StateName)
+            {
+                var server = monitor.Servers().FirstOrDefault(x => x.Name == currentState.Data["ServerId"]);
+                if (server == null)
+                {
+                    <div class="alert alert-danger">
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, currentState.Data["ServerId"], Url.To("/servers")))
+                    </div>
+                }
+                else if (server.Heartbeat.HasValue && server.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate()))
+                {
+                    <div class="alert alert-warning">
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html, server.Name))
+                    </div>
+                }
+            }
+
+            if (job.ExpireAt.HasValue)
+            {
+                <div class="alert alert-info">
+                    @Html.Raw(String.Format(Strings.JobDetailsPage_JobFinished_Warning_Html, JobHelper.ToTimestamp(job.ExpireAt.Value), job.ExpireAt))
+                </div>
+            }
+
+            if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineMissedParameter, out var deadlineMissedValue))
+            {
+                var deadlineMissed = SerializationHelper.Deserialize<TimeSpan?>(deadlineMissedValue, SerializationOption.User);
+                <div class="alert alert-danger">
+                    <span class="glyphicon glyphicon-time"></span>
+                    @String.Format(Strings.JobDetailsPage_DeadlineMissed, Html.ToHumanDuration(deadlineMissed, false))
+                </div>
+            }
+            else if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineAtParameter, out var deadlineAtValue) && !currentState.StateName.Equals(SucceededState.StateName))
+            {
+                var deadlineAt = SerializationHelper.Deserialize<DateTime?>(deadlineAtValue, SerializationOption.User);
+                if (deadlineAt.HasValue)
+                {
+                    var overdue = deadlineAt.Value < (StorageUtcNow ?? ApplicationUtcNow);
+                    <div class="alert @(overdue ? "alert-danger" : "alert-info")">
+                        <span class="glyphicon glyphicon-time"></span>
+                        @Strings.Common_Deadline: @Html.RelativeTime(deadlineAt.Value)
+                        @if (overdue)
+                        {
+                            <span class="label label-danger text-uppercase">@Strings.Common_Overdue</span>
+                        }
+                    </div>
+                }
+            }
+
+            if (job.Job != null)
+            {
+                @* "Run again with changes": the run form, pre-filled with this job's arguments *@
+                var runParameters = new List<object>();
+                if (!IsReadOnly)
+                {
+                    var runEntry = JobCatalog.CreateEntry(job.Job);
+                    var runArguments = JobCatalog.FormatArguments(job.Job);
+                    var methodParameters = job.Job.Method.GetParameters();
+
+                    for (var i = 0; i < runEntry.Parameters.Count; i++)
+                    {
+                        var parameter = runEntry.Parameters[i];
+                        if (parameter.Injected) continue;
+
+                        runParameters.Add(new
+                        {
+                            name = parameter.Name,
+                            type = parameter.TypeName,
+                            input = parameter.InputKind,
+                            @default = runArguments[i] ?? String.Empty,
+                            hasDefault = parameter.HasDefaultValue,
+                            redacted = RedactedAttribute.IsRedacted(methodParameters[i]),
+                            options = parameter.InputKind == "select" ? Enum.GetNames(Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type) : null,
+                        });
+                    }
+                }
+
+                <div class="job-snippet">
+                    <div class="job-snippet-toolbar">
+                        <button type="button" class="btn btn-xs btn-default js-watch-toggle" data-id="@JobId" data-name="@title" data-state="@job.History[0].StateName"
+                                data-text-watch="@Strings.JobDetailsPage_Watch" data-text-watching="@Strings.JobDetailsPage_Watching" title="@Strings.JobDetailsPage_Watch_Hint">
+                            <span class="glyphicon glyphicon-eye-open"></span> <span class="js-watch-label">@Strings.JobDetailsPage_Watch</span>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-default js-download" data-url="@Url.To("/jobs/export/" + JobId)" data-filename="job-@(JobId).json" title="@Strings.JobDetailsPage_Export">
+                            <span class="glyphicon glyphicon-save"></span> @Strings.JobDetailsPage_Export
+                        </button>
+                        @if (!IsReadOnly)
+                        {
+                            <button type="button" class="btn btn-xs btn-default js-catalog-run"
+                                    data-source="@JobId"
+                                    data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)"
+                                    data-method="@job.Job.Method.Name"
+                                    data-parameters="@DashboardJson.Serialize(runParameters)"
+                                    title="@Strings.JobDetailsPage_RunAgain_Hint">
+                                <span class="glyphicon glyphicon-repeat"></span> @Strings.JobDetailsPage_RunAgain
+                            </button>
+                        }
+                        <button type="button" class="btn btn-xs btn-default js-copy-code" data-code="@JobCodeRenderer.Render(job.Job)" data-copied="@Strings.JobDetailsPage_Copied" title="@Strings.JobDetailsPage_CopyAsCode_Hint">
+                            <span class="glyphicon glyphicon-copy"></span> @Strings.JobDetailsPage_CopyAsCode
+                        </button>
+                    </div>
+                    <div class="job-snippet-code">
+                        <pre><code><span class="comment">// @Strings.JobDetailsPage_JobId: @Html.JobId(JobId.ToString(), false)</span>
+@if (job.Job.Queue != null)
+{
+<span class="comment">// @Strings.QueuesPage_Table_Queue: @job.Job.Queue</span>
+}
+@JobMethodCallRenderer.Render(job.Job)
+</code></pre>
+                    </div>
+                </div>
+            }
+            else
+            {
+                var dbgParameters = job.Properties.Where(x => x.Key.StartsWith("DBG_")).ToArray();
+
+                <div class="alert alert-warning">
+                    <h4 id="job-details-missing-method">@Strings.Common_CannotFindTargetMethod</h4>
+                    <table class="table table-condensed job-snippet-properties margin-bottom-0" aria-describedby="job-details-missing-method">
+                        <tr>
+                            <td>@Strings.JobDetailsPage_JobId</td>
+                            <td><pre><code>@Html.JobId(JobId, false)</code></pre></td>
+                        </tr>
+                        @foreach (var parameter in dbgParameters)
+                        {
+                            <tr>
+                                <td class="width-15">@parameter.Key.Substring(4)</td>
+                                <td><pre><code>@parameter.Value</code></pre></td>
+                            </tr>
+                        }
+                    </table>
+                </div>
+            }
+
+            @* Tags and batch membership, from job parameters *@
+            var tags = job.Properties.TryGetValue(JobTags.ParameterName, out var tagsJson) ? JobTags.Parse(tagsJson) : new List<string>();
+            var batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out var batchJson) ? SerializationHelper.Deserialize<string>(batchJson, SerializationOption.User) : null;
+            var batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out var batchContinuationJson) ? SerializationHelper.Deserialize<string>(batchContinuationJson, SerializationOption.User) : null;
+            if (tags.Count > 0 || batchId != null || batchContinuationOf != null)
+            {
+                <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
+                    @if (batchId != null)
+                    {
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>
+                    }
+                    @if (batchContinuationOf != null)
+                    {
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchContinuationOf))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_BatchContinuation @batchContinuationOf</a>
+                    }
+                    @if (tags.Count > 0)
+                    {
+                        <span class="glyphicon glyphicon-tag text-muted"></span>
+                    }
+                    @foreach (var tag in tags)
+                    {
+                        <a class="hf-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag))">@tag</a>
+                    }
+                </div>
+            }
+
+            @* Diagnosis: why the job is in its current state and what would move it *@
+            var findings = JobDiagnostics.Diagnose(this, JobId, job);
+            if (findings.Count > 0)
+            {
+                <section class="hf-card hf-diagnosis" aria-labelledby="job-details-diagnosis">
+                    <div class="hf-card-header">
+                        <h3 id="job-details-diagnosis"><span class="glyphicon glyphicon-search"></span> @Strings.Diagnostics_Title <small class="text-muted">@Strings.Diagnostics_Hint</small></h3>
+                    </div>
+                    <ul class="hf-diagnosis-list">
+                        @foreach (var finding in findings)
+                        {
+                            var icon = finding.Severity == JobDiagnosticSeverity.Problem ? "remove-sign" : finding.Severity == JobDiagnosticSeverity.Warning ? "warning-sign" : "info-sign";
+                            <li class="hf-diagnosis-item hf-diagnosis-@finding.Severity.ToString().ToLowerInvariant()" data-code="@finding.Code">
+                                <span class="hf-diagnosis-icon glyphicon glyphicon-@icon" aria-hidden="true"></span>
+                                <span class="hf-diagnosis-text">
+                                    @finding.Message
+                                    @if (finding.Link != null)
+                                    {
+                                        <a class="hf-diagnosis-link" href="@finding.Link">@finding.LinkText &rarr;</a>
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @* Notes and acknowledgements *@
+            var notes = job.Properties.TryGetValue(JobNotes.ParameterName, out var notesJson) ? JobNotes.Parse(notesJson) : (IReadOnlyList<JobNote>)new List<JobNote>();
+            var acknowledgement = JobNotes.GetAcknowledgement(notes);
+            <section class="hf-card hf-notes" aria-labelledby="job-details-notes">
+                <div class="hf-card-header">
+                    <h3 id="job-details-notes">
+                        <span class="glyphicon glyphicon-comment"></span> @Strings.JobDetailsPage_Notes <small class="text-muted">@Strings.JobDetailsPage_Notes_Hint</small>
+                        @if (acknowledgement != null)
+                        {
+                            <span class="label label-info hf-ack"><span class="glyphicon glyphicon-ok"></span> @Strings.JobDetailsPage_Notes_Acknowledged</span>
+                        }
+                    </h3>
+                </div>
+                <ul class="hf-notes-list">
+                    @if (notes.Count == 0)
+                    {
+                        <li class="hf-note hf-note-empty text-muted">@Strings.JobDetailsPage_Notes_Empty</li>
+                    }
+                    @foreach (var note in notes)
+                    {
+                        <li class="hf-note @(note.Acknowledges ? "hf-note-ack" : null)">
+                            <div class="hf-note-meta">
+                                @if (note.Acknowledges)
+                                {
+                                    <span class="glyphicon glyphicon-ok text-info"></span>
+                                }
+                                <strong>@(note.User ?? Strings.Common_Anonymous)</strong>
+                                <span class="text-muted">@Html.RelativeTime(note.WrittenAt)</span>
+                            </div>
+                            @if (!String.IsNullOrEmpty(note.Text))
+                            {
+                                <div class="hf-note-text">@note.Text</div>
+                            }
+                            else if (note.Acknowledges)
+                            {
+                                <div class="hf-note-text text-muted">@Strings.JobDetailsPage_Notes_Acknowledged</div>
+                            }
+                        </li>
+                    }
+                </ul>
+                @if (!IsReadOnly)
+                {
+                    <form class="hf-note-form js-note-form" data-url="@Url.To("/jobs/notes/add/" + JobId)">
+                        <textarea class="form-control" name="text" rows="2" maxlength="2000" placeholder="@Strings.JobDetailsPage_Notes_Placeholder"></textarea>
+                        <div class="hf-note-actions">
+                            <button type="submit" class="btn btn-sm btn-primary" data-loading-text="@Strings.RecurringJobsPage_Saving"><span class="glyphicon glyphicon-plus"></span> @Strings.JobDetailsPage_Notes_Add</button>
+                            @if (acknowledgement == null && currentState.StateName == FailedState.StateName)
+                            {
+                                <button type="button" class="btn btn-sm btn-default js-note-ack" data-loading-text="@Strings.RecurringJobsPage_Saving"><span class="glyphicon glyphicon-ok"></span> @Strings.JobDetailsPage_Notes_Acknowledge</button>
+                            }
+                        </div>
+                    </form>
+                }
+            </section>
+
+            @* Lineage: the continuation graph around this job *@
+            var lineage = JobLineage.Build(monitor, JobId, job);
+            if (lineage.HasRelatives)
+            {
+                <section class="hf-card hf-lineage" aria-labelledby="job-details-lineage">
+                    <div class="hf-card-header">
+                        <h3 id="job-details-lineage"><span class="glyphicon glyphicon-random"></span> @Strings.JobDetailsPage_Lineage <small class="text-muted">@Strings.JobDetailsPage_Lineage_Hint</small></h3>
+                        @if (lineage.Truncated)
+                        {
+                            <span class="text-muted">@Strings.JobDetailsPage_Lineage_Truncated</span>
+                        }
+                    </div>
+                    <div class="hf-lineage-scroll">
+                        @JobLineageRenderer.Render(this, lineage)
+                    </div>
+                </section>
+            }
+
+            @* Live view: progress, console and checkpoints reported through IJobConsole *@
+            IReadOnlyList<JobConsoleEntry> consoleEntries;
+            JobProgress progress;
+
+            using (var connection = Storage.GetReadOnlyConnection())
+            {
+                consoleEntries = JobConsole.ReadEntries(connection, JobId);
+                progress = JobConsole.ReadProgress(connection, JobId);
+            }
+
+            var isProcessing = currentState.StateName == ProcessingState.StateName;
+            var liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out var startedAtValue)
+                ? JobHelper.DeserializeNullableDateTime(startedAtValue)
+                : null;
+
+            if (isProcessing || progress != null || consoleEntries.Count > 0)
+            {
+                var percent = progress != null ? progress.Percent : (currentState.StateName == SucceededState.StateName ? 100 : 0);
+                var barClass = currentState.StateName == FailedState.StateName ? "progress-bar-danger"
+                    : currentState.StateName == SucceededState.StateName ? "progress-bar-success"
+                    : isProcessing ? "progress-bar-striped active" : "";
+
+                <div class="job-live" id="jobLive"
+                     data-live-url="@Url.To("/jobs/live")"
+                     data-job-id="@JobId"
+                     data-state="@currentState.StateName"
+                     data-poll="@(isProcessing ? "true" : "false")"
+                     data-started-at="@(liveStartedAt.HasValue ? JobHelper.ToTimestamp(liveStartedAt.Value).ToString() : null)">
+                    <h3 id="job-details-live">
+                        @Strings.JobDetailsPage_Live
+                        @if (isProcessing)
+                        {
+                            <span class="label label-info job-live-indicator">@currentState.StateName</span>
+                        }
+                        <small class="text-muted"><span class="js-live-elapsed">@(liveStartedAt.HasValue ? Html.ToHumanDuration((StorageUtcNow ?? ApplicationUtcNow) - liveStartedAt.Value, false) : null)</span> <span class="js-live-elapsed-label" style="@(liveStartedAt.HasValue ? null : "display: none")">@Strings.JobDetailsPage_Live_Elapsed</span></small>
+                    </h3>
+
+                    <div class="job-live-progress">
+                        <div class="progress">
+                            <div class="progress-bar js-live-bar @barClass" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(percent.ToString(System.Globalization.CultureInfo.InvariantCulture))" style="width: @(percent.ToString(System.Globalization.CultureInfo.InvariantCulture))%; min-width: 2em;">@(percent)%</div>
+                        </div>
+                        <p class="text-muted js-live-progress-message">@(progress != null ? progress.Message : null)</p>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h4>@Strings.JobDetailsPage_Console</h4>
+                            <div class="job-console js-live-console" aria-live="polite">
+                                @if (consoleEntries.Count == 0)
+                                {
+                                    <div class="job-console-empty text-muted js-live-console-empty">@Strings.JobDetailsPage_NoConsoleOutput</div>
+                                }
+                                @foreach (var entry in consoleEntries)
+                                {
+                                    var entryTime = JobConsole.FromTimestamp(entry.Timestamp);
+                                    if (entry.Checkpoint != null)
+                                    {
+                                        <div class="job-console-line job-console-checkpoint"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span><span class="glyphicon glyphicon-flag"></span> @entry.Checkpoint</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="job-console-line job-console-@(entry.Level.ToString().ToLowerInvariant())"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span>@entry.Message</div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h4>@Strings.JobDetailsPage_Checkpoints</h4>
+                            <ol class="job-checkpoints js-live-checkpoints">
+                                @{
+                                    long? previousCheckpoint = null;
+                                    foreach (var entry in consoleEntries.Where(x => x.Checkpoint != null))
+                                    {
+                                        var delta = previousCheckpoint.HasValue ? TimeSpan.FromMilliseconds(entry.Timestamp - previousCheckpoint.Value) : (TimeSpan?)null;
+                                        <li><span class="job-checkpoint-name">@entry.Checkpoint</span><span class="text-muted job-checkpoint-delta">@(delta.HasValue ? "+" + Html.ToHumanDuration(delta, false) : JobConsole.FromTimestamp(entry.Timestamp).ToString("HH:mm:ss"))</span></li>
+                                        previousCheckpoint = entry.Timestamp;
+                                    }
+                                }
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != FanInContinuationsSupportAttribute.ParameterName && x.Key != JobConsole.ProgressParameter && x.Key != JobTags.ParameterName && x.Key != BatchJob.ParameterName && x.Key != BatchJob.ContinuationParameterName && x.Key != JobNotes.ParameterName
+                && x.Key != DeadlineAttribute.DeadlineAtParameter && x.Key != DeadlineAttribute.DeadlineMissedParameter).ToArray();
+
+            if (displayParameters.Length > 0)
+            {
+                <h3 id="job-details-parameters">@Strings.JobDetailsPage_Parameters</h3>
+                <table class="table table-condensed job-snippet-properties" aria-describedby="job-details-parameters">
+                    @foreach (var parameter in displayParameters)
+                    {
+                        <tr>
+                            <td class="width-20 word-break">@parameter.Key</td>
+                            <td><pre><code>@parameter.Value</code></pre></td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            if (job.Properties.TryGetValue("Continuations", out var serializedContinuations))
+            {
+                var continuations = ContinuationsSupportAttribute.DeserializeContinuations(serializedContinuations);
+
+                if (continuations.Count > 0)
+                {
+                    <h3 id="job-details-continuations">@Strings.Common_Continuations</h3>
+                    <div class="table-responsive">
+                        <table class="table" aria-describedby="job-details-continuations">
+                            <thead>
+                            <tr>
+                                <th class="min-width">@Strings.Common_Id</th>
+                                <th class="min-width">@Strings.Common_Condition</th>
+                                <th class="min-width">@Strings.Common_State</th>
+                                <th>@Strings.Common_Job</th>
+                                <th class="align-right">@Strings.Common_Created</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var continuation in continuations)
+                            {
+                                JobData jobData;
+
+                                using (var connection = Storage.GetReadOnlyConnection())
+                                {
+                                    jobData = connection.GetJobData(continuation.JobId);
+                                }
+
+                                <tr>
+                                    @if (jobData == null)
+                                    {
+                                        <td colspan="5"><em>@String.Format(Strings.JobDetailsPage_JobExpired, continuation.JobId)</em></td>
+                                    }
+                                    else
+                                    {
+                                        <td class="min-width">@Html.JobIdLink(continuation.JobId)</td>
+                                        <td class="min-width"><code>@continuation.Options.ToString("G")</code></td>
+                                        <td class="min-width">@Html.StateLabel(jobData.State)</td>
+                                        <td class="word-break">@Html.JobNameLink(continuation.JobId, jobData.Job)</td>
+                                        <td class="align-right">@Html.RelativeTime(jobData.CreatedAt)</td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+
+            if (job.Properties.TryGetValue(FanInContinuationsSupportAttribute.ParameterName, out var serializedFanIn))
+            {
+                var fanInChildren = FanInContinuationsSupportAttribute.Parse(serializedFanIn);
+
+                if (fanInChildren.Count > 0)
+                {
+                    <h3 id="job-details-fanin">@Strings.JobDetailsPage_FanInContinuations</h3>
+                    <div class="table-responsive">
+                        <table class="table" aria-describedby="job-details-fanin">
+                            <thead>
+                            <tr>
+                                <th class="min-width">@Strings.Common_Id</th>
+                                <th class="min-width">@Strings.Common_State</th>
+                                <th>@Strings.Common_Job</th>
+                                <th class="align-right">@Strings.Common_Created</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var childId in fanInChildren)
+                            {
+                                JobData childData;
+
+                                using (var connection = Storage.GetReadOnlyConnection())
+                                {
+                                    childData = connection.GetJobData(childId);
+                                }
+
+                                <tr>
+                                    @if (childData == null)
+                                    {
+                                        <td colspan="4"><em>@String.Format(Strings.JobDetailsPage_JobExpired, childId)</em></td>
+                                    }
+                                    else
+                                    {
+                                        <td class="min-width">@Html.JobIdLink(childId)</td>
+                                        <td class="min-width">@Html.StateLabel(childData.State)</td>
+                                        <td class="word-break">@Html.JobNameLink(childId, childData.Job)</td>
+                                        <td class="align-right">@Html.RelativeTime(childData.CreatedAt)</td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+
+            if (dto != null)
+            {
+                foreach (var renderer in JobDetailsRenderer.GetRenderers())
+                {
+                    try
+                    {
+                        @renderer.Item2(dto)
+                    }
+                    catch (Exception ex)
+                    {
+                        <h4 class="exception-type">@ex.GetType().Name</h4>
+                        <p class="text-muted">@ex.Message</p>
+                        <pre class="stack-trace">@Html.StackTrace(ex.StackTrace)</pre>
+                    }
+                }
+            }
+
+            @* Time in each state, oldest first; the current state runs until now unless it is final *@
+            var chronological = job.History.Reverse().ToList();
+            var segments = new List<KeyValuePair<string, TimeSpan>>();
+            for (var s = 0; s < chronological.Count - 1; s++)
+            {
+                segments.Add(new KeyValuePair<string, TimeSpan>(chronological[s].StateName, chronological[s + 1].CreatedAt - chronological[s].CreatedAt));
+            }
+            if (chronological.Count > 0 && !(currentState.StateName == SucceededState.StateName || currentState.StateName == DeletedState.StateName || currentState.StateName == FailedState.StateName))
+            {
+                segments.Add(new KeyValuePair<string, TimeSpan>(currentState.StateName, (StorageUtcNow ?? ApplicationUtcNow) - currentState.CreatedAt));
+            }
+            var segmentTotal = segments.Sum(x => Math.Max(0, x.Value.TotalMilliseconds));
+            if (segments.Count > 1 && segmentTotal > 0)
+            {
+                <div class="hf-state-bar" title="@Strings.JobDetailsPage_StateTimeline">
+                    @foreach (var segment in segments)
+                    {
+                        var share = Math.Max(1.5, 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal);
+                        var color = JobHistoryRenderer.GetForegroundStateColor(segment.Key);
+                        <span class="hf-state-seg" style="width: @share.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%; background: @color" title="@segment.Key: @Html.ToHumanDuration(segment.Value, false)"><em>@segment.Key</em></span>
+                    }
+                </div>
+            }
+
+            <h3>
+                @if (job.History.Count > 1)
+                {
+                    <span class="job-snippet-buttons pull-right">
+                        @if (!IsReadOnly)
+                        {
+                            <button class="btn btn-sm btn-default"
+                                    data-ajax="@Url.To("/jobs/actions/requeue/" + JobId)"
+                                    data-loading-text="@Strings.Common_Enqueueing">
+                                @Strings.JobDetailsPage_Requeue
+                            </button>
+                        }
+                        @if (!IsReadOnly)
+                        {
+                            <button class="btn btn-sm btn-death"
+                                    data-ajax="@Url.To("/jobs/actions/delete/" + JobId)"
+                                    data-loading-text="@Strings.Common_Deleting"
+                                    data-confirm="@Strings.JobDetailsPage_DeleteConfirm">
+                                @Strings.Common_Delete
+                            </button>
+                        }
+                    </span>
+                }
+
+                @Strings.JobDetailsPage_State
+            </h3>
+
+            var index = 0;
+
+            foreach (var entry in job.History)
+            {
+                var accentColor = JobHistoryRenderer.GetForegroundStateColor(entry.StateName);
+                var backgroundColor = JobHistoryRenderer.GetBackgroundStateColor(entry.StateName);
+                var cardCss = index == 0 ? JobHistoryRenderer.GetStateCssSuffix(entry.StateName) : null;
+                var cardStyle = index == 0 && cardCss == null ? $"border-color: {accentColor}" : null;
+                var cardTitleStyle = index == 0 && cardCss == null ? $"color: {accentColor}" : null;
+                var cardBackgroundStyle = index == 0 && cardCss == null ? $"background-color: {backgroundColor}" : null;
+
+                <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)" style="@cardStyle">
+                    <h4 class="state-card-title" style="@cardTitleStyle">
+                        <small class="pull-right text-muted">
+                            @if (index == job.History.Count - 1)
+                            {
+                                @Html.RelativeTime(entry.CreatedAt)
+                            }
+                            else
+                            {
+                                var duration = Html.ToHumanDuration(entry.CreatedAt - job.History[index + 1].CreatedAt);
+
+                                if (index == 0)
+                                {
+                                    @: @Html.RelativeTime(entry.CreatedAt) (@duration)
+                                }
+                                else
+                                {
+                                    @: @Html.MomentTitle(entry.CreatedAt, duration)
+                                }
+                            }
+                        </small>
+
+                        @entry.StateName
+                    </h4>
+
+                    @if (!String.IsNullOrWhiteSpace(entry.Reason))
+                    {
+                        <p class="state-card-text text-muted">@entry.Reason</p>
+                    }
+
+                    @{
+                        var rendered = Html.RenderHistory(entry.StateName, entry.Data);
+                    }
+
+                    @if (rendered != null)
+                    {
+                        <div class="state-card-body" style="@cardBackgroundStyle">
+                            @rendered
+                        </div>
+                    }
+                </div>
+
+                index++;
+            }
+        }
+    </div>
+</div>
+
+@Html.RenderPartial(new JobRunner())
