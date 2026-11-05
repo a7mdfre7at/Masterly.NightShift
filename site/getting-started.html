@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started | Masterly.NightShift</title>
+<meta name="description" content="Install Masterly.NightShift, set up an ASP.NET Core or console host, enqueue fire-and-forget, delayed, recurring and continuation jobs, and open the dashboard.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#5B21B6">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+<div class="wrap bar">
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<button class="menu" id="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Toggle navigation menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+<nav class="main" id="main-nav" aria-label="Main"><ul><li><a href="getting-started.html" aria-current="page">Get started</a></li><li><a href="features.html">Features</a></li><li><a href="dashboard.html">Dashboard</a></li><li><a href="configuration.html">Configuration</a></li><li><a class="gh" href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li></ul></nav>
+</div>
+</header>
+<main id="main"><div class="page-head"><div class="wrap"><h1>Get started</h1><p>Install Masterly.NightShift, set up an ASP.NET Core or console host, enqueue fire-and-forget, delayed, recurring and continuation jobs, and open the dashboard.</p></div></div><div class="wrap layout"><nav class="toc" aria-label="On this page"><span class="t">On this page</span><ul><li><a href="#install">Install</a></li><li><a href="#aspnet">ASP.NET Core</a></li><li><a href="#worker">Console or worker</a></li><li><a href="#enqueue">Enqueue jobs</a></li><li><a href="#recurring">Recurring jobs</a></li><li><a href="#delayed">Delayed jobs</a></li><li><a href="#continuations">Continuations</a></li><li><a href="#open-dashboard">Open the dashboard</a></li></ul></nav><div class="content">
+<section><h2 id="install">Install</h2>
+<p>The <code>Masterly.NightShift</code> meta package brings in the core, SQL Server storage and ASP.NET Core packages. Or pick the pieces you need:</p>
+<div class="codeblock"><pre><code id="code2" class="language-bash">dotnet add package Masterly.NightShift</code></pre><button class="copy" type="button" data-copy="code2" aria-label="Copy code to clipboard">Copy</button></div>
+<div class="tablewrap"><table><thead><tr><th>Package</th><th>What it is</th></tr></thead><tbody>
+<tr><td><code>Masterly.NightShift</code></td><td>Meta package: Core, SqlServer and AspNetCore.</td></tr>
+<tr><td><code>Masterly.NightShift.Core</code></td><td>Jobs, client, server, states, filters, the dashboard and the source generator.</td></tr>
+<tr><td><code>Masterly.NightShift.SqlServer</code></td><td>SQL Server storage.</td></tr>
+<tr><td><code>Masterly.NightShift.NetCore</code></td><td>Dependency injection and hosted-service integration.</td></tr>
+<tr><td><code>Masterly.NightShift.AspNetCore</code></td><td>Dashboard middleware and endpoint mapping.</td></tr>
+</tbody></table></div>
+<p>The libraries target <code>netstandard2.0</code>, <code>net8.0</code> and <code>net10.0</code>.</p>
+<div class="note"><strong>Pre-release.</strong> The packages are not published to nuget.org yet. Until they are, build from the <a href="https://github.com/a7mdfre7at/Masterly.NightShift">repository</a>.</div>
+</section>
+
+<section><h2 id="aspnet">Minimal ASP.NET Core setup</h2>
+<p>Register the storage and the processing server, then map the dashboard.</p>
+<div class="codeblock"><pre><code id="code3" class="language-csharp">using Masterly.NightShift;
+using Masterly.NightShift.SqlServer;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddNightShift(config =&gt; config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+
+builder.Services.AddNightShiftServer();
+
+var app = builder.Build();
+
+app.MapNightShiftDashboard();   // default path: /nightshift
+
+app.Run();</code></pre><button class="copy" type="button" data-copy="code3" aria-label="Copy code to clipboard">Copy</button></div>
+<p>By default the dashboard answers local requests only. See <a href="configuration.html#authorization">dashboard authorization</a> before exposing it. The schema is created on first start unless you turn <code>PrepareSchemaIfNecessary</code> off in <code>SqlServerStorageOptions</code>.</p>
+</section>
+
+<section><h2 id="worker">Console or worker setup</h2>
+<p>Without ASP.NET Core, configure the global configuration and start a <code>BackgroundJobServer</code>. In a generic host, <code>AddNightShift</code> and <code>AddNightShiftServer</code> work the same way as above.</p>
+<div class="codeblock"><pre><code id="code4" class="language-csharp">using Masterly.NightShift;
+using Masterly.NightShift.SqlServer;
+
+GlobalConfiguration.Configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseSqlServerStorage(connectionString);
+
+using (new BackgroundJobServer())
+{
+    Console.WriteLine("Server started. Press Enter to stop.");
+    Console.ReadLine();
+}</code></pre><button class="copy" type="button" data-copy="code4" aria-label="Copy code to clipboard">Copy</button></div>
+<p>Several servers can read the same storage. Give each one its own queues with <code>BackgroundJobServerOptions.Queues</code>.</p>
+</section>
+
+<section><h2 id="enqueue">Enqueue jobs</h2>
+<p>A fire-and-forget job runs once, as soon as a worker is free. The call is an expression: the type, method and arguments are serialized into storage.</p>
+<div class="codeblock"><pre><code id="code5" class="language-csharp">BackgroundJob.Enqueue(() =&gt; Console.WriteLine("Hello, world!"));
+
+// Instance methods on a class resolved through your JobActivator / DI container
+BackgroundJob.Enqueue&lt;ReportService&gt;(x =&gt; x.Build(42));</code></pre><button class="copy" type="button" data-copy="code5" aria-label="Copy code to clipboard">Copy</button></div>
+<p><code>Enqueue</code> returns the job id, or <code>null</code> when a client filter cancels the creation.</p>
+</section>
+
+<section><h2 id="recurring">Recurring jobs</h2>
+<p>Recurring jobs are identified by name, so calling <code>AddOrUpdate</code> again on every start is safe. Use a CRON expression, a <code>Cron</code> helper or plain English.</p>
+<div class="codeblock"><pre><code id="code6" class="language-csharp">RecurringJob.AddOrUpdate("minutely", () =&gt; Console.WriteLine("Hello"), Cron.Minutely);
+RecurringJob.AddOrUpdate("nightly", () =&gt; Console.WriteLine("Cleanup"), "0 2 * * *");
+RecurringJob.AddOrUpdate("digest", () =&gt; SendDigest(), Cron.FromText("weekdays at 7:30"));</code></pre><button class="copy" type="button" data-copy="code6" aria-label="Copy code to clipboard">Copy</button></div>
+</section>
+
+<section><h2 id="delayed">Delayed jobs</h2>
+<p>Schedule a job for later with a delay, or with a phrase.</p>
+<div class="codeblock"><pre><code id="code7" class="language-csharp">BackgroundJob.Schedule(() =&gt; SendReport(), TimeSpan.FromMinutes(30));
+BackgroundJob.Schedule(() =&gt; SendReport(), "tomorrow at 9am");
+BackgroundJob.Schedule(() =&gt; Cleanup(), "in 2 hours");</code></pre><button class="copy" type="button" data-copy="code7" aria-label="Copy code to clipboard">Copy</button></div>
+</section>
+
+<section><h2 id="continuations">Continuations</h2>
+<p>Run a job after another one succeeds. Fan-in continuations wait for several parents.</p>
+<div class="codeblock"><pre><code id="code8" class="language-csharp">string first = BackgroundJob.Enqueue(() =&gt; Download());
+string second = BackgroundJob.ContinueJobWith(first, () =&gt; Parse());
+
+// Fan-in: wait for several parents
+BackgroundJob.ContinueJobWithAll(new[] { first, second }, () =&gt; Merge());
+BackgroundJob.ContinueJobWithAny(new[] { first, second }, () =&gt; NotifyFirst());</code></pre><button class="copy" type="button" data-copy="code8" aria-label="Copy code to clipboard">Copy</button></div>
+</section>
+
+<section><h2 id="open-dashboard">Open the dashboard</h2>
+<p>Start the application and browse to <code>/nightshift</code> on the local machine, for example <code>http://localhost:5000/nightshift</code>. The Jobs, Recurring jobs, Servers and Queues pages show what you just created. Read more on the <a href="dashboard.html">dashboard page</a>.</p>
+<p>To use another path, pass it to the mapping call: <code>app.MapNightShiftDashboard("/jobs")</code>.</p>
+</section>
+</div></div></main>
+<footer class="site">
+<div class="wrap foot">
+<div>
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<p>Reliable background jobs for .NET. Part of the Masterly family of libraries, with Masterly.Hash.</p>
+<p><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">MIT licensed. Portions LGPL v3.</a></p>
+</div>
+<nav aria-label="Footer"><ul>
+<li><a href="getting-started.html">Get started</a></li>
+<li><a href="features.html">Features</a></li>
+<li><a href="dashboard.html">Dashboard</a></li>
+<li><a href="configuration.html">Configuration</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">License &amp; notices</a></li>
+</ul></nav>
+</div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

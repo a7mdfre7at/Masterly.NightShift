@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Features | Masterly.NightShift</title>
+<meta name="description" content="Every Masterly.NightShift feature area: job types, plain-English scheduling, concurrency control, observability, operations and platform support.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#5B21B6">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+<div class="wrap bar">
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<button class="menu" id="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Toggle navigation menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+<nav class="main" id="main-nav" aria-label="Main"><ul><li><a href="getting-started.html">Get started</a></li><li><a href="features.html" aria-current="page">Features</a></li><li><a href="dashboard.html">Dashboard</a></li><li><a href="configuration.html">Configuration</a></li><li><a class="gh" href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li></ul></nav>
+</div>
+</header>
+<main id="main"><div class="page-head"><div class="wrap"><h1>Features</h1><p>Every Masterly.NightShift feature area: job types, plain-English scheduling, concurrency control, observability, operations and platform support.</p></div></div><div class="wrap layout"><nav class="toc" aria-label="On this page"><span class="t">On this page</span><ul><li><a href="#jobs">Jobs and scheduling</a></li><li><a href="#control">Concurrency and reliability</a></li><li><a href="#observe">Observability</a></li><li><a href="#operate">Operations</a></li><li><a href="#platform">Platform</a></li></ul></nav><div class="content"><section><h2 id="jobs">Jobs and scheduling</h2><h3 id="job-types">Every job type</h3><p>Fire-and-forget, delayed, recurring and continuation jobs, all persisted to storage and run by workers in any number of servers.</p><h3 id="plain-english">Schedules in plain English</h3><p><code>TimeText.Parse</code> understands relative phrases, times of day, weekdays, &ldquo;next week&rdquo;, &ldquo;end of day/month&rdquo; and ISO dates. <code>Cron.FromText</code> does the same for recurring jobs, and <code>Cron.Builder()</code> builds validated CRON expressions fluently.</p><div class="codeblock"><pre><code id="code9" class="language-csharp">BackgroundJob.Schedule(() =&gt; SendReport(), "tomorrow at 9am");
+RecurringJob.AddOrUpdate("digest", () =&gt; SendDigest(), Cron.FromText("weekdays at 7:30"));
+var cron = Cron.Builder().EveryMinutes(15).Between(9, 17).OnWeekdays();</code></pre><button class="copy" type="button" data-copy="code9" aria-label="Copy code to clipboard">Copy</button></div><h3 id="recurring-ctl">Pause, resume and edit recurring jobs</h3><p>A paused job keeps its definition, stays paused across redeploys, can still be triggered by hand, and resumes from now without catching up. Edits also work from the dashboard.</p><div class="codeblock"><pre><code id="code10" class="language-csharp">RecurringJob.Pause("digest");
+RecurringJob.UpdateSchedule("digest", "every 2 hours between 8 and 18 on weekdays");</code></pre><button class="copy" type="button" data-copy="code10" aria-label="Copy code to clipboard">Copy</button></div><h3 id="manifests">Recurring job manifests</h3><p>Export every recurring job as JSON, keep it in source control and apply it in another environment. Applying is idempotent, and entries that fail are reported without stopping the others.</p><div class="codeblock"><pre><code id="code11" class="language-csharp">var json = RecurringJobManifest.Export();
+RecurringJobManifest.Apply(json, prune: true);   // remove the ones not listed</code></pre><button class="copy" type="button" data-copy="code11" aria-label="Copy code to clipboard">Copy</button></div><h3 id="fan-in">Fan-in continuations</h3><p>A job can wait for a set of parents in the <code>Awaiting</code> state, for all of them or for the first. If a parent vanishes from storage it counts as deleted, so a continuation never waits forever.</p><div class="codeblock"><pre><code id="code12" class="language-csharp">BackgroundJob.ContinueJobWithAll(parts, () =&gt; Merge());
+BackgroundJob.ContinueJobWithAny(parts, () =&gt; NotifyFirst());</code></pre><button class="copy" type="button" data-copy="code12" aria-label="Copy code to clipboard">Copy</button></div><h3 id="batches">Batches</h3><p>Jobs created inside <code>StartNew</code> belong to a batch with its own progress page. <code>ContinueWith</code> runs once every job in the batch has finished.</p><div class="codeblock"><pre><code id="code13" class="language-csharp">var batchId = BatchJob.StartNew(batch =&gt;
+{
+    foreach (var region in regions) batch.Enqueue(() =&gt; Export(region));
+}, "Regional exports");
+
+BatchJob.ContinueWith(batchId, () =&gt; Merge());</code></pre><button class="copy" type="button" data-copy="code13" aria-label="Copy code to clipboard">Copy</button></div><h3 id="windows">Run windows and blackouts</h3><p>Restrict when a job may start. A job picked up at the wrong time is rescheduled for the window&rsquo;s next start, with the reason in its history.</p><div class="codeblock"><pre><code id="code14" class="language-csharp">[RunWindow("22:00-06:00", "Europe/Berlin")]
+[Blackout("02:00-04:00")]
+public Task Reindex() { ... }</code></pre><button class="copy" type="button" data-copy="code14" aria-label="Copy code to clipboard">Copy</button></div></section><section><h2 id="control">Concurrency and reliability</h2><h3 id="throttle">Throttle, rate limit and circuit breaker</h3><p>Limit concurrency with a distributed semaphore, cap calls per time window, and stop calling a failing dependency. When a job cannot run, <code>Action</code> decides whether it is rescheduled (the default), waits, or is skipped. Open circuits show on the Insights page and can be reset there.</p><div class="codeblock"><pre><code id="code15" class="language-csharp">[Throttle("tenant-{0}", MaxConcurrency = 2)]
+[RateLimit("sms", limit: 100, perSeconds: 60)]
+[CircuitBreaker("payments", failureThreshold: 5, windowSeconds: 60, openSeconds: 120)]
+public Task Send(string tenant, Message message) { ... }</code></pre><button class="copy" type="button" data-copy="code15" aria-label="Copy code to clipboard">Copy</button></div><h3 id="duplicates">Duplicate prevention</h3><p>A second copy of a pending job is refused (<code>Enqueue</code> returns <code>null</code>) or replaces the first. The check runs at creation time under a distributed lock.</p><div class="codeblock"><pre><code id="code16" class="language-csharp">[PreventDuplicates("reindex:{0}")]
+public Task Reindex(string index) { ... }</code></pre><button class="copy" type="button" data-copy="code16" aria-label="Copy code to clipboard">Copy</button></div><h3 id="retry-later">Retry later</h3><p>A job can say exactly when it wants to run again. The request does not use up a retry attempt, and it is still bounded by <code>MaxRetryLaterRequests</code>.</p><div class="codeblock"><pre><code id="code17" class="language-csharp">throw new RetryLaterException(TimeSpan.FromMinutes(1), "Rate limited by the partner API");</code></pre><button class="copy" type="button" data-copy="code17" aria-label="Copy code to clipboard">Copy</button></div><h3 id="resumable">Resumable jobs</h3><p>Checkpoints survive retries. <code>Resume</code> skips a step whose checkpoint is already recorded, so a job that crashed in step three restarts at step three.</p><div class="codeblock"><pre><code id="code18" class="language-csharp">console.Resume("download", () =&gt; Download(file));
+console.Resume("parse", () =&gt; Parse(file));
+console.Resume("save", () =&gt; Save());</code></pre><button class="copy" type="button" data-copy="code18" aria-label="Copy code to clipboard">Copy</button></div><h3 id="interceptors">Interceptors</h3><p>Interceptors wrap the method call itself: they see the activated instance, can replace arguments, and run inside the performer. Built in: <code>[JobTimeout]</code>, <code>[RetryInProcess]</code> and <code>[LogInvocation]</code>. Apply them as attributes or globally with <code>UseJobInterceptor</code>.</p><div class="codeblock"><pre><code id="code19" class="language-csharp">public sealed class MeasureAttribute : AsyncJobInterceptorAttribute
+{
+    protected override async Task&lt;object?&gt; InterceptAsync(JobInvocation invocation)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var result = await invocation.ProceedAsync();
+        invocation.Context.Console.WriteLine($"took {stopwatch.ElapsedMilliseconds} ms");
+        return result;
+    }
+}</code></pre><button class="copy" type="button" data-copy="code19" aria-label="Copy code to clipboard">Copy</button></div><h3 id="deadline">Deadlines and per-method retention</h3><p><code>[Deadline]</code> records when a job should be done by, and flags overdue jobs without canceling anything. <code>[ExpireAfter]</code> keeps a method&rsquo;s finished jobs for as long as you choose instead of the storage-wide default.</p><div class="codeblock"><pre><code id="code20" class="language-csharp">[Deadline("00:10:00")]
+[ExpireAfter(days: 30)]
+public Task Export() { ... }</code></pre><button class="copy" type="button" data-copy="code20" aria-label="Copy code to clipboard">Copy</button></div></section><section><h2 id="observe">Observability</h2><h3 id="console">Live console and progress</h3><p>Jobs can take an injected <code>IJobConsole</code> to report progress, write levelled lines and mark checkpoints. The job page shows them live. Pass <code>null</code> for the parameter when enqueueing; the server injects it.</p><div class="codeblock"><pre><code id="code21" class="language-csharp">public async Task Import(string file, IJobConsole console)
+{
+    console.Checkpoint("download");
+    await Download(file);
+    console.SetProgress(50, "halfway");
+    console.WriteLine(JobConsoleLevel.Warning, "3 rows skipped");
+}</code></pre><button class="copy" type="button" data-copy="code21" aria-label="Copy code to clipboard">Copy</button></div><h3 id="insights">Job insights</h3><p><code>UseJobInsights()</code> records runs, failures and the last 200 durations per method, giving failure rates, median, p95 and max, a trend, and an ETA for running jobs.</p><div class="codeblock"><pre><code id="code22" class="language-csharp">GlobalConfiguration.Configuration.UseJobInsights();</code></pre><button class="copy" type="button" data-copy="code22" aria-label="Copy code to clipboard">Copy</button></div><h3 id="tags">Tags</h3><p>Find jobs by what they are about. A tag is a word or a template over the arguments, and the command palette searches tags.</p><div class="codeblock"><pre><code id="code23" class="language-csharp">[Tag("customer:{0}"), Tag("export")]
+public Task Export(string customer) { ... }
+
+JobTags.Add(jobId, "priority:high");   // after the fact</code></pre><button class="copy" type="button" data-copy="code23" aria-label="Copy code to clipboard">Copy</button></div><h3 id="alerts">Alerts and webhooks</h3><p>An alert is raised when a job finally fails, a deadline is missed or a circuit breaker opens. <code>UseWebhookAlerts</code> posts them as JSON or as a Slack, Mattermost or Discord compatible message, and <code>UseAlerts(IAlertSink)</code> plugs in anything else.</p><div class="codeblock"><pre><code id="code24" class="language-csharp">GlobalConfiguration.Configuration.UseWebhookAlerts("https://hooks.example.com/...", o =&gt; o.Format = WebhookFormat.Slack);</code></pre><button class="copy" type="button" data-copy="code24" aria-label="Copy code to clipboard">Copy</button></div><h3 id="redaction">Redacted arguments</h3><p>A parameter marked <code>[Redacted]</code> is masked everywhere the dashboard shows arguments. The value is still stored with the job, so redaction protects dashboard viewers, not the storage.</p><div class="codeblock"><pre><code id="code25" class="language-csharp">public Task Connect(string host, [Redacted] string password) { ... }</code></pre><button class="copy" type="button" data-copy="code25" aria-label="Copy code to clipboard">Copy</button></div><h3 id="telemetry">Telemetry, health and metrics</h3><p>OpenTelemetry-compatible traces and metrics, a <code>/health</code> endpoint for probes and a Prometheus <code>/metrics</code> endpoint. See <a href="configuration.html">Configuration</a>.</p></section><section><h2 id="operate">Operations</h2><h3 id="drain">Drain mode and pausing</h3><p>Pause all processing, one queue or one server without stopping anything: running jobs finish and new ones are handed back. Do it from the dashboard or from code.</p><div class="codeblock"><pre><code id="code26" class="language-csharp">DrainMode.Enable(connection, "deploy 2.0");
+DrainMode.PauseQueue(connection, "emails", "smtp outage");
+DrainMode.PauseServer(connection, "web-1", "deploying");</code></pre><button class="copy" type="button" data-copy="code26" aria-label="Copy code to clipboard">Copy</button></div><h3 id="keepalive">Keep-alive</h3><p>An optional background process requests the host&rsquo;s own URL at an interval so an idle timeout, such as IIS&rsquo;s, does not stop the server.</p><div class="codeblock"><pre><code id="code27" class="language-csharp">services.AddNightShiftKeepAlive();</code></pre><button class="copy" type="button" data-copy="code27" aria-label="Copy code to clipboard">Copy</button></div><h3 id="purge">Maintenance</h3><p>The Servers page can clear all jobs or reset the storage, when the storage supports it. SQL Server does.</p></section><section><h2 id="platform">Platform</h2><h3 id="invokers">Reflection-free job invocation</h3><p>Job methods are performed by a cached <code>JobInvoker</code>. A source generator inside the Core package emits direct typed calls for the methods you enqueue. Without one, a compiled expression delegate is used, and reflection is the last resort. Mark classes that other assemblies enqueue with <code>[GenerateJobInvokers]</code>. To skip generation in a project, set the MSBuild property <code>NightShiftDisableJobInvokerGeneration</code> to <code>true</code>.</p><div class="codeblock"><pre><code id="code28" class="language-csharp">[GenerateJobInvokers]
+public class ReportJobs { public Task Build(int reportId) { ... } }</code></pre><button class="copy" type="button" data-copy="code28" aria-label="Copy code to clipboard">Copy</button></div><h3 id="storage">Pluggable storage</h3><p><code>JobStorage</code> is the entry point every storage implements. Newer optional capabilities are advertised as features rather than new interface members. SQL Server storage is included, with sliding-invisibility-timeout fetching and a pluggable queue provider.</p><h3 id="filters">Filters and extensibility</h3><p>Client, server, state-election and state-apply filters are the main extension mechanism, discovered from attributes and the global filter collection. Job activation plugs into your DI container.</p><h3 id="compat">Data compatibility levels</h3><p><code>SetDataCompatibilityLevel</code> controls the serialized payload format so servers on different versions can share storage. Levels are <code>Version_110</code>, <code>Version_170</code> and <code>Version_180</code>.</p><h3 id="targets">Target frameworks</h3><p><code>netstandard2.0</code>, <code>net8.0</code> and <code>net10.0</code>. Classic ASP.NET and OWIN hosting are not supported.</p></section></div></div></main>
+<footer class="site">
+<div class="wrap foot">
+<div>
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<p>Reliable background jobs for .NET. Part of the Masterly family of libraries, with Masterly.Hash.</p>
+<p><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">MIT licensed. Portions LGPL v3.</a></p>
+</div>
+<nav aria-label="Footer"><ul>
+<li><a href="getting-started.html">Get started</a></li>
+<li><a href="features.html">Features</a></li>
+<li><a href="dashboard.html">Dashboard</a></li>
+<li><a href="configuration.html">Configuration</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">License &amp; notices</a></li>
+</ul></nav>
+</div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration | Masterly.NightShift</title>
+<meta name="description" content="Configure Masterly.NightShift: SQL Server storage, data compatibility levels, telemetry, Prometheus, health, keep-alive, drain mode, authorization, read-only mode and base path.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#5B21B6">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+<div class="wrap bar">
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<button class="menu" id="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Toggle navigation menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+<nav class="main" id="main-nav" aria-label="Main"><ul><li><a href="getting-started.html">Get started</a></li><li><a href="features.html">Features</a></li><li><a href="dashboard.html">Dashboard</a></li><li><a href="configuration.html" aria-current="page">Configuration</a></li><li><a class="gh" href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li></ul></nav>
+</div>
+</header>
+<main id="main"><div class="page-head"><div class="wrap"><h1>Configuration</h1><p>Configure Masterly.NightShift: SQL Server storage, data compatibility levels, telemetry, Prometheus, health, keep-alive, drain mode, authorization, read-only mode and base path.</p></div></div><div class="wrap layout"><nav class="toc" aria-label="On this page"><span class="t">On this page</span><ul><li><a href="#storage">Storage</a></li><li><a href="#compat">Compatibility levels</a></li><li><a href="#telemetry">Telemetry</a></li><li><a href="#prometheus">Prometheus</a></li><li><a href="#health">Health</a></li><li><a href="#keepalive">Keep-alive</a></li><li><a href="#drain">Drain mode</a></li><li><a href="#authorization">Authorization</a></li><li><a href="#readonly">Read-only mode</a></li><li><a href="#basepath">Base path</a></li></ul></nav><div class="content"><section><h2 id="storage">Storage: SQL Server</h2><p>Pass a connection string, and optionally <code>SqlServerStorageOptions</code>. The schema is installed and migrated on start when <code>PrepareSchemaIfNecessary</code> is on (the default). Both <code>Microsoft.Data.SqlClient</code> and <code>System.Data.SqlClient</code> are supported.</p><div class="codeblock"><pre><code id="code29" class="language-csharp">config.UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+{
+    SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+    PrepareSchemaIfNecessary = true
+});</code></pre><button class="copy" type="button" data-copy="code29" aria-label="Copy code to clipboard">Copy</button></div><p>Other storages plug in through <code>JobStorage</code>.</p></section><section><h2 id="compat">Data compatibility levels</h2><p>The level decides the serialized payload format, so older servers can still process jobs. Set it once, before anything else uses the storage. The supported values are <code>Version_110</code> (the default when you set nothing), <code>Version_170</code> and <code>Version_180</code>.</p><div class="codeblock"><pre><code id="code30" class="language-csharp">GlobalConfiguration.Configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180);</code></pre><button class="copy" type="button" data-copy="code30" aria-label="Copy code to clipboard">Copy</button></div></section><section><h2 id="telemetry">Telemetry (OpenTelemetry-compatible)</h2><p><code>UseTelemetry()</code> is available on .NET 8 and later. It registers a global filter that emits <code>create</code> and <code>process</code> spans from the <code>Masterly.NightShift</code> activity source and <code>nightshift.job.*</code> instruments from the <code>Masterly.NightShift</code> meter. The creating trace context travels with the job, so the processing span joins the same trace. Nothing is recorded unless a listener is attached.</p><div class="codeblock"><pre><code id="code31" class="language-csharp">services.AddNightShift(config =&gt; config
+    .UseTelemetry()
+    .UseSqlServerStorage(connectionString));
+
+// With the OpenTelemetry SDK, listen to the source and the meter:
+//   .AddSource("Masterly.NightShift")
+//   .AddMeter("Masterly.NightShift")</code></pre><button class="copy" type="button" data-copy="code31" aria-label="Copy code to clipboard">Copy</button></div></section><section><h2 id="prometheus">Prometheus endpoint</h2><p><code>GET {dashboard path}/metrics</code>, for example <code>/nightshift/metrics</code>, returns the Prometheus text format: jobs by state, queue lengths, servers, recurring jobs and late ones, the paused flag, health status, per-method run counts and duration percentiles, and per-queue wait percentiles and throughput. Metric names start with <code>nightshift_</code>. The endpoint is subject to the dashboard&rsquo;s authorization filters.</p></section><section><h2 id="health">Health endpoint</h2><p><code>GET {dashboard path}/health</code> answers <code>200</code> with <code>healthy</code> or <code>degraded</code>, and <code>503</code> with <code>unhealthy</code> when storage is unreachable or no server is alive. It checks storage latency, live and stale servers, queues nobody listens to, paused processing, and late or error-disabled recurring jobs. <code>{dashboard path}/ping</code> is a storage-free liveness URL. Both are subject to the dashboard&rsquo;s authorization filters, so a probe from another host needs an authorization setup that allows it.</p></section><section><h2 id="keepalive">Keep-alive</h2><p>IIS stops an idle worker process after 20 minutes, and the NightShift server inside it stops too. The real fix is the pool settings (<code>startMode="AlwaysRunning"</code>, preload, idle timeout 0) or a Windows Service or worker host. As a safety net, the keep-alive process requests a URL every five minutes by default.</p><div class="codeblock"><pre><code id="code32" class="language-csharp">services.AddNightShiftKeepAlive();   // requests its own /nightshift/ping
+
+// Behind IIS: give the public URL
+services.AddNightShiftKeepAlive(o =&gt; o.Url = "https://jobs.example.com/nightshift/stats");</code></pre><button class="copy" type="button" data-copy="code32" aria-label="Copy code to clipboard">Copy</button></div><p><code>KeepAliveOptions</code> also has <code>Interval</code>, <code>Timeout</code> and <code>LogFailures</code>. Without dependency injection, pass a <code>KeepAliveProcess</code> to the <code>BackgroundJobServer</code> constructor. The Servers page shows its status.</p></section><section><h2 id="drain">Drain mode</h2><p>Drain mode stops workers from starting new jobs while running ones finish. Switch it on from the Servers page (&ldquo;Pause processing&rdquo;) or in code. Workers hand new jobs back to Scheduled for 30 seconds and look again. The same exists per queue and per server.</p><div class="codeblock"><pre><code id="code33" class="language-csharp">DrainMode.Enable(connection, "deploy 2.0");
+DrainMode.PauseQueue(connection, "emails", "smtp outage");
+DrainMode.PauseServer(connection, "web-1", "deploying");</code></pre><button class="copy" type="button" data-copy="code33" aria-label="Copy code to clipboard">Copy</button></div></section><section><h2 id="authorization">Dashboard authorization</h2><p>By default the dashboard accepts local requests only (<code>LocalRequestsOnlyAuthorizationFilter</code>). Replace that with your own filters, or use an ASP.NET Core authorization policy:</p><div class="codeblock"><pre><code id="code34" class="language-csharp">// An ASP.NET Core policy
+app.MapNightShiftDashboardWithAuthorizationPolicy("NightShiftAdmins");
+
+// Or your own filter
+app.MapNightShiftDashboard("/nightshift", new DashboardOptions
+{
+    Authorization = new[] { new MyAuthorizationFilter() }   // IDashboardAuthorizationFilter
+});</code></pre><button class="copy" type="button" data-copy="code34" aria-label="Copy code to clipboard">Copy</button></div><p><code>IDashboardAsyncAuthorizationFilter</code> is available through <code>AsyncAuthorization</code>. Dashboard actions are recorded in the audit log under the authenticated user.</p></section><section><h2 id="readonly">Read-only mode</h2><p>Show the dashboard without allowing changes, for everyone or only for some users.</p><div class="codeblock"><pre><code id="code35" class="language-csharp">new DashboardOptions
+{
+    IsReadOnlyFunc = context =&gt; !context.GetHttpContext().User.IsInRole("Operators")
+}</code></pre><button class="copy" type="button" data-copy="code35" aria-label="Copy code to clipboard">Copy</button></div><p><code>GetHttpContext()</code> is the ASP.NET Core extension on <code>DashboardContext</code>.</p></section><section><h2 id="basepath">Base path and other options</h2><p>The default path is <code>/nightshift</code>. Pass another pattern to <code>MapNightShiftDashboard</code> or <code>UseNightShiftDashboard</code>. Other <code>DashboardOptions</code> properties:</p><ul class="plain"><li><code>AppPath</code>: target of the &ldquo;Back to site&rdquo; link, or <code>null</code> to hide it.</li><li><code>PrefixPath</code>: a prefix put in front of the dashboard&rsquo;s generated links.</li><li><code>DashboardTitle</code>, <code>DefaultRecordsPerPage</code>, <code>StatsPollingInterval</code> (milliseconds), <code>DarkModeEnabled</code>, <code>DisplayStorageConnectionString</code>.</li></ul><div class="codeblock"><pre><code id="code36" class="language-csharp">app.MapNightShiftDashboard("/jobs", new DashboardOptions
+{
+    DashboardTitle = "Orders jobs",
+    AppPath = "/"
+});</code></pre><button class="copy" type="button" data-copy="code36" aria-label="Copy code to clipboard">Copy</button></div></section></div></div></main>
+<footer class="site">
+<div class="wrap foot">
+<div>
+<a class="brand" href="index.html" aria-label="Masterly.NightShift home"><img src="assets/favicon.svg" alt="" width="34" height="34"><span><b>Masterly</b>.NightShift</span></a>
+<p>Reliable background jobs for .NET. Part of the Masterly family of libraries, with Masterly.Hash.</p>
+<p><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">MIT licensed. Portions LGPL v3.</a></p>
+</div>
+<nav aria-label="Footer"><ul>
+<li><a href="getting-started.html">Get started</a></li>
+<li><a href="features.html">Features</a></li>
+<li><a href="dashboard.html">Dashboard</a></li>
+<li><a href="configuration.html">Configuration</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift">GitHub</a></li>
+<li><a href="https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/NOTICE.md">License &amp; notices</a></li>
+</ul></nav>
+</div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>
