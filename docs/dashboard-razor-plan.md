@@ -1,6 +1,6 @@
 # Plan: replace RazorGenerator for dashboard pages
 
-> **Status: done.** Option A is implemented in `src/Hangfire.Dashboard.Generator`. All 30 captured dashboard pages (every list page, a details page for every job state, and pagination) render byte for byte the same as before, apart from values that change on every request. Implementing it found three behavior differences in modern Razor, all now handled in the generator:
+> **Status: done.** Option A is implemented in `src/Masterly.NightShift.Dashboard.Generator`. All 30 captured dashboard pages (every list page, a details page for every job state, and pagination) render byte for byte the same as before, apart from values that change on every request. Implementing it found three behavior differences in modern Razor, all now handled in the generator:
 >
 > - Attributes that contain C# are written through `BeginWriteAttribute`/`WriteAttributeValue`/`EndWriteAttribute`. `RazorPage` implements these as plain text, without ASP.NET Core's conditional-attribute rules.
 > - A line that holds only a Razor comment is removed entirely, line break included. RazorGenerator kept the line's whitespace and break, so the generator strips only the comment.
@@ -8,7 +8,7 @@
 
 ## Why
 
-The 23 dashboard pages (`src/Hangfire.Core/Dashboard/Pages/*.cshtml`) are compiled to C# by RazorGenerator.MsBuild 2.5.0. That's its last release, and the tool has these limits:
+The 23 dashboard pages (`src/Masterly.NightShift.Core/Dashboard/Pages/*.cshtml`) are compiled to C# by RazorGenerator.MsBuild 2.5.0. That's its last release, and the tool has these limits:
 
 - It's a .NET Framework MSBuild task. It only runs on Windows with the .NET Framework MSBuild (`Framework64\v4.0.30319\MSBuild.exe`). The .NET 10 SDK's own `MSBuild.exe` can't load it.
 - It isn't part of `dotnet build`. It's restored into `packages/` by `build.bat`, and when it's missing the build only warns, so the checked-in `.cshtml.cs` files can silently go stale.
@@ -16,7 +16,7 @@ The 23 dashboard pages (`src/Hangfire.Core/Dashboard/Pages/*.cshtml`) are compil
 
 ## What the generated code needs
 
-Very little. The generated classes derive from Hangfire's own `Dashboard/RazorPage.cs` and only call `Write(...)` (481 calls), `WriteLiteral(...)` (916 calls) and `RenderBody()` (1 call), from an `Execute()` override. Each page's first line sets the class visibility (22 internal, **1 public**) and naming (`GeneratePrettyNames`, `TrimLeadingUnderscores`). Class names and visibility are part of the public API, so package validation will catch any change.
+Very little. The generated classes derive from Masterly.NightShift's own `Dashboard/RazorPage.cs` and only call `Write(...)` (481 calls), `WriteLiteral(...)` (916 calls) and `RenderBody()` (1 call), from an `Execute()` override. Each page's first line sets the class visibility (22 internal, **1 public**) and naming (`GeneratePrettyNames`, `TrimLeadingUnderscores`). Class names and visibility are part of the public API, so package validation will catch any change.
 
 ## Options
 
@@ -28,9 +28,9 @@ Very little. The generated classes derive from Hangfire's own `Dashboard/RazorPa
 
 ## Option A in detail
 
-1. **Generator project.** Add `src/Hangfire.Dashboard.Generator` (netstandard2.0, an `IIncrementalGenerator`). `Hangfire.Core` references it with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`, so it's a build-time dependency only and is never shipped.
+1. **Generator project.** Add `src/Masterly.NightShift.Dashboard.Generator` (netstandard2.0, an `IIncrementalGenerator`). `Masterly.NightShift.Core` references it with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`, so it's a build-time dependency only and is never shipped.
 2. **Razor engine.** Use `Microsoft.AspNetCore.Razor.Language` 6.0.x, the last version published as a standalone netstandard2.0 package. Configure its `RazorProjectEngine` to:
-   - generate classes in `Hangfire.Dashboard.Pages`, deriving from `Hangfire.Dashboard.RazorPage`;
+   - generate classes in `Masterly.NightShift.Dashboard.Pages`, deriving from `Masterly.NightShift.Dashboard.RazorPage`;
    - emit `public override void Execute()` instead of the default `async Task ExecuteAsync()`, through a small document classifier pass;
    - honor each page's `@* Generator: ... *@` header for visibility and naming.
 3. **Pages as inputs.** Pass the pages as `AdditionalFiles`, then delete the checked-in `*.cshtml.cs` files, the `GenerateRazorClasses` target, `Razor.build`, and RazorGenerator from `.nuget/packages.config`.

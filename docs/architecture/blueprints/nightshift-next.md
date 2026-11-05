@@ -1,4 +1,4 @@
-# Hangfire Next — architecture blueprint
+# Masterly.NightShift Next — architecture blueprint
 
 Status: all slices implemented (see `docs/whats-new-next.md` for the user-facing summary). This document is the design the work follows. Each section names the public API it adds,
 the storage keys it writes, how it degrades on storages that lack a feature, and how it is tested. Sections are
@@ -11,7 +11,7 @@ Hard constraints every section respects:
 - No new members on `IStorageConnection`, `IWriteOnlyTransaction`, `IMonitoringApi`, `IRecurringJobManager`,
   `IBackgroundJobClient`. New capabilities go through base classes, `JobStorageFeatures`, new `V3` interfaces, or
   extension methods, so third-party storages keep compiling.
-- No new runtime package dependencies for `Hangfire.Core` (Newtonsoft.Json stays the only one).
+- No new runtime package dependencies for `Masterly.NightShift.Core` (System.Text.Json, on `netstandard2.0` only, is the only one).
 - Public API breaks are caught by package validation; intentional ones go to `CompatibilitySuppressions.xml` and
   `docs/breaking-changes-2.0.md`.
 - All new storage data lives in the existing primitives (hash, set, list, counter, job parameters), so every storage
@@ -29,11 +29,11 @@ wraps exceptions in `TargetInvocationException`, and defeats trimming/AOT analys
 
 | Tier | Class | How | When |
 |---|---|---|---|
-| Generated | `Hangfire.SourceGenerator` output | Direct typed call compiled into the consumer's assembly | When the consumer references the `Hangfire.SourceGenerator` analyzer |
+| Generated | `Masterly.NightShift.SourceGenerator` output | Direct typed call compiled into the consumer's assembly | When the consumer references the `Masterly.NightShift.SourceGenerator` analyzer |
 | Compiled | `CompiledJobInvoker` | `Expression.Lambda<Func<object, object[], object>>(...).Compile()` once per method | Default fallback where dynamic code is supported |
 | Reflection | `ReflectionJobInvoker` | `MethodInfo.Invoke` | Dynamic code unsupported, or `UseReflectionJobInvocation()` |
 
-Public API (`Hangfire.Common`):
+Public API (`Masterly.NightShift.Common`):
 
 ```csharp
 public abstract class JobInvoker
@@ -63,15 +63,15 @@ Registry key is `(declaring type, method name, parameter types, generic argument
 interface, a base class or a derived instance resolves to the same invoker. `Invoke` throws the job's exception
 directly (no `TargetInvocationException`), which `HandleJobPerformanceException` already handles.
 
-**Source generator** (`src/Hangfire.SourceGenerator`, Roslyn 4.8, netstandard2.0, shipped as an analyzer in the
-`Hangfire.Core` package under `analyzers/dotnet/cs`). It discovers job methods in two ways:
+**Source generator** (`src/Masterly.NightShift.SourceGenerator`, Roslyn 4.8, netstandard2.0, shipped as an analyzer in the
+`Masterly.NightShift.Core` package under `analyzers/dotnet/cs`). It discovers job methods in two ways:
 
-1. Every expression lambda passed to a Hangfire client API (`Enqueue`, `Schedule`, `ContinueJobWith`,
-   `AddOrUpdate`, `Job.FromExpression`, their generic and `Task` variants, and any method in the `Hangfire`
+1. Every expression lambda passed to a Masterly.NightShift client API (`Enqueue`, `Schedule`, `ContinueJobWith`,
+   `AddOrUpdate`, `Job.FromExpression`, their generic and `Task` variants, and any method in the `Masterly.NightShift`
    namespace with an `Expression<...>` parameter).
 2. Every public method of a type marked `[GenerateJobInvokers]`, for jobs enqueued from another assembly.
 
-It emits one `JobInvoker` subclass per distinct method into `Hangfire.Generated.HangfireJobInvokers`, plus a
+It emits one `JobInvoker` subclass per distinct method into `Masterly.NightShift.Generated.NightShiftJobInvokers`, plus a
 `[ModuleInitializer]` that registers them (with an internal `ModuleInitializerAttribute` polyfill when the target
 framework lacks it). Methods it cannot call safely are skipped silently and fall back to the compiled tier: open
 generics, inaccessible types or members, pointer/ref-struct parameters.
@@ -234,6 +234,70 @@ circuits (section 3) and flags jobs whose last duration is more than 3x their p9
 
 ---
 
+## 9. Game changers (second wave)
+
+Built on the primitives above; storage layout per feature:
+
+| Feature | Code | Storage |
+|---|---|---|
+| Job Catalog | `JobCatalog`, `JobCatalogPage`, `JobCatalogRunDispatcher` (`POST /catalog/run`) | none; reads `JobInvokerRegistry.GetGeneratedInvokers()` plus `JobCatalog.Add<T>()` |
+| Fan-in continuations | `AwaitingJobsState` (name `Awaiting`, data `ParentIds`, `Mode`, `Options`, `NextState`), `FanInContinuationsSupportAttribute`, `ContinueJobWithAll/Any` | parent job parameter `FanInContinuations` = JSON list of child ids; the `awaiting` set through the existing handler |
+| Duplicate prevention | `PreventDuplicatesAttribute` (client + apply-state filter) | hash `fingerprint:{hash}` (`JobId`, `Reservation`, `ReservedAt`, `CreatedAt`), expiring; job parameter `Fingerprint`; lock `fingerprint:{hash}` |
+| Drain mode | `DrainMode`, `DrainModeFilter` (elect filter: Processing → Scheduled +30s), `DrainModeDispatcher` (`/maintenance/pause|resume`) | hash `hangfire:control` (`Drain`, `DrainSince`, `DrainReason`), cached 2 s per process |
+| Activity feed | `ActivityFeed`, `ActivityFeedFilter` (apply-state), `ActivityDispatcher` (`GET /activity`) | list `activity`, newest first, trimmed to 200 |
+| Alerts | `Alerts`, `AlertsFilter` (Failed state), `WebhookAlertSink`, raises from `DeadlineAttribute` and `CircuitBreakerAttribute` | none; HTTP POST in the background, bounded in-flight |
+| Schedule forecast | `ScheduleForecast`, `ForecastPage` (`/recurring/forecast`) | reads recurring job hashes and `insights:*` durations |
+| ETA | `JobInsight.EstimateCompletion`, Processing page | reads `insights:{key}:durations` |
+| Copy as code | `JobCodeRenderer`, job details page | none |
+| Anomalies | `JobInsight.IsSlowingDown`, `HasHighFailureRate`, `IsAnomalous` | reads the last 200 durations |
+
+## 10. Game changers (third wave)
+
+Diagnosis, lineage and clusters are dashboard-only readers over existing data; tags, retry-later and manifests
+add small, opt-in writes.
+
+| Feature | Code | Storage |
+|---|---|---|
+| Diagnosis | `JobDiagnostics` (internal, `Dashboard`), job details page; findings carry a stable `Code` | reads servers, queues, `hangfire:control`, parent `JobData`, `insights:*`, circuits |
+| Lineage | `JobLineage` (BFS, 4 levels, 40 nodes), `JobLineageRenderer` (inline SVG) | reads `Awaiting` state data and the `Continuations` / `FanInContinuations` parameters through `IMonitoringApi.JobDetails` |
+| Tags | `TagAttribute` (client filter), `JobTags`, `TagsPage` (`/tags`), `TaggedJobsPage` (`/tags/{tag}`), `/tags/forget/{tag}`, palette `tags` results | set `tags` (names), set `tags:{tag}` (job ids scored by creation time), job parameter `Tags` (JSON array); expired ids dropped lazily by the tag page |
+| Failure clusters | `FailureClusters` (latest 500 via `FailedJobs`, groups of ≥2, top 8), Failed jobs page, batch requeue/delete through the existing `/jobs/failed/*` commands | none |
+| Retry later | `RetryLaterException`, `AutomaticRetryAttribute.TryRetryLater`, `MaxRetryLaterRequests` | job parameter `RetryLaterCount`; `retries` set via the "Retry later" reason prefix |
+| Redaction | `RedactedAttribute`, `JobMethodCallRenderer`, `JobCodeRenderer`, `JobCatalog.FormatArguments` | none (display only) |
+| Manifests | `RecurringJobManifest` (`Export`, `Parse`, `Apply` with prune), `RecurringJobManifestDispatcher` (`GET /recurring/export`, `POST /recurring/import`) | the recurring job hashes, through `IRecurringJobManager` |
+| Health | `DashboardHealth.Check`, `HealthDispatcher` (`GET /health`, 503 when unhealthy) | reads statistics, servers, queues, `hangfire:control`, recurring job hashes |
+| Late recurring jobs | `DashboardHealth.IsLate` (next run > 1 min ago, not paused, no error), Recurring Jobs page badge and summary | reads recurring job hashes |
+| Run again with changes | `JobCatalog.CreateEntry(Job)`, `JobCatalog.FormatArguments`, `/catalog/run` with `source`, `_JobRunner` partial shared with the Catalog page | reads the source job's `JobData` |
+
+## 11. Game changers (fourth wave)
+
+| Feature | Code | Storage |
+|---|---|---|
+| Batches | `BatchJob` (`StartNew` with an `AsyncLocal` current batch, `ContinueWith` = fan-in over the batch), `IBatchBuilder`, `JobBatch`, `BatchSupportAttribute` (default global client + apply-state filter), `BatchesPage`, `BatchDetailsPage`, `BatchCommands` | set `batches`; hash `batch:{id}` (`Description`, `CreatedAt`); set `batch:{id}:jobs`; counters `batch:{id}:total`, `batch:{id}:state:{name}` (expiring); set `batch:{id}:continuations`; job parameters `BatchId`, `BatchContinuationOf` |
+| Per-queue pause | `DrainMode.PauseQueue/ResumeQueue/GetStatus`, `DrainModeStatus.PausedQueues`, `DrainModeFilter` (one state read when any queue is paused), `QueuePauseDispatcher`, Queues page, layout banner | fields `Queue:{name}` of `hangfire:control` |
+| Prometheus | `PrometheusDispatcher` (`GET /metrics`), built on `DashboardHealth`, `JobInsightsAttribute.ReadAll`, `QueueInsights.ReadAll` | none |
+| Audit log | `AuditLog` (`Record`, `Read`, `Describe`), `DashboardContext.GetUserName`, recording in the command, batch, maintenance, drain, queue, catalog, recurring update and manifest dispatchers, `AuditPage` | list `audit`, newest first, trimmed to 1000 |
+| Resumable jobs | `IJobConsole.Checkpoints` / `HasCheckpoint`, `JobConsoleExtensions.Resume/ResumeAsync`, lazy read of `job:{id}:console` in `JobConsole` | the existing console list |
+| Retention | `ExpireAfterAttribute` (apply-state filter setting `JobExpirationTimeout` on final states) | none |
+| Run windows | `RunWindowAttribute`, `BlackoutAttribute` (elect filters: Processing → Scheduled at the next allowed moment) | none |
+| Queue health | `QueueInsights`, `QueueHealth`, `QueueInsightsFilter` (registered by `UseJobInsights`), Queues page columns | set `queue-insights`; list `queue:{name}:latency` (200); counters `queue:{name}:started:{yyyyMMddHHmm}` (1 h); hash `queue:{name}:insights` |
+| Plain-English scheduling | `TimeText.Parse/TryParse`, `BackgroundJob.Schedule(..., string when)` and client extension overloads, Catalog "later" field | none |
+
+## 12. Dashboard (fifth wave)
+
+| Feature | Code | Storage |
+|---|---|---|
+| Wallboard | `WallboardPage` (`/wallboard`, no layout, meta refresh 10 s), built on `DashboardHealth`, `QueueInsights`, `JobInsight.EstimateCompletion`, circuits | reads only |
+| Timeline | `ClusterTimeline` (spans from Processing → next transition per job, lanes per server/worker), `TimelinePage` (`/timeline`) | reads the `activity` list; `ActivityEntry.WorkerId` added |
+| Heatmap | `ActivityHeatmap` (7 × 24 `GetCounter` reads), Insights page | hourly `stats:*` counters now kept 8 days |
+| Notes | `JobNotes` (`Add`, `Read`, `GetAcknowledgement`), `JobNotesDispatcher` (`POST /jobs/notes/add/{id}`), job details and Failed pages | job parameter `Notes` (JSON array, 50 max) |
+| Watchlist | `nightshift.Watchlist` (localStorage `nightshift.watch`, polls `GET /jobs/live?jobs=`), `.js-watch-toggle` on the job page, toasts + Notification API | none (per browser) |
+| Keyboard triage | `nightshift.Shortcuts` (j/k/x/Enter/r/d, `?` overlay) | none |
+| Palette commands | `CommandPalette._commands` (`>` prefix) posting to the existing action routes | none |
+| Per-server pause | `DrainMode.PauseServer/ResumeServer`, `DrainModeStatus.PausedServers`, `DrainModeFilter` (checks the candidate `ProcessingState.ServerId`), `ServerPauseDispatcher`, Servers page | fields `Server:{id}` of `hangfire:control` |
+| Exports | `JobExportDispatcher` (`/jobs/export/{id}`, JSON), `JobListExportDispatcher` (CSV, 10,000 rows, formula characters neutralised), `.js-download` | reads only |
+| State bar | job details page, from the state history | none |
+
 ## Delivery order
 
 | Slice | Contents | Depends on |
@@ -247,5 +311,5 @@ circuits (section 3) and flags jobs whose last duration is more than 3x their p9
 | 7 | Dashboard redesign, command palette, live tables | 4, 5, 6 |
 | 8 | Smaller additions | any |
 
-Every slice ends with `dotnet build Hangfire.sln -c Release` (warnings are errors) and
-`dotnet test tests/Hangfire.Core.Tests -f net8.0`.
+Every slice ends with `dotnet build Masterly.NightShift.slnx -c Release` (warnings are errors) and
+`dotnet test tests/Masterly.NightShift.Core.Tests -f net8.0`.
