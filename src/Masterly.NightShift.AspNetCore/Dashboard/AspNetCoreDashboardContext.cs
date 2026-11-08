@@ -21,8 +21,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The <see cref="DashboardContext"/> of a dashboard request served by ASP.NET Core. Get the
+    /// <see cref="HttpContext"/> from any dashboard context with <c>GetHttpContext()</c>.
+    /// </summary>
     public sealed class AspNetCoreDashboardContext : DashboardContext
     {
+        /// <summary>
+        /// Initializes the context of a request.
+        /// </summary>
+        /// <param name="storage">The storage the dashboard shows.</param>
+        /// <param name="options">The dashboard options.</param>
+        /// <param name="httpContext">The request's HTTP context.</param>
         public AspNetCoreDashboardContext(
             [NotNull] JobStorage storage,
             [NotNull] DashboardOptions options,
@@ -32,21 +42,29 @@ namespace Masterly.NightShift.Dashboard
             HttpContext = httpContext ?? throw new ArgumentNullException(nameof(httpContext));
             Request = new AspNetCoreDashboardRequest(httpContext);
             Response = new AspNetCoreDashboardResponse(httpContext);
-
-            if (!options.IgnoreAntiforgeryToken)
-            {
-                var antiforgery = HttpContext.RequestServices.GetService<IAntiforgery>();
-                var tokenSet = antiforgery?.GetAndStoreTokens(HttpContext);
-
-                if (tokenSet != null)
-                {
-                    AntiforgeryHeader = tokenSet.HeaderName;
-                    AntiforgeryToken = tokenSet.RequestToken;
-                }
-            }
         }
 
+        /// <summary>Gets the request's HTTP context.</summary>
         public HttpContext HttpContext { get; }
+
+        /// <summary>
+        /// Calls <see cref="IAntiforgery.GetAndStoreTokens"/> when <see cref="IAntiforgery"/> is registered and
+        /// <see cref="DashboardOptions.IgnoreAntiforgeryToken"/> is <c>false</c>. It runs only when a page writes
+        /// the tokens, because it also stores the antiforgery cookie and marks the response as not cacheable.
+        /// </summary>
+        protected override void GenerateAntiforgeryTokens()
+        {
+            if (Options.IgnoreAntiforgeryToken) return;
+
+            var antiforgery = HttpContext.RequestServices?.GetService<IAntiforgery>();
+            var tokenSet = antiforgery?.GetAndStoreTokens(HttpContext);
+
+            if (tokenSet != null)
+            {
+                AntiforgeryHeader = tokenSet.HeaderName;
+                AntiforgeryToken = tokenSet.RequestToken;
+            }
+        }
 
         /// <inheritdoc />
         public override string GetUserName()
@@ -55,6 +73,11 @@ namespace Masterly.NightShift.Dashboard
             return identity != null && identity.IsAuthenticated ? identity.Name : null;
         }
 
+        /// <summary>
+        /// Gets the client the dashboard's commands use: one from the registered
+        /// <see cref="IBackgroundJobClientFactory"/> for the dashboard's storage, else the registered
+        /// <see cref="IBackgroundJobClient"/>, else a new one.
+        /// </summary>
         public override IBackgroundJobClient GetBackgroundJobClient()
         {
             var factory = HttpContext.RequestServices.GetService<IBackgroundJobClientFactory>();
@@ -66,6 +89,11 @@ namespace Masterly.NightShift.Dashboard
             return HttpContext.RequestServices.GetService<IBackgroundJobClient>() ?? base.GetBackgroundJobClient();
         }
 
+        /// <summary>
+        /// Gets the recurring job manager the dashboard's commands use: one from the registered
+        /// <see cref="IRecurringJobManagerFactory"/> for the dashboard's storage, else the registered
+        /// <see cref="IRecurringJobManager"/>, else a new one.
+        /// </summary>
         public override IRecurringJobManager GetRecurringJobManager()
         {
             var factory = HttpContext.RequestServices.GetService<IRecurringJobManagerFactory>();

@@ -84,6 +84,7 @@ namespace Masterly.NightShift.AspNetCore.Tests
             }
         }
 
+#if NET8_0_OR_GREATER // The netstandard2.0 build doesn't resolve the URL from the server's addresses
         [Theory]
         [InlineData("http://localhost:1")]
         [InlineData("http://localhost:1/")]
@@ -182,6 +183,18 @@ namespace Masterly.NightShift.AspNetCore.Tests
                 Assert.Equal(ClosedPort + "/nightshift/ping", KeepAliveProcess.Status.Url);
             }
         }
+#else
+        [Fact]
+        public void AddNightShiftKeepAlive_RequiresAUrl_OnTheNetStandardBuild()
+        {
+            using (var provider = BuildProvider(new[] { ClosedPort }))
+            {
+                var exception = Assert.Throws<InvalidOperationException>(() => GetProcess(provider));
+
+                Assert.Contains("Set KeepAliveOptions.Url", exception.Message);
+            }
+        }
+#endif
 
         private static ServiceProvider BuildProvider(
             string[] addresses,

@@ -19,8 +19,16 @@ using Microsoft.AspNetCore.Http;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Gives dashboard authorization filters and extensions access to the ASP.NET Core request.
+    /// </summary>
     public static class AspNetCoreDashboardContextExtensions
     {
+        /// <summary>
+        /// Gets the <see cref="HttpContext"/> of a dashboard request served by ASP.NET Core.
+        /// </summary>
+        /// <param name="context">The dashboard context.</param>
+        /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
         public static HttpContext GetHttpContext([NotNull] this DashboardContext context)
         {
             if (context == null) throw new ArgumentNullException(nameof(context));

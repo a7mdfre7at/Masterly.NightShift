@@ -5,6 +5,10 @@ namespace Masterly.NightShift.AspNetCore.Tests.Stubs
 {
     /// <summary>A host lifetime whose events the test raises by hand.</summary>
     internal sealed class HostApplicationLifetimeStub : IHostApplicationLifetime
+#if NETFRAMEWORK
+        // The lifetime ASP.NET Core 2.x registers, which the netstandard2.0 build of RegisterNightShiftServer uses
+        , Microsoft.AspNetCore.Hosting.IApplicationLifetime
+#endif
     {
         private readonly CancellationTokenSource _started = new CancellationTokenSource();
         private readonly CancellationTokenSource _stopping = new CancellationTokenSource();

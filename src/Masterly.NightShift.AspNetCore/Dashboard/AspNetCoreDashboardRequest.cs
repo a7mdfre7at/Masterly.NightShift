@@ -15,6 +15,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Masterly.NightShift.Annotations;
 using Microsoft.AspNetCore.Http;
@@ -40,8 +41,44 @@ namespace Masterly.NightShift.Dashboard
 
         public override async Task<IList<string>> GetFormValuesAsync(string key)
         {
-            var form = await _context.Request.ReadFormAsync();
+            if (!_context.Request.HasFormContentType)
+            {
+                // No form to read: jQuery's $.post(url) without data sends no body and no Content-Type, and
+                // ReadFormAsync throws for that. Every form field is then simply missing.
+                return Array.Empty<string>();
+            }
+
+            IFormCollection form;
+
+            try
+            {
+                form = await _context.Request.ReadFormAsync();
+            }
+            catch (InvalidDataException ex)
+            {
+                // FormOptions limits, such as more than 1024 values: answered with 413 by the middleware
+                throw new DashboardFormTooLargeException(ex);
+            }
+
             return form[key];
+        }
+
+        public override string GetHeader(string name)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+
+            return _context.Request.Headers.TryGetValue(name, out var values) && values.Count > 0
+                ? values.ToString()
+                : null;
+        }
+    }
+
+    /// <summary>The posted form exceeds the limits of ASP.NET Core's <c>FormOptions</c>.</summary>
+    internal sealed class DashboardFormTooLargeException : Exception
+    {
+        public DashboardFormTooLargeException(InvalidDataException innerException)
+            : base(innerException.Message, innerException)
+        {
         }
     }
 }

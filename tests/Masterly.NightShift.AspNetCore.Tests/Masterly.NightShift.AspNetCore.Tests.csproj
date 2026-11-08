@@ -1,13 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <!-- net48 runs the libraries' netstandard2.0 build against ASP.NET Core 2.x, which .NET Framework consumers get -->
+    <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
     <!-- Masterly.NightShift.AspNetCore and Masterly.NightShift.NetCore are tested together: the first depends on the second -->
     <RootNamespace>Masterly.NightShift.AspNetCore.Tests</RootNamespace>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net48'">
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- What the shared framework gives the other targets. The rest of ASP.NET Core 2.x comes with Masterly.NightShift.AspNetCore. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Microsoft.AspNetCore.Http" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 
   <ItemGroup>

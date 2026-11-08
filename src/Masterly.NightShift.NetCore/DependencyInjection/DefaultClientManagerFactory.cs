@@ -20,7 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Masterly.NightShift
 {
-    internal sealed class DefaultClientManagerFactory : IBackgroundJobClientFactoryV2, IRecurringJobManagerFactoryV2
+    internal sealed class DefaultClientManagerFactory : IBackgroundJobClientFactoryV2, IRecurringJobManagerFactoryV3
     {
         private readonly IServiceProvider _serviceProvider;
 
@@ -46,7 +46,7 @@ namespace Masterly.NightShift
             return GetClientV2(storage);
         }
 
-        public IRecurringJobManagerV2 GetManagerV2(JobStorage storage)
+        public IRecurringJobManagerV3 GetManagerV3(JobStorage storage)
         {
             if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out _, out _))
             {
@@ -62,9 +62,14 @@ namespace Masterly.NightShift
                 _serviceProvider.GetRequiredService<ITimeZoneResolver>());
         }
 
+        public IRecurringJobManagerV2 GetManagerV2(JobStorage storage)
+        {
+            return GetManagerV3(storage);
+        }
+
         public IRecurringJobManager GetManager(JobStorage storage)
         {
-            return GetManagerV2(storage);
+            return GetManagerV3(storage);
         }
     }
 }

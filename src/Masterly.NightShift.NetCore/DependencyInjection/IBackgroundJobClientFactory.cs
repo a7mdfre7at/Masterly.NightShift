@@ -15,13 +15,24 @@
 
 namespace Masterly.NightShift
 {
+    /// <summary>
+    /// Creates background job clients that also implement <see cref="IBackgroundJobClientV2"/>.
+    /// </summary>
     public interface IBackgroundJobClientFactoryV2 : IBackgroundJobClientFactory
     {
+        /// <summary>Creates a background job client for the given storage.</summary>
+        /// <param name="storage">The storage the client creates jobs in.</param>
         IBackgroundJobClientV2 GetClientV2(JobStorage storage);
     }
 
+    /// <summary>
+    /// Creates background job clients for a storage, with the job factory and state changer registered in the
+    /// container. <c>AddNightShift</c> registers it; use it to get a client for a storage other than the default one.
+    /// </summary>
     public interface IBackgroundJobClientFactory
     {
+        /// <summary>Creates a background job client for the given storage.</summary>
+        /// <param name="storage">The storage the client creates jobs in.</param>
         IBackgroundJobClient GetClient(JobStorage storage);
     }
 }

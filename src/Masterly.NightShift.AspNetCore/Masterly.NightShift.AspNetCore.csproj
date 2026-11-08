@@ -14,6 +14,8 @@
   <ItemGroup Condition="'$(TargetFramework)'=='netstandard2.0'">
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
     <PackageReference Include="Microsoft.AspNetCore.Antiforgery" />
+    <!-- Health checks (AddNightShift); net8.0 and later get them from the shared framework -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <!-- Lift vulnerable transitive dependencies of Antiforgery 2.0.0 to their first patched versions -->
     <PackageReference Include="System.Security.Cryptography.Xml" />
     <PackageReference Include="System.Text.Encodings.Web" />

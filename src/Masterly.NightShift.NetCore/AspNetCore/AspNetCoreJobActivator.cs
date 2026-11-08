@@ -19,21 +19,37 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Masterly.NightShift.AspNetCore
 {
+    /// <summary>
+    /// A <see cref="JobActivator"/> backed by the service container: every job runs in its own service scope,
+    /// and its instance is resolved from that scope, or created with its constructor's services when the type
+    /// isn't registered. <c>AddNightShift</c> installs it.
+    /// </summary>
     public class AspNetCoreJobActivator : JobActivator
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
+        /// <summary>
+        /// Initializes the activator.
+        /// </summary>
+        /// <param name="serviceScopeFactory">Creates the scope of each job.</param>
         public AspNetCoreJobActivator([NotNull] IServiceScopeFactory serviceScopeFactory)
         {
             if (serviceScopeFactory == null) throw new ArgumentNullException(nameof(serviceScopeFactory));
             _serviceScopeFactory = serviceScopeFactory;
         }
 
+        /// <summary>
+        /// Creates a service scope for the job; it is disposed, with the services it created, after the job.
+        /// </summary>
+        /// <param name="context">The job about to run.</param>
         public override JobActivatorScope BeginScope(JobActivatorContext context)
         {
             return new AspNetCoreJobActivatorScope(_serviceScopeFactory.CreateScope());
         }
 
+        /// <summary>
+        /// Creates a service scope; it is disposed, with the services it created, when the scope is disposed.
+        /// </summary>
 #pragma warning disable CS0672 // Member overrides obsolete member
         public override JobActivatorScope BeginScope()
 #pragma warning restore CS0672 // Member overrides obsolete member

@@ -52,7 +52,12 @@ namespace Masterly.NightShift.AspNetCore.Tests
         private ServiceProvider BuildProvider()
         {
             return new ServiceCollection()
+#if NETFRAMEWORK
+                // The netstandard2.0 build uses the lifetime ASP.NET Core 2.x registers
+                .AddSingleton<Microsoft.AspNetCore.Hosting.IApplicationLifetime>(_lifetime)
+#else
                 .AddSingleton<IHostApplicationLifetime>(_lifetime)
+#endif
                 .BuildServiceProvider();
         }
     }

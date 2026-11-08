@@ -1,17 +1,4 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+#nullable enable
 
 using System;
 using System.Linq;
@@ -35,7 +22,8 @@ namespace Masterly.NightShift
         /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, on .NET 8 and later,
         /// the first address the server listens on is used with the given path; on other targets the URL is
         /// required. The request has to reach the host that applies the idle timeout, so behind IIS give the
-        /// public address, for example <c>https://jobs.example.com/nightshift/stats</c>.
+        /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
+        /// answers without touching the storage.
         /// </summary>
         /// <param name="services">The service collection.</param>
         /// <param name="configure">Changes to the defaults: URL, interval, timeout.</param>
@@ -43,7 +31,7 @@ namespace Masterly.NightShift
         /// <returns>The same collection, for chaining.</returns>
         public static IServiceCollection AddNightShiftKeepAlive(
             [NotNull] this IServiceCollection services,
-            [CanBeNull] Action<KeepAliveOptions> configure = null,
+            [CanBeNull] Action<KeepAliveOptions>? configure = null,
             [NotNull] string path = "/nightshift/ping")
         {
             if (services == null) throw new ArgumentNullException(nameof(services));
@@ -70,7 +58,7 @@ namespace Masterly.NightShift
         }
 
 #if !NETSTANDARD2_0
-        private static string ResolveFromServer(IServiceProvider provider, string path)
+        private static string? ResolveFromServer(IServiceProvider provider, string path)
         {
             var server = provider.GetService<IServer>();
             var address = server?.Features.Get<IServerAddressesFeature>()?.Addresses

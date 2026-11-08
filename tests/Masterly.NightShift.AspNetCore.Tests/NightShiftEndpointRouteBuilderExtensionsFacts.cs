@@ -1,8 +1,13 @@
+// Endpoint routing (MapNightShiftDashboard...) is in the net8.0 and later builds only
+#if NET8_0_OR_GREATER
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Masterly.NightShift.Common;
+using Masterly.NightShift.Dashboard;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -70,6 +75,44 @@ namespace Masterly.NightShift.AspNetCore.Tests
             Assert.Equal("pong", Encoding.UTF8.GetString(body.ToArray()));
         }
 
+        [Fact]
+        public void CopyOptions_CopiesEverySettableProperty()
+        {
+            // A property added to DashboardOptions must also be copied, or MapNightShiftDashboardWithNoAuthorizationFilters loses it
+            var source = new DashboardOptions();
+            var expected = new Dictionary<string, object>();
+
+            foreach (var property in typeof(DashboardOptions).GetProperties().Where(static p => p.CanRead && p.CanWrite))
+            {
+                var value = SampleValue(property.PropertyType, property.GetValue(source));
+                property.SetValue(source, value);
+                expected[property.Name] = value;
+            }
+
+            var copy = NightShiftEndpointRouteBuilderExtensions.CopyOptions(source);
+
+            Assert.NotSame(source, copy);
+            foreach (var pair in expected)
+            {
+                Assert.Equal(pair.Value, typeof(DashboardOptions).GetProperty(pair.Key).GetValue(copy));
+            }
+        }
+
+        private static object SampleValue(Type type, object current)
+        {
+            if (type == typeof(string)) return "changed";
+            if (type == typeof(int)) return (int)current + 7;
+            if (type == typeof(bool)) return !(bool)current;
+            if (type == typeof(TimeSpan)) return ((TimeSpan)current).Add(TimeSpan.FromSeconds(7));
+            if (type == typeof(IEnumerable<IDashboardAuthorizationFilter>)) return new[] { new Mock<IDashboardAuthorizationFilter>().Object };
+            if (type == typeof(IEnumerable<IDashboardAsyncAuthorizationFilter>)) return new[] { new Mock<IDashboardAsyncAuthorizationFilter>().Object };
+            if (type == typeof(Func<DashboardContext, bool>)) return new Func<DashboardContext, bool>(static _ => true);
+            if (type == typeof(Func<DashboardContext, Job, string>)) return new Func<DashboardContext, Job, string>(static (_, _) => "name");
+            if (type == typeof(ITimeZoneResolver)) return new Mock<ITimeZoneResolver>().Object;
+
+            throw new NotSupportedException($"Add a sample value for {type} here, and copy the new property in CopyOptions.");
+        }
+
         private static WebApplication CreateApplication(bool addNightShift)
         {
             var builder = WebApplication.CreateBuilder();
@@ -89,3 +132,4 @@ namespace Masterly.NightShift.AspNetCore.Tests
         }
     }
 }
+#endif

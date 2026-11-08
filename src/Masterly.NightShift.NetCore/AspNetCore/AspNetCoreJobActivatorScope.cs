@@ -36,7 +36,8 @@ namespace Masterly.NightShift.AspNetCore
 
         public override void DisposeScope()
         {
-#if NET8_0_OR_GREATER
+            // On every target: netstandard2.0 gets IAsyncDisposable from Microsoft.Bcl.AsyncInterfaces, and there too
+            // the container's scope throws from Dispose when a scoped service only implements IAsyncDisposable
             if (_serviceScope is IAsyncDisposable asyncDisposable)
             {
                 // Service scope disposal is triggered inside a dedicated background thread,
@@ -47,7 +48,7 @@ namespace Masterly.NightShift.AspNetCore
 #pragma warning restore CA2012
                 return;
             }
-#endif
+
             _serviceScope.Dispose();
         }
     }

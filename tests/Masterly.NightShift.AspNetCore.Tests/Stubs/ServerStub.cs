@@ -12,7 +12,7 @@ namespace Masterly.NightShift.AspNetCore.Tests.Stubs
     {
         public ServerStub(IEnumerable<string> addresses)
         {
-            var feature = new ServerAddressesFeature();
+            var feature = new AddressesFeature();
             foreach (var address in addresses)
             {
                 feature.Addresses.Add(address);
@@ -33,6 +33,13 @@ namespace Masterly.NightShift.AspNetCore.Tests.Stubs
 
         public void Dispose()
         {
+        }
+
+        // Not ServerAddressesFeature: ASP.NET Core 2.x, which the net48 target uses, has it in the Hosting package only
+        private sealed class AddressesFeature : IServerAddressesFeature
+        {
+            public ICollection<string> Addresses { get; } = new List<string>();
+            public bool PreferHostingUrls { get; set; }
         }
     }
 }

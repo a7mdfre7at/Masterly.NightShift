@@ -25,20 +25,29 @@ using Microsoft.Extensions.Hosting;
 
 namespace Masterly.NightShift
 {
+    /// <summary>
+    /// Runs a <see cref="BackgroundJobServer"/> as an <see cref="IHostedService"/>. <c>AddNightShiftServer</c>
+    /// registers it. With an <see cref="IHostApplicationLifetime"/>, the server starts once the application has
+    /// started and gets the stop signal when the application begins to stop; without one it starts at once.
+    /// </summary>
     public class BackgroundJobServerHostedService : IHostedService, IDisposable
     {
         private readonly BackgroundJobServerOptions _options;
         private readonly JobStorage _storage;
         private readonly IEnumerable<IBackgroundProcess> _additionalProcesses;
-#if NET8_0_OR_GREATER
         private readonly IHostApplicationLifetime _hostApplicationLifetime;
-#endif
         private readonly IBackgroundJobFactory _factory;
         private readonly IBackgroundJobPerformer _performer;
         private readonly IBackgroundJobStateChanger _stateChanger;
 
         private IBackgroundProcessingServer _processingServer;
 
+        /// <summary>
+        /// Initializes the service, which starts the server at once.
+        /// </summary>
+        /// <param name="storage">The storage the server processes jobs from.</param>
+        /// <param name="options">The server options.</param>
+        /// <param name="additionalProcesses">Processes the server runs besides its own.</param>
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
@@ -49,7 +58,13 @@ namespace Masterly.NightShift
         {
         }
 
-#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Initializes the service, which starts the server when the application has started.
+        /// </summary>
+        /// <param name="storage">The storage the server processes jobs from.</param>
+        /// <param name="options">The server options.</param>
+        /// <param name="additionalProcesses">Processes the server runs besides its own.</param>
+        /// <param name="hostApplicationLifetime">The application's lifetime, or <c>null</c> to start the server at once.</param>
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
@@ -60,10 +75,18 @@ namespace Masterly.NightShift
 #pragma warning restore 618
         {
         }
-#endif
 
-#if NET8_0_OR_GREATER
-        [Obsolete("This constructor uses an obsolete constructor overload of the BackgroundJobServer type that will be removed in 2.0.0.")]
+        /// <summary>
+        /// Initializes the service with the job factory, performer and state changer the server uses, which
+        /// starts the server at once.
+        /// </summary>
+        /// <param name="storage">The storage the server processes jobs from.</param>
+        /// <param name="options">The server options.</param>
+        /// <param name="additionalProcesses">Processes the server runs besides its own.</param>
+        /// <param name="factory">The job factory, or <c>null</c>.</param>
+        /// <param name="performer">The job performer, or <c>null</c>.</param>
+        /// <param name="stateChanger">The state changer, or <c>null</c>.</param>
+        [Obsolete("This constructor uses an obsolete BackgroundJobServer constructor. Use a constructor without the factory, performer and state changer instead. Kept for code ported from Hangfire.")]
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
@@ -74,9 +97,19 @@ namespace Masterly.NightShift
             : this(storage, options, additionalProcesses, factory, performer, stateChanger, null)
         {
         }
-#endif
 
-        [Obsolete("This constructor uses an obsolete constructor overload of the BackgroundJobServer type that will be removed in 2.0.0.")]
+        /// <summary>
+        /// Initializes the service with the job factory, performer and state changer the server uses (all three,
+        /// or they are ignored), which starts the server when the application has started.
+        /// </summary>
+        /// <param name="storage">The storage the server processes jobs from.</param>
+        /// <param name="options">The server options.</param>
+        /// <param name="additionalProcesses">Processes the server runs besides its own.</param>
+        /// <param name="factory">The job factory, or <c>null</c>.</param>
+        /// <param name="performer">The job performer, or <c>null</c>.</param>
+        /// <param name="stateChanger">The state changer, or <c>null</c>.</param>
+        /// <param name="hostApplicationLifetime">The application's lifetime, or <c>null</c> to start the server at once.</param>
+        [Obsolete("This constructor uses an obsolete BackgroundJobServer constructor. Use a constructor without the factory, performer and state changer instead. Kept for code ported from Hangfire.")]
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
@@ -84,10 +117,8 @@ namespace Masterly.NightShift
             [CanBeNull] IBackgroundJobFactory factory,
             [CanBeNull] IBackgroundJobPerformer performer,
             [CanBeNull] IBackgroundJobStateChanger stateChanger
-#if NET8_0_OR_GREATER
             ,
             [CanBeNull] IHostApplicationLifetime hostApplicationLifetime
-#endif
             )
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -99,22 +130,22 @@ namespace Masterly.NightShift
             _performer = performer;
             _stateChanger = stateChanger;
 
-#if NET8_0_OR_GREATER
             _hostApplicationLifetime = hostApplicationLifetime;
             _hostApplicationLifetime?.ApplicationStopping.Register(SendStopSignal);
-#endif
         }
 
+        /// <summary>
+        /// Starts the server, or arranges for it to start when the application has started.
+        /// </summary>
+        /// <param name="cancellationToken">Not used.</param>
         public Task StartAsync(CancellationToken cancellationToken)
         {
-#if NET8_0_OR_GREATER
             if (_hostApplicationLifetime != null)
             {
                 // https://github.com/HangfireIO/Hangfire/issues/2117
                 _hostApplicationLifetime.ApplicationStarted.Register(InitializeProcessingServer);
             }
             else
-#endif
             {
                 InitializeProcessingServer();
             }
@@ -122,6 +153,10 @@ namespace Masterly.NightShift
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Sends the stop signal to the server and waits for it to shut down.
+        /// </summary>
+        /// <param name="cancellationToken">Stops waiting.</param>
         public async Task StopAsync(CancellationToken cancellationToken)
         {
             var server = _processingServer;
@@ -146,6 +181,9 @@ namespace Masterly.NightShift
             }
         }
 
+        /// <summary>
+        /// Disposes the server.
+        /// </summary>
         public void Dispose()
         {
             _processingServer?.Dispose();
@@ -163,7 +201,6 @@ namespace Masterly.NightShift
                 : new BackgroundJobServer(_options, _storage, _additionalProcesses);
         }
 
-#if NET8_0_OR_GREATER
         private void SendStopSignal()
         {
             try
@@ -175,6 +212,5 @@ namespace Masterly.NightShift
                 // Please see the comment regarding this exception above.
             }
         }
-#endif
     }
 }

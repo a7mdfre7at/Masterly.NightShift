@@ -20,16 +20,28 @@ using Microsoft.Extensions.Logging;
 
 namespace Masterly.NightShift.AspNetCore
 {
+    /// <summary>
+    /// Writes Masterly.NightShift's log entries to <c>Microsoft.Extensions.Logging</c>. <c>AddNightShift</c>
+    /// installs it when the container has an <see cref="ILoggerFactory"/>.
+    /// </summary>
     public class AspNetCoreLogProvider : ILogProvider
     {
         private readonly ILoggerFactory _loggerFactory;
 
+        /// <summary>
+        /// Initializes the provider.
+        /// </summary>
+        /// <param name="loggerFactory">Creates the loggers.</param>
         public AspNetCoreLogProvider([NotNull] ILoggerFactory loggerFactory)
         {
             if (loggerFactory == null) throw new ArgumentNullException(nameof(loggerFactory));
             _loggerFactory = loggerFactory;
         }
 
+        /// <summary>
+        /// Gets a logger whose category is <paramref name="name"/>.
+        /// </summary>
+        /// <param name="name">The logger name.</param>
         public ILog GetLogger(string name)
         {
             return new AspNetCoreLog(_loggerFactory.CreateLogger(name));

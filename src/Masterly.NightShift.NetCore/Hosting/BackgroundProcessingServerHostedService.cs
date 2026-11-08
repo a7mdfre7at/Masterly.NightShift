@@ -23,16 +23,28 @@ using Microsoft.Extensions.Hosting;
 
 namespace Masterly.NightShift
 {
+    /// <summary>
+    /// Stops an already running <see cref="IBackgroundProcessingServer"/> with the host. The
+    /// <c>AddNightShiftServer</c> overload that takes a factory registers it.
+    /// </summary>
     public sealed class BackgroundProcessingServerHostedService : IHostedService, IDisposable
     {
         private IBackgroundProcessingServer _server;
 
-#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Initializes the service.
+        /// </summary>
+        /// <param name="server">The server.</param>
         public BackgroundProcessingServerHostedService([NotNull] IBackgroundProcessingServer server)
             : this(server, null)
         {
         }
 
+        /// <summary>
+        /// Initializes the service; the server gets the stop signal when the application begins to stop.
+        /// </summary>
+        /// <param name="server">The server.</param>
+        /// <param name="lifetime">The application's lifetime, or <c>null</c>.</param>
         public BackgroundProcessingServerHostedService(
             [NotNull] IBackgroundProcessingServer server,
             [CanBeNull] IHostApplicationLifetime lifetime)
@@ -40,24 +52,29 @@ namespace Masterly.NightShift
             _server = server ?? throw new ArgumentNullException(nameof(server));
             lifetime?.ApplicationStopping.Register(server.SendStop);
         }
-#else
-        public BackgroundProcessingServerHostedService([NotNull] IBackgroundProcessingServer server)
-        {
-            _server = server ?? throw new ArgumentNullException(nameof(server));
-        }
-#endif
 
+        /// <summary>
+        /// Does nothing: the server already runs.
+        /// </summary>
+        /// <param name="cancellationToken">Not used.</param>
         public Task StartAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Sends the stop signal to the server and waits for it to shut down.
+        /// </summary>
+        /// <param name="cancellationToken">Stops waiting.</param>
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _server?.SendStop();
             return _server?.WaitForShutdownAsync(cancellationToken) ?? Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Disposes the server.
+        /// </summary>
         public void Dispose()
         {
             _server?.Dispose();
