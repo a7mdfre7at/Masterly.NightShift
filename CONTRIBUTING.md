@@ -24,7 +24,7 @@ Warnings are errors in `src/`, and the .NET analyzers run in `Recommended` mode,
 ## Pull requests
 
 - Keep a change focused, and match the style of the code around it. `CLAUDE.md` describes the architecture and conventions.
-- Add or update tests for what you change. Run the Core and AspNetCore test projects on both `net8.0` and `net10.0` before you open the pull request.
+- Add or update tests for what you change. Run the Core and AspNetCore test projects on `net8.0` and `net10.0`, and on Windows on `net48` too, before you open the pull request.
 - Anything shared must still compile for `netstandard2.0`. Gate newer APIs with `#if NET8_0_OR_GREATER`.
 - Don't add a member to a public storage interface: it breaks third-party storages. Extend through `JobStorage.HasFeature(...)` and the base classes.
 - List behaviour changes that users will notice in `CHANGELOG.md`.

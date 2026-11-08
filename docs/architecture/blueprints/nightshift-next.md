@@ -11,9 +11,9 @@ Hard constraints every section respects:
 - No new members on `IStorageConnection`, `IWriteOnlyTransaction`, `IMonitoringApi`, `IRecurringJobManager`,
   `IBackgroundJobClient`. New capabilities go through base classes, `JobStorageFeatures`, new `V3` interfaces, or
   extension methods, so third-party storages keep compiling.
-- No new runtime package dependencies for `Masterly.NightShift.Core` (System.Text.Json, on `netstandard2.0` only, is the only one).
+- No new runtime package dependencies for `Masterly.NightShift.Core` beyond what it already needs: Cronos, Microsoft.CSharp and, on `netstandard2.0` only, System.Text.Json.
 - Public API breaks are caught by package validation; intentional ones go to `CompatibilitySuppressions.xml` and
-  `docs/breaking-changes-2.0.md`.
+  `docs/breaking-changes.md`.
 - All new storage data lives in the existing primitives (hash, set, list, counter, job parameters), so every storage
   supports every feature out of the box. Richer behaviour is unlocked when `JobStorageConnection` /
   `JobStorageTransaction` members are available (expiry of lists/hashes, set ranges).
@@ -146,12 +146,13 @@ public enum ConcurrencyAction { Wait, Skip, Reschedule }
   the invocation (job is Deleted); `Reschedule` moves the job to `ScheduledState(now + RetryDelay)` through the state
   changer and cancels the invocation (the Worker's Processing→final transition is then a no-op, by design).
   `OnPerformed` removes the member. `MaxConcurrency = 1` is a distributed mutex that never blocks a worker thread.
-- **RateLimitAttribute** (sliding window): set `ratelimit:{key}` with members `{timestamp}:{jobId}`; entries
+- **RateLimitAttribute** (sliding window): set `ratelimit:{key}:{perSeconds}` with members `{timestamp}:{jobId}`; entries
   older than the window are trimmed; over the limit the job is rescheduled to the moment the oldest entry expires.
 - **CircuitBreakerAttribute**: an `IElectStateFilter` counts failures in `circuit:{key}:failures` (counter with
   window expiry); at the threshold it writes hash `circuit:{key}` = `{State=Open, OpenedAt}`. `OnPerforming` of
-  an open circuit reschedules to `OpenedAt + OpenSeconds`. The first job after that runs half-open; success
-  resets, failure re-opens. Open circuits are listed on the Insights page and can be reset from the dashboard.
+  an open circuit reschedules to `OpenedAt + OpenSeconds`. The first job after that becomes the probe (chosen
+  under the circuit lock, id in the `Probe` field); other jobs are rescheduled while it runs; its success resets,
+  its failure re-opens. Open circuits are listed on the Insights page and can be reset from the dashboard.
 
 Tests mock `IStorageConnection`/`IWriteOnlyTransaction` with Moq and assert the state transitions, set writes and
 stale-entry cleanup.
@@ -192,9 +193,12 @@ PerformContext.Console  // IJobConsole; also injectable as a job method paramete
 
 Storage: progress is the job parameter `Progress` = `{"p":42.5,"m":"...","t":<unix ms>}` (one write per
 update, no list growth). Console lines and checkpoints are entries in list `job:{id}:console`
-(`{"t":..,"l":"Info","m":".."}` / `{"t":..,"c":"name"}`), trimmed to `JobConsoleOptions.MaxLines`
-(default 500). `JobConsoleStateFilter` (global `IApplyStateFilter`) expires the list together with the job and
-persists it when the job is persisted, where `JobStorageTransaction.ExpireList`/`PersistList` are available.
+(`{"t":..,"l":"Info","m":".."}` / `{"t":..,"c":"name"}`), trimmed to `JobConsole.DefaultMaxLines`
+(default 500); checkpoints also go to `job:{id}:checkpoints` (one entry per name, untrimmed), which `Resume` reads.
+The first write sets the `Console` job parameter. `JobConsoleStateFilter` (global `IApplyStateFilter`) expires both
+lists together with the job and persists them when the job is persisted (only for jobs with the `Console`
+parameter, and only where the storage has `ExtendedApi`), and clears the checkpoints when a succeeded or deleted job
+is requeued. Writes go through a short-lived connection of their own, one at a time.
 
 Dashboard: `POST /jobs/live` with `jobs[]` returns, per job, `{state, serverId, startedAt, elapsedMs, progress,
 lines (tail), checkpoints}`. The job details page polls it while the job is Processing and renders a progress
@@ -205,7 +209,7 @@ progress bar and the elapsed time per row, updated live.
 
 ## 6. Insights: per-job-type statistics and anomaly hints
 
-`JobInsightsFilter` (global server + elect-state filter) records, per `Type.Method`: counters `insights:{key}:ok`,
+`JobInsightsAttribute` (global server filter, added by `UseJobInsights()`) records, per `Type.Method` (bounded to 80 characters with a hash): counters `insights:{key}:ok`,
 `insights:{key}:failed`, list `insights:{key}:durations` (last 200 durations, ms), hash `insights:{key}` with
 `LastRunAt`, `LastDurationMs`, `LastJobId`, `Invoker` (Generated/Compiled/Reflection), and set `insights` of all
 keys. The Insights page shows runs, failure rate, average/p95/max duration, a sparkline, the invoker tier, open
@@ -244,7 +248,7 @@ Built on the primitives above; storage layout per feature:
 | Fan-in continuations | `AwaitingJobsState` (name `Awaiting`, data `ParentIds`, `Mode`, `Options`, `NextState`), `FanInContinuationsSupportAttribute`, `ContinueJobWithAll/Any` | parent job parameter `FanInContinuations` = JSON list of child ids; the `awaiting` set through the existing handler |
 | Duplicate prevention | `PreventDuplicatesAttribute` (client + apply-state filter) | hash `fingerprint:{hash}` (`JobId`, `Reservation`, `ReservedAt`, `CreatedAt`), expiring; job parameter `Fingerprint`; lock `fingerprint:{hash}` |
 | Drain mode | `DrainMode`, `DrainModeFilter` (elect filter: Processing → Scheduled +30s), `DrainModeDispatcher` (`/maintenance/pause|resume`) | hash `hangfire:control` (`Drain`, `DrainSince`, `DrainReason`), cached 2 s per process |
-| Activity feed | `ActivityFeed`, `ActivityFeedFilter` (apply-state), `ActivityDispatcher` (`GET /activity`) | list `activity`, newest first, trimmed to 200 |
+| Activity feed | `ActivityFeed`, `ActivityFeedFilter` (apply-state), `ActivityDispatcher` (`GET /activity`) | list `activity`, newest first; off by default (`UseActivityFeed()`); queued after commit and written in batches by a background writer, trimmed to `MaxEntries` (1000) every 100 entries |
 | Alerts | `Alerts`, `AlertsFilter` (Failed state), `WebhookAlertSink`, raises from `DeadlineAttribute` and `CircuitBreakerAttribute` | none; HTTP POST in the background, bounded in-flight |
 | Schedule forecast | `ScheduleForecast`, `ForecastPage` (`/recurring/forecast`) | reads recurring job hashes and `insights:*` durations |
 | ETA | `JobInsight.EstimateCompletion`, Processing page | reads `insights:{key}:durations` |
@@ -260,13 +264,13 @@ add small, opt-in writes.
 |---|---|---|
 | Diagnosis | `JobDiagnostics` (internal, `Dashboard`), job details page; findings carry a stable `Code` | reads servers, queues, `hangfire:control`, parent `JobData`, `insights:*`, circuits |
 | Lineage | `JobLineage` (BFS, 4 levels, 40 nodes), `JobLineageRenderer` (inline SVG) | reads `Awaiting` state data and the `Continuations` / `FanInContinuations` parameters through `IMonitoringApi.JobDetails` |
-| Tags | `TagAttribute` (client filter), `JobTags`, `TagsPage` (`/tags`), `TaggedJobsPage` (`/tags/{tag}`), `/tags/forget/{tag}`, palette `tags` results | set `tags` (names), set `tags:{tag}` (job ids scored by creation time), job parameter `Tags` (JSON array); expired ids dropped lazily by the tag page |
+| Tags | `TagAttribute` (client filter), `JobTags`, `TagsPage` (`/tags`), `TaggedJobsPage` (`/tags/{tag}`), `/tags/forget/{tag}`, `/tags/forget-expired/{tag}`, palette `tags` results | set `tags` (names), set `tags:{tag}` (job ids scored by creation time), job parameter `Tags` (JSON array); expired ids hidden by the tag page and removed with `POST /tags/forget-expired/{tag}` |
 | Failure clusters | `FailureClusters` (latest 500 via `FailedJobs`, groups of ≥2, top 8), Failed jobs page, batch requeue/delete through the existing `/jobs/failed/*` commands | none |
 | Retry later | `RetryLaterException`, `AutomaticRetryAttribute.TryRetryLater`, `MaxRetryLaterRequests` | job parameter `RetryLaterCount`; `retries` set via the "Retry later" reason prefix |
 | Redaction | `RedactedAttribute`, `JobMethodCallRenderer`, `JobCodeRenderer`, `JobCatalog.FormatArguments` | none (display only) |
 | Manifests | `RecurringJobManifest` (`Export`, `Parse`, `Apply` with prune), `RecurringJobManifestDispatcher` (`GET /recurring/export`, `POST /recurring/import`) | the recurring job hashes, through `IRecurringJobManager` |
-| Health | `DashboardHealth.Check`, `HealthDispatcher` (`GET /health`, 503 when unhealthy) | reads statistics, servers, queues, `hangfire:control`, recurring job hashes |
-| Late recurring jobs | `DashboardHealth.IsLate` (next run > 1 min ago, not paused, no error), Recurring Jobs page badge and summary | reads recurring job hashes |
+| Health | `DashboardHealth.Check`, `HealthDispatcher` (`GET /health`, 503 when unhealthy) | reads statistics, servers, queues, `hangfire:control`, `recurring-jobs` set scores (full scan as fallback); cached 5 s |
+| Late recurring jobs | `DashboardHealth.IsLate` (next run or error retry > 1 min ago, not paused), Recurring Jobs page badge and summary | reads recurring job hashes |
 | Run again with changes | `JobCatalog.CreateEntry(Job)`, `JobCatalog.FormatArguments`, `/catalog/run` with `source`, `_JobRunner` partial shared with the Catalog page | reads the source job's `JobData` |
 
 ## 11. Game changers (fourth wave)
@@ -274,10 +278,10 @@ add small, opt-in writes.
 | Feature | Code | Storage |
 |---|---|---|
 | Batches | `BatchJob` (`StartNew` with an `AsyncLocal` current batch, `ContinueWith` = fan-in over the batch), `IBatchBuilder`, `JobBatch`, `BatchSupportAttribute` (default global client + apply-state filter), `BatchesPage`, `BatchDetailsPage`, `BatchCommands` | set `batches`; hash `batch:{id}` (`Description`, `CreatedAt`); set `batch:{id}:jobs`; counters `batch:{id}:total`, `batch:{id}:state:{name}` (expiring); set `batch:{id}:continuations`; job parameters `BatchId`, `BatchContinuationOf` |
-| Per-queue pause | `DrainMode.PauseQueue/ResumeQueue/GetStatus`, `DrainModeStatus.PausedQueues`, `DrainModeFilter` (one state read when any queue is paused), `QueuePauseDispatcher`, Queues page, layout banner | fields `Queue:{name}` of `hangfire:control` |
+| Per-queue pause | `DrainMode.PauseQueue/ResumeQueue/GetStatus`, `DrainModeStatus.PausedQueues`, `DrainModeFilter` (one state read when any queue is paused, and one per hold of a job without a queue of its own), `QueuePauseDispatcher`, Queues page, layout banner | fields `Queue:{name}` of `hangfire:control` |
 | Prometheus | `PrometheusDispatcher` (`GET /metrics`), built on `DashboardHealth`, `JobInsightsAttribute.ReadAll`, `QueueInsights.ReadAll` | none |
 | Audit log | `AuditLog` (`Record`, `Read`, `Describe`), `DashboardContext.GetUserName`, recording in the command, batch, maintenance, drain, queue, catalog, recurring update and manifest dispatchers, `AuditPage` | list `audit`, newest first, trimmed to 1000 |
-| Resumable jobs | `IJobConsole.Checkpoints` / `HasCheckpoint`, `JobConsoleExtensions.Resume/ResumeAsync`, lazy read of `job:{id}:console` in `JobConsole` | the existing console list |
+| Resumable jobs | `IJobConsole.Checkpoints` / `HasCheckpoint`, `JobConsoleExtensions.Resume/ResumeAsync`, lazy read of `job:{id}:checkpoints` (falling back to checkpoints older builds left in `job:{id}:console`) in `JobConsole` | the console list and `job:{id}:checkpoints` |
 | Retention | `ExpireAfterAttribute` (apply-state filter setting `JobExpirationTimeout` on final states) | none |
 | Run windows | `RunWindowAttribute`, `BlackoutAttribute` (elect filters: Processing → Scheduled at the next allowed moment) | none |
 | Queue health | `QueueInsights`, `QueueHealth`, `QueueInsightsFilter` (registered by `UseJobInsights`), Queues page columns | set `queue-insights`; list `queue:{name}:latency` (200); counters `queue:{name}:started:{yyyyMMddHHmm}` (1 h); hash `queue:{name}:insights` |
