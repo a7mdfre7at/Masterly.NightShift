@@ -1,0 +1,34 @@
+# Weekly update pull requests for the NuGet packages (Directory.Packages.props, central package management) and the
+# GitHub Actions the workflows use. After merging a NuGet update, the lock files must agree: CI restores in locked
+# mode, so run `dotnet restore Masterly.NightShift.slnx --force-evaluate` and commit the packages.lock.json changes
+# if Dependabot's pull request doesn't include them.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    ignore:
+      # Kept at the oldest Roslyn the source generators need, see Directory.Packages.props
+      - dependency-name: Microsoft.CodeAnalysis.CSharp
+      # The netstandard2.0 build of Masterly.NightShift.AspNetCore targets ASP.NET Core 2.x; later majors need net8.0+
+      - dependency-name: Microsoft.AspNetCore.Antiforgery
+        update-types: [ "version-update:semver-major" ]
+      - dependency-name: Microsoft.AspNetCore.Http.Abstractions
+        update-types: [ "version-update:semver-major" ]
+    groups:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "System.*"
+      tests:
+        patterns:
+          - "xunit*"
+          - "Moq*"
+          - "Microsoft.NET.Test.Sdk"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

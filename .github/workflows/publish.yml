@@ -15,6 +15,9 @@ jobs:
   publish:
     name: Publish packages
     runs-on: windows-2022
+    # The nuget environment holds NUGET_API_KEY; its protection rules (required reviewers, branches) are set in
+    # the repository's Settings > Environments
+    environment: nuget
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     steps:
       - uses: actions/checkout@v4

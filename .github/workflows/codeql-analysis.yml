@@ -29,8 +29,9 @@ jobs:
           languages: csharp
           queries: security-and-quality
 
+      # The whole solution, so every package (SqlServer included), the tests and the samples are analyzed
       - name: Build
-        run: dotnet build src/Masterly.NightShift.AspNetCore -c Release
+        run: dotnet build Masterly.NightShift.slnx -c Release
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

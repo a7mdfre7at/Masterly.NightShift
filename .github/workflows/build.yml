@@ -43,9 +43,10 @@ jobs:
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
+      # net48 runs the libraries' netstandard2.0 build on .NET Framework, which only Windows has
       - name: Test
         run: |
-          foreach ($framework in 'net8.0', 'net10.0') {
+          foreach ($framework in 'net48', 'net8.0', 'net10.0') {
             foreach ($project in 'Core', 'SqlServer', 'AspNetCore') {
               dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -65,6 +66,306 @@ jobs:
           name: packages
           path: artifacts/*.nupkg
           if-no-files-found: error
+
+  # Installs the packages just built into new apps, as a user would, so a broken package (a missing dependency or
+  # file, an API that doesn't compile on a target, a generator that doesn't load in an older compiler) fails the
+  # build instead of the first consumer
+  consumer:
+    name: Consumer (install the packages)
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      # The .NET 8 SDK builds the Worker8 app, the .NET 10 SDK everything else
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: feed
+
+      # The .NET Framework console app runs a job against it
+      - name: Start SQL Server LocalDB
+        run: sqllocaldb start MSSQLLocalDB
+
+      - name: Build new apps against the packages
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Invoke-Dotnet { dotnet @args; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+
+          $feed = (Resolve-Path feed).Path
+          $core = Get-ChildItem $feed -Filter 'Masterly.NightShift.Core.*.nupkg' | Select-Object -First 1
+          $version = $core.Name -replace '^Masterly\.NightShift\.Core\.(.+)\.nupkg$', '$1'
+          Write-Host "Package version: $version"
+
+          # Outside the repository, so its Directory.*.props and global.json don't apply; Masterly.* comes only from
+          # the packages just built, everything else from nuget.org
+          $root = Join-Path $env:RUNNER_TEMP 'consumers'
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Set-Location $root
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <config><add key="globalPackagesFolder" value="packages" /></config>
+            <packageSources>
+              <clear />
+              <add key="local" value="$feed" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="local"><package pattern="Masterly.*" /></packageSource>
+              <packageSource key="nuget.org"><package pattern="*" /></packageSource>
+            </packageSourceMapping>
+          </configuration>
+          "@ | Set-Content nuget.config
+
+          $webProgram = @'
+          using Masterly.NightShift;
+
+          var builder = WebApplication.CreateBuilder(args);
+          builder.Services.AddNightShift(config => config
+              .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+              .UseSimpleAssemblyNameTypeSerializer()
+              .UseRecommendedSerializerSettings()
+              .UseSqlServerStorage(@"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;"));
+          builder.Services.AddNightShiftServer();
+
+          var app = builder.Build();
+          app.MapPost("/reports", (IBackgroundJobClient jobs) => jobs.Enqueue<ReportService>(x => x.BuildDaily()));
+          app.MapNightShiftDashboard();
+          app.Run();
+
+          public class ReportService
+          {
+              public Task BuildDaily() => Task.CompletedTask;
+          }
+          '@
+
+          # ASP.NET Core apps on .NET 8 and .NET 10, with the meta-package
+          foreach ($framework in 'net8.0', 'net10.0') {
+            $name = 'Web' + ($framework -replace '\.', '')
+            Invoke-Dotnet new web -o $name --framework $framework
+            Invoke-Dotnet add $name package Masterly.NightShift --version $version
+            $webProgram | Set-Content "$name/Program.cs"
+            Invoke-Dotnet build $name -c Release -warnaserror
+          }
+
+          # An ASP.NET Core 2.3 app on .NET Framework 4.8 with the meta-package, which gets its netstandard2.0 builds
+          New-Item -ItemType Directory -Force FxWeb | Out-Null
+          @"
+          <Project Sdk="Microsoft.NET.Sdk.Web">
+            <PropertyGroup>
+              <TargetFramework>net48</TargetFramework>
+              <LangVersion>latest</LangVersion>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Microsoft.AspNetCore" Version="2.3.13" />
+              <PackageReference Include="Masterly.NightShift" Version="$version" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content FxWeb/FxWeb.csproj
+          @'
+          using Masterly.NightShift;
+          using Microsoft.AspNetCore;
+          using Microsoft.AspNetCore.Builder;
+          using Microsoft.AspNetCore.Hosting;
+          using Microsoft.Extensions.DependencyInjection;
+
+          public static class Program
+          {
+              public static void Main(string[] args)
+              {
+                  WebHost.CreateDefaultBuilder(args).UseStartup<Startup>().Build().Run();
+              }
+          }
+
+          public class Startup
+          {
+              public void ConfigureServices(IServiceCollection services)
+              {
+                  services.AddNightShift(config => config
+                      .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                      .UseSimpleAssemblyNameTypeSerializer()
+                      .UseRecommendedSerializerSettings()
+                      .UseSqlServerStorage(@"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;"));
+                  services.AddNightShiftServer();
+                  services.AddHealthChecks().AddNightShift();
+              }
+
+              public void Configure(IApplicationBuilder app)
+              {
+                  app.UseNightShiftDashboard();
+              }
+          }
+          '@ | Set-Content FxWeb/Program.cs
+          Invoke-Dotnet build FxWeb -c Release -warnaserror
+
+          # A .NET Framework 4.8 console app with Core and SqlServer (and the SQL client built into System.Data). It runs a
+          # job against LocalDB, so the netstandard2.0 builds are exercised on .NET Framework, not only compiled.
+          $database = if ($env:NightShift_Consumer_Database) { $env:NightShift_Consumer_Database } else { 'NightShiftConsumer' }
+          New-Item -ItemType Directory -Force FxConsole | Out-Null
+          @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net48</TargetFramework>
+              <LangVersion>latest</LangVersion>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Masterly.NightShift.Core" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.SqlServer" Version="$version" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content FxConsole/FxConsole.csproj
+          @'
+          using System;
+          using System.Data.SqlClient;
+          using System.Diagnostics;
+          using System.Threading;
+          using Masterly.NightShift;
+          using Masterly.NightShift.States;
+
+          public static class Program
+          {
+              public static int Main(string[] args)
+              {
+                  var connectionString = args[0];
+                  CreateDatabase(connectionString);
+
+                  GlobalConfiguration.Configuration
+                      .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                      .UseSimpleAssemblyNameTypeSerializer()
+                      .UseRecommendedSerializerSettings()
+                      .UseColouredConsoleLogProvider()
+                      .UseSqlServerStorage(connectionString);
+
+                  var jobId = BackgroundJob.Enqueue<ReportService>(x => x.BuildDaily());
+
+                  using (new BackgroundJobServer())
+                  using (var connection = JobStorage.Current.GetConnection())
+                  {
+                      var stopwatch = Stopwatch.StartNew();
+                      while (stopwatch.Elapsed < TimeSpan.FromMinutes(1))
+                      {
+                          if (connection.GetStateData(jobId)?.Name == SucceededState.StateName)
+                          {
+                              Console.WriteLine($"Job {jobId} succeeded");
+                              return 0;
+                          }
+
+                          Thread.Sleep(500);
+                      }
+
+                      var state = connection.GetStateData(jobId);
+                      Console.Error.WriteLine($"Job {jobId} didn't succeed within a minute: {state?.Name} {state?.Reason}");
+                      return 1;
+                  }
+              }
+
+              // The storage creates its tables, not the database
+              private static void CreateDatabase(string connectionString)
+              {
+                  var builder = new SqlConnectionStringBuilder(connectionString);
+                  var database = builder.InitialCatalog;
+                  builder.InitialCatalog = "master";
+
+                  using (var connection = new SqlConnection(builder.ConnectionString))
+                  using (var command = new SqlCommand(
+                      "IF DB_ID(@name) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@name); EXEC(@sql); END",
+                      connection))
+                  {
+                      command.Parameters.AddWithValue("@name", database);
+                      connection.Open();
+                      command.ExecuteNonQuery();
+                  }
+              }
+          }
+
+          public class ReportService
+          {
+              public void BuildDaily() => Console.WriteLine("Daily report");
+          }
+          '@ | Set-Content FxConsole/Program.cs
+          Invoke-Dotnet build FxConsole -c Release -warnaserror
+          & FxConsole/bin/Release/net48/FxConsole.exe "Server=(localdb)\MSSQLLocalDB;Database=$database;Integrated Security=True;"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          # A Worker Service on .NET 8 with only NetCore and SqlServer, built with the .NET 8 SDK. The source generator ships
+          # inside Masterly.NightShift.Core and must still load in that SDK's older compiler; a generator that doesn't load is
+          # a warning, which -warnaserror turns into an error. It also checks that a .NET 8 app keeps the 8.0
+          # Microsoft.Extensions packages instead of being lifted to newer ones by the NightShift packages.
+          New-Item -ItemType Directory -Force Worker8 | Out-Null
+          Push-Location Worker8
+          Invoke-Dotnet new globaljson --sdk-version 8.0.100 --roll-forward latestFeature
+          $sdk = dotnet --version
+          Pop-Location
+          if (-not $sdk.StartsWith('8.')) { throw "Worker8 should build with a .NET 8 SDK, but got $sdk" }
+          Write-Host "Worker8 builds with SDK $sdk"
+          @"
+          <Project Sdk="Microsoft.NET.Sdk.Worker">
+            <PropertyGroup>
+              <TargetFramework>net8.0</TargetFramework>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+              <PackageReference Include="Masterly.NightShift.NetCore" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.SqlServer" Version="$version" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content Worker8/Worker8.csproj
+          @'
+          using Masterly.NightShift;
+
+          var builder = Host.CreateApplicationBuilder(args);
+          builder.Services.AddNightShift(config => config
+              .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+              .UseSimpleAssemblyNameTypeSerializer()
+              .UseRecommendedSerializerSettings()
+              .UseSqlServerStorage(@"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;"));
+          builder.Services.AddNightShiftServer();
+          builder.Services.AddHostedService<JobRegistration>();
+          builder.Build().Run();
+
+          public class JobRegistration : BackgroundService
+          {
+              private readonly IBackgroundJobClient _jobs;
+
+              public JobRegistration(IBackgroundJobClient jobs) => _jobs = jobs;
+
+              protected override Task ExecuteAsync(CancellationToken stoppingToken)
+              {
+                  _jobs.Enqueue<ReportService>(x => x.BuildDaily(CancellationToken.None));
+                  return Task.CompletedTask;
+              }
+          }
+
+          public class ReportService
+          {
+              private readonly ILogger<ReportService> _logger;
+
+              public ReportService(ILogger<ReportService> logger) => _logger = logger;
+
+              public async Task BuildDaily(CancellationToken cancellationToken)
+              {
+                  _logger.LogInformation("Daily report");
+                  await Task.Delay(10, cancellationToken);
+              }
+          }
+          '@ | Set-Content Worker8/Program.cs
+          Push-Location Worker8
+          Invoke-Dotnet build -c Release -warnaserror
+          Pop-Location
+          $assets = Get-Content Worker8/obj/project.assets.json -Raw | ConvertFrom-Json
+          $lifted = $assets.libraries.PSObject.Properties.Name |
+            Where-Object { $_ -match '^Microsoft\.Extensions\.[^/]+/' -and $_ -notmatch '/8\.' }
+          if ($lifted) { throw "A .NET 8 app should keep the 8.0 Microsoft.Extensions packages, but got: $($lifted -join ', ')" }
 
   linux:
     name: Linux (tests on ${{ matrix.framework }})
@@ -98,6 +399,7 @@ jobs:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
 
+      # Also compiles the net48 test targets (with reference assemblies from NuGet); only the Windows job runs them
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release
 
