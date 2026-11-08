@@ -18,6 +18,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// A recurring job as read from the storage: its schedule, job, queue, window, and its last and next executions.
+    /// </summary>
     public class RecurringJobDto
     {
         public string Id { get; set; }
@@ -40,5 +43,17 @@ namespace Masterly.NightShift.Storage
 
         /// <summary>Gets or sets how missed occurrences are handled.</summary>
         public MisfireHandlingMode MisfireHandling { get; set; }
+
+        /// <summary>
+        /// Gets or sets the UTC instant before which the job doesn't run (<see cref="RecurringJobOptions.StartAt"/>),
+        /// or <c>null</c> when it has no start.
+        /// </summary>
+        public DateTime? StartAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the UTC instant after which the job doesn't run (<see cref="RecurringJobOptions.EndAt"/>),
+        /// or <c>null</c> when it has no end. A job past its end has no <see cref="NextExecution"/>.
+        /// </summary>
+        public DateTime? EndAt { get; set; }
     }
 }

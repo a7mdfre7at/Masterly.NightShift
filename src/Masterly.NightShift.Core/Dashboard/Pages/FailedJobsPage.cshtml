@@ -1,6 +1,7 @@
 ﻿@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
 @using System
 @using System.Collections.Generic
+@using System.Linq
 @using Masterly.NightShift
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
@@ -18,11 +19,13 @@
     var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FailedCount());
     var failedJobs = monitor.FailedJobs(pager.FromRecord, pager.RecordsPerPage);
 
-    // Acknowledgements left on the listed jobs
+    // Acknowledgements left on the listed jobs. There is no API to read the notes of many jobs at once, so only
+    // the first rows of a long page are checked, one read per job.
+    const int MaxAcknowledgementReads = 100;
     var acknowledgements = new Dictionary<string, JobNote>();
     using (var connection = Storage.GetReadOnlyConnection())
     {
-        foreach (var failedJob in failedJobs)
+        foreach (var failedJob in failedJobs.Take(MaxAcknowledgementReads))
         {
             if (failedJob.Value == null || !failedJob.Value.InFailedState) continue;
             var ack = JobNotes.GetAcknowledgement(JobNotes.Read(connection, failedJob.Key));
@@ -47,7 +50,8 @@
                 @Html.Raw(Strings.FailedJobsPage_FailedJobsNotExpire_Warning_Html)
             </div>
 
-            var clusters = FailureClusters.Build(monitor);
+            @* A live refresh only uses the list: the clusters read five pages of failed jobs *@
+            var clusters = IsListRefresh ? (IReadOnlyList<FailureCluster>)new List<FailureCluster>() : FailureClusters.Build(monitor);
             if (clusters.Count > 0)
             {
                 <section class="hf-card hf-clusters" aria-labelledby="failed-clusters">
@@ -107,6 +111,13 @@
                                 data-confirm="@Strings.Common_DeleteAllConfirm">
                             <span class="glyphicon glyphicon-trash"></span>
                             @Strings.Common_DeleteAll
+                        </button>
+                        <button class="btn btn-sm btn-default btn-requeue-all"
+                                data-ajax="@Url.To("/jobs/failed/requeue-all")"
+                                data-loading-text="@Strings.Common_Enqueueing"
+                                data-confirm="@Strings.FailedJobsPage_RequeueAllConfirm">
+                            <span class="glyphicon glyphicon-repeat"></span>
+                            @Strings.FailedJobsPage_RequeueAll
                         </button>
                     }
                     @if (!IsReadOnly)

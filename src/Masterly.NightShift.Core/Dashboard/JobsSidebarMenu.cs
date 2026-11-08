@@ -19,6 +19,9 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The items of the sidebar of the dashboard's job pages, one per job state. Extensions can add items.
+    /// </summary>
     public static class JobsSidebarMenu
     {
         public static readonly List<Func<RazorPage, MenuItem>> Items

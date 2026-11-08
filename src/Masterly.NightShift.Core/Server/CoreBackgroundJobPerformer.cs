@@ -15,6 +15,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -74,6 +75,15 @@ namespace Masterly.NightShift.Server
 
                 var arguments = SubstituteArguments(context, job, invoker.ParameterTypes);
                 var interceptors = JobInterceptorPipeline.GetInterceptors(job);
+
+                // Tells server filters that the method was called (RateLimit keeps its start only then), and when
+                // (Insights measures the run from here, without the waits of the concurrency filters). Locked like
+                // the console's entry: Items is shared by every context of the performance.
+                lock (context.Items)
+                {
+                    context.Items[ConcurrencyControl.MethodInvokedItem] = Stopwatch.GetTimestamp();
+                }
+
                 var result = InvokeMethod(context, invoker, instance, arguments, interceptors);
 
                 return result;

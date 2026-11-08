@@ -49,7 +49,12 @@ namespace Masterly.NightShift.States
                 handler.Apply(context, context.Transaction);
             }
 
-            if (context.NewState.IsFinal)
+            // A state change made without filters (the worker's last resort, when every attempt to store a job's
+            // final state failed) would leave the job counted in its old state in its batch
+            BatchSupportAttribute.ApplyWithoutFilter(context, context.Transaction);
+
+            // A filter may also expire a job in a non-final state (failed job retention)
+            if (context.JobExpires)
             {
                 context.Transaction.ExpireJob(context.BackgroundJob.Id, context.JobExpirationTimeout);
             }

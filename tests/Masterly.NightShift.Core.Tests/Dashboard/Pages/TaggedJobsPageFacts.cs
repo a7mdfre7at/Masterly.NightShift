@@ -38,7 +38,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("href=\"/tags\"", html);
             Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.TaggedJobsPage_NoJobs)}</div>", html);
             Assert.DoesNotContain("js-jobs-list", html);
-            Assert.DoesNotContain(Encode(String.Format(Strings.TaggedJobsPage_Cleaned, 0)), html);
+            Assert.DoesNotContain(Encode(String.Format(Strings.TaggedJobsPage_Expired, 0)), html);
         }
 
         [Fact]
@@ -59,30 +59,34 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
-        public void Render_WithExpiredJobs_ForgetsThemAndSaysSo()
+        public void Render_WithExpiredJobs_HidesThem_OffersToForgetThem_AndWritesNothing()
         {
             SetupTag("tags:urgent", "1", "9");
             SetupJob("1");
+            _renderer.Request.Query["from"] = "0";
+            _renderer.Request.Query["count"] = "10";
 
             var html = _renderer.Render(new TaggedJobsPage("urgent"));
 
-            Assert.Contains($"<div class=\"alert alert-info\">{Encode(String.Format(Strings.TaggedJobsPage_Cleaned, 1))}</div>", html);
+            Assert.Contains(Encode(String.Format(Strings.TaggedJobsPage_Expired, 1)), html);
+            Assert.Contains("data-ajax=\"/tags/forget-expired/urgent?from=0&amp;count=10\"", html);
             Assert.Contains("/jobs/details/1", html);
-            _transaction.Verify(x => x.RemoveFromSet("tags:urgent", "9"));
-            _transaction.Verify(x => x.RemoveFromSet("tags:urgent", "1"), Times.Never);
-            _transaction.Verify(x => x.Commit());
+            Assert.DoesNotContain("/jobs/details/9", html);
+            _renderer.Connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+            _renderer.Storage.Verify(x => x.GetConnection(), Times.Never);
         }
 
         [Fact]
-        public void Render_WithExpiredJobsWhenReadOnly_LeavesTheTagAlone()
+        public void Render_WithExpiredJobsWhenReadOnly_SaysSoWithoutTheButton()
         {
             SetupTag("tags:urgent", "9");
             _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
             var html = _renderer.Render(new TaggedJobsPage("urgent"));
 
-            Assert.Contains(Encode(String.Format(Strings.TaggedJobsPage_Cleaned, 1)), html);
+            Assert.Contains(Encode(String.Format(Strings.TaggedJobsPage_Expired, 1)), html);
             Assert.Contains(Encode(Strings.TaggedJobsPage_NoJobs), html);
+            Assert.DoesNotContain("/tags/forget-expired/", html);
             _renderer.Connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
         }
 

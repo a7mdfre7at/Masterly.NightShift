@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -33,9 +18,11 @@ namespace Masterly.NightShift.SourceGenerator
     /// <remarks>
     /// Job methods are found in two ways: the expression lambdas passed to Masterly.NightShift client APIs
     /// (<c>Enqueue</c>, <c>Schedule</c>, <c>AddOrUpdate</c> and friends), and every public method of a type
-    /// marked with <c>[Masterly.NightShift.GenerateJobInvokers]</c>. A method the generator can't call safely is skipped
+    /// marked with <c>[Masterly.NightShift.GenerateJobInvokers]</c>, except generic methods, overrides of
+    /// <c>Equals</c>, <c>GetHashCode</c> and <c>ToString</c>, and compiler-generated members such as a record's
+    /// <c>Equals</c> or <c>&lt;Clone&gt;$</c>. A method the generator can't call safely is skipped
     /// and Masterly.NightShift uses a compiled invoker for it at runtime instead. The generator never fails the build: an
-    /// unexpected error becomes the HFGEN001 warning.
+    /// unexpected error becomes the NSGEN001 warning.
     /// </remarks>
     [Generator(LanguageNames.CSharp)]
     public sealed class JobInvokerGenerator : IIncrementalGenerator
@@ -48,10 +35,13 @@ namespace Masterly.NightShift.SourceGenerator
         private const string DisableProperty = "build_property.NightShiftDisableJobInvokerGeneration";
 
         private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat
-            .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.UseSpecialTypes | SymbolDisplayMiscellaneousOptions.ExpandNullable);
+            .WithMiscellaneousOptions(
+                SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+                | SymbolDisplayMiscellaneousOptions.UseSpecialTypes
+                | SymbolDisplayMiscellaneousOptions.ExpandNullable);
 
         private static readonly DiagnosticDescriptor GeneratorFailed = new DiagnosticDescriptor(
-            id: "HFGEN001",
+            id: "NSGEN001",
             title: "Masterly.NightShift job invokers could not be generated",
             messageFormat: "The Masterly.NightShift source generator failed, the affected jobs will use compiled invokers at runtime: {0}",
             category: "Masterly.NightShift.SourceGenerator",
@@ -175,8 +165,10 @@ namespace Masterly.NightShift.SourceGenerator
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Overrides of Equals, GetHashCode and ToString aren't jobs, even when a marked type declares them
                 if (member is IMethodSymbol { MethodKind: MethodKind.Ordinary, DeclaredAccessibility: Accessibility.Public } method
-                    && !method.IsGenericMethod)
+                    && !method.IsGenericMethod
+                    && !OverridesObjectMember(method))
                 {
                     var model = TryCreateModel(method, context.SemanticModel.Compilation);
                     if (model != null)
@@ -191,8 +183,14 @@ namespace Masterly.NightShift.SourceGenerator
 
         private static InvokerModel? TryCreateModel(IMethodSymbol method, Compilation compilation)
         {
+            // Compiler-generated members (a record's Equals, ToString or <Clone>$) and names C# can't write
+            // aren't jobs, and a static abstract or virtual interface member can only be called through a
+            // type parameter
             if (method.MethodKind != MethodKind.Ordinary
                 || method.DeclaredAccessibility != Accessibility.Public
+                || method.IsImplicitlyDeclared
+                || !method.CanBeReferencedByName
+                || (method.IsStatic && (method.IsAbstract || method.IsVirtual))
                 || method.ReturnsByRef
                 || method.ReturnsByRefReadonly
                 || method.IsVararg
@@ -246,6 +244,19 @@ namespace Masterly.NightShift.SourceGenerator
                 genericArguments: genericArguments,
                 isStatic: method.IsStatic,
                 returnsVoid: method.ReturnsVoid);
+        }
+
+        private static bool OverridesObjectMember(IMethodSymbol method)
+        {
+            if (!method.IsOverride) return false;
+
+            var current = method;
+            while (current.OverriddenMethod != null)
+            {
+                current = current.OverriddenMethod;
+            }
+
+            return current.ContainingType?.SpecialType == SpecialType.System_Object;
         }
 
         private static bool IsNullableValueType(ITypeSymbol type)
@@ -313,16 +324,18 @@ namespace Masterly.NightShift.SourceGenerator
             var className = "NightShiftJobInvokers_" + Sanitize(env.AssemblyName);
             var sb = new StringBuilder();
 
+            // The emitted code must stay valid C# 7.3, the default language version of .NET Framework and
+            // netstandard2.0 projects. So it has no #nullable directive (error CS8370 there); the compiler treats
+            // generated code as nullable-oblivious anyway.
             sb.AppendLine("// <auto-generated/>");
             sb.AppendLine("// Reflection-free job invokers emitted by Masterly.NightShift.SourceGenerator. Do not edit.");
-            sb.AppendLine("#nullable disable");
             sb.AppendLine("#pragma warning disable");
             sb.AppendLine();
             sb.Append("[assembly: ").Append(ProviderAttribute).Append("(typeof(global::Masterly.NightShift.Generated.").Append(className).AppendLine("))]");
             sb.AppendLine();
             sb.AppendLine("namespace Masterly.NightShift.Generated");
             sb.AppendLine("{");
-            sb.AppendLine("    [global::System.CodeDom.Compiler.GeneratedCode(\"Masterly.NightShift.SourceGenerator\", \"2.0.0\")]");
+            sb.AppendLine("    [global::System.CodeDom.Compiler.GeneratedCode(\"Masterly.NightShift.SourceGenerator\", \"1.0.0\")]");
             sb.AppendLine("    [global::System.Diagnostics.DebuggerNonUserCode]");
             sb.Append("    internal static class ").AppendLine(className);
             sb.AppendLine("    {");
@@ -397,7 +410,7 @@ namespace Masterly.NightShift.SourceGenerator
                 sb.Append("((").Append(model.DeclaringType).Append(")instance)");
             }
 
-            sb.Append('.').Append(model.MethodName);
+            sb.Append('.').Append(EscapeIdentifier(model.MethodName));
 
             if (model.GenericArguments.Length > 0)
             {
@@ -414,9 +427,11 @@ namespace Masterly.NightShift.SourceGenerator
 
                 if (model.ParameterDefaults[i])
                 {
-                    // Like MethodInfo.Invoke, a null argument for a non-nullable value type means its default value
-                    sb.Append("arguments[").Append(i).Append("] is ").Append(type).Append(" __a").Append(i)
-                        .Append(" ? __a").Append(i).Append(" : default(").Append(type).Append(')');
+                    // Like MethodInfo.Invoke, a null argument for a non-nullable value type means its default value.
+                    // Anything else is unboxed like the compiled invoker does: a boxed int for an enum parameter
+                    // works, a value of another type throws InvalidCastException instead of becoming the default.
+                    sb.Append("arguments[").Append(i).Append("] == null ? default(").Append(type).Append(") : (")
+                        .Append(type).Append(")arguments[").Append(i).Append(']');
                 }
                 else
                 {
@@ -433,6 +448,11 @@ namespace Masterly.NightShift.SourceGenerator
 
             sb.AppendLine("            }");
             sb.AppendLine("        }");
+        }
+
+        private static string EscapeIdentifier(string name)
+        {
+            return SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
         }
 
         private static void AppendTypeArray(StringBuilder sb, string[] types)

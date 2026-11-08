@@ -18,6 +18,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Builds links to dashboard pages, relative to the dashboard's path.
+    /// </summary>
     public class UrlHelper
     {
         private readonly DashboardContext _context;

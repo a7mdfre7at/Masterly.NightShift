@@ -15,6 +15,9 @@
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Performs a job and returns the result of its method.
+    /// </summary>
     public interface IBackgroundJobPerformer
     {
         object Perform(PerformContext context);

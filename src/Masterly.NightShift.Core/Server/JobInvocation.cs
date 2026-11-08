@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -32,7 +17,10 @@ namespace Masterly.NightShift.Server
     {
         private readonly IReadOnlyList<IJobInterceptor> _interceptors;
         private readonly Func<object, Task>? _getTask;
-        private int _position;
+
+        // Each step of the chain gets its own invocation, so an interceptor that proceeds after an await (when
+        // the outer Proceed call has long returned) still continues with the next step, never restarts the chain
+        private readonly int _position;
 
         internal JobInvocation(
             [NotNull] PerformContext context,
@@ -48,6 +36,18 @@ namespace Masterly.NightShift.Server
             _interceptors = interceptors ?? throw new ArgumentNullException(nameof(interceptors));
 
             ReturnsTaskLike = invoker.ReturnType.IsTaskLike(out _getTask);
+        }
+
+        private JobInvocation(JobInvocation previous, int position)
+        {
+            Context = previous.Context;
+            Invoker = previous.Invoker;
+            Instance = previous.Instance;
+            Arguments = previous.Arguments;
+            ReturnsTaskLike = previous.ReturnsTaskLike;
+            _interceptors = previous._interceptors;
+            _getTask = previous._getTask;
+            _position = position;
         }
 
         /// <summary>Gets the context the job is performed in.</summary>
@@ -83,24 +83,15 @@ namespace Masterly.NightShift.Server
 
         /// <summary>
         /// Runs the next interceptor, or the job method when this is the last one, and returns its raw result:
-        /// for an async method that is the task, not awaited. May be called more than once.
+        /// for an async method that is the task, not awaited. May be called more than once, and at any time,
+        /// for example after an <c>await</c>: it always continues with the step after the current one.
         /// </summary>
         [CanBeNull]
         public object? Proceed()
         {
-            var position = _position;
-            _position = position + 1;
-
-            try
-            {
-                return position < _interceptors.Count
-                    ? _interceptors[position].Intercept(this)
-                    : Invoker.Invoke(Instance, Arguments);
-            }
-            finally
-            {
-                _position = position;
-            }
+            return _position < _interceptors.Count
+                ? _interceptors[_position].Intercept(new JobInvocation(this, _position + 1))
+                : Invoker.Invoke(Instance, Arguments);
         }
 
         /// <summary>

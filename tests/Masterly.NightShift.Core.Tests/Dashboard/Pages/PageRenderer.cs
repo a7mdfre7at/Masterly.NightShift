@@ -25,6 +25,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Storage.Setup(x => x.GetMonitoringApi()).Returns(Monitoring.Object);
             Storage.Setup(x => x.GetConnection()).Returns(Connection.Object);
             Storage.Setup(x => x.GetReadOnlyConnection()).Returns(Connection.Object);
+            // Like SQL Server: the pages may use the optional members of JobStorageConnection
+            Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
 
             Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto());
             Monitoring.Setup(x => x.Servers()).Returns(new List<ServerDto>());

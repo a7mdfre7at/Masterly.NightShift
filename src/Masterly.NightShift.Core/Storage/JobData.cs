@@ -21,6 +21,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// A job as read from the storage: its method call, current state name, parameters and creation time.
+    /// </summary>
     public class JobData
     {
         public string? State { get; set; }

@@ -29,12 +29,13 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
             _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>())).Returns(true);
 
-            _monitor.Setup(x => x.EnqueuedJobs("critical", 0, 500)).Returns(List("enqueued-1", new EnqueuedJobDto()));
-            _monitor.Setup(x => x.ScheduledJobs(0, 500)).Returns(List("scheduled-1", new ScheduledJobDto()));
-            _monitor.Setup(x => x.ProcessingJobs(0, 500)).Returns(List("processing-1", new ProcessingJobDto()));
-            _monitor.Setup(x => x.SucceededJobs(0, 500)).Returns(List("succeeded-1", new SucceededJobDto()));
-            _monitor.Setup(x => x.FailedJobs(0, 500)).Returns(List("failed-1", new FailedJobDto()));
-            _monitor.Setup(x => x.AwaitingJobs(0, 500)).Returns(List("awaiting-1", new AwaitingJobDto()));
+            _monitor.Setup(x => x.EnqueuedJobs("critical", 0, 500)).Returns(List("enqueued-1", new EnqueuedJobDto { InEnqueuedState = true }));
+            _monitor.Setup(x => x.ScheduledJobs(0, 500)).Returns(List("scheduled-1", new ScheduledJobDto { InScheduledState = true }));
+            _monitor.Setup(x => x.ProcessingJobs(0, 500)).Returns(List("processing-1", new ProcessingJobDto { InProcessingState = true }));
+            _monitor.Setup(x => x.SucceededJobs(0, 500)).Returns(List("succeeded-1", new SucceededJobDto { InSucceededState = true }));
+            _monitor.Setup(x => x.FailedJobs(0, 500)).Returns(List("failed-1", new FailedJobDto { InFailedState = true }));
+            _monitor.Setup(x => x.AwaitingJobs(0, 500)).Returns(List("awaiting-1", new AwaitingJobDto { InAwaitingState = true }));
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)).Returns(true);
         }
 
         private static readonly Guid Build = Guid.Parse("0f8fad5b-d9cb-469f-a165-70867728950e");
@@ -112,21 +113,111 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
 
             await Dispatch(context);
 
-            Assert.Equal(204, context.Response.StatusCode);
+            Assert.Equal(200, context.Response.StatusCode);
+            Assert.Equal("{\"processed\":1,\"remaining\":0,\"complete\":true}", context.Response.Text);
             _client.Verify(x => x.ChangeState(jobId, It.Is<DeletedState>(s => s.Reason == "Deleted via Dashboard UI (delete all)"), expectedState), Times.Once);
             _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Once);
         }
 
         [Fact]
-        public async Task AwaitingDeleteAllRoute_DeletesNothing_WhenTheMonitorCanNotListAwaitingJobs()
+        public async Task FailedRequeueAllRoute_RequeuesEveryFailedJob_ExpectingTheFailedState()
         {
-            _storage.Setup(x => x.GetMonitoringApi()).Returns(new Mock<IMonitoringApi>().Object);
+            _monitor.Setup(x => x.FailedJobs(0, 500)).Returns(new JobList<FailedJobDto>(new[]
+            {
+                new KeyValuePair<string, FailedJobDto>("failed-1", new FailedJobDto { InFailedState = true }),
+                new KeyValuePair<string, FailedJobDto>("moved-on", new FailedJobDto { InFailedState = false }),
+            }));
+            var context = Create("/jobs/failed/requeue-all");
+
+            await Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            _client.Verify(x => x.ChangeState("failed-1", It.Is<EnqueuedState>(s => s.Reason == "Requeued via Dashboard UI (requeue all)"), FailedState.StateName), Times.Once);
+            _client.Verify(x => x.ChangeState("moved-on", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task FailedRequeueAllRoute_Answers401_ForReadOnlyDashboards()
+        {
+            var context = Create("/jobs/failed/requeue-all", readOnly: true);
+
+            await Dispatch(context);
+
+            Assert.Equal(401, context.Response.StatusCode);
+            _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AwaitingDeleteAllRoute_UsesTheAwaitingSet_WhenTheStorageHasNoAwaitingJobsFeature()
+        {
+            // Like the Awaiting page: storages without Monitoring.AwaitingJobs keep awaiting jobs in a set
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)).Returns(false);
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
+            var calls = 0;
+            _connection.Setup(x => x.GetRangeFromSet("awaiting", 0, 499)).Returns(() => calls++ == 0 ? new List<string> { "awaiting-9" } : new List<string>());
             var context = Create("/jobs/awaiting/delete-all");
 
             await Dispatch(context);
 
-            Assert.Equal(204, context.Response.StatusCode);
+            Assert.Equal(200, context.Response.StatusCode);
+            _monitor.Verify(x => x.AwaitingJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+            _client.Verify(x => x.ChangeState("awaiting-9", It.IsAny<DeletedState>(), AwaitingState.StateName), Times.Once);
+        }
+
+        [Fact]
+        public async Task AwaitingDeleteAllRoute_Answers422_WhenTheStorageCanNeitherListNorPageASet()
+        {
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)).Returns(false);
+            _storage.Setup(x => x.GetConnection()).Returns(new Mock<IStorageConnection>().Object);
+            var context = Create("/jobs/awaiting/delete-all");
+
+            await Dispatch(context);
+
+            Assert.Equal(422, context.Response.StatusCode);
             _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task EnqueuedDeleteAllRoute_DecodesAnEncodedSlashInTheQueue_Only()
+        {
+            _monitor.Setup(x => x.EnqueuedJobs("a/b%41", 0, 500)).Returns(List("enqueued-2", new EnqueuedJobDto { InEnqueuedState = true }));
+            var context = Create("/jobs/enqueued/delete-all/a%2Fb%41");
+
+            await Dispatch(context);
+
+            _client.Verify(x => x.ChangeState("enqueued-2", It.IsAny<DeletedState>(), EnqueuedState.StateName), Times.Once);
+        }
+
+        [Theory]
+        [InlineData("delete")]
+        [InlineData("requeue")]
+        public void EnqueuedPage_OfAQueueNamedLikeACommand_IsReachableWithGet(string queue)
+        {
+            var get = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "GET");
+            var post = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "POST");
+
+            Assert.IsType<RazorPageDispatcher>(get.Item1);
+            Assert.Equal(queue, get.Item2.Groups["Queue"].Value);
+            Assert.IsType<BatchCommandDispatcher>(post.Item1);
+        }
+
+        [Fact]
+        public void CommandRoutes_StillAnswerGet_WhenNoOtherRouteMatches()
+        {
+            var route = DashboardRoutes.Routes.FindDispatcher("/jobs/failed/delete-all", "GET");
+
+            Assert.IsType<JobListCommandDispatcher>(route.Item1);
+        }
+
+        [Fact]
+        public async Task JobRequeueRoute_DecodesAnEncodedSlashInTheJobId()
+        {
+            var context = Create("/jobs/actions/requeue/tenant%2F42");
+
+            await Dispatch(context);
+
+            Assert.Equal(204, context.Response.StatusCode);
+            _client.Verify(x => x.ChangeState("tenant/42", It.IsAny<EnqueuedState>(), null), Times.Once);
         }
 
         [Fact]
@@ -177,9 +268,10 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
-        public async Task TagForgetRoute_RemovesTheUnescapedNormalizedTag()
+        public async Task TagForgetRoute_RemovesTheNormalizedTag()
         {
-            var context = Create("/tags/forget/Customer%3AContoso");
+            // ASP.NET Core has already decoded the path, except "%2F"
+            var context = Create("/tags/forget/Customer:Contoso");
 
             await Dispatch(context);
 
@@ -200,10 +292,52 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
-        public async Task CircuitResetRoute_ClosesTheUnescapedCircuit_AndForgetsItsFailures()
+        public async Task TagForgetExpiredRoute_ForgetsTheMissingJobsOfThePage_AndKeepsTheOthers()
+        {
+            _connection.Setup(x => x.GetSetCount("tags:on call")).Returns(3);
+            _connection.Setup(x => x.GetRangeFromSet("tags:on call", 0, 2)).Returns(new List<string> { "1", "2", "3" });
+            _connection.Setup(x => x.GetJobData("2")).Returns(new JobData());
+            var context = Create("/tags/forget-expired/on call");
+            var request = (DashboardRequestStub)context.Request;
+            request.Query["from"] = "0";
+            request.Query["count"] = "20";
+
+            await Dispatch(context);
+
+            Assert.Equal(204, context.Response.StatusCode);
+            _transaction.Verify(x => x.RemoveFromSet("tags:on call", "1"), Times.Once);
+            _transaction.Verify(x => x.RemoveFromSet("tags:on call", "3"), Times.Once);
+            _transaction.Verify(x => x.RemoveFromSet("tags:on call", "2"), Times.Never);
+            _transaction.Verify(x => x.Commit(), Times.AtLeastOnce);
+        }
+
+        [Fact]
+        public async Task TagForgetExpiredRoute_Answers405_ForGet()
+        {
+            var context = Create("/tags/forget-expired/import", method: "GET");
+
+            await Dispatch(context);
+
+            Assert.Equal(405, context.Response.StatusCode);
+            _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+        }
+
+        [Fact]
+        public async Task TagForgetExpiredRoute_Answers401_ForReadOnlyDashboards()
+        {
+            var context = Create("/tags/forget-expired/import", readOnly: true);
+
+            await Dispatch(context);
+
+            Assert.Equal(401, context.Response.StatusCode);
+            _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+        }
+
+        [Fact]
+        public async Task CircuitResetRoute_ClosesTheCircuit_AndForgetsItsFailures()
         {
             _connection.Setup(x => x.GetAllItemsFromSet("circuit:payments api:failures")).Returns(new HashSet<string> { "f1", "f2" });
-            var context = Create("/insights/circuits/reset/payments%20api");
+            var context = Create("/insights/circuits/reset/payments api");
 
             await Dispatch(context);
 

@@ -22,6 +22,10 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.States
 {
+    /// <summary>
+    /// Changes the state of a job under the job's distributed lock, running the election and apply filters and the
+    /// state handlers in one storage transaction.
+    /// </summary>
     public class BackgroundJobStateChanger : IBackgroundJobStateChanger
     {
         private static readonly TimeSpan JobLockTimeout = TimeSpan.FromMinutes(15);
@@ -69,106 +73,141 @@ namespace Masterly.NightShift.States
                 distributedLock = context.Connection.AcquireDistributedJobLock(context.BackgroundJobId, JobLockTimeout);
             }
 
-            using (distributedLock)
+            PostCommitActions afterCommit = null;
+            IState appliedState;
+
+            try
             {
-                var jobData = GetJobData(context);
+                using (distributedLock)
+                {
+                    var jobData = GetJobData(context);
 
-                if (jobData == null)
-                {
-                    return null;
-                }
-
-                if (context.ExpectedStates != null && !context.ExpectedStates.Contains(jobData.State, StringComparer.OrdinalIgnoreCase))
-                {
-                    return null;
-                }
-                
-                var stateToApply = context.NewState;
-
-                try
-                {
-                    jobData.EnsureLoaded();
-                }
-                catch (JobLoadException ex)
-                {
-                    // This happens when Masterly.NightShift couldn't find the target method,
-                    // serialized within a background job. There are many reasons
-                    // for this case, including refactored code, or a missing
-                    // assembly reference due to a mistake or erroneous deployment.
-                    // 
-                    // The problem is that in this case we can't get any filters,
-                    // applied at a method or a class level, and we can't proceed
-                    // with the state change without breaking a consistent behavior:
-                    // in some cases our filters will be applied, and in other ones
-                    // will not.
-                    if (!stateToApply.IgnoreJobLoadException)
+                    if (jobData == null)
                     {
-                        stateToApply = new FailedState(ex.InnerException, context.ServerId)
-                        {
-                            Reason = $"Can not change the state to '{stateToApply.Name}': target method was not found."
-                        };
+                        return null;
                     }
-                }
 
-                IWriteOnlyTransaction transaction;
-                IDisposable disposableTransaction;
-
-                if (context.Transaction == null)
-                {
-                    disposableTransaction = transaction = context.Connection.CreateWriteTransaction();
-                }
-                else
-                {
-                    transaction = context.Transaction;
-                    disposableTransaction = null;
-                }
-                
-                var backgroundJob = new BackgroundJob(context.BackgroundJobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
-
-                using (disposableTransaction)
-                {
-                    var applyContext = new ApplyStateContext(
-                        context.Storage,
-                        context.Connection,
-                        transaction,
-                        backgroundJob,
-                        stateToApply,
-                        jobData.State,
-                        context.Profiler,
-                        _stateMachine,
-                        context.CustomData);
-
-                    // State changing process can fail due to an exception in state filters themselves,
-                    // and DisableFilters property will cause state machine to perform a state transition
-                    // without calling any filters. This is required when all the other state change
-                    // attempts failed and we need to remove such a job from the processing pipeline.
-                    // In this case all the filters are ignored, which may lead to confusion, so it's
-                    // highly recommended to use the DisableFilters property only when changing state
-                    // to the FailedState.
-                    var stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
-                    var appliedState = stateMachine.ApplyState(applyContext);
-
-                    if (context.CompleteJob != null)
+                    if (context.ExpectedStates != null && !context.ExpectedStates.Contains(jobData.State, StringComparer.OrdinalIgnoreCase))
                     {
-                        if (transaction is JobStorageTransaction jobStorageTransaction)
+                        return null;
+                    }
+                
+                    var stateToApply = context.NewState;
+
+                    try
+                    {
+                        jobData.EnsureLoaded();
+                    }
+                    catch (JobLoadException ex)
+                    {
+                        // This happens when Masterly.NightShift couldn't find the target method,
+                        // serialized within a background job, or couldn't deserialize its
+                        // arguments. There are many reasons for this case, including refactored
+                        // code, changed argument types, or a missing assembly reference due to
+                        // a mistake or erroneous deployment.
+                        //
+                        // The problem is that in this case we can't get any filters,
+                        // applied at a method or a class level, and we can't proceed
+                        // with the state change without breaking a consistent behavior:
+                        // in some cases our filters will be applied, and in other ones
+                        // will not.
+                        if (!stateToApply.IgnoreJobLoadException)
                         {
-                            jobStorageTransaction.RemoveFromQueue(context.CompleteJob);
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException("Storage transaction class must inherit the " + nameof(JobStorageTransaction) + " class to use transactional acknowledge");
+                            stateToApply = new FailedState(ex.InnerException, context.ServerId)
+                            {
+                                Reason = $"Can not change the state to '{stateToApply.Name}': {DescribeLoadFailure(ex)}"
+                            };
                         }
                     }
+
+                    IWriteOnlyTransaction transaction;
+                    IDisposable disposableTransaction;
 
                     if (context.Transaction == null)
                     {
-                        transaction.Commit();
+                        disposableTransaction = transaction = context.Connection.CreateWriteTransaction();
                     }
+                    else
+                    {
+                        transaction = context.Transaction;
+                        disposableTransaction = null;
+                    }
+                
+                    var backgroundJob = new BackgroundJob(context.BackgroundJobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
 
-                    context.ProcessedJob = backgroundJob;
-                    return appliedState;
+                    using (disposableTransaction)
+                    {
+                        var applyContext = new ApplyStateContext(
+                            context.Storage,
+                            context.Connection,
+                            transaction,
+                            backgroundJob,
+                            stateToApply,
+                            jobData.State,
+                            context.Profiler,
+                            _stateMachine,
+                            context.CustomData)
+                        {
+                            // Only when the commit happens here; a transaction passed in is committed later by its owner
+                            AfterCommit = afterCommit = context.Transaction == null ? new PostCommitActions() : null
+                        };
+
+                        // State changing process can fail due to an exception in state filters themselves,
+                        // and DisableFilters property will cause state machine to perform a state transition
+                        // without calling any filters. This is required when all the other state change
+                        // attempts failed and we need to remove such a job from the processing pipeline.
+                        // In this case all the filters are ignored, which may lead to confusion, so it's
+                        // highly recommended to use the DisableFilters property only when changing state
+                        // to the FailedState.
+                        var stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
+                        appliedState = stateMachine.ApplyState(applyContext);
+
+                        if (context.CompleteJob != null)
+                        {
+                            if (transaction is JobStorageTransaction jobStorageTransaction)
+                            {
+                                jobStorageTransaction.RemoveFromQueue(context.CompleteJob);
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Storage transaction class must inherit the " + nameof(JobStorageTransaction) + " class to use transactional acknowledge");
+                            }
+                        }
+
+                        if (context.Transaction == null)
+                        {
+                            transaction.Commit();
+                        }
+
+                        context.ProcessedJob = backgroundJob;
+                    }
                 }
             }
+            catch
+            {
+                // The lock is released. Work about something already stored on its own still runs, because a
+                // retried state change wouldn't do it again
+                afterCommit?.RunAfterFailure();
+                throw;
+            }
+
+            // Not reached when applying or committing threw, so a retried state change runs them once. Run after
+            // the job's lock is released, so an action that changes the same job (an alert sink that requeues
+            // it, for example) doesn't wait for it.
+            afterCommit?.Run();
+            return appliedState;
+        }
+
+        private static string DescribeLoadFailure(JobLoadException exception)
+        {
+            // The error itself is in the Failed state's exception details. Storages may cut the reason short
+            // (SQL Server keeps 100 characters), so it only says which part failed.
+            return exception.Failure switch
+            {
+                JobLoadFailure.TypeOrMethod => "the job's type or method was not found.",
+                JobLoadFailure.Arguments => "the job's arguments could not be deserialized.",
+                _ => "the job could not be loaded."
+            };
         }
 
         private static JobData GetJobData(StateChangeContext context)

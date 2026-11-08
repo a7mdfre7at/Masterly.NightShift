@@ -17,6 +17,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Decides whether a request may open the dashboard. Add it to <see cref="DashboardOptions.Authorization"/>.
+    /// </summary>
     public interface IDashboardAuthorizationFilter
     {
         bool Authorize([NotNull] DashboardContext context);

@@ -21,6 +21,10 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// What a job details renderer, added with <c>UseJobDetailsRenderer</c>, gets: the page, the job identifier and the
+    /// job's details.
+    /// </summary>
     public sealed class JobDetailsRendererDto
     {
         public JobDetailsRendererDto([NotNull] RazorPage page, [NotNull] string jobId, [NotNull] JobDetailsDto jobDetails)

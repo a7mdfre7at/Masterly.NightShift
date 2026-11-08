@@ -9,30 +9,60 @@
 @{
     Layout = new LayoutPage(Strings.TagsPage_Title);
 
+    int from, perPage;
+    int.TryParse(Query("from"), out from);
+    int.TryParse(Query("count"), out perPage);
+    var filter = (Query("filter") ?? String.Empty).Trim();
+
     System.Collections.Generic.IReadOnlyList<JobTagSummary> tags;
+    Pager pager;
+    int allTags;
+
+    // Tags in name order, a page at a time: only the tags shown are counted, which stays fast with many tags. The
+    // filter applies to every name before paging, so it finds tags on any page.
     using (var connection = Storage.GetReadOnlyConnection())
     {
-        tags = JobTags.GetAll(connection);
+        var names = JobTags.GetNames(connection);
+        allTags = names.Count;
+
+        if (filter.Length > 0)
+        {
+            names = names.Where(name => name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+        }
+
+        pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, names.Count)
+        {
+            QuerySuffix = filter.Length > 0 ? "&filter=" + Uri.EscapeDataString(filter) : null
+        };
+        tags = names.Skip(pager.FromRecord).Take(pager.RecordsPerPage).Select(name => new JobTagSummary(name, JobTags.Count(connection, name))).ToList();
     }
 
-    var total = tags.Sum(x => x.Count);
-    var largest = tags.Count > 0 ? Math.Max(1, tags[0].Count) : 1;
+    var largest = tags.Count > 0 ? Math.Max(1, tags.Max(x => x.Count)) : 1;
 }
 
 <div class="row">
     <div class="col-md-12">
         <h1 id="page-title" class="page-header">@Strings.TagsPage_Title <small class="text-muted">@Strings.TagsPage_Hint</small></h1>
 
-        @if (tags.Count == 0)
+        @if (allTags == 0)
         {
             <div class="alert alert-info">@Html.Raw(Strings.TagsPage_NoTags_Html)</div>
         }
         else
         {
             <div class="hf-catalog-toolbar">
-                <input type="search" class="form-control js-tags-filter" placeholder="@Strings.TagsPage_Search" autocomplete="off" spellcheck="false" />
-                <span class="hf-catalog-summary text-muted">@tags.Count @Strings.TagsPage_Title.ToLowerInvariant() &middot; @String.Format(Strings.FailedJobsPage_Clusters_Jobs, total)</span>
+                <form method="get" class="hf-tags-filter-form" role="search">
+                    <input type="search" name="filter" value="@filter" class="form-control js-tags-filter" placeholder="@Strings.TagsPage_Search" autocomplete="off" spellcheck="false" />
+                    <input type="hidden" name="count" value="@pager.RecordsPerPage" />
+                </form>
+                <span class="hf-catalog-summary text-muted">@pager.TotalRecordCount @Strings.TagsPage_Title.ToLowerInvariant()</span>
+                @Html.PerPageSelector(pager)
             </div>
+
+            if (tags.Count == 0)
+            {
+                <div class="alert alert-info">@String.Format(Strings.TagsPage_NoMatch, filter)</div>
+            }
 
             <div class="hf-tags-cloud">
                 @foreach (var tag in tags)
@@ -74,6 +104,8 @@
                     </tbody>
                 </table>
             </div>
+
+            @Html.Paginator(pager)
         }
     </div>
 </div>

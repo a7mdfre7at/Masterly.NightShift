@@ -29,6 +29,10 @@ using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// The serialized form of a job's method call (type, method, parameter types and arguments), as stored with the
+    /// job.
+    /// </summary>
     public class InvocationData
     {
         private static readonly
@@ -42,13 +46,13 @@ namespace Masterly.NightShift.Storage
         private static readonly ConcurrentDictionary<Tuple<Func<Type, string>, string>, string[]>
             ParameterTypesDeserializerCache = new();
 
-        [Obsolete("Please use IGlobalConfiguration.UseTypeResolver instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use IGlobalConfiguration.UseTypeResolver instead. Kept for code ported from Hangfire.")]
         public static void SetTypeResolver([CanBeNull] Func<string, Type> typeResolver)
         {
             TypeHelper.CurrentTypeResolver = typeResolver;
         }
 
-        [Obsolete("Please use IGlobalConfiguration.UseTypeSerializer instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use IGlobalConfiguration.UseTypeSerializer instead. Kept for code ported from Hangfire.")]
         public static void SetTypeSerializer([CanBeNull] Func<Type, string> typeSerializer)
         {
             TypeHelper.CurrentTypeSerializer = typeSerializer;
@@ -72,18 +76,21 @@ namespace Masterly.NightShift.Storage
         public string Type { get; }
         public string Method { get; }
         public string ParameterTypes { get; }
+
+        // Written as null when missing, as the payload below Version_170 always had it
+        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
         public string Arguments { get; set; }
 
         [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string Queue { get; }
 
-        [Obsolete("Please use DeserializeJob() method instead. Will be removed in 2.0.0 for clarity.")]
+        [Obsolete("Use DeserializeJob() method instead. Kept for code ported from Hangfire.")]
         public Job Deserialize()
         {
             return DeserializeJob();
         }
 
-        [Obsolete("Please use SerializeJob(Job) method instead. Will be removed in 2.0.0 for clarity.")]
+        [Obsolete("Use SerializeJob(Job) method instead. Kept for code ported from Hangfire.")]
         public static InvocationData Serialize(Job job)
         {
             return SerializeJob(job);
@@ -92,11 +99,13 @@ namespace Masterly.NightShift.Storage
         public Job DeserializeJob()
         {
             var typeResolver = TypeHelper.CurrentTypeResolver;
+            var failure = JobLoadFailure.TypeOrMethod;
 
             try
             {
                 CachedDeserializeMethod(typeResolver, Type, Method, ParameterTypes, out var type, out var method);
 
+                failure = JobLoadFailure.Arguments;
                 object[] arguments;
 
                 if (Arguments != null && !Arguments.Equals("[]", StringComparison.Ordinal))
@@ -109,11 +118,19 @@ namespace Masterly.NightShift.Storage
                     arguments = [];
                 }
 
+                failure = JobLoadFailure.Unknown;
                 return new Job(type, method, arguments, Queue);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                throw new JobLoadException("Could not load the job. See inner exception for the details.", ex);
+                var message = failure switch
+                {
+                    JobLoadFailure.TypeOrMethod => "Could not load the job: its type or method was not found. See inner exception for the details.",
+                    JobLoadFailure.Arguments => "Could not load the job: its arguments could not be deserialized. See inner exception for the details.",
+                    _ => "Could not load the job. See inner exception for the details."
+                };
+
+                throw new JobLoadException(message, ex) { Failure = failure };
             }
         }
 
@@ -174,8 +191,27 @@ namespace Masterly.NightShift.Storage
             {
                 data = SerializationHelper.Deserialize<InvocationData>(payload, SerializationOption.User);
             }
+            else if (data.ParameterTypes == null)
+            {
+                // Written below Version_170 with a naming policy that renamed "ParameterTypes" ("parameter_types")
+                // but kept "Type" and "Method" readable: only the user options know the name
+                data = DeserializeWithUserNames(payload) ?? data;
+            }
 
             return data;
+        }
+
+        private static InvocationData DeserializeWithUserNames(string payload)
+        {
+            try
+            {
+                var data = SerializationHelper.Deserialize<InvocationData>(payload, SerializationOption.User);
+                return data?.Type != null && data.Method != null && data.ParameterTypes != null ? data : null;
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                return null;
+            }
         }
 
         public string SerializePayload(bool excludeArguments = false)
@@ -195,7 +231,11 @@ namespace Masterly.NightShift.Storage
                 });
             }
 
-            return SerializationHelper.Serialize(excludeArguments
+            // With the internal options at every level, like the format above: the application's options could rename
+            // the members (a snake_case naming policy) or leave them out (IgnoreReadOnlyProperties), and then no server
+            // finds the method. Every server reads these PascalCase names with its default settings, and servers that
+            // split internal from user options (Hangfire 1.7 and later) whatever their own settings are.
+            return SerializationHelper.SerializeInternal(excludeArguments
                 ? new InvocationData(Type, Method, ParameterTypes, null, Queue)
                 : this);
         }

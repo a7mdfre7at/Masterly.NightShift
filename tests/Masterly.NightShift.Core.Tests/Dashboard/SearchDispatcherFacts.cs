@@ -149,6 +149,31 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("customer:contoso", Assert.Single(only)["tag"].GetValue<string>());
         }
 
+        [Fact]
+        public async Task Dispatch_CountsOnlyTheTagsItReturns()
+        {
+            _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(new HashSet<string>(Enumerable.Range(0, 500).Select(i => $"customer:{i}")));
+            _connection.Setup(x => x.GetSetCount(It.IsAny<string>())).Returns(1);
+
+            var context = Create("tag:customer");
+            await new SearchDispatcher().Dispatch(context);
+
+            Assert.Equal(10, JsonNode.Parse(context.Response.Text)["tags"].AsArray().Count);
+            _connection.Verify(x => x.GetSetCount(It.IsAny<string>()), Times.Exactly(10));
+        }
+
+        [Fact]
+        public async Task Dispatch_ListsTagsStartingWithTheText_First()
+        {
+            _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(new HashSet<string> { "a-export", "export:eu", "b-export", "export:us" });
+
+            var context = Create("tag:export");
+            await new SearchDispatcher().Dispatch(context);
+
+            var tags = JsonNode.Parse(context.Response.Text)["tags"].AsArray().Select(t => t["tag"].GetValue<string>());
+            Assert.Equal(new[] { "export:eu", "export:us", "a-export", "b-export" }, tags);
+        }
+
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         public static void Sample()
         {

@@ -38,6 +38,20 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
+        public void Render_SaysInsightsAreNotSupported_WhenTheStorageHasNoExtendedApi()
+        {
+            // The base JobStorageConnection throws for counters and lists: the page answered 500
+            _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
+            _renderer.Connection.Setup(x => x.GetCounter(It.IsAny<string>())).Throws(new NotSupportedException());
+            _renderer.Connection.Setup(x => x.GetAllItemsFromList(It.IsAny<string>())).Throws(new NotSupportedException());
+
+            var html = _renderer.Render(new InsightsPage());
+
+            Assert.Contains(H(Strings.InsightsPage_NotSupported), html);
+            Assert.DoesNotContain("insights-summary", html);
+        }
+
+        [Fact]
         public void Render_ShowsEmptySummaryTiles_AndTheNoDataHint_WhenNothingWasRecorded()
         {
             var html = _renderer.Render(new InsightsPage());

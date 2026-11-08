@@ -42,12 +42,22 @@ namespace Masterly.NightShift.Server
     /// <seealso cref="EnqueuedState"/>
     public class Worker : IBackgroundProcess
     {
-        [Obsolete("Please use JobStorageFeatures.StorageTransactionalAcknowledge instead.")]
+        [Obsolete("Use JobStorageFeatures.StorageTransactionalAcknowledge instead. Kept for code ported from Hangfire.")]
         public static readonly string TransactionalAcknowledgePrefix = JobStorageFeatures.TransactionalAcknowledgePrefix;
 
         private static readonly ConcurrentDictionary<Guid, string> WorkerGuidCache = new();
         private static readonly string[] EligibleWorkerStates = new[] { EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName };
         private static readonly string[] ProcessingStateArray = new[] { ProcessingState.StateName };
+
+        /// <summary>
+        /// <see cref="PerformContext.Items"/> entry holding an <c>ICollection&lt;IDisposable&gt;</c> the worker
+        /// disposes after the state change that follows the job (or when processing the job ends otherwise), so a
+        /// server filter can keep something open until then: the job logging scope of Masterly.NightShift.NetCore
+        /// adds itself, so what state filters log about the job (retries, deadlines) is in the job's scope. It is
+        /// left out of the state change's custom data. A filter that finds no entry (a performer called without a
+        /// worker) disposes it itself.
+        /// </summary>
+        internal const string DisposeAfterStateChangeItem = "X_NS_DisposeAfterStateChange";
 
         private readonly TimeSpan _jobInitializationWaitTimeout;
         private readonly int _maxStateChangeAttempts;
@@ -107,6 +117,7 @@ namespace Masterly.NightShift.Server
             using (var fetchedJob = connection.FetchNextJob(_queues.ToArray(), context.StoppingToken))
             {
                 var requeueOnException = true;
+                var disposeAfterStateChange = new List<IDisposable>();
 
                 try
                 {
@@ -147,7 +158,7 @@ namespace Masterly.NightShift.Server
                     // it was performed to guarantee that it was performed AT LEAST once.
                     // It will be re-queued after the JobTimeout was expired.
 
-                    var state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob, out var customData);
+                    var state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob, disposeAfterStateChange, out var customData);
                     var transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
 
                     if (state != null)
@@ -192,7 +203,29 @@ namespace Masterly.NightShift.Server
 
                     throw;
                 }
+                finally
+                {
+                    DisposeAfterStateChange(disposeAfterStateChange);
+                }
             }
+        }
+
+        private void DisposeAfterStateChange(List<IDisposable> disposables)
+        {
+            // In reverse order, like nested using blocks
+            for (var i = disposables.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    disposables[i].Dispose();
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    _logger.WarnException("Could not dispose what a server filter kept open until the job's state change.", ex);
+                }
+            }
+
+            disposables.Clear();
         }
 
         private IState TryChangeState(
@@ -288,6 +321,7 @@ namespace Masterly.NightShift.Server
             IStorageConnection connection,
             string jobId,
             BackgroundJob backgroundJob,
+            List<IDisposable> disposeAfterStateChange,
             out IReadOnlyDictionary<string, object> customData)
         {
             customData = null;
@@ -312,7 +346,14 @@ namespace Masterly.NightShift.Server
 
                 using (var jobToken = new ServerJobCancellationToken(connection, backgroundJob.Id, context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()), context.StoppedToken))
                 {
-                    var performContext = new PerformContext(context.Storage, connection, backgroundJob, jobToken, _profiler, context.ServerId, null);
+                    // Filters that change the job's state themselves (Throttle, RateLimit, CircuitBreaker) use this
+                    // worker's state changer, and with it the server's filter provider
+                    var items = new Dictionary<string, object>
+                    {
+                        { ConcurrencyControl.StateChangerItem, _stateChanger },
+                        { DisposeAfterStateChangeItem, disposeAfterStateChange },
+                    };
+                    var performContext = new PerformContext(context.Storage, connection, backgroundJob, jobToken, _profiler, context.ServerId, items);
 
                     var latency = (DateTime.UtcNow - backgroundJob.CreatedAt).TotalMilliseconds;
                     var duration = Stopwatch.StartNew();
@@ -320,8 +361,26 @@ namespace Masterly.NightShift.Server
                     var result = _performer.Perform(performContext);
                     duration.Stop();
 
-                    customData = new Dictionary<string, object>(performContext.Items);
-                    return !performContext.Items.TryGetValue(BackgroundJobPerformer.ContextCanceledKey, out var filter) 
+                    // A thread the job started may still use the items (PerformContext.Console adds to them under
+                    // this lock), so they are copied under it, and only the copy is read
+                    Dictionary<string, object> data;
+                    lock (performContext.Items)
+                    {
+                        data = new Dictionary<string, object>(performContext.Items);
+                    }
+
+                    // A filter already moved the job out of the Processing state (back to Scheduled). Changing the
+                    // state again could delete the job if another worker has picked it up in the meantime.
+                    if (data.ContainsKey(ConcurrencyControl.RescheduledItem))
+                    {
+                        return null;
+                    }
+
+                    data.Remove(ConcurrencyControl.StateChangerItem);
+                    data.Remove(DisposeAfterStateChangeItem);
+                    customData = data;
+
+                    return !data.TryGetValue(BackgroundJobPerformer.ContextCanceledKey, out var filter)
                         ? (IState)new SucceededState(result, (long) latency, duration.ElapsedMilliseconds)
                         : new DeletedState { Reason = $"Canceled by filter '{filter}'" };
                 }

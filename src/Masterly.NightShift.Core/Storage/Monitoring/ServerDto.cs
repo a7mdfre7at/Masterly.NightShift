@@ -20,6 +20,9 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A registered server, as listed by the dashboard.
+    /// </summary>
     public class ServerDto
     {
         // Storages must set the non-nullable members, the dashboard relies on them

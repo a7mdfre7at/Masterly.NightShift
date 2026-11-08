@@ -41,7 +41,7 @@ namespace Masterly.NightShift.Client
         }
 
         [CanBeNull]
-        [Obsolete("Please use `BackgroundJob` property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use `BackgroundJob` property instead. Kept for code ported from Hangfire.")]
         public string? JobId => BackgroundJob?.Id;
 
         [CanBeNull]
@@ -67,7 +67,7 @@ namespace Masterly.NightShift.Client
         /// </summary>
         public bool ExceptionHandled { get; set; }
 
-        [Obsolete("This method only throws InvalidOperationException, will be removed in 2.0.0.")]
+        [Obsolete("This method only throws InvalidOperationException. Set job parameters in OnCreating instead. Kept for code ported from Hangfire.")]
         public void SetJobParameter([NotNull] string name, object value)
         {
             if (String.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));

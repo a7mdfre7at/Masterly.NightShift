@@ -18,6 +18,10 @@ using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// Thrown by a storage when a server sends a heartbeat but isn't registered any more, so the server restarts and
+    /// announces itself again.
+    /// </summary>
     [Serializable]
     public class BackgroundServerGoneException : Exception
     {

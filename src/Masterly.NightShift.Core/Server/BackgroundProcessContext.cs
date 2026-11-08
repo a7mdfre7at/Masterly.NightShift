@@ -21,9 +21,13 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// What a background process gets each time it runs: the server, the storage, and the tokens that signal the
+    /// server's stop and shutdown.
+    /// </summary>
     public class BackgroundProcessContext
     {
-        [Obsolete("This constructor overload is deprecated and will be removed in 2.0.0.")]
+        [Obsolete("Use the constructor that takes the execution id and the stopping, stopped and shutdown tokens instead. Kept for code ported from Hangfire.")]
         public BackgroundProcessContext(
             [NotNull] string serverId,
             [NotNull] JobStorage storage,
@@ -66,7 +70,7 @@ namespace Masterly.NightShift.Server
 
         public Guid ExecutionId { get; }
 
-        [Obsolete("Please use the StoppingToken property instead, will be removed in 2.0.0.")]
+        [Obsolete("Use the StoppingToken property instead. Kept for code ported from Hangfire.")]
         public CancellationToken CancellationToken => StoppingToken;
 
         public CancellationToken StoppingToken { get; }
@@ -76,7 +80,7 @@ namespace Masterly.NightShift.Server
         public bool IsStopping => StoppingToken.IsCancellationRequested || StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
         public bool IsStopped => StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
 
-        [Obsolete("Please use IsStopping or IsStopped properties instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use IsStopping or IsStopped properties instead. Kept for code ported from Hangfire.")]
         public bool IsShutdownRequested => StoppingToken.IsCancellationRequested;
 
         public void Wait(TimeSpan timeout)

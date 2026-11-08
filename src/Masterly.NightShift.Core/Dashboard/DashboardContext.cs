@@ -34,6 +34,9 @@ namespace Masterly.NightShift.Dashboard
     public abstract class DashboardContext
     {
         private readonly Lazy<bool> _isReadOnlyLazy;
+        private string _antiforgeryHeader;
+        private string _antiforgeryToken;
+        private bool _antiforgeryTokensReady;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DashboardContext"/> class.
@@ -86,14 +89,58 @@ namespace Masterly.NightShift.Dashboard
         public bool IsReadOnly => _isReadOnlyLazy.Value;
 
         /// <summary>
-        /// Gets or sets the anti-forgery header value.
+        /// Gets or sets the name of the header the page's scripts send the anti-forgery token in. Reading it the
+        /// first time generates the tokens (see <see cref="GenerateAntiforgeryTokens"/>), unless a value was set.
         /// </summary>
-        public string AntiforgeryHeader { get; set; }
+        public string AntiforgeryHeader
+        {
+            get
+            {
+                EnsureAntiforgeryTokens();
+                return _antiforgeryHeader;
+            }
+            set
+            {
+                _antiforgeryTokensReady = true;
+                _antiforgeryHeader = value;
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the anti-forgery token value.
+        /// Gets or sets the anti-forgery token the page's scripts send with every request. Reading it the first
+        /// time generates the tokens (see <see cref="GenerateAntiforgeryTokens"/>), unless a value was set.
         /// </summary>
-        public string AntiforgeryToken { get; set; }
+        public string AntiforgeryToken
+        {
+            get
+            {
+                EnsureAntiforgeryTokens();
+                return _antiforgeryToken;
+            }
+            set
+            {
+                _antiforgeryTokensReady = true;
+                _antiforgeryToken = value;
+            }
+        }
+
+        /// <summary>
+        /// Generates the anti-forgery tokens and sets <see cref="AntiforgeryHeader"/> and <see cref="AntiforgeryToken"/>.
+        /// Called once, the first time either property is read, which only pages that write the tokens do: generating
+        /// them stores a cookie and marks the response as not cacheable, which static files and JSON answers don't
+        /// need. The default implementation does nothing.
+        /// </summary>
+        protected virtual void GenerateAntiforgeryTokens()
+        {
+        }
+
+        private void EnsureAntiforgeryTokens()
+        {
+            if (_antiforgeryTokensReady) return;
+
+            _antiforgeryTokensReady = true;
+            GenerateAntiforgeryTokens();
+        }
 
         /// <summary>
         /// Gets the background job client for the current <see cref="JobStorage"/> instance.
@@ -105,24 +152,25 @@ namespace Masterly.NightShift.Dashboard
         }
 
         /// <summary>
-        /// Gets the recurring job manager for the current <see cref="JobStorage"/> instance.
+        /// Gets the name of the authenticated user behind the request, for the <see cref="AuditLog"/>.
+        /// The ASP.NET Core adapter answers from <c>HttpContext.User</c>.
         /// </summary>
-        /// <returns>An instance of <see cref="IRecurringJobManager"/>.</returns>
-        /// <summary>
-        /// The name of the authenticated user behind the request, for the <see cref="AuditLog"/>, or <c>null</c>
-        /// when the host has none. The ASP.NET Core adapter answers from <c>HttpContext.User</c>.
-        /// </summary>
+        /// <returns>The user name, or <c>null</c> when the host has none.</returns>
         public virtual string GetUserName()
         {
             return null;
         }
 
+        /// <summary>
+        /// Gets the recurring job manager for the current <see cref="JobStorage"/> instance.
+        /// </summary>
+        /// <returns>An instance of <see cref="IRecurringJobManager"/>.</returns>
         public virtual IRecurringJobManager GetRecurringJobManager()
         {
             return new RecurringJobManager(
                 Storage,
                 JobFilterProviders.Providers,
-                Options.TimeZoneResolver ?? new DefaultTimeZoneResolver());
+                Options.TimeZoneResolver ?? GlobalTimeZoneResolver.Current);
         }
     }
 }

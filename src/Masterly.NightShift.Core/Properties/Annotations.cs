@@ -339,6 +339,10 @@ namespace Masterly.NightShift.Annotations
     [UsedImplicitly] public ImplicitUseTargetFlags TargetFlags { get; private set; }
   }
   
+  /// <summary>
+  /// Says how a symbol marked with <see cref="MeansImplicitUseAttribute"/> or <see cref="UsedImplicitlyAttribute"/> is
+  /// used implicitly, for ReSharper.
+  /// </summary>
   [EditorBrowsable(EditorBrowsableState.Never)]
   [Flags]
   [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "Public API, can not change in minor versions.")]
@@ -421,6 +425,9 @@ namespace Masterly.NightShift.Annotations
   [AttributeUsage(AttributeTargets.Method)]
   public sealed class PureAttribute : Attribute { }
 
+  /// <summary>
+  /// Marks a parameter, field or property that holds the attributes of an HTML element, for ReSharper.
+  /// </summary>
   [EditorBrowsable(EditorBrowsableState.Never)]
   [AttributeUsage(
     AttributeTargets.Parameter | AttributeTargets.Property |
@@ -436,6 +443,9 @@ namespace Masterly.NightShift.Annotations
     [NotNull] public string Name { get; private set; }
   }
 
+  /// <summary>
+  /// Marks a parameter, field or property that holds the value of the named HTML attribute, for ReSharper.
+  /// </summary>
   [EditorBrowsable(EditorBrowsableState.Never)]
   [AttributeUsage(
     AttributeTargets.Parameter | AttributeTargets.Field |

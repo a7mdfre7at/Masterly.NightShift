@@ -25,6 +25,10 @@ using Masterly.NightShift.Storage;
 namespace Masterly.NightShift.States
 {
 #pragma warning disable 618
+    /// <summary>
+    /// What state handlers and <see cref="IApplyStateFilter"/> filters get while a new state is applied: the job, the
+    /// old and new states, the storage and the transaction.
+    /// </summary>
     public class ApplyStateContext : StateContext
 #pragma warning restore 618
     {
@@ -34,6 +38,7 @@ namespace Masterly.NightShift.States
             : this(context.Storage, context.Connection, transaction, context.BackgroundJob, context.CandidateState, context.CurrentState, context.Profiler, context.StateMachine, context.CustomData != null ? new Dictionary<string, object>(context.CustomData) : null)
         {
             // TODO: Add explicit JobExpirationTimeout parameter in 2.0, because it's unclear it isn't preserved
+            AfterCommit = context.AfterCommit;
         }
 
         public ApplyStateContext(
@@ -89,6 +94,22 @@ namespace Masterly.NightShift.States
         
         public TimeSpan JobExpirationTimeout { get; set; }
 
+        /// <summary>
+        /// Makes the job expire after <see cref="JobExpirationTimeout"/> although <see cref="NewState"/> isn't final.
+        /// Set by <see cref="ExpireAfterAttribute.IncludeFailed"/> and <c>UseFailedJobRetention</c> for the
+        /// <see cref="FailedState"/>. The next state change persists the job again, unless that state is final.
+        /// </summary>
+        internal bool ExpireInNonFinalState { get; set; }
+
+        /// <summary>Whether the job expires after this state change: the new state is final, or <see cref="ExpireInNonFinalState"/> is set.</summary>
+        internal bool JobExpires => NewState.IsFinal || ExpireInNonFinalState;
+
+        /// <summary>
+        /// Set by <see cref="BatchSupportAttribute"/> when it ran for this state change, so a state change made
+        /// without filters can be told apart and still keeps the batch counters right.
+        /// </summary>
+        internal bool BatchCountersApplied { get; set; }
+
         [NotNull]
         internal IProfiler Profiler { get; }
 
@@ -97,6 +118,16 @@ namespace Masterly.NightShift.States
 
         [CanBeNull]
         public IStateMachine? StateMachine { get; }
+
+        /// <summary>
+        /// Set by the code that commits this state change, see <see cref="PostCommitActions"/>. <c>null</c> when
+        /// nobody runs actions after the commit.
+        /// </summary>
+        [CanBeNull]
+        internal PostCommitActions? AfterCommit { get; set; }
+
+        /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
+        internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);
 
         public T? GetJobParameter<T>([NotNull] string name) => GetJobParameter<T>(name, allowStale: false);
 

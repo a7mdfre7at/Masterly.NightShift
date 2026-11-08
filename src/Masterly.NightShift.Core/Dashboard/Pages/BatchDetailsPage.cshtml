@@ -15,6 +15,11 @@
     var jobs = new List<KeyValuePair<string, JobData>>();
     var continuations = new List<KeyValuePair<string, JobData>>();
     const int maxJobsShown = 500;
+    Pager pager = null;
+
+    int from, perPage;
+    int.TryParse(Query("from"), out from);
+    int.TryParse(Query("count"), out perPage);
 
     using (var connection = Storage.GetReadOnlyConnection())
     {
@@ -22,7 +27,23 @@
 
         if (batch != null)
         {
-            foreach (var jobId in BatchJob.GetJobIds(connection, Id).Take(maxJobsShown))
+            IEnumerable<string> jobIds;
+            var storageConnection = connection as JobStorageConnection;
+
+            if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                // One page of the batch's jobs, instead of every id of a batch of any size
+                var jobsKey = BatchJob.GetJobsKey(Id);
+                pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, storageConnection.GetSetCount(jobsKey));
+                jobIds = storageConnection.GetRangeFromSet(jobsKey, pager.FromRecord, pager.FromRecord + pager.RecordsPerPage - 1) ?? new List<string>();
+            }
+            else
+            {
+                // Without ranges the storage reads the whole set; the first jobs are shown
+                jobIds = BatchJob.GetJobIds(connection, Id).Take(maxJobsShown);
+            }
+
+            foreach (var jobId in jobIds)
             {
                 jobs.Add(new KeyValuePair<string, JobData>(jobId, connection.GetJobData(jobId)));
             }
@@ -135,6 +156,12 @@
             }
 
             <h3 id="batch-jobs">@Strings.BatchDetailsPage_JobsInBatch</h3>
+            if (pager != null && pager.TotalPageCount > 1)
+            {
+                <div class="btn-toolbar btn-toolbar-top">
+                    @Html.PerPageSelector(pager)
+                </div>
+            }
             <div class="table-responsive">
                 <table class="table" aria-describedby="batch-jobs">
                     <thead>
@@ -165,7 +192,11 @@
                     </tbody>
                 </table>
             </div>
-            if (batch.Total > maxJobsShown)
+            if (pager != null)
+            {
+                @Html.Paginator(pager)
+            }
+            else if (batch.Total > maxJobsShown)
             {
                 <p class="text-muted">@String.Format(Strings.BatchDetailsPage_MoreJobs, batch.Total - maxJobsShown)</p>
             }

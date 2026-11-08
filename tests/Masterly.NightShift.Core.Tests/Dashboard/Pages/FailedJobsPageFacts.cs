@@ -35,9 +35,26 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
             Assert.Contains("data-url=\"/jobs/failed/export\" data-filename=\"nightshift-failed-jobs.csv\"", html);
             Assert.Contains("data-ajax=\"/jobs/failed/delete-all\"", html);
+            Assert.Contains("data-ajax=\"/jobs/failed/requeue-all\"", html);
+            Assert.Contains("data-confirm=\"" + Encode(Strings.FailedJobsPage_RequeueAllConfirm) + "\"", html);
             Assert.Contains("data-url=\"/jobs/failed/requeue\"", html);
             Assert.Contains("data-url=\"/jobs/failed/delete\"", html);
             Assert.Contains($"{Encode(Strings.Common_DeleteSelected)}", html);
+        }
+
+        [Fact]
+        public void Render_ForALiveRefresh_RendersOnlyThePage_WithoutTheLayoutOrTheClusters()
+        {
+            // The Live toggle re-rendered the whole page every few seconds, clusters (five pages of failed jobs) included
+            SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
+            _renderer.Request.Query[RazorPage.ListRefreshQuery] = "1";
+
+            var html = _renderer.Render(new FailedJobsPage());
+
+            Assert.Contains("js-jobs-list", html);
+            Assert.DoesNotContain("<html", html);
+            Assert.DoesNotContain("hf-clusters", html);
+            _renderer.Monitoring.Verify(x => x.FailedJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Once);
         }
 
         [Fact]
@@ -147,6 +164,31 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             var html = _renderer.Render(new FailedJobsPage());
 
             Assert.DoesNotContain("hf-ack", html);
+        }
+
+        [Fact]
+        public void Render_ReadsTheNotes_OfTheFirstHundredRowsOnly()
+        {
+            var jobs = new Dictionary<string, FailedJobDto>();
+            for (var i = 1; i <= 150; i++) jobs.Add(i.ToString(), Failed("InvalidOperationException", "Boom"));
+            SetupJobs(jobs);
+            _renderer.Request.Query["count"] = "500";
+
+            _renderer.Render(new FailedJobsPage());
+
+            _renderer.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), JobNotes.ParameterName), Times.Exactly(100));
+            _renderer.Connection.Verify(x => x.GetJobParameter("101", JobNotes.ParameterName), Times.Never);
+        }
+
+        [Fact]
+        public void Render_OffersAtMostOneThousandRowsPerPage()
+        {
+            SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
+
+            var html = _renderer.Render(new FailedJobsPage());
+
+            Assert.Contains("from=0&amp;count=1000\">" + Encode(1000.ToString("N0")) + "</a>", html);
+            Assert.DoesNotContain("count=5000", html);
         }
 
         [Fact]

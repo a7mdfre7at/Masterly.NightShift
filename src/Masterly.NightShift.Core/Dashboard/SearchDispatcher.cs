@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,9 +8,9 @@ using Masterly.NightShift.Storage;
 namespace Masterly.NightShift.Dashboard
 {
     /// <summary>
-    /// <c>GET /search?q=</c> behind the dashboard's command palette: finds a background job by its exact id
-    /// recurring jobs whose id contains the text and tags containing it (<c>tag:</c> searches tags only).
-    /// Returns <c>{ jobs: [...], recurringJobs: [...], tags: [...] }</c>.
+    /// <c>GET /search?q=</c> behind the dashboard's command palette: finds a background job by its exact id,
+    /// recurring jobs whose id contains the text and tags containing it (<c>tag:</c> searches tags only), names
+    /// starting with the text first. Returns <c>{ jobs: [...], recurringJobs: [...], tags: [...] }</c>.
     /// </summary>
     internal sealed class SearchDispatcher : IDashboardDispatcher
     {
@@ -80,18 +65,20 @@ namespace Masterly.NightShift.Dashboard
                     });
                 }
 
-                // "tag:" narrows the search to tags; otherwise tags containing the text come along
+                // "tag:" narrows the search to tags; otherwise tags containing the text come along. Names are
+                // filtered first and only the ones shown are counted, so many tags don't slow every search down.
                 var tagQuery = query.StartsWith("tag:", StringComparison.OrdinalIgnoreCase) ? query.Substring(4).Trim() : query;
 
-                foreach (var tag in JobTags.GetAll(connection)
-                    .Where(t => tagQuery.Length == 0 || t.Tag.IndexOf(tagQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+                foreach (var tag in JobTags.GetNames(connection)
+                    .Where(name => tagQuery.Length == 0 || name.IndexOf(tagQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderBy(name => name.StartsWith(tagQuery, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                     .Take(MaxTags))
                 {
                     tags.Add(new
                     {
-                        tag = tag.Tag,
-                        count = tag.Count,
-                        url = new UrlHelper(context).To("/tags/" + Uri.EscapeDataString(tag.Tag)),
+                        tag,
+                        count = JobTags.Count(connection, tag),
+                        url = new UrlHelper(context).To("/tags/" + Uri.EscapeDataString(tag)),
                     });
                 }
             }

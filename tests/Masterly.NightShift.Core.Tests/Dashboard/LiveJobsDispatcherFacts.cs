@@ -74,6 +74,27 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
+        public async Task Dispatch_DoesNotReadTheConsole_WhenAskedForStateAndProgressOnly()
+        {
+            // The Processing page's rows polled every job's whole console every two seconds, to show progress
+            _connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = ProcessingState.StateName, Data = new Dictionary<string, string>() });
+            _connection.Setup(x => x.GetJobParameter("job-1", "Progress")).Returns("{\"p\":40.0,\"m\":\"working\",\"t\":1}");
+            var request = new DashboardRequestStub("POST", "/jobs/live");
+            request.Form["jobs[]"] = new List<string> { "job-1" };
+            request.Form["console"] = new List<string> { "0" };
+            var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
+
+            await new LiveJobsDispatcher().Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            var job = JsonNode.Parse(context.Response.Text)["jobs"]["job-1"];
+            Assert.Equal(40.0, job["progress"]["p"].GetValue<double>());
+            Assert.Null(job["entries"]);
+            _connection.Verify(x => x.GetAllItemsFromList(It.IsAny<string>()), Times.Never);
+            _connection.Verify(x => x.GetRangeFromList(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        [Fact]
         public async Task Dispatch_MeasuresElapsedTime_WithTheStorageClock_WhenSupported()
         {
             var storageNow = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);

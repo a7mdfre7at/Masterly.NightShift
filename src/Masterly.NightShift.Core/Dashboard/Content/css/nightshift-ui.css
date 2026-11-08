@@ -3105,6 +3105,7 @@ body.hf-app hr {
 .hf-toast-succeeded { border-left: 4px solid var(--hf-success); }
 .hf-toast-failed { border-left: 4px solid var(--hf-danger); }
 .hf-toast-deleted { border-left: 4px solid var(--hf-muted); }
+.hf-toast-warning { border-left: 4px solid var(--hf-warning); }
 
 .hf-shortcuts-box {
     padding: 18px 22px;

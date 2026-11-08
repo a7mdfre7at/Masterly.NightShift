@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -34,13 +19,21 @@ namespace Masterly.NightShift.Dashboard
     /// <summary>
     /// <c>GET /jobs/export/{jobId}</c>: everything the dashboard knows about one job as JSON (method, arguments,
     /// state history, parameters, console, notes), for a ticket or an incident report. <c>404</c> when the job
-    /// is gone.
+    /// is gone. Arguments marked <see cref="RedactedAttribute"/> are masked; when the job's method can't be
+    /// loaded, the raw arguments and payload (<c>DBG_Args</c>, <c>DBG_Payload</c>) are left out, because
+    /// nothing tells which of them are redacted.
     /// </summary>
     internal sealed class JobExportDispatcher : IDashboardDispatcher
     {
+        /// <summary>
+        /// Parameters a storage adds when the job's method can't be loaded, holding the raw arguments. Without the
+        /// method, <see cref="RedactedAttribute"/> can't be read, so they may contain secrets.
+        /// </summary>
+        internal static readonly string[] RawArgumentParameters = { "DBG_Args", "DBG_Payload" };
+
         public Task Dispatch(DashboardContext context)
         {
-            var jobId = Uri.UnescapeDataString(context.UriMatch.Groups["JobId"].Value);
+            var jobId = RouteValues.Get(context, "JobId");
             var details = context.Storage.GetMonitoringApi().JobDetails(jobId);
 
             if (details == null)
@@ -80,7 +73,7 @@ namespace Masterly.NightShift.Dashboard
                 expireAt = details.ExpireAt,
                 state = details.History != null && details.History.Count > 0 ? details.History[0].StateName : null,
                 history = (details.History ?? new List<StateHistoryDto>()).Select(static h => new { state = h.StateName, reason = h.Reason, at = h.CreatedAt, data = h.Data }).ToArray(),
-                parameters = parameters.Where(static p => p.Key != JobNotes.ParameterName).ToDictionary(static p => p.Key, static p => p.Value),
+                parameters = parameters.Where(static p => p.Key != JobNotes.ParameterName && Array.IndexOf(RawArgumentParameters, p.Key) < 0).ToDictionary(static p => p.Key, static p => p.Value),
                 notes = notes.Select(static n => new { at = n.WrittenAt, user = n.User, text = n.Text, acknowledges = n.Acknowledges }).ToArray(),
                 console = console.Select(static e => new { at = JobConsole.FromTimestamp(e.Timestamp), level = e.Level?.ToString(), message = e.Message, checkpoint = e.Checkpoint }).ToArray(),
             };
@@ -98,14 +91,18 @@ namespace Masterly.NightShift.Dashboard
     /// <summary>
     /// <c>GET /jobs/{failed|succeeded|scheduled|processing|deleted}/export</c> and
     /// <c>/jobs/enqueued/export/{queue}</c>: the list as CSV (up to <see cref="MaxRows"/> rows), for spreadsheets
-    /// and reports. Columns: id, state, job, time, duration or delay in seconds, exception type, message.
+    /// and reports. Columns: <c>Id</c>, <c>State</c>, <c>Job</c>, <c>Time</c>, <c>Seconds</c> (duration or delay),
+    /// <c>Server</c> (processing jobs), <c>ExceptionType</c> and <c>ExceptionMessage</c> (failed jobs, cut at
+    /// <see cref="MaxMessageLength"/> characters). Each page of <see cref="PageSize"/> jobs is written as soon as
+    /// it is read, so the whole file is never held in memory.
     /// </summary>
     internal sealed class JobListExportDispatcher : IDashboardDispatcher
     {
         private static readonly char[] CsvSpecialCharacters = { ',', '"', '\r', '\n' };
 
         public const int MaxRows = 10000;
-        private const int PageSize = 500;
+        internal const int PageSize = 500;
+        internal const int MaxMessageLength = 1000;
 
         private readonly string _state;
 
@@ -114,36 +111,49 @@ namespace Masterly.NightShift.Dashboard
             _state = state;
         }
 
-        public Task Dispatch(DashboardContext context)
+        public async Task Dispatch(DashboardContext context)
         {
             var monitor = context.Storage.GetMonitoringApi();
-            var queue = context.UriMatch.Groups["Queue"].Success ? Uri.UnescapeDataString(context.UriMatch.Groups["Queue"].Value) : null;
-            var builder = new StringBuilder();
+            var queue = context.UriMatch.Groups["Queue"].Success ? RouteValues.Get(context, "Queue") : null;
 
-            builder.Append("Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage\r\n");
-
-            var rows = 0;
-            for (var from = 0; from < MaxRows; from += PageSize)
-            {
-                var count = Math.Min(PageSize, MaxRows - from);
-                var page = Fetch(monitor, queue, from, count);
-                if (page.Count == 0) break;
-
-                foreach (var row in page)
-                {
-                    builder.Append(Csv(row.Id)).Append(',').Append(Csv(row.State)).Append(',').Append(Csv(row.Job)).Append(',')
-                        .Append(Csv(row.Time?.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture))).Append(',')
-                        .Append(row.Seconds.HasValue ? row.Seconds.Value.ToString("0.###", CultureInfo.InvariantCulture) : String.Empty).Append(',')
-                        .Append(Csv(row.ExceptionType)).Append(',').Append(Csv(row.ExceptionMessage)).Append("\r\n");
-                    rows++;
-                }
-
-                if (page.Count < count) break;
-            }
+            // The first page is read before anything is sent, so a storage error still gives an error status
+            var page = Fetch(monitor, queue, 0, PageSize);
 
             context.Response.StatusCode = 200;
             context.Response.ContentType = "text/csv; charset=utf-8";
-            return context.Response.WriteAsync(builder.ToString());
+            await context.Response.WriteAsync("Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage\r\n").ConfigureAwait(false);
+
+            var from = 0;
+            while (page.Count > 0)
+            {
+                await context.Response.WriteAsync(FormatRows(page)).ConfigureAwait(false);
+
+                from += page.Count;
+                if (page.Count < PageSize || from >= MaxRows) break;
+
+                page = Fetch(monitor, queue, from, Math.Min(PageSize, MaxRows - from));
+            }
+        }
+
+        private static string FormatRows(List<Row> page)
+        {
+            var builder = new StringBuilder();
+
+            foreach (var row in page)
+            {
+                builder.Append(Csv(row.Id)).Append(',').Append(Csv(row.State)).Append(',').Append(Csv(row.Job)).Append(',')
+                    .Append(Csv(row.Time?.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture))).Append(',')
+                    .Append(row.Seconds.HasValue ? row.Seconds.Value.ToString("0.###", CultureInfo.InvariantCulture) : String.Empty).Append(',')
+                    .Append(Csv(row.Server)).Append(',')
+                    .Append(Csv(row.ExceptionType)).Append(',').Append(Csv(Truncate(row.ExceptionMessage))).Append("\r\n");
+            }
+
+            return builder.ToString();
+        }
+
+        private static string? Truncate(string? message)
+        {
+            return message != null && message.Length > MaxMessageLength ? message.Substring(0, MaxMessageLength) + "…" : message;
         }
 
         private List<Row> Fetch(IMonitoringApi monitor, string? queue, int from, int count)
@@ -151,19 +161,19 @@ namespace Masterly.NightShift.Dashboard
             switch (_state)
             {
                 case "failed":
-                    return monitor.FailedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InFailedState ? "Failed" : "Changed", p.Value?.Job?.ToString(), p.Value?.FailedAt, null, p.Value?.ExceptionType, p.Value?.ExceptionMessage)).ToList();
+                    return monitor.FailedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InFailedState ? "Failed" : "Changed", p.Value?.Job?.ToString(), p.Value?.FailedAt, null, null, p.Value?.ExceptionType, p.Value?.ExceptionMessage)).ToList();
                 case "succeeded":
-                    return monitor.SucceededJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InSucceededState ? "Succeeded" : "Changed", p.Value?.Job?.ToString(), p.Value?.SucceededAt, p.Value?.TotalDuration / 1000.0, null, null)).ToList();
+                    return monitor.SucceededJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InSucceededState ? "Succeeded" : "Changed", p.Value?.Job?.ToString(), p.Value?.SucceededAt, p.Value?.TotalDuration / 1000.0, null, null, null)).ToList();
                 case "scheduled":
-                    return monitor.ScheduledJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InScheduledState ? "Scheduled" : "Changed", p.Value?.Job?.ToString(), p.Value?.EnqueueAt, p.Value == null ? null : (p.Value.EnqueueAt - DateTime.UtcNow).TotalSeconds, null, null)).ToList();
+                    return monitor.ScheduledJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InScheduledState ? "Scheduled" : "Changed", p.Value?.Job?.ToString(), p.Value?.EnqueueAt, p.Value == null ? null : (p.Value.EnqueueAt - DateTime.UtcNow).TotalSeconds, null, null, null)).ToList();
                 case "processing":
-                    return monitor.ProcessingJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InProcessingState ? "Processing" : "Changed", p.Value?.Job?.ToString(), p.Value?.StartedAt, p.Value?.StartedAt == null ? null : (DateTime.UtcNow - p.Value.StartedAt.Value).TotalSeconds, p.Value?.ServerId, null)).ToList();
+                    return monitor.ProcessingJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InProcessingState ? "Processing" : "Changed", p.Value?.Job?.ToString(), p.Value?.StartedAt, p.Value?.StartedAt == null ? null : (DateTime.UtcNow - p.Value.StartedAt.Value).TotalSeconds, p.Value?.ServerId, null, null)).ToList();
                 case "deleted":
                     return monitor is JobStorageMonitor storageMonitor
-                        ? storageMonitor.DeletedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InDeletedState ? "Deleted" : "Changed", p.Value?.Job?.ToString(), p.Value?.DeletedAt, null, null, null)).ToList()
+                        ? storageMonitor.DeletedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InDeletedState ? "Deleted" : "Changed", p.Value?.Job?.ToString(), p.Value?.DeletedAt, null, null, null, null)).ToList()
                         : new List<Row>();
                 case "enqueued":
-                    return monitor.EnqueuedJobs(queue ?? "default", from, count).Select(static p => new Row(p.Key, p.Value?.State, p.Value?.Job?.ToString(), p.Value?.EnqueuedAt, p.Value?.EnqueuedAt == null ? null : (DateTime.UtcNow - p.Value.EnqueuedAt.Value).TotalSeconds, null, null)).ToList();
+                    return monitor.EnqueuedJobs(queue ?? "default", from, count).Select(static p => new Row(p.Key, p.Value?.State, p.Value?.Job?.ToString(), p.Value?.EnqueuedAt, p.Value?.EnqueuedAt == null ? null : (DateTime.UtcNow - p.Value.EnqueuedAt.Value).TotalSeconds, null, null, null)).ToList();
                 default:
                     return new List<Row>();
             }
@@ -176,8 +186,8 @@ namespace Masterly.NightShift.Dashboard
             var needsQuotes = value!.IndexOfAny(CsvSpecialCharacters) >= 0;
             var escaped = value.Replace("\"", "\"\"");
 
-            // A leading formula character would be executed by spreadsheets
-            if (escaped.Length > 0 && (escaped[0] == '=' || escaped[0] == '+' || escaped[0] == '-' || escaped[0] == '@'))
+            // A leading formula character would be executed by spreadsheets; some also read one after a tab or a CR
+            if (escaped.Length > 0 && (escaped[0] == '=' || escaped[0] == '+' || escaped[0] == '-' || escaped[0] == '@' || escaped[0] == '\t' || escaped[0] == '\r'))
             {
                 escaped = "'" + escaped;
                 needsQuotes = true;
@@ -188,8 +198,9 @@ namespace Masterly.NightShift.Dashboard
 
         private sealed class Row
         {
-            public Row(string id, string? state, string? job, DateTime? time, double? seconds, string? exceptionType, string? exceptionMessage)
+            public Row(string id, string? state, string? job, DateTime? time, double? seconds, string? server, string? exceptionType, string? exceptionMessage)
             {
+                Server = server;
                 Id = id;
                 State = state;
                 Job = job;
@@ -204,6 +215,7 @@ namespace Masterly.NightShift.Dashboard
             public string? Job { get; }
             public DateTime? Time { get; }
             public double? Seconds { get; }
+            public string? Server { get; }
             public string? ExceptionType { get; }
             public string? ExceptionMessage { get; }
         }

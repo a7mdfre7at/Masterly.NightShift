@@ -18,8 +18,12 @@ using System;
 // ReSharper disable once CheckNamespace
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Old options of the server watchdog. Use <see cref="BackgroundJobServerOptions.ServerTimeout"/> and <see
+    /// cref="BackgroundJobServerOptions.ServerCheckInterval"/> instead.
+    /// </summary>
     /// <exclude />
-    [Obsolete("Please use `BackgroundJobServerOptions` properties instead. Will be removed in 2.0.0.")]
+    [Obsolete("Use `BackgroundJobServerOptions` properties instead. Kept for code ported from Hangfire.")]
     public class ServerWatchdogOptions
     {
         private TimeSpan _serverTimeout;

@@ -112,6 +112,22 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
+        public void Render_ShowsATruncatedJob_AsAtLeastTheCap_WithABandToTheWindowsEnd()
+        {
+            _renderer.Request.Query["window"] = "7d";
+            AddRecurringJob("every-minute", "* * * * *", Job.FromExpression(() => SampleJobs.Unknown()));
+
+            var html = _renderer.Render(new ForecastPage());
+
+            var title = H(String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob));
+            Assert.Contains("&ge;2000&times;", html);
+            Assert.Contains("title=\"" + title + "\"", html);
+            // The band starts at the first run (within a minute) and reaches the window's end; when the first run is
+            // less than about 3 seconds away, the width rounds to 100.000%
+            Assert.Matches("hf-forecast-run-dense[^>]*style=\"left: 0\\.0[0-9]{2}%; width: (99\\.9[0-9]{2}|100\\.000)%\"", html);
+        }
+
+        [Fact]
         public void Render_ShowsPausedJobs_WithoutRuns()
         {
             AddRecurringJob("paused", "0 * * * *", Job.FromExpression(() => SampleJobs.Unknown()), new Dictionary<string, string> { { "Paused", "1" } });

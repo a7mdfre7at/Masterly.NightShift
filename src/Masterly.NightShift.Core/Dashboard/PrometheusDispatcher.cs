@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -22,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Dashboard
@@ -30,25 +16,40 @@ namespace Masterly.NightShift.Dashboard
     /// <c>GET /metrics</c>: the dashboard's numbers in the Prometheus text exposition format, so Grafana and
     /// alert rules see what the home page shows. Job counts by state, queue lengths, servers, recurring jobs
     /// (late ones separately), the paused flag, the health status, and the per-method and per-queue statistics
-    /// from Insights when they are recorded. Subject to the dashboard's authorization filters like every route.
+    /// from Insights when they are recorded. The text is reused for <see cref="DashboardHealth.CacheDuration"/>
+    /// per storage, so several scrapers cost no more storage queries than one. Subject to the dashboard's
+    /// authorization filters like every route.
     /// </summary>
     internal sealed class PrometheusDispatcher : IDashboardDispatcher
     {
+        private static readonly ILog Logger = LogProvider.GetLogger(typeof(PrometheusDispatcher));
+        private static readonly StorageCache<string> Texts = new StorageCache<string>(DashboardHealth.CacheDuration);
+
         /// <summary>Replaceable for tests.</summary>
         internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
 
         public Task Dispatch(DashboardContext context)
         {
-            var text = Render(context.Storage, context.Options, Clock());
+            var text = RenderCached(context.Storage, context.Options, Clock());
 
             context.Response.StatusCode = 200;
             context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
             return context.Response.WriteAsync(text);
         }
 
+        /// <summary>The text of <see cref="Render(JobStorage, DashboardOptions, DateTime)"/>, computed at most once every <see cref="DashboardHealth.CacheDuration"/>.</summary>
+        internal static string RenderCached(JobStorage storage, DashboardOptions options, DateTime utcNow)
+        {
+            return Texts.Get(storage, options, utcNow, () => Render(storage, DashboardHealth.GetReport(storage, options, utcNow)));
+        }
+
         internal static string Render(JobStorage storage, DashboardOptions options, DateTime utcNow)
         {
-            var report = DashboardHealth.Check(storage, options, utcNow);
+            return Render(storage, DashboardHealth.Check(storage, options, utcNow));
+        }
+
+        private static string Render(JobStorage storage, HealthReport report)
+        {
             var builder = new StringBuilder();
 
             Gauge(builder, "nightshift_health_status", "0 healthy, 1 degraded, 2 unhealthy", (int)report.Status);
@@ -66,15 +67,14 @@ namespace Masterly.NightShift.Dashboard
                 Sample(builder, "nightshift_jobs", "state=\"awaiting\"", statistics.Awaiting ?? 0);
                 Sample(builder, "nightshift_jobs", "state=\"retries\"", statistics.Retries ?? 0);
 
-                Help(builder, "nightshift_jobs_total", "Jobs that finished since the storage was created", "counter");
-                Sample(builder, "nightshift_jobs_total", "state=\"succeeded\"", statistics.Succeeded);
-                Sample(builder, "nightshift_jobs_total", "state=\"deleted\"", statistics.Deleted);
+                Help(builder, "nightshift_jobs_finished_total", "Jobs that finished since the storage was created", "counter");
+                Sample(builder, "nightshift_jobs_finished_total", "state=\"succeeded\"", statistics.Succeeded);
+                Sample(builder, "nightshift_jobs_finished_total", "state=\"deleted\"", statistics.Deleted);
 
                 Gauge(builder, "nightshift_recurring_jobs", "Recurring jobs", statistics.Recurring);
             }
 
-            var lateRecurring = report.Checks.FirstOrDefault(static c => c.Name == "recurring" && c.Status == HealthStatus.Degraded && c.Detail.Contains("late"));
-            Gauge(builder, "nightshift_recurring_jobs_late", "Recurring jobs whose next run is more than a minute overdue", lateRecurring != null ? ParseLeadingNumber(lateRecurring.Detail) : 0);
+            Gauge(builder, "nightshift_recurring_jobs_late", "Recurring jobs whose next run is more than a minute overdue", report.LateRecurringJobs);
 
             if (report.Queues.Count > 0)
             {
@@ -91,44 +91,58 @@ namespace Masterly.NightShift.Dashboard
                 }
             }
 
+            // Insights are kept in lists and counters, which only storages with the extended API can read
+            if (!storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                return builder.ToString();
+            }
+
             try
             {
                 using (var connection = storage.GetReadOnlyConnection())
                 {
-                    var queues = QueueInsights.ReadAll(connection);
+                    // Every family is written as one group, HELP and TYPE first: strict parsers reject interleaved families
+                    var queues = QueueInsights.ReadAll(connection).Values.OrderBy(static q => q.Queue, StringComparer.Ordinal).ToList();
                     if (queues.Count > 0)
                     {
                         Help(builder, "nightshift_queue_latency_seconds", "Time jobs waited in the queue before a worker took them, over the last 200 starts", "gauge");
-                        Help(builder, "nightshift_queue_started_per_minute", "Jobs taken from the queue per minute over the last five minutes", "gauge");
-                        foreach (var health in queues.Values.OrderBy(static q => q.Queue, StringComparer.Ordinal))
+                        foreach (var health in queues)
                         {
                             Sample(builder, "nightshift_queue_latency_seconds", $"queue=\"{Escape(health.Queue)}\",quantile=\"0.5\"", health.MedianLatencyMs / 1000.0);
                             Sample(builder, "nightshift_queue_latency_seconds", $"queue=\"{Escape(health.Queue)}\",quantile=\"0.95\"", health.P95LatencyMs / 1000.0);
+                        }
+
+                        Help(builder, "nightshift_queue_started_per_minute", "Jobs taken from the queue per minute over the last five minutes", "gauge");
+                        foreach (var health in queues)
+                        {
                             Sample(builder, "nightshift_queue_started_per_minute", $"queue=\"{Escape(health.Queue)}\"", health.PerMinute);
                         }
                     }
 
-                    var insights = JobInsightsAttribute.ReadAll(connection);
+                    var insights = JobInsightsAttribute.ReadAll(connection).OrderBy(static i => i.Key, StringComparer.Ordinal).ToList();
                     if (insights.Count > 0)
                     {
                         Help(builder, "nightshift_method_runs_total", "Runs per job method and outcome", "counter");
-                        Help(builder, "nightshift_method_duration_seconds", "Run duration per job method, over the last 200 runs", "gauge");
-                        foreach (var insight in insights.OrderBy(static i => i.Key, StringComparer.Ordinal))
+                        foreach (var insight in insights)
                         {
                             var method = Escape(insight.Key);
                             Sample(builder, "nightshift_method_runs_total", $"method=\"{method}\",result=\"succeeded\"", insight.Succeeded);
                             Sample(builder, "nightshift_method_runs_total", $"method=\"{method}\",result=\"failed\"", insight.Failed);
-                            if (insight.Durations.Length > 0)
-                            {
-                                Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.5\"", insight.MedianMs / 1000.0);
-                                Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.95\"", insight.P95Ms / 1000.0);
-                            }
+                        }
+
+                        Help(builder, "nightshift_method_duration_seconds", "Run duration per job method, over the last 200 runs", "gauge");
+                        foreach (var insight in insights.Where(static i => i.Durations.Length > 0))
+                        {
+                            var method = Escape(insight.Key);
+                            Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.5\"", insight.MedianMs / 1000.0);
+                            Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.95\"", insight.P95Ms / 1000.0);
                         }
                     }
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
+                Logger.WarnException("Metrics: could not read the insights.", ex);
                 builder.Append("# insights unavailable: ").Append(ex.GetType().Name).Append('\n');
             }
 
@@ -157,12 +171,6 @@ namespace Masterly.NightShift.Dashboard
         private static string Escape(string value)
         {
             return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n");
-        }
-
-        private static int ParseLeadingNumber(string text)
-        {
-            var digits = new string(text.TakeWhile(Char.IsDigit).ToArray());
-            return Int32.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : 0;
         }
     }
 }

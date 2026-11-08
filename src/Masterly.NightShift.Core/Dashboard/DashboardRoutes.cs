@@ -81,6 +81,8 @@ namespace Masterly.NightShift.Dashboard
             #region Embedded static content
 
             Routes.Add("/js[0-9]+", new CombinedResourceDispatcher("application/javascript", JavaScripts));
+            // Only the date formatting, for the wallboard, which loads no other script
+            Routes.Add("/js-intl[0-9]+", new EmbeddedResourceDispatcher("application/javascript", executingAssembly, GetContentResourceName("js", "nightshift-intl.js")));
             Routes.Add("/css[0-9]+", new CombinedResourceDispatcher("text/css", Stylesheets));
             Routes.Add("/css-dark[0-9]+", new CombinedResourceDispatcher("text/css", StylesheetsDarkMode));
 
@@ -116,31 +118,63 @@ namespace Masterly.NightShift.Dashboard
             Routes.AddRazorPage("/jobs/enqueued", static _ => new QueuesPage());
             Routes.AddRazorPage(
                 "/jobs/enqueued/fetched/(?<Queue>.+)",
-                static x => new FetchedJobsPage(x.Groups["Queue"].Value));
+                static x => new FetchedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
 
             Routes.AddClientBatchCommand("/jobs/enqueued/delete", static (client, jobId) => client.ChangeState(jobId, CreateDeletedState()));
             Routes.AddClientBatchCommand("/jobs/enqueued/requeue", static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState()));
 
-            // "Delete all" for every list; registered before the pages whose patterns would also match these paths
-            Routes.AddCommand("/jobs/enqueued/delete-all/(?<Queue>.+)", static context =>
+            // "Delete all" for every list, and "Requeue all" for failed jobs; registered before the pages whose
+            // patterns would also match these paths. Each answers { processed, remaining, complete }.
+            Routes.Add("/jobs/enqueued/delete-all/(?<Queue>.+)", new JobListCommandDispatcher(static context =>
             {
-                var queue = context.UriMatch.Groups["Queue"].Value;
-                return JobListCommands.DeleteAll(context, (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => x.Key), EnqueuedState.StateName);
-            });
-            Routes.AddCommand("/jobs/scheduled/delete-all", static context =>
-                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.ScheduledJobs(from, count).Select(static x => x.Key), ScheduledState.StateName));
-            Routes.AddCommand("/jobs/processing/delete-all", static context =>
-                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.ProcessingJobs(from, count).Select(static x => x.Key), ProcessingState.StateName));
-            Routes.AddCommand("/jobs/succeeded/delete-all", static context =>
-                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.SucceededJobs(from, count).Select(static x => x.Key), SucceededState.StateName));
-            Routes.AddCommand("/jobs/failed/delete-all", static context =>
-                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => x.Key), FailedState.StateName));
-            Routes.AddCommand("/jobs/awaiting/delete-all", static context =>
-                JobListCommands.DeleteAll(context, static (monitor, from, count) => monitor is JobStorageMonitor storageMonitor
-                    ? storageMonitor.AwaitingJobs(from, count).Select(static x => x.Key)
-                    : Enumerable.Empty<string>(), AwaitingState.StateName));
-            Routes.AddCommand("/retries/delete-all", static context => JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName));
-            Routes.AddCommand("/recurring/remove-all", static context => JobListCommands.RemoveAllRecurringJobs(context));
+                var queue = RouteValues.Get(context, "Queue");
+                return JobListCommands.DeleteAll(
+                    context,
+                    (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => ListItem(x.Key, x.Value?.InEnqueuedState)),
+                    monitor => monitor.EnqueuedCount(queue),
+                    EnqueuedState.StateName);
+            }));
+            Routes.Add("/jobs/scheduled/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+                context,
+                static (monitor, from, count) => monitor.ScheduledJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InScheduledState)),
+                static monitor => monitor.ScheduledCount(),
+                ScheduledState.StateName)));
+            Routes.Add("/jobs/processing/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+                context,
+                static (monitor, from, count) => monitor.ProcessingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InProcessingState)),
+                static monitor => monitor.ProcessingCount(),
+                ProcessingState.StateName)));
+            Routes.Add("/jobs/succeeded/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+                context,
+                static (monitor, from, count) => monitor.SucceededJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InSucceededState)),
+                static monitor => monitor.SucceededListCount(),
+                SucceededState.StateName)));
+            Routes.Add("/jobs/failed/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+                context,
+                static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
+                static monitor => monitor.FailedCount(),
+                FailedState.StateName)));
+            Routes.Add("/jobs/failed/requeue-all", new JobListCommandDispatcher(static context => JobListCommands.RequeueAll(
+                context,
+                static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
+                static monitor => monitor.FailedCount(),
+                FailedState.StateName)));
+            Routes.Add("/jobs/awaiting/delete-all", new JobListCommandDispatcher(static context =>
+            {
+                if (context.Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs) && context.Storage.GetMonitoringApi() is JobStorageMonitor)
+                {
+                    return JobListCommands.DeleteAll(
+                        context,
+                        static (monitor, from, count) => ((JobStorageMonitor)monitor).AwaitingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InAwaitingState)),
+                        static monitor => ((JobStorageMonitor)monitor).AwaitingCount(),
+                        AwaitingState.StateName);
+                }
+
+                // Like the Awaiting page: without the feature, awaiting jobs are listed in the "awaiting" set
+                return JobListCommands.DeleteAllFromSet(context, "awaiting", AwaitingState.StateName);
+            }));
+            Routes.Add("/retries/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName)));
+            Routes.Add("/recurring/remove-all", new JobListCommandDispatcher(static context => JobListCommands.RemoveAllRecurringJobs(context)));
 
             Routes.Add("/maintenance/clear-jobs", new MaintenanceDispatcher(keepRecurringJobsAndServers: true));
             Routes.Add("/maintenance/reset", new MaintenanceDispatcher(keepRecurringJobsAndServers: false));
@@ -165,7 +199,7 @@ namespace Masterly.NightShift.Dashboard
 
             Routes.AddRazorPage(
                 "/jobs/enqueued/(?<Queue>.+)",
-                static x => new EnqueuedJobsPage(x.Groups["Queue"].Value));
+                static x => new EnqueuedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
 
             Routes.AddRazorPage("/jobs/processing", static _ => new ProcessingJobsPage());
             Routes.AddClientBatchCommand(
@@ -218,7 +252,7 @@ namespace Masterly.NightShift.Dashboard
                 static context =>
                 {
                     var client = context.GetBackgroundJobClient();
-                    return client.ChangeState(context.UriMatch.Groups["JobId"].Value, CreateEnqueuedState());
+                    return client.ChangeState(RouteValues.Get(context, "JobId"), CreateEnqueuedState());
                 });
 
             Routes.AddCommand(
@@ -226,11 +260,11 @@ namespace Masterly.NightShift.Dashboard
                 static context =>
                 {
                     var client = context.GetBackgroundJobClient();
-                    return client.ChangeState(context.UriMatch.Groups["JobId"].Value, CreateDeletedState());
+                    return client.ChangeState(RouteValues.Get(context, "JobId"), CreateDeletedState());
                 });
 
             Routes.Add("/jobs/live", new LiveJobsDispatcher());
-            Routes.AddRazorPage("/jobs/details/(?<JobId>.+)", static x => new JobDetailsPage(x.Groups["JobId"].Value));
+            Routes.AddRazorPage("/jobs/details/(?<JobId>.+)", static x => new JobDetailsPage(RouteValues.Decode(x.Groups["JobId"].Value)));
 
             Routes.AddRazorPage("/recurring", x => new RecurringJobsPage());
             Routes.AddRecurringBatchCommand(
@@ -256,8 +290,9 @@ namespace Masterly.NightShift.Dashboard
             Routes.Add("/recurring/import", new RecurringJobManifestDispatcher(import: true));
 
             Routes.AddRazorPage("/batches", static _ => new BatchesPage());
-            Routes.AddCommand("/batches/requeue-failed/(?<Id>.+)", static context => BatchCommands.RequeueFailed(context, context.UriMatch.Groups["Id"].Value));
-            Routes.AddCommand("/batches/delete/(?<Id>.+)", static context => BatchCommands.DeletePending(context, context.UriMatch.Groups["Id"].Value));
+            // Each answers { processed, remaining, complete } like "Delete all", or 422 for an unknown batch
+            Routes.Add("/batches/requeue-failed/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.RequeueFailed(context, context.UriMatch.Groups["Id"].Value)));
+            Routes.Add("/batches/delete/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.DeletePending(context, context.UriMatch.Groups["Id"].Value)));
             Routes.AddRazorPage("/batches/(?<Id>.+)", static x => new BatchDetailsPage(x.Groups["Id"].Value));
 
             Routes.AddRazorPage("/audit", static _ => new AuditPage());
@@ -267,12 +302,13 @@ namespace Masterly.NightShift.Dashboard
             {
                 using (var connection = context.Storage.GetConnection())
                 {
-                    JobTags.Delete(connection, Uri.UnescapeDataString(context.UriMatch.Groups["Tag"].Value));
+                    JobTags.Delete(connection, RouteValues.Get(context, "Tag"));
                 }
 
                 return true;
             });
-            Routes.AddRazorPage("/tags/(?<Tag>.+)", static x => new TaggedJobsPage(Uri.UnescapeDataString(x.Groups["Tag"].Value)));
+            Routes.AddCommand("/tags/forget-expired/(?<Tag>.+)", TaggedJobsPage.ForgetExpired);
+            Routes.AddRazorPage("/tags/(?<Tag>.+)", static x => new TaggedJobsPage(RouteValues.Decode(x.Groups["Tag"].Value)));
 
             Routes.AddRazorPage("/catalog", static _ => new JobCatalogPage());
             Routes.Add("/catalog/run", new JobCatalogRunDispatcher());
@@ -291,7 +327,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     using (var connection = context.Storage.GetConnection())
                     {
-                        CircuitBreakerAttribute.Reset(connection, Uri.UnescapeDataString(context.UriMatch.Groups["Resource"].Value));
+                        CircuitBreakerAttribute.Reset(connection, RouteValues.Get(context, "Resource"));
                     }
 
                     return true;
@@ -412,6 +448,11 @@ namespace Masterly.NightShift.Dashboard
         internal static string GetContentResourceName(string contentFolder, string resourceName)
         {
             return $"{GetContentFolderNamespace(contentFolder)}.{resourceName}";
+        }
+
+        private static KeyValuePair<string, bool> ListItem(string jobId, bool? inListState)
+        {
+            return new KeyValuePair<string, bool>(jobId, inListState == true);
         }
 
         private static DeletedState CreateDeletedState()

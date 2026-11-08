@@ -1,19 +1,4 @@
-﻿// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
-#nullable enable
+﻿#nullable enable
 
 using System;
 using System.Collections.Generic;
@@ -28,7 +13,7 @@ namespace Masterly.NightShift.Dashboard
     /// Projects every recurring job's upcoming runs over a window, with the expected duration of each run taken
     /// from <see cref="JobInsightsAttribute"/>, and finds the slots where several jobs start together.
     /// </summary>
-    public sealed class ScheduleForecast
+    internal sealed class ScheduleForecast
     {
         /// <summary>The default expected duration when a method has no recorded runs.</summary>
         public static readonly TimeSpan DefaultDuration = TimeSpan.FromSeconds(30);
@@ -36,7 +21,10 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>The slot width used to find hot spots.</summary>
         public static readonly TimeSpan SlotSize = TimeSpan.FromMinutes(5);
 
-        /// <summary>How many occurrences of one job are projected at most.</summary>
+        /// <summary>
+        /// How many occurrences of one job are projected at most. A job that runs more often in the window is marked
+        /// <see cref="Row.Truncated"/>, and its runs are known to go on until <see cref="Row.RunsUntil"/>.
+        /// </summary>
         public const int MaxOccurrencesPerJob = 2000;
 
         private ScheduleForecast(DateTime from, DateTime to, IReadOnlyList<Row> rows, IReadOnlyList<HotSpot> hotSpots)
@@ -59,8 +47,11 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>Slots where at least two jobs start, busiest first. Jobs that run more often than once per slot are left out.</summary>
         public IReadOnlyList<HotSpot> HotSpots { get; }
 
-        /// <summary>All projected runs in the window.</summary>
+        /// <summary>All projected runs in the window; more run when <see cref="Truncated"/>.</summary>
         public int TotalRuns => Rows.Sum(static r => r.Occurrences.Count);
+
+        /// <summary>Whether a job runs more than <see cref="MaxOccurrencesPerJob"/> times in the window.</summary>
+        public bool Truncated => Rows.Any(static r => r.Truncated);
 
         /// <summary>The sum of the expected durations of all runs.</summary>
         public TimeSpan TotalBusyTime => TimeSpan.FromTicks(Rows.Sum(static r => r.Occurrences.Count * r.ExpectedDuration.Ticks));
@@ -91,7 +82,7 @@ namespace Masterly.NightShift.Dashboard
 
             var recurringJobs = connection.GetRecurringJobs();
             var storageConnection = connection as JobStorageConnection;
-            var resolver = timeZoneResolver ?? new DefaultTimeZoneResolver();
+            var resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
 
             return Build(recurringJobs, fromUtc, window, key =>
             {
@@ -112,7 +103,7 @@ namespace Masterly.NightShift.Dashboard
             if (expectedDuration == null) throw new ArgumentNullException(nameof(expectedDuration));
             if (window <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(window));
 
-            var resolver = timeZoneResolver ?? new DefaultTimeZoneResolver();
+            var resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
             var from = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
             var to = from.Add(window);
             var rows = new List<Row>();
@@ -124,6 +115,8 @@ namespace Masterly.NightShift.Dashboard
                 var insightsKey = dto.Job != null ? JobInsightsAttribute.GetKey(dto.Job) : null;
                 var duration = insightsKey != null ? expectedDuration(insightsKey) : null;
                 var occurrences = new List<DateTime>();
+                var truncated = false;
+                DateTime? runsUntil = null;
                 string? error = dto.Error;
 
                 if (!dto.Paused && !String.IsNullOrEmpty(dto.Cron))
@@ -133,12 +126,30 @@ namespace Masterly.NightShift.Dashboard
                         var expression = RecurringJobEntity.ParseCronExpression(dto.Cron);
                         var timeZone = String.IsNullOrEmpty(dto.TimeZoneId) ? TimeZoneInfo.Utc : resolver.GetTimeZoneById(dto.TimeZoneId);
 
-                        DateTime? next = from;
+                        // Like the scheduler: nothing before the job's start (an occurrence at the start runs),
+                        // and nothing after its end (an occurrence at the end runs)
+                        var startAt = ToUtc(dto.StartAt);
+                        var endAt = ToUtc(dto.EndAt);
+
+                        var next = startAt.HasValue && startAt.Value > from
+                            ? expression.GetNextOccurrence(startAt.Value, timeZone, inclusive: true)
+                            : expression.GetNextOccurrence(from, timeZone, inclusive: false);
+
                         while (occurrences.Count < MaxOccurrencesPerJob &&
-                               (next = expression.GetNextOccurrence(next.Value, timeZone, inclusive: false)) != null &&
-                               next.Value < to)
+                               next.HasValue &&
+                               next.Value < to &&
+                               !(endAt.HasValue && next.Value > endAt.Value))
                         {
                             occurrences.Add(next.Value);
+                            next = expression.GetNextOccurrence(next.Value, timeZone, inclusive: false);
+                        }
+
+                        // Stopped by the cap with runs still to come: the job keeps running until its end or the
+                        // window's, which the page shows instead of a band that stops after the first runs
+                        if (occurrences.Count == MaxOccurrencesPerJob && next.HasValue && next.Value < to && !(endAt.HasValue && next.Value > endAt.Value))
+                        {
+                            truncated = true;
+                            runsUntil = endAt.HasValue && endAt.Value < to ? endAt.Value : to;
                         }
                     }
                     catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -147,7 +158,7 @@ namespace Masterly.NightShift.Dashboard
                     }
                 }
 
-                rows.Add(new Row(dto, occurrences, duration ?? DefaultDuration, duration.HasValue, error));
+                rows.Add(new Row(dto, occurrences, duration ?? DefaultDuration, duration.HasValue, error) { Truncated = truncated, RunsUntil = runsUntil });
             }
 
             rows.Sort(static (x, y) =>
@@ -159,6 +170,15 @@ namespace Masterly.NightShift.Dashboard
             return new ScheduleForecast(from, to, rows, FindHotSpots(rows, window));
         }
 
+        internal static DateTime? ToUtc(DateTime? value)
+        {
+            if (!value.HasValue) return null;
+
+            return value.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                : value.Value.ToUniversalTime();
+        }
+
         private static IReadOnlyList<HotSpot> FindHotSpots(IReadOnlyList<Row> rows, TimeSpan window)
         {
             var slots = new Dictionary<DateTime, HashSet<string>>();
@@ -168,7 +188,8 @@ namespace Masterly.NightShift.Dashboard
 
             foreach (var row in rows)
             {
-                if (row.Occurrences.Count > maxOccurrences) continue;
+                // A truncated job runs more often than the cap, which is about one per slot over a week
+                if (row.Truncated || row.Occurrences.Count > maxOccurrences) continue;
 
                 foreach (var occurrence in row.Occurrences)
                 {
@@ -221,6 +242,15 @@ namespace Masterly.NightShift.Dashboard
 
             /// <summary>The job's stored error or the cron parsing error, if any.</summary>
             public string? Error { get; }
+
+            /// <summary>
+            /// Whether the job runs more than <see cref="MaxOccurrencesPerJob"/> times in the window, so only the first
+            /// ones are in <see cref="Occurrences"/>.
+            /// </summary>
+            public bool Truncated { get; internal set; }
+
+            /// <summary>For a <see cref="Truncated"/> row, when its runs stop: the window's end or the job's end date.</summary>
+            public DateTime? RunsUntil { get; internal set; }
         }
 
         /// <summary>A slot where several jobs start.</summary>

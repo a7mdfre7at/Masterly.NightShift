@@ -18,6 +18,10 @@ using Masterly.NightShift.Processing;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Options of a <see cref="BackgroundProcessingServer"/>: its name, its heartbeat and watchdog intervals, its stop
+    /// and shutdown timeouts, and the delay between retries of a failed process.
+    /// </summary>
     public sealed class BackgroundProcessingServerOptions
     {
         internal static TimeSpan DefaultStopTimeout = TimeSpan.FromMilliseconds(500);

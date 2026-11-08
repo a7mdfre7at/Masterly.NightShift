@@ -13,8 +13,10 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -24,6 +26,13 @@ namespace Masterly.NightShift.Dashboard
     {
         public async Task Dispatch(DashboardContext context)
         {
+            // The pages post the names of the metrics they show; a GET has no form to read them from
+            if (!"POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                return;
+            }
+
             var requestedMetrics = await context.Request.GetFormValuesAsync("metrics[]").ConfigureAwait(false);
             var page = new StubPage();
             page.Assign(context);

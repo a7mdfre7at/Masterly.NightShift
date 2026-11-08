@@ -150,17 +150,39 @@ namespace Masterly.NightShift.Core.Tests.Server
         }
 
         [Fact, StaticLock]
-        public void Execute_ThrowsOperationCanceled_WithoutPinging_WhenShutdownIsRequested()
+        public void Execute_ThrowsOperationCanceled_WithoutPinging_WhenStopIsRequested()
         {
             var handler = new StubHandler(HttpStatusCode.OK);
-            var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(handler));
+            var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromSeconds(1) }, new HttpClient(handler));
             var context = new BackgroundProcessContextMock();
-            context.ShutdownTokenSource.Cancel();
+            context.StoppingTokenSource.Cancel();
 
             Assert.ThrowsAny<OperationCanceledException>(() => process.Execute(context.Object));
 
             Assert.Null(handler.LastRequest);
             Assert.Null(KeepAliveProcess.Status.LastAttemptAt);
+        }
+
+        [Fact, StaticLock]
+        public async Task Execute_StopsWaiting_AsSoonAsStopIsRequested_WithoutWaitingForTheShutdownTimeout()
+        {
+            var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromMinutes(5) }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+            var context = new BackgroundProcessContextMock();
+            var execution = Task.Run(() => process.Execute(context.Object), TestContext.Current.CancellationToken);
+
+            try
+            {
+                context.StoppingTokenSource.Cancel();
+                var finished = await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+                Assert.Same(execution, finished);
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+            }
+            finally
+            {
+                // Ends the wait in any case, so a failure doesn't leave the process waiting for five minutes
+                context.ShutdownTokenSource.Cancel();
+            }
         }
 
         [Fact, StaticLock]

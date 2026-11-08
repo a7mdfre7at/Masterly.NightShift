@@ -18,6 +18,7 @@
     int.TryParse(Query("count"), out perPage);
 
     Pager pager = null;
+    RecurringJobDto editJob = null;
 
 	using (var connection = Storage.GetReadOnlyConnection())
 	{
@@ -31,6 +32,9 @@
 	    {
             recurringJobs = connection.GetRecurringJobs();
 	    }
+
+	    // /recurring?edit={id} (search, the forecast, the catalog) opens the editor for a job of any page
+	    editJob = FindJobToEdit(connection, recurringJobs);
 	}
 
     var now = StorageUtcNow ?? ApplicationUtcNow;
@@ -56,7 +60,8 @@
             {
                 <div class="alert alert-danger">
                     <span class="glyphicon glyphicon-time"></span>
-                    @String.Format(Strings.RecurringJobsPage_LateSummary, lateCount)
+                    @* Only the jobs of this page were checked; say so when there are other pages *@
+                    @String.Format(pager != null && pager.TotalPageCount > 1 ? Strings.RecurringJobsPage_LateSummary_Page : Strings.RecurringJobsPage_LateSummary, lateCount)
                 </div>
             }
 
@@ -256,6 +261,11 @@
                                         {
                                             <span class="label label-warning text-uppercase" title="@Strings.RecurringJobsPage_Paused_Tooltip">@Strings.RecurringJobsPage_Paused</span>
                                         }
+                                        else if (!job.NextExecution.HasValue && job.Error == null && job.EndAt.HasValue && job.EndAt.Value < now)
+                                        {
+                                            <span class="label label-default text-uppercase" title="@Strings.RecurringJobsPage_Ended_Tooltip">@Strings.RecurringJobsPage_Ended</span>
+                                            <div class="text-muted small">@Html.LocalTime(job.EndAt.Value)</div>
+                                        }
                                         else if (!job.NextExecution.HasValue)
                                         {
                                             if (job.Error != null)
@@ -267,6 +277,10 @@
                                                 <span class="label label-default text-uppercase" title="@Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip">@Strings.Common_Disabled</span>
                                             }
 
+                                        }
+                                        else if (job.StartAt.HasValue && job.StartAt.Value > now)
+                                        {
+                                            <span class="text-muted">@Html.Raw(String.Format(Html.HtmlEncode(Strings.RecurringJobsPage_StartsAt), Html.LocalTime(job.StartAt.Value)))</span>
                                         }
                                         else if (DashboardHealth.IsLate(job, now))
                                         {
@@ -280,6 +294,10 @@
                                         else
                                         {
                                             @Html.RelativeTime(job.NextExecution.Value)
+                                        }
+                                        @if (!job.Paused && job.NextExecution.HasValue && job.EndAt.HasValue)
+                                        {
+                                            <div class="text-muted small">@Html.Raw(String.Format(Html.HtmlEncode(Strings.RecurringJobsPage_EndsAt), Html.LocalTime(job.EndAt.Value)))</div>
                                         }
                                     </td>
                                     <td class="align-right min-width">
@@ -299,7 +317,7 @@
                                                     }
                                                     else
                                                     {
-                                                        <span class="label label-default label-hover" style="@($"background-color: {JobHistoryRenderer.GetForegroundStateColor(job.LastJobState ?? EnqueuedState.StateName)};")">
+                                                        <span class="label label-default label-hover" style="@JobHistoryRenderer.GetStateLabelStyle(job.LastJobState ?? EnqueuedState.StateName)">
                                                             @Html.RelativeTime(job.LastExecution.Value)
                                                         </span>
                                                     }
@@ -330,16 +348,7 @@
                                     @if (!IsReadOnly)
                                     {
                                         <td class="min-width">
-                                            <button type="button" class="btn btn-xs btn-default js-recurring-edit"
-                                                    title="@Strings.RecurringJobsPage_EditSchedule"
-                                                    data-id="@job.Id"
-                                                    data-cron="@job.Cron"
-                                                    data-timezone="@(job.TimeZoneId ?? TimeZoneInfo.Utc.Id)"
-                                                    data-queue="@job.Queue"
-                                                    data-misfire="@job.MisfireHandling.ToString()">
-                                                <span class="glyphicon glyphicon-pencil"></span>
-                                                <span class="hidden-xs">@Strings.RecurringJobsPage_Edit</span>
-                                            </button>
+                                            @EditButton(job, false)
                                         </td>
                                     }
                                     @if (job.Error != null)
@@ -367,6 +376,10 @@
 
 @if (!IsReadOnly)
 {
+    if (editJob != null)
+    {
+        @EditButton(editJob, true)
+    }
     <div class="modal fade" id="recurringJobEditor" tabindex="-1" role="dialog" aria-labelledby="recurringJobEditorTitle"
          data-preview-url="@Url.To("/recurring/preview")"
          data-update-url="@Url.To("/recurring/update/")"

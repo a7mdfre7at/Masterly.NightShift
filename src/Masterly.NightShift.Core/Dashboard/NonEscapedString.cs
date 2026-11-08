@@ -15,6 +15,9 @@
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// A string the dashboard pages write as raw HTML, without encoding it.
+    /// </summary>
     public class NonEscapedString
     {
         private readonly string _value;

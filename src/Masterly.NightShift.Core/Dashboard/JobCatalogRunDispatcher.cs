@@ -1,19 +1,4 @@
-﻿// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -21,6 +6,7 @@ using System.Net;
 using System.Threading.Tasks;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.States;
+using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Dashboard
 {
@@ -28,8 +14,10 @@ namespace Masterly.NightShift.Dashboard
     /// <c>POST /catalog/run</c>: creates a job from a <see cref="JobCatalog"/> entry and the form. Fields:
     /// <c>id</c> (the entry), <c>mode</c> (<c>enqueue</c>, <c>schedule</c> or <c>recurring</c>), <c>queue</c>,
     /// <c>delay</c> (minutes, for <c>schedule</c>), <c>recurringId</c> and <c>cron</c> (for <c>recurring</c>),
-    /// and one <c>arg:{parameter}</c> field per parameter. Instead of <c>id</c>, <c>source</c> names an existing
-    /// job whose method is run again with the given arguments. Answers <c>200 {jobId}</c> or
+    /// and one <c>arg:{parameter}</c> field per parameter (several for a checkbox, which also sends a hidden
+    /// <c>false</c>, and for a <see cref="FlagsAttribute"/> enum, whose choices are combined). Instead of <c>id</c>, <c>source</c> names an existing
+    /// job whose method is run again with the given arguments, in that job's own queue (<see cref="Job.Queue"/>)
+    /// when <c>queue</c> is empty. Answers <c>200 {jobId}</c> or
     /// <c>{recurringId}</c>, <c>404</c> for an unknown entry or job, <c>422 {error}</c> for bad input.
     /// </summary>
     internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
@@ -56,24 +44,38 @@ namespace Masterly.NightShift.Dashboard
 
             if (String.IsNullOrEmpty(id) && String.IsNullOrEmpty(source))
             {
+                AuditLog.Record(context, null, null, 422);
                 await DashboardJson.WriteAsync(context, 422, new { error = "The catalog entry id or the source job id is required." }).ConfigureAwait(false);
                 return;
             }
 
             JobCatalogEntry entry;
+            Job sourceJob = null;
 
             if (!String.IsNullOrEmpty(source))
             {
                 // "Run again with changes": the method comes from an existing job, catalogued or not
-                Job sourceJob;
+                JobData sourceData;
                 using (var connection = context.Storage.GetReadOnlyConnection())
                 {
-                    sourceJob = connection.GetJobData(source)?.Job;
+                    sourceData = connection.GetJobData(source);
                 }
 
+                if (sourceData == null)
+                {
+                    AuditLog.Record(context, new[] { source }, null, (int)HttpStatusCode.NotFound);
+                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                    return;
+                }
+
+                sourceJob = sourceData.Job;
                 if (sourceJob == null)
                 {
-                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                    // The job exists, but its type or method isn't loaded in this process (a dashboard hosted
+                    // without the job's assemblies, or code that changed since)
+                    var reason = sourceData.LoadException?.InnerException?.Message ?? sourceData.LoadException?.Message ?? "its method can't be loaded here";
+                    AuditLog.Record(context, new[] { source }, null, 422);
+                    await DashboardJson.WriteAsync(context, 422, new { error = $"Job {source} can't be run again from this dashboard: {reason}" }).ConfigureAwait(false);
                     return;
                 }
 
@@ -84,6 +86,7 @@ namespace Masterly.NightShift.Dashboard
                 entry = JobCatalog.Find(id);
                 if (entry == null)
                 {
+                    AuditLog.Record(context, new[] { id }, null, (int)HttpStatusCode.NotFound);
                     context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                     return;
                 }
@@ -92,10 +95,18 @@ namespace Masterly.NightShift.Dashboard
             var mode = (await GetFormValueAsync(context, "mode").ConfigureAwait(false) ?? "enqueue").ToLowerInvariant();
             var queue = await GetFormValueAsync(context, "queue").ConfigureAwait(false);
 
+            if (String.IsNullOrWhiteSpace(queue) && sourceJob?.Queue != null)
+            {
+                // Run again in the job's own queue (Enqueue("emails", ...)), not in "default"
+                queue = sourceJob.Queue;
+            }
+
             var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var parameter in entry.UserParameters)
             {
-                arguments[parameter.Name] = await GetFormValueAsync(context, ArgumentPrefix + parameter.Name).ConfigureAwait(false);
+                // A checkbox comes with a hidden "false", a multiple choice with one value per choice
+                var values = await context.Request.GetFormValuesAsync(ArgumentPrefix + parameter.Name).ConfigureAwait(false);
+                arguments[parameter.Name] = JobCatalog.CombineFormValues(parameter, values?.ToArray());
             }
 
             try
@@ -120,7 +131,7 @@ namespace Masterly.NightShift.Dashboard
 
                         if (Double.TryParse(delayText, NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes))
                         {
-                            if (minutes < 0 || minutes > MaxDelayMinutes)
+                            if (Double.IsNaN(minutes) || minutes < 0 || minutes > MaxDelayMinutes)
                             {
                                 throw new ArgumentException("The delay must be a number of minutes between 0 and one year.");
                             }
@@ -164,8 +175,10 @@ namespace Masterly.NightShift.Dashboard
                         throw new ArgumentException($"Unknown mode '{mode}'.");
                 }
             }
-            catch (Exception ex) when (ex is ArgumentException || ex is FormatException || ex is NotSupportedException || ex is InvalidOperationException)
+            catch (Exception ex) when (ex is ArgumentException || ex is FormatException || ex is NotSupportedException || ex is InvalidOperationException || ex is OverflowException)
             {
+                // The message stays out of the audit log: it can quote what was typed, [Redacted] arguments included
+                AuditLog.Record(context, String.IsNullOrEmpty(source) ? null : new[] { source }, $"{entry.Type.Name}.{entry.Method.Name} not run ({mode})", 422);
                 await DashboardJson.WriteAsync(context, 422, new { error = ex.Message }).ConfigureAwait(false);
             }
         }

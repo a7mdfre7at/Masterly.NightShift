@@ -19,11 +19,12 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         private readonly PageRenderer _renderer = new PageRenderer();
 
         [Fact]
-        public void Ctor_UnescapesTheId_FromTheRoute()
+        public void Ctor_DecodesOnlyAnEncodedSlash_InTheId()
         {
-            var page = new BatchDetailsPage("nightly%20import");
+            // ASP.NET Core has already decoded everything else in the path
+            var page = new BatchDetailsPage("nightly%2Fimport %41");
 
-            Assert.Equal("nightly import", page.Id);
+            Assert.Equal("nightly/import %41", page.Id);
         }
 
         [Fact]
@@ -136,23 +137,33 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
-        public void Render_SaysHowManyJobsAreNotShown_WhenTheBatchIsLarge()
+        public void Render_PagesTheJobsOfALargeBatch_ReadingOnlyThePageShown()
         {
+            // The page read every job id of the batch, then the data of 500 jobs, on every view
+            SetupBatch(new Dictionary<string, string>(), total: 750, counts: new Dictionary<string, long>());
+            SetupJobs(Enumerable.Range(1, 750).Select(i => i.ToString()).ToArray());
+            _renderer.Request.Query["from"] = "20";
+            _renderer.Request.Query["count"] = "10";
+
+            var html = _renderer.Render(new BatchDetailsPage(BatchId));
+
+            _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 20, 29), Times.Once);
+            _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 0, Int32.MaxValue - 1), Times.Never);
+            _renderer.Connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(10));
+            Assert.Contains("btn-group paginator", html);
+            Assert.DoesNotContain(H(String.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
+        }
+
+        [Fact]
+        public void Render_SaysHowManyJobsAreNotShown_WhenTheStorageCanNotReadRanges()
+        {
+            _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
             SetupBatch(new Dictionary<string, string>(), total: 750, counts: new Dictionary<string, long>());
 
             var html = _renderer.Render(new BatchDetailsPage(BatchId));
 
             Assert.Contains(H(String.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
-        }
-
-        [Fact]
-        public void Render_DoesNotSayJobsAreHidden_WhenEveryJobIsShown()
-        {
-            SetupBatch(new Dictionary<string, string>(), total: 500, counts: new Dictionary<string, long>());
-
-            var html = _renderer.Render(new BatchDetailsPage(BatchId));
-
-            Assert.DoesNotContain(H(String.Format(Strings.BatchDetailsPage_MoreJobs, 0)), html);
+            Assert.DoesNotContain("btn-group paginator", html);
         }
 
         private void SetupBatch(Dictionary<string, string> hash, long total, Dictionary<string, long> counts)
@@ -168,7 +179,9 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
         private void SetupJobs(params string[] jobIds)
         {
-            _renderer.Connection.Setup(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 0, Int32.MaxValue - 1)).Returns(jobIds.ToList());
+            _renderer.Connection.Setup(x => x.GetSetCount(BatchJob.GetJobsKey(BatchId))).Returns(jobIds.Length);
+            _renderer.Connection.Setup(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), It.IsAny<int>(), It.IsAny<int>()))
+                .Returns<string, int, int>((_, from, to) => jobIds.Skip(from).Take(to - from + 1).ToList());
         }
 
         private void SetupJob(string jobId, string state)

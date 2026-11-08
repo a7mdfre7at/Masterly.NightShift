@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -78,6 +63,12 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>How late a scheduled job may be before the delayed job scheduler is suspected.</summary>
         public static readonly TimeSpan OverdueThreshold = TimeSpan.FromMinutes(1);
 
+        /// <summary>How many parents of a continuation are read. A batch continuation waits for the whole batch.</summary>
+        internal const int MaxParentsRead = 50;
+
+        /// <summary>How many lines about single parents are shown, missing and failed ones first.</summary>
+        internal const int MaxParentLines = 10;
+
         private static readonly Regex RetryReason = new Regex(@"^Retry attempt (\d+) of (\d+)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         public static IReadOnlyList<JobDiagnostic> Diagnose(RazorPage page, string jobId, JobDetailsDto details)
@@ -97,13 +88,13 @@ namespace Masterly.NightShift.Dashboard
                 switch (current.StateName)
                 {
                     case var name when name == EnqueuedState.StateName:
-                        DiagnoseEnqueued(page, monitor, current, now, findings);
+                        DiagnoseEnqueued(page, monitor, details, current, now, findings);
                         break;
                     case var name when name == ScheduledState.StateName:
                         DiagnoseScheduled(page, monitor, details, current, now, findings);
                         break;
                     case var name when name == AwaitingState.StateName:
-                        DiagnoseAwaiting(page, current, findings);
+                        DiagnoseAwaiting(page, details, current, findings);
                         break;
                     case var name when name == ProcessingState.StateName:
                         DiagnoseProcessing(page, monitor, details, current, now, findings);
@@ -128,9 +119,9 @@ namespace Masterly.NightShift.Dashboard
             return findings;
         }
 
-        private static void DiagnoseEnqueued(RazorPage page, IMonitoringApi monitor, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
+        private static void DiagnoseEnqueued(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
         {
-            var queue = current.Data != null && current.Data.TryGetValue("Queue", out var value) && !String.IsNullOrEmpty(value) ? value : EnqueuedState.DefaultQueue;
+            var queue = GetTargetQueue(details, current);
             var servers = monitor.Servers();
             var waiting = now - current.CreatedAt;
 
@@ -144,7 +135,7 @@ namespace Masterly.NightShift.Dashboard
                 return;
             }
 
-            var length = monitor.Queues().FirstOrDefault(x => String.Equals(x.Name, queue, StringComparison.OrdinalIgnoreCase))?.Length;
+            var length = DashboardHealth.GetQueueCounts(page.Storage, monitor)?.FirstOrDefault(x => String.Equals(x.Name, queue, StringComparison.OrdinalIgnoreCase))?.Length;
 
             if (waiting > WaitingThreshold)
             {
@@ -194,7 +185,7 @@ namespace Masterly.NightShift.Dashboard
             CheckDrain(page, findings, queue);
         }
 
-        private static void DiagnoseAwaiting(RazorPage page, StateHistoryDto current, List<JobDiagnostic> findings)
+        private static void DiagnoseAwaiting(RazorPage page, JobDetailsDto details, StateHistoryDto current, List<JobDiagnostic> findings)
         {
             if (current.Data == null) return;
 
@@ -204,18 +195,23 @@ namespace Masterly.NightShift.Dashboard
 
             if (parentIds.Count == 0) return;
 
+            // A batch continuation waits for every job of the batch, thousands maybe: read only the first parents
+            var checkedCount = Math.Min(parentIds.Count, MaxParentsRead);
             var finished = 0;
+            var problems = new List<JobDiagnostic>();
+            var others = new List<JobDiagnostic>();
 
             using (var connection = page.Storage.GetReadOnlyConnection())
             {
-                foreach (var id in parentIds)
+                for (var i = 0; i < checkedCount; i++)
                 {
+                    var id = parentIds[i];
                     var parent = connection.GetJobData(id);
                     var state = parent?.State;
 
                     if (parent == null)
                     {
-                        findings.Add(new JobDiagnostic("parent-missing", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ParentMissing, Encode(page, page.Html.JobId(id, false).ToString()))));
+                        problems.Add(new JobDiagnostic("parent-missing", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ParentMissing, Encode(page, page.Html.JobId(id, false).ToString()))));
                         continue;
                     }
 
@@ -228,34 +224,92 @@ namespace Masterly.NightShift.Dashboard
 
                         if (fanIn == null && !ConditionMet(options, state))
                         {
-                            findings.Add(new JobDiagnostic("condition-failed", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ConditionFailed, link, label)));
+                            problems.Add(new JobDiagnostic("condition-failed", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ConditionFailed, link, label)));
                         }
                         else if (fanIn == null)
                         {
-                            findings.Add(new JobDiagnostic("parent-finished", JobDiagnosticSeverity.Warning, Format(page, Strings.Diagnostics_ParentFinished, link, label)));
+                            others.Add(new JobDiagnostic("parent-finished", JobDiagnosticSeverity.Warning, Format(page, Strings.Diagnostics_ParentFinished, link, label)));
                         }
                     }
                     else if (state == FailedState.StateName)
                     {
-                        findings.Add(new JobDiagnostic("parent-failed", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ParentFailed, link)));
+                        problems.Add(new JobDiagnostic("parent-failed", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ParentFailed, link)));
                     }
                     else if (state == ScheduledState.StateName && parent.State != null)
                     {
                         var parentState = connection.GetStateData(id);
                         var retrying = parentState?.Reason != null && parentState.Reason.StartsWith("Retry attempt", StringComparison.OrdinalIgnoreCase);
-                        findings.Add(new JobDiagnostic(retrying ? "parent-retrying" : "parent-waiting", JobDiagnosticSeverity.Info, Format(page, retrying ? Strings.Diagnostics_ParentRetrying : Strings.Diagnostics_ParentWaiting, link, label)));
+                        others.Add(new JobDiagnostic(retrying ? "parent-retrying" : "parent-waiting", JobDiagnosticSeverity.Info, Format(page, retrying ? Strings.Diagnostics_ParentRetrying : Strings.Diagnostics_ParentWaiting, link, label)));
                     }
                     else
                     {
-                        findings.Add(new JobDiagnostic("parent-waiting", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_ParentWaiting, link, label)));
+                        others.Add(new JobDiagnostic("parent-waiting", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_ParentWaiting, link, label)));
                     }
                 }
             }
 
+            // Missing and failed parents first: they are what keeps the job here
+            var lines = problems.Concat(others).ToList();
+            findings.AddRange(lines.Take(MaxParentLines));
+
+            var batchId = GetBatchContinuationOf(details);
+
             if (fanIn != null)
             {
-                findings.Insert(0, new JobDiagnostic("fan-in", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_FanIn,
-                    finished.ToString(CultureInfo.CurrentCulture), parentIds.Count.ToString(CultureInfo.CurrentCulture), fanIn.Mode == FanInMode.All ? Strings.Diagnostics_FanIn_All : Strings.Diagnostics_FanIn_Any)));
+                findings.Insert(0, SummarizeFanIn(page, fanIn, batchId, checkedCount, finished));
+            }
+
+            var notListed = Math.Max(0, lines.Count - MaxParentLines) + (parentIds.Count - checkedCount);
+            if (notListed > 0)
+            {
+                findings.Add(new JobDiagnostic("parents-not-listed", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_ParentsNotListed, notListed.ToString(CultureInfo.CurrentCulture)),
+                    batchId != null ? page.Url.To("/batches/" + Uri.EscapeDataString(batchId)) : null, batchId != null ? Strings.JobDetailsPage_Batch : null));
+            }
+        }
+
+        private static JobDiagnostic SummarizeFanIn(RazorPage page, AwaitingJobsState fanIn, string? batchId, int checkedCount, int finished)
+        {
+            var total = fanIn.ParentIds.Count;
+            var mode = fanIn.Mode == FanInMode.All ? Strings.Diagnostics_FanIn_All : Strings.Diagnostics_FanIn_Any;
+
+            if (checkedCount < total && batchId != null && page.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                // The batch keeps counters, so every parent is counted without reading it
+                JobBatch? batch;
+                using (var connection = page.Storage.GetReadOnlyConnection())
+                {
+                    batch = BatchJob.Get(connection, batchId);
+                }
+
+                if (batch != null)
+                {
+                    checkedCount = total;
+                    finished = (int)Math.Min(total, batch.Succeeded + batch.Deleted);
+                }
+            }
+
+            if (checkedCount < total)
+            {
+                return new JobDiagnostic("fan-in", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_FanIn_Sampled,
+                    finished.ToString(CultureInfo.CurrentCulture), checkedCount.ToString(CultureInfo.CurrentCulture), total.ToString(CultureInfo.CurrentCulture), mode));
+            }
+
+            return new JobDiagnostic("fan-in", JobDiagnosticSeverity.Info, Format(page, Strings.Diagnostics_FanIn,
+                finished.ToString(CultureInfo.CurrentCulture), total.ToString(CultureInfo.CurrentCulture), mode));
+        }
+
+        private static string? GetBatchContinuationOf(JobDetailsDto details)
+        {
+            if (details.Properties == null || !details.Properties.TryGetValue(BatchJob.ContinuationParameterName, out var value) || String.IsNullOrEmpty(value)) return null;
+
+            try
+            {
+                return SerializationHelper.Deserialize<string>(value, SerializationOption.User);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Not readable with these settings: the summary counts the parents it read instead
+                return null;
             }
         }
 
@@ -336,7 +390,7 @@ namespace Masterly.NightShift.Dashboard
                     string resource;
                     try
                     {
-                        resource = Server.ConcurrencyControl.FormatResource(attribute.Resource, job);
+                        resource = Server.ConcurrencyControl.FormatResourceKey(attribute.Resource, job, CircuitBreakerAttribute.MaxResourceLength);
                     }
                     catch (FormatException)
                     {
@@ -405,7 +459,12 @@ namespace Masterly.NightShift.Dashboard
 
         private static string GetTargetQueue(JobDetailsDto details, StateHistoryDto current)
         {
-            if (current.Data != null && current.Data.TryGetValue("Queue", out var queue) && !String.IsNullOrEmpty(queue)) return queue;
+            // The way EnqueuedState's handler picks it: a job's own queue wins over the state's "default"
+            if (current.Data != null && current.Data.TryGetValue("Queue", out var queue) && !String.IsNullOrEmpty(queue))
+            {
+                return details.Job?.Queue != null && EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase) ? details.Job.Queue : queue;
+            }
+
             if (details.Job?.Queue != null) return details.Job.Queue;
 
             var attribute = details.Job?.Method.GetCustomAttribute<QueueAttribute>(inherit: true) ?? details.Job?.Type.GetTypeInfo().GetCustomAttribute<QueueAttribute>(inherit: true);

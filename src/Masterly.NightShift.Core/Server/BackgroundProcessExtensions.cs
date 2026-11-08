@@ -23,6 +23,10 @@ using Masterly.NightShift.Processing;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Turns background processes into dispatcher builders for <see cref="BackgroundProcessingServer"/>, running them
+    /// on dedicated threads.
+    /// </summary>
     public static class BackgroundProcessExtensions
     {
         public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(

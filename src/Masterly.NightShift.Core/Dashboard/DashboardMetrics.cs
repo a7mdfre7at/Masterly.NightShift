@@ -23,6 +23,9 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The built-in dashboard metrics, and the registry of every metric the home page can show.
+    /// </summary>
     public static class DashboardMetrics
     {
         private static readonly Dictionary<string, DashboardMetric> Metrics = new Dictionary<string, DashboardMetric>();
@@ -93,7 +96,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     using (var connection = page.Storage.GetReadOnlyConnection())
                     {
-                        if (!(connection is JobStorageConnection storageConnection))
+                        if (!(connection is JobStorageConnection storageConnection) || !page.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
                         {
                             return null;
                         }
@@ -191,7 +194,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     using (var connection = page.Storage.GetReadOnlyConnection())
                     {
-                        if (connection is JobStorageConnection storageConnection)
+                        if (connection is JobStorageConnection storageConnection && page.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
                         {
                             awaitingCount = storageConnection.GetSetCount("awaiting");
                         }

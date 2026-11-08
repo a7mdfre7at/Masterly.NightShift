@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Masterly.NightShift.Common;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
+using Masterly.NightShift.Storage;
 using Moq;
 using System.Text.Json.Nodes;
 using Xunit;
@@ -36,6 +40,24 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
+        public async Task Dispatch_DecodesAnEncodedSlashInTheRecurringJobId()
+        {
+            // The page sends encodeURIComponent("reports/daily"); ASP.NET Core leaves "%2F" encoded
+            _request.Form["cron"] = new List<string> { "0 4 * * *" };
+            _manager.Setup(x => x.UpdateSchedule("reports/daily", "0 4 * * *", null, null, null)).Returns(true);
+            var context = new DashboardContextStub(new DashboardOptions(), _request)
+            {
+                RecurringJobManager = _manager.Object,
+                UriMatch = Regex.Match("/recurring/update/reports%2Fdaily", "/recurring/update/(?<JobId>.+)")
+            };
+
+            await new RecurringJobUpdateDispatcher().Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            _manager.Verify(x => x.UpdateSchedule("reports/daily", "0 4 * * *", null, null, null), Times.Once);
+        }
+
+        [Fact]
         public async Task Dispatch_Sets405_ForNonPostRequests()
         {
             var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET"));
@@ -62,11 +84,25 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
-        public async Task Dispatch_PassesNull_ForEmptyFields_SoTheyKeepTheirValue()
+        public async Task Dispatch_PassesNull_ForEmptyOrMissingFields_SoTheyKeepTheirValue()
         {
             _request.Form["cron"] = new List<string> { "0 9 * * *" };
-            _request.Form["queue"] = new List<string> { "" };
+            _request.Form["timezone"] = new List<string> { "" };
             _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, null, null)).Returns(true);
+
+            await new RecurringJobUpdateDispatcher().Dispatch(_context);
+
+            Assert.Equal(200, _context.Response.StatusCode);
+            _manager.VerifyAll();
+        }
+
+        [Fact]
+        public async Task Dispatch_PutsTheJobBackInTheDefaultQueue_WhenTheQueueIsSentEmpty()
+        {
+            // Clearing the queue in the editor kept the old queue, so a job could never go back to "default"
+            _request.Form["cron"] = new List<string> { "0 9 * * *" };
+            _request.Form["queue"] = new List<string> { " " };
+            _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, "default", null)).Returns(true);
 
             await new RecurringJobUpdateDispatcher().Dispatch(_context);
 
@@ -83,6 +119,35 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             await new RecurringJobUpdateDispatcher().Dispatch(_context);
 
             Assert.Equal(404, _context.Response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Dispatch_RecordsTheUpdate_WithStatus200_InTheAuditLog()
+        {
+            var audit = new List<string>();
+            var context = AuditedContext(audit);
+            _request.Form["cron"] = new List<string> { "0 9 * * *" };
+            _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, null, null)).Returns(true);
+
+            await new RecurringJobUpdateDispatcher().Dispatch(context);
+
+            var entry = JsonNode.Parse(Assert.Single(audit));
+            Assert.Equal(200, entry["s"].GetValue<int>());
+            Assert.Equal("my-job", entry["g"][0].GetValue<string>());
+        }
+
+        [Fact]
+        public async Task Dispatch_RecordsAnUnknownJob_WithStatus404_NotAsASuccess()
+        {
+            var audit = new List<string>();
+            var context = AuditedContext(audit);
+            _request.Form["cron"] = new List<string> { "0 9 * * *" };
+            _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, null, null)).Returns(false);
+
+            await new RecurringJobUpdateDispatcher().Dispatch(context);
+
+            Assert.Equal(404, context.Response.StatusCode);
+            Assert.Equal(404, JsonNode.Parse(Assert.Single(audit))["s"].GetValue<int>());
         }
 
         [Fact]
@@ -119,6 +184,38 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal(422, _context.Response.StatusCode);
             Assert.Contains("queue name", JsonNode.Parse(_context.Response.Text)["error"].GetValue<string>());
         }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_RecordsA422_InTheAuditLog()
+        {
+            // Failed edits were never audited, although the docs say every posted action is
+            var audit = new List<string>();
+            _request.Form["cron"] = new List<string> { "whenever you like" };
+            var context = AuditedContext(audit);
+
+            await new RecurringJobUpdateDispatcher().Dispatch(context);
+
+            Assert.Equal(422, context.Response.StatusCode);
+            var entry = Assert.Single(audit);
+            Assert.Contains("\"s\":422", entry);
+            Assert.Contains("my-job", entry);
+        }
+
+        private DashboardContextStub AuditedContext(List<string> audit)
+        {
+            var storage = new Mock<JobStorage>();
+            var connection = new Mock<JobStorageConnection>();
+            var transaction = new Mock<IWriteOnlyTransaction>();
+            storage.Setup(x => x.GetConnection()).Returns(connection.Object);
+            connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
+            transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
+
+            return new DashboardContextStub(new DashboardOptions(), _request, storage.Object)
+            {
+                RecurringJobManager = _manager.Object,
+                UriMatch = Regex.Match("/recurring/update/my-job", "/recurring/update/(?<JobId>.+)")
+            };
+        }
     }
 
     public class CronPreviewDispatcherFacts
@@ -139,6 +236,38 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("UTC", json["timeZone"].GetValue<string>());
             Assert.Equal(5, (json["next"].AsArray()).Count);
             Assert.Null(json["error"]);
+        }
+
+        [Fact]
+        public async Task Dispatch_LeavesOutOccurrences_BeforeTheStart_AndAfterTheEnd()
+        {
+            var start = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(10), DateTimeKind.Utc);
+            var request = new DashboardRequestStub("GET", "/recurring/preview");
+            request.Query["cron"] = "0 * * * *";
+            request.Query["start"] = new DateTimeOffset(start).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+            request.Query["end"] = new DateTimeOffset(start.AddHours(2)).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+            var context = new DashboardContextStub(new DashboardOptions(), request);
+
+            await new CronPreviewDispatcher().Dispatch(context);
+
+            var next = JsonNode.Parse(context.Response.Text)["next"].AsArray().Select(x => x.GetValue<long>()).ToArray();
+            Assert.Equal(new[] { start, start.AddHours(1), start.AddHours(2) }.Select(JobHelper.ToTimestamp).ToArray(), next);
+        }
+
+        [Fact]
+        public async Task Dispatch_IgnoresAStartInThePast_AndAnUnreadableWindow()
+        {
+            var request = new DashboardRequestStub("GET", "/recurring/preview");
+            request.Query["cron"] = "0 * * * *";
+            request.Query["start"] = new DateTimeOffset(DateTime.UtcNow.AddDays(-3)).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+            request.Query["end"] = "soon";
+            var context = new DashboardContextStub(new DashboardOptions(), request);
+
+            await new CronPreviewDispatcher().Dispatch(context);
+
+            var next = JsonNode.Parse(context.Response.Text)["next"].AsArray();
+            Assert.Equal(5, next.Count);
+            Assert.True(JobHelper.FromTimestamp(next[0].GetValue<long>()) > DateTime.UtcNow.AddMinutes(-1));
         }
 
         [Fact]

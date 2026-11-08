@@ -59,6 +59,14 @@ namespace Masterly.NightShift.Common
                     .ImplementedInterfaces.SelectMany(static x => x.GetRuntimeMethods()));
             }
 
+            // Prefer the overload whose parameter types are exactly the given ones: a job created for
+            // Handle(Derived) must not run Handle(Base) just because that overload is declared first.
+            // A non-generic exact match wins at once, like C# prefers it over a generic method; failing
+            // that, a generic method whose inferred parameter types are exact; and failing that, the first
+            // candidate whose parameter types accept the given ones, as before.
+            MethodInfo exactGenericMatch = null;
+            MethodInfo firstMatch = null;
+
             foreach (var methodCandidate in methodCandidates)
             {
                 if (!methodCandidate.GetNormalizedName().Equals(name, StringComparison.Ordinal))
@@ -108,18 +116,44 @@ namespace Masterly.NightShift.Common
 
                         if (genericArgumentsResolved)
                         {
-                            return methodCandidate.MakeGenericMethod(genericArguments);
+                            var genericMethod = methodCandidate.MakeGenericMethod(genericArguments);
+
+                            if (exactGenericMatch == null && HasParameterTypes(genericMethod, parameterTypes))
+                            {
+                                exactGenericMatch = genericMethod;
+                            }
+
+                            firstMatch = firstMatch ?? genericMethod;
                         }
                     }
                     else
                     {
-                        // Return first found method candidate with matching parameters.
-                        return methodCandidate;
+                        if (HasParameterTypes(methodCandidate, parameterTypes))
+                        {
+                            return methodCandidate;
+                        }
+
+                        firstMatch = firstMatch ?? methodCandidate;
                     }
                 }
             }
 
-            return null;
+            return exactGenericMatch ?? firstMatch;
+        }
+
+        private static bool HasParameterTypes(MethodInfo method, Type[] parameterTypes)
+        {
+            var parameters = method.GetParameters();
+
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].ParameterType != parameterTypes[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public static Type[] GetAllGenericArguments(this TypeInfo type)

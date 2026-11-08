@@ -51,10 +51,16 @@ namespace Masterly.NightShift.States
         
         /// <summary>
         /// Initializes a new instance of the <see cref="AwaitingState"/> class with
-        /// the specified parent background job id and with an instance of the 
-        /// <see cref="EnqueuedState"/> class as a next state.
+        /// the specified parent background job id, with an instance of the
+        /// <see cref="EnqueuedState"/> class as a next state, and with
+        /// <see cref="JobContinuationOptions.OnAnyFinishedState"/>.
         /// </summary>
         /// <param name="parentId">The identifier of a background job to wait for.</param>
+        /// <remarks>
+        /// The continuation starts whether the parent succeeds or is deleted, unlike the
+        /// <c>ContinueJobWith</c> methods, which default to <see cref="JobContinuationOptions.OnlyOnSucceededState"/>.
+        /// Pass the options explicitly to make the intent clear.
+        /// </remarks>
         public AwaitingState([NotNull] string parentId)
             : this(parentId, new EnqueuedState())
         {
@@ -62,11 +68,17 @@ namespace Masterly.NightShift.States
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AwaitingState"/> class with
-        /// the specified parent job id and next state.
+        /// the specified parent job id and next state, and with
+        /// <see cref="JobContinuationOptions.OnAnyFinishedState"/>.
         /// </summary>
         /// <param name="parentId">The identifier of a background job to wait for.</param>
         /// <param name="nextState">The next state for the continuation.</param>
-        // TODO: Warning inconsistency - everywhere else is OnlyOnSucceededState
+        /// <remarks>
+        /// The continuation starts whether the parent succeeds or is deleted, unlike the
+        /// <c>ContinueJobWith</c> methods, which default to <see cref="JobContinuationOptions.OnlyOnSucceededState"/>.
+        /// The default is kept as it always was, because changing it would silently change which continuations
+        /// run. Pass the options explicitly to make the intent clear.
+        /// </remarks>
         public AwaitingState([NotNull] string parentId, [NotNull] IState nextState)
             : this(parentId, nextState, JobContinuationOptions.OnAnyFinishedState)
         {

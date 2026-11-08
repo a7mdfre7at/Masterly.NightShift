@@ -16,35 +16,19 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var jobs = new List<KeyValuePair<string, JobData>>();
+    List<KeyValuePair<string, JobData>> jobs;
     var expired = new List<string>();
-    long total;
+    Pager finalPager;
 
-    using (var connection = Storage.GetConnection())
+    // Expired jobs leave their ids behind in the tag. A page must not write, so they are only hidden here;
+    // the button below removes them with a POST.
+    using (var connection = Storage.GetReadOnlyConnection())
     {
-        total = JobTags.Count(connection, Tag);
-        var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, total);
-
-        foreach (var jobId in JobTags.GetJobIds(connection, Tag, pager.FromRecord, pager.RecordsPerPage))
-        {
-            var data = connection.GetJobData(jobId);
-            if (data == null)
-            {
-                expired.Add(jobId);
-                continue;
-            }
-
-            jobs.Add(new KeyValuePair<string, JobData>(jobId, data));
-        }
-
-        // Expired jobs leave their ids behind; drop them now that we know
-        if (expired.Count > 0 && !IsReadOnly)
-        {
-            JobTags.Forget(connection, Tag, expired);
-        }
+        finalPager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, JobTags.Count(connection, Tag));
+        jobs = ReadJobs(connection, Tag, finalPager, expired);
     }
 
-    var finalPager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, total);
+    var total = finalPager.TotalRecordCount;
 }
 
 <div class="row">
@@ -55,7 +39,18 @@
 
         @if (expired.Count > 0)
         {
-            <div class="alert alert-info">@String.Format(Strings.TaggedJobsPage_Cleaned, expired.Count)</div>
+            <div class="alert alert-info">
+                @String.Format(Strings.TaggedJobsPage_Expired, expired.Count)
+                @if (!IsReadOnly)
+                {
+                    <button class="btn btn-xs btn-default"
+                            data-ajax="@(Url.To("/tags/forget-expired/" + Uri.EscapeDataString(Tag)) + "?from=" + finalPager.FromRecord + "&count=" + finalPager.RecordsPerPage)"
+                            data-loading-text="@Strings.TaggedJobsPage_ForgetExpired">
+                        <span class="glyphicon glyphicon-remove"></span>
+                        @Strings.TaggedJobsPage_ForgetExpired
+                    </button>
+                }
+            </div>
         }
 
         @if (jobs.Count == 0)

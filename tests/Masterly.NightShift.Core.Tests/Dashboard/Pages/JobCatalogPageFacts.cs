@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 using Masterly.NightShift.Dashboard.Resources;
+using Moq;
 using Xunit;
 
 namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
@@ -14,11 +15,13 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
     public class JobCatalogPageFacts : IDisposable
     {
         private readonly PageRenderer _renderer = new PageRenderer();
+        private readonly HashSet<string> _recorded = new HashSet<string>();
 
         public JobCatalogPageFacts()
         {
             JobCatalog.Clear();
             JobCatalog.Add<CatalogPageJobs>();
+            _renderer.Connection.Setup(x => x.GetAllItemsFromSet(JobInsightsAttribute.IndexKey)).Returns(_recorded);
         }
 
         public void Dispose()
@@ -36,7 +39,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains($"data-type=\"{typeof(CatalogPageJobs).FullName}\"", html);
             Assert.Contains($"<span class=\"text-muted\">{typeof(CatalogPageJobs).Namespace}.</span>", html);
             Assert.Contains("CatalogPageJobs</h3>", html);
-            Assert.Contains($"<span class=\"text-muted\">3 {Encode(Strings.CatalogPage_Summary_Methods)}</span>", html);
+            Assert.Contains($"<span class=\"text-muted\">4 {Encode(Strings.CatalogPage_Summary_Methods)}</span>", html);
             Assert.DoesNotContain(Strings.CatalogPage_NoEntries_Html, html);
         }
 
@@ -80,6 +83,30 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact, StaticLock]
+        public void Render_ReadsInsights_OnlyForTheMethodsJobInsightsHasRecorded()
+        {
+            // Every catalog method cost four reads per view, recorded or not
+            SetupInsight("SendAsync", succeeded: 4, failed: 0, durations: new[] { "50" });
+
+            _renderer.Render(new JobCatalogPage());
+
+            _renderer.Connection.Verify(x => x.GetAllEntriesFromHash($"insights:{Entry("SendAsync").InsightsKey}"), Times.Once);
+            _renderer.Connection.Verify(x => x.GetAllEntriesFromHash($"insights:{Entry("Import").InsightsKey}"), Times.Never);
+            _renderer.Connection.Verify(x => x.GetCounter(It.Is<string>(k => k.Contains(Entry("Cleanup").InsightsKey))), Times.Never);
+        }
+
+        [Fact, StaticLock]
+        public void Render_OffersFormFieldsForNullableBoolsAndFlags()
+        {
+            var html = _renderer.Render(new JobCatalogPage());
+
+            Assert.Contains(Encode("{\"name\":\"enabled\",\"type\":\"bool?\",\"input\":\"select\""), html);
+            Assert.Contains(Encode("\"options\":[\"true\",\"false\"],\"nullable\":true,\"multiple\":false"), html);
+            Assert.Contains(Encode("{\"name\":\"flags\",\"type\":\"CatalogPageFlags\",\"input\":\"select\",\"default\":\"Read, Write\""), html);
+            Assert.Contains(Encode("\"nullable\":false,\"multiple\":true"), html);
+        }
+
+        [Fact, StaticLock]
         public void Render_WhenNotReadOnly_OffersARunButtonPerMethodAndTheRunner()
         {
             var html = _renderer.Render(new JobCatalogPage());
@@ -111,6 +138,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         private void SetupInsight(string method, long succeeded, long failed, string[] durations)
         {
             var key = Entry(method).InsightsKey;
+            _recorded.Add(key);
 
             _renderer.Connection.Setup(x => x.GetAllEntriesFromHash($"insights:{key}"))
                 .Returns(new Dictionary<string, string> { { "LastDurationMs", "100" } });
@@ -125,6 +153,14 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         private static string Encode(string value) => WebUtility.HtmlEncode(value);
+    }
+
+    [Flags]
+    public enum CatalogPageFlags
+    {
+        None = 0,
+        Read = 1,
+        Write = 2
     }
 
     public enum CatalogPageMode
@@ -146,6 +182,10 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
         [AutomaticRetry(Attempts = 0)]
         public static void Cleanup()
+        {
+        }
+
+        public void Configure(bool? enabled, CatalogPageFlags flags = CatalogPageFlags.Read | CatalogPageFlags.Write)
         {
         }
     }

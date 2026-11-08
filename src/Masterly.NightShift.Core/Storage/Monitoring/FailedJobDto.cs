@@ -21,6 +21,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A job in the Failed state, as listed by the dashboard.
+    /// </summary>
     public class FailedJobDto
     {
         public FailedJobDto()

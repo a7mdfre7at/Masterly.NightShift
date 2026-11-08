@@ -108,6 +108,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         [Fact]
         public void Render_WhenServersArePaused_ShowsTheServersBannerWithALinkToTheServers()
         {
+            SetupServers("web-1");
             SetupControlHash(new Dictionary<string, string> { { "Server:web-1", "deploy" } });
 
             var html = _renderer.Render(new TagsPage());
@@ -116,6 +117,28 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains(Encode(String.Format(Strings.LayoutPage_ServersPaused, "web-1")), html);
             Assert.Contains("href=\"/servers\">" + Encode(Strings.NavigationMenu_Servers) + " &rarr;", html);
             Assert.DoesNotContain(Encode(Strings.LayoutPage_QueuesPaused_Link), html);
+        }
+
+        [Fact]
+        public void Render_LeavesOutPausesOfServersThatAreGone()
+        {
+            SetupServers("web-1:2:new");
+            SetupControlHash(new Dictionary<string, string> { { "Server:web-1:1:old", "deploy" }, { "Server:web-1:2:new", "" } });
+
+            var html = _renderer.Render(new TagsPage());
+
+            Assert.Contains(Encode(String.Format(Strings.LayoutPage_ServersPaused, "web-1:2:new")), html);
+            Assert.DoesNotContain("web-1:1:old", html);
+        }
+
+        [Fact]
+        public void Render_ShowsNoBanner_WhenOnlyServersThatAreGoneArePaused()
+        {
+            SetupControlHash(new Dictionary<string, string> { { "Server:web-1:1:old", "deploy" } });
+
+            var html = _renderer.Render(new TagsPage());
+
+            Assert.DoesNotContain("hf-drain-banner", html);
         }
 
         [Fact]
@@ -288,6 +311,17 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
                 NavigationMenu.Items.Clear();
                 NavigationMenu.Items.AddRange(saved);
             }
+        }
+
+        private void SetupServers(params string[] names)
+        {
+            _renderer.Monitoring.Setup(x => x.Servers()).Returns(names.Select(static name => new ServerDto
+            {
+                Name = name,
+                Heartbeat = DateTime.UtcNow,
+                StartedAt = DateTime.UtcNow,
+                Queues = new[] { "default" },
+            }).ToList());
         }
 
         private void SetupControlHash(Dictionary<string, string> hash)

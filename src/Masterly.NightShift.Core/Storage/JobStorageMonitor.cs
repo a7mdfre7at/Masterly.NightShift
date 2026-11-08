@@ -22,9 +22,26 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// The base class for monitoring APIs. It implements <see cref="IMonitoringApi"/> and adds optional queries whose
+    /// default implementations throw <see cref="NotSupportedException"/>; check <see cref="JobStorage.HasFeature"/>
+    /// before calling them.
+    /// </summary>
     public abstract class JobStorageMonitor : IMonitoringApi
     {
         public abstract IList<QueueWithTopEnqueuedJobsDto> Queues();
+
+        /// <summary>
+        /// The queues with their lengths and fetched counts, like <see cref="Queues"/>, for callers that don't need
+        /// the first jobs of each queue (<see cref="QueueWithTopEnqueuedJobsDto.FirstJobs"/> may be empty).
+        /// The default implementation calls <see cref="Queues"/>. A storage that overrides it with a cheaper query
+        /// advertises <see cref="JobStorageFeatures.Monitoring.QueueCounts"/>.
+        /// </summary>
+        public virtual IList<QueueWithTopEnqueuedJobsDto> QueueCounts()
+        {
+            return Queues();
+        }
+
         public abstract IList<ServerDto> Servers();
         public abstract JobDetailsDto? JobDetails(string jobId);
         public abstract StatisticsDto GetStatistics();

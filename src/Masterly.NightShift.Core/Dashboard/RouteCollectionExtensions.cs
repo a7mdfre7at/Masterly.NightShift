@@ -20,6 +20,9 @@ using System.ComponentModel;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Adds Razor pages, commands and other dispatchers to the dashboard's <see cref="RouteCollection"/>.
+    /// </summary>
     public static class RouteCollectionExtensions
     {
         public static void AddRazorPage(
@@ -87,7 +90,7 @@ namespace Masterly.NightShift.Dashboard
         }
         
         [EditorBrowsable(EditorBrowsableState.Never)]
-        [Obsolete("For binary compatibility only. Use overload with Action<IRecurringJobManager, string> instead.")]
+        [Obsolete("Use the overload that takes Action<IRecurringJobManager, string> instead. Kept for code ported from Hangfire.")]
         public static void AddRecurringBatchCommand(
             this RouteCollection routes,
             string pathTemplate,

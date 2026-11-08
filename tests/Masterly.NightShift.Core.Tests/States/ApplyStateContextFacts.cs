@@ -199,5 +199,29 @@ namespace Masterly.NightShift.Core.Tests.States
             Assert.Equal(electContext.Object.CustomData, context.CustomData);
             Assert.NotSame(electContext.Object.CustomData, context.CustomData);
         }
+
+        [Fact]
+        public void CopyCtor_ForElectStateContext_KeepsThePostCommitActions_OfTheStateChange()
+        {
+            var afterCommit = new PostCommitActions();
+            var electContext = new ElectStateContextMock();
+            electContext.ApplyContext.Object.AfterCommit = afterCommit;
+
+            var context = new ApplyStateContext(_transaction.Object, electContext.Object);
+
+            Assert.Same(afterCommit, electContext.Object.AfterCommit);
+            Assert.Same(afterCommit, context.AfterCommit);
+        }
+
+        [Fact]
+        public void RunAfterCommit_RunsTheActionRightAway_WhenNobodyRunsActionsAfterTheCommit()
+        {
+            var context = new ApplyStateContextMock();
+            var ran = false;
+
+            context.Object.RunAfterCommit(() => ran = true);
+
+            Assert.True(ran);
+        }
     }
 }

@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Masterly.NightShift.Annotations;
@@ -23,6 +24,7 @@ using Masterly.NightShift.Client;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
+using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Server
@@ -34,9 +36,11 @@ namespace Masterly.NightShift.Server
     /// 
     /// <remarks>
     /// <para>This background process polls the <i>recurring job schedule</i>
-    /// for recurring jobs ready to be enqueued. Interval between scheduler
-    /// polls is hard-coded to <b>1 minute</b> as a compromise between
-    /// frequency and additional stress on job storage.</para>
+    /// for recurring jobs ready to be enqueued, every polling delay
+    /// (<see cref="BackgroundJobServerOptions.SchedulePollingInterval"/>), or on
+    /// every minute boundary when the delay is zero. One pass creates at most
+    /// 100 runs of a recurring job; when more are due, the following passes,
+    /// which start right away, create the rest.</para>
     /// 
     /// <note type="tip">
     /// Use custom background processes if you need to schedule recurring jobs
@@ -112,7 +116,7 @@ namespace Masterly.NightShift.Server
         public RecurringJobScheduler(
             [NotNull] IBackgroundJobFactory factory,
             TimeSpan pollingDelay)
-            : this(factory, pollingDelay, new DefaultTimeZoneResolver())
+            : this(factory, pollingDelay, GlobalTimeZoneResolver.Current)
         {
         }
 
@@ -163,6 +167,9 @@ namespace Masterly.NightShift.Server
         /// is enabled via the <see cref="MaxDegreeOfParallelism"/> option.
         /// </summary>
         public TaskScheduler TaskScheduler { get; set; }
+
+        // With a zero polling delay the scheduler wakes up on every minute boundary (see Execute)
+        private TimeSpan PollingInterval => _pollingDelay > TimeSpan.Zero ? _pollingDelay : TimeSpan.FromMinutes(1);
 
         /// <inheritdoc />
         public void Execute(BackgroundProcessContext context)
@@ -283,15 +290,79 @@ namespace Masterly.NightShift.Server
         {
             using (connection.AcquireDistributedRecurringJobLock(recurringJobId, LockTimeout))
             {
-                var recurringJob = connection.GetRecurringJob(recurringJobId);
+                var hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
 
-                if (recurringJob == null)
+                if (hash == null || hash.Count == 0)
                 {
                     RemoveRecurringJob(connection, recurringJobId);
                     return;
                 }
 
+                RecurringJobEntity recurringJob;
+
+                try
+                {
+                    recurringJob = new RecurringJobEntity(recurringJobId, hash);
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    // One recurring job that can't be read (an unknown misfire mode, a damaged field) must not
+                    // stop the others, which are due after it
+                    RetryUnreadableRecurringJob(connection, recurringJobId, hash, now, ex);
+                    return;
+                }
+
                 ScheduleRecurringJob(context, connection, recurringJobId, recurringJob, now);
+            }
+        }
+
+        private void RetryUnreadableRecurringJob(
+            IStorageConnection connection,
+            string recurringJobId,
+            IDictionary<string, string> hash,
+            DateTime now,
+            Exception error)
+        {
+            // The same retries as any other scheduling error, written field by field, as the entity can't be built
+            var retryAttempt = hash.TryGetValue("RetryAttempt", out var attemptString) &&
+                               int.TryParse(attemptString, NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempt)
+                ? attempt
+                : 0;
+
+            var fields = new Dictionary<string, string>
+            {
+                { "Error", error.ToStringWithOriginalStackTrace(States.FailedState.MaxLinesInExceptionDetails, includeFileInfo: false) },
+            };
+
+            double score;
+
+            if (retryAttempt < MaxRetryAttemptCount)
+            {
+                var nextAttempt = now.Add(PollingInterval);
+
+                _logger.WarnException(
+                    $"Recurring job '{recurringJobId}' can't be read and will be retried in {PollingInterval}.",
+                    error);
+
+                fields.Add("RetryAttempt", (retryAttempt + 1).ToString(CultureInfo.InvariantCulture));
+                fields.Add("NextExecution", JobHelper.SerializeDateTime(nextAttempt));
+                score = JobHelper.ToTimestamp(nextAttempt);
+            }
+            else
+            {
+                _logger.ErrorException(
+                    $"Recurring job '{recurringJobId}' can't be read and will be disabled. Remove it and register it again.",
+                    error);
+
+                fields.Add("NextExecution", String.Empty);
+                score = -1.0D;
+            }
+
+            using (var transaction = connection.CreateWriteTransaction())
+            {
+                transaction.SetRangeInHash($"recurring-job:{recurringJobId}", fields);
+                transaction.AddToSet("recurring-jobs", recurringJobId, score);
+                transaction.Commit();
             }
         }
 
@@ -302,82 +373,112 @@ namespace Masterly.NightShift.Server
             // to prevent from infinite loop, when there's an old processing server (pre-1.7.0)
             // in our environment that doesn't know it should modify the score for entries in
             // the recurring jobs set.
-            using (var transaction = connection.CreateWriteTransaction())
+            var afterCommit = new PostCommitActions();
+
+            try
             {
-                Exception exception = null;
-                
-                try
+                using (var transaction = connection.CreateWriteTransaction())
                 {
-                    // We can't handle recurring job with unsupported versions - there may be additional
-                    // features. we don't know about. We also shouldn't stop the whole scheduler as
-                    // there may be jobs with lower versions. Instead, we'll re-schedule such a job and
-                    // emit a warning message to the log.
-                    if (recurringJob.Version.HasValue && recurringJob.Version > MaxSupportedVersion)
+                    Exception exception = null;
+
+                    // The last run that is created and enqueued in this transaction (or canceled by a filter). When a
+                    // run fails, the job's last execution goes back to it, so the next pass creates the failed run and
+                    // the ones after it again instead of skipping them
+                    var lastHandledExecution = recurringJob.LastExecution;
+                    var lastHandledJobId = recurringJob.LastJobId;
+
+                    try
                     {
-                        throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version ?? 1}'. Max supported version of this server is '{MaxSupportedVersion}'.");
-                    }
+                        // We can't handle recurring job with unsupported versions - there may be additional
+                        // features. we don't know about. We also shouldn't stop the whole scheduler as
+                        // there may be jobs with lower versions. Instead, we'll re-schedule such a job and
+                        // emit a warning message to the log.
+                        if (recurringJob.Version.HasValue && recurringJob.Version > MaxSupportedVersion)
+                        {
+                            throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version ?? 1}'. Max supported version of this server is '{MaxSupportedVersion}'.");
+                        }
                     
-                    var backgroundJobs = new List<BackgroundJob>();
-                    var precision = _pollingDelay + _pollingDelay;
+                        var runs = new List<KeyValuePair<DateTime, BackgroundJob>>();
 
-                    var executions = recurringJob.ScheduleNext(
-                        _timeZoneResolver,
-                        recurringJob.ScheduleFrom ?? recurringJob.CreatedAt?.AddSeconds(-1) ?? now.AddSeconds(-1),
-                        now,
-                        precision);
+                        // How late an Ignorable run may be noticed and still be created
+                        var precision = PollingInterval + PollingInterval;
 
-                    foreach (var execution in executions)
+                        var executions = recurringJob.ScheduleNext(
+                            _timeZoneResolver,
+                            recurringJob.ScheduleFrom ?? recurringJob.CreatedAt?.AddSeconds(-1) ?? now.AddSeconds(-1),
+                            now,
+                            precision);
+
+                        foreach (var execution in executions)
+                        {
+                            var backgroundJob = _factory.TriggerRecurringJob(
+                                context.Storage,
+                                connection,
+                                _profiler,
+                                recurringJob,
+                                execution);
+
+                            if (String.IsNullOrEmpty(backgroundJob?.Id))
+                            {
+                                _logger.Debug($"Recurring job '{recurringJobId}' execution at '{execution}' has been canceled.");
+                                backgroundJob = null;
+                            }
+
+                            runs.Add(new KeyValuePair<DateTime, BackgroundJob>(execution, backgroundJob));
+                        }
+
+                        foreach (var run in runs)
+                        {
+                            if (run.Value != null)
+                            {
+                                _factory.StateMachine.EnqueueBackgroundJob(
+                                    context.Storage,
+                                    connection,
+                                    transaction,
+                                    recurringJob,
+                                    run.Value,
+                                    "Triggered by recurring job scheduler",
+                                    _profiler,
+                                    afterCommit);
+                            }
+
+                            lastHandledExecution = run.Key;
+                            lastHandledJobId = run.Value?.Id;
+                        }
+
+                        recurringJob.RetryAttempt = 0;
+                    }
+                    catch (Exception ex) when (ex.IsCatchableExceptionType())
                     {
-                        var backgroundJob = _factory.TriggerRecurringJob(
-                            context.Storage,
-                            connection,
-                            _profiler,
-                            recurringJob,
-                            execution);
-
-                        if (!String.IsNullOrEmpty(backgroundJob?.Id))
-                        {
-                            backgroundJobs.Add(backgroundJob);
-                        }
-                        else
-                        {
-                            _logger.Debug($"Recurring job '{recurringJobId}' execution at '{execution}' has been canceled.");
-                        }
+                        exception = ex;
                     }
 
-                    foreach (var backgroundJob in backgroundJobs)
+                    if (exception != null)
                     {
-                        _factory.StateMachine.EnqueueBackgroundJob(
-                            context.Storage,
-                            connection,
-                            transaction,
-                            recurringJob,
-                            backgroundJob,
-                            "Triggered by recurring job scheduler",
-                            _profiler);
+                        // A run created but not enqueued has no state, and its data expires like any job created without one
+                        recurringJob.LastExecution = lastHandledExecution;
+                        recurringJob.LastJobId = lastHandledJobId;
+                        RetryRecurringJob(recurringJobId, recurringJob, now, exception);
                     }
 
-                    recurringJob.RetryAttempt = 0;
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    exception = ex;
-                }
+                    recurringJob.IsChanged(now, out var changedFields);
+                    transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
 
-                if (exception != null)
-                {
-                    RetryRecurringJob(recurringJobId, recurringJob, now, exception);
+                    // We should commit transaction outside of the internal try/catch block, because these
+                    // exceptions are always due to network issues, and in case of a timeout exception we
+                    // can't determine whether it was actually succeeded or not, and can't perform an
+                    // idempotent retry in this case.
+                    transaction.Commit();
                 }
-
-                recurringJob.IsChanged(now, out var changedFields);
-                transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
-
-                // We should commit transaction outside of the internal try/catch block, because these
-                // exceptions are always due to network issues, and in case of a timeout exception we
-                // can't determine whether it was actually succeeded or not, and can't perform an
-                // idempotent retry in this case.
-                transaction.Commit();
             }
+            catch
+            {
+                // Work about something already stored on its own still runs, a retry wouldn't do it again
+                afterCommit.RunAfterFailure();
+                throw;
+            }
+
+            afterCommit.Run();
         }
 
         private void RetryRecurringJob(string recurringJobId, RecurringJobEntity recurringJob, DateTime now, Exception error)
@@ -386,7 +487,7 @@ namespace Masterly.NightShift.Server
 
             if (recurringJob.RetryAttempt < MaxRetryAttemptCount)
             {
-                var delay = _pollingDelay > TimeSpan.Zero ? _pollingDelay : TimeSpan.FromMinutes(1);
+                var delay = PollingInterval;
 
                 _logger.WarnException(
                     $"Recurring job '{recurringJobId}' can't be scheduled due to an error and will be retried in {delay}.",

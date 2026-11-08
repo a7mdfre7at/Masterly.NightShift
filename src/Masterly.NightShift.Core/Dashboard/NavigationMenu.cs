@@ -19,6 +19,9 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The items of the dashboard's top navigation bar. Extensions can add items.
+    /// </summary>
     public static class NavigationMenu
     {
         public static readonly List<Func<RazorPage, MenuItem>> Items = new List<Func<RazorPage, MenuItem>>();

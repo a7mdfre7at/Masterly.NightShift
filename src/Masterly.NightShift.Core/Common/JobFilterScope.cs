@@ -57,14 +57,13 @@ namespace Masterly.NightShift.Common
     ///     </item>
     /// </list>
     /// 
-    /// Порядок запуска указанных типов фильтров строго фиксирован, например,
-    /// фильтры исключений всегда выполняются после всех остальных фильтров,
-    /// а фильтры состояний всегда запускаются внутри клиентских и серверных
-    /// фильтров.
-    /// 
-    /// Внутри же одного типа фильтров, порядок выполнения сначала определяется
-    /// значением Order, а затем значением Scope. Перечисление <see cref="JobFilterScope"/> 
-    /// определяет следующие значения (в порядке, в котором они будут выполнены):
+    /// The order in which these filter types run is fixed: for example,
+    /// exception filters always run after all other filters, and state
+    /// filters always run inside the client and server filters.
+    ///
+    /// Within one filter type, the execution order is determined first by
+    /// the Order value and then by the Scope value. The <see cref="JobFilterScope"/>
+    /// enumeration defines the following values (in the order they run):
     /// 
     /// <list type="number">
     ///     <item>
@@ -84,17 +83,18 @@ namespace Masterly.NightShift.Common
     ///     </item>
     /// </list>
     /// 
-    /// Для примера, клиентский фильтр, у которого свойство Order имеет значение 0,
-    /// а значение filter scope равно <see cref="JobFilterScope.Global"/>,
-    /// будет выполнен раньше фильтра с тем же самым значением Order,
-    /// но c filter scope, равным <see cref="Type"/>.
-    /// 
-    /// Значения Scope задаются, в основном, в реализациях интерфейса
-    /// <see cref="IJobFilterProvider"/>. Так, класс <see cref="JobFilterCollection"/>
-    /// определяет значение Scope как <see cref="JobFilterScope.Global"/>.
-    /// 
-    /// Порядок выполнения фильтров одинакового типа, с одинаковым значением
-    /// Order и с одинаковым scope, не оговаривается.
+    /// For example, a client filter whose Order property is 0 and whose
+    /// filter scope is <see cref="JobFilterScope.Global"/> runs before a
+    /// filter with the same Order value but with the <see cref="Type"/>
+    /// filter scope.
+    ///
+    /// Scope values are mostly set by implementations of the
+    /// <see cref="IJobFilterProvider"/> interface. For example, the
+    /// <see cref="JobFilterCollection"/> class sets the scope to
+    /// <see cref="JobFilterScope.Global"/>.
+    ///
+    /// The execution order of filters of the same type, with the same
+    /// Order value and the same scope, is undefined.
     /// </remarks>
     public enum JobFilterScope
     {

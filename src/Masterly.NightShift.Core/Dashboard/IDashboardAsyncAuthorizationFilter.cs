@@ -18,6 +18,10 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Decides asynchronously whether a request may open the dashboard. Add it to <see
+    /// cref="DashboardOptions.AsyncAuthorization"/>.
+    /// </summary>
     public interface IDashboardAsyncAuthorizationFilter
     {
         Task<bool> AuthorizeAsync([NotNull] DashboardContext context);

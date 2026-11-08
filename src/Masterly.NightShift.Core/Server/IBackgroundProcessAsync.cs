@@ -18,6 +18,10 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// A background process whose work is asynchronous. The server calls <see cref="ExecuteAsync"/> in a loop until it
+    /// stops.
+    /// </summary>
     public interface IBackgroundProcessAsync
     {
         Task ExecuteAsync([NotNull] BackgroundProcessContext context);

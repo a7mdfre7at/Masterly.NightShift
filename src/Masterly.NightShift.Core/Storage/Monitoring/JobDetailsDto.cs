@@ -21,6 +21,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A job with its parameters and state history, as shown on the dashboard's job details page.
+    /// </summary>
     public class JobDetailsDto
     {
         public Job? Job { get; set; }

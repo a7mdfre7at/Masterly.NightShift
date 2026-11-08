@@ -276,6 +276,73 @@ namespace Masterly.NightShift.Core.Tests.States
         }
 
         [Fact]
+        public void ChangeState_FailedStateReason_SaysTheArgumentsCouldNotBeDeserialized_WhenTheyCouldNot()
+        {
+            // Arrange
+            _connection.Setup(x => x.GetJobData(JobId))
+                .Returns(new JobData
+                {
+                    State = OldStateName,
+                    Job = null,
+                    LoadException = new JobLoadException("asd", new InvalidOperationException("Bad argument.")) { Failure = JobLoadFailure.Arguments }
+                });
+
+            var stateChanger = CreateStateChanger();
+
+            // Act
+            stateChanger.ChangeState(_context.Object);
+
+            // Assert
+            _stateMachine.Verify(x => x.ApplyState(It.Is<ApplyStateContext>(ctx =>
+                (ctx.NewState as FailedState).Reason == "Can not change the state to 'State': the job's arguments could not be deserialized." &&
+                (ctx.NewState as FailedState).Exception.Message == "Bad argument.")));
+        }
+
+        [Fact]
+        public void ChangeState_FailedStateReason_SaysTheTypeOrMethodWasNotFound_WhenItWasNot()
+        {
+            // Arrange
+            _connection.Setup(x => x.GetJobData(JobId))
+                .Returns(new JobData
+                {
+                    State = OldStateName,
+                    Job = null,
+                    LoadException = new JobLoadException("asd", new InvalidOperationException("No method.")) { Failure = JobLoadFailure.TypeOrMethod }
+                });
+
+            var stateChanger = CreateStateChanger();
+
+            // Act
+            stateChanger.ChangeState(_context.Object);
+
+            // Assert
+            _stateMachine.Verify(x => x.ApplyState(It.Is<ApplyStateContext>(ctx =>
+                (ctx.NewState as FailedState).Reason == "Can not change the state to 'State': the job's type or method was not found.")));
+        }
+
+        [Fact]
+        public void ChangeState_FailedStateReason_SaysTheJobCouldNotBeLoaded_WhenTheCauseIsUnknown()
+        {
+            // Arrange
+            _connection.Setup(x => x.GetJobData(JobId))
+                .Returns(new JobData
+                {
+                    State = OldStateName,
+                    Job = null,
+                    LoadException = new JobLoadException("asd", new InvalidOperationException("Storage error."))
+                });
+
+            var stateChanger = CreateStateChanger();
+
+            // Act
+            stateChanger.ChangeState(_context.Object);
+
+            // Assert
+            _stateMachine.Verify(x => x.ApplyState(It.Is<ApplyStateContext>(ctx =>
+                (ctx.NewState as FailedState).Reason == "Can not change the state to 'State': the job could not be loaded.")));
+        }
+
+        [Fact]
         public void ChangeState_MoveJobToTheGivenState_IfStateIgnoresThisException_AndMethodDataCouldNotBeResolved()
         {
             // Arrange
@@ -532,6 +599,134 @@ namespace Masterly.NightShift.Core.Tests.States
 
             _context.Transaction.Verify(x => x.AcquireDistributedLock($"job:{JobId}:state-lock", It.IsAny<TimeSpan>()));
             _connection.Verify(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
+        [Fact]
+        public void ChangeState_RunsPostCommitActions_AfterTheCommit()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
+            var stateChanger = CreateStateChanger();
+
+            stateChanger.ChangeState(_context.Object);
+
+            Assert.Equal(new[] { "commit", "action" }, calls);
+        }
+
+        [Fact]
+        public void ChangeState_RunsPostCommitActions_AfterTheJobLockIsReleased()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Dispose()).Callback(() => calls.Add("transaction disposed"));
+            _distributedLock.Setup(x => x.Dispose()).Callback(() => calls.Add("lock released"));
+            var stateChanger = CreateStateChanger();
+
+            stateChanger.ChangeState(_context.Object);
+
+            Assert.Equal(new[] { "transaction disposed", "lock released", "action" }, calls);
+        }
+
+        [Fact]
+        public void ChangeState_DropsPostCommitActions_WhenTheCommitFails()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
+            var stateChanger = CreateStateChanger();
+
+            Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
+
+            Assert.Empty(calls);
+        }
+
+        [Fact]
+        public void ChangeState_RunsOnlyTheActionsQueuedRegardless_WhenTheCommitFails_AfterTheJobLockIsReleased()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx =>
+                {
+                    ctx.RunAfterCommit(() => calls.Add("action"));
+                    ctx.AfterCommit.AddRegardless(() => calls.Add("regardless"));
+                })
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
+            _distributedLock.Setup(x => x.Dispose()).Callback(() => calls.Add("lock released"));
+            var stateChanger = CreateStateChanger();
+
+            Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
+
+            Assert.Equal(new[] { "lock released", "regardless" }, calls);
+        }
+
+        [Fact]
+        public void ChangeState_RunsTheActionsQueuedRegardless_AfterASuccessfulCommit()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.AfterCommit.AddRegardless(() => calls.Add("regardless")))
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
+            var stateChanger = CreateStateChanger();
+
+            stateChanger.ChangeState(_context.Object);
+
+            Assert.Equal(new[] { "commit", "regardless" }, calls);
+        }
+
+        [Fact]
+        public void ChangeState_RethrowsTheOriginalException_WhenAnActionQueuedRegardlessThrows()
+        {
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.AfterCommit.AddRegardless(() => throw new InvalidOperationException("sink failed")))
+                .Returns(_state.Object);
+            _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
+            var stateChanger = CreateStateChanger();
+
+            var exception = Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
+
+            Assert.Equal("commit failed", exception.Message);
+        }
+
+        [Fact]
+        public void ChangeState_ReturnsTheState_WhenAPostCommitActionThrows()
+        {
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => throw new InvalidOperationException("sink failed")))
+                .Returns(_state.Object);
+            var stateChanger = CreateStateChanger();
+
+            var result = stateChanger.ChangeState(_context.Object);
+
+            Assert.Same(_state.Object, result);
+            _transaction.Verify(x => x.Commit(), Times.Once);
+        }
+
+        [Fact]
+        public void ChangeState_WithTransaction_RunsActionsRightAway_BecauseItDoesNotCommit()
+        {
+            _context.Transaction = new Mock<JobStorageTransaction>();
+            var ran = false;
+            _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx =>
+                {
+                    Assert.Null(ctx.AfterCommit);
+                    ctx.RunAfterCommit(() => ran = true);
+                })
+                .Returns(_state.Object);
+            var stateChanger = CreateStateChanger();
+
+            stateChanger.ChangeState(_context.Object);
+
+            Assert.True(ran);
         }
 
         private BackgroundJobStateChanger CreateStateChanger()

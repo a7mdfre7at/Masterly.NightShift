@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -32,7 +17,7 @@ namespace Masterly.NightShift.Dashboard
     /// <c>BackgroundJob.Enqueue&lt;Service&gt;(x =&gt; x.Method("arg", 42));</c>. Arguments are written as
     /// literals where C# has them, and as <c>FromJson&lt;T&gt;("...")</c> otherwise.
     /// </summary>
-    public static class JobCodeRenderer
+    internal static class JobCodeRenderer
     {
         private const int MaxArgumentLength = 2000;
 

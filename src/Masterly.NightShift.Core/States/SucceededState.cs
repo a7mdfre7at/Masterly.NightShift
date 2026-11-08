@@ -51,6 +51,9 @@ namespace Masterly.NightShift.States
         /// </remarks>
         public static readonly string StateName = "Succeeded";
 
+        /// <summary>The text stored as <c>Result</c> when the return value can't be serialized.</summary>
+        internal const string UnserializableResult = "Can not serialize the return value";
+
         [JsonConstructor]
         public SucceededState(object result, long latency, long performanceDuration)
         {
@@ -181,7 +184,7 @@ namespace Masterly.NightShift.States
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
-                    serializedResult = "Can not serialize the return value";
+                    serializedResult = UnserializableResult;
                 }
 
                 if (serializedResult != null)

@@ -21,6 +21,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A job waiting in a queue, as listed by the dashboard.
+    /// </summary>
     public class EnqueuedJobDto
     {
         public EnqueuedJobDto()

@@ -52,7 +52,10 @@
         text: {
             refresh: $("#nightshiftConfig").data("text-refresh") || "Refresh",
             live: $("#nightshiftConfig").data("text-live") || "Live",
-            liveHint: $("#nightshiftConfig").data("text-live-hint") || "Refresh this list automatically"
+            liveHint: $("#nightshiftConfig").data("text-live-hint") || "Refresh this list automatically",
+            listResult: $("#nightshiftConfig").data("text-list-result") || "{0} jobs changed.",
+            listRemaining: $("#nightshiftConfig").data("text-list-remaining") || "There is more to do (up to {0} jobs). Run it again to continue.",
+            requestFailed: $("#nightshiftConfig").data("text-request-failed") || "The request failed:"
         },
         locale: document.documentElement.lang,
         darkMode: $("#nightshiftConfig").data("darkmode")
@@ -126,7 +129,8 @@
                 this._stylesheet.media = choice === 'dark' ? 'all' : choice === 'light' ? 'not all' : '(prefers-color-scheme: dark)';
             }
 
-            this._buttons.removeClass('active').filter('[data-theme-choice="' + choice + '"]').addClass('active');
+            this._buttons.removeClass('active').attr('aria-pressed', 'false')
+                .filter('[data-theme-choice="' + choice + '"]').addClass('active').attr('aria-pressed', 'true');
 
             if (notify) {
                 $(document).trigger('nightshift:theme');
@@ -180,7 +184,17 @@
         ErrorAlert.prototype.show = function() {
             this._errorAlertTitle.html(this._title);
             this._errorAlertMessage.html(this._message);
+            this._reveal();
+        };
 
+        // Like show, for text that may come from the server: it is never read as HTML
+        ErrorAlert.prototype.showText = function () {
+            this._errorAlertTitle.text(this._title);
+            this._errorAlertMessage.text(this._message);
+            this._reveal();
+        };
+
+        ErrorAlert.prototype._reveal = function () {
             $('#errorAlert').show();
             var alertHeight = $('#errorAlert').outerHeight();
             $('#errorAlert').hide();
@@ -191,6 +205,42 @@
 
         return ErrorAlert;
     })();
+
+    // Tells the user why a request failed: the status, and the server's message when it sent plain text or JSON
+    // with an "error". Used by every button that changes something, so a failure is never silent.
+    nightshift.showRequestError = function (xhr, title) {
+        var status = xhr && xhr.status ? String(xhr.status) + (xhr.statusText ? ' (' + xhr.statusText + ')' : '') : 'no answer';
+        var detail = '';
+
+        if (xhr && xhr.responseJSON && typeof xhr.responseJSON.error === 'string') {
+            detail = xhr.responseJSON.error;
+        } else if (xhr && typeof xhr.responseText === 'string' && /^text\/plain/i.test(xhr.getResponseHeader('Content-Type') || '')) {
+            detail = xhr.responseText;
+        }
+
+        if (detail.length > 300) detail = detail.substring(0, 300) + '…';
+
+        new nightshift.ErrorAlert(
+            title || nightshift.config.text.requestFailed,
+            'The server responded with ' + status + '.' + (detail ? ' ' + detail : '')).showText();
+    };
+
+    // A short message in the bottom corner; kind is "succeeded", "failed" or "warning"
+    nightshift.showToast = function (text, kind) {
+        var toast = $('<div class="hf-toast" role="status">').addClass('hf-toast-' + (kind || 'succeeded')).text(text);
+        $('body').append(toast);
+        setTimeout(function () { toast.addClass('show'); }, 10);
+        setTimeout(function () { toast.removeClass('show'); setTimeout(function () { toast.remove(); }, 400); }, 6000);
+    };
+
+    // What "Delete all" or "Requeue all" did: { processed, remaining, complete }
+    nightshift.formatListResult = function (data) {
+        var text = String(nightshift.config.text.listResult).replace('{0}', data.processed);
+        if (data.complete === false) {
+            text += ' ' + String(nightshift.config.text.listRemaining).replace('{0}', typeof data.remaining === 'number' ? data.remaining : '?');
+        }
+        return text;
+    };
 
     nightshift.Metrics = (function() {
         function Metrics() {
@@ -448,6 +498,8 @@
             this._jobId = null;
             this._previewTimer = null;
             this._previewRequest = null;
+            this._startAt = '';
+            this._endAt = '';
 
             var self = this;
 
@@ -483,9 +535,18 @@
             this._jobId = String(button.data('id'));
             this._modal.find('.js-recurring-edit-id').text(this._jobId);
             this._cron.val(button.data('cron') || '');
-            this._timezone.val(button.data('timezone') || 'UTC');
+            // The list holds the host's own zones. A job's zone can be missing there (an IANA id on Windows, a
+            // Windows id on Linux, an id only a custom resolver knows), so it's added rather than left unselected,
+            // which previewed in UTC; the server resolves it like the scheduler does.
+            var timezone = String(button.data('timezone') || 'UTC');
+            if (!this._timezone.find('option').filter(function () { return this.value === timezone; }).length) {
+                this._timezone.append($('<option>').val(timezone).text(timezone));
+            }
+            this._timezone.val(timezone);
             this._queue.val(button.data('queue') || '');
             this._misfire.val(button.data('misfire') || 'Relaxed');
+            this._startAt = button.data('start-at') || '';
+            this._endAt = button.data('end-at') || '';
             this._error.hide().text('');
             this._preview.empty();
             this._description.text('');
@@ -518,7 +579,7 @@
                 return;
             }
 
-            this._previewRequest = $.get(this._previewUrl, { cron: cron, timezone: this._timezone.val() })
+            this._previewRequest = $.get(this._previewUrl, { cron: cron, timezone: this._timezone.val(), start: this._startAt, end: this._endAt })
                 .done(function (data) {
                     self._preview.empty();
 
@@ -564,6 +625,7 @@
             $.post(this._updateUrl + encodeURIComponent(this._jobId), {
                 cron: $.trim(this._cron.val()),
                 timezone: this._timezone.val(),
+                // An empty queue is sent too: it puts the job back in the default queue
                 queue: $.trim(this._queue.val()),
                 misfire: this._misfire.val()
             })
@@ -689,12 +751,22 @@
             this._details.find('.js-live-checkpoints').empty().append(checkpoints);
         };
 
+        // The server answers for at most this many jobs per request
+        LiveJobs.MAX_JOBS = 100;
+
         LiveJobs.prototype._startRows = function () {
             var self = this;
-            var ids = this._rows.map(function () { return String($(this).data('job-id')); }).get();
+            var ids = this._rows.map(function () { return String($(this).data('job-id')); }).get().slice(0, LiveJobs.MAX_JOBS);
 
             var poll = function () {
-                $.post(self._url, { 'jobs[]': ids })
+                // A hidden tab doesn't need the rows; the next poll after it's shown again catches up
+                if (document.hidden) {
+                    self._timer = setTimeout(poll, self._pollInterval);
+                    return;
+                }
+
+                // The rows show the state and the progress only, so the server skips reading the consoles
+                $.post(self._url, { 'jobs[]': ids, console: 0 })
                     .done(function (data) {
                         self._rows.each(function () {
                             var row = $(this);
@@ -895,27 +967,53 @@
             var csrfHeader = $('meta[name="csrf-header"]').attr('content');
             var csrfToken = $('meta[name="csrf-token"]').attr('content');
 
-            if (csrfToken && csrfHeader) {
-                var headers = {};
-                headers[csrfHeader] = csrfToken;
+            // Every request to the dashboard says it comes from the dashboard's scripts: without antiforgery, the
+            // server only accepts POSTs that carry this header, which a form on another site can't send. Requests to
+            // other origins (a dashboard extension calling another service) get neither the header, which would
+            // need a CORS preflight, nor the token, which must not leave the dashboard.
+            var headers = { 'X-Requested-With': 'XMLHttpRequest' };
 
-                $.ajaxSetup({ headers: headers });
+            if (csrfToken && csrfHeader) {
+                headers[csrfHeader] = csrfToken;
             }
+
+            $.ajaxPrefilter(function (options, originalOptions, xhr) {
+                if (options.crossDomain) return;
+
+                $.each(headers, function (name, value) {
+                    xhr.setRequestHeader(name, value);
+                });
+            });
 
             $(document).on('click', '*[data-ajax]', function (e) {
                 var $this = $(this);
                 var confirmText = $this.data('confirm');
 
                 if (!confirmText || confirm(confirmText)) {
-                    $this.prop('disabled');
+                    $this.prop('disabled', true);
                     var loadingDelay = setTimeout(function() {
                         $this.button('loading');
                     }, 100);
 
-                    $.post($this.data('ajax'), function() {
-                        clearTimeout(loadingDelay);
-                        window.location.reload();
-                    });
+                    $.post($this.data('ajax'))
+                        .done(function (data) {
+                            clearTimeout(loadingDelay);
+
+                            // "Delete all" and "Requeue all" say how much they did before the list reloads
+                            if (data && typeof data.processed === 'number') {
+                                nightshift.showToast(nightshift.formatListResult(data), data.complete === false ? 'warning' : 'succeeded');
+                                setTimeout(function () { window.location.reload(); }, data.complete === false ? 5000 : 1500);
+                                return;
+                            }
+
+                            window.location.reload();
+                        })
+                        .fail(function (xhr) {
+                            clearTimeout(loadingDelay);
+                            $this.button('reset');
+                            setTimeout(function () { $this.prop('disabled', false); }, 0);
+                            nightshift.showRequestError(xhr);
+                        });
                 }
 
                 e.preventDefault();
@@ -1031,15 +1129,22 @@
                     }).get();
 
                     if (!confirmText || confirm(confirmText)) {
-                        $this.prop('disabled');
+                        $this.prop('disabled', true);
                         var loadingDelay = setTimeout(function () {
                             $this.button('loading');
                         }, 100);
 
-                        $.post($this.data('url'), { 'jobs[]': jobs }, function () {
-                            clearTimeout(loadingDelay);
-                            window.location.reload();
-                        });
+                        $.post($this.data('url'), { 'jobs[]': jobs })
+                            .done(function () {
+                                clearTimeout(loadingDelay);
+                                window.location.reload();
+                            })
+                            .fail(function (xhr) {
+                                clearTimeout(loadingDelay);
+                                $this.button('reset');
+                                setTimeout(function () { $this.prop('disabled', false); }, 0);
+                                nightshift.showRequestError(xhr);
+                            });
                     }
 
                     e.preventDefault();
@@ -1105,10 +1210,16 @@
         };
 
         CommandPalette.prototype._build = function () {
-            this._overlay = $('<div class="hf-palette" role="dialog" aria-modal="true" style="display: none">')
+            var placeholder = 'Jump to a page, a job id, a recurring job or a tag…';
+
+            // A dialog holding a combobox: the input keeps the focus, and aria-activedescendant names the option
+            // the arrow keys select, so screen readers follow the selection without moving the focus
+            this._overlay = $('<div class="hf-palette" role="dialog" aria-modal="true" aria-label="Command palette" style="display: none">')
                 .append($('<div class="hf-palette-box">')
-                    .append(this._input = $('<input type="text" class="hf-palette-input" placeholder="Jump to a page, a job id, a recurring job or a tag…" autocomplete="off" spellcheck="false">'))
-                    .append(this._list = $('<ul class="hf-palette-results">'))
+                    .append(this._input = $('<input type="text" class="hf-palette-input" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="hfPaletteResults" autocomplete="off" spellcheck="false">')
+                        .attr({ placeholder: placeholder, 'aria-label': placeholder }))
+                    .append(this._list = $('<ul class="hf-palette-results" id="hfPaletteResults" role="listbox" aria-label="Results">'))
+                    .append(this._status = $('<div class="sr-only" role="status" aria-live="polite">'))
                     .append($('<div class="hf-palette-hint">').html('<kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> close &nbsp; <kbd>&gt;</kbd> commands &nbsp; <span class="hf-palette-hint-right"><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd> opens this anywhere</span>')));
 
             $('body').append(this._overlay);
@@ -1129,10 +1240,16 @@
                 else if (e.key === 'ArrowUp') { self._move(-1); e.preventDefault(); }
                 else if (e.key === 'Enter') { self._open(); e.preventDefault(); }
                 else if (e.key === 'Escape') { self.close(); e.preventDefault(); }
+                // The input is the dialog's only control: Tab stays in it instead of leaving the modal dialog
+                else if (e.key === 'Tab') { e.preventDefault(); }
             });
 
-            this._list.on('click', 'li', function () {
-                self._selected = $(this).index();
+            // Only entries open something: the group headers and "Nothing found" are list items too, so the
+            // position among the <li>s isn't the entry's index
+            this._list.on('click', 'li.hf-palette-item', function () {
+                var index = $(this).data('index');
+                if (typeof index !== 'number') return;
+                self._selected = index;
                 self._open();
             });
 
@@ -1144,9 +1261,9 @@
 
         CommandPalette.prototype._bindKeys = function () {
             var self = this;
-            var pendingG = null;
 
             $(document).on('keydown', function (e) {
+                var pendingG = CommandPalette.pendingG;
                 var inField = $(e.target).is('input, textarea, select, [contenteditable]');
 
                 if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
@@ -1156,6 +1273,9 @@
                 }
 
                 if (inField) return;
+
+                // Ctrl+K above always works; the single-key shortcuts below can be turned off (WCAG 2.1.4)
+                if (!nightshift.singleKeyShortcuts.enabled()) return;
 
                 if (e.key === '/') {
                     e.preventDefault();
@@ -1169,22 +1289,38 @@
                 }
 
                 // "g" then a letter: go to a page
-                if (e.key === 'g') {
-                    pendingG = Date.now();
+                if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    CommandPalette.pendingG = Date.now();
+                    e.stopImmediatePropagation();
                     return;
                 }
 
-                if (pendingG && Date.now() - pendingG < 1500) {
+                if (CommandPalette.isGoPending(pendingG) && !/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key)) {
                     var targets = { j: '/jobs/enqueued', p: '/jobs/processing', f: '/jobs/failed', r: '/recurring', s: '/servers', i: '/insights', c: '/catalog', t: '/tags', b: '/batches', a: '/audit', h: '/' };
+                    CommandPalette.pendingG = null;
+
+                    // The second key belongs to "g": the list shortcuts ("r" requeues, "d" deletes) must not see it
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+
                     if (targets[e.key]) {
                         window.location.href = self._basePath + targets[e.key];
                     }
-                    pendingG = null;
                 }
             });
         };
 
+        // When "g" was pressed, waiting for the letter of a page; shared with the list shortcuts
+        CommandPalette.pendingG = null;
+
+        CommandPalette.isGoPending = function (pendingG) {
+            var since = pendingG === undefined ? CommandPalette.pendingG : pendingG;
+            return !!since && Date.now() - since < 1500;
+        };
+
         CommandPalette.prototype.open = function (query) {
+            // Focus goes back where it was when the palette closes
+            if (!this._overlay.is(':visible')) this._returnFocus = document.activeElement;
             this._overlay.show();
             if (query !== undefined) this._input.val(query);
             this._input.trigger('focus').trigger('select');
@@ -1194,6 +1330,10 @@
         CommandPalette.prototype.close = function () {
             this._overlay.hide();
             if (this._request) this._request.abort();
+
+            var target = this._returnFocus;
+            this._returnFocus = null;
+            if (target && target !== document.body && document.contains(target) && typeof target.focus === 'function') target.focus();
         };
 
         CommandPalette.prototype.toggle = function () {
@@ -1203,12 +1343,22 @@
         CommandPalette.prototype._commands = function (text) {
             var self = this;
             var base = this._basePath;
-            var post = function (path) { return function () { $.post(base + path).done(function () { window.location.reload(); }); }; };
+            var post = function (path) {
+                return function () {
+                    $.post(base + path)
+                        .done(function () { window.location.reload(); })
+                        .fail(function (xhr) { nightshift.showRequestError(xhr); });
+                };
+            };
             var all = [
                 { title: '> pause processing', detail: 'hold every new job until resumed', run: post('/maintenance/pause') },
                 { title: '> resume processing', detail: 'let held jobs run again', run: post('/maintenance/resume') },
                 { title: '> wallboard', detail: 'open the full-screen status board', run: function () { window.location.href = base + '/wallboard'; } },
-                { title: '> timeline', detail: 'what every worker did recently', run: function () { window.location.href = base + '/timeline'; } }
+                { title: '> timeline', detail: 'what every worker did recently', run: function () { window.location.href = base + '/timeline'; } },
+                { title: '> keyboard shortcuts', detail: 'list the shortcuts', run: function () { if (window.NightShift.page && window.NightShift.page.shortcuts) window.NightShift.page.shortcuts.toggle(); } },
+                nightshift.singleKeyShortcuts.enabled()
+                    ? { title: '> turn single-key shortcuts off', detail: 'j, k, x, r, d, g, / and ? stop doing anything (Ctrl+K still works)', run: function () { nightshift.singleKeyShortcuts.set(false); } }
+                    : { title: '> turn single-key shortcuts on', detail: 'j, k, x, r, d, g, / and ? work again', run: function () { nightshift.singleKeyShortcuts.set(true); } }
             ];
             var match = /^>\s*(pause|resume)\s+(queue|server)\s+(\S+)/i.exec(text);
             if (match) {
@@ -1273,10 +1423,11 @@
 
                 if (result.group !== group) {
                     group = result.group;
-                    this._list.append($('<li class="hf-palette-group">').text(group));
+                    this._list.append($('<li class="hf-palette-group" role="presentation">').text(group));
                 }
 
-                var item = $('<li class="hf-palette-item">').toggleClass('selected', i === this._selected)
+                var item = $('<li class="hf-palette-item" role="option">').attr({ id: 'hfPaletteItem' + i, 'aria-selected': i === this._selected ? 'true' : 'false' })
+                    .toggleClass('selected', i === this._selected)
                     .append($('<span class="hf-palette-title">').text(result.title));
 
                 if (result.detail) {
@@ -1288,14 +1439,25 @@
             }
 
             if (results.length === 0) {
-                this._list.append($('<li class="hf-palette-empty">').text('Nothing found'));
+                this._list.append($('<li class="hf-palette-empty" role="presentation">').text('Nothing found'));
             }
+
+            this._updateActive();
+            this._status.text(results.length === 0 ? 'Nothing found' : results.length + (results.length === 1 ? ' result' : ' results'));
+        };
+
+        CommandPalette.prototype._updateActive = function () {
+            var hasSelection = this._results.length > 0;
+            if (hasSelection) this._input.attr('aria-activedescendant', 'hfPaletteItem' + this._selected);
+            else this._input.removeAttr('aria-activedescendant');
         };
 
         CommandPalette.prototype._move = function (delta) {
             if (this._results.length === 0) return;
             this._selected = (this._selected + delta + this._results.length) % this._results.length;
-            this._list.find('.hf-palette-item').removeClass('selected').eq(this._selected).addClass('selected')[0].scrollIntoView({ block: 'nearest' });
+            this._list.find('.hf-palette-item').removeClass('selected').attr('aria-selected', 'false')
+                .eq(this._selected).addClass('selected').attr('aria-selected', 'true')[0].scrollIntoView({ block: 'nearest' });
+            this._updateActive();
         };
 
         CommandPalette.prototype._open = function () {
@@ -1309,7 +1471,11 @@
     })();
 
     nightshift.LiveTable = (function () {
-        var STORAGE_KEY = 'nightshift.liveTable';
+        // Kept per list page: turning Live on for Failed jobs doesn't turn it on everywhere
+        var STORAGE_PREFIX = 'nightshift.liveTable:';
+        var OLD_STORAGE_KEY = 'nightshift.liveTable';
+        // Asks the page for its content without the layout, and lets it skip what isn't in the list
+        var LIST_REFRESH_QUERY = 'list-refresh=1';
 
         function LiveTable(page, config) {
             this._page = page;
@@ -1317,8 +1483,11 @@
             this._interval = Math.max((config.pollInterval || 2000) * 2, 2000);
             this._container = $('.js-jobs-list').first();
             this._basePath = (config.pollUrl || '').replace(/\/stats$/, '');
+            this._storageKey = STORAGE_PREFIX + window.location.pathname;
 
             if (!this._container.length) return;
+
+            try { window.localStorage.removeItem(OLD_STORAGE_KEY); } catch (e) { /* private mode */ }
 
             this._enabled = this._read();
             this._build();
@@ -1326,11 +1495,19 @@
         }
 
         LiveTable.prototype._read = function () {
-            try { return window.localStorage.getItem(STORAGE_KEY) === 'true'; } catch (e) { return false; }
+            try { return window.localStorage.getItem(this._storageKey) === 'true'; } catch (e) { return false; }
         };
 
         LiveTable.prototype._write = function (value) {
-            try { window.localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false'); } catch (e) { /* private mode */ }
+            try {
+                if (value) window.localStorage.setItem(this._storageKey, 'true');
+                else window.localStorage.removeItem(this._storageKey);
+            } catch (e) { /* private mode */ }
+        };
+
+        LiveTable.listUrl = function (href) {
+            var url = String(href).split('#')[0];
+            return url + (url.indexOf('?') >= 0 ? '&' : '?') + LIST_REFRESH_QUERY;
         };
 
         LiveTable.prototype._build = function () {
@@ -1353,10 +1530,11 @@
             this._button = $('<button type="button" class="btn btn-sm btn-default hf-live-toggle" title="' + text.liveHint + '">')
                 .append('<span class="hf-live-dot"></span> ' + text.live)
                 .toggleClass('active', this._enabled)
+                .attr('aria-pressed', this._enabled ? 'true' : 'false')
                 .on('click', function () {
                     self._enabled = !self._enabled;
                     self._write(self._enabled);
-                    self._button.toggleClass('active', self._enabled);
+                    self._button.toggleClass('active', self._enabled).attr('aria-pressed', self._enabled ? 'true' : 'false');
                     if (self._enabled) self._schedule(); else clearTimeout(self._timer);
                 });
 
@@ -1372,15 +1550,17 @@
         LiveTable.prototype._refresh = function (manual) {
             var self = this;
 
-            // Never pull the rug from under a selection or an open dialog, unless asked by hand
-            if (!manual && (this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.in').length)) {
+            // Never pull the rug from under a selection or an open dialog, unless asked by hand; and don't load a
+            // tab nobody looks at
+            if (!manual && (document.hidden || this._container.find('.js-jobs-list-checkbox:checked').length || $('.modal.in').length)) {
                 this._schedule();
                 return;
             }
 
-            $.get(window.location.href)
+            $.ajax({ url: LiveTable.listUrl(window.location.href), cache: false })
                 .done(function (html) {
-                    var fresh = $($.parseHTML(html, document, false)).find('.js-jobs-list').first();
+                    var nodes = $($.parseHTML(html, document, false));
+                    var fresh = nodes.filter('.js-jobs-list').add(nodes.find('.js-jobs-list')).first();
 
                     if (fresh.length) {
                         var toggle = self._button.detach();
@@ -1418,6 +1598,8 @@
             this._url = this._list.data('url');
             this._jobUrl = this._list.data('job-url');
             this._interval = Math.max(config.pollInterval || 2000, 1000);
+            // Entries are stamped by the servers that wrote them, whose clocks may differ from each other and from
+            // the dashboard's, so the next poll asks from a little before the newest entry received
             this._since = 0;
             this._seen = {};
             this._timer = null;
@@ -1442,13 +1624,18 @@
             $.ajax({ url: this._url, data: { count: initial ? MAX_ROWS : 50, since: this._since }, cache: false })
                 .done(function (data) {
                     var entries = (data.entries || []).slice().reverse(); // oldest first, so the newest ends on top
+                    // The servers may record the feed even when this process doesn't, so only an empty list with the
+                    // feed off here gets the hint
+                    if (initial && entries.length === 0 && data.enabled === false) {
+                        self._list.find('.hf-activity-empty').text(self._list.data('off'));
+                    }
                     for (var i = 0; i < entries.length; i++) {
                         self._add(entries[i], !initial);
                     }
-                    if (data.now) self._since = Math.max(self._since, data.now - 1);
                     for (var j = 0; j < entries.length; j++) {
-                        self._since = Math.max(self._since, entries[j].t);
+                        self._since = Math.max(self._since, entries[j].t - ActivityFeed.SINCE_MARGIN_MS);
                     }
+                    self._forget();
                     NightShift.Shell.setOnline(true);
                 })
                 .fail(function () { NightShift.Shell.setOnline(false); })
@@ -1457,10 +1644,24 @@
                 });
         };
 
+        // How far before the newest received entry the next poll starts; the entries seen twice are skipped
+        ActivityFeed.SINCE_MARGIN_MS = 30 * 1000;
+
+        // Polls ask only for entries from _since on, so older keys can't come back: drop them, or a wall screen
+        // left open would keep millions
+        ActivityFeed.prototype._forget = function () {
+            var limit = this._since - ActivityFeed.SINCE_MARGIN_MS;
+            for (var key in this._seen) {
+                if (Object.prototype.hasOwnProperty.call(this._seen, key) && this._seen[key] < limit) {
+                    delete this._seen[key];
+                }
+            }
+        };
+
         ActivityFeed.prototype._add = function (entry, animate) {
             var key = entry.t + ':' + entry.j + ':' + entry.s;
-            if (this._seen[key]) return;
-            this._seen[key] = true;
+            if (Object.prototype.hasOwnProperty.call(this._seen, key)) return;
+            this._seen[key] = entry.t;
 
             this._list.find('.hf-activity-empty').remove();
 
@@ -1505,7 +1706,8 @@
                 created: this._modal.data('text-created'),
                 recurringCreated: this._modal.data('text-recurring-created'),
                 injected: this._modal.data('text-injected'),
-                redacted: this._modal.data('text-redacted') || 'redacted, enter the value again'
+                redacted: this._modal.data('text-redacted') || 'redacted, enter the value again',
+                utc: this._modal.data('text-utc') || 'in UTC'
             };
             this._previewTimer = null;
 
@@ -1540,6 +1742,8 @@
 
             this._id.val(button.data('id') || '');
             this._source.val(button.data('source') || '');
+            // "Run again with changes" starts in the job's own queue; the Catalog page in "default"
+            this._modal.find('[name="queue"]').val(button.data('queue') || '');
             this._title.text(button.data('type') + '.' + button.data('method'));
             this._error.hide().text('');
             this._success.hide().empty();
@@ -1568,21 +1772,49 @@
 
             switch (parameter.input) {
                 case 'checkbox':
-                    input = $('<input type="checkbox">').attr({ id: id, name: name }).prop('checked', parameter['default'] === 'true');
-                    group.addClass('checkbox').append($('<label>').attr('for', id).append(input).append(document.createTextNode(' ' + parameter.name)));
+                    // An unchecked box sends nothing, which would mean "the default", so a hidden "false" goes first;
+                    // the server takes "true" when the box sends it too
+                    input = $('<input type="checkbox" value="true">').attr({ id: id, name: name }).prop('checked', parameter['default'] === 'true');
+                    group.addClass('checkbox')
+                        .append($('<input type="hidden" value="false">').attr('name', name))
+                        .append($('<label>').attr('for', id).append(input).append(document.createTextNode(' ' + parameter.name)));
                     return group;
                 case 'select':
+                    var options = parameter.options || [];
+                    var selected = parameter['default'] || '';
                     input = $('<select class="form-control">').attr({ id: id, name: name });
-                    for (var i = 0; i < (parameter.options || []).length; i++) {
-                        input.append($('<option>').val(parameter.options[i]).text(parameter.options[i]));
+                    // bool? and nullable enums can be set to null explicitly; an empty value would mean "the default"
+                    if (parameter.nullable) {
+                        input.append($('<option>').val('null').text('(null)'));
+                        if (selected === '') selected = 'null';
                     }
-                    if (parameter['default']) input.val(parameter['default']);
+                    for (var i = 0; i < options.length; i++) {
+                        input.append($('<option>').val(options[i]).text(options[i]));
+                    }
+                    if (parameter.multiple) {
+                        // A [Flags] enum: its choices are combined on the server. The hidden "0" is sent even when
+                        // nothing is chosen, so no choice means no flags rather than the default.
+                        input.attr({ multiple: 'multiple', size: Math.min(8, input.children().length) });
+                        input.val(selected ? selected.split(/\s*,\s*/) : []);
+                        group.append($('<input type="hidden" value="0">').attr('name', name));
+                    } else if (selected) {
+                        input.val(selected);
+                    }
                     break;
                 case 'number':
                     input = $('<input type="number" step="any" class="form-control">').attr({ id: id, name: name }).val(parameter['default'] || '');
                     break;
                 case 'datetime':
-                    input = $('<input type="datetime-local" step="1" class="form-control">').attr({ id: id, name: name });
+                    // The date picker holds a local date and time to the second. A value with "Z", an offset or a
+                    // fraction of a second goes in a text input instead, so it is sent back exactly as the job had it.
+                    var value = parameter['default'] || '';
+                    if (value === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+                        input = $('<input type="datetime-local" step="1" class="form-control">').attr({ id: id, name: name }).val(value);
+                        // A DateTimeOffset without an offset is read as UTC on the server
+                        if (/^DateTimeOffset\??$/.test(parameter.type)) label.append(' ').append($('<span>').addClass('text-muted').text(this._text.utc));
+                    } else {
+                        input = $('<input type="text" class="form-control hf-mono">').attr({ id: id, name: name, autocomplete: 'off', spellcheck: 'false' }).val(value);
+                    }
                     break;
                 case 'json':
                     input = $('<textarea rows="3" class="form-control hf-mono" spellcheck="false">').attr({ id: id, name: name, placeholder: '{ "json": true }' }).val(parameter['default'] || '');
@@ -1679,7 +1911,7 @@
                 var button = form.find('button[type=submit]').button('loading');
                 $.post(form.data('url'), form.serialize())
                     .done(function () { window.location.reload(); })
-                    .fail(function () { button.button('reset'); });
+                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
             });
 
             $(document).on('click', '.js-copy-code', function (e) {
@@ -1712,7 +1944,7 @@
                 button.button('loading');
                 $.post(button.data('url'), { 'jobs[]': jobs })
                     .done(function () { window.location.reload(); })
-                    .fail(function () { button.button('reset'); });
+                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
             });
         };
 
@@ -1728,7 +1960,7 @@
                     document.body.appendChild(link);
                     link.click();
                     setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 0);
-                });
+                }).fail(function (xhr) { nightshift.showRequestError(xhr); });
             });
 
             var modal = $('#manifestImport');
@@ -1766,7 +1998,7 @@
                         result.empty().append($('<strong>').text(text));
                         if ((data.errors || []).length) {
                             var list = $('<ul class="hf-manifest-errors">');
-                            data.errors.forEach(function (item) { list.append($('<li>').append($('<code>').text(item.id)).append(' ' + item.message)); });
+                            data.errors.forEach(function (item) { list.append($('<li>').append($('<code>').text(item.id)).append(document.createTextNode(' ' + item.message))); });
                             result.append(list);
                         }
                         result.show();
@@ -1792,7 +2024,7 @@
                     document.body.appendChild(link);
                     link.click();
                     setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 0);
-                });
+                }).fail(function (xhr) { nightshift.showRequestError(xhr); });
             });
         };
 
@@ -1803,19 +2035,17 @@
                 if (ack) data.push({ name: 'ack', value: 'true' });
                 $.post(form.data('url'), data)
                     .done(function () { window.location.reload(); })
-                    .fail(function () { button.button('reset'); });
+                    .fail(function (xhr) { button.button('reset'); nightshift.showRequestError(xhr); });
             };
             $(document).on('submit', '.js-note-form', function (e) { e.preventDefault(); submit($(this), false); });
             $(document).on('click', '.js-note-ack', function (e) { e.preventDefault(); submit($(this).closest('form'), true); });
         };
 
         Operations.prototype._initTags = function () {
-            $(document).on('input', '.js-tags-filter', function () {
-                var needle = $.trim($(this).val()).toLowerCase();
-                $('.js-tag, .js-tag-row').each(function () {
-                    var element = $(this);
-                    element.toggle(!needle || String(element.data('tag')).toLowerCase().indexOf(needle) >= 0);
-                });
+            // The filter runs on the server over every tag (the list is paged), so Enter submits the form; clearing
+            // the box with its clear button shows every tag again
+            $(document).on('search', '.js-tags-filter', function () {
+                if ($.trim($(this).val()) === '') $(this).closest('form').trigger('submit');
             });
         };
 
@@ -1830,12 +2060,14 @@
     })();
     // Jobs the viewer follows: a sidebar panel that polls their state and a browser notification when one finishes
     nightshift.Watchlist = (function () {
-        var STORAGE_KEY = 'nightshift.watch';
         var FINAL = { Succeeded: true, Failed: true, Deleted: true };
 
         function Watchlist(config) {
             this._panel = $('.js-watchlist').first();
             if (!this._panel.length) return;
+
+            // One list per dashboard: two dashboards on the same site (one per storage) have different job ids
+            this._storageKey = 'nightshift.watch:' + String((config && config.pollUrl) || '').replace(/\/stats$/, '');
 
             this._liveUrl = this._panel.data('live-url');
             this._jobUrl = this._panel.data('job-url');
@@ -1863,11 +2095,11 @@
         }
 
         Watchlist.prototype._read = function () {
-            try { return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
+            try { return JSON.parse(window.localStorage.getItem(this._storageKey) || '[]'); } catch (e) { return []; }
         };
 
         Watchlist.prototype._write = function () {
-            try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this._items)); } catch (e) { /* private mode */ }
+            try { window.localStorage.setItem(this._storageKey, JSON.stringify(this._items)); } catch (e) { /* private mode */ }
         };
 
         Watchlist.prototype._build = function () {
@@ -1894,7 +2126,8 @@
             $('.js-watch-toggle').each(function () {
                 var button = $(this);
                 var watching = self._find(String(button.data('id'))) >= 0;
-                button.toggleClass('active btn-info', watching).removeClass(watching ? 'btn-default' : 'btn-info').addClass(watching ? '' : 'btn-default');
+                button.toggleClass('active btn-info', watching).removeClass(watching ? 'btn-default' : 'btn-info').addClass(watching ? '' : 'btn-default')
+                    .attr('aria-pressed', watching ? 'true' : 'false');
                 button.find('.js-watch-label').text(watching ? button.data('text-watching') : button.data('text-watch'));
             });
         };
@@ -1970,6 +2203,26 @@
         return Watchlist;
     })();
 
+    // Whether the single-key shortcuts work, chosen per browser in the shortcuts help or the command palette
+    nightshift.singleKeyShortcuts = (function () {
+        var STORAGE_KEY = 'nightshift.singleKeyShortcuts';
+        // Without storage (blocked site data) the choice lasts until the page is left
+        var current = null;
+
+        return {
+            enabled: function () {
+                try { return window.localStorage.getItem(STORAGE_KEY) !== 'off'; } catch (e) { return current !== 'off'; }
+            },
+            set: function (value) {
+                current = value ? null : 'off';
+                try {
+                    if (value) window.localStorage.removeItem(STORAGE_KEY);
+                    else window.localStorage.setItem(STORAGE_KEY, 'off');
+                } catch (e) { /* kept in memory */ }
+            }
+        };
+    })();
+
     // j/k/x/Enter/r/d on job lists, and the "?" overlay that lists every shortcut
     nightshift.Shortcuts = (function () {
         var ROWS = '.js-jobs-list-row';
@@ -1980,9 +2233,13 @@
             var self = this;
 
             $(document).on('keydown', function (e) {
+                if (e.key === 'Escape' && self._overlay && self._overlay.is(':visible')) { self.toggle(); return; }
                 if ($(e.target).is('input, textarea, select, [contenteditable]')) return;
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
                 if ($('.hf-palette:visible').length) return;
+                if (!nightshift.singleKeyShortcuts.enabled()) return;
+                // "g" then a letter goes to a page; that letter isn't a list shortcut
+                if (e.key === 'g' || (nightshift.CommandPalette && nightshift.CommandPalette.isGoPending())) return;
 
                 var rows = $(ROWS);
                 switch (e.key) {
@@ -1992,7 +2249,6 @@
                     case 'Enter': if (self._current(rows).length) { var link = self._current(rows).find('a[href*="/jobs/details/"]').first(); if (link.length) window.location.href = link.attr('href'); } break;
                     case 'r': self._command('.js-jobs-list-command.btn-primary'); break;
                     case 'd': self._command('.js-jobs-list-command[data-url$="/delete"]'); break;
-                    case 'Escape': if (self._overlay) self._overlay.hide(); break;
                 }
             });
         }
@@ -2008,9 +2264,16 @@
             row[0].scrollIntoView({ block: 'nearest' });
         };
 
+        // A key press is easy to make by mistake, so a command without its own confirmation (Requeue, Trigger now,
+        // Enqueue now) asks first; one with a data-confirm text asks itself when clicked
         Shortcuts.prototype._command = function (selector) {
             var button = $(selector).first();
-            if (button.length && !button.prop('disabled')) button.trigger('click');
+            if (!button.length || button.prop('disabled')) return;
+
+            var count = $("input[name='jobs[]']:checked").length;
+            if (!button.data('confirm') && !confirm($.trim(button.text()) + ': ' + count + (count === 1 ? ' selected item' : ' selected items') + '?')) return;
+
+            button.trigger('click');
         };
 
         Shortcuts.prototype.toggle = function () {
@@ -2021,7 +2284,7 @@
                     ['j / k', '', 'Move down / up a job list'],
                     ['x', '', 'Select the focused job'],
                     ['Enter', '', 'Open the focused job'],
-                    ['r', '', 'Requeue the selected jobs'],
+                    ['r', '', 'Run the main command of the list (Requeue, Enqueue now, Trigger now) for the selected items, after a confirmation'],
                     ['d', '', 'Delete the selected jobs'],
                     ['?', '', 'This help'],
                     ['Esc', '', 'Close']
@@ -2033,13 +2296,33 @@
                     if (r[1]) keys.append(' or ').append($('<kbd>').text(r[1]));
                     table.append($('<tr>').append(keys).append($('<td>').text(r[2])));
                 });
-                this._overlay = $('<div class="hf-palette hf-shortcuts" role="dialog" aria-modal="true" style="display: none">')
-                    .append($('<div class="hf-palette-box hf-shortcuts-box">').append($('<h4>').text($('.js-watchlist').data('text-shortcuts') || 'Keyboard shortcuts')).append(table));
+                // Single-key shortcuts can be turned off, for speech input and accidental key presses (WCAG 2.1.4)
+                var toggle = $('<input type="checkbox" id="hfSingleKeyShortcuts">').prop('checked', nightshift.singleKeyShortcuts.enabled())
+                    .on('change', function () { nightshift.singleKeyShortcuts.set(this.checked); });
+                var setting = $('<div class="checkbox hf-shortcuts-setting">').append($('<label for="hfSingleKeyShortcuts">').append(toggle)
+                    .append(document.createTextNode(' Single-key shortcuts (j, k, x, r, d, g, / and ?). Ctrl K works either way.')));
+                this._overlay = $('<div class="hf-palette hf-shortcuts" role="dialog" aria-modal="true" aria-labelledby="hfShortcutsTitle" style="display: none">')
+                    .append(this._box = $('<div class="hf-palette-box hf-shortcuts-box" tabindex="-1">')
+                        .append($('<h4 id="hfShortcutsTitle">').text($('.js-watchlist').data('text-shortcuts') || 'Keyboard shortcuts'))
+                        .append(table).append(setting));
                 var self = this;
-                this._overlay.on('click', function (e) { if (e.target === self._overlay[0]) self._overlay.hide(); });
+                this._overlay.on('click', function (e) { if (e.target === self._overlay[0]) self.toggle(); });
+                // Tab stays in the dialog: its only control is the checkbox
+                this._overlay.on('keydown', function (e) { if (e.key === 'Tab') { e.preventDefault(); toggle.trigger('focus'); } });
                 $('body').append(this._overlay);
             }
-            this._overlay.toggle();
+
+            if (this._overlay.is(':visible')) {
+                this._overlay.hide();
+                var target = this._returnFocus;
+                this._returnFocus = null;
+                if (target && target !== document.body && document.contains(target) && typeof target.focus === 'function') target.focus();
+            } else {
+                this._returnFocus = document.activeElement;
+                this._overlay.find('#hfSingleKeyShortcuts').prop('checked', nightshift.singleKeyShortcuts.enabled());
+                this._overlay.show();
+                this._box.trigger('focus');
+            }
         };
 
         return Shortcuts;

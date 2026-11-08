@@ -17,6 +17,9 @@
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// The numbers the dashboard shows: jobs in each state, servers, queues and recurring jobs.
+    /// </summary>
     public class StatisticsDto
     {
         public long Servers { get; set; }

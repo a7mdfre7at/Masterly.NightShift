@@ -1,19 +1,5 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Masterly.NightShift.Common;
@@ -21,8 +7,11 @@ using Masterly.NightShift.Common;
 namespace Masterly.NightShift.Dashboard
 {
     /// <summary>
-    /// <c>GET /recurring/preview?cron=...&amp;timezone=...</c>: resolves plain-English schedules and
-    /// returns the next occurrences, so the schedule editor can show what it is about to save.
+    /// <c>GET /recurring/preview?cron=...&amp;timezone=...&amp;start=...&amp;end=...</c>: resolves plain-English
+    /// schedules and returns the next occurrences, so the schedule editor can show what it is about to save.
+    /// The optional <c>start</c> and <c>end</c> (milliseconds since 1970-01-01 UTC) are the job's
+    /// <see cref="RecurringJobOptions.StartAt"/> and <see cref="RecurringJobOptions.EndAt"/>: occurrences
+    /// before the start or after the end are left out, as the scheduler skips them.
     /// Always answers <c>200</c>; problems are reported in the <c>error</c> field.
     /// </summary>
     internal sealed class CronPreviewDispatcher : IDashboardDispatcher
@@ -35,6 +24,8 @@ namespace Masterly.NightShift.Dashboard
         {
             var text = context.Request.GetQuery("cron");
             var timeZoneId = context.Request.GetQuery("timezone");
+            var startAt = ParseInstant(context.Request.GetQuery("start"));
+            var endAt = ParseInstant(context.Request.GetQuery("end"));
 
             if (String.IsNullOrWhiteSpace(text))
             {
@@ -48,7 +39,12 @@ namespace Masterly.NightShift.Dashboard
                     ? TimeZoneInfo.Utc
                     : RecurringJobUpdateDispatcher.GetTimeZoneResolver(context).GetTimeZoneById(timeZoneId.Trim());
 
-                var next = Cron.GetNextOccurrences(cron, timeZone, DateTime.UtcNow, OccurrenceCount)
+                // An occurrence exactly at the start runs, so the search begins just before it
+                var now = DateTime.UtcNow;
+                var from = startAt.HasValue && startAt.Value > now ? startAt.Value.AddTicks(-1) : now;
+
+                var next = Cron.GetNextOccurrences(cron, timeZone, from, OccurrenceCount)
+                    .Where(x => !endAt.HasValue || x <= endAt.Value)
                     .Select(static x => JobHelper.ToTimestamp(x))
                     .ToArray();
 
@@ -59,6 +55,24 @@ namespace Masterly.NightShift.Dashboard
             catch (Exception ex) when (ex is ArgumentException || ex is FormatException || ex is TimeZoneNotFoundException || ex is InvalidTimeZoneException)
             {
                 return DashboardJson.WriteAsync(context, 200, new { error = RecurringJobUpdateDispatcher.GetMessage(ex) });
+            }
+        }
+
+        private static DateTime? ParseInstant(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value) ||
+                !Int64.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var milliseconds))
+            {
+                return null;
+            }
+
+            try
+            {
+                return DateTimeOffset.FromUnixTimeMilliseconds(milliseconds).UtcDateTime;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
             }
         }
     }

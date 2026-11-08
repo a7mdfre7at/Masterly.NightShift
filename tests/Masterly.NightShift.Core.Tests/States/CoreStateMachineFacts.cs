@@ -69,6 +69,20 @@ namespace Masterly.NightShift.Core.Tests.States
             _applyContext.Transaction.Verify(x => x.PersistJob(JobId));
         }
 
+        [Fact]
+        public void ApplyState_ExpiresTheJob_InsteadOfPersistingIt_WhenAFilterAskedToExpireANonFinalState()
+        {
+            _applyContext.NewState.Setup(x => x.IsFinal).Returns(false);
+            _applyContext.Object.JobExpirationTimeout = TimeSpan.FromDays(30);
+            _applyContext.Object.ExpireInNonFinalState = true;
+            var stateMachine = CreateStateMachine();
+
+            stateMachine.ApplyState(_applyContext.Object);
+
+            _applyContext.Transaction.Verify(x => x.ExpireJob(JobId, TimeSpan.FromDays(30)));
+            _applyContext.Transaction.Verify(x => x.PersistJob(It.IsAny<string>()), Times.Never);
+        }
+
         [Fact, Sequence]
         public void ApplyState_CallsUnapplyHandlers_BeforeSettingTheState()
         {

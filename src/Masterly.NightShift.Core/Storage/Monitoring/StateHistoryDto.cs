@@ -20,6 +20,9 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A state from a job's history: its name, reason, data and when it was applied.
+    /// </summary>
     public class StateHistoryDto
     {
         // Storages must set the non-nullable members, the dashboard relies on them

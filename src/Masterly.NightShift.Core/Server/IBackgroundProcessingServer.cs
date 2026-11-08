@@ -19,6 +19,9 @@ using System.Threading.Tasks;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// A server that runs background processes, can be told to stop, and can be waited for until it has shut down.
+    /// </summary>
     public interface IBackgroundProcessingServer : IDisposable
     {
         void SendStop();

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -391,6 +392,130 @@ namespace Masterly.NightShift.Core.Tests.Server
             _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
                 ctx.NewState is FailedState &&
                 ctx.DisableFilters == false)));
+        }
+
+        [Fact]
+        public void Execute_CopiesTheItems_UnderTheLockTheConsoleTakes()
+        {
+            var worker = CreateWorker();
+            Thread background = null;
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx =>
+                {
+                    // A thread the job started still works with the shared items (creating the console, for
+                    // example) when the job method returns
+                    using (var locked = new ManualResetEventSlim())
+                    {
+                        background = new Thread(() =>
+                        {
+                            lock (ctx.Items)
+                            {
+                                locked.Set();
+                                Thread.Sleep(200);
+                                ctx.Items["Late"] = "Value";
+                            }
+                        });
+                        background.Start();
+                        locked.Wait();
+                    }
+                });
+
+            worker.Execute(_context.Object);
+            background.Join();
+
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+                ctx.NewState is SucceededState &&
+                ctx.CustomData.ContainsKey("Late"))));
+        }
+
+        [Fact]
+        public void Execute_GivesFiltersItsStateChanger_ButDoesNotPassItOnAsCustomData()
+        {
+            var worker = CreateWorker();
+            object seen = null;
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx => seen = ConcurrencyControl.GetStateChanger(ctx));
+
+            worker.Execute(_context.Object);
+
+            Assert.Same(_stateChanger.Object, seen);
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+                ctx.NewState is SucceededState &&
+                !ctx.CustomData.ContainsKey(ConcurrencyControl.StateChangerItem))));
+        }
+
+        [Fact]
+        public void Execute_DisposesWhatAFilterKeptOpen_AfterTheStateChangeThatFollowsTheJob()
+        {
+            var worker = CreateWorker();
+            var events = new List<string>();
+            var resource = new Mock<IDisposable>();
+            resource.Setup(x => x.Dispose()).Callback(() => events.Add("disposed"));
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx => ((ICollection<IDisposable>)ctx.Items[Worker.DisposeAfterStateChangeItem]).Add(resource.Object));
+            _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+                .Returns<StateChangeContext>(ctx =>
+                {
+                    events.Add(ctx.NewState.Name);
+                    return ctx.NewState;
+                });
+
+            worker.Execute(_context.Object);
+
+            Assert.Equal(new[] { ProcessingState.StateName, SucceededState.StateName, "disposed" }, events);
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+                ctx.NewState is SucceededState &&
+                !ctx.CustomData.ContainsKey(Worker.DisposeAfterStateChangeItem))));
+        }
+
+        [Fact]
+        public void Execute_DisposesWhatAFilterKeptOpen_WhenTheStateChangeFails()
+        {
+            var worker = CreateWorker(1);
+            var resource = new Mock<IDisposable>();
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx => ((ICollection<IDisposable>)ctx.Items[Worker.DisposeAfterStateChangeItem]).Add(resource.Object));
+            _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => !(ctx.NewState is ProcessingState))))
+                .Throws<InvalidOperationException>();
+
+            Assert.Throws<InvalidOperationException>(() => worker.Execute(_context.Object));
+
+            resource.Verify(x => x.Dispose(), Times.Once);
+            _fetchedJob.Verify(x => x.Requeue());
+        }
+
+        [Fact]
+        public void Execute_LeavesTheStateAlone_WhenAFilterRescheduledTheJob()
+        {
+            var worker = CreateWorker();
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx =>
+                {
+                    // What ConcurrencyControl.Reschedule leaves behind, together with the canceled run
+                    ctx.Items[ConcurrencyControl.RescheduledItem] = true;
+                    ctx.Items[BackgroundJobPerformer.ContextCanceledKey] = "ThrottleAttribute";
+                });
+
+            worker.Execute(_context.Object);
+
+            // Only the transition to Processing; no "Canceled by filter" Deleted state that could hit the job once
+            // another worker has picked it up again
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is DeletedState)), Times.Never);
+            _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Once);
+            _fetchedJob.Verify(x => x.RemoveFromQueue());
+        }
+
+        [Fact]
+        public void Execute_StillDeletesAJob_CanceledByAFilterWithoutRescheduling()
+        {
+            var worker = CreateWorker();
+            _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
+                .Callback<PerformContext>(ctx => ctx.Items[BackgroundJobPerformer.ContextCanceledKey] = "ThrottleAttribute");
+
+            worker.Execute(_context.Object);
+
+            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+                ctx.NewState is DeletedState && ctx.ExpectedStates.ElementAt(0) == ProcessingState.StateName)));
         }
 
         private Worker CreateWorker(int maxStateChangeAttempts = 10)

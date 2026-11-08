@@ -20,22 +20,25 @@ using Masterly.NightShift.Common;
 // ReSharper disable once CheckNamespace
 namespace Masterly.NightShift.States
 {
+    /// <summary>
+    /// The base class of the state contexts, holding the job.
+    /// </summary>
     /// <exclude />
-    [Obsolete("This class is here for compatibility reasons. Will be removed in 2.0.0.")]
+    [Obsolete("Use the BackgroundJob property of the state context instead. Kept for code ported from Hangfire.")]
     public abstract class StateContext
     {
         [NotNull]
         public abstract BackgroundJob BackgroundJob { get; }
 
         [NotNull]
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public string JobId => BackgroundJob.Id;
 
         [CanBeNull]
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public Job Job => BackgroundJob.Job;
 
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public DateTime CreatedAt => BackgroundJob.CreatedAt;
     }
 }

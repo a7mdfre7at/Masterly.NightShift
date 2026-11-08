@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Threading.Tasks;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Core.Tests.Stubs;
@@ -107,10 +109,13 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<ScheduledState>(s => s.EnqueueAt > DateTime.UtcNow.AddMinutes(14) && s.EnqueueAt < DateTime.UtcNow.AddMinutes(16))));
         }
 
-        [Fact, StaticLock]
-        public async Task Dispatch_Sets422_ForABadDelay()
+        [Theory, StaticLock]
+        [InlineData("-1")]
+        [InlineData("NaN")]
+        [InlineData("1e308")]
+        public async Task Dispatch_Sets422_ForABadDelay(string delay)
         {
-            var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", "-1"), ("arg:to", "bob"), ("arg:count", "1"));
+            var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
 
             await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -132,6 +137,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [Theory, StaticLock]
         [InlineData("whenever you like")]
         [InlineData("")]
+        [InlineData("in 99999999 days")]
+        [InlineData("in 3000000000 months")]
         public async Task Dispatch_Sets422_ForADelayThatIsNeitherMinutesNorAPhrase(string delay)
         {
             var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
@@ -209,6 +216,55 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact, StaticLock]
+        public async Task Dispatch_RunsAnExistingJobAgain_InItsOwnQueue_WhenTheQueueFieldIsEmpty()
+        {
+            // A job created with Enqueue("emails", ...) and run again landed in "default"
+            var connection = new Mock<IStorageConnection>();
+            _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
+            var source = new Job(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), new object[] { "old", 1 }, "emails");
+            connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = source });
+            var context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", ""));
+
+            await new JobCatalogRunDispatcher().Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            _client.Verify(x => x.Create(It.Is<Job>(j => j.Queue == "emails"), It.Is<EnqueuedState>(s => s.Queue == "emails")));
+        }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_UsesTheQueueGiven_ForAnExistingJob()
+        {
+            var connection = new Mock<IStorageConnection>();
+            _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
+            var source = new Job(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), new object[] { "old", 1 }, "emails");
+            connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = source });
+            var context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", "critical"));
+
+            await new JobCatalogRunDispatcher().Dispatch(context);
+
+            _client.Verify(x => x.Create(It.Is<Job>(j => j.Queue == "critical"), It.Is<EnqueuedState>(s => s.Queue == "critical")));
+        }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_Sets422_NamingWhatCanNotBeLoaded_WhenTheSourceJobsTypeIsMissing()
+        {
+            // A dashboard hosted without the job's assemblies answered 404, as if the job didn't exist
+            var connection = new Mock<IStorageConnection>();
+            _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
+            connection.Setup(x => x.GetJobData("41")).Returns(new JobData
+            {
+                LoadException = new JobLoadException("Could not load the job.", new InvalidOperationException("Could not resolve assembly 'Shop.Web'.")),
+            });
+            var context = Post(("source", "41"));
+
+            await new JobCatalogRunDispatcher().Dispatch(context);
+
+            Assert.Equal(422, context.Response.StatusCode);
+            Assert.Contains("Shop.Web", JsonNode.Parse(context.Response.Text)["error"].GetValue<string>());
+            _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>()), Times.Never);
+        }
+
+        [Fact, StaticLock]
         public async Task Dispatch_Sets404_WhenTheSourceJobIsGone()
         {
             var connection = new Mock<IStorageConnection>();
@@ -218,6 +274,67 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             await new JobCatalogRunDispatcher().Dispatch(context);
 
             Assert.Equal(404, context.Response.StatusCode);
+        }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_GivesFalse_ForAnUncheckedBoxWhoseDefaultIsTrue_AndTrue_ForACheckedOne()
+        {
+            // An unchecked box sent nothing, and nothing meant the default, true
+            var uncheckedBox = await RunAgainAsync(x => x.Flag(true), ("arg:dryRun", "false"));
+            var checkedBox = await RunAgainAsync(x => x.Flag(false), ("arg:dryRun", "false"), ("arg:dryRun", "true"));
+
+            Assert.Equal(false, uncheckedBox.Args[0]);
+            Assert.Equal(true, checkedBox.Args[0]);
+        }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_CombinesTheChoicesOfAFlagsEnum_AndGivesNoFlags_WhenNothingIsChosen()
+        {
+            var combined = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"), ("arg:flags", "Instance"), ("arg:flags", "Public"));
+            var none = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"));
+
+            Assert.Equal(BindingFlags.Instance | BindingFlags.Public, combined.Args[0]);
+            Assert.Equal(BindingFlags.Default, none.Args[0]);
+        }
+
+        [Fact, StaticLock]
+        public async Task Dispatch_GivesNull_ForTheNullChoiceOfABoolOrEnumThatIsNullable()
+        {
+            var job = await RunAgainAsync(x => x.Maybe(true, DayOfWeek.Friday), ("arg:enabled", "null"), ("arg:day", "null"));
+
+            Assert.Null(job.Args[0]);
+            Assert.Null(job.Args[1]);
+        }
+
+        private async Task<Job> RunAgainAsync(Expression<Action<FormJobs>> source, params (string, string)[] form)
+        {
+            var connection = new Mock<IStorageConnection>();
+            _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
+            connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = Job.FromExpression(source) });
+
+            var request = new DashboardRequestStub("POST");
+            request.Form["source"] = new List<string> { "41" };
+            foreach (var (key, value) in form)
+            {
+                if (!request.Form.TryGetValue(key, out var values)) request.Form[key] = values = new List<string>();
+                values.Add(value);
+            }
+
+            var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object) { BackgroundJobClient = _client.Object };
+            Job created = null;
+            _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Callback<Job, IState>((job, _) => created = job).Returns("124");
+
+            await new JobCatalogRunDispatcher().Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            return created;
+        }
+
+        public class FormJobs
+        {
+            public void Flag(bool dryRun = true) { }
+            public void Flags(BindingFlags flags) { }
+            public void Maybe(bool? enabled = true, DayOfWeek? day = DayOfWeek.Monday) { }
         }
 
         public class UncataloguedJobs

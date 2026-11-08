@@ -25,9 +25,10 @@
     {
         drain = DrainMode.Read(connection);
     }
+    var staleServerPauses = DashboardHealth.GetStalePausedServers(drain, servers);
     var now = StorageUtcNow ?? ApplicationUtcNow;
-    var inconclusiveThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
-    var possiblyAbortedThreshold = TimeSpan.FromSeconds(inconclusiveThreshold.TotalSeconds * 2);
+    // The same threshold as the job pages, the diagnostics and /health: no heartbeat for that long
+    var possiblyAbortedThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
 }
 
 <div class="row">
@@ -74,10 +75,6 @@
                                     {
                                         @:<span class="glyphicon glyphicon-alert text-danger" title="@Strings.ServersPage_Possibly_Aborted"></span>&nbsp;@Html.ServerId(server.Name)
                                     }
-                                    else if (server.Heartbeat < now.Add(-inconclusiveThreshold))
-                                    {
-                                        @:<span class="glyphicon margin-right-14p"></span>&nbsp;@Html.ServerId(server.Name)
-                                    }
                                     else
                                     {
                                         @:<span class="glyphicon glyphicon-ok text-success" title="@Strings.ServersPage_Active"></span>&nbsp;@Html.ServerId(server.Name)
@@ -119,6 +116,32 @@
                         }
                     </tbody>
                 </table>
+            </div>
+        }
+
+        @if (staleServerPauses.Count > 0)
+        {
+            <div class="alert alert-info hf-stale-pauses">
+                <h4>@Strings.ServersPage_StalePauses_Title</h4>
+                <p>@Strings.ServersPage_StalePauses_Text</p>
+                <ul class="list-unstyled">
+                    @foreach (var serverId in staleServerPauses)
+                    {
+                        <li>
+                            <code>@serverId</code>
+                            @if (!String.IsNullOrEmpty(drain.PausedServers[serverId]))
+                            {
+                                <em>@drain.PausedServers[serverId]</em>
+                            }
+                            @if (!IsReadOnly)
+                            {
+                                <button class="btn btn-xs btn-default" data-ajax="@Url.To("/servers/resume/" + Uri.EscapeDataString(serverId))" data-loading-text="@Strings.ServersPage_StalePauses_Clear">
+                                    <span class="glyphicon glyphicon-remove"></span> @Strings.ServersPage_StalePauses_Clear
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
             </div>
         }
 

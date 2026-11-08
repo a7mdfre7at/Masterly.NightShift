@@ -313,6 +313,102 @@ namespace Masterly.NightShift.Core.Tests.Common
 
             Assert.Null(method);
         }
+
+        [Theory]
+        [InlineData(typeof(OverloadsBaseFirst))]
+        [InlineData(typeof(OverloadsDerivedFirst))]
+        public void GetNonOpenMatchingMethod_ReturnsTheExactOverload_WhateverTheDeclarationOrder(Type type)
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", new[] { typeof(OverloadDerived) });
+
+            Assert.Equal(typeof(OverloadDerived), method.GetParameters()[0].ParameterType);
+        }
+
+        [Theory]
+        [InlineData(typeof(OverloadsBaseFirst))]
+        [InlineData(typeof(OverloadsDerivedFirst))]
+        public void GetNonOpenMatchingMethod_ReturnsTheExactOverload_ForTheLessDerivedType(Type type)
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", new[] { typeof(OverloadBase) });
+
+            Assert.Equal(typeof(OverloadBase), method.GetParameters()[0].ParameterType);
+        }
+
+        [Theory]
+        [InlineData(typeof(OverloadsBaseFirst))]
+        [InlineData(typeof(OverloadsDerivedFirst))]
+        public void GetNonOpenMatchingMethod_PrefersTheExactOverload_OverAnInterfaceOne(Type type)
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Process", new[] { typeof(OverloadMessage) });
+
+            Assert.Equal(typeof(OverloadMessage), method.GetParameters()[0].ParameterType);
+        }
+
+        [Fact]
+        public void GetNonOpenMatchingMethod_StillReturnsAnAssignableOverload_WhenNoneIsExact()
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Process", new[] { typeof(OtherOverloadMessage) });
+
+            Assert.Equal(typeof(IOverloadMessage), method.GetParameters()[0].ParameterType);
+        }
+
+        [Fact]
+        public void GetNonOpenMatchingMethod_PrefersANonGenericExactOverload_OverAGenericOne()
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", new[] { typeof(OverloadDerived) });
+
+            Assert.False(method.IsGenericMethod);
+            Assert.Equal(typeof(OverloadDerived), method.GetParameters()[0].ParameterType);
+        }
+
+        [Fact]
+        public void GetNonOpenMatchingMethod_PrefersAGenericMethodWithExactParameterTypes_OverAnAssignableOverload()
+        {
+            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", new[] { typeof(OverloadMoreDerived) });
+
+            Assert.True(method.IsGenericMethod);
+            Assert.Equal(new[] { typeof(OverloadMoreDerived) }, method.GetGenericArguments());
+        }
+    }
+
+    public class OverloadBase { }
+
+    public class OverloadDerived : OverloadBase { }
+
+    public class OverloadMoreDerived : OverloadDerived { }
+
+    public interface IOverloadMessage { }
+
+    public class OverloadMessage : IOverloadMessage { }
+
+    public class OtherOverloadMessage : IOverloadMessage { }
+
+    public class OverloadsBaseFirst
+    {
+        public void Handle(OverloadBase value) { }
+
+        public void Handle(OverloadDerived value) { }
+
+        public void Process(IOverloadMessage message) { }
+
+        public void Process(OverloadMessage message) { }
+
+        public void Run(OverloadBase value) { }
+
+        public void Run<T>(T value) { }
+
+        public void Run(OverloadDerived value) { }
+    }
+
+    public class OverloadsDerivedFirst
+    {
+        public void Handle(OverloadDerived value) { }
+
+        public void Handle(OverloadBase value) { }
+
+        public void Process(OverloadMessage message) { }
+
+        public void Process(IOverloadMessage message) { }
     }
 
     public class GenericClass<T1>

@@ -23,6 +23,10 @@ using System.Threading;
 
 namespace Masterly.NightShift.Common
 {
+    /// <summary>
+    /// Turns types into the names stored with jobs and back, and maps the type names stored by earlier versions to the
+    /// current types. The resolver and serializer can be replaced.
+    /// </summary>
     public class TypeHelper
     {
         private static readonly ConcurrentDictionary<Type, string> DefaultTypeSerializerCache = new ConcurrentDictionary<Type, string>();

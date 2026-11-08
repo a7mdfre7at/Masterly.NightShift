@@ -62,6 +62,48 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
+        public async Task JobExport_LeavesOutTheRawArguments_WhenTheMethodCanNotBeLoaded()
+        {
+            // Without the method, [Redacted] can't be read, so the arguments the storage adds for debugging may hold secrets
+            _monitor.Setup(x => x.JobDetails("8")).Returns(new JobDetailsDto
+            {
+                Job = null,
+                LoadException = new JobLoadException("Could not load type", new TypeLoadException()),
+                Properties = new Dictionary<string, string>
+                {
+                    { "DBG_Type", "Contoso.Jobs, Contoso" },
+                    { "DBG_Method", "Connect" },
+                    { "DBG_Args", "[\"db\",\"hunter2\"]" },
+                    { "DBG_Payload", "{\"t\":\"Contoso.Jobs\",\"a\":\"[\\\"db\\\",\\\"hunter2\\\"]\"}" },
+                },
+                History = new List<StateHistoryDto>(),
+            });
+            var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+            context.UriMatch = Regex.Match("/jobs/export/8", "/jobs/export/(?<JobId>.+)");
+
+            await new JobExportDispatcher().Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            Assert.DoesNotContain("hunter2", context.Response.Text);
+            var json = JsonNode.Parse(context.Response.Text);
+            Assert.Equal("Connect", json["parameters"]["DBG_Method"].GetValue<string>());
+            Assert.Null(json["parameters"]["DBG_Args"]);
+            Assert.Null(json["parameters"]["DBG_Payload"]);
+        }
+
+        [Fact]
+        public async Task JobExport_DecodesAnEncodedSlashInTheJobId()
+        {
+            _monitor.Setup(x => x.JobDetails("tenant/9")).Returns((JobDetailsDto)null);
+            var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+            context.UriMatch = Regex.Match("/jobs/export/tenant%2F9", "/jobs/export/(?<JobId>.+)");
+
+            await new JobExportDispatcher().Dispatch(context);
+
+            _monitor.Verify(x => x.JobDetails("tenant/9"), Times.Once);
+        }
+
+        [Fact]
         public async Task JobExport_Answers404_ForUnknownJobs()
         {
             var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
@@ -92,7 +134,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal(200, context.Response.StatusCode);
             Assert.StartsWith("text/csv", context.Response.ContentType);
             var lines = context.Response.Text.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
-            Assert.Equal("Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage", lines[0]);
+            Assert.Equal("Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage", lines[0]);
             Assert.Equal(601, lines.Length);
             Assert.Contains("\"a \"\"quoted\"\", message", context.Response.Text);
             Assert.Contains("\"'=cmd()\"", context.Response.Text);
@@ -153,10 +195,10 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
 
             Assert.Equal(new[]
             {
-                "Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage",
-                "1,Succeeded,,2026-11-05T01:00:00.000Z,1.5,,",
-                "2,Changed,,,,,",
-                "3,,,,,,",
+                "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage",
+                "1,Succeeded,,2026-11-05T01:00:00.000Z,1.5,,,",
+                "2,Changed,,,,,,",
+                "3,,,,,,,",
             }, lines);
         }
 
@@ -177,7 +219,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("Scheduled", fields[1]);
             Assert.Equal(enqueueAt.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture), fields[3]);
             Assert.InRange(Double.Parse(fields[4], CultureInfo.InvariantCulture), 3500, 3600);
-            Assert.Equal("2,,,,,,", lines[2]);
+            Assert.Equal("2,,,,,,,", lines[2]);
         }
 
         [Fact]
@@ -195,8 +237,10 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             var fields = lines[1].Split(',');
             Assert.Equal("Processing", fields[1]);
             Assert.InRange(Double.Parse(fields[4], CultureInfo.InvariantCulture), 59, 120);
+            // The server has its own column; it was written under ExceptionType
             Assert.Equal("web-1:42", fields[5]);
-            Assert.Equal("2,Changed,,,,,", lines[2]);
+            Assert.Equal("", fields[6]);
+            Assert.Equal("2,Changed,,,,,,", lines[2]);
         }
 
         [Fact]
@@ -214,9 +258,9 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
 
             Assert.Equal(new[]
             {
-                "Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage",
-                "1,Deleted,,2026-11-05T02:00:00.000Z,,,",
-                "2,Changed,,,,,",
+                "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage",
+                "1,Deleted,,2026-11-05T02:00:00.000Z,,,,",
+                "2,Changed,,,,,,",
             }, lines);
         }
 
@@ -225,7 +269,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         {
             var lines = await ExportAsync("deleted", "/jobs/deleted/export");
 
-            Assert.Equal(new[] { "Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage" }, lines);
+            Assert.Equal(new[] { "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage" }, lines);
         }
 
         [Fact]
@@ -233,9 +277,47 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         {
             var lines = await ExportAsync("archived", "/jobs/archived/export");
 
-            Assert.Equal(new[] { "Id,State,Job,Time,Seconds,ExceptionType,ExceptionMessage" }, lines);
+            Assert.Equal(new[] { "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage" }, lines);
             _monitor.Verify(x => x.FailedJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
             _monitor.Verify(x => x.SucceededJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ListExport_CutsLongExceptionMessages()
+        {
+            _monitor.Setup(x => x.FailedJobs(0, 500)).Returns(new JobList<FailedJobDto>(new[]
+            {
+                new KeyValuePair<string, FailedJobDto>("1", new FailedJobDto { InFailedState = true, ExceptionType = "System.Exception", ExceptionMessage = new string('x', 5000) }),
+            }));
+
+            var lines = await ExportAsync("failed", "/jobs/failed/export");
+
+            var fields = lines[1].Split(',');
+            Assert.Equal("System.Exception", fields[6]);
+            Assert.Equal(new string('x', JobListExportDispatcher.MaxMessageLength) + "\u2026", fields[7]);
+        }
+
+        [Fact]
+        public async Task ListExport_WritesEachPage_AsSoonAsItIsRead()
+        {
+            // The whole list (up to 10,000 jobs) was held in one string before anything was sent
+            var writes = new List<int>();
+            _monitor.Setup(x => x.SucceededJobs(It.IsAny<int>(), It.IsAny<int>())).Returns<int, int>((from, count) =>
+            {
+                writes.Add(from);
+                return new JobList<SucceededJobDto>(Enumerable.Range(from, from < 1000 ? count : 10).Select(i => new KeyValuePair<string, SucceededJobDto>(i.ToString(), new SucceededJobDto())));
+            });
+            var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+            context.UriMatch = Regex.Match("/jobs/succeeded/export", "/jobs/succeeded/export");
+
+            await new JobListExportDispatcher("succeeded").Dispatch(context);
+
+            var chunks = context.Response.Writes;
+
+            Assert.Equal(new[] { 0, 500, 1000 }, writes);
+            // The header, then one write per page
+            Assert.Equal(4, chunks.Count);
+            Assert.Equal(1010, chunks.Skip(1).Sum(c => c.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries).Length));
         }
 
         private async Task<string[]> ExportAsync(string state, string path)
@@ -255,6 +337,9 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [InlineData("a,b", "\"a,b\"")]
         [InlineData("say \"hi\"", "\"say \"\"hi\"\"\"")]
         [InlineData("-1+1", "\"'-1+1\"")]
+        [InlineData("\t=cmd()", "\"'\t=cmd()\"")]
+        [InlineData("\r=cmd()", "\"'\r=cmd()\"")]
+        [InlineData("a\t=b", "a\t=b")]
         public void Csv_EscapesWhatSpreadsheetsMisread(string value, string expected)
         {
             Assert.Equal(expected, JobListExportDispatcher.Csv(value));

@@ -15,6 +15,9 @@
 
 namespace Masterly.NightShift.States
 {
+    /// <summary>
+    /// Changes the state of a job, running the job filters and state handlers.
+    /// </summary>
     public interface IBackgroundJobStateChanger
     {
         /// <summary>

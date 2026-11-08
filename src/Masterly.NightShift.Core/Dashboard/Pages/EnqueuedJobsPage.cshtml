@@ -38,6 +38,10 @@
         {
             <div class="js-jobs-list">
                 <div class="btn-toolbar btn-toolbar-top">
+                    <button type="button" class="btn btn-sm btn-default js-download" data-url="@Url.To("/jobs/enqueued/export/" + Uri.EscapeDataString(Queue))" data-filename="nightshift-enqueued-jobs-@(Queue).csv">
+                        <span class="glyphicon glyphicon-download-alt"></span>
+                        @Strings.Common_DownloadCsv
+                    </button>
                     @if (!IsReadOnly)
                     {
                         <button class="btn btn-sm btn-default btn-delete-all"

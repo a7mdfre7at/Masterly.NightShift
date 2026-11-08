@@ -101,6 +101,19 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
+        public void Render_SaysTheLateSummaryCoversThisPage_WhenThereAreOtherPages()
+        {
+            AddJob("late-one", "* * * * *", Next(TimeSpan.FromMinutes(-10)));
+            AddJob("on-time", "* * * * *", Next(TimeSpan.FromSeconds(30)));
+            _renderer.Request.Query["count"] = "1";
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains(H(String.Format(Strings.RecurringJobsPage_LateSummary_Page, 1)), html);
+            Assert.DoesNotContain(H(String.Format(Strings.RecurringJobsPage_LateSummary, 1)), html);
+        }
+
+        [Fact]
         public void Render_ShowsTheStateOfTheNextExecution_ForEachKindOfJob()
         {
             AddJob("paused", "* * * * *", Next(TimeSpan.FromMinutes(-10)), new Dictionary<string, string> { { "Paused", "1" } });
@@ -139,6 +152,120 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("data-misfire=\"Strict\"", html);
             Assert.Contains("data-misfire=\"Relaxed\"", html);
             Assert.Contains("<span title=\"" + H(TimeZoneInfo.Utc.DisplayName) + "\" data-container=\"body\">" + H(TimeZoneInfo.Utc.Id), html);
+            Assert.Contains("data-start-at=\"\"", html);
+            Assert.Contains("data-end-at=\"\"", html);
+        }
+
+        [Fact]
+        public void Render_AddsAHiddenEditButton_ForTheJobToEdit_WhenItIsOnAnotherPage()
+        {
+            // /recurring?edit={id} only opened the editor when the job was on the page shown
+            AddJob("on-this-page", "0 3 * * *", Next(TimeSpan.FromHours(3)));
+            AddJob("elsewhere", "0 5 * * *", Next(TimeSpan.FromHours(5)), new Dictionary<string, string> { { "Queue", "reports" } });
+            _ids.Remove("elsewhere");
+            _renderer.Request.Query["edit"] = "elsewhere";
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains("class=\"btn btn-xs btn-default js-recurring-edit hidden\"", html);
+            Assert.Contains("data-id=\"elsewhere\" data-cron=\"0 5 * * *\"", html);
+            Assert.Contains("data-queue=\"reports\"", html);
+            Assert.Equal(2, CountOf(html, "data-misfire="));
+        }
+
+        [Fact]
+        public void Render_DoesNotAddAHiddenEditButton_ForAJobOnThisPage_AnUnknownOne_OrInReadOnlyMode()
+        {
+            AddJob("on-this-page", "0 3 * * *", Next(TimeSpan.FromHours(3)));
+            _renderer.Request.Query["edit"] = "on-this-page";
+            var onThisPage = _renderer.Render(new RecurringJobsPage());
+
+            _renderer.Request.Query["edit"] = "missing";
+            _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:missing")).Returns((Dictionary<string, string>)null);
+            var missing = _renderer.Render(new RecurringJobsPage());
+
+            AddJob("elsewhere", "0 5 * * *", Next(TimeSpan.FromHours(5)));
+            _ids.Remove("elsewhere");
+            _renderer.Request.Query["edit"] = "elsewhere";
+            _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
+            var readOnly = _renderer.Render(new RecurringJobsPage());
+
+            Assert.DoesNotContain("js-recurring-edit hidden", onThisPage);
+            Assert.DoesNotContain("js-recurring-edit hidden", missing);
+            Assert.DoesNotContain("js-recurring-edit", readOnly);
+            _renderer.Connection.Verify(x => x.GetAllEntriesFromHash("recurring-job:elsewhere"), Times.Never);
+        }
+
+        [Fact]
+        public void Render_ShowsWhenAJob_StartsAndEnds()
+        {
+            var start = new DateTime(2099, 1, 2, 3, 4, 5, 678, DateTimeKind.Utc);
+            var end = new DateTime(2099, 6, 7, 8, 9, 10, 0, DateTimeKind.Utc);
+            AddJob("later", "0 4 * * *", start.AddHours(1), new Dictionary<string, string>
+            {
+                { "StartAt", JobHelper.SerializeDateTime(start) },
+                { "EndAt", JobHelper.SerializeDateTime(end) },
+            });
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains(String.Format(H(Strings.RecurringJobsPage_StartsAt), LocalTime(start)), html);
+            Assert.Contains(String.Format(H(Strings.RecurringJobsPage_EndsAt), LocalTime(end)), html);
+            Assert.DoesNotContain("data-moment=\"" + JobHelper.ToTimestamp(start.AddHours(1)), html);
+            Assert.Contains("data-start-at=\"" + JobHelper.ToMillisecondTimestamp(start) + "\"", html);
+            Assert.Contains("data-end-at=\"" + JobHelper.ToMillisecondTimestamp(end) + "\"", html);
+        }
+
+        [Fact]
+        public void Render_ShowsTheEnd_AndTheNextRun_OfAnActiveJob()
+        {
+            var next = Next(TimeSpan.FromHours(1));
+            var end = DateTime.UtcNow.AddDays(30);
+            AddJob("active", "0 * * * *", next, new Dictionary<string, string>
+            {
+                { "StartAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)) },
+                { "EndAt", JobHelper.SerializeDateTime(end) },
+            });
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains("data-moment=\"" + JobHelper.ToTimestamp(next) + "\"", html);
+            Assert.Contains(String.Format(H(Strings.RecurringJobsPage_EndsAt), LocalTime(end)), html);
+            Assert.DoesNotContain(String.Format(H(Strings.RecurringJobsPage_StartsAt), "<span data-moment-local"), html);
+            Assert.DoesNotContain(H(Strings.RecurringJobsPage_Ended_Tooltip), html);
+        }
+
+        [Fact]
+        public void Render_SaysAJobHasEnded_InsteadOfDisabled_WhenItsEndHasPassed()
+        {
+            var end = DateTime.UtcNow.AddDays(-2);
+            AddJob("ended", "0 * * * *", null, new Dictionary<string, string> { { "EndAt", JobHelper.SerializeDateTime(end) } });
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains("title=\"" + H(Strings.RecurringJobsPage_Ended_Tooltip) + "\">" + H(Strings.RecurringJobsPage_Ended) + "</span>", html);
+            Assert.Contains("data-moment-local=\"" + JobHelper.ToTimestamp(end) + "\"", html);
+            Assert.DoesNotContain(H(Strings.RecurringJobsPage_RecurringJobDisabled_Tooltip), html);
+            Assert.DoesNotContain(String.Format(H(Strings.RecurringJobsPage_EndsAt), "<span data-moment-local"), html);
+        }
+
+        [Fact]
+        public void Render_KeepsThePausedAndErrorLabels_OfAJobWithAnEnd()
+        {
+            var end = DateTime.UtcNow.AddDays(-2);
+            AddJob("paused", "0 * * * *", null, new Dictionary<string, string> { { "EndAt", JobHelper.SerializeDateTime(end) }, { "Paused", "1" } });
+            AddJob("errored", "0 * * * *", null, new Dictionary<string, string> { { "EndAt", JobHelper.SerializeDateTime(end) }, { "Error", "Boom" } });
+
+            var html = _renderer.Render(new RecurringJobsPage());
+
+            Assert.Contains(H(Strings.RecurringJobsPage_Paused_Tooltip), html);
+            Assert.Contains("<span class=\"label label-danger text-uppercase\">" + H(Strings.Common_Error) + "</span>", html);
+            Assert.DoesNotContain(H(Strings.RecurringJobsPage_Ended_Tooltip), html);
+        }
+
+        private static string LocalTime(DateTime value)
+        {
+            return "<span data-moment-local=\"" + JobHelper.ToTimestamp(value) + "\">";
         }
 
         [Fact]
@@ -197,7 +324,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("href=\"/jobs/details/101\"", html);
             Assert.Contains("label-state-success", html);
             Assert.Contains("href=\"/jobs/details/102\"", html);
-            Assert.Contains("label label-default label-hover label-state-inherit", html);
+            Assert.Contains("<span class=\"label label-default label-hover\" style=\"\">", html);
+            Assert.DoesNotContain("label-state-inherit", html);
             Assert.Contains("label-state-inactive\" title=\"" + H(Strings.RecurringJobsPage_Canceled) + "\"", html);
             Assert.Contains("<em>N/A</em>", html);
             Assert.Contains("<em>" + H(Strings.Common_NotAvailable) + "</em>", html);

@@ -119,6 +119,21 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
+        public void Build_DrawsAFewNodesPastTheLimit_ForAContinuationOfAThousandsOfParents()
+        {
+            // A batch continuation waits for every job of the batch: a node was added for each, 3 MB of page
+            var parents = Enumerable.Range(1, 5000).Select(static i => "p" + i).ToArray();
+            var merge = Add("merge", AwaitingState.StateName, fanInParents: parents);
+
+            var lineage = JobLineage.Build(_monitor.Object, "merge", merge);
+
+            Assert.True(lineage.Truncated);
+            Assert.Equal(JobLineage.MaxNodes + JobLineage.MaxBoundaryNodes, lineage.Nodes.Count);
+            Assert.Equal(lineage.Nodes.Count - 1, lineage.Edges.Count);
+            _monitor.Verify(x => x.JobDetails(It.IsAny<string>()), Times.AtMost(JobLineage.MaxNodes));
+        }
+
+        [Fact]
         public void Build_MarksExpiredJobs_AndStops()
         {
             var child = Add("child", AwaitingState.StateName, parentId: "vanished");

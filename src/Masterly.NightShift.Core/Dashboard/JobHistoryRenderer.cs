@@ -18,13 +18,22 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Dashboard.Resources;
 using Masterly.NightShift.States;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Renders the states of a job's history on the job details page, with renderers per state name that extensions can
+    /// register, and holds the colors of each state.
+    /// </summary>
     public static class JobHistoryRenderer
     {
+        /// <summary>How many parents of a continuation the Awaiting state links to.</summary>
+        internal const int MaxParentLinks = 50;
+
         private static readonly IDictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString>>
             Renderers = new Dictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString>>();
 
@@ -71,51 +80,85 @@ namespace Masterly.NightShift.Dashboard
             StateCssSuffixes.Add(AwaitingState.StateName, "info");
         }
 
-        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Will be removed in 2.0.0.")]
+        /// <summary>
+        /// Sets the background color of the current-state card body for a state that has no CSS suffix
+        /// (see <see cref="AddStateCssSuffix"/>). Calling it again for the same state replaces the color.
+        /// </summary>
+        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Kept for code ported from Hangfire.")]
         public static void AddBackgroundStateColor(string stateName, string color)
         {
-            BackgroundStateColors.Add(stateName, color);
+            BackgroundStateColors[stateName] = color;
         }
 
+        /// <summary>The background color of a state, or <c>"inherit"</c> when none is registered.</summary>
         public static string GetBackgroundStateColor(string stateName)
         {
-            if (stateName == null || !BackgroundStateColors.TryGetValue(stateName, out var color))
-            {
-                return "inherit";
-            }
-
-            return color;
+            return FindBackgroundStateColor(stateName) ?? "inherit";
         }
 
-        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Will be removed in 2.0.0.")]
+        /// <summary>
+        /// Sets the color of a state's labels and of its current-state card border and title, for a state that
+        /// has no CSS suffix (see <see cref="AddStateCssSuffix"/>). Calling it again for the same state replaces the color.
+        /// </summary>
+        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Kept for code ported from Hangfire.")]
         public static void AddForegroundStateColor(string stateName, string color)
         {
-            ForegroundStateColors.Add(stateName, color);
+            ForegroundStateColors[stateName] = color;
         }
 
+        /// <summary>The foreground color of a state, or <c>"inherit"</c> when none is registered.</summary>
         public static string GetForegroundStateColor(string stateName)
         {
-            if (stateName == null || !ForegroundStateColors.TryGetValue(stateName, out var color))
-            {
-                return "inherit";
-            }
-
-            return color;
+            return FindForegroundStateColor(stateName) ?? "inherit";
         }
 
-        public static void AddStateCssSuffix(string stateName, string color)
+        /// <summary>
+        /// Gives a state's labels the CSS class <c>label-state-{cssSuffix}</c> and its current-state card the class
+        /// <c>state-card-state-{cssSuffix}</c>. The built-in suffixes are <c>active</c>, <c>success</c>, <c>danger</c>,
+        /// <c>warning</c>, <c>info</c> and <c>inactive</c>. A suffix wins over colors registered for the same state.
+        /// Calling it again for the same state replaces the suffix.
+        /// </summary>
+        public static void AddStateCssSuffix(string stateName, string cssSuffix)
         {
-            StateCssSuffixes.Add(stateName, color);
+            StateCssSuffixes[stateName] = cssSuffix;
         }
 
+        /// <summary>
+        /// The CSS suffix of a state, or <c>null</c> when none is registered. Without a suffix, the dashboard uses
+        /// the state's registered colors, or a neutral look when it has none.
+        /// </summary>
+        [CanBeNull]
         public static string GetStateCssSuffix(string stateName)
         {
             if (stateName == null || !StateCssSuffixes.TryGetValue(stateName, out var suffix))
             {
-                return "inherit";
+                return null;
             }
 
             return suffix;
+        }
+
+        /// <summary>
+        /// The inline style of a label for a state without a CSS suffix: its registered foreground color, or
+        /// <c>null</c> to keep the neutral label look.
+        /// </summary>
+        [CanBeNull]
+        internal static string GetStateLabelStyle(string stateName)
+        {
+            var color = FindForegroundStateColor(stateName);
+            return color != null ? $"background-color: {color};" : null;
+        }
+
+        [CanBeNull]
+        internal static string FindForegroundStateColor(string stateName)
+        {
+            return stateName != null && ForegroundStateColors.TryGetValue(stateName, out var color) ? color : null;
+        }
+
+        [CanBeNull]
+        internal static string FindBackgroundStateColor(string stateName)
+        {
+            return stateName != null && BackgroundStateColors.TryGetValue(stateName, out var color) ? color : null;
         }
 
         public static void Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString> renderer)
@@ -139,11 +182,23 @@ namespace Masterly.NightShift.Dashboard
             this HtmlHelper helper,
             string state, IDictionary<string, string> properties)
         {
-            var renderer = Renderers.TryGetValue(state, out var value)
-                ? value
-                : DefaultRenderer;
+            if (!Renderers.TryGetValue(state, out var renderer))
+            {
+                return DefaultRenderer(helper, properties);
+            }
 
-            return renderer?.Invoke(helper, properties);
+            if (renderer == null) return null;
+
+            try
+            {
+                return renderer(helper, properties);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Data this dashboard can't read (a type it doesn't have, a value written by another version)
+                // must not break the whole job page: show the raw state data instead
+                return DefaultRenderer(helper, properties);
+            }
         }
 
         public static NonEscapedString NullRenderer(HtmlHelper helper, IDictionary<string, string> properties)
@@ -260,10 +315,20 @@ namespace Masterly.NightShift.Dashboard
 
         private static NonEscapedString EnqueuedRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
         {
-            if (!EnqueuedState.DefaultQueue.Equals(stateData["Queue"], StringComparison.OrdinalIgnoreCase))
+            stateData.TryGetValue("Queue", out var queue);
+
+            // The state says "default" for a job with its own queue (Enqueue("emails", ...)), which is where it
+            // really went, as EnqueuedState's handler picks it
+            var jobQueue = (helper.Page as Pages.JobDetailsPage)?.RenderedJob?.Queue;
+            if (jobQueue != null && (String.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase)))
+            {
+                queue = jobQueue;
+            }
+
+            if (!String.IsNullOrEmpty(queue) && !EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase))
             {
                 return new NonEscapedString(
-                    $"<dl class=\"dl-horizontal\"><dt>Queue:</dt><dd>{helper.QueueLabel(stateData["Queue"])}</dd></dl>");
+                    $"<dl class=\"dl-horizontal\"><dt>Queue:</dt><dd>{helper.QueueLabel(queue)}</dd></dl>");
             }
 
             return null;
@@ -296,10 +361,15 @@ namespace Masterly.NightShift.Dashboard
 
             if (stateData.TryGetValue("ParentIds", out var parentIds) && !String.IsNullOrEmpty(parentIds))
             {
-                var links = parentIds.Split(',').Select(id => helper.JobIdLink(id).ToString());
+                // A batch continuation has a parent per job of the batch: link the first ones only
+                var ids = parentIds.Split(',');
+                var links = ids.Take(MaxParentLinks).Select(id => helper.JobIdLink(id).ToString());
+                var more = ids.Length > MaxParentLinks
+                    ? " " + helper.HtmlEncode(String.Format(CultureInfo.CurrentCulture, Strings.JobHistory_MoreParents, (ids.Length - MaxParentLinks).ToString(CultureInfo.CurrentCulture)))
+                    : String.Empty;
                 var mode = stateData.TryGetValue("Mode", out var modeValue) ? modeValue : "All";
 
-                builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{String.Join(" ", links)} <span class=\"label label-default\">{helper.HtmlEncode(mode)}</span></dd>"));
+                builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{String.Join(" ", links)}{more} <span class=\"label label-default\">{helper.HtmlEncode(mode)}</span></dd>"));
             }
             else if (stateData.TryGetValue("ParentId", out var parentId))
             {
@@ -308,9 +378,7 @@ namespace Masterly.NightShift.Dashboard
 
             if (stateData.TryGetValue("NextState", out var nextStateString))
             {
-                var nextState = SerializationHelper.Deserialize<IState>(nextStateString, SerializationOption.TypedInternal);
-
-                builder.Append(FormattableString.Invariant($"<dt>Next State</dt><dd>{helper.StateLabel(nextState?.Name ?? "(no state)")}</dd>"));
+                builder.Append(FormattableString.Invariant($"<dt>Next State</dt><dd>{RenderNextState(helper, nextStateString)}</dd>"));
             }
 
             if (stateData.TryGetValue("Options", out var optionsDescription))
@@ -328,6 +396,47 @@ namespace Masterly.NightShift.Dashboard
             return new NonEscapedString(builder.ToString());
         }
         
+        private static string RenderNextState(HtmlHelper helper, string nextStateString)
+        {
+            try
+            {
+                var nextState = SerializationHelper.Deserialize<IState>(nextStateString, SerializationOption.TypedInternal);
+                return helper.StateLabel(nextState?.Name ?? "(no state)").ToString();
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // The state's type isn't loaded here (a custom state from another application, or one that was
+                // renamed): show the type name that was stored instead
+                return $"<code>{helper.HtmlEncode(GetStoredTypeName(nextStateString) ?? "(unknown state)")}</code>";
+            }
+        }
+
+        [CanBeNull]
+        internal static string GetStoredTypeName([CanBeNull] string serializedState)
+        {
+            if (String.IsNullOrEmpty(serializedState)) return null;
+
+            try
+            {
+                using (var document = System.Text.Json.JsonDocument.Parse(serializedState))
+                {
+                    if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                        document.RootElement.TryGetProperty("$type", out var type) &&
+                        type.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var name = type.GetString();
+                        var comma = name?.IndexOf(',') ?? -1;
+                        return comma > 0 ? name.Substring(0, comma) : name;
+                    }
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+            }
+
+            return null;
+        }
+
         private static NonEscapedString DeletedRenderer(HtmlHelper html, IDictionary<string, string> stateData)
         {
             if (stateData.TryGetValue("Exception", out var exception))

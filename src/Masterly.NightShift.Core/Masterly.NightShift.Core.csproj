@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Source-only packages: the code compiled is the vendored copy in App_Packages/ and MoreLinq/, adapted for this
+    <!-- Source-only packages: the code compiled is the vendored copy in App_Packages/, adapted for this
          library (LibLog's public logging API, tighter regex timeouts). Their source files are excluded, or newer
          versions would add a second copy. -->
     <PackageReference Include="MoreLinq.Source.MoreEnumerable.Pairwise" PrivateAssets="all" ExcludeAssets="contentFiles" />

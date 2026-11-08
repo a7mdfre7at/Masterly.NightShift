@@ -20,6 +20,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A job a worker has fetched from a queue, as listed by the dashboard.
+    /// </summary>
     public class FetchedJobDto
     {
         public Job? Job { get; set; }

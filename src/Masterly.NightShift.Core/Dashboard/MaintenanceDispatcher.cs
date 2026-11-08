@@ -1,33 +1,24 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Net;
 using System.Threading.Tasks;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Dashboard
 {
     /// <summary>
-    /// <c>POST /maintenance/clear-jobs</c> (keeps recurring jobs and servers) and <c>POST /maintenance/reset</c>
-    /// (keeps nothing): purge the storage through <see cref="JobStorage.Purge"/>. Answers <c>204</c>, or
-    /// <c>422 {error}</c> when the storage doesn't support purging.
+    /// <c>POST /maintenance/clear-jobs</c> (keeps recurring jobs, servers, the audit log and drain mode) and
+    /// <c>POST /maintenance/reset</c> (keeps only the audit log): purge the storage through
+    /// <see cref="JobStorage.Purge"/>. Neither wipes the audit log, so the record of who cleared or reset the
+    /// storage keeps its history. Answers <c>204</c>, <c>422 {error}</c> when the storage doesn't support purging, or
+    /// <c>500 {error}</c> with a generic message when the purge fails (the error itself is logged). Every outcome is
+    /// recorded in the audit log.
     /// </summary>
     internal sealed class MaintenanceDispatcher : IDashboardDispatcher
     {
+        private static readonly ILog Logger = LogProvider.GetLogger(typeof(MaintenanceDispatcher));
+
         private readonly bool _keepRecurringJobsAndServers;
 
         public MaintenanceDispatcher(bool keepRecurringJobsAndServers)
@@ -51,6 +42,7 @@ namespace Masterly.NightShift.Dashboard
 
             if (!context.Storage.HasFeature(JobStorageFeatures.Purge))
             {
+                AuditLog.Record(context, null, "not supported by the storage", 422);
                 return DashboardJson.WriteAsync(context, 422, new { error = JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Purge).Message });
             }
 
@@ -60,6 +52,8 @@ namespace Masterly.NightShift.Dashboard
                 {
                     KeepRecurringJobs = _keepRecurringJobsAndServers,
                     KeepServers = _keepRecurringJobsAndServers,
+                    KeepAuditLog = true,
+                    KeepDrainMode = _keepRecurringJobsAndServers,
                 });
 
                 context.Response.StatusCode = (int)HttpStatusCode.NoContent;
@@ -68,7 +62,10 @@ namespace Masterly.NightShift.Dashboard
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                return DashboardJson.WriteAsync(context, 500, new { error = ex.Message });
+                // The storage's message can name servers, databases or tables: it goes to the log, not to the browser
+                Logger.ErrorException($"Dashboard action {context.Request.Path}: the storage could not be purged.", ex);
+                AuditLog.Record(context, null, $"failed: {ex.GetType().Name}", 500);
+                return DashboardJson.WriteAsync(context, 500, new { error = "The storage could not be purged. The error is in the server's log." });
             }
         }
     }

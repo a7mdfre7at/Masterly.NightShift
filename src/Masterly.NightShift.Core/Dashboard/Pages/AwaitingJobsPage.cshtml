@@ -41,7 +41,8 @@
         {
             var storageConnection = connection as JobStorageConnection;
 
-            if (storageConnection != null)
+            // Paging through the "awaiting" set needs the extended API
+            if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
             {
                 pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, storageConnection.GetSetCount("awaiting"));
                 jobIds = storageConnection.GetRangeFromSet("awaiting", pager.FromRecord, pager.FromRecord + pager.RecordsPerPage - 1);

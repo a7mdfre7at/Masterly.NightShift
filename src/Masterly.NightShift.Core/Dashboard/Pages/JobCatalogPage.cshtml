@@ -19,7 +19,10 @@
     {
         if (connection is JobStorageConnection storageConnection)
         {
-            foreach (var key in entries.Select(e => e.InsightsKey).Distinct(StringComparer.Ordinal))
+            // Only the methods JobInsightsAttribute has recorded (one read of its index), not four reads per method
+            var recorded = connection.GetAllItemsFromSet(JobInsightsAttribute.IndexKey) ?? new HashSet<string>();
+
+            foreach (var key in entries.Select(e => e.InsightsKey).Distinct(StringComparer.Ordinal).Where(recorded.Contains))
             {
                 var insight = JobInsightsAttribute.Read(storageConnection, key);
                 if (insight != null) insightsByKey[key] = insight;
@@ -120,7 +123,7 @@
                                                         data-id="@entry.Id"
                                                         data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(entry.Type)"
                                                         data-method="@entry.Method.Name"
-                                                        data-parameters="@DashboardJson.Serialize(userParameters.Select(p => new { name = p.Name, type = p.TypeName, input = p.InputKind, @default = JobCatalog.FormatDefault(p.DefaultValue), hasDefault = p.HasDefaultValue, options = p.InputKind == "select" ? Enum.GetNames(Nullable.GetUnderlyingType(p.Type) ?? p.Type) : null }))">
+                                                        data-parameters="@DashboardJson.Serialize(userParameters.Select(p => JobCatalog.GetFormField(p, JobCatalog.FormatDefault(p.DefaultValue), false)).ToArray())">
                                                     <span class="glyphicon glyphicon-play"></span> @Strings.CatalogPage_Run
                                                 </button>
                                             </td>

@@ -108,7 +108,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
             Assert.Contains("<a href=\"/jobs/enqueued/fetched/critical\">", html);
             Assert.Contains($"<span title=\"{Encode(Strings.QueuesPage_Table_Latency_Hint)}\">", html);
-            Assert.Contains(2.4.ToString("0.#", CultureInfo.CurrentCulture), html);
+            // Two jobs in each of the last five whole minutes: two per minute
+            Assert.Matches(@"<td class=""min-width hf-queue-health"">\s*2\s*</td>", html);
             Assert.Contains("<strong>", html);
             Assert.DoesNotContain(Encode(Strings.QueuesPage_Stalled), html);
         }

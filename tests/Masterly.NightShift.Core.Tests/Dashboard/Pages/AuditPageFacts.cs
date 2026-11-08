@@ -98,6 +98,21 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.DoesNotContain("label label-danger", html);
         }
 
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, true)]
+        public void Render_ForReadOnlyUsers_ShowsTheAddresses_OnlyWhenTheOptionsSaySo(bool display, bool expected)
+        {
+            // Every operator's address was shown to anyone allowed to look
+            _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true, DisplayAuditIpAddressesToReadOnlyUsers = display };
+            SetupEntries(1, new AuditEntry { Timestamp = Now(), User = "alice", RemoteIpAddress = "10.0.0.1", Action = "/jobs/failed/requeue", Status = 204 });
+
+            var html = _renderer.Render(new AuditPage());
+
+            Assert.Contains("<strong>alice</strong>", html);
+            Assert.Equal(expected, html.Contains("10.0.0.1"));
+        }
+
         [Fact]
         public void Render_WithAnAnonymousFailedAction_ShowsTheStatusAndTheHiddenTargets()
         {

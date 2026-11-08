@@ -20,6 +20,15 @@ namespace Masterly.NightShift.Core.Tests.States
             Assert.Equal(AwaitingState.StateName, state.Name);
         }
 
+        [Fact]
+        public void Ctor_WithoutOptions_DefaultsToOnAnyFinishedState()
+        {
+            // Unlike ContinueJobWith (OnlyOnSucceededState), as it always was; the docs say so
+            Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1").Options);
+            Assert.IsType<EnqueuedState>(new AwaitingState("1").NextState);
+            Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1", new ScheduledState(TimeSpan.FromMinutes(1))).Options);
+        }
+
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void SerializeData_ReturnsCorrectData_Before170()
         {

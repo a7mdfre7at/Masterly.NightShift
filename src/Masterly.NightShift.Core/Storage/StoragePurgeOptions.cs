@@ -1,23 +1,10 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 namespace Masterly.NightShift.Storage
 {
     /// <summary>
     /// What <see cref="JobStorage.Purge"/> keeps. Everything else, background jobs with their states,
-    /// parameters, queues, counters, lists, sets and hashes, is removed.
+    /// parameters, queues, counters, lists, sets and hashes, is removed. By default recurring job definitions,
+    /// servers, the audit log and the drain-mode switches are kept, which is what the dashboard's "Clear all
+    /// jobs" does; "Reset storage" keeps only the audit log.
     /// </summary>
     public sealed class StoragePurgeOptions
     {
@@ -32,5 +19,18 @@ namespace Masterly.NightShift.Storage
         /// servers re-announce themselves anyway, but keeping them avoids a gap on the Servers page.
         /// </summary>
         public bool KeepServers { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether the audit log (the <see cref="AuditLog.ListKey"/> list) is kept, so the record of
+        /// who did what in the dashboard survives the purge. Default is <c>true</c>.
+        /// </summary>
+        public bool KeepAuditLog { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether the processing switches are kept: drain mode, paused queues and paused servers
+        /// (the <see cref="DrainMode.HashKey"/> hash). Default is <c>true</c>, so processing that was paused
+        /// before the purge stays paused after it.
+        /// </summary>
+        public bool KeepDrainMode { get; set; } = true;
     }
 }

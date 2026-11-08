@@ -5,4 +5,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-HFDASH001 | Masterly.NightShift.Dashboard | Error | RazorPageGenerator, a dashboard page has Razor errors
+NSDASH001 | Masterly.NightShift.Dashboard | Error | RazorPageGenerator, a dashboard page has Razor errors

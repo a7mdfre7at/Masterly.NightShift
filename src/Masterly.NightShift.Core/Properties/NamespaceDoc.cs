@@ -20,6 +20,8 @@ namespace Masterly.NightShift.Annotations
     /// <summary>
     /// The <see cref="Masterly.NightShift.Annotations"/> namespace contains attributes that enable
     /// additional code inspections in design time with JetBrains ReSharper.
+    /// The attributes are public because the public API of every Masterly.NightShift package is annotated
+    /// with them, and the other packages and third-party storages and extensions use them too.
     /// </summary>
     /// <remarks>
     /// To enable annotations, open ReSharper options → Code Inspections → Code Annotations 
@@ -179,10 +181,6 @@ namespace Masterly.NightShift.Storage.Monitoring
     /// The <see cref="Masterly.NightShift.Storage.Monitoring"/> provides data transfer objects 
     /// for the <see cref="IMonitoringApi"/> interface. 
     /// </summary>
-    /// <remarks>
-    /// I have no idea why I placed these types to a separate namespace, they should 
-    /// be moved to the parent <see cref="Masterly.NightShift.Storage"/> namespace in version 2.0.
-    /// </remarks>
     [CompilerGenerated]
     class NamespaceDoc
     {

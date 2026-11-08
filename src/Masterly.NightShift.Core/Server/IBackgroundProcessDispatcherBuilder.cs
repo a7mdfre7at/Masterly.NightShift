@@ -18,6 +18,9 @@ using Masterly.NightShift.Processing;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Creates the dispatcher that runs a background process for a server.
+    /// </summary>
     public interface IBackgroundProcessDispatcherBuilder
     {
         IBackgroundDispatcher Create([NotNull] BackgroundServerContext context, [NotNull] BackgroundProcessingServerOptions options);

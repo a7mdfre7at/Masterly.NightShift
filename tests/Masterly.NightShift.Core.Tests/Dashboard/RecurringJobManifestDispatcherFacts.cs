@@ -94,6 +94,46 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             _manager.Verify(x => x.RemoveIfExists("nightly"));
         }
 
+        // Never used in a job expression, so it has no generated invoker
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void NotUsedAsAJob() { }
+
+        private static string NotUsedAsAJobManifest()
+        {
+            return "{ \"recurringJobs\": [ { \"id\": \"weekly\", \"cron\": \"0 0 * * 1\", \"job\": { \"type\": \"" + typeof(RecurringJobManifestDispatcherFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + "\", \"method\": \"" + nameof(NotUsedAsAJob) + "\" } } ] }";
+        }
+
+        [Fact]
+        public async Task Import_RejectsAMethodTheApplicationDoesNotUseAsAJob_ByDefault()
+        {
+            var context = Context("POST", form: ("manifest", NotUsedAsAJobManifest()));
+
+            await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            var json = JsonNode.Parse(context.Response.Text);
+            var error = Assert.Single(json["errors"].AsArray());
+            Assert.Equal("weekly", error["id"].GetValue<string>());
+            Assert.Contains("AllowAnyMethodInManifestImport", error["message"].GetValue<string>());
+            Assert.Empty(json["added"].AsArray());
+            _manager.Verify(x => x.AddOrUpdate(It.IsAny<string>(), It.IsAny<Job>(), It.IsAny<string>(), It.IsAny<RecurringJobOptions>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task Import_AcceptsAnyMethod_WhenTheDashboardOptionsAllowIt()
+        {
+            var request = new DashboardRequestStub("POST");
+            request.Form["manifest"] = new List<string> { NotUsedAsAJobManifest() };
+            var options = new DashboardOptions { IsReadOnlyFunc = _ => false, AllowAnyMethodInManifestImport = true };
+            var context = new DashboardContextStub(options, request, _storage.Object) { RecurringJobManager = _manager.Object };
+
+            await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
+
+            Assert.Equal(200, context.Response.StatusCode);
+            Assert.Equal("weekly", JsonNode.Parse(context.Response.Text)["added"][0].GetValue<string>());
+            _manager.Verify(x => x.AddOrUpdate("weekly", It.Is<Job>(job => job.Method.Name == nameof(NotUsedAsAJob)), "0 0 * * 1", It.IsAny<RecurringJobOptions>()));
+        }
+
         [Fact]
         public async Task Import_ReportsTheEntriesItCouldNotApply_WithoutPruning()
         {

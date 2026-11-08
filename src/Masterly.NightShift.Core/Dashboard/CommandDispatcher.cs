@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 
 namespace Masterly.NightShift.Dashboard
 {
-    internal sealed class CommandDispatcher : IDashboardDispatcher
+    internal sealed class CommandDispatcher : IDashboardCommandDispatcher
     {
         private readonly Func<DashboardContext, bool> _command;
 
@@ -61,7 +61,7 @@ namespace Masterly.NightShift.Dashboard
                 for (var i = 1; i < context.UriMatch.Groups.Count; i++)
                 {
                     var value = context.UriMatch.Groups[i].Value;
-                    if (!String.IsNullOrEmpty(value)) targets.Add(Uri.UnescapeDataString(value));
+                    if (!String.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
                 }
             }
 

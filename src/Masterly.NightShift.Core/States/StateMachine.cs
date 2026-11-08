@@ -22,6 +22,10 @@ using Masterly.NightShift.Profiling;
 namespace Masterly.NightShift.States
 {
     // TODO: Merge this class with BackgroundJobStateChanger in 2.0.0
+    /// <summary>
+    /// Applies a new state to a job: runs the election filters, then the apply filters and the state handlers of the
+    /// old and new states.
+    /// </summary>
     public class StateMachine : IStateMachine
     {
         private readonly IJobFilterProvider _filterProvider;

@@ -30,6 +30,10 @@ using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// Renders the common parts of dashboard pages (job names and links, state labels, times, pagers, metrics) as HTML,
+    /// for pages and dashboard extensions.
+    /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "We use instance methods in this class for better observability.")]
     public class HtmlHelper
     {
@@ -159,7 +163,7 @@ namespace Masterly.NightShift.Dashboard
                         return String.Format(
                             CultureInfo.CurrentCulture,
                             GetDisplayName(attribute),
-                            job.Args.ToArray());
+                            RedactedAttribute.GetDisplayArguments(job));
                     }
                     catch (FormatException)
                     {
@@ -196,7 +200,6 @@ namespace Masterly.NightShift.Dashboard
                 return Raw($"<em>{HtmlEncode(Strings.Common_NoState)}</em>");
             }
 
-            var style = $"background-color: {JobHistoryRenderer.GetForegroundStateColor(stateName)};";
             var cssSuffix = JobHistoryRenderer.GetStateCssSuffix(stateName);
             var cssHover = hover ? "label-hover" : null;
 
@@ -205,7 +208,14 @@ namespace Masterly.NightShift.Dashboard
                 return Raw($"<span class=\"label label-default {cssHover} label-state-{HtmlEncode(cssSuffix)}\">{HtmlEncode(text)}</span>");
             }
 
-            return Raw($"<span class=\"label label-default {cssHover}\" style=\"{HtmlEncode(style)}\">{HtmlEncode(text)}</span>");
+            // No suffix: the color registered for the state, or the neutral label look
+            var style = JobHistoryRenderer.GetStateLabelStyle(stateName);
+            if (style != null)
+            {
+                return Raw($"<span class=\"label label-default {cssHover}\" style=\"{HtmlEncode(style)}\">{HtmlEncode(text)}</span>");
+            }
+
+            return Raw($"<span class=\"label label-default {cssHover}\">{HtmlEncode(text)}</span>");
         }
 
         public NonEscapedString JobIdLink(string jobId)
@@ -296,7 +306,7 @@ namespace Masterly.NightShift.Dashboard
             return builder.ToString();
         }
 
-        [Obsolete("This method is unused and will be removed in 2.0.0.")]
+        [Obsolete("This method isn't used. Kept for code ported from Hangfire.")]
         public string FormatProperties(IDictionary<string, string> properties)
         {
             return String.Join(", ", properties.Select(static x => $"{x.Key}: \"{x.Value}\""));

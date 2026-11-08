@@ -63,7 +63,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [Fact]
         public async Task Dispatch_Sets422_WhenTheQueueIsBlank()
         {
-            var context = Create("/queues/pause/%20", PauseRoute);
+            var context = Create("/queues/pause/ ", PauseRoute);
 
             await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -74,7 +74,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [Fact, StaticLock]
         public async Task Dispatch_PausesTheUnescapedQueue_WithTheTrimmedReason()
         {
-            var context = Create("/queues/pause/Critical%20Emails", PauseRoute, reason: "  smtp down  ");
+            var context = Create("/queues/pause/Critical Emails", PauseRoute, reason: "  smtp down  ");
 
             await new QueuePauseDispatcher(pause: true).Dispatch(context);
 

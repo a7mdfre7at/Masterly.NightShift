@@ -47,5 +47,23 @@ namespace Masterly.NightShift.Common
             : base(info, context)
         {
         }
+
+        /// <summary>
+        /// What couldn't be loaded, when <see cref="Storage.InvocationData.DeserializeJob"/> threw the exception;
+        /// used to explain why the job failed.
+        /// </summary>
+        internal JobLoadFailure Failure { get; init; }
+    }
+
+    internal enum JobLoadFailure
+    {
+        /// <summary>Not known, for example when a storage created the exception itself.</summary>
+        Unknown,
+
+        /// <summary>The job's type, or its method with the stored parameter types, wasn't found.</summary>
+        TypeOrMethod,
+
+        /// <summary>The type and method were found, but an argument couldn't be deserialized.</summary>
+        Arguments
     }
 }

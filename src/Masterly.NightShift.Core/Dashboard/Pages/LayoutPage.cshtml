@@ -1,6 +1,8 @@
 ﻿@* Generator: Template TypeVisibility: Public GeneratePrettyNames: True *@
 @using System
+@using System.Collections.Generic
 @using System.Globalization
+@using System.Linq
 @using System.Reflection
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
@@ -71,9 +73,9 @@
                     @if (DashboardOptions.DarkModeEnabled)
                     {
                         <div class="hf-theme js-theme" role="group" aria-label="@Strings.LayoutPage_Theme">
-                            <button type="button" data-theme-choice="system" title="@Strings.LayoutPage_Theme_System"><span class="glyphicon glyphicon-adjust"></span></button>
-                            <button type="button" data-theme-choice="light" title="@Strings.LayoutPage_Theme_Light"><span class="glyphicon glyphicon-certificate"></span></button>
-                            <button type="button" data-theme-choice="dark" title="@Strings.LayoutPage_Theme_Dark"><span class="glyphicon glyphicon-star-empty"></span></button>
+                            <button type="button" data-theme-choice="system" title="@Strings.LayoutPage_Theme_System" aria-label="@Strings.LayoutPage_Theme_System" aria-pressed="false"><span class="glyphicon glyphicon-adjust" aria-hidden="true"></span></button>
+                            <button type="button" data-theme-choice="light" title="@Strings.LayoutPage_Theme_Light" aria-label="@Strings.LayoutPage_Theme_Light" aria-pressed="false"><span class="glyphicon glyphicon-certificate" aria-hidden="true"></span></button>
+                            <button type="button" data-theme-choice="dark" title="@Strings.LayoutPage_Theme_Dark" aria-label="@Strings.LayoutPage_Theme_Dark" aria-pressed="false"><span class="glyphicon glyphicon-star-empty" aria-hidden="true"></span></button>
                         </div>
                     }
                     else
@@ -103,7 +105,7 @@
                     <button type="button" class="hf-icon-button js-page-refresh" title="@Strings.LayoutPage_Refresh" aria-label="@Strings.LayoutPage_Refresh">
                         <span class="glyphicon glyphicon-refresh"></span>
                     </button>
-                    <button type="button" class="hf-search js-palette-open" title="@Strings.LayoutPage_Search_Hint">
+                    <button type="button" class="hf-search js-palette-open" title="@Strings.LayoutPage_Search_Hint" aria-haspopup="dialog">
                         <span class="glyphicon glyphicon-search"></span>
                         <span class="hf-search-text">@Strings.LayoutPage_Search</span>
                         <kbd>Ctrl</kbd><kbd>K</kbd>
@@ -114,11 +116,20 @@
 
                 @{
                     DrainModeStatus drainStatus = null;
+                    IList<string> pausedServers = new List<string>();
                     try
                     {
                         using (var drainConnection = Storage.GetReadOnlyConnection())
                         {
                             drainStatus = DrainMode.Read(drainConnection);
+                        }
+
+                        // A pause left by a server that is gone holds nothing back; the Servers page lists it to be cleared
+                        pausedServers = drainStatus.PausedServers.Keys.ToList();
+                        if (pausedServers.Count > 0)
+                        {
+                            var stale = DashboardHealth.GetStalePausedServers(drainStatus, Storage.GetMonitoringApi().Servers());
+                            pausedServers = pausedServers.Where(id => !stale.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList();
                         }
                     }
                     catch (Exception)
@@ -126,7 +137,7 @@
                         // The storage is unreachable: the page itself will say so.
                     }
                 }
-                @if (drainStatus != null && !drainStatus.Active && (drainStatus.PausedQueues.Count > 0 || drainStatus.PausedServers.Count > 0))
+                @if (drainStatus != null && !drainStatus.Active && (drainStatus.PausedQueues.Count > 0 || pausedServers.Count > 0))
                 {
                     <div class="hf-drain-banner hf-drain-banner-queues" role="status">
                         <span class="glyphicon glyphicon-pause"></span>
@@ -135,9 +146,9 @@
                             <strong>@String.Format(Strings.LayoutPage_QueuesPaused, String.Join(", ", drainStatus.PausedQueues.Keys))</strong>
                             <a class="btn btn-xs btn-default" href="@Url.To("/jobs/enqueued")">@Strings.LayoutPage_QueuesPaused_Link &rarr;</a>
                         }
-                        @if (drainStatus.PausedServers.Count > 0)
+                        @if (pausedServers.Count > 0)
                         {
-                            <strong>@String.Format(Strings.LayoutPage_ServersPaused, String.Join(", ", drainStatus.PausedServers.Keys))</strong>
+                            <strong>@String.Format(Strings.LayoutPage_ServersPaused, String.Join(", ", pausedServers))</strong>
                             <a class="btn btn-xs btn-default" href="@Url.To("/servers")">@Strings.NavigationMenu_Servers &rarr;</a>
                         }
                     </div>
@@ -205,6 +216,9 @@
              data-text-refresh="@Strings.LayoutPage_Refresh"
              data-text-live="@Strings.LayoutPage_LiveToggle"
              data-text-live-hint="@Strings.LayoutPage_LiveToggle_Hint"
+             data-text-list-result="@Strings.Common_ListCommandResult"
+             data-text-list-remaining="@Strings.Common_ListCommandRemaining"
+             data-text-request-failed="@Strings.Common_RequestFailed"
              data-darkmode="@(DashboardOptions.DarkModeEnabled.ToString().ToLowerInvariant())">
         </div>
 

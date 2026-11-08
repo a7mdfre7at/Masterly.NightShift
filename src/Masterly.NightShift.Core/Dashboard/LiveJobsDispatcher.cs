@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +12,9 @@ namespace Masterly.NightShift.Dashboard
     /// <summary>
     /// <c>POST /jobs/live</c> with <c>jobs[]</c> ids (or <c>GET /jobs/live?jobs=a,b</c>): the live view of
     /// each job for the dashboard's polling scripts: current state, server, elapsed time, last reported
-    /// progress and the console entries. Read-only, so it works in read-only dashboards too.
+    /// progress and the console entries. With <c>console=0</c> (a form field, or a query parameter of the
+    /// <c>GET</c>) the console isn't read and <c>entries</c> is left out: the Processing page's rows only show the
+    /// state and the progress. Read-only, so it works in read-only dashboards too.
     /// </summary>
     internal sealed class LiveJobsDispatcher : IDashboardDispatcher
     {
@@ -46,6 +33,7 @@ namespace Masterly.NightShift.Dashboard
                 return;
             }
 
+            var withConsole = await GetConsoleFlagAsync(context).ConfigureAwait(false);
             var jobs = new Dictionary<string, object>();
 
             using (var connection = context.Storage.GetReadOnlyConnection())
@@ -54,7 +42,7 @@ namespace Masterly.NightShift.Dashboard
 
                 foreach (var jobId in jobIds.Take(MaxJobs))
                 {
-                    jobs[jobId] = GetLiveJob(connection, jobId, now);
+                    jobs[jobId] = GetLiveJob(connection, jobId, now, withConsole);
                 }
 
                 await DashboardJson.WriteAsync(context, 200, new
@@ -66,7 +54,7 @@ namespace Masterly.NightShift.Dashboard
             }
         }
 
-        private static object GetLiveJob(IStorageConnection connection, string jobId, DateTime now)
+        private static object GetLiveJob(IStorageConnection connection, string jobId, DateTime now, bool withConsole)
         {
             var stateData = connection.GetStateData(jobId);
             if (stateData == null)
@@ -89,7 +77,8 @@ namespace Masterly.NightShift.Dashboard
 
             var isProcessing = ProcessingState.StateName.Equals(stateData.Name, StringComparison.OrdinalIgnoreCase);
             var progress = JobConsole.ReadProgress(connection, jobId);
-            var entries = JobConsole.ReadEntries(connection, jobId);
+            // The console can hold thousands of long lines; the rows of the Processing page don't show it
+            var entries = withConsole ? JobConsole.ReadEntries(connection, jobId) : null;
 
             return new
             {
@@ -98,8 +87,8 @@ namespace Masterly.NightShift.Dashboard
                 startedAt = isProcessing && startedAt.HasValue ? JobHelper.ToTimestamp(startedAt.Value) : (long?)null,
                 elapsedMs = isProcessing && startedAt.HasValue ? (long?)Math.Max(0, (long)(now - startedAt.Value).TotalMilliseconds) : null,
                 progress,
-                entries = entries.Count > MaxEntries ? entries.Skip(entries.Count - MaxEntries).ToList() : entries,
-                truncated = entries.Count > MaxEntries,
+                entries = entries == null ? null : entries.Count > MaxEntries ? entries.Skip(entries.Count - MaxEntries).ToList() : entries,
+                truncated = entries != null && entries.Count > MaxEntries,
             };
         }
 
@@ -111,6 +100,23 @@ namespace Masterly.NightShift.Dashboard
             }
 
             return DateTime.UtcNow;
+        }
+
+        private static async Task<bool> GetConsoleFlagAsync(DashboardContext context)
+        {
+            string value;
+
+            if ("POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
+            {
+                var values = await context.Request.GetFormValuesAsync("console").ConfigureAwait(false);
+                value = values?.FirstOrDefault();
+            }
+            else
+            {
+                value = context.Request.GetQuery("console");
+            }
+
+            return !("0".Equals(value?.Trim(), StringComparison.Ordinal) || "false".Equals(value?.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
         private static async Task<List<string>> GetJobIdsAsync(DashboardContext context)

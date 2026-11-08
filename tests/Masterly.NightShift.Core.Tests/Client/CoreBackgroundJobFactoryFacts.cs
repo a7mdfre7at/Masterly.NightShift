@@ -312,6 +312,77 @@ namespace Masterly.NightShift.Core.Tests.Client
             _transaction.Verify(x => x.Commit(), Times.Once);
         }
 
+        [Fact]
+        public void Create_RunsThePostCommitActionsOfTheInitialState_OnlyAfterTheCommit()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx =>
+                {
+                    Assert.NotNull(ctx.AfterCommit);
+                    ctx.RunAfterCommit(() => calls.Add("action"));
+                })
+                .Returns<ApplyStateContext>(ctx => ctx.NewState);
+            _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
+            var factory = CreateFactory();
+
+            factory.Create(_context.Object);
+
+            Assert.Equal(new[] { "commit", "action" }, calls);
+        }
+
+        [Fact]
+        public void Create_DropsThePostCommitActionsOfTheInitialState_WhenTheCommitThrows()
+        {
+            var calls = new List<string>();
+            _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx =>
+                {
+                    ctx.RunAfterCommit(() => calls.Add("action"));
+                    ctx.AfterCommit.AddRegardless(() => calls.Add("regardless"));
+                })
+                .Returns<ApplyStateContext>(ctx => ctx.NewState);
+            _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
+            var factory = CreateFactory();
+
+            Assert.Throws<TimeoutException>(() => factory.Create(_context.Object));
+
+            Assert.Equal(new[] { "regardless" }, calls);
+        }
+
+        [Fact, StaticLock]
+        public void Create_DoesNotWriteAnActivityFeedEntry_WhenTheJobsCreationFails()
+        {
+            var feedConnection = new Mock<IStorageConnection>();
+            var feedTransaction = new Mock<IWriteOnlyTransaction>();
+            var inserted = new List<string>();
+            feedConnection.Setup(x => x.CreateWriteTransaction()).Returns(feedTransaction.Object);
+            feedTransaction.Setup(x => x.InsertToList(ActivityFeed.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => inserted.Add(value));
+            _context.Storage.Setup(x => x.GetConnection()).Returns(feedConnection.Object);
+            _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
+                .Callback<ApplyStateContext>(ctx => new ActivityFeedFilter().OnStateApplied(ctx, ctx.Transaction))
+                .Returns<ApplyStateContext>(ctx => ctx.NewState);
+            var factory = CreateFactory();
+            ActivityFeed.Enabled = true;
+            ActivityFeedWriter.Schedule = static flush => flush();
+
+            try
+            {
+                _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
+                Assert.Throws<TimeoutException>(() => factory.Create(_context.Object));
+                Assert.Empty(inserted);
+
+                _transaction.Setup(x => x.Commit());
+                factory.Create(_context.Object);
+                Assert.Single(inserted);
+            }
+            finally
+            {
+                ActivityFeed.Enabled = false;
+                ActivityFeedWriter.Schedule = static flush => System.Threading.ThreadPool.QueueUserWorkItem(static state => ((Action)state)(), flush);
+            }
+        }
+
         private CoreBackgroundJobFactory CreateFactory(int? retries = null)
         {
             var factory = new CoreBackgroundJobFactory(_stateMachine.Object);

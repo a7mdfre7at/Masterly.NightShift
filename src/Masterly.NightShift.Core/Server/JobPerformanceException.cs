@@ -18,6 +18,9 @@ using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Wraps an exception thrown while a job was performed, with the job's identifier.
+    /// </summary>
     [Serializable]
     public class JobPerformanceException : Exception
     {

@@ -19,6 +19,10 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A page of jobs: pairs of a job identifier and the job's data, which is <c>null</c> for a job that disappeared
+    /// while the page was read.
+    /// </summary>
     public class JobList<TDto> : List<KeyValuePair<string, TDto>>
     {
         public JobList(IEnumerable<KeyValuePair<string, TDto>> source)

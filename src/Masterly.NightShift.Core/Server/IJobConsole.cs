@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -47,8 +32,14 @@ namespace Masterly.NightShift.Server
     /// <remarks>
     /// Everything is written to the job's storage as it happens: progress to the <c>Progress</c> job
     /// parameter (one value, overwritten), lines and checkpoints to the list <c>job:{id}:console</c>,
-    /// trimmed to <see cref="JobConsole.DefaultMaxLines"/> entries. The list lives as long as the job's
-    /// data does. Writes are cheap but not free; report progress in steps, not for every item.
+    /// trimmed to <see cref="JobConsole.DefaultMaxLines"/> entries, and checkpoints also to the list
+    /// <c>job:{id}:checkpoints</c>, which isn't trimmed. The lists live as long as the job's data does.
+    /// The console can be used from several threads; calls run one at a time. Writes made after the
+    /// performance ended, or after the job's cancellation token found the job aborted (deleted or requeued
+    /// while it runs), are dropped. Writes are cheap but not free; report progress in steps, not for every item.
+    /// When the storage fails, <see cref="SetProgress"/> and <see cref="WriteLine(JobConsoleLevel, string)"/> drop the
+    /// write and log a warning instead of failing the job; <see cref="Checkpoint"/>, <see cref="Checkpoints"/> and
+    /// <see cref="HasCheckpoint"/> throw, because a lost or misread checkpoint would make a retry redo finished steps.
     /// </remarks>
     public interface IJobConsole
     {
@@ -70,6 +61,8 @@ namespace Masterly.NightShift.Server
         /// <summary>
         /// The checkpoints recorded by earlier attempts of this job (and this one so far). A retried job uses
         /// them to skip the steps that already finished, see <see cref="JobConsoleExtensions.Resume"/>.
+        /// Requeuing a succeeded or deleted job clears them, so it runs from the start again; a failed job
+        /// that is retried or requeued keeps them.
         /// </summary>
         IReadOnlyList<string> Checkpoints { get; }
 

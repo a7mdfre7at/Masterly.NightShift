@@ -1,21 +1,7 @@
-﻿// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
-#nullable enable
+﻿#nullable enable
 
 using System;
+using System.Globalization;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.States;
 
@@ -24,7 +10,7 @@ namespace Masterly.NightShift.Server
     /// <summary>
     /// Enforces <see cref="DrainMode"/>: when a worker elects the Processing state for a job while the switch is
     /// on, the job goes to the Scheduled state for <see cref="DrainMode.HoldInterval"/> instead, and the worker
-    /// moves on. Registered globally by default.
+    /// moves on. When the hold is over, the job goes back to the queue it was in. Registered globally by default.
     /// </summary>
     public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
     {
@@ -37,59 +23,60 @@ namespace Masterly.NightShift.Server
         /// <summary>The reason put on jobs a paused server hands back; <c>{0}</c> is the server.</summary>
         public const string ServerHeldReasonFormat = "Held: server '{0}' is paused";
 
+        /// <summary>
+        /// The job parameter that remembers the queue of a held job whose queue was given only by its Enqueued
+        /// state (<c>new EnqueuedState("emails")</c> or <see cref="QueueAttribute"/>), so the job is enqueued to that
+        /// queue again after the hold rather than to the default one. A job created with a queue of its own
+        /// (<c>Enqueue("emails", ...)</c>) keeps it without this parameter. The parameter is cleared when the job is
+        /// enqueued again after the hold, so later retries go where they would have gone without the hold. The
+        /// holds of <see cref="RunWindowAttribute"/>, <see cref="ThrottleAttribute"/>, <see cref="RateLimitAttribute"/>
+        /// and <see cref="CircuitBreakerAttribute"/> use it too, and each of them also puts its held jobs back in their
+        /// queue, so that works without this filter. A job requeued while it was running is still in the Processing
+        /// state, which names no queue: its queue is then taken from the last Enqueued state in its history.
+        /// </summary>
+        public const string HeldQueueParameter = "HeldQueue";
+
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
             if (context == null) throw new ArgumentNullException(nameof(context));
-            if (context.CandidateState is not ProcessingState) return;
 
-            var status = DrainMode.GetStatus(context.Connection);
-
-            if (status.Active)
+            if (context.CandidateState is EnqueuedState enqueuedState)
             {
-                context.CandidateState = new ScheduledState(DrainMode.HoldInterval) { Reason = HeldReason };
+                HeldQueue.Restore(context, enqueuedState);
                 return;
             }
 
-            if (status.PausedServers.Count > 0)
+            if (context.CandidateState is not ProcessingState processingState) return;
+
+            var reason = GetHoldReason(context, processingState, out var queue);
+            if (reason == null) return;
+
+            HeldQueue.Remember(context, queue);
+            context.CandidateState = new ScheduledState(DrainMode.HoldInterval) { Reason = reason };
+        }
+
+        private static string? GetHoldReason(ElectStateContext context, ProcessingState processingState, out string? queue)
+        {
+            queue = null;
+            var status = DrainMode.GetStatus(context.Storage, context.Connection);
+
+            if (status.Active) return HeldReason;
+
+            var serverId = processingState.ServerId;
+            if (status.PausedServers.Count > 0 && serverId != null && status.PausedServers.ContainsKey(serverId))
             {
-                var serverId = ((ProcessingState)context.CandidateState).ServerId;
-                if (serverId != null && status.PausedServers.ContainsKey(serverId))
-                {
-                    context.CandidateState = new ScheduledState(DrainMode.HoldInterval)
-                    {
-                        Reason = String.Format(System.Globalization.CultureInfo.InvariantCulture, ServerHeldReasonFormat, serverId),
-                    };
-                    return;
-                }
+                return String.Format(CultureInfo.InvariantCulture, ServerHeldReasonFormat, serverId);
             }
 
-            if (status.PausedQueues.Count == 0) return;
+            if (status.PausedQueues.Count == 0) return null;
 
             // Only when some queue is paused: find the queue the job was fetched from
-            var queue = GetQueue(context);
-            if (queue != null && status.PausedQueues.ContainsKey(queue))
-            {
-                context.CandidateState = new ScheduledState(DrainMode.HoldInterval)
-                {
-                    Reason = String.Format(System.Globalization.CultureInfo.InvariantCulture, QueueHeldReasonFormat, queue),
-                };
-            }
+            queue = HeldQueue.GetQueue(context.Storage, context.Connection, context.BackgroundJob);
+            if (queue == null || !status.PausedQueues.ContainsKey(queue)) return null;
+
+            return String.Format(CultureInfo.InvariantCulture, QueueHeldReasonFormat, queue);
         }
 
-        private static string? GetQueue(ElectStateContext context)
-        {
-            try
-            {
-                var state = context.Connection.GetStateData(context.BackgroundJob.Id);
-                if (state?.Data != null && state.Data.TryGetValue("Queue", out var queue) && !String.IsNullOrEmpty(queue)) return queue;
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                // A storage hiccup must not hold the job
-            }
-
-            return context.BackgroundJob.Job?.Queue;
-        }
     }
 }

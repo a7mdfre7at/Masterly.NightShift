@@ -36,7 +36,7 @@ namespace Masterly.NightShift.Server
             Performer = context.Performer;
         }
 
-        [Obsolete("Please use PerformContext(JobStorage, IStorageConnection, BackgroundJob, IJobCancellationToken) overload instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use PerformContext(JobStorage, IStorageConnection, BackgroundJob, IJobCancellationToken) overload instead. Kept for code ported from Hangfire.")]
         public PerformContext(
             [NotNull] IStorageConnection connection,
             [NotNull] BackgroundJob backgroundJob,
@@ -87,13 +87,13 @@ namespace Masterly.NightShift.Server
         [NotNull]
         public BackgroundJob BackgroundJob { get; }
 
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public string JobId => BackgroundJob.Id;
 
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public Job? Job => BackgroundJob.Job;
 
-        [Obsolete("Please use BackgroundJob property instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
         public DateTime CreatedAt => BackgroundJob.CreatedAt;
 
         [NotNull]
@@ -113,21 +113,26 @@ namespace Masterly.NightShift.Server
 
         /// <summary>
         /// Gets the console the job reports progress, lines and checkpoints to. Shared by every context created
-        /// for this performance, so filters and interceptors write to the same console as the job.
+        /// for this performance, so filters and interceptors write to the same console as the job. Safe to use
+        /// from several threads.
         /// </summary>
         [NotNull]
         public IJobConsole Console
         {
             get
             {
-                if (Items.TryGetValue(ConsoleItemKey, out var existing) && existing is IJobConsole console)
+                // Items is shared by every context of the performance, and the job may ask from several threads
+                lock (Items)
                 {
-                    return console;
-                }
+                    if (Items.TryGetValue(ConsoleItemKey, out var existing) && existing is IJobConsole console)
+                    {
+                        return console;
+                    }
 
-                var created = new JobConsole(this);
-                Items[ConsoleItemKey] = created;
-                return created;
+                    var created = new JobConsole(this);
+                    Items[ConsoleItemKey] = created;
+                    return created;
+                }
             }
         }
 

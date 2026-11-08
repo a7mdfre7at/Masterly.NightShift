@@ -71,16 +71,23 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         private static HealthCheck Check(HealthReport report, string name) => report.Checks.Single(c => c.Name == name);
 
         [Fact, StaticLock]
-        public void Check_IsUnhealthy_WhenTheStorageThrows()
+        public void Check_IsUnhealthy_WhenTheStorageThrows_AndLogsTheErrorInsteadOfShowingIt()
         {
-            _monitor.Setup(x => x.GetStatistics()).Throws(new InvalidOperationException("connection refused"));
+            var provider = new RecordingLogProvider();
+            _monitor.Setup(x => x.GetStatistics()).Throws(new InvalidOperationException("Login failed for user 'sa' on db-prod-01"));
 
-            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+            HealthReport report;
+            using (provider.Use())
+            {
+                report = DashboardHealth.Check(_storage.Object, _options, _now);
+            }
 
             Assert.Equal(HealthStatus.Unhealthy, report.Status);
             Assert.Equal(HealthStatus.Unhealthy, Check(report, "storage").Status);
-            Assert.Contains("connection refused", Check(report, "storage").Detail);
+            Assert.Equal("the storage did not answer, see the log", Check(report, "storage").Detail);
+            Assert.DoesNotContain("db-prod-01", JsonSerializer.Serialize(report.ToJson()));
             Assert.Single(report.Checks);
+            Assert.Contains(provider.Entries, e => e.Level == Masterly.NightShift.Logging.LogLevel.Warn && e.Exception is InvalidOperationException);
         }
 
         [Fact, StaticLock]
@@ -153,6 +160,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         public void Check_IsDegraded_WhenQueuesOrServersArePaused_AndNamesThem()
         {
             AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            AddServer("web-2", TimeSpan.FromSeconds(5), "default");
             _control[DrainMode.QueueFieldPrefix + "reports"] = "maintenance";
             _control[DrainMode.QueueFieldPrefix + "billing"] = String.Empty;
             _control[DrainMode.ServerFieldPrefix + "web-2"] = String.Empty;
@@ -174,6 +182,46 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             var report = DashboardHealth.Check(_storage.Object, _options, _now);
 
             Assert.Equal("servers paused: web-1", Check(report, "processing").Detail);
+        }
+
+        [Fact, StaticLock]
+        public void Check_IgnoresPausesOfServersThatAreNoLongerRegistered()
+        {
+            AddServer("web-1:2:new", TimeSpan.FromSeconds(5), "default");
+            _control[DrainMode.ServerFieldPrefix + "web-1:1:old"] = "before deploy";
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal(HealthStatus.Healthy, report.Status);
+            Assert.Equal(HealthStatus.Healthy, Check(report, "processing").Status);
+            Assert.Equal("running", Check(report, "processing").Detail);
+        }
+
+        [Fact, StaticLock]
+        public void Check_NamesOnlyThePausedServersThatAreStillRegistered()
+        {
+            AddServer("web-1:2:new", TimeSpan.FromSeconds(5), "default");
+            _control[DrainMode.ServerFieldPrefix + "web-1:1:old"] = String.Empty;
+            _control[DrainMode.ServerFieldPrefix + "web-1:2:new"] = String.Empty;
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal(HealthStatus.Degraded, Check(report, "processing").Status);
+            Assert.Equal("servers paused: web-1:2:new", Check(report, "processing").Detail);
+        }
+
+        [Fact]
+        public void GetStalePausedServers_ReturnsThePausedIdsThatMatchNoServer_InOrder()
+        {
+            _control[DrainMode.ServerFieldPrefix + "b-gone"] = String.Empty;
+            _control[DrainMode.ServerFieldPrefix + "a-gone"] = String.Empty;
+            _control[DrainMode.ServerFieldPrefix + "WEB-1"] = String.Empty;
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            var drain = DrainMode.Read(_connection.Object);
+
+            Assert.Equal(new[] { "a-gone", "b-gone" }, DashboardHealth.GetStalePausedServers(drain, _servers));
+            Assert.Equal(new[] { "WEB-1", "a-gone", "b-gone" }, DashboardHealth.GetStalePausedServers(drain, null));
+            Assert.Empty(DashboardHealth.GetStalePausedServers(DrainModeStatus.Inactive, _servers));
         }
 
         [Fact, StaticLock]
@@ -199,7 +247,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
 
             Assert.Equal(HealthStatus.Degraded, report.Status);
             Assert.Equal(HealthStatus.Degraded, Check(report, "recurring").Status);
-            Assert.Equal("InvalidOperationException: timeout", Check(report, "recurring").Detail);
+            Assert.Equal("could not read the recurring jobs, see the log", Check(report, "recurring").Detail);
             Assert.Equal(HealthStatus.Healthy, Check(report, "processing").Status);
         }
 
@@ -233,6 +281,71 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("no servers are registered", Check(report, "servers").Detail);
             Assert.Equal("0 queues, 0 jobs waiting", Check(report, "queues").Detail);
             Assert.Empty(report.Queues);
+        }
+
+        [Fact, StaticLock]
+        public void Check_ReadsTheQueues_ThroughQueueCounts_WhenTheStorageHasTheFeature_AndReportsTheSame()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            _queues.Add(new QueueWithTopEnqueuedJobsDto { Name = "default", Length = 3, Fetched = 1 });
+            _queues.Add(new QueueWithTopEnqueuedJobsDto { Name = "reports", Length = 2 });
+            var expectedReport = DashboardHealth.Check(_storage.Object, _options, _now);
+            var expectedMetrics = PrometheusDispatcher.Render(_storage.Object, _options, _now);
+
+            var monitor = UseStorageMonitor(withQueueCountsFeature: true);
+            monitor.Setup(x => x.Queues()).Throws(new InvalidOperationException("Queues() also reads the first jobs of each queue"));
+            monitor.Setup(x => x.QueueCounts()).Returns(_queues);
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal(WithoutTimings(expectedReport), WithoutTimings(report));
+            Assert.Equal(expectedMetrics, PrometheusDispatcher.Render(_storage.Object, _options, _now));
+            monitor.Verify(x => x.Queues(), Times.Never);
+        }
+
+        [Fact, StaticLock]
+        public void Check_ReadsTheQueues_ThroughQueues_WhenTheStorageLacksTheFeature()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            var monitor = UseStorageMonitor(withQueueCountsFeature: false);
+            monitor.Setup(x => x.Queues()).Returns(new List<QueueWithTopEnqueuedJobsDto> { new QueueWithTopEnqueuedJobsDto { Name = "default", Length = 4 } });
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal("1 queues, 4 jobs waiting", Check(report, "queues").Detail);
+            monitor.Verify(x => x.QueueCounts(), Times.Never);
+        }
+
+        [Fact]
+        public void QueueCounts_CallsQueues_ByDefault()
+        {
+            var queues = new List<QueueWithTopEnqueuedJobsDto> { new QueueWithTopEnqueuedJobsDto { Name = "default", Length = 1 } };
+            var monitor = new Mock<JobStorageMonitor> { CallBase = true };
+            monitor.Setup(x => x.Queues()).Returns(queues);
+
+            Assert.Same(queues, monitor.Object.QueueCounts());
+        }
+
+        private Mock<JobStorageMonitor> UseStorageMonitor(bool withQueueCountsFeature)
+        {
+            var monitor = new Mock<JobStorageMonitor>();
+            monitor.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Enqueued = 3, Failed = 1, Servers = 1 });
+            monitor.Setup(x => x.Servers()).Returns(_servers);
+            _storage.Setup(x => x.GetMonitoringApi()).Returns(monitor.Object);
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.QueueCounts)).Returns(withQueueCountsFeature);
+            return monitor;
+        }
+
+        private static string WithoutTimings(HealthReport report)
+        {
+            // The storage check says how long the storage took to answer
+            var json = JsonSerializer.SerializeToNode(report.ToJson());
+            foreach (var check in json["checks"].AsArray())
+            {
+                if ((string)check["name"] == "storage") check["detail"] = null;
+            }
+
+            return json.ToJsonString();
         }
 
         [Fact]
@@ -287,15 +400,121 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Empty(json["queues"].AsArray());
         }
 
+        private void AdvertiseScoreQueries()
+        {
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.BatchedGetFirstByLowest)).Returns(true);
+            _connection.Setup(x => x.GetFirstByLowestScoreFromSet("recurring-jobs", It.IsAny<double>(), It.IsAny<double>(), It.IsAny<int>())).Returns(new List<string>());
+        }
+
+        [Fact, StaticLock]
+        public void Check_FindsLateRecurringJobs_FromTheSetScores_WithoutReadingEveryJob()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            AdvertiseScoreQueries();
+            var lateBefore = JobHelper.ToTimestamp(_now - DashboardHealth.RecurringLateThreshold);
+            _connection.Setup(x => x.GetFirstByLowestScoreFromSet("recurring-jobs", 0, lateBefore, DashboardHealth.MaxRecurringCandidates)).Returns(new List<string> { "nightly", "hourly" });
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal("2 late: nightly, hourly", Check(report, "recurring").Detail);
+            Assert.Equal(2, report.LateRecurringJobs);
+            _connection.Verify(x => x.GetAllItemsFromSet("recurring-jobs"), Times.Never);
+            _connection.Verify(x => x.GetAllEntriesFromHash(It.Is<string>(k => k.StartsWith("recurring-job:"))), Times.Never);
+            _connection.Verify(x => x.GetStateData(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact, StaticLock]
+        public void Check_FindsRecurringJobsDisabledByErrors_AmongTheUnscheduledOnes()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            AdvertiseScoreQueries();
+            _monitor.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Recurring = 7 });
+            _connection.Setup(x => x.GetFirstByLowestScoreFromSet("recurring-jobs", -1, -1, DashboardHealth.MaxRecurringCandidates)).Returns(new List<string> { "paused", "broken" });
+            _connection.Setup(x => x.GetValueFromHash("recurring-job:broken", "Error")).Returns("Type not found");
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal("1 disabled by errors: broken", Check(report, "recurring").Detail);
+            Assert.Equal(0, report.LateRecurringJobs);
+        }
+
+        [Fact, StaticLock]
+        public void Check_CountsRecurringJobsOnSchedule_FromTheStatistics()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            AdvertiseScoreQueries();
+            _monitor.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Recurring = 7 });
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal(HealthStatus.Healthy, Check(report, "recurring").Status);
+            Assert.Equal("7 on schedule", Check(report, "recurring").Detail);
+        }
+
+        [Fact, StaticLock]
+        public void GetReport_ReusesAReport_ForTheCacheDuration_PerStorageAndServerThreshold()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+
+            var first = DashboardHealth.GetReport(_storage.Object, _options, _now);
+            var second = DashboardHealth.GetReport(_storage.Object, _options, _now.AddSeconds(4));
+            var otherThreshold = DashboardHealth.GetReport(_storage.Object, new DashboardOptions { ServerPossiblyAbortedThreshold = TimeSpan.FromMinutes(10) }, _now.AddSeconds(4));
+            var later = DashboardHealth.GetReport(_storage.Object, _options, _now.Add(DashboardHealth.CacheDuration).AddSeconds(1));
+
+            Assert.Same(first, second);
+            Assert.NotSame(first, otherThreshold);
+            Assert.NotSame(first, later);
+            _monitor.Verify(x => x.GetStatistics(), Times.Exactly(3));
+        }
+
+        [Fact, StaticLock]
+        public void GetReport_SharesTheReport_BetweenOptionsInstancesWithTheSameServerThreshold()
+        {
+            // The dashboard, MapNightShiftHealth and MapNightShiftMetrics usually have options objects of their own
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+
+            var dashboard = DashboardHealth.GetReport(_storage.Object, _options, _now);
+            var health = DashboardHealth.GetReport(_storage.Object, new DashboardOptions { DashboardTitle = "Other" }, _now.AddSeconds(1));
+            var otherThreshold = DashboardHealth.GetReport(_storage.Object, new DashboardOptions { ServerPossiblyAbortedThreshold = TimeSpan.FromMinutes(10) }, _now.AddSeconds(2));
+            var dashboardAgain = DashboardHealth.GetReport(_storage.Object, _options, _now.AddSeconds(3));
+
+            Assert.Same(dashboard, health);
+            Assert.Same(dashboard, dashboardAgain);
+            Assert.NotSame(dashboard, otherThreshold);
+            _monitor.Verify(x => x.GetStatistics(), Times.Exactly(2));
+        }
+
         [Fact]
-        public void IsLate_IgnoresPausedRemovedErroredAndFutureJobs()
+        public void IsLate_IgnoresPausedRemovedDisabledAndFutureJobs()
         {
             Assert.True(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(-2) }, _now));
             Assert.False(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddSeconds(-30) }, _now));
             Assert.False(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(-2), Paused = true }, _now));
             Assert.False(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(-2), Removed = true }, _now));
-            Assert.False(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(-2), Error = "x" }, _now));
+            Assert.False(DashboardHealth.IsLate(new RecurringJobDto { Error = "x" }, _now));
             Assert.False(DashboardHealth.IsLate(new RecurringJobDto(), _now));
+        }
+
+        [Fact]
+        public void IsLate_CountsAnOverdueErrorRetry_LikeTheScoreQueryDoes()
+        {
+            // The scheduler failed and set the retry as the next run; nobody tried again for two minutes
+            Assert.True(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(-2), Error = "x", RetryAttempt = 1 }, _now));
+            Assert.False(DashboardHealth.IsLate(new RecurringJobDto { NextExecution = _now.AddMinutes(1), Error = "x", RetryAttempt = 1 }, _now));
+        }
+
+        [Fact, StaticLock]
+        public void Check_CountsAnOverdueErrorRetry_AsLate_WhenItReadsEveryRecurringJob()
+        {
+            AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+            AddRecurring("retrying", _now.AddMinutes(-2), error: "Timeout");
+            AddRecurring("disabled", null, error: "Type not found");
+
+            var report = DashboardHealth.Check(_storage.Object, _options, _now);
+
+            Assert.Equal("1 late: retrying", Check(report, "recurring").Detail);
+            Assert.Equal(1, report.LateRecurringJobs);
         }
 
         [Fact, StaticLock]
@@ -314,7 +533,9 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal(JobHelper.ToTimestamp(_now), json["checkedAt"].GetValue<long>());
             Assert.Equal(5, (json["checks"].AsArray()).Count);
 
+            // A report is reused for the cache duration, whatever options object asks for it
             _servers.Clear();
+            HealthDispatcher.Clock = () => _now.Add(DashboardHealth.CacheDuration);
             var unhealthy = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
 
             await new HealthDispatcher().Dispatch(unhealthy);

@@ -45,8 +45,9 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             var html = _renderer.Render(new ServersPage());
 
             Assert.Contains("glyphicon-ok text-success\" title=\"" + H(Strings.ServersPage_Active) + "\"", html);
-            Assert.Contains("glyphicon margin-right-14p", html);
-            Assert.Contains("glyphicon-alert text-danger", html);
+            // Past ServerPossiblyAbortedThreshold (one minute) is possibly aborted, as on the job pages; it took twice that
+            Assert.DoesNotContain("glyphicon margin-right-14p", html);
+            Assert.Equal(2, (html.Length - html.Replace("glyphicon-alert text-danger", String.Empty).Length) / "glyphicon-alert text-danger".Length);
             Assert.Contains(H(Strings.ServersPage_Note_Title), html);
             Assert.Contains("/jobs/processing", html);
             Assert.Contains("fresh-server", html);
@@ -98,6 +99,62 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("title=\"disk swap\">" + H(Strings.ServersPage_Paused) + "</span>", html);
             Assert.Contains("data-ajax=\"/servers/resume/paused%20server\"", html);
             Assert.Contains("data-ajax=\"/servers/pause/fresh-server\"", html);
+        }
+
+        [Fact]
+        public void Render_ListsPausesLeftByServersThatAreGone_WithAClearButton()
+        {
+            SetupServers(Server("web-1:2:new", DateTime.UtcNow));
+            SetupControlHash(new Dictionary<string, string>
+            {
+                { DrainMode.ServerFieldPrefix + "web-1:1:old", "before deploy" },
+                { DrainMode.ServerFieldPrefix + "web-1:2:new", "" },
+            });
+
+            var html = _renderer.Render(new ServersPage());
+
+            Assert.Contains("<h4>" + H(Strings.ServersPage_StalePauses_Title) + "</h4>", html);
+            Assert.Contains("<code>web-1:1:old</code>", html);
+            Assert.Contains("<em>before deploy</em>", html);
+            Assert.Contains("data-ajax=\"/servers/resume/web-1%3A1%3Aold\"", html);
+            Assert.Contains(H(Strings.ServersPage_StalePauses_Clear), html);
+            Assert.DoesNotContain("<code>web-1:2:new</code>", html);
+            Assert.Contains("data-ajax=\"/servers/resume/web-1%3A2%3Anew\"", html);
+        }
+
+        [Fact]
+        public void Render_ListsStalePauses_EvenWithoutAnyServer()
+        {
+            SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "gone", "" } });
+
+            var html = _renderer.Render(new ServersPage());
+
+            Assert.Contains(H(Strings.ServersPage_NoServers), html);
+            Assert.Contains("<code>gone</code>", html);
+            Assert.Contains("data-ajax=\"/servers/resume/gone\"", html);
+        }
+
+        [Fact]
+        public void Render_DoesNotListStalePauses_WhenEveryPausedServerIsRunning()
+        {
+            SetupServers(Server("paused server", DateTime.UtcNow));
+            SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "paused server", "" } });
+
+            var html = _renderer.Render(new ServersPage());
+
+            Assert.DoesNotContain(H(Strings.ServersPage_StalePauses_Title), html);
+        }
+
+        [Fact]
+        public void Render_ListsStalePauses_WithoutTheClearButton_WhenTheDashboardIsReadOnly()
+        {
+            _renderer.Options = new Masterly.NightShift.DashboardOptions { IsReadOnlyFunc = _ => true };
+            SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "gone", "" } });
+
+            var html = _renderer.Render(new ServersPage());
+
+            Assert.Contains("<code>gone</code>", html);
+            Assert.DoesNotContain("/servers/resume/", html);
         }
 
         [Fact]

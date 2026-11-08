@@ -18,8 +18,11 @@ using System;
 // ReSharper disable once CheckNamespace
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// The base of the old server process interfaces. Implement <see cref="IBackgroundProcess"/> instead.
+    /// </summary>
     /// <exclude />
-    [Obsolete("Please use the `IBackgroundProcess` interface where you can. Will be removed in 2.0.0.")]
+    [Obsolete("Use the `IBackgroundProcess` interface where you can. Kept for code ported from Hangfire.")]
     public interface IServerProcess
     {
     }

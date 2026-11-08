@@ -1,4 +1,6 @@
 ﻿using System;
+using System.ComponentModel;
+using Masterly.NightShift.Common;
 using Masterly.NightShift.Dashboard;
 using Moq;
 using Xunit;
@@ -42,6 +44,23 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.StartsWith("System.Exception: Boom", result);
             Assert.Contains("<span class='st-frame'>", result);
             Assert.Contains("Jobs.cs", result);
+        }
+
+        [Fact]
+        public void JobName_MasksRedactedArguments_InADisplayNameAttribute()
+        {
+            var helper = CreateHelper();
+            var job = Job.FromExpression(() => Connect("db.local", "hunter2"));
+
+            var name = helper.JobName(job, includeQueue: false);
+
+            Assert.Equal($"Connect to db.local as {RedactedAttribute.Mask}", name);
+        }
+
+        [DisplayName("Connect to {0} as {1}")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void Connect(string host, [Redacted] string password)
+        {
         }
 
         private HtmlHelper CreateHelper()

@@ -17,6 +17,9 @@
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A queue with its length, its fetched count and its first jobs, as shown on the dashboard's Queues page.
+    /// </summary>
     public class QueueWithTopEnqueuedJobsDto
     {
         // Storages must set the non-nullable members, the dashboard relies on them

@@ -37,7 +37,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("application/json", context.Response.ContentType);
             var json = JsonNode.Parse(context.Response.Text);
             Assert.True(json["now"].GetValue<long>() > 0);
-            Assert.True(json["enabled"].GetValue<bool>());
+            Assert.Equal(ActivityFeed.Enabled, json["enabled"].GetValue<bool>());
             Assert.Equal(3, json["entries"].AsArray().Count);
             Assert.Equal("c", json["entries"][0]["j"].GetValue<string>());
             _connection.Verify(x => x.GetRangeFromList(ActivityFeed.ListKey, 0, 49));

@@ -20,6 +20,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// Reads recurring jobs and takes job locks through a storage connection.
+    /// </summary>
     public static class StorageConnectionExtensions
     {
         public static IDisposable AcquireDistributedJobLock(
@@ -182,10 +185,28 @@ namespace Masterly.NightShift.Storage
                     dto.MisfireHandling = (MisfireHandlingMode)misfireValue;
                 }
 
+                dto.StartAt = GetWindowValue(hash, RecurringJobEntity.StartAtField);
+                dto.EndAt = GetWindowValue(hash, RecurringJobEntity.EndAtField);
+
                 result.Add(dto);
             }
             
             return result;
+        }
+
+        // A damaged value reads as no value here: the list must still show the job, and the scheduler reports it
+        private static DateTime? GetWindowValue(Dictionary<string, string> hash, string field)
+        {
+            if (!hash.TryGetValue(field, out var value) || String.IsNullOrWhiteSpace(value)) return null;
+
+            try
+            {
+                return JobHelper.DeserializeDateTime(value);
+            }
+            catch (Exception ex) when (ex is FormatException || ex is ArgumentOutOfRangeException)
+            {
+                return null;
+            }
         }
     }
 }

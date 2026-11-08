@@ -1,10 +1,16 @@
+// UseTelemetry() and the filter exist on net8.0 and later only (ActivitySource and Meter are not on .NET Framework)
+#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
+using Masterly.NightShift.Client;
+using Masterly.NightShift.Common;
 using Masterly.NightShift.Diagnostics;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.States;
+using Masterly.NightShift.Storage;
 using Moq;
 using Xunit;
 
@@ -164,6 +170,60 @@ namespace Masterly.NightShift.Core.Tests.Diagnostics
         }
 
         [Fact]
+        public void OnPerformed_TreatsAJobStoppedByServerShutdown_AsCanceled()
+        {
+            ListenToActivities();
+            _performContext.CancellationToken.Setup(x => x.ShutdownToken).Returns(new System.Threading.CancellationToken(canceled: true));
+            var filter = new TelemetryFilter();
+
+            filter.OnPerforming(_performContext.GetPerformingContext());
+            filter.OnPerformed(_performContext.GetPerformedContext(exception: new OperationCanceledException()));
+
+            var span = Assert.Single(_activities);
+            Assert.Equal(ActivityStatusCode.Unset, span.Status);
+            Assert.Equal(TelemetryFilter.OutcomeCanceled, span.GetTagItem("nightshift.job.outcome"));
+        }
+
+        [Fact]
+        public void OnPerformed_ReportsAJobThatCanceledItself_AsFailed()
+        {
+            // The performer wraps an OperationCanceledException thrown while the server isn't stopping
+            ListenToActivities();
+            var filter = new TelemetryFilter();
+            var failure = new JobPerformanceException("Job failed", new OperationCanceledException("Timed out"));
+
+            filter.OnPerforming(_performContext.GetPerformingContext());
+            filter.OnPerformed(_performContext.GetPerformedContext(exception: failure));
+
+            var span = Assert.Single(_activities);
+            Assert.Equal(ActivityStatusCode.Error, span.Status);
+            Assert.Equal(TelemetryFilter.OutcomeFailed, span.GetTagItem("nightshift.job.outcome"));
+            Assert.Equal(typeof(OperationCanceledException).FullName, span.GetTagItem("error.type"));
+        }
+
+        [Fact]
+        public void OnPerformed_ReportsRetryLater_WithoutMarkingTheSpanAsFailed()
+        {
+            ListenToActivities();
+            ListenToMetrics();
+            var filter = new TelemetryFilter();
+            var retryLater = new JobPerformanceException("Job failed", new RetryLaterException(TimeSpan.FromHours(1), "partner busy"));
+
+            filter.OnPerforming(_performContext.GetPerformingContext());
+            filter.OnPerformed(_performContext.GetPerformedContext(exception: retryLater));
+
+            var span = Assert.Single(_activities);
+            Assert.Equal(ActivityStatusCode.Unset, span.Status);
+            Assert.Equal(TelemetryFilter.OutcomeRetryLater, span.GetTagItem("nightshift.job.outcome"));
+            Assert.Null(span.GetTagItem("error.type"));
+            Assert.DoesNotContain(span.Events, x => x.Name == "exception");
+
+            var duration = Assert.Single(_measurements, x => x.Instrument == "nightshift.job.duration");
+            Assert.Equal("retry_later", duration.Tags["nightshift.job.outcome"]);
+            Assert.Null(duration.Tags["error.type"]);
+        }
+
+        [Fact]
         public void OnPerforming_DoesNotQueryTheStorage_WhenNobodyListens()
         {
             var filter = new TelemetryFilter();
@@ -229,6 +289,99 @@ namespace Masterly.NightShift.Core.Tests.Diagnostics
         }
 
         [Fact]
+        public void OnCreated_ReportsTheQueueChosenDuringStateElection()
+        {
+            ListenToActivities();
+            var filter = new TelemetryFilter();
+            var initialState = new EnqueuedState();
+            var create = new CreateContext(_createContext.Storage.Object, _createContext.Connection.Object, _createContext.Job, initialState);
+
+            filter.OnCreating(new CreatingContext(create));
+            initialState.Queue = "critical"; // What [Queue("critical")] does during the state election
+            filter.OnCreated(new CreatedContext(create, new BackgroundJob("123", _createContext.Job, DateTime.UtcNow), false, null));
+
+            var span = Assert.Single(_activities);
+            Assert.Equal("critical", span.GetTagItem("messaging.destination.name"));
+        }
+
+        [Fact]
+        public void OnCreated_ReportsTheJobsOwnQueue_WhenTheStateKeepsTheDefaultOne()
+        {
+            ListenToActivities();
+            var filter = new TelemetryFilter();
+            var job = Job.FromExpression(() => CreateContextMock.Method(), "emails");
+            var create = new CreateContext(_createContext.Storage.Object, _createContext.Connection.Object, job, new EnqueuedState());
+
+            filter.OnCreating(new CreatingContext(create));
+            filter.OnCreated(new CreatedContext(create, new BackgroundJob("123", job, DateTime.UtcNow), false, null));
+
+            var span = Assert.Single(_activities);
+            Assert.Equal("emails", span.GetTagItem("messaging.destination.name"));
+        }
+
+        [Fact]
+        public void OnPerforming_ReportsTheQueueTheJobWasFetchedFrom()
+        {
+            ListenToActivities();
+            var filter = new TelemetryFilter();
+            var applyContext = CreateProcessingContext();
+            applyContext.Connection.Setup(x => x.GetStateData(JobId)).Returns(new StateData
+            {
+                Name = EnqueuedState.StateName,
+                Data = new Dictionary<string, string> { { "Queue", "critical" } }
+            });
+
+            filter.OnStateApplied(applyContext.Object, applyContext.Transaction.Object);
+            filter.OnPerforming(_performContext.GetPerformingContext());
+            filter.OnPerformed(_performContext.GetPerformedContext());
+
+            var span = Assert.Single(_activities);
+            Assert.Equal("critical", span.GetTagItem("messaging.destination.name"));
+        }
+
+        [Fact]
+        public void OnPerforming_FallsBackToTheJobsQueue_WhenTheEnqueuedStateCannotBeRead()
+        {
+            ListenToActivities();
+            var filter = new TelemetryFilter();
+            var applyContext = CreateProcessingContext();
+            applyContext.Connection.Setup(x => x.GetStateData(JobId)).Throws(new InvalidOperationException("storage is down"));
+
+            filter.OnStateApplied(applyContext.Object, applyContext.Transaction.Object);
+            filter.OnPerforming(_performContext.GetPerformingContext());
+            filter.OnPerformed(_performContext.GetPerformedContext());
+
+            var span = Assert.Single(_activities);
+            Assert.Null(span.GetTagItem("messaging.destination.name"));
+        }
+
+        [Fact]
+        public void OnStateApplied_DoesNotQueryTheStorage_WhenNobodyListens()
+        {
+            var applyContext = CreateProcessingContext();
+
+            new TelemetryFilter().OnStateApplied(applyContext.Object, applyContext.Transaction.Object);
+
+            applyContext.Connection.Verify(x => x.GetStateData(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public void OnStateApplied_IgnoresTransitionsOtherThanEnqueuedToProcessing()
+        {
+            ListenToActivities();
+            var applyContext = new ApplyStateContextMock
+            {
+                BackgroundJob = _performContext.BackgroundJob,
+                NewStateObject = new SucceededState(null, 1, 1),
+                OldStateName = ProcessingState.StateName
+            };
+
+            new TelemetryFilter().OnStateApplied(applyContext.Object, applyContext.Transaction.Object);
+
+            applyContext.Connection.Verify(x => x.GetStateData(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
         public void UseTelemetry_RegistersTheFilterGlobally()
         {
             var configuration = new Mock<IGlobalConfiguration>();
@@ -237,13 +390,26 @@ namespace Masterly.NightShift.Core.Tests.Diagnostics
             try
             {
                 configuration.Object.UseTelemetry();
+                configuration.Object.UseTelemetry();
 
-                Assert.Equal(before + 1, GlobalJobFilters.Filters.Count(x => x.Instance is TelemetryFilter));
+                // Several hosts in one process (tests, for example) configure it again: it is added once
+                Assert.Equal(Math.Max(before, 1), GlobalJobFilters.Filters.Count(x => x.Instance is TelemetryFilter));
             }
             finally
             {
                 GlobalJobFilters.Filters.Remove(typeof(TelemetryFilter));
             }
+        }
+
+        private ApplyStateContextMock CreateProcessingContext()
+        {
+            // The worker's state change shares its BackgroundJob instance with the perform context
+            return new ApplyStateContextMock
+            {
+                BackgroundJob = _performContext.BackgroundJob,
+                NewStateObject = new ProcessingState("server", "worker"),
+                OldStateName = EnqueuedState.StateName
+            };
         }
 
         private void SetupStoredTraceParent()
@@ -292,3 +458,4 @@ namespace Masterly.NightShift.Core.Tests.Diagnostics
         }
     }
 }
+#endif

@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Linq;
 using System.Net;
@@ -26,7 +11,8 @@ namespace Masterly.NightShift.Dashboard
     /// <c>POST /recurring/import</c> with form fields <c>manifest</c> (the JSON) and <c>prune</c>
     /// (<c>true</c> to remove recurring jobs the manifest doesn't mention): applies it and answers
     /// <c>200 { added, updated, removed, errors: [{ id, message }] }</c>, <c>422 { error }</c> for a document
-    /// that can't be read.
+    /// that can't be read. Import accepts only the methods the application already uses as jobs, unless
+    /// <see cref="DashboardOptions.AllowAnyMethodInManifestImport"/> is set.
     /// </summary>
     internal sealed class RecurringJobManifestDispatcher : IDashboardDispatcher
     {
@@ -47,7 +33,8 @@ namespace Masterly.NightShift.Dashboard
             string manifest;
             using (var connection = context.Storage.GetReadOnlyConnection())
             {
-                manifest = RecurringJobManifest.Export(connection);
+                // Read-only users don't see the values of [Redacted] parameters
+                manifest = RecurringJobManifest.Export(connection, maskRedacted: context.IsReadOnly);
             }
 
             context.Response.StatusCode = 200;
@@ -75,6 +62,7 @@ namespace Masterly.NightShift.Dashboard
 
             if (String.IsNullOrWhiteSpace(manifest))
             {
+                AuditLog.Record(context, null, "no manifest", 422);
                 await DashboardJson.WriteAsync(context, 422, new { error = "A manifest is required." }).ConfigureAwait(false);
                 return;
             }
@@ -84,7 +72,7 @@ namespace Masterly.NightShift.Dashboard
                 RecurringJobManifestResult result;
                 using (var connection = context.Storage.GetConnection())
                 {
-                    result = RecurringJobManifest.Apply(context.GetRecurringJobManager(), connection, manifest, prune);
+                    result = RecurringJobManifest.Apply(context.GetRecurringJobManager(), connection, manifest, prune, context.Options.AllowAnyMethodInManifestImport);
                 }
 
                 AuditLog.Record(context, result.Added.Concat(result.Updated).Concat(result.Removed),
@@ -100,6 +88,8 @@ namespace Masterly.NightShift.Dashboard
             }
             catch (Exception ex) when (ex is FormatException || ex is ArgumentException || ex is NotSupportedException)
             {
+                // The message stays out of the audit log: it can quote the manifest, job arguments included
+                AuditLog.Record(context, null, $"rejected{(prune ? ", prune" : String.Empty)}", 422);
                 await DashboardJson.WriteAsync(context, 422, new { error = ex.Message }).ConfigureAwait(false);
             }
         }

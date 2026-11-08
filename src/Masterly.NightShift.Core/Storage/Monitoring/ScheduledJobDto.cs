@@ -21,6 +21,9 @@ using Masterly.NightShift.Common;
 
 namespace Masterly.NightShift.Storage.Monitoring
 {
+    /// <summary>
+    /// A job in the Scheduled state, as listed by the dashboard.
+    /// </summary>
     public class ScheduledJobDto
     {
         public ScheduledJobDto()

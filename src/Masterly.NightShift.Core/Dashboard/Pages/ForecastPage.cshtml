@@ -52,7 +52,7 @@
             <div class="row insights-summary">
                 <div class="col-sm-3">
                     <div class="insights-tile">
-                        <div class="insights-tile-value">@forecast.TotalRuns.ToString("N0")</div>
+                        <div class="insights-tile-value" title="@(forecast.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : null)">@(forecast.Truncated ? "\u2265" : null)@forecast.TotalRuns.ToString("N0")</div>
                         <div class="insights-tile-label">@Strings.ForecastPage_Summary_Runs</div>
                     </div>
                 </div>
@@ -99,7 +99,14 @@
                                 }
                                 else
                                 {
-                                    @row.Occurrences.Count<text>&times; &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                    if (row.Truncated)
+                                    {
+                                        <span title="@String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob)">&ge;@row.Occurrences.Count&times;</span><text> &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                    }
+                                    else
+                                    {
+                                        @row.Occurrences.Count<text>&times; &middot; </text>@Html.ToHumanDuration(row.ExpectedDuration, false)@(row.DurationKnown ? null : "*")
+                                    }
                                 }
                             </small>
                         </div>
@@ -111,10 +118,11 @@
                             @if (row.Occurrences.Count > denseThreshold)
                             {
                                 var firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
-                                var lastLeft = 100.0 * (row.Occurrences[row.Occurrences.Count - 1] - forecast.From).Ticks / window.Ticks;
+                                // A truncated row keeps running after its last projected run, until RunsUntil
+                                var lastLeft = 100.0 * ((row.RunsUntil ?? row.Occurrences[row.Occurrences.Count - 1]) - forecast.From).Ticks / window.Ticks;
                                 <span class="hf-forecast-run hf-forecast-run-dense @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
                                       style="left: @(firstLeft.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Max(0.5, lastLeft - firstLeft).ToString("F3", CultureInfo.InvariantCulture))%"
-                                      title="@String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count)"></span>
+                                      title="@(row.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count))"></span>
                             }
                             else
                             {

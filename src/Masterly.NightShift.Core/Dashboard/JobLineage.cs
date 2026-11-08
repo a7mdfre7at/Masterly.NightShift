@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #nullable enable
 
 using System;
@@ -83,6 +68,9 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>How many levels are followed in each direction.</summary>
         public const int MaxDepth = 4;
 
+        /// <summary>How many unread nodes past <see cref="MaxNodes"/> are drawn to show that the graph goes on.</summary>
+        public const int MaxBoundaryNodes = 10;
+
         private JobLineage(string currentId, List<JobLineageNode> nodes, List<JobLineageEdge> edges, bool truncated)
         {
             CurrentId = currentId;
@@ -137,6 +125,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     foreach (var (parentId, label) in GetParents(jobDetails))
                     {
+                        if (!HasRoom(parentId)) break;
                         if (!AddEdge(parentId, id, label)) continue;
                         Visit(parentId, depth - 1);
                     }
@@ -147,6 +136,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     foreach (var (childId, label) in GetChildren(jobDetails))
                     {
+                        if (!HasRoom(childId)) break;
                         if (!AddEdge(id, childId, label)) continue;
                         Visit(childId, depth + 1);
                     }
@@ -157,6 +147,7 @@ namespace Masterly.NightShift.Dashboard
                 {
                     foreach (var (parentId, label) in GetParents(jobDetails))
                     {
+                        if (!HasRoom(parentId)) break;
                         if (!AddEdge(parentId, id, label)) continue;
                         Visit(parentId, depth - 1);
                     }
@@ -196,6 +187,16 @@ namespace Masterly.NightShift.Dashboard
 
                 edges.Add(new JobLineageEdge(parentId, childId, label));
                 return true;
+            }
+
+            // Past MaxNodes, a few unread nodes still show where the graph goes on; a batch continuation has a
+            // parent per job of the batch, and every one of them was drawn
+            bool HasRoom(string id)
+            {
+                if (nodes.ContainsKey(id) || nodes.Count < MaxNodes + MaxBoundaryNodes) return true;
+
+                truncated = true;
+                return false;
             }
 
             void Visit(string id, int depth)

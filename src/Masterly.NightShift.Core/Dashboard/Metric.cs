@@ -17,6 +17,9 @@ using System.Globalization;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The value a <see cref="DashboardMetric"/> shows, with its style, highlighting and title.
+    /// </summary>
     public class Metric
     {
         public Metric(string value)
@@ -37,6 +40,9 @@ namespace Masterly.NightShift.Dashboard
         public string Title { get; set; }
     }
 
+    /// <summary>
+    /// The color of a dashboard metric.
+    /// </summary>
     public enum MetricStyle
     {
         Default,

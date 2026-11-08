@@ -23,7 +23,8 @@
     {
         var storageConnection = connection as JobStorageConnection;
 
-        if (storageConnection != null)
+        // Paging through the "retries" set needs the extended API
+        if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
         {
             pager = new Pager(@from, perPage, DashboardOptions.DefaultRecordsPerPage, storageConnection.GetSetCount("retries"));
             jobIds = storageConnection.GetRangeFromSet("retries", pager.FromRecord, pager.FromRecord + pager.RecordsPerPage - 1);

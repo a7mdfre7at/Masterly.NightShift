@@ -19,6 +19,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Processing
 {
+    /// <summary>
+    /// Runs a background process's work in a loop, retrying with a delay after a failure, until the server stops.
+    /// </summary>
     public interface IBackgroundExecution : IDisposable
     {
         void Run([NotNull] Action<Guid, object> callback, [CanBeNull] object state);

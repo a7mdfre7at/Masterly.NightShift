@@ -23,6 +23,10 @@ using Masterly.NightShift.States;
 
 namespace Masterly.NightShift.Client
 {
+    /// <summary>
+    /// Creates background jobs in the storage, running the client filters around the creation and applying the initial
+    /// state with the state machine.
+    /// </summary>
     public class BackgroundJobFactory : IBackgroundJobFactory
     {
         private readonly IJobFilterProvider _filterProvider;

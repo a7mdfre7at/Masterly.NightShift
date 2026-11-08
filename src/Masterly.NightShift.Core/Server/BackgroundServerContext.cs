@@ -20,6 +20,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// The server a background process dispatcher is created for: its identifier, storage, properties and stop tokens.
+    /// </summary>
     public class BackgroundServerContext
     {
         public BackgroundServerContext(

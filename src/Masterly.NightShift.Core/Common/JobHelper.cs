@@ -19,22 +19,25 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Common
 {
+    /// <summary>
+    /// Helpers that serialize values and dates the way the storage stores them.
+    /// </summary>
     public static class JobHelper
     {
 
-        [Obsolete("Please use `SerializationHelper.Serialize` with appropriate serialization option instead. Will be removed in 2.0.0")]
+        [Obsolete("Use `SerializationHelper.Serialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
         public static string ToJson(object value)
         {
             return SerializationHelper.Serialize(value, null, SerializationOption.User);
         }
 
-        [Obsolete("Please use `SerializationHelper.Deserialize` with appropriate serialization option instead. Will be removed in 2.0.0")]
+        [Obsolete("Use `SerializationHelper.Deserialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
         public static T FromJson<T>(string value)
         {
             return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
         }
 
-        [Obsolete("Please use `SerializationHelper.Deserialize` with appropriate serialization option instead. Will be removed in 2.0.0")]
+        [Obsolete("Use `SerializationHelper.Deserialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
         public static object FromJson(string value, [NotNull] Type type)
         {
             return SerializationHelper.Deserialize(value, type, SerializationOption.User);

@@ -18,10 +18,19 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The paging state of a dashboard list: the current page, the page size, and the links to other pages.
+    /// </summary>
     public class Pager
     {
         private const int PageItemsCount = 7;
         private const int DefaultRecordsPerPage = 10;
+
+        /// <summary>
+        /// The most records one page shows, whatever the URL's <c>count</c> asks for. Larger pages would load whole
+        /// lists into memory, and selecting every row would post more form values than ASP.NET Core accepts.
+        /// </summary>
+        public const int MaxRecordsPerPage = 1000;
 
         private int _startPageIndex = 1;
         private int _endPageIndex = 1;
@@ -33,8 +42,10 @@ namespace Masterly.NightShift.Dashboard
 
         public Pager(int from, int perPage, int defaultPerPage, long total)
         {
-            FromRecord = from >= 0 ? from : 0;
-            RecordsPerPage = perPage > 0 ? perPage : defaultPerPage;
+            RecordsPerPage = Math.Min(perPage > 0 ? perPage : defaultPerPage > 0 ? defaultPerPage : DefaultRecordsPerPage, MaxRecordsPerPage);
+
+            // Callers ask storages for records FromRecord..FromRecord + RecordsPerPage - 1, which must not overflow
+            FromRecord = Math.Min(from >= 0 ? from : 0, Int32.MaxValue - RecordsPerPage);
             TotalRecordCount = total;
             CurrentPage = FromRecord / RecordsPerPage + 1;
             TotalPageCount = (int)Math.Ceiling((double)TotalRecordCount / RecordsPerPage);
@@ -43,6 +54,12 @@ namespace Masterly.NightShift.Dashboard
         }
 
         public string BasePageUrl { get; set; }
+
+        /// <summary>
+        /// Appended to every page link, starting with <c>&amp;</c>, so links keep the page's other query parameters
+        /// (the Tags page's filter, for example). <c>null</c> for none.
+        /// </summary>
+        internal string QuerySuffix { get; set; }
 
         public int FromRecord { get; }
         public int RecordsPerPage { get; }
@@ -57,13 +74,14 @@ namespace Masterly.NightShift.Dashboard
         {
             if (page < 1 || page > TotalPageCount) return "#";
 
-            return BasePageUrl + "?from=" + (page - 1) * RecordsPerPage + "&count=" + RecordsPerPage;
+            return BasePageUrl + "?from=" + (page - 1) * RecordsPerPage + "&count=" + RecordsPerPage + QuerySuffix;
         }
 
         public string RecordsPerPageUrl(int perPage)
         {
             if (perPage <= 0) return "#";
-            return BasePageUrl + "?from=0&count=" + perPage;
+            perPage = Math.Min(perPage, MaxRecordsPerPage);
+            return BasePageUrl + "?from=0&count=" + perPage + QuerySuffix;
         }
 
         private ICollection<Item> GenerateItems()

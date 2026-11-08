@@ -20,8 +20,11 @@ using System.Linq;
 
 namespace Masterly.NightShift.States
 {
+    /// <summary>
+    /// State handlers grouped by the name of the state they handle.
+    /// </summary>
     [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "Public API, can not change in minor versions.")]
-    [Obsolete("This was a helper class, and it's not used anymore. Will be removed in 2.0.0.")]
+    [Obsolete("This helper class isn't used any more. Kept for code ported from Hangfire.")]
     public class StateHandlerCollection
     {
         private readonly Dictionary<string, List<IStateHandler>> _handlers = 

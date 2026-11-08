@@ -125,6 +125,31 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.DoesNotContain("id=\"job-details-parameters\"", html);
         }
 
+        [Theory]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        public void Render_ShowsTheRawArguments_OfAJobWhoseMethodCanNotBeFound_OnlyToUsersWhoCanChangeJobs(bool readOnly, bool shown)
+        {
+            // Without the method, [Redacted] can't be read, so the raw arguments may hold secrets
+            _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => readOnly };
+            var details = Details(EnqueuedState.StateName, properties: new Dictionary<string, string>
+            {
+                { "DBG_Type", "Missing.Type, Missing" },
+                { "DBG_Method", "Connect" },
+                { "DBG_Args", "[\"db\",\"hunter2\"]" },
+                { "DBG_Payload", "{\"a\":\"hunter2\"}" },
+            });
+            details.Job = null;
+            SetupJob(details);
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains("<pre><code>Missing.Type, Missing</code></pre>", html);
+            Assert.Equal(shown, html.Contains("hunter2"));
+            Assert.Equal(shown, html.Contains("<td class=\"width-15\">Args</td>"));
+            Assert.Equal(shown, html.Contains("<td class=\"width-15\">Payload</td>"));
+        }
+
         [Fact]
         public void Render_WarnsThatTheJobWasAborted_WhenItsServerIsGone()
         {
@@ -133,6 +158,33 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             var html = _renderer.Render(new JobDetailsPage(JobId));
 
             Assert.Contains(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, "srv-gone", "/servers"), html);
+        }
+
+        [Fact]
+        public void Render_EncodesTheServerId_InTheAbortedJobWarning()
+        {
+            SetupJob(Details(ProcessingState.StateName, ProcessingData("<img src=x onerror=alert(1)>")));
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, "&lt;img src=x onerror=alert(1)&gt;", "/servers"), html);
+            Assert.DoesNotContain("<img src=x", html);
+        }
+
+        [Fact]
+        public void Render_ShowsTheNextStatesTypeName_WhenAContinuationsNextStateCanNotBeLoaded()
+        {
+            var details = Details(AwaitingState.StateName, new Dictionary<string, string>
+            {
+                { "ParentId", "7" },
+                { "NextState", "{\"$type\":\"Contoso.Jobs.HoldState, Contoso.Jobs\"}" },
+                { "Options", "OnlyOnSucceededState" },
+            });
+            SetupJob(details);
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains("<code>Contoso.Jobs.HoldState</code>", html);
         }
 
         [Fact]
@@ -621,6 +673,47 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("style=\"width: 66.67%; background: ", html);
             Assert.Contains("<em>Processing</em></span>", html);
             Assert.Equal(4, CountOf(html, "<div class=\"state-card "));
+        }
+
+        [Fact]
+        public void Render_GivesTheCurrentStateCard_ItsCssSuffixClass()
+        {
+            SetupJob(Details(SucceededState.StateName));
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains("<div class=\"state-card state-card-state-success\" style=\"\">", html);
+        }
+
+#pragma warning disable CS0618 // The color methods are obsolete, but still supported
+        [Fact, StaticLock]
+        public void Render_GivesTheCurrentStateCard_TheColorsRegisteredForACustomState()
+        {
+            JobHistoryRenderer.AddForegroundStateColor("Facts.Quarantined", "#aa00aa");
+            JobHistoryRenderer.AddBackgroundStateColor("Facts.Quarantined", "#fbeefb");
+            SetupJob(Details("Facts.Quarantined", new Dictionary<string, string> { { "Reason", "suspicious" } }));
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains("<div class=\"state-card \" style=\"border-color: #aa00aa\">", html);
+            Assert.Contains("<h4 class=\"state-card-title\" style=\"color: #aa00aa\">", html);
+            Assert.Contains("<div class=\"state-card-body\" style=\"background-color: #fbeefb\">", html);
+            Assert.DoesNotContain("state-card-state-", html);
+        }
+#pragma warning restore CS0618
+
+        [Fact]
+        public void Render_GivesTheCurrentStateCard_ANeutralLook_ForAStateWithoutSuffixOrColors()
+        {
+            SetupJob(Details("Facts.Unstyled", new Dictionary<string, string> { { "Reason", "none" } }));
+
+            var html = _renderer.Render(new JobDetailsPage(JobId));
+
+            Assert.Contains("<div class=\"state-card \" style=\"\">", html);
+            Assert.Contains("<h4 class=\"state-card-title\" style=\"\">", html);
+            Assert.Contains("<div class=\"state-card-body\" style=\"\">", html);
+            Assert.DoesNotContain("state-card-state-", html);
+            Assert.DoesNotContain("border-color: inherit", html);
         }
 
         [Fact]

@@ -18,6 +18,9 @@ using System.Linq;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// An item of a dashboard menu: its text, link and icon, whether it is active, and its metrics.
+    /// </summary>
     public class MenuItem
     {
         public MenuItem(string text, string url)

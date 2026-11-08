@@ -19,11 +19,20 @@ using System;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// A job a worker took from a queue with <see cref="IStorageConnection.FetchNextJob"/>. Other workers don't
+    /// get it until it is requeued. When the job is done, call <see cref="RemoveFromQueue"/>; to give it back,
+    /// call <see cref="Requeue"/>. Disposing it without calling either gives it back as well in the SQL Server storage.
+    /// </summary>
     public interface IFetchedJob : IDisposable
     {
+        /// <summary>Gets the identifier of the fetched job.</summary>
         string JobId { get; }
 
+        /// <summary>Removes the job from its queue for good, once it has been processed.</summary>
         void RemoveFromQueue();
+
+        /// <summary>Puts the job back in its queue, so a worker can fetch it again.</summary>
         void Requeue();
     }
 }

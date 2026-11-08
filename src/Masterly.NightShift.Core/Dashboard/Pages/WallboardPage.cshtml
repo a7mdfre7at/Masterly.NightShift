@@ -13,17 +13,27 @@
 @inherits RazorPage
 @{
     // A full-screen status board for a wall display: no navigation, large numbers, refreshes itself.
+    // It is always dark, whatever DarkModeEnabled says (data-theme="dark" and the dark stylesheet for all media):
+    // a dark screen is easier to read from across a room and doesn't light it up.
     const int refreshSeconds = 10;
     var now = StorageUtcNow ?? ApplicationUtcNow;
-    var report = DashboardHealth.Check(Storage, DashboardOptions, now);
+    // Cached for a few seconds and shared with /health, so every screen polling it costs one check
+    var report = DashboardHealth.GetReport(Storage, DashboardOptions, now);
     var monitor = Storage.GetMonitoringApi();
 
-    var hourlySucceeded = monitor.HourlySucceededJobs();
-    var hourlyFailed = monitor.HourlyFailedJobs();
-    var succeededHour = hourlySucceeded.OrderByDescending(p => p.Key).Take(2).Sum(p => p.Value);
-    var failedHour = hourlyFailed.OrderByDescending(p => p.Key).Take(2).Sum(p => p.Value);
-    var finishedHour = succeededHour + failedHour;
-    double? successRate = finishedHour == 0 ? (double?)null : 100.0 * succeededHour / finishedHour;
+    // Storages count by clock hour, so the last 60 minutes are the current hour plus the part of the previous
+    // hour they cover, estimated as if its jobs were spread evenly over it
+    var previousHourShare = 1 - (ApplicationUtcNow.Minute * 60 + ApplicationUtcNow.Second) / 3600.0;
+    Func<IDictionary<DateTime, long>, double> lastHour = counts =>
+    {
+        var latest = counts.OrderByDescending(p => p.Key).Take(2).Select(p => p.Value).ToList();
+        return (latest.Count > 0 ? latest[0] : 0) + (latest.Count > 1 ? latest[1] * previousHourShare : 0);
+    };
+
+    var succeededHour = lastHour(monitor.HourlySucceededJobs());
+    var failedHour = lastHour(monitor.HourlyFailedJobs());
+    var finishedHour = Math.Round(succeededHour + failedHour);
+    double? successRate = finishedHour < 1 ? (double?)null : 100.0 * succeededHour / (succeededHour + failedHour);
 
     var processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto>(new List<KeyValuePair<string, ProcessingJobDto>>()) : monitor.ProcessingJobs(0, 8);
     var totalWorkers = monitor.Servers().Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= now - DashboardOptions.ServerPossiblyAbortedThreshold).Sum(s => s.WorkersCount);
@@ -87,7 +97,8 @@
         </div>
         <div class="hf-wb-status"><span class="hf-wb-status-dot"></span>@statusText</div>
         <div class="hf-wb-clock">
-            <span class="hf-wb-time" data-moment-local="@JobHelper.ToTimestamp(now)" data-moment-local-format="time">@now.ToString("HH:mm", CultureInfo.CurrentCulture)</span>
+            @* Shown in the viewer's time zone by the script below; without it, in UTC and labeled so *@
+            <span class="hf-wb-time" data-moment-local="@JobHelper.ToTimestamp(now)" data-moment-local-format="time">@now.ToString("HH:mm", CultureInfo.CurrentCulture) UTC</span>
             <a class="hf-wb-exit" href="@Url.Home()">@Strings.WallboardPage_Exit &rarr;</a>
         </div>
     </header>
@@ -194,5 +205,7 @@
     </main>
 
     <footer class="hf-wb-footer">@String.Format(Strings.WallboardPage_Refresh, refreshSeconds) &middot; @Strings.LayoutPage_Footer_StorageTime @now.ToString("u", CultureInfo.InvariantCulture)</footer>
+    <script src="@Url.To($"/js-intl{version.Major}{version.Minor}{version.Build}0{Math.Abs(DashboardRoutes.JavaScriptsHashCode)}")"></script>
+    <script>(function(){if(!window.NightShiftIntl)return;NightShiftIntl.setLocale(document.documentElement.lang);var e=document.querySelectorAll('[data-moment-local]');for(var i=0;i<e.length;i++){var t=Number(e[i].getAttribute('data-moment-local'));if(t)e[i].textContent=NightShiftIntl.format(t*1000,e[i].getAttribute('data-moment-local-format')||'numericDateTime');}})();</script>
 </body>
 </html>

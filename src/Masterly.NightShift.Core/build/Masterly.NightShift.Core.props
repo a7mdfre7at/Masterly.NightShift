@@ -1,0 +1,8 @@
+<Project>
+  <!-- Lets the Masterly.NightShift source generator read these MSBuild properties.
+       Set <NightShiftDisableJobInvokerGeneration>true</NightShiftDisableJobInvokerGeneration> in a project
+       to skip generating job invokers for it; jobs then use compiled invokers at runtime. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="NightShiftDisableJobInvokerGeneration" />
+  </ItemGroup>
+</Project>

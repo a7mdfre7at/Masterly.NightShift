@@ -15,6 +15,7 @@
 @{
     var monitor = Storage.GetMonitoringApi();
     var job = monitor.JobDetails(JobId);
+    RenderedJob = job?.Job;
     var dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
     
     string title = null;
@@ -52,13 +53,13 @@
                 if (server == null)
                 {
                     <div class="alert alert-danger">
-                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, currentState.Data["ServerId"], Url.To("/servers")))
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedNotActive_Warning_Html, Html.HtmlEncode(currentState.Data["ServerId"]), Html.HtmlEncode(Url.To("/servers"))))
                     </div>
                 }
                 else if (server.Heartbeat.HasValue && server.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate()))
                 {
                     <div class="alert alert-warning">
-                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html, server.Name))
+                        @Html.Raw(String.Format(Strings.JobDetailsPage_JobAbortedWithHeartbeat_Warning_Html, Html.HtmlEncode(server.Name)))
                     </div>
                 }
             }
@@ -110,16 +111,7 @@
                         var parameter = runEntry.Parameters[i];
                         if (parameter.Injected) continue;
 
-                        runParameters.Add(new
-                        {
-                            name = parameter.Name,
-                            type = parameter.TypeName,
-                            input = parameter.InputKind,
-                            @default = runArguments[i] ?? String.Empty,
-                            hasDefault = parameter.HasDefaultValue,
-                            redacted = RedactedAttribute.IsRedacted(methodParameters[i]),
-                            options = parameter.InputKind == "select" ? Enum.GetNames(Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type) : null,
-                        });
+                        runParameters.Add(JobCatalog.GetFormField(parameter, runArguments[i], RedactedAttribute.IsRedacted(methodParameters[i])));
                     }
                 }
 
@@ -139,6 +131,7 @@
                                     data-type="@JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)"
                                     data-method="@job.Job.Method.Name"
                                     data-parameters="@DashboardJson.Serialize(runParameters)"
+                                    data-queue="@GetRunAgainQueue(job)"
                                     title="@Strings.JobDetailsPage_RunAgain_Hint">
                                 <span class="glyphicon glyphicon-repeat"></span> @Strings.JobDetailsPage_RunAgain
                             </button>
@@ -160,7 +153,10 @@
             }
             else
             {
-                var dbgParameters = job.Properties.Where(x => x.Key.StartsWith("DBG_")).ToArray();
+                @* Without the method, [Redacted] can't be read, so the raw arguments are only shown to users who can change jobs *@
+                var dbgParameters = job.Properties
+                    .Where(x => x.Key.StartsWith("DBG_") && (!IsReadOnly || Array.IndexOf(JobExportDispatcher.RawArgumentParameters, x.Key) < 0))
+                    .ToArray();
 
                 <div class="alert alert-warning">
                     <h4 id="job-details-missing-method">@Strings.Common_CannotFindTargetMethod</h4>
@@ -182,8 +178,8 @@
 
             @* Tags and batch membership, from job parameters *@
             var tags = job.Properties.TryGetValue(JobTags.ParameterName, out var tagsJson) ? JobTags.Parse(tagsJson) : new List<string>();
-            var batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out var batchJson) ? SerializationHelper.Deserialize<string>(batchJson, SerializationOption.User) : null;
-            var batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out var batchContinuationJson) ? SerializationHelper.Deserialize<string>(batchContinuationJson, SerializationOption.User) : null;
+            var batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out var batchJson) ? BatchJob.ParseParameter(batchJson) : null;
+            var batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out var batchContinuationJson) ? BatchJob.ParseParameter(batchContinuationJson) : null;
             if (tags.Count > 0 || batchId != null || batchContinuationOf != null)
             {
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
@@ -390,7 +386,7 @@
                 </div>
             }
 
-            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != FanInContinuationsSupportAttribute.ParameterName && x.Key != JobConsole.ProgressParameter && x.Key != JobTags.ParameterName && x.Key != BatchJob.ParameterName && x.Key != BatchJob.ContinuationParameterName && x.Key != JobNotes.ParameterName
+            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != FanInContinuationsSupportAttribute.ParameterName && x.Key != JobConsole.ProgressParameter && x.Key != JobConsole.MarkerParameter && x.Key != JobTags.ParameterName && x.Key != BatchJob.ParameterName && x.Key != BatchJob.ContinuationParameterName && x.Key != JobNotes.ParameterName
                 && x.Key != DeadlineAttribute.DeadlineAtParameter && x.Key != DeadlineAttribute.DeadlineMissedParameter).ToArray();
 
             if (displayParameters.Length > 0)
@@ -575,12 +571,13 @@
 
             foreach (var entry in job.History)
             {
-                var accentColor = JobHistoryRenderer.GetForegroundStateColor(entry.StateName);
-                var backgroundColor = JobHistoryRenderer.GetBackgroundStateColor(entry.StateName);
+                // The current state uses its CSS suffix, else the colors registered for it, else the neutral card
                 var cardCss = index == 0 ? JobHistoryRenderer.GetStateCssSuffix(entry.StateName) : null;
-                var cardStyle = index == 0 && cardCss == null ? $"border-color: {accentColor}" : null;
-                var cardTitleStyle = index == 0 && cardCss == null ? $"color: {accentColor}" : null;
-                var cardBackgroundStyle = index == 0 && cardCss == null ? $"background-color: {backgroundColor}" : null;
+                var accentColor = index == 0 && cardCss == null ? JobHistoryRenderer.FindForegroundStateColor(entry.StateName) : null;
+                var backgroundColor = index == 0 && cardCss == null ? JobHistoryRenderer.FindBackgroundStateColor(entry.StateName) : null;
+                var cardStyle = accentColor != null ? $"border-color: {accentColor}" : null;
+                var cardTitleStyle = accentColor != null ? $"color: {accentColor}" : null;
+                var cardBackgroundStyle = backgroundColor != null ? $"background-color: {backgroundColor}" : null;
 
                 <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)" style="@cardStyle">
                     <h4 class="state-card-title" style="@cardTitleStyle">

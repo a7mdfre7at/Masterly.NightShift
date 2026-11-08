@@ -28,6 +28,13 @@ namespace Masterly.NightShift.Client
 {
     internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
     {
+        // Parameters that hold the library's own records, written with the internal options so the application's
+        // serializer settings can't break them; their readers fall back to the user options for older data
+        private static readonly HashSet<string> InternalParameters = new HashSet<string>(StringComparer.Ordinal)
+        {
+            JobTags.ParameterName, BatchJob.ParameterName, BatchJob.ContinuationParameterName,
+        };
+
         private readonly ILog _logger = LogProvider.GetLogger(typeof(CoreBackgroundJobFactory));
         private readonly object _syncRoot = new object();
         private int _retryAttempts;
@@ -65,7 +72,9 @@ namespace Masterly.NightShift.Client
 
             var parameters = context.Parameters.ToDictionary(
                 static x => x.Key,
-                static x => SerializationHelper.Serialize(x.Value, SerializationOption.User));
+                static x => InternalParameters.Contains(x.Key)
+                    ? SerializationHelper.SerializeInternal(x.Value)
+                    : SerializationHelper.Serialize(x.Value, SerializationOption.User));
 
             var createdAt = DateTime.UtcNow;
             var expireIn = TimeSpan.FromDays(30);
@@ -118,22 +127,39 @@ namespace Masterly.NightShift.Client
                         if (!String.IsNullOrEmpty(data.State)) return;
                     }
 
-                    using (var transaction = ctx.Context.Connection.CreateWriteTransaction())
+                    // Work that waits for the commit, such as an activity feed entry, runs only once it succeeded
+                    var afterCommit = new PostCommitActions();
+
+                    try
                     {
-                        var applyContext = new ApplyStateContext(
-                            ctx.Context.Storage,
-                            ctx.Context.Connection,
-                            transaction,
-                            ctx.BackgroundJob,
-                            ctx.Context.InitialState!,
-                            oldStateName: null,
-                            ctx.Context.Profiler,
-                            ctx.StateMachine);
+                        using (var transaction = ctx.Context.Connection.CreateWriteTransaction())
+                        {
+                            var applyContext = new ApplyStateContext(
+                                ctx.Context.Storage,
+                                ctx.Context.Connection,
+                                transaction,
+                                ctx.BackgroundJob,
+                                ctx.Context.InitialState!,
+                                oldStateName: null,
+                                ctx.Context.Profiler,
+                                ctx.StateMachine)
+                            {
+                                AfterCommit = afterCommit
+                            };
 
-                        ctx.StateMachine.ApplyState(applyContext);
+                            ctx.StateMachine.ApplyState(applyContext);
 
-                        transaction.Commit();
+                            transaction.Commit();
+                        }
                     }
+                    catch
+                    {
+                        // Work about something already stored on its own still runs, a retry wouldn't do it again
+                        afterCommit.RunAfterFailure();
+                        throw;
+                    }
+
+                    afterCommit.Run();
                 }, new JobInitializeContext { Context = context, StateMachine = StateMachine, BackgroundJob = backgroundJob });
             }
 

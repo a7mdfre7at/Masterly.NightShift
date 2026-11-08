@@ -26,6 +26,10 @@ using Masterly.NightShift.Storage;
 namespace Masterly.NightShift.States
 {
 #pragma warning disable 618
+    /// <summary>
+    /// What <see cref="IElectStateFilter"/> filters get while the next state of a job is chosen; setting <see
+    /// cref="CandidateState"/> changes it.
+    /// </summary>
     public class ElectStateContext : StateContext
 #pragma warning restore 618
     {
@@ -51,6 +55,7 @@ namespace Masterly.NightShift.States
             Profiler = applyContext.Profiler;
             CustomData = applyContext.CustomData?.ToDictionary(static x => x.Key, static x => x.Value);
             StateMachine = stateMachine;
+            AfterCommit = applyContext.AfterCommit;
         }
         
         public override BackgroundJob BackgroundJob { get; }
@@ -97,6 +102,20 @@ namespace Masterly.NightShift.States
         
         [CanBeNull]
         public StateMachine? StateMachine { get; }
+
+        /// <summary>The <see cref="ApplyStateContext.AfterCommit"/> of the state change being elected.</summary>
+        [CanBeNull]
+        internal PostCommitActions? AfterCommit { get; }
+
+        /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
+        internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);
+
+        /// <summary>
+        /// Runs the action once the commit of the state change is over, whether it succeeded or threw (so after the
+        /// job's lock is released), or right away when that isn't known. For work about something already stored on
+        /// its own, which a retried state change wouldn't do again.
+        /// </summary>
+        internal void RunAfterCommitAttempt([NotNull] Action action) => PostCommitActions.RunAfterCommitAttempt(AfterCommit, action);
 
         public void SetJobParameter<T>([NotNull] string name, T value)
         {

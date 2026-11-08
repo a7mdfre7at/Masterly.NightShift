@@ -23,6 +23,11 @@ using Masterly.NightShift.States;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// The base class for storage transactions. It implements <see cref="IWriteOnlyTransaction"/> and adds optional
+    /// members whose default implementations throw <see cref="NotSupportedException"/>; check <see
+    /// cref="JobStorage.HasFeature"/> before calling them.
+    /// </summary>
     public abstract class JobStorageTransaction : IWriteOnlyTransaction
     {
         public virtual void Dispose()

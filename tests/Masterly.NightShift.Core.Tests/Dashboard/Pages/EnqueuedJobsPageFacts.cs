@@ -38,6 +38,25 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
+        public void Render_WithEnqueuedJobs_OffersTheQueueAsCsv()
+        {
+            SetupJobs("my queue");
+
+            var html = _renderer.Render(new EnqueuedJobsPage("my queue"));
+
+            Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-default js-download\" data-url=\"/jobs/enqueued/export/my%20queue\" data-filename=\"nightshift-enqueued-jobs-my queue.csv\">", html);
+            Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
+        }
+
+        [Fact]
+        public void Render_WithoutEnqueuedJobs_HasNoCsvButton()
+        {
+            var html = _renderer.Render(new EnqueuedJobsPage("critical"));
+
+            Assert.DoesNotContain("/jobs/enqueued/export/", html);
+        }
+
+        [Fact]
         public void Render_WhenReadOnly_HidesTheCommands()
         {
             SetupJobs("critical");
@@ -48,6 +67,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
             Assert.DoesNotContain("/jobs/enqueued/delete-all/", html);
             Assert.DoesNotContain("/jobs/enqueued/delete\"", html);
+            Assert.Contains("data-url=\"/jobs/enqueued/export/critical\"", html);
         }
 
         private void SetupJobs(string queue)

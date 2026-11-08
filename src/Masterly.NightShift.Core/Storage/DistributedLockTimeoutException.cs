@@ -18,6 +18,9 @@ using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// Thrown when a distributed lock couldn't be acquired within its timeout.
+    /// </summary>
     [Serializable]
     public class DistributedLockTimeoutException : TimeoutException
     {

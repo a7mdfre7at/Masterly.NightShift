@@ -25,6 +25,11 @@ using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// The base class for storage connections. It implements <see cref="IStorageConnection"/> and adds optional members
+    /// whose default implementations throw <see cref="NotSupportedException"/>; check <see
+    /// cref="JobStorage.HasFeature"/> before calling them.
+    /// </summary>
     public abstract class JobStorageConnection : IStorageConnection
     {
         public virtual void Dispose()

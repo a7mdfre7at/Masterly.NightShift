@@ -1458,6 +1458,42 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Starts {0}.
+        /// </summary>
+        public static string RecurringJobsPage_StartsAt {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_StartsAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ends {0}.
+        /// </summary>
+        public static string RecurringJobsPage_EndsAt {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_EndsAt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ended.
+        /// </summary>
+        public static string RecurringJobsPage_Ended {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Ended", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Its end date has passed, so it is out of the schedule. It stays registered: it can still be triggered by hand, updated or removed..
+        /// </summary>
+        public static string RecurringJobsPage_Ended_Tooltip {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Ended_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Edit.
         /// </summary>
         public static string RecurringJobsPage_Edit {
@@ -2674,6 +2710,15 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The activity feed is off. Turn it on with UseActivityFeed() in every process that changes job states..
+        /// </summary>
+        public static string HomePage_Activity_Off {
+            get {
+                return ResourceManager.GetString("HomePage_Activity_Off", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Processing is paused: new jobs are held, running ones finish..
         /// </summary>
         public static string LayoutPage_Drain_Banner {
@@ -3556,6 +3601,15 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("TagsPage_Search", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No tag contains &quot;{0}&quot;..
+        /// </summary>
+        public static string TagsPage_NoMatch {
+            get {
+                return ResourceManager.GetString("TagsPage_NoMatch", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Tagged {0}.
@@ -3581,6 +3635,24 @@ namespace Masterly.NightShift.Dashboard.Resources {
         public static string TaggedJobsPage_Cleaned {
             get {
                 return ResourceManager.GetString("TaggedJobsPage_Cleaned", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} jobs on this page have expired and are hidden. The tag still lists their ids..
+        /// </summary>
+        public static string TaggedJobsPage_Expired {
+            get {
+                return ResourceManager.GetString("TaggedJobsPage_Expired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove them from the tag.
+        /// </summary>
+        public static string TaggedJobsPage_ForgetExpired {
+            get {
+                return ResourceManager.GetString("TaggedJobsPage_ForgetExpired", resourceCulture);
             }
         }
         
@@ -4532,11 +4604,38 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Pause this server? It hands new jobs back to the queue for the other servers; its running jobs finis [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to Pause this server? It holds the jobs it picks up for a while, so other servers can take them; its running jobs fini [rest of string was truncated]&quot;;.
         /// </summary>
         public static string ServersPage_PauseConfirm {
             get {
                 return ResourceManager.GetString("ServersPage_PauseConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pauses left by stopped servers.
+        /// </summary>
+        public static string ServersPage_StalePauses_Title {
+            get {
+                return ResourceManager.GetString("ServersPage_StalePauses_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A server gets a new id every time it starts, so a pause outlives the server it was set on. These pauses have no effect any more; clear them to tidy up..
+        /// </summary>
+        public static string ServersPage_StalePauses_Text {
+            get {
+                return ResourceManager.GetString("ServersPage_StalePauses_Text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        public static string ServersPage_StalePauses_Clear {
+            get {
+                return ResourceManager.GetString("ServersPage_StalePauses_Clear", resourceCulture);
             }
         }
         
@@ -4592,6 +4691,105 @@ namespace Masterly.NightShift.Dashboard.Resources {
         public static string ServersPage_Pause_Server {
             get {
                 return ResourceManager.GetString("ServersPage_Pause_Server", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Requeue all.
+        /// </summary>
+        public static string FailedJobsPage_RequeueAll {
+            get {
+                return ResourceManager.GetString("FailedJobsPage_RequeueAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Requeue EVERY failed job in this list? They will all run again..
+        /// </summary>
+        public static string FailedJobsPage_RequeueAllConfirm {
+            get {
+                return ResourceManager.GetString("FailedJobsPage_RequeueAllConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} jobs changed..
+        /// </summary>
+        public static string Common_ListCommandResult {
+            get {
+                return ResourceManager.GetString("Common_ListCommandResult", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There is more to do (up to {0} jobs). Run it again to continue..
+        /// </summary>
+        public static string Common_ListCommandRemaining {
+            get {
+                return ResourceManager.GetString("Common_ListCommandRemaining", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The request failed:.
+        /// </summary>
+        public static string Common_RequestFailed {
+            get {
+                return ResourceManager.GetString("Common_RequestFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} recurring jobs on this page are late: their next run was due more than a minute ago. Other pages may have more. Check that a running server has the recurring job scheduler enabled and can reach the storage..
+        /// </summary>
+        public static string RecurringJobsPage_LateSummary_Page {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_LateSummary_Page", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to in UTC.
+        /// </summary>
+        public static string CatalogPage_Runner_Utc {
+            get {
+                return ResourceManager.GetString("CatalogPage_Runner_Utc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} more parents are not listed here..
+        /// </summary>
+        public static string Diagnostics_ParentsNotListed {
+            get {
+                return ResourceManager.GetString("Diagnostics_ParentsNotListed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fan-in: {0} of the first {1} parents checked have finished, out of {2} ({3})..
+        /// </summary>
+        public static string Diagnostics_FanIn_Sampled {
+            get {
+                return ResourceManager.GetString("Diagnostics_FanIn_Sampled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to and {0} more.
+        /// </summary>
+        public static string JobHistory_MoreParents {
+            get {
+                return ResourceManager.GetString("JobHistory_MoreParents", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to More than {0} runs in this window; only the first {0} are counted.
+        /// </summary>
+        public static string ForecastPage_Truncated {
+            get {
+                return ResourceManager.GetString("ForecastPage_Truncated", resourceCulture);
             }
         }
     }

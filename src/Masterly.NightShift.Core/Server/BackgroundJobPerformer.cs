@@ -23,6 +23,9 @@ using Masterly.NightShift.Profiling;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Performs a job: runs the server filters around the call of the job method.
+    /// </summary>
     public class BackgroundJobPerformer : IBackgroundJobPerformer
     {
         internal static readonly string ContextCanceledKey = "X_HF_Canceled";

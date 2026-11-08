@@ -5,4 +5,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-HFGEN001 | Masterly.NightShift.SourceGenerator | Warning | JobInvokerGenerator, the generator failed and the affected jobs fall back to compiled invokers
+NSGEN001 | Masterly.NightShift.SourceGenerator | Warning | JobInvokerGenerator, the generator failed and the affected jobs fall back to compiled invokers

@@ -257,6 +257,130 @@ namespace Masterly.NightShift.Core.Tests.Storage
         }
 
         [DataCompatibilityRangeFact]
+        public void DeserializeJob_SaysTheTypeOrMethodWasNotFound_WhenTheMethodCanNotBeFound()
+        {
+            var serializedData = new InvocationData(
+                typeof(InvocationDataFacts).AssemblyQualifiedName,
+                "NonExistingMethod",
+                JobHelper.ToJson(new[] { typeof(string) }),
+                "");
+
+            var exception = Assert.Throws<JobLoadException>(() => serializedData.DeserializeJob());
+
+            Assert.Equal(JobLoadFailure.TypeOrMethod, exception.Failure);
+            Assert.Contains("type or method was not found", exception.Message);
+            Assert.IsType<InvalidOperationException>(exception.InnerException);
+        }
+
+        [DataCompatibilityRangeFact]
+        public void DeserializeJob_SaysTheArgumentsCouldNotBeDeserialized_WhenAnArgumentIsInvalid()
+        {
+            var serializedData = new InvocationData(
+                typeof(InvocationDataFacts).AssemblyQualifiedName,
+                nameof(ListMethod),
+                JobHelper.ToJson(new[] { typeof(IList<string>) }),
+                JobHelper.ToJson(new[] { "asdfasdf" }));
+
+            var exception = Assert.Throws<JobLoadException>(() => serializedData.DeserializeJob());
+
+            Assert.Equal(JobLoadFailure.Arguments, exception.Failure);
+            Assert.Contains("arguments could not be deserialized", exception.Message);
+            Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void SerializeJob_WritesTheActualType_OfAnArgumentDeclaredAsAnInterface()
+        {
+            var job = Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" }));
+
+            var data = InvocationData.SerializeJob(job);
+
+            Assert.Equal(
+                "[\"{\\\"$type\\\":\\\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+EmailNotification, Masterly.NightShift.Core.Tests\\\",\\\"To\\\":\\\"ana@example.com\\\"}\"]",
+                data.Arguments);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsAnArgumentDeclaredAsAnInterface_AsItsActualType()
+        {
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
+
+            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+
+            var notification = Assert.IsType<EmailNotification>(job.Args[0]);
+            Assert.Equal("ana@example.com", notification.To);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsAnArgumentDeclaredAsAnInterface_WithRecommendedSettings()
+        {
+            GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
+
+            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+
+            Assert.Equal("ana@example.com", Assert.IsType<EmailNotification>(job.Args[0]).To);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsAnArgumentDeclaredAsAnAbstractClass_AsItsActualType()
+        {
+            GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => ReportMethod(new SalesReport { Title = "Q3", Region = "EMEA" })));
+
+            var job = data.DeserializeJob();
+
+            var report = Assert.IsType<SalesReport>(job.Args[0]);
+            Assert.Equal("Q3", report.Title);
+            Assert.Equal("EMEA", report.Region);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsANullArgument_DeclaredAsAnInterface()
+        {
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(null)));
+
+            var job = data.DeserializeJob();
+
+            Assert.Equal("[null]", data.Arguments);
+            Assert.Null(job.Args[0]);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsConcreteArguments_StoredWithoutTypeName_WithRecommendedSettings()
+        {
+            GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
+            var data = new InvocationData(
+                typeof(InvocationDataFacts).AssemblyQualifiedName,
+                nameof(ComplicatedMethod),
+                JobHelper.ToJson(new[] { typeof(IList<string>), typeof(SomeClass) }),
+                "[\"[\\\"one\\\"]\",\"{\\\"StringValue\\\":\\\"value\\\"}\"]");
+
+            var job = data.DeserializeJob();
+
+            Assert.Equal(new[] { "one" }, Assert.IsType<List<string>>(job.Args[0]));
+            Assert.Equal("value", Assert.IsType<SomeClass>(job.Args[1]).StringValue);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializeJob_ReadsPascalCaseArguments_WithCamelCaseUserOptions()
+        {
+            GlobalConfiguration.Configuration.UseSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var data = new InvocationData(
+                typeof(InvocationDataFacts).AssemblyQualifiedName,
+                nameof(InvoiceMethod),
+                JobHelper.ToJson(new[] { typeof(InvoiceRequest) }),
+                "[\"{\\\"CustomerId\\\":42,\\\"Amount\\\":99.5,\\\"Currency\\\":\\\"EUR\\\"}\"]");
+
+            var job = data.DeserializeJob();
+
+            var request = Assert.IsType<InvoiceRequest>(job.Args[0]);
+            Assert.Equal(42, request.CustomerId);
+            Assert.Equal(99.5m, request.Amount);
+            Assert.Equal("EUR", request.Currency);
+        }
+
+        [DataCompatibilityRangeFact]
         public void Serialize_CorrectlySerializesTheData()
         {
             var job = Job.FromExpression(() => Sample("Hello"));
@@ -412,6 +536,70 @@ namespace Masterly.NightShift.Core.Tests.Storage
             Assert.Equal(
                 "{\"Type\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"Method\":\"Empty\",\"ParameterTypes\":\"[]\",\"Arguments\":\"[]\"}",
                 payload);
+        }
+
+        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170), CleanSerializerSettings]
+        public void SerializePayload_KeepsItsMemberNames_WhenTheUserOptionsRenameThem_InVersion_Pre_170()
+        {
+            SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
+
+            var payload = data.SerializePayload();
+            var job = InvocationData.DeserializePayload(payload).DeserializeJob();
+
+            Assert.Contains("\"ParameterTypes\":", payload);
+            Assert.Equal(nameof(TwoArguments), job.Method.Name);
+            Assert.Equal(new object[] { 42, "hello" }, job.Args);
+        }
+
+        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170), CleanSerializerSettings]
+        public void SerializePayload_KeepsEveryMember_WhenTheUserOptionsIgnoreReadOnlyProperties_InVersion_Pre_170()
+        {
+            SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { IgnoreReadOnlyProperties = true });
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
+
+            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+
+            Assert.Equal(nameof(TwoArguments), job.Method.Name);
+            Assert.Equal(new object[] { 42, "hello" }, job.Args);
+        }
+
+        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170), CleanSerializerSettings]
+        public void SerializePayload_IgnoresAResolverThatDoesNotKnowInvocationData_InVersion_Pre_170()
+        {
+            SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(string[]), typeof(string)) });
+            var data = new InvocationData(typeof(InvocationDataFacts).AssemblyQualifiedName, nameof(Sample), "[\"System.String\"]", "[\"\\\"Hello\\\"\"]");
+
+            var payload = data.SerializePayload();
+
+            Assert.StartsWith("{\"Type\":", payload);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void DeserializePayload_ReadsParameterTypes_WrittenWithTheUserNamingPolicy()
+        {
+            // What Version_110 stored before with a snake_case naming policy: "type" and "method" match
+            // case-insensitively, "parameter_types" doesn't
+            SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            var payload = "{\"type\":\"" + typeof(InvocationDataFacts).AssemblyQualifiedName + "\",\"method\":\"Sample\"," +
+                          "\"parameter_types\":\"[\\\"System.String\\\"]\",\"arguments\":\"[\\\"\\\\\\\"Hello\\\\\\\"\\\"]\"}";
+
+            var job = InvocationData.DeserializePayload(payload).DeserializeJob();
+
+            Assert.Equal(nameof(Sample), job.Method.Name);
+            Assert.Equal("Hello", job.Args[0]);
+        }
+
+        [DataCompatibilityRangeFact, CleanSerializerSettings]
+        public void SerializeJob_StoresNaNAndInfinities_AndReadsThemBack()
+        {
+            var data = InvocationData.SerializeJob(Job.FromExpression(() => Calculate(double.NaN, float.PositiveInfinity)));
+
+            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+
+            Assert.Equal("[\"\\\"NaN\\\"\",\"\\\"Infinity\\\"\"]", data.Arguments);
+            Assert.True(double.IsNaN((double)job.Args[0]));
+            Assert.True(float.IsPositiveInfinity((float)job.Args[1]));
         }
 
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
@@ -964,6 +1152,16 @@ namespace Masterly.NightShift.Core.Tests.Storage
         }
 
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void TwoArguments(int id, string text)
+        {
+        }
+
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void Calculate(double x, float y)
+        {
+        }
+
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public static void GenericMethod<T>(T arg)
         {
@@ -1035,6 +1233,45 @@ namespace Masterly.NightShift.Core.Tests.Storage
             public object NullObject { get; set; }
             public int DefaultValue { get; set; }
         }
+
+        [UsedImplicitly]
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void NotifyMethod(INotification notification)
+        {
+        }
+
+        [UsedImplicitly]
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void ReportMethod(Report report)
+        {
+        }
+
+        [UsedImplicitly]
+        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+        public static void InvoiceMethod(InvoiceRequest request)
+        {
+        }
+
+        public interface INotification
+        {
+        }
+
+        public class EmailNotification : INotification
+        {
+            public string To { get; set; }
+        }
+
+        public abstract class Report
+        {
+            public string Title { get; set; }
+        }
+
+        public class SalesReport : Report
+        {
+            public string Region { get; set; }
+        }
+
+        public record InvoiceRequest(int CustomerId, decimal Amount, string Currency);
 
         [UsedImplicitly]
         public class NestedType

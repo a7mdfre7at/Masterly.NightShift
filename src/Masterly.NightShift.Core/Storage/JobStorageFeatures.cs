@@ -22,6 +22,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// The identifiers of the optional storage features, checked with <see cref="JobStorage.HasFeature"/>.
+    /// </summary>
     public static class JobStorageFeatures
     {
         internal static readonly string TransactionalAcknowledgePrefix = "TransactionalAcknowledge:";
@@ -33,6 +36,9 @@ namespace Masterly.NightShift.Storage
         /// <summary>The storage implements <see cref="JobStorage.Purge"/>.</summary>
         public static readonly string Purge = "Storage.Purge";
 
+        /// <summary>
+        /// The optional features of storage connections.
+        /// </summary>
         public static class Connection
         {
             public static readonly string GetUtcDateTime = "Connection.GetUtcDateTime";
@@ -42,6 +48,9 @@ namespace Masterly.NightShift.Storage
             public static readonly string BatchedGetFirstByLowest = "Connection.BatchedGetFirstByLowestScoreFromSet";
         }
 
+        /// <summary>
+        /// The optional features of storage transactions.
+        /// </summary>
         public static class Transaction
         {
             public static readonly string AcquireDistributedLock = "Transaction.AcquireDistributedLock";
@@ -59,10 +68,20 @@ namespace Masterly.NightShift.Storage
             }
         }
 
+        /// <summary>
+        /// The optional features of the monitoring API.
+        /// </summary>
         public static class Monitoring
         {
             public static readonly string DeletedStateGraphs = "Monitoring.DeletedStateGraphs";
             public static readonly string AwaitingJobs = "Monitoring.AwaitingJobs";
+
+            /// <summary>
+            /// The storage's monitoring API overrides <see cref="JobStorageMonitor.QueueCounts"/> with a query that is
+            /// cheaper than <see cref="IMonitoringApi.Queues"/>: it reads each queue's length and fetched count, but not
+            /// its first jobs. The health report and the metrics use it.
+            /// </summary>
+            public static readonly string QueueCounts = "Monitoring.QueueCounts";
         }
 
         public static Exception GetNotSupportedException([NotNull] string featureId)

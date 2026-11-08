@@ -63,7 +63,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [Fact]
         public async Task Dispatch_Sets422_WhenTheServerIdIsBlank()
         {
-            var context = Create("/servers/pause/%20%20", PauseRoute);
+            var context = Create("/servers/pause/  ", PauseRoute);
 
             await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -74,14 +74,15 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         [Fact, StaticLock]
         public async Task Dispatch_PausesTheUnescapedServer_WithTheTrimmedReason()
         {
-            var context = Create("/servers/pause/web-1%3A42", PauseRoute, reason: "  deploy  ");
+            // ASP.NET Core decodes the path except %2F, which the dashboard decodes itself
+            var context = Create("/servers/pause/web-1:42%2Fa", PauseRoute, reason: "  deploy  ");
 
             await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
             Assert.Equal(204, context.Response.StatusCode);
             var status = DrainMode.Read(_connection.Object);
-            Assert.True(status.IsServerPaused("web-1:42"));
-            Assert.Equal("deploy", status.PausedServers["web-1:42"]);
+            Assert.True(status.IsServerPaused("web-1:42/a"));
+            Assert.Equal("deploy", status.PausedServers["web-1:42/a"]);
             Assert.False(status.Active);
             _transaction.Verify(x => x.Commit(), Times.AtLeastOnce);
         }

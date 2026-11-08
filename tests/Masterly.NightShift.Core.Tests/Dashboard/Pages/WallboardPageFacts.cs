@@ -30,6 +30,17 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         }
 
         [Fact]
+        public void Render_ShowsTheTimeInTheViewersZone_WithTheDateScript_AndLabelsTheFallbackAsUtc()
+        {
+            // The wallboard loaded no script, so the storage's UTC time showed as if it were local
+            var html = _renderer.Render(new WallboardPage());
+
+            Assert.Matches("<script src=\"/js-intl[0-9]+\"></script>", html);
+            Assert.Contains("NightShiftIntl.format(", html);
+            Assert.Matches("data-moment-local-format=\"time\">[^<]+ UTC</span>", html);
+        }
+
+        [Fact]
         public void Render_ShowsAHealthyBoard_WithoutTheLayout()
         {
             AddServer("srv-1", DateTime.UtcNow, "default");
@@ -102,7 +113,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
             Assert.Contains("hf-wallboard hf-wb-down", html);
             Assert.Contains(H(Strings.WallboardPage_Unhealthy), html);
-            Assert.Contains("<li>storage: InvalidOperationException: storage is down</li>", html);
+            Assert.Contains("<li>storage: the storage did not answer, see the log</li>", html);
             Assert.Equal(5, CountOf(html, "<div class=\"hf-wb-value\">–</div>"));
             _renderer.Monitoring.Verify(x => x.ProcessingJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
         }
@@ -120,14 +131,15 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
         [Fact]
         public void Render_ShowsALowSuccessRate_AsBad()
         {
+            // The previous hour only counts for the part of it within the last 60 minutes; older hours not at all
             var now = DateTime.UtcNow;
-            _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long> { { now, 80 }, { now.AddHours(-1), 10 }, { now.AddHours(-2), 1000 } });
-            _renderer.Monitoring.Setup(x => x.HourlyFailedJobs()).Returns(new Dictionary<DateTime, long> { { now, 10 } });
+            _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long> { { now, 80 }, { now.AddHours(-1), 0 }, { now.AddHours(-2), 1000 } });
+            _renderer.Monitoring.Setup(x => x.HourlyFailedJobs()).Returns(new Dictionary<DateTime, long> { { now, 20 } });
 
             var html = _renderer.Render(new WallboardPage());
 
             Assert.Contains("<section class=\"hf-wb-tile hf-wb-tile-bad\">", html);
-            Assert.Contains("<div class=\"hf-wb-value\">" + 90.0.ToString("0.#", CultureInfo.CurrentCulture) + "%</div>", html);
+            Assert.Contains("<div class=\"hf-wb-value\">" + 80.0.ToString("0.#", CultureInfo.CurrentCulture) + "%</div>", html);
             Assert.Contains(100L.ToString("N0", CultureInfo.CurrentCulture) + " " + H(Strings.WallboardPage_Finished), html);
         }
 
@@ -174,7 +186,8 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("<span style=\"width: 100%\"></span>", html);
             Assert.Contains("<span style=\"width: 50%\"></span>", html);
             Assert.Contains("<span style=\"width: 30%\"></span>", html);
-            Assert.Contains(H(String.Format(Strings.WallboardPage_ClearsIn, Duration(TimeSpan.FromMinutes(10 / 6.0)))), html);
+            // Ten jobs at five per minute
+            Assert.Contains(H(String.Format(Strings.WallboardPage_ClearsIn, Duration(TimeSpan.FromMinutes(2)))), html);
             Assert.Equal(1, CountOf(html, "&infin;"));
             Assert.Contains("<span class=\"hf-wb-queue-count\">3</span>", html);
         }
@@ -230,7 +243,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             var html = _renderer.Render(new WallboardPage());
 
             Assert.Contains("hf-wb-warn", html);
-            Assert.Contains("<li>recurring: InvalidOperationException: no connection</li>", html);
+            Assert.Contains("<li>recurring: could not read the recurring jobs, see the log</li>", html);
             Assert.Contains(H(Strings.WallboardPage_NothingRunning), html);
         }
 

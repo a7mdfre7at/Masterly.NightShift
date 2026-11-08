@@ -22,6 +22,9 @@ using Masterly.NightShift.Annotations;
 
 namespace Masterly.NightShift.Storage
 {
+    /// <summary>
+    /// A job's current state as read from the storage: its name, reason and data.
+    /// </summary>
     public class StateData
     {
         // Storage implementations always set Name and Data when they create an instance

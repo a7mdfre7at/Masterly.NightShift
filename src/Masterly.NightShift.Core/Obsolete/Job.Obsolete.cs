@@ -25,7 +25,7 @@ namespace Masterly.NightShift.Common
 {
     partial class Job
     {
-        [Obsolete("Please use Job(Type, MethodInfo, object[]) ctor overload instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use Job(Type, MethodInfo, object[]) ctor overload instead. Kept for code ported from Hangfire.")]
         public Job([NotNull] Type type, [NotNull] MethodInfo method, [NotNull] string[] arguments)
         {
             if (type == null) throw new ArgumentNullException(nameof(type));
@@ -41,11 +41,11 @@ namespace Masterly.NightShift.Common
 
         /// <exclude />
         [NotNull]
-        [Obsolete("Please use `Args` property instead to avoid unnecessary serializations/deserializations. Will be deleted in 2.0.0.")]
+        [Obsolete("Use the `Args` property instead, which avoids needless serialization. Kept for code ported from Hangfire.")]
         public string[] Arguments => InvocationData.SerializeArguments(Method, Args);
 
         /// <exclude />
-        [Obsolete("This method is deprecated. Please use `CoreBackgroundJobPerformer` or `BackgroundJobPerformer` classes instead. Will be removed in 2.0.0.")]
+        [Obsolete("Use the `CoreBackgroundJobPerformer` or `BackgroundJobPerformer` classes instead. Kept for code ported from Hangfire.")]
         public object Perform(JobActivator activator, IJobCancellationToken cancellationToken)
         {
             if (activator == null) throw new ArgumentNullException(nameof(activator));
@@ -72,7 +72,7 @@ namespace Masterly.NightShift.Common
             return result;
         }
 
-        [Obsolete("Will be removed in 2.0.0")]
+        [Obsolete("Used only by the obsolete Perform method. Kept for code ported from Hangfire.")]
         private object Activate(JobActivator activator)
         {
             try
@@ -94,7 +94,7 @@ namespace Masterly.NightShift.Common
             }
         }
 
-        [Obsolete("Will be removed in 2.0.0")]
+        [Obsolete("Used only by the obsolete Perform method. Kept for code ported from Hangfire.")]
         private object[] GetArguments(IJobCancellationToken cancellationToken)
         {
             try
@@ -131,7 +131,7 @@ namespace Masterly.NightShift.Common
             }
         }
 
-        [Obsolete("Will be removed in 2.0.0")]
+        [Obsolete("Used only by the obsolete Perform method. Kept for code ported from Hangfire.")]
         private object InvokeMethod(object instance, object[] deserializedArguments, IJobCancellationToken cancellationToken)
         {
             try
@@ -145,7 +145,7 @@ namespace Masterly.NightShift.Common
             }
         }
 
-        [Obsolete("Will be removed in 2.0.0")]
+        [Obsolete("Used only by the obsolete Perform method. Kept for code ported from Hangfire.")]
         private static void Dispose(object instance)
         {
             try

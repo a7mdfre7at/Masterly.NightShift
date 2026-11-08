@@ -22,6 +22,10 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.States
 {
+    /// <summary>
+    /// The arguments of a state change: the job, the new state, the states the job is expected to be in, and the
+    /// storage and connection to use.
+    /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Cancellation tokens in this class are used only as a part of a general context and don't have usual meaning.")]
     public class StateChangeContext
     {

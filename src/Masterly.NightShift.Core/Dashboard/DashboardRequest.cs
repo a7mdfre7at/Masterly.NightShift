@@ -70,5 +70,17 @@ namespace Masterly.NightShift.Dashboard
         /// <param name="key">The key of the form parameter.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the list of values for the form parameter.</returns>
         public abstract Task<IList<string>> GetFormValuesAsync(string key);
+
+        /// <summary>
+        /// Gets the value of a request header, such as <c>"X-Forwarded-For"</c>. When the header appears several
+        /// times, the values are joined with commas. The ASP.NET Core adapter implements it; the default
+        /// implementation, for other hosts, returns <c>null</c>.
+        /// </summary>
+        /// <param name="name">The header name, compared without case.</param>
+        /// <returns>The header value, or <c>null</c> when the request doesn't have the header or the host doesn't expose headers.</returns>
+        public virtual string GetHeader(string name)
+        {
+            return null;
+        }
     }
 }

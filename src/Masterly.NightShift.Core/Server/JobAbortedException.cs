@@ -18,6 +18,10 @@ using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// Thrown when a running job is aborted because it was deleted or moved to another state while it ran. The job
+    /// isn't requeued.
+    /// </summary>
     [Serializable]
     public class JobAbortedException : OperationCanceledException
     {

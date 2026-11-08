@@ -18,7 +18,8 @@
 
     using (var connection = Storage.GetReadOnlyConnection())
     {
-        supported = connection is JobStorageConnection;
+        // Insights are kept in lists and counters, which only storages with the extended API can read
+        supported = connection is JobStorageConnection && Storage.HasFeature(JobStorageFeatures.ExtendedApi);
 
         if (supported)
         {
@@ -121,11 +122,7 @@
             {
                 @* Activity heatmap: seven days, hour by hour *@
                 var heatNow = StorageUtcNow ?? ApplicationUtcNow;
-                IReadOnlyList<IReadOnlyList<HeatmapCell>> heatRows;
-                using (var heatConnection = Storage.GetReadOnlyConnection())
-                {
-                    heatRows = ActivityHeatmap.Read(heatConnection, heatNow);
-                }
+                var heatRows = ActivityHeatmap.Read(Storage, heatNow);
                 var heatMax = ActivityHeatmap.Max(heatRows);
 
                 <h3 id="insights-heatmap">@Strings.InsightsPage_Heatmap <small class="text-muted">@Strings.InsightsPage_Heatmap_Hint</small></h3>

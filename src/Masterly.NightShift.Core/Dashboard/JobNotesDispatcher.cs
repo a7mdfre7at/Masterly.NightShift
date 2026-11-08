@@ -1,18 +1,3 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 using System;
 using System.Linq;
 using System.Net;
@@ -40,12 +25,13 @@ namespace Masterly.NightShift.Dashboard
                 return;
             }
 
-            var jobId = Uri.UnescapeDataString(context.UriMatch.Groups["JobId"].Value);
-            var text = (await context.Request.GetFormValuesAsync("text").ConfigureAwait(false))?.FirstOrDefault() ?? String.Empty;
+            var jobId = RouteValues.Get(context, "JobId");
+            var text = ((await context.Request.GetFormValuesAsync("text").ConfigureAwait(false))?.FirstOrDefault() ?? String.Empty).Trim();
             var ackValue = (await context.Request.GetFormValuesAsync("ack").ConfigureAwait(false))?.FirstOrDefault();
             var acknowledges = ackValue is "true" or "on" or "1";
 
-            if (String.IsNullOrWhiteSpace(text) && !acknowledges)
+            // The page's text box allows JobNotes.MaxLength characters; longer text didn't come from it
+            if ((text.Length == 0 && !acknowledges) || text.Length > JobNotes.MaxLength)
             {
                 context.Response.StatusCode = 422;
                 return;
@@ -62,7 +48,7 @@ namespace Masterly.NightShift.Dashboard
                 JobNotes.Add(connection, jobId, text, context.GetUserName(), acknowledges);
             }
 
-            AuditLog.Record(context, new[] { jobId }, acknowledges ? "acknowledged" + (text.Length > 0 ? ": " + text.Trim() : String.Empty) : text.Trim());
+            AuditLog.Record(context, new[] { jobId }, acknowledges ? "acknowledged" + (text.Length > 0 ? ": " + text : String.Empty) : text);
             context.Response.StatusCode = (int)HttpStatusCode.NoContent;
         }
     }

@@ -596,6 +596,18 @@
   <data name="RecurringJobsPage_Paused_Tooltip" xml:space="preserve">
     <value>Paused: it stays out of the schedule until it is resumed. It can still be triggered by hand.</value>
   </data>
+  <data name="RecurringJobsPage_StartsAt" xml:space="preserve">
+    <value>Starts {0}</value>
+  </data>
+  <data name="RecurringJobsPage_EndsAt" xml:space="preserve">
+    <value>Ends {0}</value>
+  </data>
+  <data name="RecurringJobsPage_Ended" xml:space="preserve">
+    <value>Ended</value>
+  </data>
+  <data name="RecurringJobsPage_Ended_Tooltip" xml:space="preserve">
+    <value>Its end date has passed, so it is out of the schedule. It stays registered: it can still be triggered by hand, updated or removed.</value>
+  </data>
   <data name="RecurringJobsPage_Edit" xml:space="preserve">
     <value>Edit</value>
   </data>
@@ -1001,6 +1013,9 @@
   <data name="HomePage_Activity_Empty" xml:space="preserve">
     <value>Nothing has happened yet.</value>
   </data>
+  <data name="HomePage_Activity_Off" xml:space="preserve">
+    <value>The activity feed is off. Turn it on with UseActivityFeed() in every process that changes job states.</value>
+  </data>
   <data name="LayoutPage_Drain_Banner" xml:space="preserve">
     <value>Processing is paused: new jobs are held, running ones finish.</value>
   </data>
@@ -1295,6 +1310,9 @@
   <data name="TagsPage_Search" xml:space="preserve">
     <value>Filter tags…</value>
   </data>
+  <data name="TagsPage_NoMatch" xml:space="preserve">
+    <value>No tag contains "{0}".</value>
+  </data>
   <data name="TaggedJobsPage_Title" xml:space="preserve">
     <value>Tagged {0}</value>
   </data>
@@ -1303,6 +1321,12 @@
   </data>
   <data name="TaggedJobsPage_Cleaned" xml:space="preserve">
     <value>{0} expired jobs were dropped from the tag.</value>
+  </data>
+  <data name="TaggedJobsPage_Expired" xml:space="preserve">
+    <value>{0} jobs on this page have expired and are hidden. The tag still lists their ids.</value>
+  </data>
+  <data name="TaggedJobsPage_ForgetExpired" xml:space="preserve">
+    <value>Remove them from the tag</value>
   </data>
   <data name="NavigationMenu_Tags" xml:space="preserve">
     <value>Tags</value>
@@ -1620,7 +1644,16 @@
     <value>Paused</value>
   </data>
   <data name="ServersPage_PauseConfirm" xml:space="preserve">
-    <value>Pause this server? It hands new jobs back to the queue for the other servers; its running jobs finish.</value>
+    <value>Pause this server? It holds the jobs it picks up for a while, so other servers can take them; its running jobs finish.</value>
+  </data>
+  <data name="ServersPage_StalePauses_Title" xml:space="preserve">
+    <value>Pauses left by stopped servers</value>
+  </data>
+  <data name="ServersPage_StalePauses_Text" xml:space="preserve">
+    <value>A server gets a new id every time it starts, so a pause outlives the server it was set on. These pauses have no effect any more; clear them to tidy up.</value>
+  </data>
+  <data name="ServersPage_StalePauses_Clear" xml:space="preserve">
+    <value>Clear</value>
   </data>
   <data name="LayoutPage_ServersPaused" xml:space="preserve">
     <value>Servers paused: {0}</value>
@@ -1639,5 +1672,38 @@
   </data>
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pause</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAll" xml:space="preserve">
+    <value>Requeue all</value>
+  </data>
+  <data name="FailedJobsPage_RequeueAllConfirm" xml:space="preserve">
+    <value>Requeue EVERY failed job in this list? They will all run again.</value>
+  </data>
+  <data name="Common_ListCommandResult" xml:space="preserve">
+    <value>{0} jobs changed.</value>
+  </data>
+  <data name="Common_ListCommandRemaining" xml:space="preserve">
+    <value>There is more to do (up to {0} jobs). Run it again to continue.</value>
+  </data>
+  <data name="Common_RequestFailed" xml:space="preserve">
+    <value>The request failed:</value>
+  </data>
+  <data name="RecurringJobsPage_LateSummary_Page" xml:space="preserve">
+    <value>{0} recurring jobs on this page are late: their next run was due more than a minute ago. Other pages may have more. Check that a running server has the recurring job scheduler enabled and can reach the storage.</value>
+  </data>
+  <data name="CatalogPage_Runner_Utc" xml:space="preserve">
+    <value>in UTC</value>
+  </data>
+  <data name="Diagnostics_ParentsNotListed" xml:space="preserve">
+    <value>{0} more parents are not listed here.</value>
+  </data>
+  <data name="Diagnostics_FanIn_Sampled" xml:space="preserve">
+    <value>Fan-in: {0} of the first {1} parents checked have finished, out of {2} ({3}).</value>
+  </data>
+  <data name="JobHistory_MoreParents" xml:space="preserve">
+    <value>and {0} more</value>
+  </data>
+  <data name="ForecastPage_Truncated" xml:space="preserve">
+    <value>More than {0} runs in this window; only the first {0} are counted</value>
   </data>
 </root>

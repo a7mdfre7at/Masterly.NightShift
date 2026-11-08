@@ -1,26 +1,14 @@
-// This file is part of Hangfire. Copyright © 2026 Hangfire OÜ.
-//
-// Hangfire is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation, either version 3
-// of the License, or any later version.
-//
-// Hangfire is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
-
 #if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.States;
+using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Diagnostics
 {
@@ -30,7 +18,7 @@ namespace Masterly.NightShift.Diagnostics
     /// so the span of its execution joins the same trace.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-    internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServerFilter
+    internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServerFilter, IApplyStateFilter
     {
         internal const string TraceParentParameter = "TraceParent";
         internal const string TraceStateParameter = "TraceState";
@@ -38,11 +26,19 @@ namespace Masterly.NightShift.Diagnostics
         internal const string OutcomeSucceeded = "succeeded";
         internal const string OutcomeFailed = "failed";
         internal const string OutcomeCanceled = "canceled";
+        internal const string OutcomeRetryLater = "retry_later";
 
         private const string CreateActivityKey = "Masterly.NightShift.Telemetry.CreateActivity";
         private const string ProcessActivityKey = "Masterly.NightShift.Telemetry.ProcessActivity";
         private const string ProcessStartedKey = "Masterly.NightShift.Telemetry.ProcessStarted";
         private const string ActiveCountedKey = "Masterly.NightShift.Telemetry.ActiveCounted";
+
+        private static readonly ILog Logger = LogProvider.GetLogger(typeof(TelemetryFilter));
+
+        // The queue a worker fetched a job from, noted when the job moves from Enqueued to Processing and read
+        // when the worker performs it. The worker passes the same BackgroundJob instance from that state change
+        // to the perform context, and the entry goes away with it.
+        private static readonly ConditionalWeakTable<BackgroundJob, string> FetchedQueues = new ConditionalWeakTable<BackgroundJob, string>();
 
         public void OnCreating(CreatingContext context)
         {
@@ -92,9 +88,15 @@ namespace Masterly.NightShift.Diagnostics
 
             if (context.Items.TryGetValue(CreateActivityKey, out var value) && value is Activity activity)
             {
-                if (activity.IsAllDataRequested && context.BackgroundJob != null)
+                if (activity.IsAllDataRequested)
                 {
-                    activity.SetTag("messaging.message.id", context.BackgroundJob.Id);
+                    // State election ran in between: [Queue] changes the initial Enqueued state in place
+                    activity.SetTag("messaging.destination.name", GetQueue(context.Job, context.InitialState));
+
+                    if (context.BackgroundJob != null)
+                    {
+                        activity.SetTag("messaging.message.id", context.BackgroundJob.Id);
+                    }
                 }
 
                 if (failed)
@@ -132,10 +134,14 @@ namespace Masterly.NightShift.Diagnostics
 
                     if (activity.IsAllDataRequested)
                     {
-                        SetCommonTags(activity, "process", job, job?.Queue);
+                        var queue = FetchedQueues.TryGetValue(context.BackgroundJob, out var fetched) ? fetched : job?.Queue;
+
+                        SetCommonTags(activity, "process", job, queue);
                         activity.SetTag("messaging.message.id", context.BackgroundJob.Id);
                     }
                 }
+
+                FetchedQueues.Remove(context.BackgroundJob);
             }
 
             if (NightShiftTelemetry.ActiveJobs.Enabled)
@@ -191,13 +197,39 @@ namespace Masterly.NightShift.Diagnostics
             }
         }
 
+        public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        {
+            if (context == null) throw new ArgumentNullException(nameof(context));
+
+            if (context.NewState is not ProcessingState) return;
+            if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;
+
+            // Reading the Enqueued state queries the storage, so do it only when someone listens
+            if (!NightShiftTelemetry.ActivitySource.HasListeners()) return;
+
+            var queue = ReadFetchedQueue(context);
+            if (queue != null)
+            {
+                FetchedQueues.AddOrUpdate(context.BackgroundJob, queue);
+            }
+        }
+
+        public void OnStateUnapplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        {
+        }
+
         internal static string GetOutcome(PerformedContext context)
         {
-            if (context.Canceled) return OutcomeCanceled;
-            if (context.Exception == null || context.ExceptionHandled) return OutcomeSucceeded;
-
-            // JobAbortedException is an OperationCanceledException too
-            return context.Exception is OperationCanceledException ? OutcomeCanceled : OutcomeFailed;
+            switch (JobOutcomes.Classify(context))
+            {
+                case JobOutcome.Canceled: return OutcomeCanceled;
+                case JobOutcome.RetryLater: return OutcomeRetryLater;
+                // The worker records an attempt whose concurrency wait timed out as failed, so the metrics do too;
+                // error.type (ConcurrencyLimitException, DistributedLockTimeoutException) tells it apart
+                case JobOutcome.NotRun:
+                case JobOutcome.Failed: return OutcomeFailed;
+                default: return OutcomeSucceeded;
+            }
         }
 
         private static void SetCommonTags(Activity activity, string operation, Job job, string queue)
@@ -242,9 +274,7 @@ namespace Masterly.NightShift.Diagnostics
         private static Exception Unwrap(Exception exception)
         {
             // Job method exceptions reach server filters wrapped, the original one is more useful
-            return exception is JobPerformanceException && exception.InnerException != null
-                ? exception.InnerException
-                : exception;
+            return JobOutcomes.Unwrap(exception);
         }
 
         private static KeyValuePair<string, object> Tag(string key, object value)
@@ -257,9 +287,38 @@ namespace Masterly.NightShift.Diagnostics
             return job?.Type != null ? $"{job.Type.Name}.{job.Method?.Name}" : null;
         }
 
-        private static string GetQueue(Job job, IState initialState)
+        private static string GetQueue(Job job, IState state)
         {
-            return job?.Queue ?? (initialState as EnqueuedState)?.Queue;
+            return state is EnqueuedState enqueued ? GetEnqueuedQueue(job, enqueued.Queue) : job?.Queue;
+        }
+
+        private static string ReadFetchedQueue(ApplyStateContext context)
+        {
+            try
+            {
+                // The transition isn't committed yet, so the current state is still the Enqueued one
+                var enqueued = context.Connection.GetStateData(context.BackgroundJob.Id);
+                var stateQueue = enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out var value) ? value : null;
+
+                return GetEnqueuedQueue(context.BackgroundJob.Job, stateQueue);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Telemetry must never break a state change; the span falls back to the job's own queue
+                Logger.DebugException($"Could not read the queue of background job '{context.BackgroundJob.Id}' for telemetry.", ex);
+                return null;
+            }
+        }
+
+        private static string GetEnqueuedQueue(Job job, string stateQueue)
+        {
+            // The same choice EnqueuedState's handler makes when it adds the job to a queue: the state's queue,
+            // unless it's the default one and the job has its own
+            if (String.IsNullOrEmpty(stateQueue)) return job?.Queue;
+
+            return job?.Queue == null || !EnqueuedState.DefaultQueue.Equals(stateQueue, StringComparison.OrdinalIgnoreCase)
+                ? stateQueue
+                : job.Queue;
         }
     }
 }

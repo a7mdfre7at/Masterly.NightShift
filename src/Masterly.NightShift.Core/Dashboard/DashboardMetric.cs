@@ -17,6 +17,9 @@ using System;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// A named value the dashboard's home page can show, computed for each page by a function.
+    /// </summary>
     public class DashboardMetric
     {
         public DashboardMetric(string name, Func<RazorPage, Metric> func) 

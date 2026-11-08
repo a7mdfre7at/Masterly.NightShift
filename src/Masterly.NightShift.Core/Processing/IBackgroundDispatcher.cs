@@ -20,6 +20,9 @@ using System.Threading.Tasks;
 namespace Masterly.NightShift.Processing
 {
     // TODO Replace these methods with WaitHandle property in 2.0.
+    /// <summary>
+    /// Runs a background process on its threads until the server stops, and lets the server wait for it to finish.
+    /// </summary>
     public interface IBackgroundDispatcher : IDisposable
     {
         bool Wait(TimeSpan timeout);

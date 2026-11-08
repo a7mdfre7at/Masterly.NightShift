@@ -15,6 +15,9 @@
 
 namespace Masterly.NightShift.Server
 {
+    /// <summary>
+    /// What a server announces to the storage: its worker count and queues.
+    /// </summary>
     public class ServerContext
     {
         public ServerContext()

@@ -221,6 +221,50 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact, StaticLock]
+        public void Awaiting_FanInOverManyParents_ReadsOnlyTheFirstOnes_AndListsAFewLines()
+        {
+            // A continuation of a batch of 5,000 jobs read every parent and wrote a line for each: 10 s, 6 MB
+            var ids = Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture)).ToArray();
+            foreach (var id in ids) _jobs[id] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
+            _jobs["3"] = new JobData { State = FailedState.StateName, Job = Job.FromExpression(() => Work()) };
+            var state = new AwaitingJobsState(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+
+            var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
+
+            _connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(JobDiagnostics.MaxParentsRead));
+            Assert.Equal("fan-in", findings[0].Code);
+            Assert.Contains(JobDiagnostics.MaxParentsRead.ToString(CultureInfo.CurrentCulture), findings[0].Message.ToString());
+            Assert.Contains("5000", findings[0].Message.ToString());
+            // The failed parent comes first, before the waiting ones
+            Assert.Equal("parent-failed", findings[1].Code);
+            Assert.Equal(JobDiagnostics.MaxParentLines, findings.Count(static x => x.Code.StartsWith("parent-", StringComparison.Ordinal)));
+            var more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
+            Assert.Contains((5000 - JobDiagnostics.MaxParentLines).ToString(CultureInfo.CurrentCulture), more.Message.ToString());
+        }
+
+        [Fact, StaticLock]
+        public void Awaiting_BatchContinuation_CountsTheBatch_WithItsCounters()
+        {
+            var ids = Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture)).ToArray();
+            var state = new AwaitingJobsState(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+            var details = Details(AwaitingState.StateName, state.SerializeData(), new Dictionary<string, string> { { BatchJob.ContinuationParameterName, "\"b1\"" } });
+            _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
+            _connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns(new Dictionary<string, string> { { "Description", "import" } });
+            _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns(0L);
+            _connection.Setup(x => x.GetCounter(BatchJob.GetTotalKey("b1"))).Returns(5000L);
+            _connection.Setup(x => x.GetCounter(BatchJob.GetStateKey("b1", SucceededState.StateName))).Returns(4990L);
+
+            var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+
+            Assert.Equal("fan-in", findings[0].Code);
+            Assert.Contains("4990", findings[0].Message.ToString());
+            Assert.Contains("5000", findings[0].Message.ToString());
+            var more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
+            Assert.EndsWith("/batches/b1", more.Link);
+            _connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(JobDiagnostics.MaxParentsRead));
+        }
+
+        [Fact, StaticLock]
         public void Processing_OnAnUnknownServer_IsAProblem()
         {
             var data = new Dictionary<string, string> { { "ServerId", "gone-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
@@ -303,6 +347,36 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal(JobDiagnosticSeverity.Warning, finding.Severity);
             Assert.Contains(": maintenance", finding.Message.ToString());
             Assert.EndsWith("/jobs/enqueued", finding.Link);
+        }
+
+        [Fact, StaticLock]
+        public void Enqueued_WithItsOwnQueue_IsDiagnosedForThatQueue_NotDefault()
+        {
+            // Enqueue("reports", ...) records "default" in the state; the job waits in "reports"
+            AddServer("web-1", DateTime.UtcNow, "default", "emails");
+            var details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
+            details.Job = new Job(typeof(JobDiagnosticsFacts), typeof(JobDiagnosticsFacts).GetMethod(nameof(Work)), new object[0], "reports");
+
+            var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+
+            var finding = Assert.Single(findings);
+            Assert.Equal("queue-unserved", finding.Code);
+            Assert.Contains("reports", finding.Message.ToString());
+        }
+
+        [Fact, StaticLock]
+        public void Enqueued_WithItsOwnQueue_ReportsThePauseOfThatQueue()
+        {
+            AddServer("web-1", DateTime.UtcNow, "reports");
+            _control[DrainMode.QueueFieldPrefix + "reports"] = "month end";
+            var details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
+            details.Job = new Job(typeof(JobDiagnosticsFacts), typeof(JobDiagnosticsFacts).GetMethod(nameof(Work)), new object[0], "reports");
+
+            var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+
+            var finding = Assert.Single(findings);
+            Assert.Equal("queue-paused", finding.Code);
+            Assert.Contains("month end", finding.Message.ToString());
         }
 
         [Fact, StaticLock]

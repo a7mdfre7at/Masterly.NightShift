@@ -22,6 +22,10 @@ using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard
 {
+    /// <summary>
+    /// The base class of the dashboard's Razor pages, with access to the request, the storage, the options and the HTML
+    /// and URL helpers.
+    /// </summary>
     public abstract class RazorPage
     {
         private Lazy<StatisticsDto> _statisticsLazy;
@@ -90,6 +94,15 @@ namespace Masterly.NightShift.Dashboard
         public string RequestPath => Request.Path;
 
         public bool IsReadOnly => Context.IsReadOnly;
+
+        /// <summary>
+        /// The query string field a list page's live refresh adds (<c>list-refresh=1</c>): the page is rendered
+        /// without its layout, and may skip what isn't part of its job list.
+        /// </summary>
+        internal const string ListRefreshQuery = "list-refresh";
+
+        /// <summary>Whether the request is a list page's live refresh. See <see cref="ListRefreshQuery"/>.</summary>
+        internal bool IsListRefresh => Context?.Request != null && "1".Equals(Query(ListRefreshQuery), StringComparison.Ordinal);
         
         /// <exclude />
         public abstract void Execute();
@@ -210,7 +223,7 @@ namespace Masterly.NightShift.Dashboard
             
             Execute();
             
-            if (Layout != null)
+            if (Layout != null && !IsListRefresh)
             {
                 Layout.Assign(this);
                 return Layout.TransformText(_content.ToString());

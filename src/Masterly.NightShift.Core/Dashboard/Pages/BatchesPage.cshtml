@@ -17,7 +17,8 @@
     IReadOnlyList<JobBatch> batches;
     Pager pager;
 
-    using (var connection = Storage.GetConnection())
+    // Read only: expired batches are skipped here and removed from the index when new batches start
+    using (var connection = Storage.GetReadOnlyConnection())
     {
         pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, BatchJob.Count(connection));
         batches = BatchJob.List(connection, pager.FromRecord, pager.RecordsPerPage);

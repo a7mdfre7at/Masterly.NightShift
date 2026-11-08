@@ -42,6 +42,62 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
+        public void Build_LeavesOutOccurrences_BeforeTheStart_ButKeepsTheOneAtTheStart()
+        {
+            var dto = Dto("hourly", "0 * * * *");
+            dto.StartAt = _from.AddHours(5);
+
+            var forecast = ScheduleForecast.Build(new[] { dto }, _from, TimeSpan.FromHours(10), _ => null);
+
+            var row = Assert.Single(forecast.Rows);
+            Assert.Equal(_from.AddHours(5), row.Occurrences[0]);
+            Assert.Equal(5, row.Occurrences.Count);
+        }
+
+        [Fact]
+        public void Build_LeavesOutOccurrences_AfterTheEnd_ButKeepsTheOneAtTheEnd()
+        {
+            var dto = Dto("hourly", "0 * * * *");
+            dto.EndAt = _from.AddHours(3);
+
+            var forecast = ScheduleForecast.Build(new[] { dto }, _from, TimeSpan.FromHours(10), _ => null);
+
+            var row = Assert.Single(forecast.Rows);
+            Assert.Equal(new[] { _from.AddHours(1), _from.AddHours(2), _from.AddHours(3) }, row.Occurrences);
+        }
+
+        [Fact]
+        public void Build_ProjectsNothing_ForAJobThatHasEnded_OrStartsAfterTheWindow()
+        {
+            var ended = Dto("ended", "0 * * * *");
+            ended.EndAt = _from.AddDays(-1);
+            var later = Dto("later", "0 * * * *");
+            later.StartAt = _from.AddDays(2);
+
+            var forecast = ScheduleForecast.Build(new[] { ended, later }, _from, TimeSpan.FromHours(24), _ => null);
+
+            Assert.Equal(2, forecast.Rows.Count);
+            Assert.All(forecast.Rows, x => Assert.Empty(x.Occurrences));
+            Assert.Equal(0, forecast.TotalRuns);
+        }
+
+        [Fact]
+        public void Build_UsesTheStartAndEnd_StoredWithTheJob()
+        {
+            var connection = new Mock<IStorageConnection>();
+            SetupRecurringJob(connection, "windowed", "0 * * * *");
+            var hash = RecurringJobHash("0 * * * *", null);
+            hash["StartAt"] = JobHelper.SerializeDateTime(_from.AddHours(2));
+            hash["EndAt"] = JobHelper.SerializeDateTime(_from.AddHours(4));
+            connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:windowed")).Returns(hash);
+
+            var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+
+            var row = Assert.Single(forecast.Rows);
+            Assert.Equal(new[] { _from.AddHours(2), _from.AddHours(3), _from.AddHours(4) }, row.Occurrences);
+        }
+
+        [Fact]
         public void Build_UsesTheExpectedDuration_FromInsights()
         {
             var key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Sample()));
@@ -95,6 +151,45 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
 
             Assert.Equal(new[] { "often", "rare" }, forecast.Rows.Select(r => r.Id));
             Assert.Equal(_from.AddHours(2), forecast.BusiestHour);
+        }
+
+        [Fact]
+        public void Build_MarksAJobThatRunsMoreOftenThanTheCap_AsTruncated_AndKeepsItOutOfHotSpots()
+        {
+            // Every minute over a week: 10,080 runs. The row said "2000x" and its band stopped after about 33 hours,
+            // and its first runs collided with every other job of those hours.
+            var forecast = ScheduleForecast.Build(new[] { Dto("every-minute", "* * * * *"), Dto("daily", "0 13 * * *") }, _from, TimeSpan.FromDays(7), _ => null);
+
+            var row = forecast.Rows.Single(r => r.Id == "every-minute");
+            Assert.True(row.Truncated);
+            Assert.True(forecast.Truncated);
+            Assert.Equal(ScheduleForecast.MaxOccurrencesPerJob, row.Occurrences.Count);
+            Assert.Equal(_from.AddDays(7), row.RunsUntil);
+            Assert.False(forecast.Rows.Single(r => r.Id == "daily").Truncated);
+            Assert.Empty(forecast.HotSpots);
+        }
+
+        [Fact]
+        public void Build_TruncatedRuns_StopAtTheJobsEnd()
+        {
+            var dto = Dto("every-minute", "* * * * *");
+            dto.EndAt = _from.AddDays(3);
+
+            var forecast = ScheduleForecast.Build(new[] { dto }, _from, TimeSpan.FromDays(7), _ => null);
+
+            Assert.Equal(_from.AddDays(3), Assert.Single(forecast.Rows).RunsUntil);
+        }
+
+        [Fact]
+        public void Build_DoesNotMarkAJobAsTruncated_WhenItsRunsEndAtTheCap()
+        {
+            // 2000 runs, the last one inside the window, nothing after it
+            var forecast = ScheduleForecast.Build(new[] { Dto("every-minute", "* * * * *") }, _from, TimeSpan.FromMinutes(2001), _ => null);
+
+            var row = Assert.Single(forecast.Rows);
+            Assert.Equal(ScheduleForecast.MaxOccurrencesPerJob, row.Occurrences.Count);
+            Assert.False(row.Truncated);
+            Assert.Null(row.RunsUntil);
         }
 
         [Fact]
