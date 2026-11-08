@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.SourceGenerator\Masterly.NightShift.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Creates the sample database when it is missing -->
+    <Compile Include="..\Shared\SampleDatabase.cs" Link="Shared\SampleDatabase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Masterly.NightShift.SqlServer references no SQL client: the app picks one, and Microsoft.Data.SqlClient is preferred -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <!-- Lifts a vulnerable transitive dependency of Microsoft.Data.SqlClient, as in the tests -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+  </ItemGroup>
+
+</Project>

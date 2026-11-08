@@ -1,4 +1,13 @@
-﻿using System;
+﻿// A console app that configures Masterly.NightShift by hand, runs a server and creates jobs from typed commands.
+// It uses a SQL Server database, created on first run if it doesn't exist (with its tables): by default the LocalDB
+// database named below. To use another one, set the ConnectionStrings__NightShift environment variable, for example
+//
+//   set ConnectionStrings__NightShift=Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;
+//   dotnet run --project samples/ConsoleSample
+//
+// Then type a command such as "async 5" or "fast 10" and press Enter to create jobs; "stop" stops the server.
+
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
@@ -8,6 +17,7 @@ using Masterly.NightShift.Common;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.SqlServer;
 using Masterly.NightShift.States;
+using NightShiftSamples;
 
 namespace ConsoleSample
 {
@@ -15,6 +25,13 @@ namespace ConsoleSample
     {
         public static void Main()
         {
+            // Set ConnectionStrings__NightShift to use another database
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
+                ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
+
+            // The storage creates its tables but not the database; the sample creates it on a fresh machine
+            SampleDatabase.EnsureExists(connectionString);
+
             GlobalConfiguration.Configuration
                 .UseColouredConsoleLogProvider()
                 .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -26,7 +43,7 @@ namespace ConsoleSample
                 .UseJobDetailsRenderer(10, dto => throw new InvalidOperationException())
                 .UseJobDetailsRenderer(10, dto => new NonEscapedString("<h4>Hello, world!</h4>"))
                 .UseDefaultCulture(CultureInfo.CurrentCulture)
-                .UseSqlServerStorage(@"Server=.\;Database=Masterly.NightShift.Sample;Trusted_Connection=True;", new SqlServerStorageOptions
+                .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
                 {
                     EnableHeavyMigrations = true
                 });

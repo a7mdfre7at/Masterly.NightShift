@@ -10,11 +10,21 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
-    <ProjectReference Include="..\..\src\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" />
+    <!-- A generic host without a web server; samples/WebSample shows the dashboard -->
+    <ProjectReference Include="..\..\src\Masterly.NightShift.NetCore\Masterly.NightShift.NetCore.csproj" />
     <ProjectReference Include="..\..\src\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Creates the sample database when it is missing -->
+    <Compile Include="..\Shared\SampleDatabase.cs" Link="Shared\SampleDatabase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Masterly.NightShift.SqlServer references no SQL client: the app picks one, and Microsoft.Data.SqlClient is preferred -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <!-- Lifts a vulnerable transitive dependency of Microsoft.Data.SqlClient, as in the tests -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>

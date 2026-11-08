@@ -1,4 +1,13 @@
-﻿using System;
+﻿// A generic host (no web server) that runs a Masterly.NightShift server with custom factory, performer and state
+// changer decorators, and adds recurring jobs from a hosted service. It uses a SQL Server database, created on first
+// run if it doesn't exist (with its tables): by default the LocalDB database named below. To use another one, set
+// ConnectionStrings:NightShift, for example
+//
+//   dotnet run --project samples/NetCoreSample -- --ConnectionStrings:NightShift="Server=.\;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;"
+//
+// or the ConnectionStrings__NightShift environment variable. Press Ctrl+C to stop it.
+
+using System;
 using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,18 +18,24 @@ using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.SqlServer;
 using Masterly.NightShift.States;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NightShiftSamples;
 
 namespace NetCoreSample
 {
     class Program
     {
+        private const string DefaultConnectionString =
+            @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
+
         static async Task Main(string[] args)
         {
             var host = new HostBuilder()
+                .ConfigureAppConfiguration(x => x.AddEnvironmentVariables().AddCommandLine(args))
                 .ConfigureLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Information))
                 .ConfigureServices((hostContext, services) =>
                 {
@@ -49,13 +64,16 @@ namespace NetCoreSample
                     services.TryAddSingleton<IBackgroundJobStateChanger>(x => new CustomBackgroundJobStateChanger(
                             new BackgroundJobStateChanger(x.GetRequiredService<IJobFilterProvider>())));
 
+                    var connectionString = hostContext.Configuration.GetConnectionString("NightShift") ?? DefaultConnectionString;
+
+                    // The storage creates its tables but not the database; the sample creates it on a fresh machine
+                    SampleDatabase.EnsureExists(connectionString);
+
                     services.AddNightShift((provider, configuration) => configuration
                         .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
                         .UseSimpleAssemblyNameTypeSerializer()
                         .UseTelemetry()
-                        .UseSqlServerStorage(
-                            @"Server=.\;Database=Masterly.NightShift.Sample;Trusted_Connection=True;", 
-                            provider.GetRequiredService<SqlServerStorageOptions>()));
+                        .UseSqlServerStorage(connectionString, provider.GetRequiredService<SqlServerStorageOptions>()));
 
                     services.AddHostedService<RecurringJobsService>();
                     services.AddNightShiftServer(options =>
