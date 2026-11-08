@@ -1,12 +1,8 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyProduct("Masterly.NightShift")]
-[assembly: AssemblyCompany("Masterly")]
-[assembly: AssemblyCopyright("Copyright © 2026 Ahmad Al-Freihat")]
+// AssemblyVersion, AssemblyFileVersion, AssemblyInformationalVersion, AssemblyCompany, AssemblyProduct and
+// AssemblyCopyright are generated from the properties in src/Directory.Build.props: raise <Version> there.
 [assembly: AssemblyCulture("")]
 
 [assembly: ComVisible(false)]
-
-// Please don't edit it manually, use the `build.bat version` command instead.
-[assembly: AssemblyVersion("1.0.0")]

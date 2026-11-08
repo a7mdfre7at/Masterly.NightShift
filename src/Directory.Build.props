@@ -1,8 +1,12 @@
 <Project>
     <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
-    <!-- Custom AssemblyInfo.cs file -->
+    <!-- The SDK writes the version attributes (AssemblyVersion, AssemblyFileVersion, AssemblyInformationalVersion) from
+         <Version> below, and AssemblyCompany, AssemblyProduct and AssemblyCopyright from the properties next to it. Titles
+         and descriptions are written by hand in each project's Properties/AssemblyInfo.cs, the rest in SharedAssemblyInfo.cs. -->
     <PropertyGroup>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+        <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+        <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <DebugType>embedded</DebugType>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -29,21 +33,23 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
-    <!-- Package metadata shared by every Masterly.NightShift package. Raise <Version> to publish a new release;
-         keep AssemblyVersion in SharedAssemblyInfo.cs in step with it. -->
+    <!-- Package metadata shared by every Masterly.NightShift package. Raise <Version> to publish a new release; the
+         assembly versions follow it. The packages contain code under the MIT license and code derived from Hangfire under
+         the LGPL v3 or later (see NOTICE.md), so both licenses apply and both texts, with the GPL v3 the LGPL builds on,
+         are packed. -->
     <PropertyGroup>
         <Version>1.0.0</Version>
         <Authors>Ahmad Omar Al-Freihat</Authors>
         <Company>Masterly</Company>
         <Product>Masterly.NightShift</Product>
         <Copyright>Copyright © 2026 Ahmad Al-Freihat</Copyright>
-        <PackageProjectUrl>https://a7mdfre7at.github.io/Masterly.NightShift/</PackageProjectUrl>
+        <PackageProjectUrl>https://github.com/a7mdfre7at/Masterly.NightShift</PackageProjectUrl>
         <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron</PackageTags>
         <PackageReadmeFile>README.nuget.md</PackageReadmeFile>
         <PackageIcon>logo.png</PackageIcon>
-        <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+        <PackageLicenseExpression>MIT AND LGPL-3.0-or-later</PackageLicenseExpression>
         <PackageReleaseNotes>See https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
 
@@ -52,6 +58,8 @@
         <None Include="..\..\README.nuget.md" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\assets\logo.png" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\LICENSE-LGPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\LICENSE-GPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\NOTICE.md" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
     </ItemGroup>

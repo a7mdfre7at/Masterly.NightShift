@@ -10,14 +10,16 @@
     <File Path="src/SharedAssemblyInfo.cs" />
   </Folder>
   <Folder Name="/.github/">
+    <File Path=".github/dependabot.yml" />
     <File Path=".github/workflows/build.yml" />
     <File Path=".github/workflows/codeql-analysis.yml" />
-    <File Path=".github/workflows/pages.yml" />
     <File Path=".github/workflows/publish.yml" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/CSharp73Check/CSharp73Check.csproj" />
     <Project Path="samples/ConsoleSample/ConsoleSample.csproj" />
     <Project Path="samples/NetCoreSample/NetCoreSample.csproj" />
+    <Project Path="samples/WebSample/WebSample.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Masterly.NightShift/Masterly.NightShift.csproj" />

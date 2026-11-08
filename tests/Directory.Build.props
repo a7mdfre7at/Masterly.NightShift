@@ -3,8 +3,25 @@
   <PropertyGroup>
     <!-- xUnit v3 test projects are self-hosted executables -->
     <OutputType>Exe</OutputType>
+    <!-- Never packed, also when the whole solution is packed -->
+    <IsPackable>false</IsPackable>
     <NuGetAudit>false</NuGetAudit><!-- We are testing against these packages, not including them into the product -->
   </PropertyGroup>
+
+  <!-- The net48 target tests the libraries' netstandard2.0 build. Its default language version (C# 7.3) is older than
+       the one the tests are written in, so it compiles them like net8.0 does, with C# 12. A newer version would change
+       how some calls bind (C# 14 binds array.Reverse() to the in-place MemoryExtensions.Reverse on .NET Framework). -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- Explicit, so the lock files are the same on every machine: the SDK adds it only where the targeting pack is missing -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
+    <Reference Include="System.Net.Http" />
+    <!-- Stand-ins for the few newer BCL APIs the tests use -->
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

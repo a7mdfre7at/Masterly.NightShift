@@ -52,6 +52,8 @@ packages/
 # Build results
 
 [Bb]uild/
+# MSBuild props packed into Masterly.NightShift.Core
+!src/Masterly.NightShift.Core/build/
 [Dd]ebug/
 [Rr]elease/
 x64/
@@ -237,3 +239,6 @@ _site
 *.userprefs
 
 cov-int/
+
+# Local run telemetry of the TPS framework
+docs/runs/

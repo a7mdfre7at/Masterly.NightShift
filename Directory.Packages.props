@@ -1,7 +1,12 @@
 <Project>
     <!-- Central Package Management: every package version used in the repository lives here.
-         Library packages intentionally reference the lowest versions they support, so consumers
-         are free to choose newer ones. Raising them changes the public dependency surface. -->
+         Library dependencies are kept current: `dotnet list package` with the outdated option lists what is behind.
+         Raising one raises the minimum version consumers get, so it changes the public dependency surface.
+         Exceptions: Microsoft.CodeAnalysis.CSharp stays at the oldest Roslyn the generators need (see below),
+         the Microsoft.Extensions packages of Masterly.NightShift.NetCore and .AspNetCore stay at the oldest serviced
+         version for each target framework (see below), and the source-only packages (LibLog,
+         StackTraceParser/Formatter, MoreLinq) compile a vendored copy, so bumping them changes nothing.
+         After a change, restore with the force-evaluate option (see CLAUDE.md) to update the lock files. -->
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     </PropertyGroup>
@@ -28,22 +33,22 @@
     <ItemGroup Label="Masterly.NightShift.AspNetCore (netstandard2.0)">
         <PackageVersion Include="Microsoft.AspNetCore.Antiforgery" Version="2.3.13" />
         <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.13" />
+        <!-- 8.0, like the Microsoft.Extensions abstractions of Masterly.NightShift.NetCore on netstandard2.0 (see below) -->
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.33" />
         <!-- Lift transitive dependencies of the ASP.NET Core 2.x packages to current versions -->
         <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.14" />
         <PackageVersion Include="System.Text.Encodings.Web" Version="10.0.14" />
     </ItemGroup>
 
-    <!-- Masterly.NightShift.NetCore: Microsoft.Extensions abstractions, per target framework -->
-    <ItemGroup Label="Masterly.NightShift.NetCore (netstandard2.0)" Condition="'$(TargetFramework)' == 'netstandard2.0'">
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-    </ItemGroup>
-
-    <ItemGroup Label="Masterly.NightShift.NetCore (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <!-- Masterly.NightShift.NetCore: Microsoft.Extensions abstractions, per target framework. Each target asks for the
+         oldest serviced version, not the newest, so an app gets the Microsoft.Extensions stack of its own runtime: a
+         .NET 8 app that pins 8.0 packages would otherwise get a mixed 8/10 stack and NU1605 downgrade errors.
+         net8.0 and netstandard2.0 use the latest 8.0 patches (ASP.NET Core 2.3 on .NET Framework also uses 8.0;
+         the code needs 3.0 or later for IHostApplicationLifetime, and 3.x to 7.x are out of support), net10.0 uses 10.0. -->
+    <ItemGroup Label="Masterly.NightShift.NetCore (netstandard2.0, net8.0)" Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'net8.0'">
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     </ItemGroup>
 
     <ItemGroup Label="Masterly.NightShift.NetCore (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
@@ -60,12 +65,17 @@
     </ItemGroup>
 
     <ItemGroup Label="Tests">
+        <!-- The net48 target of the AspNetCore tests uses it instead of the shared framework (with Microsoft.Extensions.Hosting below) -->
+        <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.3.13" />
+        <!-- Also referenced by the samples, which need a SQL client for the SQL Server storage -->
         <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+        <!-- Reference assemblies for the net48 test targets, also where the targeting pack isn't installed (Linux) -->
+        <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
         <PackageVersion Include="Moq" Version="4.21.0" />
         <PackageVersion Include="Moq.Sequences" Version="2.2.1" />
         <PackageVersion Include="System.Data.SqlClient" Version="4.9.1" />
-        <!-- Patched version of a transitive dependency of Microsoft.Data.SqlClient (GHSA-846f-f764-76mx) -->
+        <!-- Patched version of a transitive dependency of Microsoft.Data.SqlClient (GHSA-846f-f764-76mx), for the tests and the samples -->
         <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
         <!-- mtp-off: the classic VSTest runner, so `dotnet test` and its filters work as before -->
         <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
@@ -73,6 +83,7 @@
     </ItemGroup>
 
     <ItemGroup Label="Samples">
+        <!-- Also referenced by the net48 target of the AspNetCore tests -->
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
         <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
     </ItemGroup>
