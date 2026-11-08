@@ -17,15 +17,29 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.SqlServer
 {
+    /// <summary>
+    /// The monitoring queries of a queue implementation, used by the dashboard.
+    /// </summary>
     public interface IPersistentJobQueueMonitoringApi
     {
+        /// <summary>Gets the names of the queues that hold jobs.</summary>
         IEnumerable<string> GetQueues();
 
+        /// <summary>Gets a page of the identifiers of the jobs waiting in a queue.</summary>
+        /// <param name="queue">The queue name.</param>
+        /// <param name="from">The index of the first job.</param>
+        /// <param name="perPage">The page size.</param>
         IEnumerable<long> GetEnqueuedJobIds(string queue, int from, int perPage);
 
         // TODO: Extend return type by including DateTime to allow getting the FetchedAt value in 2.0
+        /// <summary>Gets a page of the identifiers of the jobs of a queue that workers have fetched.</summary>
+        /// <param name="queue">The queue name.</param>
+        /// <param name="from">The index of the first job.</param>
+        /// <param name="perPage">The page size.</param>
         IEnumerable<long> GetFetchedJobIds(string queue, int from, int perPage);
 
+        /// <summary>Counts the waiting and the fetched jobs of a queue.</summary>
+        /// <param name="queue">The queue name.</param>
         EnqueuedAndFetchedCountDto GetEnqueuedAndFetchedCount(string queue);
     }
 }

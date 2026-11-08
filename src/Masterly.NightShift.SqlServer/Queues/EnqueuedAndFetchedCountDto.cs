@@ -15,9 +15,15 @@
 
 namespace Masterly.NightShift.SqlServer
 {
+    /// <summary>
+    /// The numbers of waiting and fetched jobs of a queue.
+    /// </summary>
     public class EnqueuedAndFetchedCountDto
     {
+        /// <summary>Gets or sets the number of jobs waiting in the queue.</summary>
         public int? EnqueuedCount { get; set; }
+
+        /// <summary>Gets or sets the number of jobs of the queue that workers have fetched.</summary>
         public int? FetchedCount { get; set; }
     }
 }

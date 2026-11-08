@@ -72,7 +72,7 @@ namespace Masterly.NightShift.SqlServer
                         {
                             commandBatch.Append(connection
                                 .Create("exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive'")
-                                .AddParameter("@resource", lockedResource, DbType.String, size: 255));
+                                .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
                         }
 
                         AppendBatch(ctx._jobCommands, commandBatch);
@@ -160,10 +160,10 @@ namespace Masterly.NightShift.SqlServer
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-            var longId = long.Parse(jobId, CultureInfo.InvariantCulture);
+            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
             AddCommand(_jobCommands, longId, batch => batch.Create(query)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime)
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime)
                 .AddParameter("@id", longId, DbType.Int64));
         }
 
@@ -174,7 +174,7 @@ $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-            var longId = long.Parse(jobId, CultureInfo.InvariantCulture);
+            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
             AddCommand(_jobCommands, longId, batch => batch.Create(query)
                 .AddParameter("@id", longId, DbType.Int64));
@@ -184,13 +184,14 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
             if (state == null) throw new ArgumentNullException(nameof(state));
+            SqlServerLimits.EnsureStateNameFits(state.Name);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
 values (@jobId, @name, @reason, @createdAt, @data);
 update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name where Id = @jobId;");
 
-            var longId = long.Parse(jobId, CultureInfo.InvariantCulture);
+            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
             AddCommand(_jobCommands, longId, batch => batch.Create(query)
                 .AddParameter("@jobId", longId, DbType.Int64)
@@ -204,12 +205,13 @@ update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name wher
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
             if (state == null) throw new ArgumentNullException(nameof(state));
+            SqlServerLimits.EnsureStateNameFits(state.Name);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
 values (@jobId, @name, @reason, @createdAt, @data)");
 
-            var longId = long.Parse(jobId, CultureInfo.InvariantCulture);
+            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
             AddCommand(_jobCommands, longId, batch => batch.Create(query)
                 .AddParameter("@jobId", longId, DbType.Int64)
@@ -229,11 +231,14 @@ values (@jobId, @name, @reason, @createdAt, @data)");
 
             if (persistentQueue.GetType() == typeof(SqlServerJobQueue))
             {
+                SqlServerLimits.EnsureQueueNameFits(queue);
+                if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+
                 var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
                 AddCommand(_queueCommands, queue, batch => batch.Create(query)
-                    .AddParameter("@jobId", long.Parse(jobId, CultureInfo.InvariantCulture), DbType.Int64)
+                    .AddParameter("@jobId", longId, DbType.Int64)
                     .AddParameter("@queue", queue, DbType.String));
 
                 _queuesToSignal.Add(queue);
@@ -251,6 +256,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         public override void IncrementCounter(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
+            SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
@@ -263,6 +269,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
         public override void IncrementCounter(string key, TimeSpan expireIn)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
+            SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key, @value, @expireAt)");
@@ -270,12 +277,13 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
             AddCommand(_counterCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
                 .AddParameter("@value", value: +1, DbType.Int32)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime));
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime));
         }
 
         public override void DecrementCounter(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
+            SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
@@ -288,6 +296,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
         public override void DecrementCounter(string key, TimeSpan expireIn)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
+            SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key, @value, @expireAt)");
@@ -295,7 +304,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
             AddCommand(_counterCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
                 .AddParameter("@value", value: -1, DbType.Int32)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime));
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime));
         }
 
         public override void AddToSet(string key, string value)
@@ -307,8 +316,10 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (value == null) throw new ArgumentNullException(nameof(value));
+            SqlServerLimits.EnsureKeyFits(key);
+            SqlServerLimits.EnsureSetValueFits(key, value);
 
-            var query = _storage.GetQueryFromTemplate(_storage.Options.UseIgnoreDupKeyOption
+            var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
                 ? static schemaName => $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, @score);
 if @@ROWCOUNT = 0 update [{schemaName}].[Set] set Score = @score where [Key] = @key and Value = @value;"
 
@@ -330,6 +341,9 @@ when not matched then insert ([Key], Value, Score) values (Source.[Key], Source.
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (value == null) throw new ArgumentNullException(nameof(value));
 
+            // The value parameter is sized to the column, so a longer value would be cut and match another one
+            SqlServerLimits.EnsureSetValueFits(key, value);
+
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and Value = @value");
 
@@ -343,11 +357,20 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and 
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (value == null) throw new ArgumentNullException(nameof(value));
+            SqlServerLimits.EnsureKeyFits(key);
 
+            // The new row takes the expiration of the list, so an item added to a list that expires expires with
+            // it, as ExpireList only updates the rows that exist at that moment. ExpireList and PersistList set every
+            // row alike and new rows copy it, so the newest row tells the list's expiration: reading only that row
+            // (one seek on [Key], [Id]) keeps the cost and the locks independent of the list's size, where reading
+            // every row escalated to an exclusive lock on the whole table for long lists. Its xlock still
+            // serializes concurrent inserts to the same list
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-select [Key] from [{schemaName}].List with (xlock, forceseek)
-where [Key] = @key;
-insert into [{schemaName}].List ([Key], Value) values (@key, @value);");
+insert into [{schemaName}].List ([Key], Value, ExpireAt)
+select @key, @value, (
+    select top (1) ExpireAt from [{schemaName}].List with (xlock, forceseek)
+    where [Key] = @key
+    order by Id desc);");
 
             AcquireListLock(key);
             AddCommand(_listCommands, key, batch => batch.Create(query)
@@ -392,8 +415,16 @@ delete from cte where row_num not between @start and @end");
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
+            SqlServerLimits.EnsureKeyFits(key);
 
-            var query = _storage.GetQueryFromTemplate(_storage.Options.UseIgnoreDupKeyOption
+            // Checked before any command is queued, so a bad field doesn't leave half of the fields behind
+            var pairs = new List<KeyValuePair<string, string>>(keyValuePairs);
+            foreach (var pair in pairs)
+            {
+                SqlServerLimits.EnsureHashFieldFits(key, pair.Key);
+            }
+
+            var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
                 ? static schemaName => $@"insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
 if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;"
 
@@ -405,7 +436,7 @@ when not matched then insert ([Key], Field, Value) values (Source.[Key], Source.
 
             AcquireHashLock(key);
 
-            foreach (var pair in keyValuePairs)
+            foreach (var pair in pairs)
             {
                 AddCommand(_hashCommands, key, batch => batch.Create(query)
                     .AddParameter("@key", key, DbType.String)
@@ -430,6 +461,13 @@ $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (items == null) throw new ArgumentNullException(nameof(items));
+            SqlServerLimits.EnsureKeyFits(key);
+
+            foreach (var item in items)
+            {
+                if (item == null) throw new ArgumentException("The items can't contain null.", nameof(items));
+                SqlServerLimits.EnsureSetValueFits(key, item, nameof(items));
+            }
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, 0.0)");
@@ -465,7 +503,7 @@ update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key");
             AcquireHashLock(key);
             AddCommand(_hashCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime));
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime));
         }
 
         public override void ExpireSet(string key, TimeSpan expireIn)
@@ -478,7 +516,7 @@ update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key");
             AcquireSetLock(key);
             AddCommand(_setCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime));
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime));
         }
 
         public override void ExpireList(string key, TimeSpan expireIn)
@@ -491,7 +529,7 @@ update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key");
             AcquireListLock(key);
             AddCommand(_listCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
-                .AddParameter("@expireAt", DateTime.UtcNow.Add(expireIn), DbType.DateTime));
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime));
         }
 
         public override void PersistHash(string key)
@@ -580,22 +618,22 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
 
         private void AcquireListLock(string key)
         {
-            AcquireLock(_storage.Options.DisableGlobalLocks ? $"List:{key}" : "List");
+            AcquireLock(_storage.DisableGlobalLocks ? $"List:{key}" : "List");
         }
 
         private void AcquireSetLock(string key)
         {
-            AcquireLock(_storage.Options.DisableGlobalLocks ? $"Set:{key}" : "Set");
+            AcquireLock(_storage.DisableGlobalLocks ? $"Set:{key}" : "Set");
         }
 
         private void AcquireHashLock(string key)
         {
-            AcquireLock(_storage.Options.DisableGlobalLocks ? $"Hash:{key}" : "Hash");
+            AcquireLock(_storage.DisableGlobalLocks ? $"Hash:{key}" : "Hash");
         }
 
         private void AcquireLock(string resource)
         {
-            if (!_storage.Options.DisableGlobalLocks || _storage.Options.UseFineGrainedLocks)
+            if (!_storage.DisableGlobalLocks || _storage.Options.UseFineGrainedLocks)
             {
                 _lockedResources.Add($"{_storage.SchemaName}:{resource}:Lock");
             }

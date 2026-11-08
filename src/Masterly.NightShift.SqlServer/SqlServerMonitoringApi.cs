@@ -294,6 +294,20 @@ namespace Masterly.NightShift.SqlServer
 
         public override IList<QueueWithTopEnqueuedJobsDto> Queues()
         {
+            return GetQueues(withFirstJobs: true);
+        }
+
+        /// <summary>
+        /// The queues with their lengths and fetched counts, without their first jobs: one query per queue
+        /// instead of three, for the health report and the metrics.
+        /// </summary>
+        public override IList<QueueWithTopEnqueuedJobsDto> QueueCounts()
+        {
+            return GetQueues(withFirstJobs: false);
+        }
+
+        private List<QueueWithTopEnqueuedJobsDto> GetQueues(bool withFirstJobs)
+        {
             var tuples = _storage.QueueProviders
                 .Select(static x => x.GetJobQueueMonitoringApi())
                 .SelectMany(static x => x.GetQueues(), static (monitoring, queue) => new { Monitoring = monitoring, Queue = queue })
@@ -305,11 +319,12 @@ namespace Masterly.NightShift.SqlServer
             // ReSharper disable once LoopCanBeConvertedToQuery
             foreach (var tuple in tuples)
             {
-                var enqueuedJobIds = tuple.Monitoring.GetEnqueuedJobIds(tuple.Queue, 0, 5);
+                var enqueuedJobIds = withFirstJobs ? tuple.Monitoring.GetEnqueuedJobIds(tuple.Queue, 0, 5) : null;
                 var counters = tuple.Monitoring.GetEnqueuedAndFetchedCount(tuple.Queue);
 
-                var firstJobs = UseConnection(connection => 
-                    EnqueuedJobs(connection, enqueuedJobIds.ToArray()));
+                var firstJobs = enqueuedJobIds != null
+                    ? UseConnection(connection => EnqueuedJobs(connection, enqueuedJobIds.ToArray()))
+                    : new JobList<EnqueuedJobDto>(Enumerable.Empty<KeyValuePair<string, EnqueuedJobDto>>());
 
                 result.Add(new QueueWithTopEnqueuedJobsDto
                 {
@@ -365,6 +380,13 @@ namespace Masterly.NightShift.SqlServer
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
+            // Ids are bigint here, so any other string names no job (as in GetJobData), rather than
+            // failing the conversion in SQL Server
+            if (!long.TryParse(jobId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
+            {
+                return null;
+            }
+
             return UseConnection(connection =>
             {
                 var query = _storage.GetQueryFromTemplate(static schemaName => $@"
@@ -372,7 +394,7 @@ select * from [{schemaName}].Job with (nolock, forceseek) where Id = @id
 select * from [{schemaName}].JobParameter with (nolock, forceseek) where JobId = @id
 select * from [{schemaName}].State with (nolock, forceseek) where JobId = @id order by Id desc");
 
-                using (var multi = connection.QueryMultiple(query, new { id = jobId }, commandTimeout: _storage.CommandTimeout))
+                using (var multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: _storage.CommandTimeout))
                 {
                     var job = multi.ReadSingleOrDefault<SqlJob>();
                     if (job == null) return null;

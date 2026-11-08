@@ -95,6 +95,39 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Fact, CleanDatabase]
+        public void QueueCounts_ReturnsTheQueuesWithTheirCounts_LikeQueues_ButWithoutTheirFirstJobs()
+        {
+            SimpleEnqueueJob("critical");
+            SimpleEnqueueJob("critical");
+            SimpleEnqueueJob("default");
+            var monitoring = CreateMonitoringApi();
+
+            var queues = monitoring.Queues();
+            var counts = monitoring.QueueCounts();
+
+            Assert.Equal(queues.Select(q => (q.Name, q.Length, q.Fetched)), counts.Select(q => (q.Name, q.Length, q.Fetched)));
+            Assert.Equal(new[] { ("critical", 2L), ("default", 1L) }, counts.Select(q => (q.Name, q.Length)));
+            Assert.All(counts, q => Assert.Empty(q.FirstJobs));
+            Assert.NotEmpty(queues[0].FirstJobs);
+        }
+
+        [Fact, CleanDatabase]
+        public void QueueCounts_ReturnsEmptyCollection_WhenThereAreNoQueues()
+        {
+            var monitoring = CreateMonitoringApi();
+
+            Assert.Empty(monitoring.QueueCounts());
+        }
+
+        [Fact, CleanDatabase]
+        public void Storage_AdvertisesTheQueueCountsFeature()
+        {
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(true));
+
+            Assert.True(storage.HasFeature(JobStorageFeatures.Monitoring.QueueCounts));
+        }
+
+        [Fact, CleanDatabase]
         public void Queues_IsAbleToHandle_JobIdWithoutCorrespondingBackgroundJobEntry()
         {
             // Arrange
@@ -338,6 +371,17 @@ namespace Masterly.NightShift.SqlServer.Tests
             var monitoring = CreateMonitoringApi();
 
             var result = monitoring.JobDetails("1412");
+
+            Assert.Null(result);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData("abc"), InlineData(""), InlineData("1.5"), InlineData("99999999999999999999")]
+        public void JobDetails_ReturnsNull_WhenJobIdIsNotABigint(string jobId)
+        {
+            var monitoring = CreateMonitoringApi();
+
+            var result = monitoring.JobDetails(jobId);
 
             Assert.Null(result);
         }

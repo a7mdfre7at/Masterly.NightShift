@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>SQL Server storage for Masterly.NightShift background jobs.</Description>
     <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
@@ -15,18 +15,19 @@
   </ItemGroup>
   
   <ItemGroup>
-    <EmbeddedResource Include="Install.sql" />
+    <!-- The installer loads the script by this name, so it doesn't follow the folder -->
+    <EmbeddedResource Include="Schema\Install.sql" LogicalName="Masterly.NightShift.SqlServer.Install.sql" />
   </ItemGroup>
   <ItemGroup>
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="DefaultInstall.sql">
+    <None Update="Schema\DefaultInstall.sql">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
       <DependentUpon>DefaultInstall.tt</DependentUpon>
     </None>
-    <None Update="DefaultInstall.tt">
+    <None Update="Schema\DefaultInstall.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>DefaultInstall.sql</LastGenOutput>
     </None>

@@ -17,6 +17,8 @@ namespace Masterly.NightShift.SqlServer.Tests
                 "Masterly.NightShift.SqlServer.Tests.net10_0"
 #elif NET8_0
                 "Masterly.NightShift.SqlServer.Tests.net8_0"
+#elif NET48
+                "Masterly.NightShift.SqlServer.Tests.net48"
 #else
                 "Masterly.NightShift.SqlServer.Tests"
 #endif
@@ -36,7 +38,12 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         public static string GetConnectionString()
         {
-            return String.Format(GetConnectionStringTemplate(), GetDatabaseName());
+            return GetConnectionString(GetDatabaseName());
+        }
+
+        public static string GetConnectionString(string databaseName)
+        {
+            return String.Format(GetConnectionStringTemplate(), databaseName);
         }
 
         private static string GetConnectionStringTemplate()

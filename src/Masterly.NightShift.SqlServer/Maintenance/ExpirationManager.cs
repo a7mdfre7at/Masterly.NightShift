@@ -14,6 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
@@ -29,16 +30,14 @@ namespace Masterly.NightShift.SqlServer
     internal sealed class ExpirationManager : IServerComponent, IBackgroundProcess
 #pragma warning restore 618
     {
-        private const string DistributedLockKey = "locks:expirationmanager";
+        // Prefixed with the schema name, like the other locks, so that storages with different schemas in one
+        // database clean up independently
+        private const string DistributedLockResource = "locks:expirationmanager";
         private static readonly TimeSpan DefaultLockTimeout = TimeSpan.FromMinutes(5);
-        
-        // This value should be high enough to optimize the deletion as much, as possible,
-        // reducing the number of queries. But low enough to cause lock escalations (it
-        // appears, when ~5000 locks were taken, but this number is a subject of version).
-        // Note, that lock escalation may also happen during the cascade deletions for
-        // State (3-5 rows/job usually) and JobParameters (2-3 rows/job usually) tables.
-        private const int DefaultNumberOfRecordsInSinglePass = 1000;
-        
+
+        // The state cleanup seeks on the [State].[CreatedAt] index, which comes with this schema version
+        private const int StateCleanupSchemaVersion = 9;
+
         private static readonly string[] ProcessedTables =
         {
             "AggregatedCounter",
@@ -52,6 +51,7 @@ namespace Masterly.NightShift.SqlServer
         private readonly SqlServerStorage _storage;
         private readonly TimeSpan _stateExpirationTimeout;
         private readonly TimeSpan _checkInterval;
+        private int _oldSchemaWarningLogged;
 
         public ExpirationManager(SqlServerStorage storage, TimeSpan stateExpirationTimeout, TimeSpan checkInterval)
         {
@@ -81,11 +81,7 @@ namespace Masterly.NightShift.SqlServer
         
         private void ExecuteCore(SqlServerStorage storage, CancellationToken cancellationToken)
         {
-            var numberOfRecordsInSinglePass = storage.Options.DeleteExpiredBatchSize;
-            if (numberOfRecordsInSinglePass <= 0 || numberOfRecordsInSinglePass > 100_000)
-            {
-                numberOfRecordsInSinglePass = DefaultNumberOfRecordsInSinglePass;
-            }
+            var numberOfRecordsInSinglePass = storage.EffectiveDeleteBatchSize;
 
             foreach (var table in ProcessedTables)
             {
@@ -99,7 +95,7 @@ namespace Masterly.NightShift.SqlServer
                 }
             }
 
-            if (_stateExpirationTimeout > TimeSpan.Zero)
+            if (_stateExpirationTimeout > TimeSpan.Zero && CanCleanUpStates(storage))
             {
                 try
                 {
@@ -119,6 +115,27 @@ namespace Masterly.NightShift.SqlServer
         public override string ToString()
         {
             return GetType().ToString();
+        }
+
+        // On an older schema the query can't run: SQL Server refuses its index hint (error 8622). When the version
+        // isn't known (auto-detection is off, or the version couldn't be read yet), the cleanup is tried.
+        private bool CanCleanUpStates(SqlServerStorage storage)
+        {
+            var version = storage.DetectedSchemaVersion;
+            if (!(version < StateCleanupSchemaVersion)) return true;
+
+            if (Interlocked.Exchange(ref _oldSchemaWarningLogged, 1) == 0)
+            {
+                _logger.Warn(
+                    $"InactiveStateExpirationTimeout is set, but the schema is at version {version}: deleting old state history needs the [State].[CreatedAt] index of schema version {StateCleanupSchemaVersion}. The state history isn't cleaned up until the schema is upgraded (PrepareSchemaIfNecessary, or the install script).");
+            }
+
+            return false;
+        }
+
+        internal static string GetDistributedLockKey(SqlServerStorage storage)
+        {
+            return $"{storage.SchemaName}:{DistributedLockResource}";
         }
 
         private void CleanupTable(SqlServerStorage storage, string query, string table, int numberOfRecordsInSinglePass, CancellationToken cancellationToken, Action<DbCommand> additionalActions = null)
@@ -147,29 +164,31 @@ namespace Masterly.NightShift.SqlServer
 
         private T UseConnectionDistributedLock<T>(SqlServerStorage storage, Func<DbConnection, T> action)
         {
+            var lockKey = GetDistributedLockKey(storage);
+
             try
             {
                 return storage.UseConnection(null, static (_, connection, ctx) =>
                 {
-                    SqlServerDistributedLock.Acquire(connection, DistributedLockKey, DefaultLockTimeout);
+                    SqlServerDistributedLock.Acquire(connection, ctx.Key, DefaultLockTimeout);
 
                     try
                     {
-                        return ctx(connection);
+                        return ctx.Value(connection);
                     }
                     finally
                     {
-                        SqlServerDistributedLock.Release(connection, DistributedLockKey);
+                        SqlServerDistributedLock.Release(connection, ctx.Key);
                     }
-                }, action);
+                }, new KeyValuePair<string, Func<DbConnection, T>>(lockKey, action));
             }
-            catch (DistributedLockTimeoutException e) when (e.Resource == DistributedLockKey)
+            catch (DistributedLockTimeoutException e) when (e.Resource == lockKey)
             {
                 // DistributedLockTimeoutException here doesn't mean that outdated records weren't removed.
                 // It just means another Masterly.NightShift server did this work.
                 _logger.Log(
                     LogLevel.Debug,
-                    () => $@"An exception was thrown during acquiring distributed lock on the {DistributedLockKey} resource within {DefaultLockTimeout.TotalSeconds} seconds. Outdated records were not removed.
+                    () => $@"An exception was thrown during acquiring distributed lock on the {lockKey} resource within {DefaultLockTimeout.TotalSeconds} seconds. Outdated records were not removed.
 It will be retried in {_checkInterval.TotalSeconds} seconds.",
                     e);
                 return default;

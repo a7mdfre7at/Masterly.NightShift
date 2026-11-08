@@ -88,6 +88,104 @@ select scope_identity() as Id";
 
         [Theory, CleanDatabase]
         [MemberData(nameof(GetConfiguration))]
+        public void ExpireJob_KeepsTheExpirationOnTheLastDayTheColumnHolds_WhenExpireInIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            var arrangeSql = $@"
+insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
+values ('', '', getutcdate())
+select scope_identity() as Id";
+
+            UseConnection(sql =>
+            {
+                var jobId = sql.Query(arrangeSql).Single().Id.ToString();
+
+                Commit(x => x.ExpireJob(jobId, TimeSpan.MaxValue), useMicrosoftDataSqlClient, useBatching);
+
+                var job = GetTestJob(sql, jobId);
+                Assert.Equal(new DateTime(9999, 12, 31), job.ExpireAt);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void ExpireCollectionsAndCounters_KeepTheExpirationOnTheLastDayTheColumnHolds_WhenExpireInIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                Commit(x =>
+                {
+                    x.AddToSet("my-set", "value");
+                    x.InsertToList("my-list", "value");
+                    x.SetRangeInHash("my-hash", new Dictionary<string, string> { { "field", "value" } });
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                Commit(x =>
+                {
+                    x.ExpireSet("my-set", TimeSpan.MaxValue);
+                    x.ExpireList("my-list", TimeSpan.MaxValue);
+                    x.ExpireHash("my-hash", TimeSpan.MaxValue);
+                    x.IncrementCounter("my-counter", TimeSpan.MaxValue);
+                    x.DecrementCounter("my-counter", TimeSpan.MaxValue);
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                var expireAt = sql.Query<DateTime>($@"
+select ExpireAt from [{Constants.DefaultSchema}].[Set] union all
+select ExpireAt from [{Constants.DefaultSchema}].List union all
+select ExpireAt from [{Constants.DefaultSchema}].Hash union all
+select ExpireAt from [{Constants.DefaultSchema}].Counter").ToArray();
+
+                Assert.Equal(Enumerable.Repeat(new DateTime(9999, 12, 31), 5), expireAt);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void JobWrites_DoNothing_WhenTheJobIdIsNotANumber(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            var state = new Mock<IState>();
+            state.Setup(x => x.Name).Returns("State");
+            state.Setup(x => x.SerializeData()).Returns(new Dictionary<string, string>());
+
+            UseConnection(sql =>
+            {
+                Commit(x =>
+                {
+                    x.ExpireJob("not-a-number", TimeSpan.FromDays(1));
+                    x.PersistJob("not-a-number");
+                    x.SetJobState("not-a-number", state.Object);
+                    x.AddJobState("not-a-number", state.Object);
+                    x.AddToQueue("default", "not-a-number");
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].State"));
+                Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue"));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void InsertToList_TakesTheExpiration_OfTheNewestItem_OfALongList(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            // Long enough that reading every item would escalate to a lock on the whole table
+            var arrangeSql = $@"
+;with n as (select top (6000) row_number() over (order by (select null)) i from sys.all_objects a cross join sys.all_objects b)
+insert into [{Constants.DefaultSchema}].List ([Key], Value, ExpireAt)
+select N'long-list', cast(i as nvarchar(20)), dateadd(day, 1, '2030-01-01') from n;";
+
+            UseConnection(sql =>
+            {
+                sql.Execute(arrangeSql);
+
+                Commit(x => x.InsertToList("long-list", "new"), useMicrosoftDataSqlClient, useBatching);
+
+                var expireAt = sql.QuerySingle<DateTime?>(
+                    $"select ExpireAt from [{Constants.DefaultSchema}].List where [Key] = N'long-list' and Value = N'new'");
+                Assert.Equal(new DateTime(2030, 1, 2), expireAt);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
         public void PersistJob_ThrowsAnException_WhenJobIdIsNull(bool useBatching, bool useMicrosoftDataSqlClient)
         {
             UseConnection(sql =>
@@ -120,6 +218,40 @@ select scope_identity() as Id";
 
                 var anotherJob = GetTestJob(sql, anotherJobId);
                 Assert.NotNull(anotherJob.ExpireAt);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void SetJobState_ThrowsAnException_InsteadOfTruncating_WhenTheStateNameIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var state = new Mock<IState>();
+                state.Setup(x => x.Name).Returns(new string('s', 21));
+
+                var exception = Assert.Throws<ArgumentException>(
+                    () => Commit(x => x.SetJobState("1", state.Object), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Equal("name", exception.ParamName);
+                Assert.Contains("at most 20 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].[State]"));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void AddJobState_ThrowsAnException_InsteadOfTruncating_WhenTheStateNameIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var state = new Mock<IState>();
+                state.Setup(x => x.Name).Returns(new string('s', 21));
+
+                var exception = Assert.Throws<ArgumentException>(
+                    () => Commit(x => x.AddJobState("1", state.Object), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Contains("at most 20 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -368,9 +500,10 @@ select scope_identity() as Id";
         [MemberData(nameof(GetConfiguration))]
         public void AddToQueue_EnqueuesAJobDirectly_WhenDefaultQueueProviderIsUsed(bool useBatching, bool useMicrosoftDataSqlClient)
         {
-            // We are relying on the fact that SqlServerJobQueue.Enqueue method will throw with a negative
-            // timeout. If we don't see this exception, and if the record is inserted, then everything is fine.
-            var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, CommandTimeout = TimeSpan.FromSeconds(-5) };
+            // We are relying on the fact that SqlServerJobQueue.Enqueue method will throw, because its storage
+            // points to a schema that doesn't exist. If we don't see this exception, and if the record is
+            // inserted, then everything is fine.
+            var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, SchemaName = "NonExistingSchema" };
             _queueProviders.Add(
                 new SqlServerJobQueueProvider(new Mock<SqlServerStorage>("connection=false;", options).Object, options),
                 new [] { "default" });
@@ -393,21 +526,22 @@ select scope_identity() as Id";
             UseConnection(connection =>
             {
                 var queueName = "some-really-long-queue-name-that-should-cause-an-exception-to-be-thrown-and-not-ignored";
-                // We are relying on the fact that SqlServerJobQueue.Enqueue method will throw with a negative
-                // timeout. If we don't see this exception, and if the record is inserted, then everything is fine.
-                var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, CommandTimeout = TimeSpan.FromSeconds(-5) };
+                // We are relying on the fact that SqlServerJobQueue.Enqueue method would fail with another error,
+                // because its storage points to a schema that doesn't exist. Seeing the length check of the direct
+                // insert means the record would have been inserted directly.
+                var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, SchemaName = "NonExistingSchema" };
                 _queueProviders.Add(
                     new SqlServerJobQueueProvider(new Mock<SqlServerStorage>("connection=false;", options).Object, options),
                     new [] { queueName });
 
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                 {
                     Commit(x => x.AddToQueue(queueName, "1"), useMicrosoftDataSqlClient, useBatching);
                 });
 
                 var record = connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue").SingleOrDefault();
                 Assert.Null(record);
-                Assert.StartsWith("String or binary data would be truncated", exception.Message);
+                Assert.Contains("at most 50 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -437,10 +571,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() => 
+                var exception = Assert.Throws<ArgumentException>(() => 
                     Commit(x => x.IncrementCounter(TooLongKey), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -479,10 +614,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.IncrementCounter(TooLongKey, TimeSpan.FromHours(1)), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -544,10 +680,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.DecrementCounter(TooLongKey), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -586,10 +723,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.DecrementCounter(TooLongKey, TimeSpan.FromHours(1)), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -664,10 +802,59 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.AddToSet(TooLongKey, "value"), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void AddToSet_ThrowsAnException_InsteadOfTruncating_WhenValueIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var exception = Assert.Throws<ArgumentException>(() =>
+                    Commit(x => x.AddToSet("my-set", new string('v', 257)), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Equal("value", exception.ParamName);
+                Assert.Contains("at most 256 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].[Set]"));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void AddToSet_StoresAValue_OfExactly256Characters(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var value = new string('v', 256);
+
+                Commit(x => x.AddToSet(TooLongTruncatedKey, value), useMicrosoftDataSqlClient, useBatching);
+
+                var record = sql.Query($"select * from [{Constants.DefaultSchema}].[Set]").Single();
+                Assert.Equal(TooLongTruncatedKey, record.Key);
+                Assert.Equal(value, record.Value);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void RemoveFromSet_ThrowsAnException_InsteadOfTruncating_WhenValueIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var storedValue = new string('v', 256);
+                Commit(x => x.AddToSet("my-set", storedValue), useMicrosoftDataSqlClient, useBatching);
+
+                var exception = Assert.Throws<ArgumentException>(() =>
+                    Commit(x => x.RemoveFromSet("my-set", storedValue + "-and-more"), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Equal("value", exception.ParamName);
+                Assert.Equal(storedValue, sql.Query<string>($"select [Value] from [{Constants.DefaultSchema}].[Set]").Single());
             }, useMicrosoftDataSqlClient);
         }
 
@@ -755,10 +942,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.AddToSet(TooLongKey, "value", 1.2D), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -1014,10 +1202,11 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.InsertToList(TooLongKey, "value"), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -1051,6 +1240,68 @@ select scope_identity() as Id";
                 var recordCount = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].List").Single();
 
                 Assert.Equal(2, recordCount);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void InsertToList_TakesTheExpiration_OfAnExpiringList(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                Commit(x =>
+                {
+                    x.InsertToList("my-key", "1");
+                    x.ExpireList("my-key", TimeSpan.FromHours(1));
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                Commit(x => x.InsertToList("my-key", "2"), useMicrosoftDataSqlClient, useBatching);
+
+                var records = sql.Query($"select [Value], [ExpireAt] from [{Constants.DefaultSchema}].List where [Key] = N'my-key'")
+                    .ToDictionary(x => (string)x.Value, x => (DateTime?)x.ExpireAt);
+
+                Assert.NotNull(records["1"]);
+                Assert.Equal(records["1"], records["2"]);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void InsertToList_LeavesTheExpirationEmpty_ForAPersistentOrNewList(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                Commit(x =>
+                {
+                    x.InsertToList("expiring", "1");
+                    x.ExpireList("expiring", TimeSpan.FromHours(1));
+                    x.InsertToList("persistent", "1");
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                Commit(x =>
+                {
+                    x.InsertToList("persistent", "2");
+                    x.InsertToList("new", "1");
+                }, useMicrosoftDataSqlClient, useBatching);
+
+                var expiring = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].List where [ExpireAt] is not null").Single();
+                var keys = sql.Query<string>($"select [Key] from [{Constants.DefaultSchema}].List where [ExpireAt] is null").ToList();
+
+                Assert.Equal(1, expiring);
+                Assert.Equal(new[] { "new", "persistent", "persistent" }, keys.OrderBy(x => x, StringComparer.Ordinal));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void InsertToList_AcceptsAKey_OfExactly100Characters(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                Commit(x => x.InsertToList(TooLongTruncatedKey, "value"), useMicrosoftDataSqlClient, useBatching);
+
+                var key = sql.Query<string>($"select [Key] from [{Constants.DefaultSchema}].List").Single();
+                Assert.Equal(TooLongTruncatedKey, key);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -1319,12 +1570,46 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.SetRangeInHash(
                         TooLongKey,
                         new Dictionary<string, string> { { "field", "value" } }), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void SetRangeInHash_ThrowsAnException_InsteadOfTruncating_WhenAFieldIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var exception = Assert.Throws<ArgumentException>(() =>
+                    Commit(x => x.SetRangeInHash(
+                        "some-hash",
+                        new Dictionary<string, string> { { "short", "value" }, { new string('f', 101), "value" } }), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Equal("field", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].Hash"));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void SetRangeInHash_StoresAField_OfExactly100Characters(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var field = new string('f', 100);
+
+                Commit(x => x.SetRangeInHash(TooLongTruncatedKey, new Dictionary<string, string> { { field, "value" } }), useMicrosoftDataSqlClient, useBatching);
+
+                var record = sql.Query($"select * from [{Constants.DefaultSchema}].Hash").Single();
+                Assert.Equal(TooLongTruncatedKey, record.Key);
+                Assert.Equal(field, record.Field);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -1538,12 +1823,13 @@ select scope_identity() as Id";
         {
             UseConnection(sql =>
             {
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                     Commit(x => x.AddRangeToSet(
                         TooLongKey,
                         new List<string> { "field" }), useMicrosoftDataSqlClient, useBatching));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -1557,6 +1843,21 @@ select scope_identity() as Id";
                     () => Commit(x => x.AddRangeToSet("my-set", null), useMicrosoftDataSqlClient, useBatching));
 
                 Assert.Equal("items", exception.ParamName);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [MemberData(nameof(GetConfiguration))]
+        public void AddRangeToSet_ThrowsAnException_InsteadOfTruncating_WhenAnItemIsTooLong(bool useBatching, bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(sql =>
+            {
+                var exception = Assert.Throws<ArgumentException>(
+                    () => Commit(x => x.AddRangeToSet("my-set", new List<string> { "1", new string('v', 257) }), useMicrosoftDataSqlClient, useBatching));
+
+                Assert.Equal("items", exception.ParamName);
+                Assert.Contains("at most 256 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].[Set]"));
             }, useMicrosoftDataSqlClient);
         }
 

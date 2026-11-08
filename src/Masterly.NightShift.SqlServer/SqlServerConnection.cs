@@ -95,6 +95,11 @@ namespace Masterly.NightShift.SqlServer
             if (job == null) throw new ArgumentNullException(nameof(job));
             if (parameters == null) throw new ArgumentNullException(nameof(parameters));
 
+            foreach (var parameter in parameters)
+            {
+                SqlServerLimits.EnsureJobParameterNameFits(parameter.Key);
+            }
+
             var queryString = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt)
 output inserted.Id
@@ -107,7 +112,7 @@ values (@invocationData, @arguments, @createdAt, @expireAt)");
                 .AddParameter("@invocationData", payload, DbType.String, size: -1)
                 .AddParameter("@arguments", invocationData.Arguments, DbType.String, size: -1)
                 .AddParameter("@createdAt", createdAt, DbType.DateTime)
-                .AddParameter("@expireAt", createdAt.Add(expireIn), DbType.DateTime);
+                .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(createdAt, expireIn), DbType.DateTime);
 
             Action<DbCommand> additionalParameters = null;
 
@@ -231,7 +236,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            if (!long.TryParse(id, out var parsedId))
+            if (!TryParseJobId(id, out var parsedId))
             {
                 return null;
             }
@@ -293,7 +298,7 @@ select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
-            if (!long.TryParse(jobId, out var parsedId))
+            if (!TryParseJobId(jobId, out var parsedId))
             {
                 return null;
             }
@@ -329,6 +334,8 @@ where j.Id = @jobId");
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
+            SqlServerLimits.EnsureJobParameterNameFits(name);
+            if (!TryParseJobId(id, out var parsedId)) return;
 
             // First updated is required for older schema versions (5 and below), where
             // [IX_HangFire_JobParameter_JobIdAndName] index wasn't declared as unique,
@@ -357,7 +364,7 @@ end catch");
                     query,
                     new { jobId = triple.Item1, name = triple.Item2, value = triple.Item3 },
                     commandTimeout: storage.CommandTimeout);
-            }, CreateTriple(long.Parse(id, CultureInfo.InvariantCulture), name, value));
+            }, CreateTriple(parsedId, name, value));
         }
 
         public override string GetJobParameter(string id, string name)
@@ -365,7 +372,7 @@ end catch");
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            if (!long.TryParse(id, out var parsedId))
+            if (!TryParseJobId(id, out var parsedId))
             {
                 return null;
             }
@@ -425,6 +432,13 @@ $@"select top (@count) Value from [{schemaName}].[Set] with (forceseek) where [K
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
+            SqlServerLimits.EnsureKeyFits(key);
+
+            var pairs = new List<KeyValuePair<string, string>>(keyValuePairs);
+            foreach (var pair in pairs)
+            {
+                SqlServerLimits.EnsureHashFieldFits(key, pair.Key);
+            }
 
             _storage.UseTransaction(_dedicatedConnection, static (storage, connection, transaction, pair) =>
             {
@@ -441,11 +455,11 @@ begin catch
   update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
 end catch");
 
-                var lockResourceKey = $"{storage.SchemaName}:Hash:Lock";
+                var lockResourceKey = SqlServerLimits.GetLockResource($"{storage.SchemaName}:Hash:Lock");
 
                 using (var commandBatch = new SqlCommandBatch(connection, transaction, preferBatching: storage.CommandBatchMaxTimeout.HasValue))
                 {
-                    if (!storage.Options.DisableGlobalLocks)
+                    if (!storage.DisableGlobalLocks)
                     {
                         var command = connection
                             .Create("SET XACT_ABORT ON;exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive', @LockOwner=N'Transaction', @LockTimeout=-1;")
@@ -462,7 +476,7 @@ end catch");
                         commandBatch.Append(command);
                     }
 
-                    if (!storage.Options.DisableGlobalLocks)
+                    if (!storage.DisableGlobalLocks)
                     {
                         var command = connection
                             .Create("exec sp_releaseapplock @Resource=@resource, @LockOwner=N'Transaction';")
@@ -475,7 +489,7 @@ end catch");
 
                     commandBatch.ExecuteNonQuery();
                 }
-            }, new KeyValuePair<string, IEnumerable<KeyValuePair<string, string>>>(key, keyValuePairs));
+            }, new KeyValuePair<string, IEnumerable<KeyValuePair<string, string>>>(key, pairs));
         }
 
         public override Dictionary<string, string> GetAllEntriesFromHash(string key)
@@ -501,6 +515,9 @@ $@"select Field, Value from [{schemaName}].Hash with (forceseek) where [Key] = @
         {
             if (serverId == null) throw new ArgumentNullException(nameof(serverId));
             if (context == null) throw new ArgumentNullException(nameof(context));
+
+            // Heartbeat and RemoveServer only look the id up: a longer one can't be stored, so they find nothing
+            SqlServerLimits.EnsureServerIdFits(serverId);
 
             var data = new ServerData
             {
@@ -616,18 +633,47 @@ $@"select count(*) from (
                 commandTimeout: storage.CommandTimeout) == 1, new KeyValuePair<string, string>(key, value)); 
         }
 
+        // Ranges of GetRangeFromSet ending past this row may be numbered from the end of the set
+        private const int ReadFromEndThreshold = 1000;
+
         public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, triple) =>
             {
+                // Numbering the rows up to a range near the end of a long set reads the whole set (the tag page
+                // reads the newest jobs that way), so a range closer to the end is numbered from the end instead.
+                // Counting costs a read of the key's index rows, so it is only done for ranges that end far in, and
+                // stops at twice the range's end: in a set at least that long, the range is nearer the start, and
+                // numbering from the start reads fewer rows than counting further would.
+                // Value breaks ties in Score, so both directions number the rows in the same order
                 var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select [Value] from (
-	select [Value], row_number() over (order by [Score] ASC) as row_num
-	from [{schemaName}].[Set] with (forceseek)
-	where [Key] = @key 
-) as s where s.row_num between @startingFrom and @endingAt");
+$@"set nocount on;
+declare @total bigint = null;
+declare @countLimit bigint = 2 * cast(@endingAt as bigint);
+if @endingAt > {ReadFromEndThreshold}
+begin
+    select @total = count_big(*) from (
+        select top (@countLimit) 1 as N from [{schemaName}].[Set] with (forceseek) where [Key] = @key
+    ) as c;
+    if @total >= @countLimit set @total = null;
+end
+
+if @total is not null and @total - @startingFrom + 1 < @endingAt
+    select [Value] from (
+        select [Value], row_number() over (order by [Score] desc, [Value] desc) as row_num
+        from [{schemaName}].[Set] with (forceseek)
+        where [Key] = @key
+    ) as s where s.row_num between @total - @endingAt + 1 and @total - @startingFrom + 1
+    order by s.row_num desc;
+else
+    select [Value] from (
+        select [Value], row_number() over (order by [Score] asc, [Value] asc) as row_num
+        from [{schemaName}].[Set] with (forceseek)
+        where [Key] = @key
+    ) as s where s.row_num between @startingFrom and @endingAt
+    order by s.row_num;");
 
                 return connection
                     .Query<string>(query, new { key = triple.Item1, startingFrom = triple.Item2 + 1, endingAt = triple.Item3 + 1 },
@@ -792,6 +838,15 @@ order by [Id] desc");
         }
 
         private DbConnection _dedicatedConnection;
+
+        /// <summary>
+        /// Parses a job id. Ids of this storage are numbers, so an id that isn't one names no job: reads return
+        /// <c>null</c> for it and writes do nothing, instead of throwing <see cref="FormatException"/>.
+        /// </summary>
+        internal static bool TryParseJobId(string jobId, out long id)
+        {
+            return long.TryParse(jobId, NumberStyles.Integer, CultureInfo.InvariantCulture, out id);
+        }
 
         internal DisposableLock AcquireLock(string resource, TimeSpan timeout)
         {

@@ -72,11 +72,14 @@ namespace Masterly.NightShift.SqlServer
 
         public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
         {
+            SqlServerLimits.EnsureQueueNameFits(queue);
+            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
             using var command = connection.Create(query, timeout: _storage.CommandTimeout);
-            command.AddParameter("@jobId", long.Parse(jobId, CultureInfo.InvariantCulture), DbType.Int64);
+            command.AddParameter("@jobId", longId, DbType.Int64);
             command.AddParameter("@queue", queue, DbType.String);
 
             command.Transaction = transaction;
@@ -177,25 +180,57 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
                 // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
                 using var reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
 
-                SqlServerTimeoutJob result = null;
-
-                do
-                {
-                    while (reader.Read())
-                    {
-                        var id = Convert.ToInt64(reader.GetValue(reader.GetOrdinal("Id")), CultureInfo.InvariantCulture); // Can be Int32 in older schemas
-                        var jobId = Convert.ToInt64(reader.GetValue(reader.GetOrdinal("JobId")), CultureInfo.InvariantCulture); // Can be Int32 in older schemas
-                        var queue = reader.GetString(reader.GetOrdinal("Queue"));
-                        var fetchedAt = reader.GetDateTime(reader.GetOrdinal("FetchedAt"));
-
-                        result = result == null
-                            ? new SqlServerTimeoutJob(storage, id, jobId.ToString(CultureInfo.InvariantCulture), queue, fetchedAt)
-                            : throw new InvalidOperationException("Multiple rows returned from SQL Server, while expecting single or none.");
-                    }
-                } while (reader.NextResult());
-
-                return result;
+                return ReadTimeoutJob(storage, reader);
             }, queues);
+        }
+
+        internal static SqlServerTimeoutJob ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
+        {
+            var row = ReadSingleRow(reader, static current => Tuple.Create(
+                Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+                Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+                current.GetString(current.GetOrdinal("Queue")),
+                current.GetDateTime(current.GetOrdinal("FetchedAt"))));
+
+            // Created only once the reader is consumed: the job starts its heartbeat in the constructor, and a
+            // connection that broke while the rest of the reader was read would leave it tracked forever, its
+            // FetchedAt refreshed, so that no worker could fetch the job until the process restarts
+            return row == null
+                ? null
+                : new SqlServerTimeoutJob(storage, row.Item1, row.Item2.ToString(CultureInfo.InvariantCulture), row.Item3, row.Item4);
+        }
+
+        internal static SqlServerTransactionJob ReadTransactionJob(
+            SqlServerStorage storage,
+            DbConnection connection,
+            DbTransaction transaction,
+            DbDataReader reader)
+        {
+            var row = ReadSingleRow(reader, static current => Tuple.Create(
+                Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+                current.GetString(current.GetOrdinal("Queue"))));
+
+            // Created only once the reader is consumed, so a broken connection can't leave its keep-alive timer running
+            return row == null
+                ? null
+                : new SqlServerTransactionJob(storage, connection, transaction, row.Item1.ToString(CultureInfo.InvariantCulture), row.Item2);
+        }
+
+        private static T ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class
+        {
+            T result = null;
+
+            do
+            {
+                while (reader.Read())
+                {
+                    result = result == null
+                        ? readRow(reader)
+                        : throw new InvalidOperationException("Multiple rows returned from SQL Server, while expecting single or none.");
+                }
+            } while (reader.NextResult());
+
+            return result;
         }
 
         private static DbCommand CreateNonBlockingFetchCommand(
@@ -246,20 +281,7 @@ where Queue in @queues and
                     // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
                     using (var reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
                     {
-                        SqlServerTransactionJob result = null;
-                        
-                        do
-                        {
-                            while (reader.Read())
-                            {
-                                var jobId = Convert.ToInt64(reader.GetValue(reader.GetOrdinal("JobId")), CultureInfo.InvariantCulture); // Can be Int32 in older schemas
-                                var queue = reader.GetString(reader.GetOrdinal("Queue"));
-
-                                result = result == null
-                                    ? new SqlServerTransactionJob(_storage, connection, transaction, jobId.ToString(CultureInfo.InvariantCulture), queue)
-                                    : throw new InvalidOperationException("Multiple rows returned from SQL Server, while expecting single or none.");
-                            }
-                        } while (reader.NextResult());
+                        var result = ReadTransactionJob(_storage, connection, transaction, reader);
 
                         if (result != null)
                         {
@@ -316,16 +338,21 @@ where Queue in @queues and (FetchedAt is null or FetchedAt < DATEADD(second, @ti
                 .AddExpandedParameter("@queues", queues, DbType.String);
         }
 
-        private static WaitHandle[] GetWaitArrayForQueueSignals(SqlServerStorage storage, string[] queues, CancellationTokenExtentions.CancellationEvent cancellationEvent)
+        // WaitHandle.WaitAny takes at most 64 handles, and one of them is the cancellation event. A worker listening
+        // to more queues is woken at once only for the first ones; it finds jobs in the others on its next poll.
+        private const int MaxQueueSignals = 63;
+
+        private static WaitHandle[] GetWaitArrayForQueueSignals(SqlServerStorage storage, string[] queues, CancellationTokenExtensions.CancellationEvent cancellationEvent)
         {
-            var waitList = new List<WaitHandle>(capacity: queues.Length + 1)
+            var signalledQueues = Math.Min(queues.Length, MaxQueueSignals);
+            var waitList = new List<WaitHandle>(capacity: signalledQueues + 1)
             {
                 cancellationEvent.WaitHandle
             };
 
-            foreach (var queue in queues)
+            for (var i = 0; i < signalledQueues; i++)
             {
-                waitList.Add(NewItemInQueueEvents.GetOrAdd(Tuple.Create(storage, queue), static _ => new AutoResetEvent(initialState: false)));
+                waitList.Add(NewItemInQueueEvents.GetOrAdd(Tuple.Create(storage, queues[i]), static _ => new AutoResetEvent(initialState: false)));
             }
 
             return waitList.ToArray();

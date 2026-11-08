@@ -2,9 +2,13 @@
 
 using System;
 using System.Data.Common;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Masterly.NightShift.Annotations;
+using Masterly.NightShift.Storage;
+using Moq;
 using ReferencedDapper::Dapper;
 using Xunit;
 // ReSharper disable ArgumentsStyleLiteral
@@ -617,6 +621,80 @@ values (scope_identity(), @queue)";
             }, useMicrosoftDataSqlClient);
         }
 
+        // WaitHandle.WaitAny takes at most 64 handles. A wait handle per queue plus the cancellation event used to throw
+        // NotSupportedException on every idle poll of a worker listening to 64 queues or more.
+        [Theory, CleanDatabase]
+        [InlineData(false, 64), InlineData(false, 100), InlineData(true, 64), InlineData(true, 100)]
+        public void Dequeue_WaitsUntilCanceled_WhenListeningToMoreThan63Queues(bool slidingInvisibility, int queueCount)
+        {
+            var queue = CreateJobQueue(useMicrosoftDataSqlClient: true, invisibilityTimeout: slidingInvisibility ? DefaultTimeout : (TimeSpan?)null);
+
+            Assert.Throws<OperationCanceledException>(
+                () => queue.Dequeue(CreateQueueNames(queueCount), CreateTimingOutCancellationToken()));
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public async Task Dequeue_FindsAJobInAQueueBeyondThe63rd_OnTheNextPoll(bool slidingInvisibility)
+        {
+            var queue = CreateJobQueue(useMicrosoftDataSqlClient: true, invisibilityTimeout: slidingInvisibility ? DefaultTimeout : (TimeSpan?)null);
+
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                var fetch = Task.Run(() => queue.Dequeue(CreateQueueNames(100), cts.Token));
+
+                // Inserted while the worker waits, into a queue it has no wake-up signal for
+                await Task.Delay(500, TestContext.Current.CancellationToken);
+                UseConnection(
+                    connection => connection.Execute($"insert into [{Constants.DefaultSchema}].JobQueue (JobId, Queue) values (1, N'q99')"),
+                    useMicrosoftDataSqlClient: true);
+
+                using (var fetchedJob = await fetch)
+                {
+                    Assert.Equal("1", fetchedJob.JobId);
+                    Assert.Equal("q99", GetQueue(fetchedJob));
+                }
+            }
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public async Task Dequeue_IsWokenAtOnce_ByAJobEnqueuedInOneOfTheFirst63Queues_WhenListeningToMore(bool slidingInvisibility)
+        {
+            var storage = new SqlServerStorage(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions
+            {
+                PrepareSchemaIfNecessary = false,
+                SlidingInvisibilityTimeout = slidingInvisibility ? DefaultTimeout : (TimeSpan?)null,
+                // Longer than the test may take, so that only the wake-up signal can explain the fetch
+                QueuePollInterval = TimeSpan.FromMinutes(5)
+            });
+            var queue = new SqlServerJobQueue(storage, storage.Options);
+
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                var fetch = Task.Run(() => queue.Dequeue(CreateQueueNames(100), cts.Token));
+
+                // The signal is set only when the worker has registered it
+                while (!SqlServerJobQueue.NewItemInQueueEvents.ContainsKey(Tuple.Create(storage, "q62")))
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+                    await Task.Delay(50, TestContext.Current.CancellationToken);
+                }
+
+                using (var connection = storage.GetConnection())
+                using (var transaction = connection.CreateWriteTransaction())
+                {
+                    transaction.AddToQueue("q62", "1");
+                    transaction.Commit();
+                }
+
+                using (var fetchedJob = await fetch)
+                {
+                    Assert.Equal("q62", GetQueue(fetchedJob));
+                }
+            }
+        }
+
         [Theory, CleanDatabase]
         [InlineData(false), InlineData(true)]
         public void Enqueue_AddsAJobToTheQueue(bool useMicrosoftDataSqlClient)
@@ -647,7 +725,7 @@ values (scope_identity(), @queue)";
                 var queueName = "some-really-long-queue-name-that-should-cause-an-exception-to-be-thrown-and-not-ignored";
                 var queue = CreateJobQueue(useMicrosoftDataSqlClient, invisibilityTimeout: null);
 
-                var exception = Assert.ThrowsAny<DbException>(() =>
+                var exception = Assert.Throws<ArgumentException>(() =>
                 {
                     using (var transaction = connection.BeginTransaction())
                     {
@@ -658,7 +736,7 @@ values (scope_identity(), @queue)";
 
                 var record = connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue").SingleOrDefault();
                 Assert.Null(record);
-                Assert.StartsWith("String or binary data would be truncated", exception.Message);
+                Assert.Contains("at most 50 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
         }
 
@@ -681,6 +759,75 @@ values (scope_identity(), @queue)";
             }, useMicrosoftDataSqlClient);
         }
 
+        [Fact, CleanDatabase]
+        public void ReadTimeoutJob_LeavesNoJobTracked_WhenTheReaderFailsAfterTheRow()
+        {
+            var storage = new SqlServerStorage(
+                ConnectionUtils.GetConnectionString(),
+                new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5) });
+            var reader = CreateFetchReader();
+            reader.Setup(x => x.NextResult()).Throws(new InvalidOperationException("The connection is broken."));
+
+            Assert.Throws<InvalidOperationException>(() => SqlServerJobQueue.ReadTimeoutJob(storage, reader.Object));
+
+            Assert.Equal(0, storage.HeartbeatProcess.TrackedCount);
+        }
+
+        [Fact, CleanDatabase]
+        public void ReadTimeoutJob_ReturnsATrackedJob_WhenTheReaderSucceeds()
+        {
+            var storage = new SqlServerStorage(
+                ConnectionUtils.GetConnectionString(),
+                new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5) });
+            var reader = CreateFetchReader();
+            reader.Setup(x => x.NextResult()).Returns(false);
+
+            using (var job = SqlServerJobQueue.ReadTimeoutJob(storage, reader.Object))
+            {
+                Assert.Equal("2", job.JobId);
+                Assert.Equal("default", job.Queue);
+                Assert.Equal(1, storage.HeartbeatProcess.TrackedCount);
+            }
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void Enqueue_DoesNothing_WhenTheJobIdIsNotANumber(bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(connection =>
+            {
+                var queue = CreateJobQueue(useMicrosoftDataSqlClient, invisibilityTimeout: null);
+
+                using (var transaction = connection.BeginTransaction())
+                {
+                    queue.Enqueue(connection, transaction, "default", "not-a-number");
+                    transaction.Commit();
+                }
+
+                Assert.Empty(connection.Query($"select * from [{Constants.DefaultSchema}].JobQueue"));
+            }, useMicrosoftDataSqlClient);
+        }
+
+        private static Mock<DbDataReader> CreateFetchReader()
+        {
+            var reader = new Mock<DbDataReader>();
+            reader.SetupSequence(x => x.Read()).Returns(true).Returns(false);
+            reader.Setup(x => x.GetOrdinal("Id")).Returns(0);
+            reader.Setup(x => x.GetOrdinal("JobId")).Returns(1);
+            reader.Setup(x => x.GetOrdinal("Queue")).Returns(2);
+            reader.Setup(x => x.GetOrdinal("FetchedAt")).Returns(3);
+            reader.Setup(x => x.GetValue(0)).Returns(1L);
+            reader.Setup(x => x.GetValue(1)).Returns(2L);
+            reader.Setup(x => x.GetString(2)).Returns("default");
+            reader.Setup(x => x.GetDateTime(3)).Returns(DateTime.UtcNow);
+            return reader;
+        }
+
+        private static string[] CreateQueueNames(int count)
+        {
+            return Enumerable.Range(0, count).Select(static i => "q" + i.ToString(CultureInfo.InvariantCulture)).ToArray();
+        }
+
         private static CancellationToken CreateTimingOutCancellationToken()
         {
             var source = new CancellationTokenSource(TimeSpan.FromSeconds(1));
@@ -699,6 +846,13 @@ values (scope_identity(), @queue)";
             {
                 action(connection);
             }
+        }
+
+        private static string GetQueue(IFetchedJob fetchedJob)
+        {
+            return fetchedJob is SqlServerTimeoutJob timeoutJob
+                ? timeoutJob.Queue
+                : ((SqlServerTransactionJob)fetchedJob).Queue;
         }
     }
 }

@@ -167,6 +167,40 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         [Theory, CleanDatabase]
         [InlineData(false), InlineData(true)]
+        public void AcquireDistributedLock_KeepsLongResourcesApart_WhenTheyShareTheirFirst255Characters(bool useMicrosoftDataSqlClient)
+        {
+            var sharedPrefix = new string('r', 300);
+
+            UseConnection(connection1 => UseConnection(connection2 =>
+            {
+                using (connection1.AcquireDistributedLock(sharedPrefix + "1", TimeSpan.FromSeconds(1)))
+                using (connection2.AcquireDistributedLock(sharedPrefix + "2", TimeSpan.FromSeconds(1)))
+                {
+                    Assert.Throws<DistributedLockTimeoutException>(
+                        () => connection2.AcquireDistributedLock(sharedPrefix + "1", TimeSpan.FromSeconds(1)));
+                }
+            }, useMicrosoftDataSqlClient), useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void AcquireDistributedLock_ReleasesALongResource_OnDispose(bool useMicrosoftDataSqlClient)
+        {
+            var resource = new string('r', 300);
+
+            UseConnection(connection1 => UseConnection(connection2 =>
+            {
+                connection1.AcquireDistributedLock(resource, TimeSpan.FromSeconds(1)).Dispose();
+
+                using (connection2.AcquireDistributedLock(resource, TimeSpan.FromSeconds(1)))
+                {
+                    Assert.True(true);
+                }
+            }, useMicrosoftDataSqlClient), useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
         public void AcquireDistributedLock_Dispose_ReleasesExclusiveApplicationLock(bool useMicrosoftDataSqlClient)
         {
             UseConnections((sql, connection) =>
@@ -230,6 +264,28 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Theory, CleanDatabase]
+        [InlineData(false, 1), InlineData(true, 1)]
+        [InlineData(false, 5), InlineData(true, 5)]
+        public void CreateExpiredJob_ThrowsArgumentException_InsteadOfTruncating_WhenAParameterNameIsTooLong(bool useMicrosoftDataSqlClient, int parameterCount)
+        {
+            UseConnections((sql, connection) =>
+            {
+                var parameters = Enumerable.Range(1, parameterCount - 1).ToDictionary(i => $"Key{i}", i => "Value");
+                parameters.Add(new string('n', 41), "Value");
+
+                var exception = Assert.Throws<ArgumentException>(() => connection.CreateExpiredJob(
+                    Job.FromExpression(() => SampleMethod("hello")),
+                    parameters,
+                    DateTime.UtcNow,
+                    TimeSpan.FromDays(1)));
+
+                Assert.Equal("name", exception.ParamName);
+                Assert.Contains("at most 40 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].Job"));
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
         [InlineData(false, false), InlineData(false, true)]
         [InlineData(true, false), InlineData(true, true)]
         public void CreateExpiredJob_CreatesAJobInTheStorage_AndSetsItsParameters(bool useBatching, bool useMicrosoftDataSqlClient)
@@ -272,6 +328,23 @@ namespace Masterly.NightShift.SqlServer.Tests
                 Assert.Equal("Value2", parameters["Key2"]);
                 Assert.Equal("Value3", parameters["Key3"]);
             }, useBatching, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void CreateExpiredJob_KeepsTheExpirationOnTheLastDayTheColumnHolds_WhenExpireInIsTooLong(bool useMicrosoftDataSqlClient)
+        {
+            UseConnections((sql, connection) =>
+            {
+                connection.CreateExpiredJob(
+                    Job.FromExpression(() => SampleMethod("Hello")),
+                    new Dictionary<string, string>(),
+                    DateTime.UtcNow,
+                    TimeSpan.MaxValue);
+
+                var sqlJob = sql.Query($"select * from [{Constants.DefaultSchema}].Job").Single();
+                Assert.Equal(new DateTime(9999, 12, 31), sqlJob.ExpireAt);
+            }, useBatching: false, useMicrosoftDataSqlClient);
         }
 
         [Theory, CleanDatabase]
@@ -797,6 +870,40 @@ select scope_identity() as Id";
 
         [Theory, CleanDatabase]
         [InlineData(false), InlineData(true)]
+        public void SetParameter_ThrowsArgumentException_WhenNameIsTooLong(bool useMicrosoftDataSqlClient)
+        {
+            UseConnection(connection =>
+            {
+                var exception = Assert.Throws<ArgumentException>(
+                    () => connection.SetJobParameter("1", new string('n', 41), "value"));
+
+                Assert.Equal("name", exception.ParamName);
+                Assert.Contains("at most 40 characters", exception.Message);
+            }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void SetParameter_StoresAName_OfExactly40Characters(bool useMicrosoftDataSqlClient)
+        {
+            var arrangeSql = $@"
+insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
+values ('', '', getutcdate())
+select scope_identity() as Id";
+
+            UseConnections((sql, connection) =>
+            {
+                string jobId = sql.Query(arrangeSql).Single().Id.ToString();
+                var name = new string('n', 40);
+
+                connection.SetJobParameter(jobId, name, "Value");
+
+                Assert.Equal("Value", connection.GetJobParameter(jobId, name));
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
         public void SetParameters_CreatesNewParameter_WhenParameterWithTheGivenNameDoesNotExists(bool useMicrosoftDataSqlClient)
         {
             var arrangeSql = $@"
@@ -1214,6 +1321,41 @@ values
 
         [Theory, CleanDatabase]
         [InlineData(false), InlineData(true)]
+        public void AnnounceServer_ThrowsAnException_WhenTheServerIdIsLongerThan200Characters(bool useMicrosoftDataSqlClient)
+        {
+            UseConnections((sql, connection) =>
+            {
+                // A server name of 158 characters, the process id and a GUID: 201 characters
+                var serverId = new string('s', 158) + ":12345:" + Guid.NewGuid();
+
+                var exception = Assert.Throws<ArgumentException>(
+                    () => connection.AnnounceServer(serverId, new ServerContext { Queues = new[] { "default" }, WorkerCount = 1 }));
+
+                Assert.Equal("serverId", exception.ParamName);
+                Assert.Contains("at most 200 characters", exception.Message);
+                Assert.Contains("ServerName", exception.Message);
+                Assert.Equal(0, sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].Server").Single());
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void AnnounceServer_AcceptsAServerIdOf200Characters(bool useMicrosoftDataSqlClient)
+        {
+            UseConnections((sql, connection) =>
+            {
+                var serverId = new string('s', 157) + ":12345:" + Guid.NewGuid();
+                Assert.Equal(200, serverId.Length);
+
+                connection.AnnounceServer(serverId, new ServerContext { Queues = new[] { "default" }, WorkerCount = 1 });
+                connection.Heartbeat(serverId);
+
+                Assert.Equal(serverId, sql.Query<string>($"select Id from [{Constants.DefaultSchema}].Server").Single());
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
         public void RemoveServer_ThrowsAnException_WhenServerIdIsNull(bool useMicrosoftDataSqlClient)
         {
             UseConnection(
@@ -1390,17 +1532,35 @@ values (@key, 0.0, @value)";
 
         [Theory, CleanDatabase]
         [InlineData(false), InlineData(true)]
-        public void SetRangeInHash_ThrowsSqlException_WhenKeyIsTooLong(bool useMicrosoftDataSqlClient)
+        public void SetRangeInHash_ThrowsArgumentException_WhenKeyIsTooLong(bool useMicrosoftDataSqlClient)
         {
             UseConnection(connection =>
             {
-                var exception = Assert.ThrowsAny<DbException>(
+                var exception = Assert.Throws<ArgumentException>(
                     () => connection.SetRangeInHash(
                     "123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_12345",
                     new Dictionary<string, string> { { "field", "value" } }));
 
-                Assert.Contains("data would be truncated", exception.Message);
+                Assert.Equal("key", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
             }, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void SetRangeInHash_ThrowsArgumentException_InsteadOfTruncating_WhenAFieldIsTooLong(bool useMicrosoftDataSqlClient)
+        {
+            UseConnections((sql, connection) =>
+            {
+                var exception = Assert.Throws<ArgumentException>(
+                    () => connection.SetRangeInHash(
+                        "some-hash",
+                        new Dictionary<string, string> { { "short", "value" }, { new string('f', 101), "value" } }));
+
+                Assert.Equal("field", exception.ParamName);
+                Assert.Contains("at most 100 characters", exception.Message);
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].Hash"));
+            }, useBatching: false, useMicrosoftDataSqlClient);
         }
 
         [Theory, CleanDatabase]
@@ -1760,6 +1920,50 @@ values (@Key, @Value, @Score)";
                 var result = connection.GetRangeFromSet("set-1", 2, 4);
 
                 Assert.Equal(new [] { "3", "4", "5" }, result);
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void GetRangeFromSet_ReturnsTheSameOrder_ForARangeNearTheEndOfALongSet(bool useMicrosoftDataSqlClient)
+        {
+            // Pairs of members share a score, and their values break the tie; ranges near the end are read from the end
+            var arrangeSql = $@"
+;with n as (select top (1500) row_number() over (order by (select null)) - 1 as i from sys.all_objects a cross join sys.all_objects b)
+insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
+select N'long-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;";
+
+            UseConnections((sql, connection) =>
+            {
+                sql.Execute(arrangeSql);
+
+                Assert.Equal(new[] { "1495", "1496", "1497", "1498", "1499" }, connection.GetRangeFromSet("long-set", 1495, 1499));
+                Assert.Equal(new[] { "1498", "1499" }, connection.GetRangeFromSet("long-set", 1498, 1510));
+                Assert.Equal(new[] { "1100", "1101", "1102" }, connection.GetRangeFromSet("long-set", 1100, 1102));
+                Assert.Equal(new[] { "0001", "0002", "0003" }, connection.GetRangeFromSet("long-set", 1, 3));
+                Assert.Empty(connection.GetRangeFromSet("long-set", 1500, 2000));
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void GetRangeFromSet_ReturnsTheSameOrder_ForARangeNearTheStartOfALongSet(bool useMicrosoftDataSqlClient)
+        {
+            // The ranges end past the counting threshold, but the set is more than twice as long: the count stops
+            // early and the rows are numbered from the start
+            var arrangeSql = $@"
+;with n as (select top (5000) row_number() over (order by (select null)) - 1 as i from sys.all_objects a cross join sys.all_objects b)
+insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
+select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;";
+
+            UseConnections((sql, connection) =>
+            {
+                sql.Execute(arrangeSql);
+
+                Assert.Equal(new[] { "1001", "1002", "1003" }, connection.GetRangeFromSet("longer-set", 1001, 1003));
+                Assert.Equal(new[] { "2497", "2498", "2499" }, connection.GetRangeFromSet("longer-set", 2497, 2499));
+                Assert.Equal(new[] { "2500", "2501" }, connection.GetRangeFromSet("longer-set", 2500, 2501));
+                Assert.Equal(new[] { "4998", "4999" }, connection.GetRangeFromSet("longer-set", 4998, 4999));
             }, useBatching: false, useMicrosoftDataSqlClient);
         }
 
@@ -2458,6 +2662,18 @@ values (@jobId, '', '', getutcdate())";
                     new { id = int.MaxValue + 1L, name = "Name" }).Single();
 
                 Assert.NotNull(parameter);
+            }, useBatching: false, useMicrosoftDataSqlClient);
+        }
+
+        [Theory, CleanDatabase]
+        [InlineData(false), InlineData(true)]
+        public void SetJobParameter_DoesNothing_WhenTheJobIdIsNotANumber(bool useMicrosoftDataSqlClient)
+        {
+            UseConnections((sql, connection) =>
+            {
+                connection.SetJobParameter("not-a-number", "Name", "Value");
+
+                Assert.Empty(sql.Query($"select * from [{Constants.DefaultSchema}].JobParameter"));
             }, useBatching: false, useMicrosoftDataSqlClient);
         }
 

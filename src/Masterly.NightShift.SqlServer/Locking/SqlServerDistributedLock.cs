@@ -27,6 +27,10 @@ using NotNullAttribute = Masterly.NightShift.Annotations.NotNullAttribute;
 
 namespace Masterly.NightShift.SqlServer
 {
+    /// <summary>
+    /// A distributed lock held with <c>sp_getapplock</c> on a dedicated connection. Use
+    /// <see cref="IStorageConnection.AcquireDistributedLock"/> instead of creating it directly.
+    /// </summary>
     public class SqlServerDistributedLock : IDisposable
     {
         private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(1);
@@ -60,7 +64,13 @@ namespace Masterly.NightShift.SqlServer
 
         private bool _completed;
 
-        [Obsolete("Don't use this class directly, use SqlServerConnection.AcquireDistributedLock instead as it provides better safety. Will be removed in 2.0.0.")]
+        /// <summary>
+        /// Acquires the lock on <paramref name="resource"/>, waiting up to <paramref name="timeout"/>.
+        /// </summary>
+        /// <param name="storage">The storage.</param>
+        /// <param name="resource">The name of the locked resource.</param>
+        /// <param name="timeout">How long to wait for the lock.</param>
+        [Obsolete("Use SqlServerConnection.AcquireDistributedLock instead, which is safer. Kept for code ported from Hangfire.")]
         [SuppressMessage("Performance", "CA1854:Prefer the \'IDictionary.TryGetValue(TKey, out TValue)\' method")]
         public SqlServerDistributedLock([NotNull] SqlServerStorage storage, [NotNull] string resource, TimeSpan timeout)
         {
@@ -97,6 +107,9 @@ namespace Masterly.NightShift.SqlServer
             }
         }
 
+        /// <summary>
+        /// Releases the lock.
+        /// </summary>
         [SuppressMessage("Performance", "CA1854:Prefer the \'IDictionary.TryGetValue(TKey, out TValue)\' method")]
         public void Dispose()
         {
@@ -189,12 +202,13 @@ namespace Masterly.NightShift.SqlServer
             // So we are trying to acquire a lock multiple times instead, with timeout that's equal
             // to seconds, not minutes.
             var lockTimeout = (long) Math.Min(LockTimeout.TotalMilliseconds, timeout.TotalMilliseconds);
+            var lockResource = SqlServerLimits.GetLockResource(resource);
 
             do
             {
                 using var command = connection
                     .Create("sp_getapplock", CommandType.StoredProcedure, timeout: (int)(lockTimeout / 1000) + 5)
-                    .AddParameter("@Resource", resource, DbType.String, size: 255)
+                    .AddParameter("@Resource", lockResource, DbType.String, size: SqlServerLimits.LockResourceLength)
                     .AddParameter("@DbPrincipal", "public", DbType.String, size: 32)
                     .AddParameter("@LockMode", LockMode, DbType.String, size: 32)
                     .AddParameter("@LockOwner", LockOwner, DbType.String, size: 32)
@@ -243,7 +257,7 @@ namespace Masterly.NightShift.SqlServer
             out DbParameter resultParameter)
         {
             return connection.Create("sp_releaseapplock", CommandType.StoredProcedure)
-                .AddParameter("@Resource", resource, DbType.String, size: 255)
+                .AddParameter("@Resource", SqlServerLimits.GetLockResource(resource), DbType.String, size: SqlServerLimits.LockResourceLength)
                 .AddParameter("@LockOwner", LockOwner, DbType.String, size: 32)
                 .AddReturnParameter("@Result", out resultParameter, DbType.Int32);
         }

@@ -19,6 +19,9 @@ using System.Collections.Generic;
 
 namespace Masterly.NightShift.SqlServer
 {
+    /// <summary>
+    /// The queue implementations of a <see cref="SqlServerStorage"/>: a default one, and others for particular queues.
+    /// </summary>
     public class PersistentJobQueueProviderCollection : IEnumerable<IPersistentJobQueueProvider>
     {
         private readonly List<IPersistentJobQueueProvider> _providers
@@ -28,6 +31,10 @@ namespace Masterly.NightShift.SqlServer
 
         private readonly IPersistentJobQueueProvider _defaultProvider;
 
+        /// <summary>
+        /// Initializes the collection with the provider used for queues that have none of their own.
+        /// </summary>
+        /// <param name="defaultProvider">The default provider.</param>
         public PersistentJobQueueProviderCollection(IPersistentJobQueueProvider defaultProvider)
         {
             if (defaultProvider == null) throw new ArgumentNullException(nameof(defaultProvider));
@@ -37,6 +44,12 @@ namespace Masterly.NightShift.SqlServer
             _providers.Add(_defaultProvider);
         }
 
+        /// <summary>
+        /// Uses <paramref name="provider"/> for the given queues.
+        /// </summary>
+        /// <param name="provider">The provider.</param>
+        /// <param name="queues">The queues it serves.</param>
+        /// <exception cref="ArgumentException">A queue already has a provider.</exception>
         public void Add(IPersistentJobQueueProvider provider, IEnumerable<string> queues)
         {
             if (provider == null) throw new ArgumentNullException(nameof(provider));
@@ -50,6 +63,10 @@ namespace Masterly.NightShift.SqlServer
             }
         }
 
+        /// <summary>
+        /// Gets the provider of a queue, or the default provider when the queue has none of its own.
+        /// </summary>
+        /// <param name="queue">The queue name.</param>
         public IPersistentJobQueueProvider GetProvider(string queue)
         {
             return _providersByQueue.TryGetValue(queue, out var provider) 
@@ -57,6 +74,9 @@ namespace Masterly.NightShift.SqlServer
                 : _defaultProvider;
         }
 
+        /// <summary>
+        /// Enumerates the providers, the default one first.
+        /// </summary>
         public IEnumerator<IPersistentJobQueueProvider> GetEnumerator()
         {
             return _providers.GetEnumerator();

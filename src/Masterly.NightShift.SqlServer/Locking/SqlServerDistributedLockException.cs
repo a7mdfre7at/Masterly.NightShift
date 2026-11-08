@@ -18,9 +18,16 @@ using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.SqlServer
 {
+    /// <summary>
+    /// Thrown when SQL Server refuses or fails a distributed lock request.
+    /// </summary>
     [Serializable]
     public class SqlServerDistributedLockException : Exception
     {
+        /// <summary>
+        /// Initializes the exception with a message.
+        /// </summary>
+        /// <param name="message">The message.</param>
         public SqlServerDistributedLockException(string message)
             : base(message)
         {

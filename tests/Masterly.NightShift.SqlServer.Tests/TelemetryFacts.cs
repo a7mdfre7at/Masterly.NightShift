@@ -1,3 +1,5 @@
+// UseTelemetry() exists on net8.0 and later only (ActivitySource and Meter are not on .NET Framework)
+#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -64,9 +66,58 @@ namespace Masterly.NightShift.SqlServer.Tests
                 Assert.Equal(create.SpanId, process.ParentSpanId);
                 Assert.Equal(jobId, process.GetTagItem("messaging.message.id"));
                 Assert.Equal("succeeded", process.GetTagItem("nightshift.job.outcome"));
+                Assert.Equal("default", create.GetTagItem("messaging.destination.name"));
+                Assert.Equal("default", process.GetTagItem("messaging.destination.name"));
 
                 // Code inside the job runs under the job's span
                 Assert.Equal(process.SpanId.ToHexString(), TelemetryJob.ObservedParentSpanId);
+            }
+            finally
+            {
+                foreach (var filter in GlobalJobFilters.Filters.Where(IsTelemetryFilter).ToArray())
+                {
+                    GlobalJobFilters.Filters.Remove(filter.Instance);
+                }
+            }
+        }
+
+        [Fact, CleanDatabase]
+        public void UseTelemetry_ReportsTheQueueChosenByTheQueueAttribute_OnBothSpans()
+        {
+            var spans = new ConcurrentQueue<Activity>();
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == NightShiftTelemetry.ActivitySourceName,
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStopped = spans.Enqueue
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var storage = new SqlServerStorage(
+                ConnectionUtils.GetConnectionString(),
+                new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
+
+            GlobalConfiguration.Configuration.UseTelemetry();
+
+            try
+            {
+                // Arrange: [Queue] moves the job to "critical" during the state election
+                new BackgroundJobClient(storage).Enqueue(() => TelemetryJob.RunInCriticalQueue());
+
+                // Act
+                using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = new[] { "critical" } }, storage))
+                {
+                    Assert.True(
+                        SpinWait.SpinUntil(() => spans.Any(x => x.Kind == ActivityKind.Consumer), Timeout),
+                        "The job wasn't performed in time.");
+                }
+
+                // Assert
+                var create = Assert.Single(spans, x => x.Kind == ActivityKind.Producer);
+                var process = Assert.Single(spans, x => x.Kind == ActivityKind.Consumer);
+
+                Assert.Equal("critical", create.GetTagItem("messaging.destination.name"));
+                Assert.Equal("critical", process.GetTagItem("messaging.destination.name"));
             }
             finally
             {
@@ -95,6 +146,12 @@ namespace Masterly.NightShift.SqlServer.Tests
             {
                 ObservedParentSpanId = Activity.Current?.SpanId.ToHexString();
             }
+
+            [Queue("critical")]
+            public static void RunInCriticalQueue()
+            {
+            }
         }
     }
 }
+#endif

@@ -28,6 +28,8 @@ namespace Masterly.NightShift.SqlServer
         private readonly ConcurrentDictionary<SqlServerTimeoutJob, object> _items =
             new ConcurrentDictionary<SqlServerTimeoutJob, object>();
 
+        internal int TrackedCount => _items.Count;
+
         public void Track(SqlServerTimeoutJob item)
         {
             _items.TryAdd(item, null);

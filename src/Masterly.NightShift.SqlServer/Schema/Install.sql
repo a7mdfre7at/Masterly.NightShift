@@ -26,10 +26,10 @@ BEGIN TRANSACTION;
 
 -- Acquire exclusive lock to prevent deadlocks caused by schema creation / version update
 DECLARE @SchemaLockResult INT;
-EXEC @SchemaLockResult = sp_getapplock @Resource = '$(HangFireSchema):SchemaLock', @LockMode = 'Exclusive'
+EXEC @SchemaLockResult = sp_getapplock @Resource = N'$(HangFireSchema):SchemaLock', @LockMode = 'Exclusive'
 
 -- Create the database schema if it doesn't exists
-IF NOT EXISTS (SELECT [schema_id] FROM [sys].[schemas] WHERE [name] = '$(HangFireSchema)')
+IF NOT EXISTS (SELECT [schema_id] FROM [sys].[schemas] WHERE [name] = N'$(HangFireSchema)')
 BEGIN
     EXEC (N'CREATE SCHEMA [$(HangFireSchema)]');
     PRINT 'Created database schema [$(HangFireSchema)]';
@@ -38,7 +38,7 @@ ELSE
     PRINT 'Database schema [$(HangFireSchema)] already exists';
     
 DECLARE @SCHEMA_ID int;
-SELECT @SCHEMA_ID = [schema_id] FROM [sys].[schemas] WHERE [name] = '$(HangFireSchema)';
+SELECT @SCHEMA_ID = [schema_id] FROM [sys].[schemas] WHERE [name] = N'$(HangFireSchema)';
 
 -- Create the [$(HangFireSchema)].Schema table if not exists
 IF NOT EXISTS(SELECT [object_id] FROM [sys].[tables] 
@@ -411,7 +411,7 @@ BEGIN
 	WHERE i.is_primary_key = 0
 	AND i.index_id <> 0
 	AND o.is_ms_shipped = 0
-	AND SCHEMA_NAME(o.[schema_id]) = '$(HangFireSchema)'
+	AND SCHEMA_NAME(o.[schema_id]) = N'$(HangFireSchema)'
 	AND o.name = 'Set';
 
 	EXEC sp_executesql @dropIndexSql;
@@ -703,7 +703,7 @@ BEGIN
 	WHERE i.is_primary_key = 0
 	AND i.index_id <> 0
 	AND o.is_ms_shipped = 0
-	AND SCHEMA_NAME(o.[schema_id]) = '$(HangFireSchema)'
+	AND SCHEMA_NAME(o.[schema_id]) = N'$(HangFireSchema)'
 	AND o.name = 'Counter';
 
 	SELECT @dropIndexSql2 += N'ALTER TABLE' + QUOTENAME(SCHEMA_NAME(o.[schema_id])) + '.' + QUOTENAME(o.name) + ' DROP CONSTRAINT ' + QUOTENAME(c.name) + ';'
@@ -711,7 +711,7 @@ BEGIN
 	INNER JOIN sys.tables AS o
 	ON c.[parent_object_id] = o.[object_id]
 	WHERE o.is_ms_shipped = 0
-	AND SCHEMA_NAME(o.[schema_id]) = '$(HangFireSchema)'
+	AND SCHEMA_NAME(o.[schema_id]) = N'$(HangFireSchema)'
 	AND o.name = 'Counter'
 
 	EXEC sp_executesql @dropIndexSql2;
@@ -720,7 +720,7 @@ BEGIN
 	-- [Counter].[Id] column can already be added to make replication work as written above, so we will re-create it
 	-- to ensure it is in the expected format.
 	PRINT 'Checking for existence of the [$(HangFireSchema)].[Counter].[Id] column';
-	IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Counter' AND COLUMN_NAME = 'Id' AND TABLE_SCHEMA='$(HangFireSchema)')
+	IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Counter' AND COLUMN_NAME = 'Id' AND TABLE_SCHEMA=N'$(HangFireSchema)')
 	BEGIN
 		ALTER TABLE [$(HangFireSchema)].[Counter] DROP COLUMN [Id];
 		PRINT 'Dropped [$(HangFireSchema)].[Counter].[Id] column';
