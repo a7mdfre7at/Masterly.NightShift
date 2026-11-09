@@ -48,7 +48,7 @@ public static class JobNotes
     internal static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Adds a note. Returns the note as stored. Notes added to the same job at the same time are written one

@@ -21,7 +21,7 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeadlineAttribute));
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Initializes the attribute.

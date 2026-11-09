@@ -161,7 +161,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
     public bool Ping(CancellationToken cancellationToken)
     {
         var url = ResolveUrl();
-        var now = DateTime.UtcNow;
+        var now = JobClock.UtcNow;
 
         if (url == null)
         {

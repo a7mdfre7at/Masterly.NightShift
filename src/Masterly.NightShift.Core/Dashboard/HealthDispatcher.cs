@@ -11,7 +11,7 @@ namespace Masterly.NightShift.Dashboard;
 internal sealed class HealthDispatcher : IDashboardDispatcher
 {
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     public Task Dispatch(DashboardContext context)
     {

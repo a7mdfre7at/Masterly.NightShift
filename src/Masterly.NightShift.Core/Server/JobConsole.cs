@@ -100,7 +100,7 @@ public sealed class JobConsole : IJobConsole
     public static int MaxMessageLength { get; set; } = 4000;
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     internal JobConsole([NotNull] PerformContext context)
     {

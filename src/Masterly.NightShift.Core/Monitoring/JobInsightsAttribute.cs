@@ -44,7 +44,7 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobInsightsAttribute));
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Gets the key under which a job's statistics are stored: <c>Type.Method</c>, with the type's name

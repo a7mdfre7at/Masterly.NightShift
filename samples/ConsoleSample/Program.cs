@@ -8,6 +8,7 @@
 // Then type a command such as "async 5" or "fast 10" and press Enter to create jobs; "stop" stops the server.
 
 using System.Globalization;
+using ConsoleSample;
 using Masterly.NightShift;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Dashboard;
@@ -15,261 +16,256 @@ using Masterly.NightShift.SqlServer;
 using Masterly.NightShift.States;
 using NightShiftSamples;
 
-namespace ConsoleSample;
+// Set ConnectionStrings__NightShift to use another database
+var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
+    ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
 
-public static class Program
-{
-    public static void Main()
+// The storage creates its tables but not the database; the sample creates it on a fresh machine
+SampleDatabase.EnsureExists(connectionString);
+
+GlobalConfiguration.Configuration
+    .UseColouredConsoleLogProvider()
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseIgnoredAssemblyVersionTypeResolver()
+    .UseRecommendedSerializerSettings()
+    .UseResultsInContinuations()
+    .UseJobInsights()
+    .UseJobDetailsRenderer(10, dto => throw new InvalidOperationException())
+    .UseJobDetailsRenderer(10, dto => new NonEscapedString("<h4>Hello, world!</h4>"))
+    .UseDefaultCulture(CultureInfo.CurrentCulture)
+    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
     {
-        // Set ConnectionStrings__NightShift to use another database
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
-            ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
+        EnableHeavyMigrations = true
+    });
 
-        // The storage creates its tables but not the database; the sample creates it on a fresh machine
-        SampleDatabase.EnsureExists(connectionString);
+Console.WriteLine(SerializationHelper.Serialize(new ExceptionInfo(new OperationCanceledException()), SerializationOption.Internal));
 
-        GlobalConfiguration.Configuration
-            .UseColouredConsoleLogProvider()
-            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-            .UseSimpleAssemblyNameTypeSerializer()
-            .UseIgnoredAssemblyVersionTypeResolver()
-            .UseRecommendedSerializerSettings()
-            .UseResultsInContinuations()
-            .UseJobInsights()
-            .UseJobDetailsRenderer(10, dto => throw new InvalidOperationException())
-            .UseJobDetailsRenderer(10, dto => new NonEscapedString("<h4>Hello, world!</h4>"))
-            .UseDefaultCulture(CultureInfo.CurrentCulture)
-            .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+var backgroundJobs = new BackgroundJobClient
+{
+    RetryAttempts = 5
+};
+
+NewFeatures.Test(throwException: false);
+NewFeatures.Test(throwException: true);
+
+var job1 = BackgroundJob.Enqueue<Services>(x => x.WriteIndex(0));
+var job2 = BackgroundJob.ContinueJobWith<Services>(job1!, "default", x => x.WriteIndex(default));
+var job3 = BackgroundJob.ContinueJobWith<Services>(job2!, "critical", x => x.WriteIndex(default));
+var job4 = BackgroundJob.ContinueJobWith<Services>(job3!, "default", x => x.WriteIndex(default));
+var job5 = BackgroundJob.ContinueJobWith<Services>(job4!, "critical", x => x.WriteIndex(default));
+
+// Features from docs/whats-new-next.md: a live console, throttling, rate limits, a circuit breaker
+BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null!, CancellationToken.None));
+BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+BackgroundJob.Enqueue<NextFeatures>(x => x.Transient(null!));
+RecurringJob.AddOrUpdate<NextFeatures>("flaky-api", x => x.CallFlakyApi(), Cron.FromText("every 20 seconds"));
+RecurringJob.AddOrUpdate<NextFeatures>("sms", x => x.SendSms("+1 555 0100"), Cron.FromText("every 5 seconds"));
+
+RecurringJob.AddOrUpdate("seconds", () => Console.WriteLine("Hello, seconds!"), "*/15 * * * * *");
+RecurringJob.AddOrUpdate("Console.WriteLine", () => Console.WriteLine("Hello, world!"), Cron.Minutely);
+RecurringJob.AddOrUpdate("hourly", () => Console.WriteLine("Hello"), "25 15 * * *");
+RecurringJob.AddOrUpdate("neverfires", () => Console.WriteLine("Can only be triggered"), "0 0 31 2 *");
+
+RecurringJob.AddOrUpdate("Hawaiian", () => Console.WriteLine("Hawaiian"), "15 08 * * *", new RecurringJobOptions
+{
+    TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Hawaiian Standard Time")
+});
+
+RecurringJob.AddOrUpdate("UTC", "critical", () => Console.WriteLine("UTC"), "15 18 * * *");
+
+RecurringJob.AddOrUpdate("Russian", () => Console.WriteLine("Russian"), "15 21 * * *", new RecurringJobOptions
+{
+    TimeZone = TimeZoneInfo.Local
+});
+
+var serverOptions = new BackgroundJobServerOptions
+{
+    Queues = ["critical", "default"],
+    TaskScheduler = null,
+    SchedulePollingInterval = TimeSpan.FromSeconds(1)
+};
+
+using (new BackgroundJobServer(serverOptions))
+{
+    var count = 1;
+
+    while (true)
+    {
+        var command = Console.ReadLine();
+
+        if (command == null || command.Equals("stop", StringComparison.OrdinalIgnoreCase))
+        {
+            break;
+        }
+
+        if (command.StartsWith("add", StringComparison.OrdinalIgnoreCase))
+        {
+            try
             {
-                EnableHeavyMigrations = true
-            });
-
-        Console.WriteLine(SerializationHelper.Serialize(new ExceptionInfo(new OperationCanceledException()), SerializationOption.Internal));
-
-        var backgroundJobs = new BackgroundJobClient
-        {
-            RetryAttempts = 5
-        };
-
-        NewFeatures.Test(throwException: false);
-        NewFeatures.Test(throwException: true);
-
-        var job1 = BackgroundJob.Enqueue<Services>(x => x.WriteIndex(0));
-        var job2 = BackgroundJob.ContinueJobWith<Services>(job1!, "default", x => x.WriteIndex(default));
-        var job3 = BackgroundJob.ContinueJobWith<Services>(job2!, "critical", x => x.WriteIndex(default));
-        var job4 = BackgroundJob.ContinueJobWith<Services>(job3!, "default", x => x.WriteIndex(default));
-        var job5 = BackgroundJob.ContinueJobWith<Services>(job4!, "critical", x => x.WriteIndex(default));
-
-        // Features from docs/whats-new-next.md: a live console, throttling, rate limits, a circuit breaker
-        BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null!, CancellationToken.None));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.Transient(null!));
-        RecurringJob.AddOrUpdate<NextFeatures>("flaky-api", x => x.CallFlakyApi(), Cron.FromText("every 20 seconds"));
-        RecurringJob.AddOrUpdate<NextFeatures>("sms", x => x.SendSms("+1 555 0100"), Cron.FromText("every 5 seconds"));
-
-        RecurringJob.AddOrUpdate("seconds", () => Console.WriteLine("Hello, seconds!"), "*/15 * * * * *");
-        RecurringJob.AddOrUpdate("Console.WriteLine", () => Console.WriteLine("Hello, world!"), Cron.Minutely);
-        RecurringJob.AddOrUpdate("hourly", () => Console.WriteLine("Hello"), "25 15 * * *");
-        RecurringJob.AddOrUpdate("neverfires", () => Console.WriteLine("Can only be triggered"), "0 0 31 2 *");
-
-        RecurringJob.AddOrUpdate("Hawaiian", () => Console.WriteLine("Hawaiian"), "15 08 * * *", new RecurringJobOptions
-        {
-            TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Hawaiian Standard Time")
-        });
-
-        RecurringJob.AddOrUpdate("UTC", "critical", () => Console.WriteLine("UTC"), "15 18 * * *");
-
-        RecurringJob.AddOrUpdate("Russian", () => Console.WriteLine("Russian"), "15 21 * * *", new RecurringJobOptions
-        {
-            TimeZone = TimeZoneInfo.Local
-        });
-
-        var serverOptions = new BackgroundJobServerOptions
-        {
-            Queues = ["critical", "default"],
-            TaskScheduler = null,
-            SchedulePollingInterval = TimeSpan.FromSeconds(1)
-        };
-
-        using (new BackgroundJobServer(serverOptions))
-        {
-            var count = 1;
-
-            while (true)
+                var workCount = int.Parse(command[4..]);
+                for (var i = 0; i < workCount; i++)
+                {
+                    var number = i;
+                    BackgroundJob.Enqueue<Services>(x => x.Random(number));
+                }
+                Console.WriteLine("Jobs enqueued.");
+            }
+            catch (Exception ex)
             {
-                var command = Console.ReadLine();
-
-                if (command == null || command.Equals("stop", StringComparison.OrdinalIgnoreCase))
-                {
-                    break;
-                }
-
-                if (command.StartsWith("add", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var workCount = int.Parse(command[4..]);
-                        for (var i = 0; i < workCount; i++)
-                        {
-                            var number = i;
-                            BackgroundJob.Enqueue<Services>(x => x.Random(number));
-                        }
-                        Console.WriteLine("Jobs enqueued.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-
-                if (command.StartsWith("async", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var workCount = int.Parse(command[6..]);
-                        for (var i = 0; i < workCount; i++)
-                        {
-                            BackgroundJob.Enqueue<Services>(x => x.Async(CancellationToken.None));
-                        }
-                        Console.WriteLine("Jobs enqueued.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-
-                if (command.StartsWith("static", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var workCount = int.Parse(command[7..]);
-                        for (var i = 0; i < workCount; i++)
-                        {
-                            BackgroundJob.Enqueue(() => Console.WriteLine("Hello, {0}!", "world"));
-                        }
-                        Console.WriteLine("Jobs enqueued.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-
-                if (command.StartsWith("error", StringComparison.OrdinalIgnoreCase))
-                {
-                    var workCount = int.Parse(command[6..]);
-                    for (var i = 0; i < workCount; i++)
-                    {
-                        BackgroundJob.Enqueue<Services>(x => x.Error());
-                    }
-                }
-
-                if (command.StartsWith("args", StringComparison.OrdinalIgnoreCase))
-                {
-                    var workCount = int.Parse(command[5..]);
-                    for (var i = 0; i < workCount; i++)
-                    {
-                        BackgroundJob.Enqueue<Services>(x => x.Args(Guid.NewGuid().ToString(), 14442, DateTime.UtcNow));
-                    }
-                }
-
-                if (command.StartsWith("custom", StringComparison.OrdinalIgnoreCase))
-                {
-                    var workCount = int.Parse(command[7..]);
-                    for (var i = 0; i < workCount; i++)
-                    {
-                        BackgroundJob.Enqueue<Services>(x => x.Custom(
-                            new Random().Next(),
-                            new[] { "Hello", "world!" },
-                            new Services.CustomObject { Id = 123 },
-                            DayOfWeek.Friday
-                            ));
-                    }
-                }
-
-                if (command.StartsWith("fullargs", StringComparison.OrdinalIgnoreCase))
-                {
-                    var workCount = int.Parse(command[9..]);
-                    for (var i = 0; i < workCount; i++)
-                    {
-                        BackgroundJob.Enqueue<Services>(x => x.FullArgs(
-                            false,
-                            123,
-                            'c',
-                            DayOfWeek.Monday,
-                            "hello",
-                            new TimeSpan(12, 13, 14),
-                            new DateTime(2012, 11, 10),
-                            new Services.CustomObject { Id = 123 },
-                            new[] { "1", "2", "3" },
-                            new[] { 4, 5, 6 },
-                            new long[0],
-                            null!,
-                            new List<string> { "7", "8", "9" }));
-                    }
-                }
-
-                if (command.StartsWith("in", StringComparison.OrdinalIgnoreCase))
-                {
-                    var seconds = int.Parse(command[2..]);
-                    var number = count++;
-                    BackgroundJob.Schedule<Services>("default", x => x.Random(number), TimeSpan.FromSeconds(seconds));
-                }
-
-                if (command.StartsWith("cancelable", StringComparison.OrdinalIgnoreCase))
-                {
-                    var iterations = int.Parse(command[11..]);
-                    BackgroundJob.Enqueue<Services>(x => x.Cancelable(iterations, JobCancellationToken.Null));
-                }
-
-                if (command.StartsWith("delete", StringComparison.OrdinalIgnoreCase))
-                {
-                    var workCount = int.Parse(command[7..]);
-                    var client = new BackgroundJobClient();
-                    for (var i = 0; i < workCount; i++)
-                    {
-                        client.Create<Services>(x => x.EmptyDefault(), new DeletedState(new ExceptionInfo(new OperationCanceledException())));
-                    }
-                }
-
-                if (command.StartsWith("fast", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var workCount = int.Parse(command[5..]);
-                        Parallel.For(0, workCount, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
-                        {
-                            BackgroundJob.Enqueue<Services>(
-                                i % 2 == 0 ? "critical" : "default",
-                                x => x.EmptyDefault());
-                        });
-                        Console.WriteLine("Jobs enqueued.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                }
-
-                if (command.StartsWith("generic", StringComparison.OrdinalIgnoreCase))
-                {
-                    BackgroundJob.Enqueue<GenericServices<string>>(x => x.Method("hello", 1));
-                }
-
-                if (command.StartsWith("continuations", StringComparison.OrdinalIgnoreCase))
-                {
-                    WriteString("Hello, Masterly.NightShift continuations!");
-                }
+                Console.WriteLine(ex.Message);
             }
         }
 
-        Console.WriteLine("Press Enter to exit...");
-        Console.ReadLine();
-    }
+        if (command.StartsWith("async", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var workCount = int.Parse(command[6..]);
+                for (var i = 0; i < workCount; i++)
+                {
+                    BackgroundJob.Enqueue<Services>(x => x.Async(CancellationToken.None));
+                }
+                Console.WriteLine("Jobs enqueued.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
 
+        if (command.StartsWith("static", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var workCount = int.Parse(command[7..]);
+                for (var i = 0; i < workCount; i++)
+                {
+                    BackgroundJob.Enqueue(() => Console.WriteLine("Hello, {0}!", "world"));
+                }
+                Console.WriteLine("Jobs enqueued.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        if (command.StartsWith("error", StringComparison.OrdinalIgnoreCase))
+        {
+            var workCount = int.Parse(command[6..]);
+            for (var i = 0; i < workCount; i++)
+            {
+                BackgroundJob.Enqueue<Services>(x => x.Error());
+            }
+        }
+
+        if (command.StartsWith("args", StringComparison.OrdinalIgnoreCase))
+        {
+            var workCount = int.Parse(command[5..]);
+            for (var i = 0; i < workCount; i++)
+            {
+                BackgroundJob.Enqueue<Services>(x => x.Args(Guid.NewGuid().ToString(), 14442, DateTime.UtcNow));
+            }
+        }
+
+        if (command.StartsWith("custom", StringComparison.OrdinalIgnoreCase))
+        {
+            var workCount = int.Parse(command[7..]);
+            for (var i = 0; i < workCount; i++)
+            {
+                BackgroundJob.Enqueue<Services>(x => x.Custom(
+                    new Random().Next(),
+                    new[] { "Hello", "world!" },
+                    new Services.CustomObject { Id = 123 },
+                    DayOfWeek.Friday
+                    ));
+            }
+        }
+
+        if (command.StartsWith("fullargs", StringComparison.OrdinalIgnoreCase))
+        {
+            var workCount = int.Parse(command[9..]);
+            for (var i = 0; i < workCount; i++)
+            {
+                BackgroundJob.Enqueue<Services>(x => x.FullArgs(
+                    false,
+                    123,
+                    'c',
+                    DayOfWeek.Monday,
+                    "hello",
+                    new TimeSpan(12, 13, 14),
+                    new DateTime(2012, 11, 10),
+                    new Services.CustomObject { Id = 123 },
+                    new[] { "1", "2", "3" },
+                    new[] { 4, 5, 6 },
+                    new long[0],
+                    null!,
+                    new List<string> { "7", "8", "9" }));
+            }
+        }
+
+        if (command.StartsWith("in", StringComparison.OrdinalIgnoreCase))
+        {
+            var seconds = int.Parse(command[2..]);
+            var number = count++;
+            BackgroundJob.Schedule<Services>("default", x => x.Random(number), TimeSpan.FromSeconds(seconds));
+        }
+
+        if (command.StartsWith("cancelable", StringComparison.OrdinalIgnoreCase))
+        {
+            var iterations = int.Parse(command[11..]);
+            BackgroundJob.Enqueue<Services>(x => x.Cancelable(iterations, JobCancellationToken.Null));
+        }
+
+        if (command.StartsWith("delete", StringComparison.OrdinalIgnoreCase))
+        {
+            var workCount = int.Parse(command[7..]);
+            var client = new BackgroundJobClient();
+            for (var i = 0; i < workCount; i++)
+            {
+                client.Create<Services>(x => x.EmptyDefault(), new DeletedState(new ExceptionInfo(new OperationCanceledException())));
+            }
+        }
+
+        if (command.StartsWith("fast", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var workCount = int.Parse(command[5..]);
+                Parallel.For(0, workCount, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
+                {
+                    BackgroundJob.Enqueue<Services>(
+                        i % 2 == 0 ? "critical" : "default",
+                        x => x.EmptyDefault());
+                });
+                Console.WriteLine("Jobs enqueued.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        if (command.StartsWith("generic", StringComparison.OrdinalIgnoreCase))
+        {
+            BackgroundJob.Enqueue<GenericServices<string>>(x => x.Method("hello", 1));
+        }
+
+        if (command.StartsWith("continuations", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleJobs.WriteString("Hello, Masterly.NightShift continuations!");
+        }
+    }
+}
+
+Console.WriteLine("Press Enter to exit...");
+Console.ReadLine();
+
+public static class ConsoleJobs
+{
     public static void WriteString(string value)
     {
         var lastId = BackgroundJob.Enqueue<Services>(x => x.Write(value[0]));

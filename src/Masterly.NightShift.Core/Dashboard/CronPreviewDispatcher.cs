@@ -36,7 +36,7 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
                 : RecurringJobUpdateDispatcher.GetTimeZoneResolver(context).GetTimeZoneById(timeZoneId.Trim());
 
             // An occurrence exactly at the start runs, so the search begins just before it
-            var now = DateTime.UtcNow;
+            var now = JobClock.UtcNow;
             var from = startAt.HasValue && startAt.Value > now ? startAt.Value.AddTicks(-1) : now;
 
             var next = Cron.GetNextOccurrences(cron, timeZone, from, OccurrenceCount)

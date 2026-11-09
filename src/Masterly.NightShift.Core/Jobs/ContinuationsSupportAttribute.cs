@@ -290,7 +290,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
                 break;
             }
 
-            if (DateTime.UtcNow - continuationData.CreatedAt > ContinuationInvalidTimeout)
+            if (JobClock.UtcNow - continuationData.CreatedAt > ContinuationInvalidTimeout)
             {
                 _logger.Warn(
                     $"Continuation '{continuationJobId}' has been ignored: it was deemed to be aborted, because its state is still non-initialized.");

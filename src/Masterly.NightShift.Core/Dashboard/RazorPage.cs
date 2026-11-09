@@ -148,7 +148,7 @@ public abstract class RazorPage
                 storageUtcNow = connection?.GetUtcDateTime();
             }
 
-            var applicationUtcNow = DateTime.UtcNow;
+            var applicationUtcNow = JobClock.UtcNow;
 
             if (storageUtcNow.HasValue)
             {

@@ -25,9 +25,10 @@ namespace Masterly.NightShift;
 /// jobs, and the server's maintenance processes, as set by <see cref="BackgroundJobServerOptions"/>. It starts when
 /// created; dispose it to stop it.
 /// </summary>
-public class BackgroundJobServer : IBackgroundProcessingServer
+public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
 {
     private readonly ILog _logger = LogProvider.For<BackgroundJobServer>();
+    private int _disposed;
 
     private readonly BackgroundJobServerOptions _options;
     private readonly BackgroundProcessingServer _processingServer;
@@ -162,6 +163,20 @@ public class BackgroundJobServer : IBackgroundProcessingServer
 
     public void Dispose()
     {
+        Interlocked.Exchange(ref _disposed, 1);
+        _processingServer.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Stops the server and waits for it to shut down without blocking a thread. Calling it again does nothing.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+
+        _processingServer.SendStop();
+        await _processingServer.WaitForShutdownAsync(CancellationToken.None).ConfigureAwait(false);
         _processingServer.Dispose();
         GC.SuppressFinalize(this);
     }

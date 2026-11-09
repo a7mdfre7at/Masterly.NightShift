@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.States;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
@@ -188,7 +187,7 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
             .AddParameter("@jobId", longId, DbType.Int64)
             .AddParameter("@name", state.Name, DbType.String, size: 20)
             .AddParameter("@reason", (object?)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
-            .AddParameter("@createdAt", DateTime.UtcNow, DbType.DateTime)
+            .AddParameter("@createdAt", JobClock.UtcNow, DbType.DateTime)
             .AddParameter("@data", (object?)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
     }
 
@@ -210,7 +209,7 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
             .AddParameter("@jobId", longId, DbType.Int64)
             .AddParameter("@name", state.Name, DbType.String, size: 20)
             .AddParameter("@reason", (object?)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
-            .AddParameter("@createdAt", DateTime.UtcNow, DbType.DateTime)
+            .AddParameter("@createdAt", JobClock.UtcNow, DbType.DateTime)
             .AddParameter("@data", (object?)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
     }
 

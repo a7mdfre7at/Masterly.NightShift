@@ -342,7 +342,7 @@ public class Worker : IBackgroundProcess
                 };
             var performContext = new PerformContext(context.Storage, connection, backgroundJob, jobToken, _profiler, context.ServerId, items);
 
-            var latency = (DateTime.UtcNow - backgroundJob.CreatedAt).TotalMilliseconds;
+            var latency = (JobClock.UtcNow - backgroundJob.CreatedAt).TotalMilliseconds;
             var duration = Stopwatch.StartNew();
 
             var result = _performer.Perform(performContext);

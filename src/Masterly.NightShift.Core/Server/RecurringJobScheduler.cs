@@ -125,7 +125,7 @@ public class RecurringJobScheduler : IBackgroundProcess
         [NotNull] IBackgroundJobFactory factory,
         TimeSpan pollingDelay,
         [NotNull] ITimeZoneResolver timeZoneResolver)
-        : this(factory, pollingDelay, timeZoneResolver, static () => DateTime.UtcNow)
+        : this(factory, pollingDelay, timeZoneResolver, static () => JobClock.UtcNow)
     {
     }
 

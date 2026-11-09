@@ -338,7 +338,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             var state = connection.GetStateData(childId);
             if (state != null) return state;
 
-            if (DateTime.UtcNow - childData.CreatedAt > ContinuationInvalidTimeout)
+            if (JobClock.UtcNow - childData.CreatedAt > ContinuationInvalidTimeout)
             {
                 _logger.Warn($"Fan-in continuation '{childId}' has been ignored: it was deemed to be aborted, because its state is still non-initialized.");
                 return null;

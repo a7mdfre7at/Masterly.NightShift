@@ -129,9 +129,9 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
                                 throw new ArgumentException("The delay must be a number of minutes between 0 and one year.");
                             }
 
-                            enqueueAt = DateTime.UtcNow.AddMinutes(minutes);
+                            enqueueAt = JobClock.UtcNow.AddMinutes(minutes);
                         }
-                        else if (string.IsNullOrWhiteSpace(delayText) || !TimeText.TryParse(delayText, DateTime.UtcNow, null, out enqueueAt))
+                        else if (string.IsNullOrWhiteSpace(delayText) || !TimeText.TryParse(delayText, JobClock.UtcNow, null, out enqueueAt))
                         {
                             throw new ArgumentException("The delay must be a number of minutes or a phrase like \"in 2 hours\" or \"tomorrow at 9am\".");
                         }

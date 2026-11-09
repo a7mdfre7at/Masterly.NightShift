@@ -36,31 +36,31 @@ public sealed class StatisticsHistoryAttribute : JobFilterAttribute, IElectState
         if (context.CandidateState.Name == SucceededState.StateName)
         {
             context.Transaction.IncrementCounter(
-                $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+                $"stats:succeeded:{JobClock.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                JobClock.UtcNow.AddMonths(1) - JobClock.UtcNow);
 
             context.Transaction.IncrementCounter(
-                $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                $"stats:succeeded:{JobClock.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
                 HourlyCounterLifetime);
         }
         else if (context.CandidateState.Name == FailedState.StateName)
         {
             context.Transaction.IncrementCounter(
-                $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+                $"stats:failed:{JobClock.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                JobClock.UtcNow.AddMonths(1) - JobClock.UtcNow);
 
             context.Transaction.IncrementCounter(
-                $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                $"stats:failed:{JobClock.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
                 HourlyCounterLifetime);
         }
         else if (context.CandidateState is DeletedState)
         {
             context.Transaction.IncrementCounter(
-                $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+                $"stats:deleted:{JobClock.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                JobClock.UtcNow.AddMonths(1) - JobClock.UtcNow);
 
             context.Transaction.IncrementCounter(
-                $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                $"stats:deleted:{JobClock.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
                 HourlyCounterLifetime);
         }
     }

@@ -43,6 +43,7 @@
     <Using Include="System.Globalization" />
     <Using Include="Dapper" />
     <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Common" />
     <Using Include="Masterly.NightShift.Storage" />
   </ItemGroup>
 </Project>

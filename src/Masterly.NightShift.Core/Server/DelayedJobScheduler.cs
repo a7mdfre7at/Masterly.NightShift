@@ -162,7 +162,7 @@ public class DelayedJobScheduler : IBackgroundProcess
             var jobsProcessed = 0;
 
             var now = !context.Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)
-                ? DateTime.UtcNow
+                ? JobClock.UtcNow
                 : ((JobStorageConnection)connection).GetUtcDateTime();
 
             if (IsBatchingAvailable(context.Storage, connection))

@@ -21,67 +21,59 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NightShiftSamples;
 
-namespace NetCoreSample;
+const string DefaultConnectionString =
+    @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
 
-internal sealed class Program
-{
-    private const string DefaultConnectionString =
-        @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
-
-    private static async Task Main(string[] args)
+var host = new HostBuilder()
+    .ConfigureAppConfiguration(x => x.AddEnvironmentVariables().AddCommandLine(args))
+    .ConfigureLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Information))
+    .ConfigureServices((hostContext, services) =>
     {
-        var host = new HostBuilder()
-            .ConfigureAppConfiguration(x => x.AddEnvironmentVariables().AddCommandLine(args))
-            .ConfigureLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Information))
-            .ConfigureServices((hostContext, services) =>
-            {
-                services.Configure<HostOptions>(option =>
-                {
-                    option.ShutdownTimeout = TimeSpan.FromSeconds(60);
-                });
+        services.Configure<HostOptions>(option =>
+        {
+            option.ShutdownTimeout = TimeSpan.FromSeconds(60);
+        });
 
-                services.TryAddSingleton<SqlServerStorageOptions>(new SqlServerStorageOptions
-                {
-                    CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-                    QueuePollInterval = TimeSpan.FromTicks(1),
-                    SlidingInvisibilityTimeout = TimeSpan.FromMinutes(1)
-                });
+        services.TryAddSingleton<SqlServerStorageOptions>(new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.FromTicks(1),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(1)
+        });
 
-                services.TryAddSingleton<IBackgroundJobFactory>(x => new CustomBackgroundJobFactory(
-                    new BackgroundJobFactory(x.GetRequiredService<IJobFilterProvider>())));
+        services.TryAddSingleton<IBackgroundJobFactory>(x => new CustomBackgroundJobFactory(
+            new BackgroundJobFactory(x.GetRequiredService<IJobFilterProvider>())));
 
-                services.TryAddSingleton<IBackgroundJobPerformer>(x => new CustomBackgroundJobPerformer(
-                    new BackgroundJobPerformer(
-                        x.GetRequiredService<IJobFilterProvider>(),
-                        x.GetRequiredService<JobActivator>(),
-                        TaskScheduler.Default)));
+        services.TryAddSingleton<IBackgroundJobPerformer>(x => new CustomBackgroundJobPerformer(
+            new BackgroundJobPerformer(
+                x.GetRequiredService<IJobFilterProvider>(),
+                x.GetRequiredService<JobActivator>(),
+                TaskScheduler.Default)));
 
-                services.TryAddSingleton<IBackgroundJobStateChanger>(x => new CustomBackgroundJobStateChanger(
-                        new BackgroundJobStateChanger(x.GetRequiredService<IJobFilterProvider>())));
+        services.TryAddSingleton<IBackgroundJobStateChanger>(x => new CustomBackgroundJobStateChanger(
+                new BackgroundJobStateChanger(x.GetRequiredService<IJobFilterProvider>())));
 
-                var connectionString = hostContext.Configuration.GetConnectionString("NightShift") ?? DefaultConnectionString;
+        var connectionString = hostContext.Configuration.GetConnectionString("NightShift") ?? DefaultConnectionString;
 
-                // The storage creates its tables but not the database; the sample creates it on a fresh machine
-                SampleDatabase.EnsureExists(connectionString);
+        // The storage creates its tables but not the database; the sample creates it on a fresh machine
+        SampleDatabase.EnsureExists(connectionString);
 
-                services.AddNightShift((provider, configuration) => configuration
-                    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
-                    .UseSimpleAssemblyNameTypeSerializer()
-                    .UseTelemetry()
-                    .UseSqlServerStorage(connectionString, provider.GetRequiredService<SqlServerStorageOptions>()));
+        services.AddNightShift((provider, configuration) => configuration
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseTelemetry()
+            .UseSqlServerStorage(connectionString, provider.GetRequiredService<SqlServerStorageOptions>()));
 
-                services.AddHostedService<RecurringJobsService>();
-                services.AddNightShiftServer(options =>
-                {
-                    options.StopTimeout = TimeSpan.FromSeconds(15);
-                    options.ShutdownTimeout = TimeSpan.FromSeconds(30);
-                });
-            })
-            .Build();
+        services.AddHostedService<RecurringJobsService>();
+        services.AddNightShiftServer(options =>
+        {
+            options.StopTimeout = TimeSpan.FromSeconds(15);
+            options.ShutdownTimeout = TimeSpan.FromSeconds(30);
+        });
+    })
+    .Build();
 
-        await host.RunAsync();
-    }
-}
+await host.RunAsync();
 
 internal sealed class CustomBackgroundJobFactory([NotNull] IBackgroundJobFactory inner) : IBackgroundJobFactory
 {

@@ -35,7 +35,7 @@ public sealed class Alert(AlertKind kind, [NotNull] string title, [NotNull] stri
     public string Message { get; } = message ?? throw new ArgumentNullException(nameof(message));
 
     /// <summary>When it happened, UTC.</summary>
-    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
+    public DateTime OccurredAt { get; set; } = JobClock.UtcNow;
 
     /// <summary>The job it is about, if any.</summary>
     public string? JobId { get; set; }

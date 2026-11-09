@@ -14,7 +14,6 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System.Collections.Concurrent;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.SqlServer;

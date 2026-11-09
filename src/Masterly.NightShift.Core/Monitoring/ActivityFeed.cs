@@ -69,7 +69,7 @@ public static class ActivityFeed
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(ActivityFeed));
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Reads the newest entries, newest first. Returns nothing when the connection isn't a

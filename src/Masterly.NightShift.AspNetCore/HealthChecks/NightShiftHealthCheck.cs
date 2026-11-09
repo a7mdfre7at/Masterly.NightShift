@@ -1,4 +1,5 @@
 using System.Globalization;
+using Masterly.NightShift.Common;
 using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return Task.FromResult(Check(context.Registration.FailureStatus, DateTime.UtcNow));
+        return Task.FromResult(Check(context.Registration.FailureStatus, JobClock.UtcNow));
     }
 
     private HealthCheckResult Check(HealthStatus failureStatus, DateTime utcNow)

@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 
@@ -245,7 +244,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
     {
         using var command = connection.Create(commandText, timeout: 0)
             .AddParameter("@count", numberOfRecordsInSinglePass, DbType.Int32)
-            .AddParameter("@now", DateTime.UtcNow, DbType.DateTime);
+            .AddParameter("@now", JobClock.UtcNow, DbType.DateTime);
 
         additionalActions?.Invoke(command);
 

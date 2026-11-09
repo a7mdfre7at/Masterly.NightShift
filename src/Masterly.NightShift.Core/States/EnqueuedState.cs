@@ -105,7 +105,7 @@ public class EnqueuedState : IState
         ValidateQueueName(nameof(queue), queue);
 
         Queue = queue;
-        EnqueuedAt = DateTime.UtcNow;
+        EnqueuedAt = JobClock.UtcNow;
     }
 
     /// <summary>

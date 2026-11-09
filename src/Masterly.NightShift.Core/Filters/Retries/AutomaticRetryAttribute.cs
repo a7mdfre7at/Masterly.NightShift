@@ -351,7 +351,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     internal const string RetryLaterReasonPrefix = "Retry later";
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Honours a <see cref="RetryLaterException"/>: the job is scheduled for the moment it asked for and

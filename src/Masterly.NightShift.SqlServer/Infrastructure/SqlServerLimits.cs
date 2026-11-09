@@ -51,7 +51,7 @@ internal static class SqlServerLimits
     /// </summary>
     public static DateTime GetExpireAt(TimeSpan expireIn)
     {
-        return GetExpireAt(DateTime.UtcNow, expireIn);
+        return GetExpireAt(JobClock.UtcNow, expireIn);
     }
 
     /// <summary>The expiration time <paramref name="expireIn"/> after <paramref name="from"/>, kept within the range of the <c>ExpireAt</c> columns.</summary>

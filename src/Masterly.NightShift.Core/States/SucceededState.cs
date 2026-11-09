@@ -53,7 +53,7 @@ public class SucceededState(object? result, long latency, long performanceDurati
     /// Gets a date/time when the current state instance was created.
     /// </summary>
     [JsonIgnore]
-    public DateTime SucceededAt { get; } = DateTime.UtcNow;
+    public DateTime SucceededAt { get; } = JobClock.UtcNow;
 
     /// <summary>
     /// Gets the value returned by a job method.

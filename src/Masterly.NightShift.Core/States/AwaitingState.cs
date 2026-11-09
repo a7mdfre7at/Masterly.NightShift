@@ -233,7 +233,7 @@ public class AwaitingState : IState
             if (!GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_180) ||
                 !context.Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs))
             {
-                transaction.AddToSet("awaiting", context.BackgroundJob.Id, JobHelper.ToTimestamp(DateTime.UtcNow));
+                transaction.AddToSet("awaiting", context.BackgroundJob.Id, JobHelper.ToTimestamp(JobClock.UtcNow));
             }
         }
 

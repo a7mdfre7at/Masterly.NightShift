@@ -40,7 +40,7 @@ internal sealed class ActivityDispatcher : IDashboardDispatcher
 
         return DashboardJson.WriteAsync(context, 200, new
         {
-            now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds,
+            now = (long)(JobClock.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds,
             enabled = ActivityFeed.Enabled,
             entries,
         });

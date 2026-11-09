@@ -18,7 +18,7 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
     private static readonly StorageCache<string> Texts = new(DashboardHealth.CacheDuration);
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     public Task Dispatch(DashboardContext context)
     {

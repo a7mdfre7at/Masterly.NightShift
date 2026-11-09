@@ -68,7 +68,7 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
         using var timer = new CancellationTokenSource();
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(GetTokensToLink(invocation, shutdownToken, timer.Token));
         var originalArguments = ReplaceTokens(invocation, timeoutSource.Token);
-        var startedAt = DateTime.UtcNow;
+        var startedAt = JobClock.UtcNow;
 
         timer.CancelAfter(Timeout);
 
@@ -76,7 +76,7 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
         {
             var result = await invocation.ProceedAsync().ConfigureAwait(false);
 
-            if (originalArguments == null && DateTime.UtcNow - startedAt > Timeout)
+            if (originalArguments == null && JobClock.UtcNow - startedAt > Timeout)
             {
                 RecordExceeded(invocation.Context);
             }

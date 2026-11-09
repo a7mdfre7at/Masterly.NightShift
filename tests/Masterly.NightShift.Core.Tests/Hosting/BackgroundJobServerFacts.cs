@@ -138,4 +138,36 @@ public class BackgroundJobServerFacts
 
         process.Verify(x => x.Execute(It.Is<BackgroundProcessContext>(context => context.ServerId.StartsWith("facts-server:"))));
     }
+
+    [Fact]
+    public async Task DisposeAsync_StopsTheServerAndDisposesIt()
+    {
+        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+
+        await server.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => server.WaitForShutdown(TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task DisposeAsync_DoesNothing_WhenCalledAgain()
+    {
+        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+        await server.DisposeAsync();
+
+        var exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_DoesNothing_AfterDispose()
+    {
+        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+        server.Dispose();
+
+        var exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
+
+        Assert.Null(exception);
+    }
 }

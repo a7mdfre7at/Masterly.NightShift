@@ -581,7 +581,7 @@ public class SqlServerStorage : JobStorage
         if (Options.PrepareSchemaIfNecessary && !InstallSchema())
         {
             _schemaInstallRetryPending = true;
-            Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, DateTime.UtcNow.Ticks + _schemaInstallRetryIntervalTicks);
+            Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, JobClock.UtcNow.Ticks + _schemaInstallRetryIntervalTicks);
         }
 
         if (Options.TryAutoDetectSchemaDependentOptions && !TryDetectSchemaVersion(afterStartup: false))
@@ -733,7 +733,7 @@ public class SqlServerStorage : JobStorage
         var detectionDue = _schemaVersionRetryPending && !_schemaVersionDetected;
         if (!installDue && !detectionDue) return;
 
-        var now = DateTime.UtcNow.Ticks;
+        var now = JobClock.UtcNow.Ticks;
         installDue = installDue && now >= Interlocked.Read(ref _nextSchemaInstallRetryTicks);
         detectionDue = detectionDue && now >= Interlocked.Read(ref _nextSchemaVersionRetryTicks);
         if (!installDue && !detectionDue) return;
@@ -762,7 +762,7 @@ public class SqlServerStorage : JobStorage
                     // A database that refuses for longer (missing permissions, for example) isn't asked as often
                     var interval = Math.Min(Interlocked.Read(ref _schemaInstallRetryIntervalTicks) * 2, MaxSchemaInstallRetryInterval.Ticks);
                     Interlocked.Exchange(ref _schemaInstallRetryIntervalTicks, interval);
-                    Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, DateTime.UtcNow.Ticks + interval);
+                    Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, JobClock.UtcNow.Ticks + interval);
 
                     LogProvider.GetLogger(typeof(SqlServerObjectsInstaller)).WarnException(
                         $"Still unable to perform the Masterly.NightShift schema migration that failed at startup. Trying again in {TimeSpan.FromTicks(interval).TotalMinutes:0.#} minute(s).",

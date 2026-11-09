@@ -90,7 +90,7 @@ public class FailedState : IState
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        FailedAt = DateTime.UtcNow;
+        FailedAt = JobClock.UtcNow;
         Exception = exception;
         ServerId = serverId;
         MaxLinesInStackTrace = MaxLinesInExceptionDetails;

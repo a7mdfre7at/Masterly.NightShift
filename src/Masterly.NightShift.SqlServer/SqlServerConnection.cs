@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.SqlServer.Entities;
 
@@ -517,7 +516,7 @@ $@"select Field, Value from [{schemaName}].Hash with (forceseek) where [Key] = @
         {
             WorkerCount = context.WorkerCount,
             Queues = context.Queues,
-            StartedAt = DateTime.UtcNow,
+            StartedAt = JobClock.UtcNow,
         };
 
         Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) =>
@@ -694,7 +693,7 @@ $@"select min([ExpireAt]) from [{schemaName}].[Set] with (forceseek) where [Key]
             var result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
-            return result.Value - DateTime.UtcNow;
+            return result.Value - JobClock.UtcNow;
         }, key);
     }
 
@@ -744,7 +743,7 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
             var result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
-            return result.Value - DateTime.UtcNow;
+            return result.Value - JobClock.UtcNow;
         }, key);
     }
 
@@ -798,7 +797,7 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
             var result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
-            return result.Value - DateTime.UtcNow;
+            return result.Value - JobClock.UtcNow;
         }, key);
     }
 

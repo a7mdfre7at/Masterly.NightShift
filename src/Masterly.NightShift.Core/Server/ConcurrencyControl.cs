@@ -52,7 +52,7 @@ internal static class ConcurrencyControl
     internal static IBackgroundJobStateChanger StateChanger { get; set; } = new BackgroundJobStateChanger();
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Formats a resource template like <see cref="DisableConcurrentExecutionAttribute"/> does: <c>{0}</c>..<c>{n}</c>

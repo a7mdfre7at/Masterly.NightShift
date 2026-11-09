@@ -60,7 +60,7 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     protected virtual bool Invert => false;
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <inheritdoc />
     public void OnStateElection(ElectStateContext context)

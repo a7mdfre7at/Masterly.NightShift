@@ -67,7 +67,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                 ? SerializationHelper.SerializeInternal(x.Value)
                 : SerializationHelper.Serialize(x.Value, SerializationOption.User));
 
-        var createdAt = DateTime.UtcNow;
+        var createdAt = JobClock.UtcNow;
         var expireIn = TimeSpan.FromDays(30);
 
         return CreateBackgroundJobTwoSteps(context, parameters, createdAt, expireIn);

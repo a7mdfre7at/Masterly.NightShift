@@ -55,7 +55,7 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     private static readonly string[] ReplaceableStates = [EnqueuedState.StateName, ScheduledState.StateName, AwaitingState.StateName];
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>Fingerprints the method and all its arguments.</summary>
     public PreventDuplicatesAttribute()

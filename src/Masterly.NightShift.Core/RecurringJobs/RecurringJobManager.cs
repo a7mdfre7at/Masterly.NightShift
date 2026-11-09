@@ -50,7 +50,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
         [NotNull] JobStorage storage,
         [NotNull] IJobFilterProvider filterProvider,
         [NotNull] ITimeZoneResolver timeZoneResolver)
-        : this(storage, filterProvider, timeZoneResolver, static () => DateTime.UtcNow)
+        : this(storage, filterProvider, timeZoneResolver, static () => JobClock.UtcNow)
     {
     }
 
@@ -69,7 +69,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     }
 
     public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IBackgroundJobFactory factory, [NotNull] ITimeZoneResolver timeZoneResolver)
-        : this(storage, factory, timeZoneResolver, static () => DateTime.UtcNow)
+        : this(storage, factory, timeZoneResolver, static () => JobClock.UtcNow)
     {
     }
 

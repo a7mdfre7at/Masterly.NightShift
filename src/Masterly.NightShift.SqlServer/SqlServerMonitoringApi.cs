@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.SqlServer.Entities;
 using Masterly.NightShift.States;
 using Masterly.NightShift.Storage.Monitoring;
@@ -512,7 +511,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private Dictionary<DateTime, long> GetHourlyTimelineStats(DbConnection connection, string type)
     {
-        var endDate = DateTime.UtcNow;
+        var endDate = JobClock.UtcNow;
         var dates = new List<DateTime>();
         for (var i = 0; i < 24; i++)
         {
@@ -527,7 +526,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private Dictionary<DateTime, long> GetTimelineStats(DbConnection connection, string type)
     {
-        var endDate = DateTime.UtcNow.Date;
+        var endDate = JobClock.UtcNow.Date;
         var dates = new List<DateTime>();
         for (var i = 0; i < 7; i++)
         {

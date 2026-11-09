@@ -44,7 +44,7 @@ public static partial class TimeText
     /// <summary>Parses a phrase relative to now, in <see cref="DefaultTimeZone"/>. Returns UTC.</summary>
     public static DateTime Parse([NotNull] string text)
     {
-        return Parse(text, DateTime.UtcNow, DefaultTimeZone);
+        return Parse(text, JobClock.UtcNow, DefaultTimeZone);
     }
 
     /// <summary>Parses a phrase relative to <paramref name="utcNow"/>, in the given time zone. Returns UTC.</summary>

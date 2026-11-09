@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 
@@ -64,7 +63,7 @@ internal sealed class CountersAggregator : IBackgroundProcess
         {
             removedCount = storage.UseConnection(null, static (storage, connection) => connection.Execute(
                 GetAggregationQuery(storage),
-                new { now = DateTime.UtcNow, count = NumberOfRecordsInSinglePass },
+                new { now = JobClock.UtcNow, count = NumberOfRecordsInSinglePass },
                 commandTimeout: 0));
 
             if (removedCount >= NumberOfRecordsInSinglePass)

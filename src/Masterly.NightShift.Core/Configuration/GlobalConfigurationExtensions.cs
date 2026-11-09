@@ -259,6 +259,17 @@ public static class GlobalConfigurationExtensions
             return configuration;
         }
 
+        /// <summary>Sets the clock behind the timestamps the library writes, for example to control time in tests.</summary>
+        /// <param name="timeProvider">The time source.</param>
+        /// <returns>The configuration, to chain calls.</returns>
+        public IGlobalConfiguration<TimeProvider> UseTimeProvider([NotNull] TimeProvider timeProvider)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(timeProvider);
+
+            return configuration.Use(timeProvider, static x => JobClock.TimeProvider = x);
+        }
+
         public IGlobalConfiguration UseTypeResolver(
             [CanBeNull] Func<string, Type>? typeResolver)
         {

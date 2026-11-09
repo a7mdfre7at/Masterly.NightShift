@@ -39,7 +39,7 @@ public class ProcessingState : IState
         ArgumentException.ThrowIfNullOrWhiteSpace(serverId);
 
         ServerId = serverId;
-        StartedAt = DateTime.UtcNow;
+        StartedAt = JobClock.UtcNow;
         WorkerId = workerId;
     }
 

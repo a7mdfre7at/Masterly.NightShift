@@ -25,7 +25,7 @@ namespace Masterly.NightShift;
 /// registers it. With an <see cref="IHostApplicationLifetime"/>, the server starts once the application has
 /// started and gets the stop signal when the application begins to stop; without one it starts at once.
 /// </summary>
-public class BackgroundJobServerHostedService : IHostedService, IDisposable
+public class BackgroundJobServerHostedService : IHostedLifecycleService, IDisposable
 {
     private readonly BackgroundJobServerOptions _options;
     private readonly JobStorage _storage;
@@ -166,6 +166,25 @@ public class BackgroundJobServerHostedService : IHostedService, IDisposable
             // TODO: Remove this workaround and don't rely on this behavior for simplicity.
         }
     }
+
+    /// <inheritdoc />
+    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Sends the stop signal before any hosted service stops, so workers take no new jobs while the others shut down.
+    /// </summary>
+    /// <param name="cancellationToken">Not used.</param>
+    public Task StoppingAsync(CancellationToken cancellationToken)
+    {
+        SendStopSignal();
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
     /// Disposes the server.

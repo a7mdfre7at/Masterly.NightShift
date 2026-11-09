@@ -91,7 +91,7 @@ public class ScheduledState(DateTime enqueueAt) : IState
     /// <param name="enqueueIn">The time interval after which a job will be
     /// moved to the <see cref="EnqueuedState"/>.</param>
     public ScheduledState(TimeSpan enqueueIn)
-        : this(DateTime.UtcNow.Add(enqueueIn))
+        : this(JobClock.UtcNow.Add(enqueueIn))
     {
     }
 
@@ -105,7 +105,7 @@ public class ScheduledState(DateTime enqueueAt) : IState
     /// Gets a date/time when the current state instance was created.
     /// </summary>
     [JsonIgnore]
-    public DateTime ScheduledAt { get; } = DateTime.UtcNow;
+    public DateTime ScheduledAt { get; } = JobClock.UtcNow;
 
     /// <inheritdoc />
     /// <remarks>

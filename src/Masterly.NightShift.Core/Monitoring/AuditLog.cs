@@ -69,7 +69,7 @@ public static class AuditLog
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(AuditLog));
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>
     /// Records an action taken through the given dashboard request: writes it to the library's log at the

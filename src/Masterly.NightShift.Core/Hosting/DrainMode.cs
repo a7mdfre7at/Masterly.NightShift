@@ -107,7 +107,7 @@ public static class DrainMode
     private static long _cacheGeneration;
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>How long a held job waits in the Scheduled state before a worker looks at it again. Default 30 seconds.</summary>
     public static TimeSpan HoldInterval { get; set; } = TimeSpan.FromSeconds(30);

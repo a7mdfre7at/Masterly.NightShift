@@ -122,7 +122,7 @@ public static class BatchJob
     public static TimeSpan ExpireIn { get; set; } = TimeSpan.FromDays(7);
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>The batch jobs created on the current async flow belong to, or <c>null</c>.</summary>
     public static string? Current => CurrentBatchId.Value;

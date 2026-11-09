@@ -45,7 +45,7 @@ internal sealed class JobExportDispatcher : IDashboardDispatcher
         var report = new
         {
             id = jobId,
-            exportedAt = DateTime.UtcNow,
+            exportedAt = JobClock.UtcNow,
             job = details.Job == null ? null : new
             {
                 type = details.Job.Type.AssemblyQualifiedName,
@@ -148,12 +148,12 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
         {
             "failed" => [.. monitor.FailedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InFailedState ? "Failed" : "Changed", p.Value?.Job?.ToString(), p.Value?.FailedAt, null, null, p.Value?.ExceptionType, p.Value?.ExceptionMessage))],
             "succeeded" => [.. monitor.SucceededJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InSucceededState ? "Succeeded" : "Changed", p.Value?.Job?.ToString(), p.Value?.SucceededAt, p.Value?.TotalDuration / 1000.0, null, null, null))],
-            "scheduled" => [.. monitor.ScheduledJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InScheduledState ? "Scheduled" : "Changed", p.Value?.Job?.ToString(), p.Value?.EnqueueAt, p.Value == null ? null : (p.Value.EnqueueAt - DateTime.UtcNow).TotalSeconds, null, null, null))],
-            "processing" => [.. monitor.ProcessingJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InProcessingState ? "Processing" : "Changed", p.Value?.Job?.ToString(), p.Value?.StartedAt, p.Value?.StartedAt == null ? null : (DateTime.UtcNow - p.Value.StartedAt.Value).TotalSeconds, p.Value?.ServerId, null, null))],
+            "scheduled" => [.. monitor.ScheduledJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InScheduledState ? "Scheduled" : "Changed", p.Value?.Job?.ToString(), p.Value?.EnqueueAt, p.Value == null ? null : (p.Value.EnqueueAt - JobClock.UtcNow).TotalSeconds, null, null, null))],
+            "processing" => [.. monitor.ProcessingJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InProcessingState ? "Processing" : "Changed", p.Value?.Job?.ToString(), p.Value?.StartedAt, p.Value?.StartedAt == null ? null : (JobClock.UtcNow - p.Value.StartedAt.Value).TotalSeconds, p.Value?.ServerId, null, null))],
             "deleted" => monitor is JobStorageMonitor storageMonitor
                                 ? [.. storageMonitor.DeletedJobs(from, count).Select(static p => new Row(p.Key, p.Value == null ? null : p.Value.InDeletedState ? "Deleted" : "Changed", p.Value?.Job?.ToString(), p.Value?.DeletedAt, null, null, null, null))]
                                 : [],
-            "enqueued" => [.. monitor.EnqueuedJobs(queue ?? "default", from, count).Select(static p => new Row(p.Key, p.Value?.State, p.Value?.Job?.ToString(), p.Value?.EnqueuedAt, p.Value?.EnqueuedAt == null ? null : (DateTime.UtcNow - p.Value.EnqueuedAt.Value).TotalSeconds, null, null, null))],
+            "enqueued" => [.. monitor.EnqueuedJobs(queue ?? "default", from, count).Select(static p => new Row(p.Key, p.Value?.State, p.Value?.Job?.ToString(), p.Value?.EnqueuedAt, p.Value?.EnqueuedAt == null ? null : (JobClock.UtcNow - p.Value.EnqueuedAt.Value).TotalSeconds, null, null, null))],
             _ => [],
         };
     }

@@ -90,7 +90,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
             return storageConnection.GetUtcDateTime();
         }
 
-        return DateTime.UtcNow;
+        return JobClock.UtcNow;
     }
 
     private static async Task<bool> GetConsoleFlagAsync(DashboardContext context)

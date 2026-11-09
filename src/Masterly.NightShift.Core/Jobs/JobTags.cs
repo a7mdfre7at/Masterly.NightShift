@@ -133,7 +133,7 @@ public static class JobTags
     internal static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     /// <summary>The set holding the ids of the jobs carrying a tag.</summary>
     public static string GetKey([NotNull] string tag)

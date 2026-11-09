@@ -103,7 +103,7 @@ public class DeletedState([CanBeNull] ExceptionInfo? exceptionInfo) : IState
     /// Gets a date/time when the current state instance was created.
     /// </summary>
     [JsonIgnore]
-    public DateTime DeletedAt { get; } = DateTime.UtcNow;
+    public DateTime DeletedAt { get; } = JobClock.UtcNow;
 
     /// <inheritdoc />
     /// <remarks>

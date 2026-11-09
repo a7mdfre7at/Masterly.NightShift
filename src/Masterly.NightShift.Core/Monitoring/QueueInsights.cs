@@ -79,7 +79,7 @@ public static class QueueInsights
     private static readonly TimeSpan CounterLifetime = TimeSpan.FromHours(1);
 
     /// <summary>Replaceable for tests.</summary>
-    internal static Func<DateTime> Clock { get; set; } = static () => DateTime.UtcNow;
+    internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     public static string GetLatencyKey(string queue) => $"queue:{queue}:latency";
     public static string GetHashKey(string queue) => $"queue:{queue}:insights";
