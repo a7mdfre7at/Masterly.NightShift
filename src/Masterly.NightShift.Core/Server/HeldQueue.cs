@@ -163,7 +163,6 @@ internal static class HeldQueue
     {
         try
         {
-
             if (job.ParametersSnapshot == null || !job.ParametersSnapshot.TryGetValue(DrainModeFilter.HeldQueueParameter, out string? value))
             {
                 value = connection.GetJobParameter(job.Id, DrainModeFilter.HeldQueueParameter);

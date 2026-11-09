@@ -217,7 +217,6 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
 /// <remarks>Forbids the job to start between the two <c>HH:mm</c> times, in UTC or the given time zone.</remarks>
 public sealed class BlackoutAttribute([NotNull] string window, [CanBeNull] string? timeZoneId = null) : RunWindowAttribute(window, timeZoneId)
 {
-
     /// <inheritdoc />
     protected override bool Invert => true;
 }

@@ -49,7 +49,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
     public override IDisposable AcquireDistributedLock([NotNull] string resource, TimeSpan timeout)
     {
-        if (string.IsNullOrWhiteSpace(resource)) throw new ArgumentNullException(nameof(resource));
+        ArgumentException.ThrowIfNullOrWhiteSpace(resource);
         return AcquireLock($"{Storage.SchemaName}:{resource}", timeout);
     }
 
@@ -605,7 +605,7 @@ $@"update [{schemaName}].Server set LastHeartbeat = sysutcdatetime() where Id = 
     public override long GetSetCount(IEnumerable<string> keys, int limit)
     {
         ArgumentNullException.ThrowIfNull(keys);
-        if (limit < 0) throw new ArgumentOutOfRangeException(nameof(limit), "Value must be greater or equal to 0.");
+        ArgumentOutOfRangeException.ThrowIfNegative(limit);
 
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) => connection.ExecuteScalar<long>(
             storage.GetQueryFromTemplate(static schemaName =>

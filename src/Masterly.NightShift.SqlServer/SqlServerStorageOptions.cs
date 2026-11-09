@@ -24,7 +24,6 @@ namespace Masterly.NightShift.SqlServer;
 /// </summary>
 public class SqlServerStorageOptions
 {
-
     // null until the user sets them, so auto-detection only decides the values nobody chose
 
     /// <summary>

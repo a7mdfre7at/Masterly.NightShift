@@ -5,7 +5,6 @@ namespace Masterly.NightShift.Dashboard;
 /// <summary>Failed jobs that share an exception type and a method.</summary>
 internal sealed class FailureCluster(string exceptionType, string method)
 {
-
     /// <summary>The exception type name, as recorded in the failed state.</summary>
     public string ExceptionType { get; } = exceptionType;
 

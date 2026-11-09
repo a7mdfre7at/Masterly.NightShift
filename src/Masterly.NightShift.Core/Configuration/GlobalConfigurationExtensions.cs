@@ -112,7 +112,7 @@ public static class GlobalConfigurationExtensions
             where TLogProvider : ILogProvider
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (provider == null) throw new ArgumentNullException(nameof(provider));
+            ArgumentNullException.ThrowIfNull(provider);
 
             return configuration.Use(provider, static x => LateBoundLogProvider.Use(x));
         }
@@ -205,7 +205,7 @@ public static class GlobalConfigurationExtensions
             [NotNull] TFilter filter)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (filter == null) throw new ArgumentNullException(nameof(filter));
+            ArgumentNullException.ThrowIfNull(filter);
 
             return configuration.Use(filter, static x => GlobalJobFilters.Filters.Add(x));
         }
@@ -215,7 +215,7 @@ public static class GlobalConfigurationExtensions
             where TFilterProvider : IJobFilterProvider
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
+            ArgumentNullException.ThrowIfNull(filterProvider);
 
             return configuration.Use(filterProvider, static x => JobFilterProviders.Providers.Add(x));
         }
@@ -422,7 +422,7 @@ public static class GlobalConfigurationExtensions
             int size)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (size < 0) throw new ArgumentOutOfRangeException(nameof(size), "Must be a positive value");
+            ArgumentOutOfRangeException.ThrowIfNegative(size);
 
             JobMethodCallRenderer.MaxArgumentToRenderSize = size;
             return configuration;
@@ -534,7 +534,7 @@ public static class GlobalConfigurationExtensions
         public IGlobalConfiguration UseActivityFeed(int maxEntries)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (maxEntries <= 0) throw new ArgumentOutOfRangeException(nameof(maxEntries), "Value must be positive.");
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxEntries);
 
             ActivityFeed.MaxEntries = maxEntries;
             return configuration.UseActivityFeed();

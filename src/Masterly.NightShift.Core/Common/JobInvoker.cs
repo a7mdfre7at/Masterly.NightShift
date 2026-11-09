@@ -34,7 +34,6 @@ public enum JobInvokerKind
 /// </remarks>
 public abstract class JobInvoker
 {
-
     /// <summary>
     /// Initializes an invoker for a method identified by its signature. The <see cref="Method"/> is
     /// resolved on first access. This constructor is used by generated code.

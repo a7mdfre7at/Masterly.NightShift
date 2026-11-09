@@ -200,7 +200,7 @@ public sealed class JobConsole : IJobConsole
     /// <inheritdoc />
     public void Checkpoint(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         var checkpoint = Truncate(name)!;
 
@@ -321,8 +321,7 @@ public sealed class JobConsole : IJobConsole
         var consoleKey = GetConsoleKey(jobId);
         var legacy = ReadList(storageConnection, consoleKey)
             .Where(static x => x.Checkpoint != null)
-            .GroupBy(static x => x.Checkpoint, StringComparer.Ordinal)
-            .Select(static x => x.First())
+            .DistinctBy(static x => x.Checkpoint, StringComparer.Ordinal)
             .ToList();
 
         // An expiring console list belongs to a run that finished, and the job was requeued since: start over

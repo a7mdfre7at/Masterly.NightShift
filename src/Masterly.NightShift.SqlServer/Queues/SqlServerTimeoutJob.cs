@@ -41,7 +41,7 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
         ArgumentNullException.ThrowIfNull(storage);
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(queue);
-        if (fetchedAt == null) throw new ArgumentNullException(nameof(fetchedAt));
+        if (fetchedAt is null) throw new ArgumentNullException(nameof(fetchedAt)); // a DateTime?: ThrowIfNull would box it
 
         _storage = storage;
 

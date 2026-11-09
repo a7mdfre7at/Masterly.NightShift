@@ -23,7 +23,6 @@ namespace Masterly.NightShift.Common;
 [Serializable]
 public class JobLoadException(string message, Exception inner) : Exception(message, inner)
 {
-
     /// <summary>
     /// What couldn't be loaded, when <see cref="Storage.InvocationData.DeserializeJob"/> threw the exception;
     /// used to explain why the job failed.

@@ -16,7 +16,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class MethodCallExpressionFingerprint(ExpressionType nodeType, Type type, MethodInfo method) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.methodcallexpression.method.aspx
     public MethodInfo Method { get; } = method;
 

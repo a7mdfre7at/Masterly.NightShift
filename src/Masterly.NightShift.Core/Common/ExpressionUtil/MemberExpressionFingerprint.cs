@@ -16,7 +16,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class MemberExpressionFingerprint(ExpressionType nodeType, Type type, MemberInfo member) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.memberexpression.member.aspx
     public MemberInfo Member { get; } = member;
 

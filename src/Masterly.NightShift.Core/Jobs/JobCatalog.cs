@@ -100,7 +100,7 @@ public sealed class JobCatalogEntry
 /// <see cref="Add(Type)"/>. Generic methods, methods with <c>ref</c>/<c>out</c> parameters, overrides of
 /// <see cref="object"/> members and compiler-generated methods (a record's <c>Equals</c>) are left out.
 /// </summary>
-public static class JobCatalog
+public static partial class JobCatalog
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobCatalog));
     private static readonly NightShiftLock SyncRoot = new();
@@ -424,11 +424,12 @@ public static class JobCatalog
     }
 
     // "Z" or "+05:00" after the time, inside the quotes ConvertArgument added
-    private static readonly Regex UtcOffset = new(@"T[0-9:.,]+(?:[Zz]|[+-][0-9]{2}(?::?[0-9]{2})?)""$", RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"T[0-9:.,]+(?:[Zz]|[+-][0-9]{2}(?::?[0-9]{2})?)""$", RegexOptions.CultureInvariant)]
+    private static partial Regex UtcOffsetRegex();
 
     private static bool HasUtcOffset(string quotedText)
     {
-        return UtcOffset.IsMatch(quotedText);
+        return UtcOffsetRegex().IsMatch(quotedText);
     }
 
     private static object ParsePlainText(string text, Type type)

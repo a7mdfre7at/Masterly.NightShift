@@ -207,7 +207,6 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     /// </summary>
     internal sealed class LinkedJobCancellationToken(IJobCancellationToken inner, CancellationToken shutdownToken) : IJobCancellationToken
     {
-
         /// <summary>The token this one wraps: the server's, or the one of an outer timeout.</summary>
         public IJobCancellationToken Inner { get; } = inner;
 

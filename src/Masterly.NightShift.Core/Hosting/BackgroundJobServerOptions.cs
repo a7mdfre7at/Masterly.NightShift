@@ -77,7 +77,7 @@ public class BackgroundJobServerOptions
         get;
         set
         {
-            if (value <= 0) throw new ArgumentOutOfRangeException(nameof(value), "WorkerCount property value should be positive.");
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
 
             field = value;
         }

@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Collections.Frozen;
 using System.Runtime.ExceptionServices;
 using Masterly.NightShift.Logging;
 
@@ -22,10 +23,10 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
 {
     // Parameters that hold the library's own records, written with the internal options so the application's
     // serializer settings can't break them; their readers fall back to the user options for older data
-    private static readonly HashSet<string> InternalParameters = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> InternalParameters = new HashSet<string>(StringComparer.Ordinal)
     {
         JobTags.ParameterName, BatchJob.ParameterName, BatchJob.ContinuationParameterName,
-    };
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     private readonly ILog _logger = LogProvider.GetLogger(typeof(CoreBackgroundJobFactory));
     private readonly NightShiftLock _syncRoot = new();

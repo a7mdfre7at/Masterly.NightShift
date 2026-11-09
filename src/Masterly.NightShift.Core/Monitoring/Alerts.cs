@@ -27,7 +27,6 @@ public enum AlertKind
 /// <summary>Something an operator should know about.</summary>
 public sealed class Alert(AlertKind kind, [NotNull] string title, [NotNull] string message)
 {
-
     /// <summary>The kind.</summary>
     public AlertKind Kind { get; } = kind;
 

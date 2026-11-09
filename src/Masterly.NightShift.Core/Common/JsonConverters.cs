@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel;
@@ -549,7 +550,7 @@ internal static class LegacyCollectionJson
     private static bool IsLegacyTypeName(string value, Type declaredType)
     {
         // A type name always names an assembly or a namespace
-        if (string.IsNullOrWhiteSpace(value) || declaredType == null || value.IndexOfAny(TypeNameSeparators) < 0) return false;
+        if (string.IsNullOrWhiteSpace(value) || declaredType == null || !value.AsSpan().ContainsAny(TypeNameSeparators)) return false;
 
         Type type;
         try
@@ -568,7 +569,7 @@ internal static class LegacyCollectionJson
                type.GetGenericTypeDefinition() == declaredType.GetGenericTypeDefinition();
     }
 
-    private static readonly char[] TypeNameSeparators = ['.', ','];
+    private static readonly SearchValues<char> TypeNameSeparators = SearchValues.Create(".,");
 
     private static bool IsDictionaryType(Type type)
     {
@@ -1115,14 +1116,14 @@ internal static class JsonDefaultValueModifier
 }
 
 /// <summary>Type names as stored in a <c>"$type"</c> property: without version, culture or public key.</summary>
-file static class JsonTypeNames
+internal static partial class JsonTypeNames
 {
-    private static readonly Regex AssemblyDetails = new(
-        @",\s*(Version|Culture|PublicKeyToken)=[^,\]]*", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+    [GeneratedRegex(@",\s*(Version|Culture|PublicKeyToken)=[^,\]]*", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 5000)]
+    private static partial Regex AssemblyDetailsRegex();
 
     public static string Simple(string typeName)
     {
-        return typeName == null ? null : AssemblyDetails.Replace(typeName, string.Empty);
+        return typeName == null ? null : AssemblyDetailsRegex().Replace(typeName, string.Empty);
     }
 }
 

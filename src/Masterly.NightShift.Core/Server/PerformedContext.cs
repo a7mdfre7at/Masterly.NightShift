@@ -27,7 +27,6 @@ public class PerformedContext(
     bool canceled,
     [CanBeNull] Exception? exception) : PerformContext(context)
 {
-
     /// <summary>
     /// Gets a value that was returned by the job.
     /// </summary>

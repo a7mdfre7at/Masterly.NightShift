@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -19,13 +20,16 @@ namespace Masterly.NightShift;
 /// minute 30). An hour range that ends before it starts runs overnight: <c>between 22 and 6</c> is <c>22-6</c>. Second and minute intervals take no time, and day schedules no hour range with their times:
 /// use <c>between</c> to limit the hours of an interval.
 /// </remarks>
-internal static class CronTextParser
+internal static partial class CronTextParser
 {
-    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
-    private static readonly Regex Ordinal = new(@"^(\d{1,2})(st|nd|rd|th)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex Time = new(@"^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"\s+", RegexOptions.None)]
+    private static partial Regex WhitespaceRegex();
+    [GeneratedRegex(@"^(\d{1,2})(st|nd|rd|th)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex OrdinalRegex();
+    [GeneratedRegex(@"^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex TimeRegex();
 
-    private static readonly Dictionary<string, int> Days = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenDictionary<string, int> Days = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["sunday"] = 0, ["sun"] = 0, ["sundays"] = 0,
         ["monday"] = 1, ["mon"] = 1, ["mondays"] = 1,
@@ -34,28 +38,28 @@ internal static class CronTextParser
         ["thursday"] = 4, ["thu"] = 4, ["thur"] = 4, ["thurs"] = 4, ["thursdays"] = 4,
         ["friday"] = 5, ["fri"] = 5, ["fridays"] = 5,
         ["saturday"] = 6, ["sat"] = 6, ["saturdays"] = 6,
-    };
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, int> Months = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenDictionary<string, int> Months = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["january"] = 1, ["jan"] = 1, ["february"] = 2, ["feb"] = 2, ["march"] = 3, ["mar"] = 3,
         ["april"] = 4, ["apr"] = 4, ["may"] = 5, ["june"] = 6, ["jun"] = 6, ["july"] = 7, ["jul"] = 7,
         ["august"] = 8, ["aug"] = 8, ["september"] = 9, ["sep"] = 9, ["sept"] = 9, ["october"] = 10, ["oct"] = 10,
         ["november"] = 11, ["nov"] = 11, ["december"] = 12, ["dec"] = 12,
-    };
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, int> Numbers = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenDictionary<string, int> Numbers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["one"] = 1, ["two"] = 2, ["three"] = 3, ["four"] = 4, ["five"] = 5, ["six"] = 6, ["seven"] = 7,
         ["eight"] = 8, ["nine"] = 9, ["ten"] = 10, ["fifteen"] = 15, ["twenty"] = 20, ["thirty"] = 30,
         ["other"] = 2,
-    };
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     public static string Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        var normalized = Whitespace.Replace(text.Trim(), " ");
+        var normalized = WhitespaceRegex().Replace(text.Trim(), " ");
         if (normalized.Length == 0) throw new FormatException("The schedule text is empty.");
 
         if (LooksLikeCron(normalized))
@@ -117,7 +121,7 @@ internal static class CronTextParser
             if (word.Length == 0) continue;
 
             // "9:30pm" and "9:30 pm" are the same time, and so are "9a.m." and "9 a.m."
-            if ((word == "am" || word == "pm" || word == "a.m." || word == "p.m.") && tokens.Count > 0 && Time.IsMatch(tokens[^1] + " " + word))
+            if ((word == "am" || word == "pm" || word == "a.m." || word == "p.m.") && tokens.Count > 0 && TimeRegex().IsMatch(tokens[^1] + " " + word))
             {
                 tokens[^1] = tokens[^1] + word;
                 continue;
@@ -174,7 +178,7 @@ internal static class CronTextParser
             return;
         }
 
-        if (Time.IsMatch(token))
+        if (TimeRegex().IsMatch(token))
         {
             // "9:30 on weekends": the time itself is parsed by the modifiers
             schedule.Unit = Unit.Day;
@@ -246,7 +250,7 @@ internal static class CronTextParser
             return true;
         }
 
-        if (token == "midnight" || token == "noon" || Time.IsMatch(token))
+        if (token == "midnight" || token == "noon" || TimeRegex().IsMatch(token))
         {
             schedule.Times.AddRange(ParseTimeList(tokens, ref position));
             return true;
@@ -267,7 +271,7 @@ internal static class CronTextParser
                 schedule.Month = month.ToString(CultureInfo.InvariantCulture);
                 position++;
 
-                if (position < tokens.Count && Ordinal.IsMatch(tokens[position]))
+                if (position < tokens.Count && OrdinalRegex().IsMatch(tokens[position]))
                 {
                     schedule.DayOfMonth = ParseDayOfMonth(tokens[position]);
                     position++;
@@ -281,7 +285,7 @@ internal static class CronTextParser
 
             if (token == "last") { schedule.DayOfMonth = "L"; position++; if (Peek(tokens, position) == "day") position++; return true; }
 
-            if (Ordinal.IsMatch(token))
+            if (OrdinalRegex().IsMatch(token))
             {
                 schedule.DayOfMonth = ParseDayOfMonth(token);
                 position++;
@@ -355,7 +359,7 @@ internal static class CronTextParser
             var token = tokens[position];
 
             if (token == "and" && times.Count > 0 && position + 1 < tokens.Count
-                && (tokens[position + 1] == "midnight" || tokens[position + 1] == "noon" || Time.IsMatch(tokens[position + 1])))
+                && (tokens[position + 1] == "midnight" || tokens[position + 1] == "noon" || TimeRegex().IsMatch(tokens[position + 1])))
             {
                 position++;
                 continue;
@@ -364,7 +368,7 @@ internal static class CronTextParser
             if (token == "midnight") { times.Add(new TimeOfDay(0, 0, token)); position++; continue; }
             if (token == "noon") { times.Add(new TimeOfDay(12, 0, token)); position++; continue; }
 
-            var match = Time.Match(token);
+            var match = TimeRegex().Match(token);
             if (!match.Success) break;
 
             var hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -398,7 +402,7 @@ internal static class CronTextParser
         else if (token == "noon") time = (12, 0);
         else
         {
-            var match = Time.Match(token);
+            var match = TimeRegex().Match(token);
             if (!match.Success) throw new FormatException($"'{token}' is not an hour.");
 
             var hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -419,7 +423,7 @@ internal static class CronTextParser
 
     private static string ParseDayOfMonth(string token)
     {
-        var match = Ordinal.Match(token);
+        var match = OrdinalRegex().Match(token);
         var day = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
         if (day is < 1 or > 31) throw new FormatException($"'{token}' is not a day of month.");
 

@@ -11,7 +11,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal abstract class ExpressionFingerprint(ExpressionType nodeType, Type type)
 {
-
     // the type of expression node, e.g. OP_ADD, MEMBER_ACCESS, etc.
     public ExpressionType NodeType { get; } = nodeType;
 

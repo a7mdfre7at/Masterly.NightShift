@@ -15,7 +15,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class ParameterExpressionFingerprint(ExpressionType nodeType, Type type, int parameterIndex) : ExpressionFingerprint(nodeType, type)
 {
-
     // Parameter position within the overall expression, used to maintain alpha equivalence.
     public int ParameterIndex { get; } = parameterIndex;
 

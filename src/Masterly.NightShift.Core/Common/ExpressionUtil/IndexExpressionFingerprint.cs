@@ -16,7 +16,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class IndexExpressionFingerprint(ExpressionType nodeType, Type type, PropertyInfo indexer) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.indexexpression.indexer.aspx
     public PropertyInfo Indexer { get; } = indexer;
 

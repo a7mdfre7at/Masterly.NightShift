@@ -126,7 +126,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
     public override void AcquireDistributedLock(string resource, TimeSpan timeout)
     {
-        if (string.IsNullOrWhiteSpace(resource)) throw new ArgumentNullException(nameof(resource));
+        ArgumentException.ThrowIfNullOrWhiteSpace(resource);
 
         var disposableLock = _connection.AcquireLock($"{_storage.SchemaName}:{resource}", timeout);
         if (disposableLock.OwnLock)

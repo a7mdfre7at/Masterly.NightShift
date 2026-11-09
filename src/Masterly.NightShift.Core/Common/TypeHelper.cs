@@ -25,7 +25,7 @@ namespace Masterly.NightShift.Common;
 /// Turns types into the names stored with jobs and back, and maps the type names stored by earlier versions to the
 /// current types. The resolver and serializer can be replaced.
 /// </summary>
-public class TypeHelper
+public partial class TypeHelper
 {
     private static readonly ConcurrentDictionary<Type, string> DefaultTypeSerializerCache = new();
     private static readonly ConcurrentDictionary<Type, string> SimpleAssemblyTypeSerializerCache = new();
@@ -37,9 +37,12 @@ public class TypeHelper
     private static readonly AssemblyName MscorlibAssemblyName = new("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
     private static readonly ConcurrentDictionary<string, Assembly> AssemblyCache = new();
 
-    private static readonly Regex VersionRegex = new(@", Version=\d+.\d+.\d+.\d+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
-    private static readonly Regex CultureRegex = new(@", Culture=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
-    private static readonly Regex PublicKeyTokenRegex = new(@", PublicKeyToken=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
+    [GeneratedRegex(@", Version=\d+.\d+.\d+.\d+", RegexOptions.None, matchTimeoutMilliseconds: 5000)]
+    private static partial Regex VersionRegex();
+    [GeneratedRegex(@", Culture=\w+", RegexOptions.None, matchTimeoutMilliseconds: 5000)]
+    private static partial Regex CultureRegex();
+    [GeneratedRegex(@", PublicKeyToken=\w+", RegexOptions.None, matchTimeoutMilliseconds: 5000)]
+    private static partial Regex PublicKeyTokenRegex();
 
     public static Func<string, Type> CurrentTypeResolver
     {
@@ -85,9 +88,9 @@ public class TypeHelper
     {
         return IgnoredAssemblyVersionTypeResolverCache.GetOrAdd(typeName, static value =>
         {
-            value = VersionRegex.Replace(value, string.Empty);
-            value = CultureRegex.Replace(value, string.Empty);
-            value = PublicKeyTokenRegex.Replace(value, string.Empty);
+            value = VersionRegex().Replace(value, string.Empty);
+            value = CultureRegex().Replace(value, string.Empty);
+            value = PublicKeyTokenRegex().Replace(value, string.Empty);
 
             return DefaultTypeResolver(value);
         });

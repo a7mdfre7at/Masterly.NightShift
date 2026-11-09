@@ -126,7 +126,7 @@ public class ApplyStateContext
 
     public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
     {
-        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrEmpty(name);
 
         try
         {

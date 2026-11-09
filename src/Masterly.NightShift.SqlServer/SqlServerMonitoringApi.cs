@@ -392,8 +392,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             if (job == null) return null;
 
             var parameters = multi.Read<JobParameter>()
-                .GroupBy(static x => x.Name)
-                .Select(static grp => grp.First())
+                .DistinctBy(static x => x.Name)
                 .ToDictionary(static x => x.Name, static x => x.Value);
 
             var deserializedJob = DeserializeJob(job.InvocationData, job.Arguments, out var payload, out var exception);

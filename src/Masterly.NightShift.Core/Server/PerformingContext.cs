@@ -23,7 +23,6 @@ namespace Masterly.NightShift.Server;
 /// </summary>
 public class PerformingContext(PerformContext context) : PerformContext(context)
 {
-
     /// <summary>
     /// Gets or sets a value that indicates that this <see cref="PerformingContext"/>
     /// object was canceled.

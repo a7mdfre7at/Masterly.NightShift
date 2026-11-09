@@ -2442,7 +2442,7 @@ values (@jobId, '', '', getutcdate())";
     {
         UseSqlServerTransaction(transaction =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            var exception = Assert.Throws<ArgumentException>(
             () => transaction.AcquireDistributedLock("", TimeSpan.FromSeconds(15)));
 
             Assert.Equal("resource", exception.ParamName);

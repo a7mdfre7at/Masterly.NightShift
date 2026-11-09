@@ -16,7 +16,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class UnaryExpressionFingerprint(ExpressionType nodeType, Type type, MethodInfo method) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.unaryexpression.method.aspx
     public MethodInfo Method { get; } = method;
 

@@ -46,8 +46,8 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
     /// <param name="perSeconds">Length of the sliding window, in seconds.</param>
     public RateLimitAttribute([CanBeNull] string? resource, int limit, int perSeconds)
     {
-        if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit), "Limit should be greater than zero.");
-        if (perSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(perSeconds), "Window should be greater than zero.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(perSeconds);
 
         Resource = resource;
         Limit = limit;
@@ -79,7 +79,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         get;
         set
         {
-            if (value < 0) throw new ArgumentOutOfRangeException(nameof(value), value, "WaitTimeoutSeconds should be zero or greater.");
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
             field = value;
         }
     }

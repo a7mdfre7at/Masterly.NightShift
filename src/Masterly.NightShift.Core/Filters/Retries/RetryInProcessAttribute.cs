@@ -35,7 +35,7 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
     /// <param name="attempts">Number of additional attempts after the first failure.</param>
     public RetryInProcessAttribute(int attempts)
     {
-        if (attempts < 0) throw new ArgumentOutOfRangeException(nameof(attempts), "Attempts should be zero or greater.");
+        ArgumentOutOfRangeException.ThrowIfNegative(attempts);
 
         Attempts = attempts;
         DelayMilliseconds = 200;

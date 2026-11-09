@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Collections.Frozen;
 using System.Globalization;
 
 namespace Masterly.NightShift;
@@ -22,12 +23,12 @@ internal static class CronDescriber
     private static readonly string[] MonthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     private static readonly string[] Ordinals = ["", "first", "second", "third", "fourth", "fifth"];
 
-    private static readonly Dictionary<string, string> Presets = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenDictionary<string, string> Presets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["@yearly"] = "0 0 1 1 *", ["@annually"] = "0 0 1 1 *", ["@monthly"] = "0 0 1 * *", ["@weekly"] = "0 0 * * 0",
         ["@daily"] = "0 0 * * *", ["@midnight"] = "0 0 * * *", ["@hourly"] = "0 * * * *", ["@every_minute"] = "* * * * *",
         ["@every_second"] = "* * * * * *",
-    };
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     public static string Describe(string expression)
     {

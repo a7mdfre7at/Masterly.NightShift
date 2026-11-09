@@ -117,7 +117,7 @@ public class PerformContext
 
     public void SetJobParameter([NotNull] string name, object value)
     {
-        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrEmpty(name);
 
         Connection.SetJobParameter(BackgroundJob.Id, name, SerializationHelper.Serialize(value, SerializationOption.User));
     }
@@ -126,7 +126,7 @@ public class PerformContext
 
     public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
     {
-        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrEmpty(name);
 
         try
         {

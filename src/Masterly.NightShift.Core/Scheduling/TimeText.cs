@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -18,19 +19,22 @@ namespace Masterly.NightShift;
 /// 00:00 the day after tomorrow. An explicit am or pm, and a 24-hour time such as "19:15" or "07:30", are used as
 /// written; "morning" keeps the hour.
 /// </remarks>
-public static class TimeText
+public static partial class TimeText
 {
-    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
-    private static readonly Regex Relative = new(@"^(?:in\s+)?(\d+(?:\.\d+)?|an?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|months?)(?:\s+from\s+now)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TimeOfDay = new(@"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"\s+", RegexOptions.None)]
+    private static partial Regex WhitespaceRegex();
+    [GeneratedRegex(@"^(?:in\s+)?(\d+(?:\.\d+)?|an?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|months?)(?:\s+from\s+now)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex RelativeRegex();
+    [GeneratedRegex(@"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex TimeOfDayRegex();
 
-    private static readonly Dictionary<string, DayOfWeek> Days = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenDictionary<string, DayOfWeek> Days = new Dictionary<string, DayOfWeek>(StringComparer.OrdinalIgnoreCase)
     {
         ["sunday"] = DayOfWeek.Sunday, ["sun"] = DayOfWeek.Sunday, ["monday"] = DayOfWeek.Monday, ["mon"] = DayOfWeek.Monday,
         ["tuesday"] = DayOfWeek.Tuesday, ["tue"] = DayOfWeek.Tuesday, ["wednesday"] = DayOfWeek.Wednesday, ["wed"] = DayOfWeek.Wednesday,
         ["thursday"] = DayOfWeek.Thursday, ["thu"] = DayOfWeek.Thursday, ["friday"] = DayOfWeek.Friday, ["fri"] = DayOfWeek.Friday,
         ["saturday"] = DayOfWeek.Saturday, ["sat"] = DayOfWeek.Saturday,
-    };
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     // "in 99999999 days" is refused rather than overflowing: relative phrases reach at most ten years ahead
     private static readonly TimeSpan MaxRelativeDelay = TimeSpan.FromDays(3653);
@@ -92,7 +96,7 @@ public static class TimeText
         result = default;
         error = null;
 
-        var phrase = Whitespace.Replace(text.Trim(), " ").ToLowerInvariant();
+        var phrase = WhitespaceRegex().Replace(text.Trim(), " ").ToLowerInvariant();
         if (phrase.Length == 0) return false;
 
         if (phrase is "now" or "immediately" or "asap")
@@ -101,7 +105,7 @@ public static class TimeText
             return true;
         }
 
-        var relative = Relative.Match(phrase);
+        var relative = RelativeRegex().Match(phrase);
         if (relative.Success)
         {
             var amount = relative.Groups[1].Value is "a" or "an" ? 1 : double.Parse(relative.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -240,7 +244,7 @@ public static class TimeText
                 i++;
             }
 
-            var match = TimeOfDay.Match(timeText);
+            var match = TimeOfDayRegex().Match(timeText);
             if (!match.Success) return false;
 
             var hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);

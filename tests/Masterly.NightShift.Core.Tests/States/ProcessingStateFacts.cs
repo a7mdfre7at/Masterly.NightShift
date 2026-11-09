@@ -15,7 +15,7 @@ public class ProcessingStateFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenServerNameIsEmpty()
     {
-        Assert.Throws<ArgumentNullException>(
+        Assert.Throws<ArgumentException>(
             () => new ProcessingState(string.Empty, WorkerId));
     }
 

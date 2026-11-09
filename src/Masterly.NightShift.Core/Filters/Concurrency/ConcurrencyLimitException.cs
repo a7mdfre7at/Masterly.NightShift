@@ -10,7 +10,6 @@ namespace Masterly.NightShift;
 /// <param name="message">The message.</param>
 public class ConcurrencyLimitException(string resource, string message) : Exception(message)
 {
-
     /// <summary>Gets the resource whose limit was reached.</summary>
     public string Resource { get; } = resource;
 }

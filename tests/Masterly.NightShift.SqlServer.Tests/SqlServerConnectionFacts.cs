@@ -88,7 +88,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            var exception = Assert.Throws<ArgumentException>(
             () => connection.AcquireDistributedLock("", TimeSpan.FromMinutes(5)));
 
             Assert.Equal("resource", exception.ParamName);

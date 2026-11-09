@@ -16,7 +16,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class BinaryExpressionFingerprint(ExpressionType nodeType, Type type, MethodInfo method) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.binaryexpression.method.aspx
     public MethodInfo Method { get; } = method;
 

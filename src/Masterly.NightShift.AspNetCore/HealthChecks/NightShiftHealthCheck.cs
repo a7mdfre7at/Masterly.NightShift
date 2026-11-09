@@ -11,12 +11,11 @@ namespace Masterly.NightShift.HealthChecks;
 /// The health check registered by <c>AddNightShift</c>. Its result never contains exception messages, which can
 /// name servers, databases or logins: storage errors are logged instead.
 /// </summary>
-internal sealed class NightShiftHealthCheck(NightShiftHealthCheckOptions options, Func<JobStorage> storage, ILogger? logger) : IHealthCheck
+internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions options, Func<JobStorage> storage, ILogger? logger) : IHealthCheck
 {
-    private static readonly Action<ILogger, Exception?> LogStorageFailure = LoggerMessage.Define(
-        LogLevel.Warning,
-        new EventId(1, "StorageDidNotAnswer"),
-        "NightShift health check: the storage did not answer.");
+    [LoggerMessage(EventId = 1, EventName = "StorageDidNotAnswer", Level = LogLevel.Warning,
+        Message = "NightShift health check: the storage did not answer.")]
+    private static partial void LogStorageFailure(ILogger logger, Exception exception);
 
     private readonly NightShiftHealthCheckOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly Func<JobStorage> _storage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -81,7 +80,10 @@ internal sealed class NightShiftHealthCheck(NightShiftHealthCheckOptions options
             return new HealthCheckResult(failureStatus, "No NightShift server runs in this process.");
         }
 
-        var registered = servers.Where(static server => server.Name != null).GroupBy(static server => server.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var registered = servers
+            .Where(static server => server.Name != null)
+            .DistinctBy(static server => server.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static server => server.Name, StringComparer.OrdinalIgnoreCase);
         var silent = local.Count(id => !registered.TryGetValue(id, out var server) || !server.Heartbeat.HasValue || server.Heartbeat.Value < oldest);
         var data = new Dictionary<string, object> { { "servers", local.Count }, { "silent", silent } };
 

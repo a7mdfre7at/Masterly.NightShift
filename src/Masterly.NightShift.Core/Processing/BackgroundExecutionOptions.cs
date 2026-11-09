@@ -72,8 +72,7 @@ internal sealed class BackgroundExecutionOptions
     internal static TimeSpan GetBackOffMultiplier(int retryAttemptNumber)
     {
         //exponential/random retry back-off.
-        var rand = new Random(Guid.NewGuid().GetHashCode());
-        var nextTry = rand.Next(
+        var nextTry = Random.Shared.Next(
             (int)Math.Pow(retryAttemptNumber, 2), (int)Math.Pow(retryAttemptNumber, 2) + 1);
 
         return TimeSpan.FromSeconds(Math.Min(nextTry, DefaultMaxAttemptDelay.TotalSeconds));

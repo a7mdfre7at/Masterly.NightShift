@@ -43,7 +43,7 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
     /// <param name="timeoutInSeconds">Seconds after creation by which the job should be done.</param>
     public DeadlineAttribute(int timeoutInSeconds)
     {
-        if (timeoutInSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(timeoutInSeconds), "The deadline should be greater than zero.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutInSeconds);
         Timeout = TimeSpan.FromSeconds(timeoutInSeconds);
     }
 

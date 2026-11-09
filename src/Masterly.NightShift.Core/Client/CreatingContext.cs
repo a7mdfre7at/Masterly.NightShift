@@ -23,7 +23,6 @@ namespace Masterly.NightShift.Client;
 /// </summary>
 public class CreatingContext(CreateContext context) : CreateContext(context)
 {
-
     /// <summary>
     /// Gets or sets a value that indicates that this <see cref="CreatingContext"/>
     /// object was canceled.
@@ -42,7 +41,7 @@ public class CreatingContext(CreateContext context) : CreateContext(context)
     /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
     public void SetJobParameter(string name, object value)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
         Parameters[name] = value;
     }
 
@@ -60,7 +59,7 @@ public class CreatingContext(CreateContext context) : CreateContext(context)
     /// <exception cref="InvalidOperationException">Could not deserialize the parameter value to the type <typeparamref name="T"/>.</exception>
     public T? GetJobParameter<T>(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         try
         {

@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Text;
@@ -90,7 +91,7 @@ internal sealed class JobExportDispatcher : IDashboardDispatcher
 /// </summary>
 internal sealed class JobListExportDispatcher(string state) : IDashboardDispatcher
 {
-    private static readonly char[] CsvSpecialCharacters = [',', '"', '\r', '\n'];
+    private static readonly SearchValues<char> CsvSpecialCharacters = SearchValues.Create(",\"\r\n");
 
     public const int MaxRows = 10000;
     internal const int PageSize = 500;
@@ -163,7 +164,7 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
 
-        var needsQuotes = value.IndexOfAny(CsvSpecialCharacters) >= 0;
+        var needsQuotes = value.AsSpan().ContainsAny(CsvSpecialCharacters);
         var escaped = value.Replace("\"", "\"\"");
 
         // A leading formula character would be executed by spreadsheets; some also read one after a tab or a CR

@@ -38,7 +38,7 @@ public class ProcessingState : IState
 
     internal ProcessingState(string serverId, string workerId)
     {
-        if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentNullException(nameof(serverId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverId);
 
         ServerId = serverId;
         StartedAt = DateTime.UtcNow;

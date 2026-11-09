@@ -46,7 +46,6 @@ internal static class ConcurrencyControl
     /// The pauses between the attempts of <see cref="WithRetries"/> after a storage error. Replaceable for tests.
     /// </summary>
     internal static TimeSpan[] StorageRetryDelays { get; set; } = [TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(1)];
-    private static readonly Random Jitter = new();
 
     /// <summary>
     /// Replaceable for tests. Used when the worker's own changer isn't in <see cref="PerformContext.Items"/>
@@ -303,10 +302,7 @@ internal static class ConcurrencyControl
     /// <summary>A random delay of up to a second, so rescheduled jobs don't all wake up together.</summary>
     public static TimeSpan GetJitter()
     {
-        lock (Jitter)
-        {
-            return TimeSpan.FromMilliseconds(Jitter.Next(0, 1000));
-        }
+        return TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000));
     }
 
     /// <summary>

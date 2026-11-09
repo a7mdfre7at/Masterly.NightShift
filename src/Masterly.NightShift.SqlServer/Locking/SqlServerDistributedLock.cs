@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Collections.Frozen;
 using System.Diagnostics;
 
 namespace Masterly.NightShift.SqlServer;
@@ -29,14 +30,14 @@ internal static class SqlServerDistributedLock
     private const string LockMode = "Exclusive";
     private const string LockOwner = "Session";
 
-    private static readonly IDictionary<int, string> LockErrorMessages
+    private static readonly FrozenDictionary<int, string> LockErrorMessages
         = new Dictionary<int, string>
         {
             { -1, "The lock request timed out" },
             { -2, "The lock request was canceled" },
             { -3, "The lock request was chosen as a deadlock victim" },
             { -999, "Indicates a parameter validation or other call error" }
-        };
+        }.ToFrozenDictionary();
 
     internal static void Acquire(DbConnection connection, string resource, TimeSpan timeout)
     {

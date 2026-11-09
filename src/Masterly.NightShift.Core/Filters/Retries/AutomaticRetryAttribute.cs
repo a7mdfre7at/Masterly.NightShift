@@ -93,9 +93,8 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
 
     private static readonly Func<long, int> DefaultDelayInSecondsByAttemptFunc = attempt =>
     {
-        var random = new Random();
         return (int)Math.Round(
-            Math.Pow(attempt - 1, 4) + 15 + random.Next(30) * attempt);
+            Math.Pow(attempt - 1, 4) + 15 + Random.Shared.Next(30) * attempt);
     };
 
     private readonly ILog _logger = LogProvider.For<AutomaticRetryAttribute>();

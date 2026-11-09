@@ -15,7 +15,6 @@ namespace Masterly.NightShift.Common.ExpressionUtil;
 [ExcludeFromCodeCoverage]
 internal sealed class TypeBinaryExpressionFingerprint(ExpressionType nodeType, Type type, Type typeOperand) : ExpressionFingerprint(nodeType, type)
 {
-
     // http://msdn.microsoft.com/en-us/library/system.linq.expressions.typebinaryexpression.typeoperand.aspx
     public Type TypeOperand { get; } = typeOperand;
 

@@ -19,9 +19,10 @@ using System.Text.RegularExpressions;
 
 namespace Masterly.NightShift.Common;
 
-internal static class TypeExtensions
+internal static partial class TypeExtensions
 {
-    private static readonly Regex GenericArgumentsRegex = new(@"`[1-9]\d*", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
+    [GeneratedRegex(@"`[1-9]\d*", RegexOptions.None, matchTimeoutMilliseconds: 5000)]
+    private static partial Regex GenericArgumentsRegex();
 
     extension(Type type)
     {
@@ -246,7 +247,7 @@ internal static class TypeExtensions
         {
             var genericArguments = type.GetTypeInfo().GetAllGenericArguments();
 
-            typeName = GenericArgumentsRegex.Replace(typeName, match =>
+            typeName = GenericArgumentsRegex().Replace(typeName, match =>
             {
                 var currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
                 var currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));

@@ -36,7 +36,7 @@ internal sealed record JobDiagnostic(
 /// retried. Open circuits are reported in every state. Every finding is a plain sentence with a link to
 /// the place that fixes it.
 /// </summary>
-internal static class JobDiagnostics
+internal static partial class JobDiagnostics
 {
     /// <summary>How long a job may wait in a served queue before the wait is called out.</summary>
     public static readonly TimeSpan WaitingThreshold = TimeSpan.FromMinutes(1);
@@ -50,7 +50,8 @@ internal static class JobDiagnostics
     /// <summary>How many lines about single parents are shown, missing and failed ones first.</summary>
     internal const int MaxParentLines = 10;
 
-    private static readonly Regex RetryReason = new(@"^Retry attempt (\d+) of (\d+)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    [GeneratedRegex(@"^Retry attempt (\d+) of (\d+)", RegexOptions.CultureInvariant)]
+    private static partial Regex RetryReasonRegex();
 
     public static IReadOnlyList<JobDiagnostic> Diagnose(RazorPage page, string jobId, JobDetailsDto details)
     {
@@ -133,7 +134,7 @@ internal static class JobDiagnostics
     private static void DiagnoseScheduled(RazorPage page, IMonitoringApi monitor, JobDetailsDto details, StateHistoryDto current, DateTime now, List<JobDiagnostic> findings)
     {
         var enqueueAt = current.Data != null && current.Data.TryGetValue("EnqueueAt", out var value) ? JobHelper.DeserializeNullableDateTime(value) : null;
-        var retry = current.Reason != null ? RetryReason.Match(current.Reason) : null;
+        var retry = current.Reason != null ? RetryReasonRegex().Match(current.Reason) : null;
 
         if (retry != null && retry.Success)
         {

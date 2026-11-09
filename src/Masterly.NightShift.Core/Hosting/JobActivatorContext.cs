@@ -61,7 +61,7 @@ public class JobActivatorContext
     /// <param name="value">The value, or <c>null</c>.</param>
     public void SetJobParameter([NotNull] string name, object? value)
     {
-        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrEmpty(name);
 
         Connection.SetJobParameter(BackgroundJob.Id, name, SerializationHelper.Serialize(value, SerializationOption.User));
     }
@@ -79,7 +79,7 @@ public class JobActivatorContext
     /// <param name="allowStale">Whether the parameters read when the job was fetched may be used instead of reading the storage.</param>
     public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
     {
-        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        ArgumentException.ThrowIfNullOrEmpty(name);
 
         try
         {

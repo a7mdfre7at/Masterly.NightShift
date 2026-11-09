@@ -25,7 +25,6 @@ public class ServerExceptionContext(
     PerformContext context,
     Exception exception) : PerformContext(context)
 {
-
     /// <summary>
     /// Gets an exception that occurred during the performance of the job.
     /// </summary>
