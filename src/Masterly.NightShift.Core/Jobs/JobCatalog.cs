@@ -103,7 +103,7 @@ public sealed class JobCatalogEntry
 public static class JobCatalog
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobCatalog));
-    private static readonly object SyncRoot = new();
+    private static readonly NightShiftLock SyncRoot = new();
     private static Type[] _additionalTypes = [];
 
     /// <summary>Adds every public instance and static method of <typeparamref name="T"/> to the catalog.</summary>

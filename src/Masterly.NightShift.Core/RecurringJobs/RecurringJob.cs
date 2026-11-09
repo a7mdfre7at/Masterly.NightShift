@@ -26,7 +26,7 @@ namespace Masterly.NightShift;
 public static class RecurringJob
 {
     private static readonly Func<RecurringJobManager> DefaultFactory = static () => new RecurringJobManager();
-    private static readonly object ManagerFactoryLock = new();
+    private static readonly NightShiftLock ManagerFactoryLock = new();
 
     internal static Func<RecurringJobManager> ManagerFactory
     {

@@ -67,7 +67,7 @@ public interface IAlertSink
 public static class Alerts
 {
     private static readonly ILog Logger = LogProvider.For<Alert>();
-    private static readonly object SyncRoot = new();
+    private static readonly NightShiftLock SyncRoot = new();
     private static IAlertSink[] _sinks = [];
 
     /// <summary>Whether at least one sink is registered.</summary>

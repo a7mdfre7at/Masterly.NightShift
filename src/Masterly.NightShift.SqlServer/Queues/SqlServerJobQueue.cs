@@ -230,15 +230,16 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         string[] queues,
         int invisibilityTimeout)
     {
-        var template = storage.GetQueryFromTemplate(static schemaName => $@"
-set nocount on;set xact_abort on;set tran isolation level read committed;
+        var template = storage.GetQueryFromTemplate(static schemaName => $"""
+            set nocount on;set xact_abort on;set tran isolation level read committed;
 
-update top (1) JQ
-set FetchedAt = GETUTCDATE()
-output INSERTED.Id, INSERTED.JobId, INSERTED.Queue, INSERTED.FetchedAt
-from [{schemaName}].JobQueue JQ with (forceseek, readpast, updlock, rowlock)
-where Queue in @queues and
-(FetchedAt is null or FetchedAt < DATEADD(second, @timeoutSs, GETUTCDATE()));");
+            update top (1) JQ
+            set FetchedAt = GETUTCDATE()
+            output INSERTED.Id, INSERTED.JobId, INSERTED.Queue, INSERTED.FetchedAt
+            from [{schemaName}].JobQueue JQ with (forceseek, readpast, updlock, rowlock)
+            where Queue in @queues and
+            (FetchedAt is null or FetchedAt < DATEADD(second, @timeoutSs, GETUTCDATE()));
+            """);
 
         return connection.Create(template, timeout: storage.CommandTimeout)
             .AddParameter("@timeoutSs", invisibilityTimeout, DbType.Int32)
@@ -314,10 +315,12 @@ where Queue in @queues and
         int invisibilityTimeout)
     {
         var template = storage.GetQueryFromTemplate(static schemaName =>
-            $@"delete top (1) JQ
-output DELETED.Id, DELETED.JobId, DELETED.Queue
-from [{schemaName}].JobQueue JQ with (readpast, updlock, rowlock, forceseek)
-where Queue in @queues and (FetchedAt is null or FetchedAt < DATEADD(second, @timeout, GETUTCDATE()))");
+            $"""
+            delete top (1) JQ
+            output DELETED.Id, DELETED.JobId, DELETED.Queue
+            from [{schemaName}].JobQueue JQ with (readpast, updlock, rowlock, forceseek)
+            where Queue in @queues and (FetchedAt is null or FetchedAt < DATEADD(second, @timeout, GETUTCDATE()))
+            """);
 
         return connection
             .Create(template, timeout: storage.CommandTimeout)

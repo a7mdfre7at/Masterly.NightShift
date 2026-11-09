@@ -21,7 +21,7 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
 {
     private readonly ILog _logger = LogProvider.GetLogger(typeof(SqlServerTimeoutJob));
 
-    private readonly object _syncRoot = new();
+    private readonly NightShiftLock _syncRoot = new();
     private readonly SqlServerStorage _storage;
     private bool _disposed;
     private bool _removedFromQueue;

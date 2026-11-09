@@ -22,7 +22,7 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
     private static readonly ConcurrentDictionary<string, ConcurrentDictionary<ServerJobCancellationToken, object>> WatchedServers
         = new();
 
-    private readonly object _syncRoot = new();
+    private readonly NightShiftLock _syncRoot = new();
     private readonly string _jobId;
     private readonly string _serverId;
     private readonly string _workerId;

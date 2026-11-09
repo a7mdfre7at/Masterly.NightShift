@@ -27,8 +27,6 @@ public class DashboardOptions
     private static readonly IDashboardAuthorizationFilter[] DefaultAuthorization =
         [new LocalRequestsOnlyAuthorizationFilter()];
 
-    private IEnumerable<IDashboardAsyncAuthorizationFilter> _asyncAuthorization;
-
     /// <summary>
     /// Initializes the options with their defaults: only local requests are authorized, and the dashboard
     /// isn't read-only.
@@ -37,7 +35,6 @@ public class DashboardOptions
     {
         AppPath = "/";
         PrefixPath = string.Empty;
-        _asyncAuthorization = [];
         Authorization = DefaultAuthorization;
         IsReadOnlyFunc = static _ => false;
         StatsPollingInterval = 2000;
@@ -71,17 +68,17 @@ public class DashboardOptions
     /// </summary>
     public IEnumerable<IDashboardAsyncAuthorizationFilter> AsyncAuthorization
     {
-        get => _asyncAuthorization;
+        get;
         set
         {
-            _asyncAuthorization = value;
+            field = value;
 
             if (ReferenceEquals(Authorization, DefaultAuthorization))
             {
                 Authorization = [];
             }
         }
-    }
+    } = [];
 
     /// <summary>
     /// Gets or sets a function called once per request; when it returns <c>true</c>, the buttons that change

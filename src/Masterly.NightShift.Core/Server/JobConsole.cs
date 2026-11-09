@@ -80,7 +80,7 @@ public sealed class JobConsole : IJobConsole
     private static readonly TimeSpan DroppedWriteWarningInterval = TimeSpan.FromMinutes(1);
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobConsole));
 
-    private readonly object _syncRoot = new();
+    private readonly NightShiftLock _syncRoot = new();
     private readonly PerformContext _context;
     private int _sequence;
     private JobProgress? _lastProgress;

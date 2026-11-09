@@ -28,7 +28,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
     };
 
     private readonly ILog _logger = LogProvider.GetLogger(typeof(CoreBackgroundJobFactory));
-    private readonly object _syncRoot = new();
+    private readonly NightShiftLock _syncRoot = new();
 
     public CoreBackgroundJobFactory([NotNull] IStateMachine stateMachine)
     {

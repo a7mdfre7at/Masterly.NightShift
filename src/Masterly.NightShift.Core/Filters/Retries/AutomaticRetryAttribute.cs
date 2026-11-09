@@ -100,7 +100,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
 
     private readonly ILog _logger = LogProvider.For<AutomaticRetryAttribute>();
 
-    private readonly object _lockObject = new();
+    private readonly NightShiftLock _lockObject = new();
     private Type[]? _onlyOn;
     private Type[]? _exceptOn;
 

@@ -391,7 +391,7 @@ public static class GlobalConfigurationExtensions
         return configuration.Use(continuations, static _ => { });
     }
 
-    private static readonly object GlobalFiltersLock = new();
+    private static readonly NightShiftLock GlobalFiltersLock = new();
 
     // Adds a filter that Use* methods add only once: a process that configures NightShift again (several hosts
     // in one test run, for example) doesn't pile up copies in the global filters. Returns the registered filter.

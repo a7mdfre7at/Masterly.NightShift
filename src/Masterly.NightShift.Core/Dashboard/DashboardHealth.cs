@@ -9,12 +9,7 @@ using Masterly.NightShift.Storage.Monitoring;
 namespace Masterly.NightShift.Dashboard;
 
 /// <summary>One check of a <see cref="HealthReport"/>.</summary>
-internal sealed class HealthCheck(string name, HealthStatus status, string detail)
-{
-    public string Name { get; } = name;
-    public HealthStatus Status { get; } = status;
-    public string Detail { get; } = detail;
-}
+internal sealed record HealthCheck(string Name, HealthStatus Status, string Detail);
 
 internal enum HealthStatus
 {
@@ -288,12 +283,7 @@ internal static class DashboardHealth
             recurringJobs.Count(static j => !j.Removed));
     }
 
-    private sealed class RecurringProblems(IReadOnlyList<string> late, IReadOnlyList<string> disabled, long total)
-    {
-        public IReadOnlyList<string> Late { get; } = late;
-        public IReadOnlyList<string> Disabled { get; } = disabled;
-        public long Total { get; } = total;
-    }
+    private sealed record RecurringProblems(IReadOnlyList<string> Late, IReadOnlyList<string> Disabled, long Total);
 }
 
 /// <summary>

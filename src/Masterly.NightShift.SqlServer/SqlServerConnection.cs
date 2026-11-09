@@ -87,9 +87,11 @@ internal sealed class SqlServerConnection : JobStorageConnection
         }
 
         var queryString = Storage.GetQueryFromTemplate(static schemaName =>
-$@"insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt)
-output inserted.Id
-values (@invocationData, @arguments, @createdAt, @expireAt)");
+            $"""
+            insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt)
+            output inserted.Id
+            values (@invocationData, @arguments, @createdAt, @expireAt)
+            """);
 
         var invocationData = InvocationData.SerializeJob(job);
         var payload = invocationData.SerializePayload(excludeArguments: true);
@@ -108,26 +110,28 @@ values (@invocationData, @arguments, @createdAt, @expireAt)");
         {
             if (parametersArray.Length == 1)
             {
-                queryString = Storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort on; set nocount on; declare @jobId bigint;
-begin tran;
-insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
-select @jobId = scope_identity(); select @jobId;
-insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name, @value);
-commit tran;");
+                queryString = Storage.GetQueryFromTemplate(static schemaName => $"""
+                    set xact_abort on; set nocount on; declare @jobId bigint;
+                    begin tran;
+                    insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
+                    select @jobId = scope_identity(); select @jobId;
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name, @value);
+                    commit tran;
+                    """);
                 additionalParameters = cmd => cmd
                     .AddParameter("@name", parametersArray[0].Key, DbType.String, size: 40)
                     .AddParameter("@value", parametersArray[0].Value, DbType.String, size: -1);
             }
             else if (parametersArray.Length == 2)
             {
-                queryString = Storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort on; set nocount on; declare @jobId bigint;
-begin tran;
-insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
-select @jobId = scope_identity(); select @jobId;
-insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2);
-commit tran;");
+                queryString = Storage.GetQueryFromTemplate(static schemaName => $"""
+                    set xact_abort on; set nocount on; declare @jobId bigint;
+                    begin tran;
+                    insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
+                    select @jobId = scope_identity(); select @jobId;
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2);
+                    commit tran;
+                    """);
                 additionalParameters = cmd => cmd
                     .AddParameter("@name1", parametersArray[0].Key, DbType.String, size: 40)
                     .AddParameter("@value1", parametersArray[0].Value, DbType.String, size: -1)
@@ -136,13 +140,14 @@ commit tran;");
             }
             else if (parametersArray.Length == 3)
             {
-                queryString = Storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort on; set nocount on; declare @jobId bigint;
-begin tran;
-insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
-select @jobId = scope_identity(); select @jobId;
-insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3);
-commit tran;");
+                queryString = Storage.GetQueryFromTemplate(static schemaName => $"""
+                    set xact_abort on; set nocount on; declare @jobId bigint;
+                    begin tran;
+                    insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
+                    select @jobId = scope_identity(); select @jobId;
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3);
+                    commit tran;
+                    """);
                 additionalParameters = cmd => cmd
                     .AddParameter("@name1", parametersArray[0].Key, DbType.String, size: 40)
                     .AddParameter("@value1", parametersArray[0].Value, DbType.String, size: -1)
@@ -153,13 +158,14 @@ commit tran;");
             }
             else if (parametersArray.Length == 4)
             {
-                queryString = Storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort on; set nocount on; declare @jobId bigint;
-begin tran;
-insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
-select @jobId = scope_identity(); select @jobId;
-insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3), (@jobId, @name4, @value4);
-commit tran;");
+                queryString = Storage.GetQueryFromTemplate(static schemaName => $"""
+                    set xact_abort on; set nocount on; declare @jobId bigint;
+                    begin tran;
+                    insert into [{schemaName}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@invocationData, @arguments, @createdAt, @expireAt);
+                    select @jobId = scope_identity(); select @jobId;
+                    insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name1, @value1), (@jobId, @name2, @value2), (@jobId, @name3, @value3), (@jobId, @name4, @value4);
+                    commit tran;
+                    """);
                 additionalParameters = cmd => cmd
                     .AddParameter("@name1", parametersArray[0].Key, DbType.String, size: 40)
                     .AddParameter("@value1", parametersArray[0].Value, DbType.String, size: -1)
@@ -230,8 +236,10 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, parsedId) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select InvocationData, StateName, Arguments, CreatedAt from [{schemaName}].Job with (readcommittedlock, forceseek) where Id = @id
-select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId = @id");
+                $"""
+                select InvocationData, StateName, Arguments, CreatedAt from [{schemaName}].Job with (readcommittedlock, forceseek) where Id = @id
+                select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId = @id
+                """);
 
             using var multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: storage.CommandTimeout);
             var jobData = multi.ReadSingleOrDefault();
@@ -290,10 +298,12 @@ select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, parsedId) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select s.Name, s.Reason, s.Data
-from [{schemaName}].State s with (readcommittedlock, forceseek)
-inner join [{schemaName}].Job j with (readcommittedlock, forceseek) on j.StateId = s.Id and j.Id = s.JobId
-where j.Id = @jobId");
+                $"""
+                select s.Name, s.Reason, s.Data
+                from [{schemaName}].State s with (readcommittedlock, forceseek)
+                inner join [{schemaName}].Job j with (readcommittedlock, forceseek) on j.StateId = s.Id and j.Id = s.JobId
+                where j.Id = @jobId
+                """);
 
             var sqlState = connection.QuerySingleOrDefault<SqlState>(query, new { jobId = parsedId }, commandTimeout: storage.CommandTimeout);
             if (sqlState == null)
@@ -331,18 +341,19 @@ where j.Id = @jobId");
 
         Storage.UseConnection(DedicatedConnection, static (storage, connection, triple) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort off;
-begin try
-  update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
-  if @@ROWCOUNT = 0 insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name, @value);
-end try
-begin catch
-  declare @em nvarchar(4000), @es int, @est int;
-  select @em=error_message(),@es=error_severity(),@est=error_state();
-  IF ERROR_NUMBER() not in (2601, 2627) raiserror(@em, @es, @est);
-  update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
-end catch");
+            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+                set xact_abort off;
+                begin try
+                  update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
+                  if @@ROWCOUNT = 0 insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, @name, @value);
+                end try
+                begin catch
+                  declare @em nvarchar(4000), @es int, @est int;
+                  select @em=error_message(),@es=error_severity(),@est=error_state();
+                  IF ERROR_NUMBER() not in (2601, 2627) raiserror(@em, @es, @est);
+                  update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
+                end catch
+                """);
 
             return connection.Execute(
                 query,
@@ -426,18 +437,19 @@ $@"select top (@count) Value from [{schemaName}].[Set] with (forceseek) where [K
 
         Storage.UseTransaction(DedicatedConnection, static (storage, connection, transaction, pair) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $@"
-set xact_abort off;
-begin try
-  insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
-  if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
-end try
-begin catch
-  declare @em nvarchar(4000), @es int, @est int;
-  select @em=error_message(),@es=error_severity(),@est=error_state();
-  IF ERROR_NUMBER() not in (2601, 2627) raiserror(@em, @es, @est);
-  update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
-end catch");
+            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+                set xact_abort off;
+                begin try
+                  insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
+                  if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
+                end try
+                begin catch
+                  declare @em nvarchar(4000), @es int, @est int;
+                  select @em=error_message(),@es=error_severity(),@est=error_state();
+                  IF ERROR_NUMBER() not in (2601, 2627) raiserror(@em, @es, @est);
+                  update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
+                end catch
+                """);
 
             var lockResourceKey = SqlServerLimits.GetLockResource($"{storage.SchemaName}:Hash:Lock");
 
@@ -511,11 +523,13 @@ $@"select Field, Value from [{schemaName}].Hash with (forceseek) where [Key] = @
         Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@";merge [{schemaName}].Server with (holdlock) as Target
-using (VALUES (@id, @data, sysutcdatetime())) as Source (Id, Data, Heartbeat)
-on Target.Id = Source.Id
-when matched then update set Data = Source.Data, LastHeartbeat = Source.Heartbeat
-when not matched then insert (Id, Data, LastHeartbeat) values (Source.Id, Source.Data, Source.Heartbeat);");
+                $"""
+                ;merge [{schemaName}].Server with (holdlock) as Target
+                using (VALUES (@id, @data, sysutcdatetime())) as Source (Id, Data, Heartbeat)
+                on Target.Id = Source.Id
+                when matched then update set Data = Source.Data, LastHeartbeat = Source.Heartbeat
+                when not matched then insert (Id, Data, LastHeartbeat) values (Source.Id, Source.Data, Source.Heartbeat);
+                """);
 
             return connection.Execute(
                 query,
@@ -595,9 +609,11 @@ $@"update [{schemaName}].Server set LastHeartbeat = sysutcdatetime() where Id = 
 
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) => connection.ExecuteScalar<long>(
             storage.GetQueryFromTemplate(static schemaName =>
-$@"select count(*) from (
-  select top(@limit) 1 as N from [{schemaName}].[Set] with (forceseek) where [Key] in @keys
-) a"),
+                $"""
+                select count(*) from (
+                  select top(@limit) 1 as N from [{schemaName}].[Set] with (forceseek) where [Key] in @keys
+                ) a
+                """),
             new { keys = pair.Key, limit = pair.Value },
             commandTimeout: storage.CommandTimeout),
             new KeyValuePair<IEnumerable<string>, int>(keys, limit));
@@ -631,31 +647,33 @@ $@"select count(*) from (
             // numbering from the start reads fewer rows than counting further would.
             // Value breaks ties in Score, so both directions number the rows in the same order
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"set nocount on;
-declare @total bigint = null;
-declare @countLimit bigint = 2 * cast(@endingAt as bigint);
-if @endingAt > {ReadFromEndThreshold}
-begin
-    select @total = count_big(*) from (
-        select top (@countLimit) 1 as N from [{schemaName}].[Set] with (forceseek) where [Key] = @key
-    ) as c;
-    if @total >= @countLimit set @total = null;
-end
+                $"""
+                set nocount on;
+                declare @total bigint = null;
+                declare @countLimit bigint = 2 * cast(@endingAt as bigint);
+                if @endingAt > {ReadFromEndThreshold}
+                begin
+                    select @total = count_big(*) from (
+                        select top (@countLimit) 1 as N from [{schemaName}].[Set] with (forceseek) where [Key] = @key
+                    ) as c;
+                    if @total >= @countLimit set @total = null;
+                end
 
-if @total is not null and @total - @startingFrom + 1 < @endingAt
-    select [Value] from (
-        select [Value], row_number() over (order by [Score] desc, [Value] desc) as row_num
-        from [{schemaName}].[Set] with (forceseek)
-        where [Key] = @key
-    ) as s where s.row_num between @total - @endingAt + 1 and @total - @startingFrom + 1
-    order by s.row_num desc;
-else
-    select [Value] from (
-        select [Value], row_number() over (order by [Score] asc, [Value] asc) as row_num
-        from [{schemaName}].[Set] with (forceseek)
-        where [Key] = @key
-    ) as s where s.row_num between @startingFrom and @endingAt
-    order by s.row_num;");
+                if @total is not null and @total - @startingFrom + 1 < @endingAt
+                    select [Value] from (
+                        select [Value], row_number() over (order by [Score] desc, [Value] desc) as row_num
+                        from [{schemaName}].[Set] with (forceseek)
+                        where [Key] = @key
+                    ) as s where s.row_num between @total - @endingAt + 1 and @total - @startingFrom + 1
+                    order by s.row_num desc;
+                else
+                    select [Value] from (
+                        select [Value], row_number() over (order by [Score] asc, [Value] asc) as row_num
+                        from [{schemaName}].[Set] with (forceseek)
+                        where [Key] = @key
+                    ) as s where s.row_num between @startingFrom and @endingAt
+                    order by s.row_num;
+                """);
 
             return connection
                 .Query<string>(query, new { key = triple.Item1, startingFrom = triple.Item2 + 1, endingAt = triple.Item3 + 1 },
@@ -687,11 +705,13 @@ $@"select min([ExpireAt]) from [{schemaName}].[Set] with (forceseek) where [Key]
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, key) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select sum(s.[Value]) from (select sum([Value]) as [Value] from [{schemaName}].Counter with (forceseek)
-where [Key] = @key
-union all
-select [Value] from [{schemaName}].AggregatedCounter with (forceseek)
-where [Key] = @key) as s");
+                $"""
+                select sum(s.[Value]) from (select sum([Value]) as [Value] from [{schemaName}].Counter with (forceseek)
+                where [Key] = @key
+                union all
+                select [Value] from [{schemaName}].AggregatedCounter with (forceseek)
+                where [Key] = @key) as s
+                """);
 
             return connection.ExecuteScalar<long?>(query, new { key },
                 commandTimeout: storage.CommandTimeout) ?? 0;
@@ -736,8 +756,10 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select [Value] from [{schemaName}].Hash with (forceseek)
-where [Key] = @key and [Field] = @field");
+                $"""
+                select [Value] from [{schemaName}].Hash with (forceseek)
+                where [Key] = @key and [Field] = @field
+                """);
 
             return connection.ExecuteScalar<string>(query, new { key = pair.Key, field = pair.Value },
                 commandTimeout: storage.CommandTimeout);
@@ -751,8 +773,10 @@ where [Key] = @key and [Field] = @field");
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, key) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select count(*) from [{schemaName}].List with (forceseek)
-where [Key] = @key");
+                $"""
+                select count(*) from [{schemaName}].List with (forceseek)
+                where [Key] = @key
+                """);
 
             return connection.ExecuteScalar<long>(query, new { key },
                 commandTimeout: storage.CommandTimeout);
@@ -766,8 +790,10 @@ where [Key] = @key");
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, key) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select min([ExpireAt]) from [{schemaName}].List with (forceseek)
-where [Key] = @key");
+                $"""
+                select min([ExpireAt]) from [{schemaName}].List with (forceseek)
+                where [Key] = @key
+                """);
 
             var result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
@@ -783,11 +809,13 @@ where [Key] = @key");
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, triple) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select [Value] from (
-	select [Value], row_number() over (order by [Id] desc) as row_num 
-	from [{schemaName}].List with (forceseek)
-	where [Key] = @key 
-) as s where s.row_num between @startingFrom and @endingAt");
+                $"""
+                select [Value] from (
+                	select [Value], row_number() over (order by [Id] desc) as row_num 
+                	from [{schemaName}].List with (forceseek)
+                	where [Key] = @key 
+                ) as s where s.row_num between @startingFrom and @endingAt
+                """);
 
             return connection
                 .Query<string>(query, new { key = triple.Item1, startingFrom = triple.Item2 + 1, endingAt = triple.Item3 + 1 },
@@ -803,9 +831,11 @@ $@"select [Value] from (
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, key) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select [Value] from [{schemaName}].List with (forceseek)
-where [Key] = @key
-order by [Id] desc");
+                $"""
+                select [Value] from [{schemaName}].List with (forceseek)
+                where [Key] = @key
+                order by [Id] desc
+                """);
 
             return connection
                 .Query<string>(query, new { key }, commandTimeout: storage.CommandTimeout)

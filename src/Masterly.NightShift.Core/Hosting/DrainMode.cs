@@ -447,12 +447,5 @@ public static class DrainMode
         public CacheEntry? Entry;
     }
 
-    private sealed class CacheEntry(DrainModeStatus status, long timestamp, long generation)
-    {
-        public DrainModeStatus Status { get; } = status;
-
-        public long Timestamp { get; } = timestamp;
-
-        public long Generation { get; } = generation;
-    }
+    private sealed record CacheEntry(DrainModeStatus Status, long Timestamp, long Generation);
 }

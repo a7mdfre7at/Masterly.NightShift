@@ -24,7 +24,7 @@ internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonito
     private static readonly TimeSpan QueuesCacheTimeout = TimeSpan.FromSeconds(5);
 
     private readonly SqlServerStorage _storage;
-    private readonly object _cacheLock = new();
+    private readonly NightShiftLock _cacheLock = new();
 
     private List<string> _queuesCache = [];
     private Stopwatch _cacheUpdated;
@@ -62,12 +62,14 @@ $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
         return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
             var query = storage.GetQueryFromTemplate(static schemaName =>
-$@"select r.JobId from (
-  select jq.JobId, row_number() over (order by jq.Id) as row_num 
-  from [{schemaName}].JobQueue jq with (nolock, forceseek)
-  where jq.Queue = @queue and jq.FetchedAt is null
-) as r
-where r.row_num between @start and @end");
+                $"""
+                select r.JobId from (
+                  select jq.JobId, row_number() over (order by jq.Id) as row_num 
+                  from [{schemaName}].JobQueue jq with (nolock, forceseek)
+                  where jq.Queue = @queue and jq.FetchedAt is null
+                ) as r
+                where r.row_num between @start and @end
+                """);
 
             return connection.Query<JobIdDto>(
                 query,
@@ -83,13 +85,14 @@ where r.row_num between @start and @end");
     {
         return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $@"
-select r.JobId from (
-  select jq.JobId, jq.FetchedAt, row_number() over (order by jq.Id) as row_num 
-  from [{schemaName}].JobQueue jq with (nolock, forceseek)
-  where jq.Queue = @queue and jq.FetchedAt is not null
-) as r
-where r.row_num between @start and @end");
+            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+                select r.JobId from (
+                  select jq.JobId, jq.FetchedAt, row_number() over (order by jq.Id) as row_num 
+                  from [{schemaName}].JobQueue jq with (nolock, forceseek)
+                  where jq.Queue = @queue and jq.FetchedAt is not null
+                ) as r
+                where r.row_num between @start and @end
+                """);
 
             return connection.Query<JobIdDto>(
                     query,
@@ -111,15 +114,16 @@ where r.row_num between @start and @end");
     {
         return _storage.UseConnection(null, static (storage, connection, q) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $@"
-select sum(Enqueued) as EnqueuedCount, sum(Fetched) as FetchedCount 
-from (
-    select 
-        case when FetchedAt is null then 1 else 0 end as Enqueued,
-        case when FetchedAt is not null then 1 else 0 end as Fetched
-    from [{schemaName}].JobQueue with (nolock, forceseek)
-    where Queue = @queue
-) q");
+            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+                select sum(Enqueued) as EnqueuedCount, sum(Fetched) as FetchedCount 
+                from (
+                    select 
+                        case when FetchedAt is null then 1 else 0 end as Enqueued,
+                        case when FetchedAt is not null then 1 else 0 end as Fetched
+                    from [{schemaName}].JobQueue with (nolock, forceseek)
+                    where Queue = @queue
+                ) q
+                """);
 
             var result = connection.QuerySingle(query, new { queue = q });
 

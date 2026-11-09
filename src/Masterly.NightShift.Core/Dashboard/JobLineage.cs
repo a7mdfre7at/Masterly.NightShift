@@ -28,12 +28,7 @@ internal sealed class JobLineageNode(string id, int depth)
 }
 
 /// <summary>A continuation relationship: <see cref="ChildId"/> waits for <see cref="ParentId"/>.</summary>
-internal sealed class JobLineageEdge(string parentId, string childId, string? label)
-{
-    public string ParentId { get; } = parentId;
-    public string ChildId { get; } = childId;
-    public string? Label { get; } = label;
-}
+internal sealed record JobLineageEdge(string ParentId, string ChildId, string? Label);
 
 /// <summary>
 /// The continuation graph around one job: the parents it waited for (and theirs, up to a few levels), the

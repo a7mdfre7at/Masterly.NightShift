@@ -22,16 +22,24 @@ namespace Masterly.NightShift.Dashboard;
 /// What a job details renderer, added with <c>UseJobDetailsRenderer</c>, gets: the page, the job identifier and the
 /// job's details.
 /// </summary>
-public sealed class JobDetailsRendererDto([NotNull] RazorPage page, [NotNull] string jobId, [NotNull] JobDetailsDto jobDetails)
+/// <param name="Page">The job details page that renders.</param>
+/// <param name="JobId">The identifier of the job.</param>
+/// <param name="JobDetails">The job's details, as the storage returned them.</param>
+public sealed record JobDetailsRendererDto([NotNull] RazorPage Page, [NotNull] string JobId, [NotNull] JobDetailsDto JobDetails)
 {
-    public RazorPage Page { get; } = page ?? throw new ArgumentNullException(nameof(page));
-    public string JobId { get; } = jobId ?? throw new ArgumentNullException(nameof(jobId));
-    public JobDetailsDto JobDetails { get; } = jobDetails ?? throw new ArgumentNullException(nameof(jobDetails));
+    /// <summary>The job details page that renders.</summary>
+    public RazorPage Page { get; } = Page ?? throw new ArgumentNullException(nameof(Page));
+
+    /// <summary>The identifier of the job.</summary>
+    public string JobId { get; } = JobId ?? throw new ArgumentNullException(nameof(JobId));
+
+    /// <summary>The job's details, as the storage returned them.</summary>
+    public JobDetailsDto JobDetails { get; } = JobDetails ?? throw new ArgumentNullException(nameof(JobDetails));
 }
 
 internal static class JobDetailsRenderer
 {
-    private static readonly object SyncRoot = new();
+    private static readonly NightShiftLock SyncRoot = new();
     private static readonly List<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>> Renderers =
         [];
 

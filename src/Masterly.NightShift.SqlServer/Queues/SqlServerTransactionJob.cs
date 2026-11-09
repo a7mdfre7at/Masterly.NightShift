@@ -28,7 +28,7 @@ internal sealed class SqlServerTransactionJob : IFetchedJob
     private IDbConnection _connection;
     private readonly IDbTransaction _transaction;
     private readonly Timer _timer;
-    private readonly object _lockObject = new();
+    private readonly NightShiftLock _lockObject = new();
 
     public SqlServerTransactionJob(
         [NotNull] SqlServerStorage storage,

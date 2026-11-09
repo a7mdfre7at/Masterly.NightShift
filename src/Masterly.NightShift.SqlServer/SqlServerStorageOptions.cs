@@ -24,8 +24,6 @@ namespace Masterly.NightShift.SqlServer;
 /// </summary>
 public class SqlServerStorageOptions
 {
-    private string _schemaName;
-    private DbProviderFactory _sqlClientFactory;
 
     // null until the user sets them, so auto-detection only decides the values nobody chose
 
@@ -41,12 +39,10 @@ public class SqlServerStorageOptions
         CountersAggregateInterval = TimeSpan.FromMinutes(5);
         PrepareSchemaIfNecessary = true;
         DashboardJobListLimit = 10000;
-        _schemaName = Constants.DefaultSchema;
         DeleteExpiredBatchSize = -1;
         UseTransactionalAcknowledge = false;
         CommandBatchMaxTimeout = TimeSpan.FromMinutes(5);
         TryAutoDetectSchemaDependentOptions = true;
-        _sqlClientFactory = Microsoft.Data.SqlClient.SqlClientFactory.Instance;
         InactiveStateExpirationTimeout = TimeSpan.Zero;
     }
 
@@ -184,13 +180,13 @@ public class SqlServerStorageOptions
     /// characters, or contains <c>]</c>, <c>'</c> or a control character.</exception>
     public string SchemaName
     {
-        get { return _schemaName; }
+        get;
         set
         {
             ValidateSchemaName(value, nameof(value));
-            _schemaName = value;
+            field = value;
         }
-    }
+    } = Constants.DefaultSchema;
 
     internal const int MaxSchemaNameLength = 128;
 
@@ -301,9 +297,9 @@ public class SqlServerStorageOptions
     /// </summary>
     public DbProviderFactory SqlClientFactory
     {
-        get => _sqlClientFactory;
-        set => _sqlClientFactory = value ?? throw new ArgumentNullException(nameof(value));
-    }
+        get;
+        set => field = value ?? throw new ArgumentNullException(nameof(value));
+    } = Microsoft.Data.SqlClient.SqlClientFactory.Instance;
 
     /// <summary>
     /// Gets or sets whether to try automatically query for the current schema on application start

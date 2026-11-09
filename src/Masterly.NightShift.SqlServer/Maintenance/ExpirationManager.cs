@@ -179,8 +179,10 @@ internal sealed class ExpirationManager : IBackgroundProcess
             // It just means another Masterly.NightShift server did this work.
             _logger.Log(
                 LogLevel.Debug,
-                () => $@"An exception was thrown during acquiring distributed lock on the {lockKey} resource within {DefaultLockTimeout.TotalSeconds} seconds. Outdated records were not removed.
-It will be retried in {_checkInterval.TotalSeconds} seconds.",
+                () => $"""
+                    An exception was thrown during acquiring distributed lock on the {lockKey} resource within {DefaultLockTimeout.TotalSeconds} seconds. Outdated records were not removed.
+                    It will be retried in {_checkInterval.TotalSeconds} seconds.
+                    """,
                 e);
             return default;
         }
@@ -192,43 +194,46 @@ It will be retried in {_checkInterval.TotalSeconds} seconds.",
         {
             // Schema 5, which still should be supported by Masterly.NightShift doesn't have an index that covers
             // the `ExpireAt` column, making it impossible to run the query.
-            return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $@"
-set deadlock_priority low;
-set transaction isolation level read committed;
-set xact_abort on;
-set lock_timeout 1000;
-delete top (@count) T from [{schemaName}].[{{0}}] T
-where ExpireAt < @now
-option (loop join, optimize for (@count = 20000));"), table);
+            return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
+                set deadlock_priority low;
+                set transaction isolation level read committed;
+                set xact_abort on;
+                set lock_timeout 1000;
+                delete top (@count) T from [{{schemaName}}].[{0}] T
+                where ExpireAt < @now
+                option (loop join, optimize for (@count = 20000));
+                """), table);
         }
 
-        return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $@"
-set deadlock_priority low;
-set transaction isolation level read committed;
-set xact_abort on;
-set lock_timeout 1000;
-delete top (@count) T from [{schemaName}].[{{0}}] T with (forceseek)
-where ExpireAt < @now
-option (loop join, optimize for (@count = 20000));"), table);
+        return string.Format(CultureInfo.InvariantCulture, storage.GetQueryFromTemplate(static schemaName => $$"""
+            set deadlock_priority low;
+            set transaction isolation level read committed;
+            set xact_abort on;
+            set lock_timeout 1000;
+            delete top (@count) T from [{{schemaName}}].[{0}] T with (forceseek)
+            where ExpireAt < @now
+            option (loop join, optimize for (@count = 20000));
+            """), table);
     }
 
     private static string GetStateCleanupQuery(SqlServerStorage storage)
     {
         // TODO: Make expiration condition configurable
-        return storage.GetQueryFromTemplate(static schemaName => $@"
-set deadlock_priority low;
-set transaction isolation level read committed;
-set xact_abort on;
-set lock_timeout 1000;
+        return storage.GetQueryFromTemplate(static schemaName => $"""
+            set deadlock_priority low;
+            set transaction isolation level read committed;
+            set xact_abort on;
+            set lock_timeout 1000;
 
-;with cte as (
-	select s.[JobId], s.[Id]
-	from [{schemaName}].[State] s with (forceseek)
-	where s.[CreatedAt] < dateadd(minute, @expireMin, @now)
-	and exists (
-		select * from [{schemaName}].[Job] j with (forceseek)
-		where j.[Id] = s.[JobId] and j.[StateId] != s.[Id]))
-delete top(@count) from cte option (maxdop 1);");
+            ;with cte as (
+            	select s.[JobId], s.[Id]
+            	from [{schemaName}].[State] s with (forceseek)
+            	where s.[CreatedAt] < dateadd(minute, @expireMin, @now)
+            	and exists (
+            		select * from [{schemaName}].[Job] j with (forceseek)
+            		where j.[Id] = s.[JobId] and j.[StateId] != s.[Id]))
+            delete top(@count) from cte option (maxdop 1);
+            """);
     }
 
     private static int ExecuteNonQuery(

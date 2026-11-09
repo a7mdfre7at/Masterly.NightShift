@@ -75,8 +75,6 @@ public class EnqueuedState : IState
     /// </remarks>
     public static readonly string StateName = "Enqueued";
 
-    private string _queue;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="EnqueuedState"/> class 
     /// with the <see cref="DefaultQueue">default</see> queue name.
@@ -108,7 +106,7 @@ public class EnqueuedState : IState
 
         ValidateQueueName(nameof(queue), queue);
 
-        _queue = queue;
+        Queue = queue;
         EnqueuedAt = DateTime.UtcNow;
     }
 
@@ -139,11 +137,11 @@ public class EnqueuedState : IState
     [NotNull]
     public string Queue
     {
-        get { return _queue; }
+        get;
         set
         {
             ValidateQueueName(nameof(value), value);
-            _queue = value;
+            field = value;
         }
     }
 

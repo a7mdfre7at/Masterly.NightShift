@@ -10,7 +10,7 @@ namespace Masterly.NightShift;
 /// </summary>
 public static class GlobalJobInterceptors
 {
-    private static readonly object SyncRoot = new();
+    private static readonly NightShiftLock SyncRoot = new();
     private static IJobInterceptor[] _interceptors = [];
 
     /// <summary>Gets a snapshot of the registered interceptors.</summary>

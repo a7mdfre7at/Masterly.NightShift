@@ -27,7 +27,7 @@ namespace Masterly.NightShift;
 /// </summary>
 public abstract class JobStorage
 {
-    private static readonly object LockObject = new();
+    private static readonly NightShiftLock LockObject = new();
 
     /// <summary>
     /// Gets or sets the storage used by the static APIs (<see cref="BackgroundJob"/>, <see cref="RecurringJob"/>)

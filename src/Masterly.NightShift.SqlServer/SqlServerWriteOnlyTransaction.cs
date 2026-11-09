@@ -176,9 +176,11 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         SqlServerLimits.EnsureStateNameFits(state.Name);
 
         var query = _storage.GetQueryFromTemplate(static schemaName =>
-$@"insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
-values (@jobId, @name, @reason, @createdAt, @data);
-update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name where Id = @jobId;");
+            $"""
+            insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
+            values (@jobId, @name, @reason, @createdAt, @data);
+            update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name where Id = @jobId;
+            """);
 
         if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
@@ -197,8 +199,10 @@ update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name wher
         SqlServerLimits.EnsureStateNameFits(state.Name);
 
         var query = _storage.GetQueryFromTemplate(static schemaName =>
-$@"insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
-values (@jobId, @name, @reason, @createdAt, @data)");
+            $"""
+            insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
+            values (@jobId, @name, @reason, @createdAt, @data)
+            """);
 
         if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
@@ -309,14 +313,18 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
         SqlServerLimits.EnsureSetValueFits(key, value);
 
         var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
-            ? static schemaName => $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, @score);
-if @@ROWCOUNT = 0 update [{schemaName}].[Set] set Score = @score where [Key] = @key and Value = @value;"
+            ? static schemaName => $"""
+                insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, @score);
+                if @@ROWCOUNT = 0 update [{schemaName}].[Set] set Score = @score where [Key] = @key and Value = @value;
+                """
 
-            : static schemaName => $@";merge [{schemaName}].[Set] with (xlock) as Target
-using (VALUES (@key, @value, @score)) as Source ([Key], Value, Score)
-on Target.[Key] = Source.[Key] and Target.Value = Source.Value
-when matched then update set Score = Source.Score
-when not matched then insert ([Key], Value, Score) values (Source.[Key], Source.Value, Source.Score);");
+            : static schemaName => $"""
+                ;merge [{schemaName}].[Set] with (xlock) as Target
+                using (VALUES (@key, @value, @score)) as Source ([Key], Value, Score)
+                on Target.[Key] = Source.[Key] and Target.Value = Source.Value
+                when matched then update set Score = Source.Score
+                when not matched then insert ([Key], Value, Score) values (Source.[Key], Source.Value, Source.Score);
+                """);
 
         AcquireSetLock(key);
         AddCommand(_setCommands, key, batch => batch.Create(query)
@@ -354,12 +362,13 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and 
         // (one seek on [Key], [Id]) keeps the cost and the locks independent of the list's size, where reading
         // every row escalated to an exclusive lock on the whole table for long lists. Its xlock still
         // serializes concurrent inserts to the same list
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-insert into [{schemaName}].List ([Key], Value, ExpireAt)
-select @key, @value, (
-    select top (1) ExpireAt from [{schemaName}].List with (xlock, forceseek)
-    where [Key] = @key
-    order by Id desc);");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            insert into [{schemaName}].List ([Key], Value, ExpireAt)
+            select @key, @value, (
+                select top (1) ExpireAt from [{schemaName}].List with (xlock, forceseek)
+                where [Key] = @key
+                order by Id desc);
+            """);
 
         AcquireListLock(key);
         AddCommand(_listCommands, key, batch => batch.Create(query)
@@ -386,11 +395,13 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
         ArgumentNullException.ThrowIfNull(key);
 
         var query = _storage.GetQueryFromTemplate(static schemaName =>
-$@";with cte as (
-    select row_number() over (order by Id desc) as row_num
-    from [{schemaName}].List with (xlock, forceseek)
-    where [Key] = @key)
-delete from cte where row_num not between @start and @end");
+            $"""
+            ;with cte as (
+                select row_number() over (order by Id desc) as row_num
+                from [{schemaName}].List with (xlock, forceseek)
+                where [Key] = @key)
+            delete from cte where row_num not between @start and @end
+            """);
 
         AcquireListLock(key);
 
@@ -414,14 +425,18 @@ delete from cte where row_num not between @start and @end");
         }
 
         var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
-            ? static schemaName => $@"insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
-if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;"
+            ? static schemaName => $"""
+                insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
+                if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
+                """
 
-            : static schemaName => $@";merge [{schemaName}].Hash with (xlock) as Target
-using (VALUES (@key, @field, @value)) as Source ([Key], Field, Value)
-on Target.[Key] = Source.[Key] and Target.Field = Source.Field
-when matched then update set Value = Source.Value
-when not matched then insert ([Key], Field, Value) values (Source.[Key], Source.Field, Source.Value);");
+            : static schemaName => $"""
+                ;merge [{schemaName}].Hash with (xlock) as Target
+                using (VALUES (@key, @field, @value)) as Source ([Key], Field, Value)
+                on Target.[Key] = Source.[Key] and Target.Field = Source.Field
+                when matched then update set Value = Source.Value
+                when not matched then insert ([Key], Field, Value) values (Source.[Key], Source.Field, Source.Value);
+                """);
 
         AcquireHashLock(key);
 
@@ -486,8 +501,9 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key
+            """);
 
         AcquireHashLock(key);
         AddCommand(_hashCommands, key, batch => batch.Create(query)
@@ -499,8 +515,9 @@ update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key
+            """);
 
         AcquireSetLock(key);
         AddCommand(_setCommands, key, batch => batch.Create(query)
@@ -512,8 +529,9 @@ update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key
+            """);
 
         AcquireListLock(key);
         AddCommand(_listCommands, key, batch => batch.Create(query)
@@ -525,8 +543,9 @@ update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].Hash set ExpireAt = null where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].Hash set ExpireAt = null where [Key] = @key
+            """);
 
         AcquireHashLock(key);
         AddCommand(_hashCommands, key, batch => batch.Create(query).AddParameter("@key", key, DbType.String));
@@ -536,8 +555,9 @@ update [{schemaName}].Hash set ExpireAt = null where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key
+            """);
 
         AcquireSetLock(key);
         AddCommand(_setCommands, key, batch => batch.Create(query).AddParameter("@key", key, DbType.String));
@@ -547,8 +567,9 @@ update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $@"
-update [{schemaName}].[List] set ExpireAt = null where [Key] = @key");
+        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            update [{schemaName}].[List] set ExpireAt = null where [Key] = @key
+            """);
 
         AcquireListLock(key);
         AddCommand(_listCommands, key, batch => batch.Create(query).AddParameter("@key", key, DbType.String));

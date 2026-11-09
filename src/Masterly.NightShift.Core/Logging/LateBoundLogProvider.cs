@@ -119,9 +119,5 @@ internal sealed class LateBoundLogProvider : ILogProvider
         }
     }
 
-    private sealed class Binding(ILogProvider provider, ILog logger)
-    {
-        public ILogProvider Provider { get; } = provider;
-        public ILog Logger { get; } = logger;
-    }
+    private sealed record Binding(ILogProvider Provider, ILog Logger);
 }

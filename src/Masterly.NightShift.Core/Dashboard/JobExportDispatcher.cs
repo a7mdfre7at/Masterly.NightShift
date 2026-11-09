@@ -176,15 +176,5 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
         return needsQuotes ? "\"" + escaped + "\"" : escaped;
     }
 
-    private sealed class Row(string id, string? state, string? job, DateTime? time, double? seconds, string? server, string? exceptionType, string? exceptionMessage)
-    {
-        public string Id { get; } = id;
-        public string? State { get; } = state;
-        public string? Job { get; } = job;
-        public DateTime? Time { get; } = time;
-        public double? Seconds { get; } = seconds;
-        public string? Server { get; } = server;
-        public string? ExceptionType { get; } = exceptionType;
-        public string? ExceptionMessage { get; } = exceptionMessage;
-    }
+    private sealed record Row(string Id, string? State, string? Job, DateTime? Time, double? Seconds, string? Server, string? ExceptionType, string? ExceptionMessage);
 }

@@ -165,12 +165,7 @@ public class Pager
         results.Add(item);
     }
 
-    internal sealed class Item(int pageIndex, bool disabled, Pager.ItemType type)
-    {
-        public int PageIndex { get; } = pageIndex;
-        public bool Disabled { get; } = disabled;
-        public ItemType Type { get; } = type;
-    }
+    internal sealed record Item(int PageIndex, bool Disabled, Pager.ItemType Type);
 
     internal enum ItemType
     {

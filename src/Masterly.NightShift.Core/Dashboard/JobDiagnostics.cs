@@ -16,22 +16,17 @@ internal enum JobDiagnosticSeverity
 }
 
 /// <summary>One finding about a job, rendered on the details page.</summary>
-internal sealed class JobDiagnostic(string code, JobDiagnosticSeverity severity, NonEscapedString message, string? link = null, string? linkText = null)
-{
-
-    /// <summary>A stable identifier of the finding, for tests and CSS.</summary>
-    public string Code { get; } = code;
-
-    public JobDiagnosticSeverity Severity { get; } = severity;
-
-    /// <summary>The finding, as HTML.</summary>
-    public NonEscapedString Message { get; } = message;
-
-    /// <summary>An optional dashboard URL to follow.</summary>
-    public string? Link { get; } = link;
-
-    public string? LinkText { get; } = linkText;
-}
+/// <param name="Code">A stable identifier of the finding, for tests and CSS.</param>
+/// <param name="Severity">How serious the finding is.</param>
+/// <param name="Message">The finding, as HTML.</param>
+/// <param name="Link">An optional dashboard URL to follow.</param>
+/// <param name="LinkText">The text of <paramref name="Link"/>.</param>
+internal sealed record JobDiagnostic(
+    string Code,
+    JobDiagnosticSeverity Severity,
+    NonEscapedString Message,
+    string? Link = null,
+    string? LinkText = null);
 
 /// <summary>
 /// Answers "why isn't this job running?" on the details page: for an enqueued job, whether any running

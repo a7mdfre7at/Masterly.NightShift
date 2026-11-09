@@ -802,9 +802,10 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = @"
-select count(*) from sys.sysprocesses
-where dbid = db_id(@name) and status != 'background' and status != 'sleeping'";
+                var sqlQuery = """
+                    select count(*) from sys.sysprocesses
+                    where dbid = db_id(@name) and status != 'background' and status != 'sleeping'
+                    """;
 
                 var value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
@@ -823,9 +824,10 @@ where dbid = db_id(@name) and status != 'background' and status != 'sleeping'";
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = @"
-select count(*) from sys.sysprocesses
-where dbid = db_id(@name) and status != 'background'";
+                var sqlQuery = """
+                    select count(*) from sys.sysprocesses
+                    where dbid = db_id(@name) and status != 'background'
+                    """;
 
                 var value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
@@ -844,9 +846,10 @@ where dbid = db_id(@name) and status != 'background'";
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = @"
-select count(*) from sys.sysprocesses
-where dbid = db_id(@name) and status != 'background' and open_tran = 1";
+                var sqlQuery = """
+                    select count(*) from sys.sysprocesses
+                    where dbid = db_id(@name) and status != 'background' and open_tran = 1
+                    """;
 
                 var value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
@@ -865,9 +868,10 @@ where dbid = db_id(@name) and status != 'background' and open_tran = 1";
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = @"
-select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as RowsSizeMB from sys.database_files
-where type = 0;";
+                var sqlQuery = """
+                    select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as RowsSizeMB from sys.database_files
+                    where type = 0;
+                    """;
 
                 var value = connection.QuerySingle<double>(sqlQuery);
 
@@ -885,9 +889,10 @@ where type = 0;";
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = @"
-select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as LogSizeMB from sys.database_files
-where type = 1;";
+                var sqlQuery = """
+                    select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as LogSizeMB from sys.database_files
+                    where type = 1;
+                    """;
 
                 var value = connection.QuerySingle<double>(sqlQuery);
 

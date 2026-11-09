@@ -118,11 +118,11 @@ internal static class BulkStateChange
             var done = i + 1;
             if (done < ids.Count && (done >= limit || IsOutOfTime(elapsed, timeBudget)))
             {
-                return new BulkJobResult(processed, ids.Count - done, complete: false);
+                return new BulkJobResult(processed, ids.Count - done, Complete: false);
             }
         }
 
-        return new BulkJobResult(processed, 0, complete: true);
+        return new BulkJobResult(processed, 0, Complete: true);
     }
 
     /// <summary>
@@ -174,12 +174,12 @@ internal static class BulkStateChange
                 var done = from + i + 1;
                 if (done < jobIds.Count && (done >= limit || IsOutOfTime(elapsed, timeBudget)))
                 {
-                    return new BulkJobResult(processed, jobIds.Count - done, complete: false);
+                    return new BulkJobResult(processed, jobIds.Count - done, Complete: false);
                 }
             }
         }
 
-        return new BulkJobResult(processed, 0, complete: true);
+        return new BulkJobResult(processed, 0, Complete: true);
     }
 
     private static long MaxJobs(int maxReads)

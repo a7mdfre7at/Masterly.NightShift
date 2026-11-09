@@ -42,7 +42,7 @@ namespace Masterly.NightShift;
 public partial class BackgroundJob
 {
     private static readonly Func<IBackgroundJobClient> DefaultFactory = static () => new BackgroundJobClient();
-    private static readonly object ClientFactoryLock = new();
+    private static readonly NightShiftLock ClientFactoryLock = new();
 
     internal static Func<IBackgroundJobClient> ClientFactory
     {

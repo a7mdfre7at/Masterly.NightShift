@@ -403,8 +403,10 @@ public class DelayedJobScheduler : IBackgroundProcess
             // DistributedLockTimeoutException here doesn't mean that delayed jobs weren't enqueued.
             // It just means another Masterly.NightShift server did this work.
             _logger.DebugException(
-                $@"An exception was thrown during acquiring distributed lock on the {resource} resource within {DefaultLockTimeout.TotalSeconds} seconds. The scheduled jobs have not been handled this time.
-It will be retried in {_pollingDelay.TotalSeconds} seconds",
+                $"""
+                An exception was thrown during acquiring distributed lock on the {resource} resource within {DefaultLockTimeout.TotalSeconds} seconds. The scheduled jobs have not been handled this time.
+                It will be retried in {_pollingDelay.TotalSeconds} seconds
+                """,
                 e);
             return default;
         }
