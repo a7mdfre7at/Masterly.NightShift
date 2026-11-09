@@ -1,31 +1,35 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
-<!-- Masterly.NightShift brand source. Render with assets/branding/README.md. -->
+<!-- Masterly.NightShift brand source for assets/readme-banner.png (1200 x 300). Render with assets/branding/README.md. -->
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500&display=block" rel="stylesheet">
 <style>
   html, body { margin: 0; width: 1200px; height: 300px; background: transparent; overflow: hidden; }
   .banner {
-    position: relative; box-sizing: border-box; width: 1200px; height: 300px; border-radius: 20px;
-    background: linear-gradient(135deg, #1E1033 0%, #2A1250 45%, #5B21B6 100%);
+    position: relative; overflow: hidden; box-sizing: border-box; width: 1200px; height: 300px; border-radius: 20px;
+    background: linear-gradient(135deg, #061820 0%, #0B2F3B 50%, #145A6B 100%);
     display: flex; align-items: center; justify-content: center; gap: 44px;
   }
-  .tile { width: 200px; height: 200px; display: block; }
-  .word { color: #FFFFFF; font-family: 'IBM Plex Sans', sans-serif; }
+  /* a faint orbit behind the mark, and an ember glow */
+  .banner::before { content: ''; position: absolute; left: 250px; top: -170px; width: 640px; height: 640px; border-radius: 50%; border: 2px solid rgba(95, 224, 200, 0.10); }
+  .banner::after { content: ''; position: absolute; right: -120px; bottom: -160px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 122, 69, 0.20), transparent); }
+  .tile { position: relative; width: 200px; height: 200px; display: block; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.35)); }
+  .word { position: relative; color: #FFFFFF; font-family: 'IBM Plex Sans', sans-serif; }
   .word b { display: block; font-weight: 600; font-size: 66px; letter-spacing: -1.5px; line-height: 1; }
-  .word span { display: block; margin-top: 8px; font-weight: 500; font-size: 38px; letter-spacing: -0.5px; color: #C4B5FD; line-height: 1.1; }
-  .word code { display: block; margin-top: 22px; font: 500 18px 'JetBrains Mono', monospace; color: #EDE9FE; letter-spacing: 0.2px; }
+  .word span { display: block; margin-top: 8px; font-weight: 500; font-size: 38px; letter-spacing: -0.5px; color: #5FE0C8; line-height: 1.1; }
+  .word code { display: block; margin-top: 22px; font: 500 18px 'JetBrains Mono', monospace; color: #F6E9CF; letter-spacing: 0.2px; }
 </style></head>
 <body><div class="banner">
   <div class="tile">
     <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="ns-bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#5B21B6"/></linearGradient>
-        <mask id="ns-moon"><rect width="256" height="256" fill="#000"/><circle cx="112" cy="124" r="64" fill="#fff"/><circle cx="146" cy="104" r="54" fill="#000"/></mask>
+        <linearGradient id="ns-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient>
+        <mask id="ns-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask>
       </defs>
-      <rect width="256" height="256" rx="56" fill="url(#ns-bg)"/>
-      <rect width="256" height="256" fill="#FFFFFF" mask="url(#ns-moon)"/>
-      <path d="M132 150h72M132 178h56M132 206h38" fill="none" stroke="#DDD6FE" stroke-width="14" stroke-linecap="round"/>
-      <path d="M196 52l5 14 14 5-14 5-5 14-5-14-14-5 14-5z" fill="#FBBF24"/>
+      <rect width="256" height="256" rx="58" fill="url(#ns-sky)"/>
+      <circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="10"/>
+      <path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="10" stroke-linecap="round"/>
+      <rect width="256" height="256" fill="#F6E9CF" mask="url(#ns-moon)"/>
+      <circle cx="53.5" cy="171" r="15" fill="#FF7A45"/>
     </svg>
   </div>
   <div class="word"><b>Masterly</b><span>NightShift</span><code>reliable background jobs for .NET</code></div>

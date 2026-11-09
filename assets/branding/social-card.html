@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- Masterly.NightShift brand source for website/static/img/social-card.png (1200 x 630, the link preview of the docs site). Render with assets/branding/README.md. -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #061820; }
+  .card {
+    position: relative; overflow: hidden; box-sizing: border-box; width: 1200px; height: 630px; padding: 0 96px;
+    background: linear-gradient(135deg, #061820 0%, #0B2F3B 55%, #145A6B 100%);
+    display: flex; align-items: center; gap: 64px;
+  }
+  .card::before { content: ''; position: absolute; left: -140px; top: -120px; width: 760px; height: 760px; border-radius: 50%; border: 2px solid rgba(95, 224, 200, 0.10); }
+  .card::after { content: ''; position: absolute; right: -160px; bottom: -220px; width: 620px; height: 620px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 122, 69, 0.22), transparent); }
+  .tile { position: relative; flex: none; width: 300px; height: 300px; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.4)); }
+  .word { position: relative; color: #FFFFFF; font-family: 'IBM Plex Sans', sans-serif; }
+  .word b { display: block; font-weight: 600; font-size: 84px; letter-spacing: -2px; line-height: 1; }
+  .word span { display: block; margin-top: 10px; font-weight: 500; font-size: 50px; letter-spacing: -0.5px; color: #5FE0C8; line-height: 1.1; }
+  .word p { margin: 34px 0 0; font-size: 28px; line-height: 1.4; color: #F6E9CF; max-width: 620px; }
+  .word code { display: inline-block; margin-top: 28px; padding: 10px 18px; border-radius: 12px; border: 1px solid rgba(95, 224, 200, 0.3); background: rgba(6, 24, 32, 0.5); font: 500 22px 'JetBrains Mono', monospace; color: #EAFBF7; }
+</style></head>
+<body><div class="card">
+  <div class="tile">
+    <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ns-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient>
+        <mask id="ns-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask>
+      </defs>
+      <rect width="256" height="256" rx="58" fill="url(#ns-sky)"/>
+      <circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="10"/>
+      <path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="10" stroke-linecap="round"/>
+      <rect width="256" height="256" fill="#F6E9CF" mask="url(#ns-moon)"/>
+      <circle cx="53.5" cy="171" r="15" fill="#FF7A45"/>
+    </svg>
+  </div>
+  <div class="word"><b>Masterly</b><span>NightShift</span><p>Fire-and-forget, delayed, recurring and continuation jobs for .NET, with a built-in dashboard.</p><code>dotnet add package Masterly.NightShift</code></div>
+</div></body></html>
