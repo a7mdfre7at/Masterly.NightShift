@@ -46,10 +46,9 @@ namespace Masterly.NightShift.Common
     /// <see cref="JobInvokerKind.Compiled"/> invoker when <see cref="UseCompiledInvokers"/> is on and the runtime
     /// can compile expression trees, then <see cref="JobInvokerKind.Reflection"/>. The result is cached per
     /// <see cref="MethodInfo"/>.</para>
-    /// <para>Generated invokers register themselves through a module initializer where the target framework
-    /// supports one. Assemblies that can't (for example .NET Framework consumers of the <c>netstandard2.0</c>
-    /// build) are found by their <see cref="JobInvokersProviderAttribute"/> the first time an invoker is needed,
-    /// and whenever a new assembly is loaded afterwards.</para>
+    /// <para>Generated invokers register themselves through a module initializer. Assemblies compiled without one
+    /// (with a C# language version older than 9) are found by their <see cref="JobInvokersProviderAttribute"/> the
+    /// first time an invoker is needed, and whenever a new assembly is loaded afterwards.</para>
     /// </remarks>
     public static class JobInvokerRegistry
     {
@@ -103,7 +102,7 @@ namespace Masterly.NightShift.Common
         /// <param name="invoker">The invoker to register.</param>
         public static void Register([NotNull] JobInvoker invoker)
         {
-            if (invoker == null) throw new ArgumentNullException(nameof(invoker));
+            ArgumentNullException.ThrowIfNull(invoker);
 
             var signature = new JobMethodSignature(invoker.Type, invoker.MethodName, invoker.ParameterTypes, invoker.GenericArguments);
             Generated[signature] = invoker;
@@ -116,7 +115,7 @@ namespace Masterly.NightShift.Common
         /// <exception cref="ArgumentException"><paramref name="method"/> is a global method, which no invoker can call.</exception>
         public static JobInvoker GetInvoker([NotNull] MethodInfo method)
         {
-            if (method == null) throw new ArgumentNullException(nameof(method));
+            ArgumentNullException.ThrowIfNull(method);
 
             if (Resolved.TryGetValue(method, out var invoker))
             {
@@ -136,7 +135,7 @@ namespace Masterly.NightShift.Common
         /// <param name="invoker">The generated invoker, or <c>null</c>.</param>
         public static bool TryGetGeneratedInvoker([NotNull] MethodInfo method, out JobInvoker? invoker)
         {
-            if (method == null) throw new ArgumentNullException(nameof(method));
+            ArgumentNullException.ThrowIfNull(method);
 
             EnsureAssembliesScanned();
 
@@ -169,7 +168,7 @@ namespace Masterly.NightShift.Common
         /// <param name="assembly">An assembly compiled with the Masterly.NightShift source generator.</param>
         public static void RegisterAssembly([NotNull] Assembly assembly)
         {
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
+            ArgumentNullException.ThrowIfNull(assembly);
 
             if (!ScannedAssemblies.TryAdd(assembly, true)) return;
             if (assembly.IsDynamic) return;

@@ -25,10 +25,7 @@ namespace Masterly.NightShift.Common
         /// <returns>Expression result.</returns>
         public static object Evaluate(Expression arg)
         {
-            if (arg == null)
-            {
-                throw new ArgumentNullException(nameof(arg));
-            }
+            ArgumentNullException.ThrowIfNull(arg);
 
             Func<object, object> func = Wrap(arg);
             return func(null);

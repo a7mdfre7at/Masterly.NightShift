@@ -11,20 +11,19 @@ namespace Masterly.NightShift.SqlServer.Tests
 {
     public class CountersAggregatorFacts
     {
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void CountersAggregatorExecutesProperly(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void CountersAggregatorExecutesProperly()
         {
             var createSql = $@"
 insert into [{Constants.DefaultSchema}].Counter ([Key], [Value], ExpireAt) 
 values ('key', 1, @expireAt)";
 
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddHours(1) });
 
-                var aggregator = CreateAggregator(useMicrosoftDataSqlClient);
+                var aggregator = CreateAggregator();
                 var cts = new CancellationTokenSource();
                 cts.Cancel();
 
@@ -36,14 +35,14 @@ values ('key', 1, @expireAt)";
             }
         }
 
-        private static DbConnection CreateConnection(bool useMicrosoftDataSqlClient)
+        private static DbConnection CreateConnection()
         {
-            return ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient);
+            return ConnectionUtils.CreateConnection();
         }
 
-        private static CountersAggregator CreateAggregator(bool useMicrosoftDataSqlClient)
+        private static CountersAggregator CreateAggregator()
         {
-            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient));
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
             return new CountersAggregator(storage, TimeSpan.Zero);
         }
     }

@@ -14,10 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
-using System.Runtime.Serialization;
 using Masterly.NightShift.Client;
-
-#pragma warning disable 618 // Obsolete member
 
 namespace Masterly.NightShift
 {
@@ -27,7 +24,7 @@ namespace Masterly.NightShift
     /// to perform an operation due to an error.
     /// </summary>
     [Serializable]
-    public class BackgroundJobClientException : CreateJobFailedException
+    public class BackgroundJobClientException : Exception
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="BackgroundJobClientException"/>
@@ -37,20 +34,6 @@ namespace Masterly.NightShift
         /// <param name="message">The error message that explains the reason for the exception.</param>
         /// <param name="inner">The exception that is the cause of this exception, not null.</param>
         public BackgroundJobClientException(string message, Exception inner) : base(message, inner)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="BackgroundJobClientException"/> class
-        /// with serialized data.
-        /// </summary>
-        /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
-#if NET8_0_OR_GREATER
-        [Obsolete("Formatter-based serialization is obsolete; this constructor only exists for compatibility.", DiagnosticId = "SYSLIB0051")]
-#endif
-        protected BackgroundJobClientException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         {
         }
     }

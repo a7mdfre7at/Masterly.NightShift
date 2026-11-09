@@ -40,13 +40,11 @@ namespace Masterly.NightShift.Processing
             [CanBeNull] object state,
             [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
         {
-            if (threadFactory == null) throw new ArgumentNullException(nameof(threadFactory));
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
             _execution = execution ?? throw new ArgumentNullException(nameof(execution));
             _action = action ?? throw new ArgumentNullException(nameof(action));
             _state = state;
-
-            AppDomainUnloadMonitor.EnsureInitialized();
 
             var threads = threadFactory(DispatchLoop)?.ToArray();
 
@@ -97,16 +95,13 @@ namespace Masterly.NightShift.Processing
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                if (!(ex is ThreadAbortException) || !AppDomainUnloadMonitor.IsUnloading)
+                try
                 {
-                    try
-                    {
-                        _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
-                    }
-                    catch (Exception inner) when (inner.IsCatchableExceptionType())
-                    {
-                        Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
-                    }
+                    _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
+                }
+                catch (Exception inner) when (inner.IsCatchableExceptionType())
+                {
+                    Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
                 }
             }
             finally

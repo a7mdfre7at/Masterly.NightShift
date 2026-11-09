@@ -45,12 +45,6 @@ namespace Masterly.NightShift
         public static JobActivatorScope? Current => _current.Value;
 
         /// <summary>
-        /// Not used.
-        /// </summary>
-        [Obsolete("This property was never implemented and has no effect. Kept for code ported from Hangfire.")]
-        public object? InnerScope { get; set; }
-
-        /// <summary>
         /// Returns an instance of <paramref name="type"/> for the job to run on.
         /// </summary>
         /// <param name="type">The type that declares the job method.</param>

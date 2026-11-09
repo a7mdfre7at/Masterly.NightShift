@@ -15,6 +15,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -214,7 +215,7 @@ namespace Masterly.NightShift.Common
         private static string ToCurrentName(string name)
         {
             return name.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase)
-                ? CurrentPrefix + name.Substring(LegacyPrefix.Length)
+                ? string.Concat(CurrentPrefix, name.AsSpan(LegacyPrefix.Length))
                 : name;
         }
 
@@ -243,9 +244,15 @@ namespace Masterly.NightShift.Common
 
             if (assemblyName.Version == null && assemblyName.CultureInfo == null && publicKeyToken == null)
             {
-#pragma warning disable 618
-                return Assembly.LoadWithPartialName(assemblyName.Name);
-#pragma warning restore 618
+                // A partial name, as Assembly.LoadWithPartialName (obsolete) loads it on .NET
+                try
+                {
+                    return Assembly.Load(new AssemblyName(assemblyName.Name));
+                }
+                catch (FileNotFoundException)
+                {
+                    return null;
+                }
             }
 
             try

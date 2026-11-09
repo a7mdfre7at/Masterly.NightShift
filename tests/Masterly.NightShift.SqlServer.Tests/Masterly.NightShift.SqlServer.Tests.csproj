@@ -1,15 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net48 runs the libraries' netstandard2.0 build, which every .NET Framework consumer gets -->
-    <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <NoWarn>0618</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Data.SqlClient" NoWarn="NU1902" />
-    <PackageReference Include="Microsoft.Data.SqlClient" NoWarn="NU1902" />
-    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="Dapper" />
   </ItemGroup>
 

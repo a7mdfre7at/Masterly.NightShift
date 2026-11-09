@@ -32,11 +32,7 @@ namespace Masterly.NightShift.Common
         {
             get
             {
-#if NET8_0_OR_GREATER
                 return System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled;
-#else
-                return true;
-#endif
             }
         }
 
@@ -47,7 +43,7 @@ namespace Masterly.NightShift.Common
         [CanBeNull]
         public static CompiledJobInvoker? TryCreate([NotNull] MethodInfo method)
         {
-            if (method == null) throw new ArgumentNullException(nameof(method));
+            ArgumentNullException.ThrowIfNull(method);
 
             try
             {
@@ -62,7 +58,7 @@ namespace Masterly.NightShift.Common
 
         public override object? Invoke(object? instance, object?[] arguments)
         {
-            if (arguments == null) throw new ArgumentNullException(nameof(arguments));
+            ArgumentNullException.ThrowIfNull(arguments);
             return _call(instance, arguments);
         }
 

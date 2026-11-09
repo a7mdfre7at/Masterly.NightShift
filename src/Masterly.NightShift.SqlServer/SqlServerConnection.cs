@@ -38,7 +38,7 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerConnection([NotNull] SqlServerStorage storage)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
             _storage = storage;
         }
 
@@ -92,8 +92,8 @@ namespace Masterly.NightShift.SqlServer
             DateTime createdAt,
             TimeSpan expireIn)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
-            if (parameters == null) throw new ArgumentNullException(nameof(parameters));
+            ArgumentNullException.ThrowIfNull(job);
+            ArgumentNullException.ThrowIfNull(parameters);
 
             foreach (var parameter in parameters)
             {
@@ -229,12 +229,12 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
                 }
 
                 return jobId;
-            }, CreateTriple(queryString, queryParameters, parametersArray), null);
+            }, ValueTuple.Create(queryString, queryParameters, parametersArray), null);
         }
 
         public override JobData GetJobData(string id)
         {
-            if (id == null) throw new ArgumentNullException(nameof(id));
+            ArgumentNullException.ThrowIfNull(id);
 
             if (!TryParseJobId(id, out var parsedId))
             {
@@ -296,7 +296,7 @@ select Name, Value from [{schemaName}].JobParameter with (forceseek) where JobId
 
         public override StateData GetStateData(string jobId)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
 
             if (!TryParseJobId(jobId, out var parsedId))
             {
@@ -332,8 +332,8 @@ where j.Id = @jobId");
 
         public override void SetJobParameter(string id, string name, string value)
         {
-            if (id == null) throw new ArgumentNullException(nameof(id));
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(id);
+            ArgumentNullException.ThrowIfNull(name);
             SqlServerLimits.EnsureJobParameterNameFits(name);
             if (!TryParseJobId(id, out var parsedId)) return;
 
@@ -364,13 +364,13 @@ end catch");
                     query,
                     new { jobId = triple.Item1, name = triple.Item2, value = triple.Item3 },
                     commandTimeout: storage.CommandTimeout);
-            }, CreateTriple(parsedId, name, value));
+            }, ValueTuple.Create(parsedId, name, value));
         }
 
         public override string GetJobParameter(string id, string name)
         {
-            if (id == null) throw new ArgumentNullException(nameof(id));
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(id);
+            ArgumentNullException.ThrowIfNull(name);
 
             if (!TryParseJobId(id, out var parsedId))
             {
@@ -387,7 +387,7 @@ end catch");
 
         public override HashSet<string> GetAllItemsFromSet(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -410,7 +410,7 @@ $@"select Value from [{schemaName}].[Set] with (forceseek) where [Key] = @key");
 
         public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
             if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
 
@@ -425,13 +425,13 @@ $@"select top (@count) Value from [{schemaName}].[Set] with (forceseek) where [K
                     commandTimeout: storage.CommandTimeout);
 
                 return result.ToList();
-            }, new KeyValuePair<string, ValueTriple<double, double, int>>(key, CreateTriple(fromScore, toScore, count)));
+            }, new KeyValuePair<string, ValueTuple<double, double, int>>(key, ValueTuple.Create(fromScore, toScore, count)));
         }
 
         public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(keyValuePairs);
             SqlServerLimits.EnsureKeyFits(key);
 
             var pairs = new List<KeyValuePair<string, string>>(keyValuePairs);
@@ -494,7 +494,7 @@ end catch");
 
         public override Dictionary<string, string> GetAllEntriesFromHash(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -513,8 +513,8 @@ $@"select Field, Value from [{schemaName}].Hash with (forceseek) where [Key] = @
 
         public override void AnnounceServer(string serverId, ServerContext context)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(serverId);
+            ArgumentNullException.ThrowIfNull(context);
 
             // Heartbeat and RemoveServer only look the id up: a longer one can't be stored, so they find nothing
             SqlServerLimits.EnsureServerIdFits(serverId);
@@ -544,7 +544,7 @@ when not matched then insert (Id, Data, LastHeartbeat) values (Source.Id, Source
 
         public override void RemoveServer(string serverId)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
+            ArgumentNullException.ThrowIfNull(serverId);
 
             _storage.UseConnection(_dedicatedConnection, static (storage, connection, serverId) =>
             {
@@ -560,7 +560,7 @@ $@"delete S from [{schemaName}].Server S with (forceseek) where Id = @id");
 
         public override void Heartbeat(string serverId)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
+            ArgumentNullException.ThrowIfNull(serverId);
 
             _storage.UseConnection(_dedicatedConnection, static (storage, connection, serverId) =>
             {
@@ -597,7 +597,7 @@ $@"update [{schemaName}].Server set LastHeartbeat = sysutcdatetime() where Id = 
 
         public override long GetSetCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) => connection.ExecuteScalar<long>(
                 storage.GetQueryFromTemplate(static schemaName =>
@@ -608,7 +608,7 @@ $@"update [{schemaName}].Server set LastHeartbeat = sysutcdatetime() where Id = 
 
         public override long GetSetCount(IEnumerable<string> keys, int limit)
         {
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
+            ArgumentNullException.ThrowIfNull(keys);
             if (limit < 0) throw new ArgumentOutOfRangeException(nameof(limit), "Value must be greater or equal to 0.");
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, pair) => connection.ExecuteScalar<long>(
@@ -623,8 +623,8 @@ $@"select count(*) from (
 
         public override bool GetSetContains(string key, string value)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, pair) => connection.ExecuteScalar<int>(
                 storage.GetQueryFromTemplate(static schemaName =>
@@ -638,7 +638,7 @@ $@"select count(*) from (
 
         public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, triple) =>
             {
@@ -679,12 +679,12 @@ else
                     .Query<string>(query, new { key = triple.Item1, startingFrom = triple.Item2 + 1, endingAt = triple.Item3 + 1 },
                         commandTimeout: storage.CommandTimeout)
                     .ToList();
-            }, CreateTriple(key, startingFrom, endingAt));
+            }, ValueTuple.Create(key, startingFrom, endingAt));
         }
 
         public override TimeSpan GetSetTtl(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -700,7 +700,7 @@ $@"select min([ExpireAt]) from [{schemaName}].[Set] with (forceseek) where [Key]
 
         public override long GetCounter(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -718,7 +718,7 @@ where [Key] = @key) as s");
 
         public override long GetHashCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -732,7 +732,7 @@ $@"select count(*) from [{schemaName}].Hash with (forceseek) where [Key] = @key"
 
         public override TimeSpan GetHashTtl(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -748,8 +748,8 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
 
         public override string GetValueFromHash(string key, string name)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(name);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, pair) =>
             {
@@ -764,7 +764,7 @@ where [Key] = @key and [Field] = @field");
 
         public override long GetListCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -779,7 +779,7 @@ where [Key] = @key");
 
         public override TimeSpan GetListTtl(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -796,7 +796,7 @@ where [Key] = @key");
 
         public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, triple) =>
             {
@@ -811,12 +811,12 @@ $@"select [Value] from (
                     .Query<string>(query, new { key = triple.Item1, startingFrom = triple.Item2 + 1, endingAt = triple.Item3 + 1 },
                         commandTimeout: storage.CommandTimeout)
                     .ToList();
-            }, CreateTriple(key, startingFrom, endingAt));
+            }, ValueTuple.Create(key, startingFrom, endingAt));
         }
 
         public override List<string> GetAllItemsFromList(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             return _storage.UseConnection(_dedicatedConnection, static (storage, connection, key) =>
             {
@@ -950,19 +950,6 @@ order by [Id] desc");
             {
                 if (OwnLock) ReleasedExternally = true;
             }
-        }
-
-        private static ValueTriple<T1, T2, T3> CreateTriple<T1, T2, T3>(T1 item1, T2 item2, T3 item3)
-        {
-            return new ValueTriple<T1, T2, T3>(item1, item2, item3);
-        }
-
-        // .NET Framework 4.5 doesn't have ValueTuple class.
-        private readonly struct ValueTriple<T1, T2, T3>(T1 item1, T2 item2, T3 item3)
-        {
-            public T1 Item1 { get; } = item1;
-            public T2 Item2 { get; } = item2;
-            public T3 Item3 { get; } = item3;
         }
     }
 }

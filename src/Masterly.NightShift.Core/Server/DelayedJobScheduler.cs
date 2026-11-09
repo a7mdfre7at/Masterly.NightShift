@@ -113,7 +113,7 @@ namespace Masterly.NightShift.Server
         /// <exception cref="ArgumentNullException"><paramref name="stateChanger"/> is null.</exception>
         public DelayedJobScheduler(TimeSpan pollingDelay, [NotNull] IBackgroundJobStateChanger stateChanger)
         {
-            if (stateChanger == null) throw new ArgumentNullException(nameof(stateChanger));
+            ArgumentNullException.ThrowIfNull(stateChanger);
 
             _stateChanger = stateChanger;
             _pollingDelay = pollingDelay;
@@ -139,7 +139,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void Execute(BackgroundProcessContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             int jobsProcessed;
 
@@ -275,7 +275,7 @@ namespace Masterly.NightShift.Server
 
         private static void EnqueueEntry(string entry, int colonIndex, IWriteOnlyTransaction transaction)
         {
-            if (colonIndex < 0) throw new ArgumentOutOfRangeException(nameof(colonIndex));
+            ArgumentOutOfRangeException.ThrowIfNegative(colonIndex);
 
             var queue = entry.Substring(0, colonIndex);
             var jobId = entry.Substring(colonIndex + 1);

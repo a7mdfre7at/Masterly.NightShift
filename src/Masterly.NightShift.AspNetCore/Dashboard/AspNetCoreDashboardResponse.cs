@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Dashboard
 
         public AspNetCoreDashboardResponse([NotNull] HttpContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             _context = context;
         }
 

@@ -22,7 +22,6 @@ namespace Masterly.NightShift.SqlServer
     {
         private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
         private static readonly Type StackOverflowType = typeof(StackOverflowException);
-        private static readonly Type ThreadAbortType = typeof(System.Threading.ThreadAbortException);
         private static readonly Type AccessViolationType = typeof(AccessViolationException);
         private static readonly Type SecurityType = typeof(System.Security.SecurityException);
  
@@ -31,7 +30,6 @@ namespace Masterly.NightShift.SqlServer
             var type = e.GetType();
             return type != OutOfMemoryType &&
                    type != StackOverflowType &&
-                   type != ThreadAbortType &&
                    type != AccessViolationType &&
                    !SecurityType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo());
         }

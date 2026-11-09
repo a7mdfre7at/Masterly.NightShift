@@ -25,9 +25,8 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.Equal("storage", exception.ParamName);
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_ThrowsAnException_WhenJobIdIsNull(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Ctor_ThrowsAnException_WhenJobIdIsNull()
         {
             UseConnection((sql, storage) =>
             {
@@ -35,12 +34,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     () => new SqlServerTimeoutJob(storage, 1, null, Queue, FetchedAt));
 
                 Assert.Equal("jobId", exception.ParamName);
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_ThrowsAnException_WhenQueueIsNull(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             UseConnection((sql, storage) =>
             {
@@ -48,12 +46,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     () => new SqlServerTimeoutJob(storage, 1, JobId, null, FetchedAt));
 
                 Assert.Equal("queue", exception.ParamName);
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_CorrectlySets_AllInstanceProperties(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Ctor_CorrectlySets_AllInstanceProperties()
         {
             UseConnection((sql, storage) =>
             {
@@ -64,12 +61,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     Assert.Equal(Queue, fetchedJob.Queue);
                     Assert.Equal(FetchedAt, fetchedJob.FetchedAt);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void RemoveFromQueue_ReallyDeletesTheJobFromTheQueue(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void RemoveFromQueue_ReallyDeletesTheJobFromTheQueue()
         {
             UseConnection((sql, storage) =>
             {
@@ -86,12 +82,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Equal(0, count);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void RemoveFromQueue_DoesNotDelete_UnrelatedJobs(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void RemoveFromQueue_DoesNotDelete_UnrelatedJobs()
         {
             UseConnection((sql, storage) =>
             {
@@ -111,12 +106,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Equal(3, count);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Requeue_SetsFetchedAtValueToNull(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Requeue_SetsFetchedAtValueToNull()
         {
             UseConnection((sql, storage) =>
             {
@@ -133,12 +127,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Null(record.FetchedAt);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Timer_UpdatesFetchedAtColumn(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Timer_UpdatesFetchedAtColumn()
         {
             UseConnection((sql, storage) =>
             {
@@ -157,12 +150,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var now = DateTime.UtcNow;
                     Assert.True(now.AddSeconds(-5) < record.FetchedAt, (now - record.FetchedAt).ToString());
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void RemoveFromQueue_AfterTimer_RemovesJobFromTheQueue(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void RemoveFromQueue_AfterTimer_RemovesJobFromTheQueue()
         {
             UseConnection((sql, storage) =>
             {
@@ -180,12 +172,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Equal(0, count);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void RequeueQueue_AfterTimer_SetsFetchedAtValueToNull(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void RequeueQueue_AfterTimer_SetsFetchedAtValueToNull()
         {
             UseConnection((sql, storage) =>
             {
@@ -203,12 +194,11 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Null(record.FetchedAt);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Dispose_SetsFetchedAtValueToNull_IfThereWereNoCallsToComplete(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Dispose_SetsFetchedAtValueToNull_IfThereWereNoCallsToComplete()
         {
             UseConnection((sql, storage) =>
             {
@@ -223,7 +213,7 @@ namespace Masterly.NightShift.SqlServer.Tests
                     var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
                     Assert.Null(record.FetchedAt);
                 }
-            }, useMicrosoftDataSqlClient);
+            });
         }
 
         private static int CreateJobQueueRecord(IDbConnection connection, string jobId, string queue, DateTime? fetchedAt)
@@ -236,13 +226,13 @@ select scope_identity() as Id";
             return (int)connection.Query(arrangeSql, new { id = jobId, queue, fetchedAt }).Single().Id;
         }
 
-        private static void UseConnection(Action<IDbConnection, SqlServerStorage> action, bool useMicrosoftDataSqlClient)
+        private static void UseConnection(Action<IDbConnection, SqlServerStorage> action)
         {
             var storage = new SqlServerStorage(
-                () => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient),
+                () => ConnectionUtils.CreateConnection(),
                 new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(5) });
 
-            using (var connection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 action(connection, storage);
             }

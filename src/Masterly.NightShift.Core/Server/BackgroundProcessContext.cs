@@ -27,15 +27,6 @@ namespace Masterly.NightShift.Server
     /// </summary>
     public class BackgroundProcessContext
     {
-        [Obsolete("Use the constructor that takes the execution id and the stopping, stopped and shutdown tokens instead. Kept for code ported from Hangfire.")]
-        public BackgroundProcessContext(
-            [NotNull] string serverId,
-            [NotNull] JobStorage storage,
-            [NotNull] IDictionary<string, object> properties,
-            CancellationToken cancellationToken)
-            : this(serverId, storage, properties, Guid.NewGuid(), cancellationToken, cancellationToken, cancellationToken)
-        {
-        }
 
         public BackgroundProcessContext(
             [NotNull] string serverId,
@@ -46,9 +37,9 @@ namespace Masterly.NightShift.Server
             CancellationToken stoppedToken,
             CancellationToken shutdownToken)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (properties == null) throw new ArgumentNullException(nameof(properties));
+            ArgumentNullException.ThrowIfNull(serverId);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(properties);
 
             ServerId = serverId;
             Storage = storage;
@@ -70,18 +61,12 @@ namespace Masterly.NightShift.Server
 
         public Guid ExecutionId { get; }
 
-        [Obsolete("Use the StoppingToken property instead. Kept for code ported from Hangfire.")]
-        public CancellationToken CancellationToken => StoppingToken;
-
         public CancellationToken StoppingToken { get; }
         public CancellationToken StoppedToken { get; }
         public CancellationToken ShutdownToken { get; }
 
         public bool IsStopping => StoppingToken.IsCancellationRequested || StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
         public bool IsStopped => StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
-
-        [Obsolete("Use IsStopping or IsStopped properties instead. Kept for code ported from Hangfire.")]
-        public bool IsShutdownRequested => StoppingToken.IsCancellationRequested;
 
         public void Wait(TimeSpan timeout)
         {

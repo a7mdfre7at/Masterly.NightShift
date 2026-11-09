@@ -34,9 +34,9 @@ namespace Masterly.NightShift.Server
             int maxConcurrency,
             bool ownsScheduler)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (taskScheduler == null) throw new ArgumentNullException(nameof(taskScheduler));
-            if (maxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maxConcurrency));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentNullException.ThrowIfNull(taskScheduler);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 
             _process = process;
             _taskScheduler = taskScheduler;
@@ -46,8 +46,8 @@ namespace Masterly.NightShift.Server
 
         public IBackgroundDispatcher Create(BackgroundServerContext context, BackgroundProcessingServerOptions options)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(options);
 
             var execution = new BackgroundExecution(
                 new BackgroundExecutionOptions

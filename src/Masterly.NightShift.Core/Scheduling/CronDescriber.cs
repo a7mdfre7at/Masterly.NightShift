@@ -34,7 +34,7 @@ namespace Masterly.NightShift
 
         public static string Describe(string expression)
         {
-            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            ArgumentNullException.ThrowIfNull(expression);
 
             var text = expression.Trim();
             if (Presets.TryGetValue(text, out var preset)) text = preset;
@@ -251,7 +251,7 @@ namespace Masterly.NightShift
             if (field.Special != null)
             {
                 var hash = field.Special.IndexOf('#');
-                if (hash > 0 && Int32.TryParse(field.Special.Substring(hash + 1), out var nth) && nth >= 1 && nth <= 5)
+                if (hash > 0 && Int32.TryParse(field.Special.AsSpan(hash + 1), out var nth) && nth >= 1 && nth <= 5)
                 {
                     return $"on the {Ordinals[nth]} {DayName(field.Special.Substring(0, hash), field.Names)} of the month";
                 }
@@ -387,7 +387,7 @@ namespace Masterly.NightShift
                 {
                     var stepIndex = item.IndexOf('/');
                     var rangePart = stepIndex >= 0 ? item.Substring(0, stepIndex) : item;
-                    var step = stepIndex >= 0 ? Int32.Parse(item.Substring(stepIndex + 1), CultureInfo.InvariantCulture) : 1;
+                    var step = stepIndex >= 0 ? Int32.Parse(item.AsSpan(stepIndex + 1), CultureInfo.InvariantCulture) : 1;
 
                     int start, end;
 

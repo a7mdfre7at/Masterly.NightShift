@@ -87,7 +87,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static void Record([NotNull] DashboardContext context, [CanBeNull] IEnumerable<string>? targets = null, [CanBeNull] string? detail = null, int status = 204)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (!Enabled) return;
 
             var targetList = targets?.Where(static t => !String.IsNullOrEmpty(t)).ToList();
@@ -130,7 +130,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<AuditEntry> Read([NotNull] IStorageConnection connection, int count)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (count <= 0) return Array.Empty<AuditEntry>();
 
             if (connection is not JobStorageConnection storageConnection) return Array.Empty<AuditEntry>();
@@ -167,7 +167,7 @@ namespace Masterly.NightShift
         /// <summary>How many entries are kept right now; 0 when the storage can't count lists.</summary>
         public static long Count([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (connection is not JobStorageConnection storageConnection) return 0;
 
             try
@@ -184,7 +184,7 @@ namespace Masterly.NightShift
         /// <summary>A short English description of a dashboard action path, for example "Requeue failed jobs".</summary>
         public static string Describe([NotNull] string action)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
 
             var path = action.Trim('/');
             foreach (var pair in Descriptions)

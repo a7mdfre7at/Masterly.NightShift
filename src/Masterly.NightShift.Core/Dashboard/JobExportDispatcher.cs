@@ -153,7 +153,7 @@ namespace Masterly.NightShift.Dashboard
 
         private static string? Truncate(string? message)
         {
-            return message != null && message.Length > MaxMessageLength ? message.Substring(0, MaxMessageLength) + "…" : message;
+            return message != null && message.Length > MaxMessageLength ? string.Concat(message.AsSpan(0, MaxMessageLength), "…") : message;
         }
 
         private List<Row> Fetch(IMonitoringApi monitor, string? queue, int from, int count)

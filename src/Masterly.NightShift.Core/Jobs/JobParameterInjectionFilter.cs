@@ -31,7 +31,7 @@ namespace Masterly.NightShift
 
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var argumentsArray = context.BackgroundJob.Job?.Args as object[];
             if (argumentsArray == null) return;

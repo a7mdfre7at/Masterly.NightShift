@@ -35,8 +35,8 @@ namespace Masterly.NightShift.SqlServer
             CommandType type = CommandType.Text,
             int? timeout = null)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (text == null) throw new ArgumentNullException(nameof(text));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(text);
 
             var command = connection.CreateCommand();
             command.CommandType = type;
@@ -57,8 +57,8 @@ namespace Masterly.NightShift.SqlServer
             DbType dbType,
             [CanBeNull] int? size = null)
         {
-            if (command == null) throw new ArgumentNullException(nameof(command));
-            if (parameterName == null) throw new ArgumentNullException(nameof(parameterName));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
 
             var parameter = AddParameterInternal(command, parameterName, dbType, size);
             parameter.Value = value ?? DBNull.Value;
@@ -73,8 +73,8 @@ namespace Masterly.NightShift.SqlServer
             DbType dbType,
             int? size = null)
         {
-            if (command == null) throw new ArgumentNullException(nameof(command));
-            if (parameterName == null) throw new ArgumentNullException(nameof(parameterName));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
 
             parameter = AddParameterInternal(command, parameterName, dbType, size);
             parameter.Direction = ParameterDirection.ReturnValue;
@@ -90,9 +90,9 @@ namespace Masterly.NightShift.SqlServer
             DbType parameterType,
             int? parameterSize = null)
         {
-            if (command == null) throw new ArgumentNullException(nameof(command));
-            if (parameterName == null) throw new ArgumentNullException(nameof(parameterName));
-            if (parameterValues == null) throw new ArgumentNullException(nameof(parameterValues));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
+            ArgumentNullException.ThrowIfNull(parameterValues);
 
             command.CommandText = ExpandedQueries.GetOrAdd(
                 new KeyValuePair<string, KeyValuePair<string, int>>(command.CommandText, new KeyValuePair<string, int>(parameterName, parameterValues.Length)),
@@ -114,7 +114,7 @@ namespace Masterly.NightShift.SqlServer
 
         public static T GetParameterValue<T>([NotNull] this DbParameter parameter)
         {
-            if (parameter == null) throw new ArgumentNullException(nameof(parameter));
+            ArgumentNullException.ThrowIfNull(parameter);
 
             switch (parameter.Value)
             {

@@ -25,8 +25,8 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerJobQueueProvider([NotNull] SqlServerStorage storage, [NotNull] SqlServerStorageOptions options)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
 
             _jobQueue = new SqlServerJobQueue(storage, options);
             _monitoringApi = new SqlServerJobQueueMonitoringApi(storage);

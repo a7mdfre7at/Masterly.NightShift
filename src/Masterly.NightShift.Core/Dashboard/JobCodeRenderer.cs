@@ -90,7 +90,7 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>Renders one value as a C# literal, or a <c>FromJson</c> call when no literal exists.</summary>
         public static string Literal([CanBeNull] object? value, [NotNull] Type type)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
+            ArgumentNullException.ThrowIfNull(type);
             if (value == null) return "null";
 
             var underlying = Nullable.GetUnderlyingType(type) ?? type;
@@ -149,7 +149,7 @@ namespace Masterly.NightShift.Dashboard
 
         internal static string Quote(string value)
         {
-            if (value.IndexOf('\n') >= 0 || value.IndexOf('\r') >= 0)
+            if (value.Contains('\n') || value.Contains('\r'))
             {
                 return "@\"" + value.Replace("\"", "\"\"") + "\"";
             }

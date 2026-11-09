@@ -73,7 +73,7 @@ namespace Masterly.NightShift
 
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var currentCulture = CultureInfo.CurrentCulture;
             var currentUICulture = CultureInfo.CurrentUICulture;
@@ -146,7 +146,7 @@ namespace Masterly.NightShift
 
         public void OnPerformed(PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.Items.TryGetValue("PreviousCulture", out var culture))
             {

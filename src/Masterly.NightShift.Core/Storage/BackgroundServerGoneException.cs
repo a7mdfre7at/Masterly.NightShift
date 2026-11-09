@@ -14,7 +14,6 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
-using System.Runtime.Serialization;
 
 namespace Masterly.NightShift.Storage
 {
@@ -26,20 +25,6 @@ namespace Masterly.NightShift.Storage
     public class BackgroundServerGoneException : Exception
     {
         public BackgroundServerGoneException()
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="BackgroundServerGoneException"/> class
-        /// with serialized data.
-        /// </summary>
-        /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
-#if NET8_0_OR_GREATER
-        [Obsolete("Formatter-based serialization is obsolete; this constructor only exists for compatibility.", DiagnosticId = "SYSLIB0051")]
-#endif
-        protected BackgroundServerGoneException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         {
         }
     }

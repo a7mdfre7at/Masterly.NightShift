@@ -25,24 +25,6 @@ namespace Masterly.NightShift.Common
     public static class JobHelper
     {
 
-        [Obsolete("Use `SerializationHelper.Serialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
-        public static string ToJson(object value)
-        {
-            return SerializationHelper.Serialize(value, null, SerializationOption.User);
-        }
-
-        [Obsolete("Use `SerializationHelper.Deserialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
-        public static T FromJson<T>(string value)
-        {
-            return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
-        }
-
-        [Obsolete("Use `SerializationHelper.Deserialize` with appropriate serialization option instead. Kept for code ported from Hangfire.")]
-        public static object FromJson(string value, [NotNull] Type type)
-        {
-            return SerializationHelper.Deserialize(value, type, SerializationOption.User);
-        }
-
         private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         private static readonly DateTime MillisecondTimestampBoundaryDate = new DateTime(1978, 1, 11, 21, 31, 40, 799, DateTimeKind.Utc);
         private static readonly long MillisecondTimestampBoundary = 253402300799L;

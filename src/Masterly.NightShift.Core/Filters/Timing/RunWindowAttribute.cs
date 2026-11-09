@@ -26,7 +26,7 @@ namespace Masterly.NightShift
         /// <summary>Allows the job to start between the two <c>HH:mm</c> times, in UTC or the given time zone.</summary>
         public RunWindowAttribute([NotNull] string window, [CanBeNull] string? timeZoneId = null)
         {
-            if (window == null) throw new ArgumentNullException(nameof(window));
+            ArgumentNullException.ThrowIfNull(window);
 
             var parts = window.Split('-');
             if (parts.Length != 2 || !TryParseTime(parts[0], out var start) || !TryParseTime(parts[1], out var end))
@@ -72,7 +72,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.CandidateState is EnqueuedState enqueuedState)
             {

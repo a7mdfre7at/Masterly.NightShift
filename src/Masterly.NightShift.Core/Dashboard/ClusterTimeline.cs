@@ -87,7 +87,7 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>Builds the timeline from feed entries (any order) up to <paramref name="nowMs"/>.</summary>
         public static ClusterTimeline Build(IEnumerable<ActivityEntry> entries, long nowMs, TimeSpan? maxWindow = null)
         {
-            if (entries == null) throw new ArgumentNullException(nameof(entries));
+            ArgumentNullException.ThrowIfNull(entries);
 
             var ordered = entries.Where(static e => e.JobId != null).OrderBy(static e => e.Timestamp).ToList();
             var open = new Dictionary<string, (ActivityEntry Entry, TimelineLane Lane)>(StringComparer.Ordinal);

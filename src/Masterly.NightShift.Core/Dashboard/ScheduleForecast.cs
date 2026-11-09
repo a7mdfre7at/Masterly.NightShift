@@ -78,7 +78,7 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>Builds the forecast for the given window from the storage.</summary>
         public static ScheduleForecast Build([NotNull] IStorageConnection connection, DateTime fromUtc, TimeSpan window, [CanBeNull] ITimeZoneResolver? timeZoneResolver = null)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var recurringJobs = connection.GetRecurringJobs();
             var storageConnection = connection as JobStorageConnection;
@@ -99,9 +99,9 @@ namespace Masterly.NightShift.Dashboard
             [NotNull] Func<string, TimeSpan?> expectedDuration,
             [CanBeNull] ITimeZoneResolver? timeZoneResolver = null)
         {
-            if (recurringJobs == null) throw new ArgumentNullException(nameof(recurringJobs));
-            if (expectedDuration == null) throw new ArgumentNullException(nameof(expectedDuration));
-            if (window <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(window));
+            ArgumentNullException.ThrowIfNull(recurringJobs);
+            ArgumentNullException.ThrowIfNull(expectedDuration);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(window, TimeSpan.Zero);
 
             var resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
             var from = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);

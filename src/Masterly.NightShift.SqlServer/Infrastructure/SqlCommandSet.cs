@@ -51,19 +51,6 @@ namespace Masterly.NightShift.SqlServer
             {
                 sqlCommandSetType = SqlCommandSetType.GetOrAdd(connection.GetType().GetTypeInfo().Assembly, static sqlClientAssembly =>
                 {
-                    var assemblyName = sqlClientAssembly.GetName();
-                    var version = assemblyName.Version;
-
-                    if (assemblyName.Name == "System.Data.SqlClient" && Version.Parse("4.0.0.0") < version && version < Version.Parse("4.6.0.0"))
-                    {
-                        // .NET Core version of the System.Data.SqlClient package below 4.7.0 (which
-                        // has assembly version 4.6.0.0) doesn't properly implement the SqlCommandSet
-                        // class, throwing the following exception in run-time:
-                        // ArgumentException: Specified parameter name 'Parameter1' is not valid.
-                        // GitHub Issue: https://github.com/dotnet/corefx/issues/29391
-                        throw new NotSupportedException(".NET Core version of the System.Data.SqlClient package below 4.7.0 (which has assembly version 4.6.0.0) doesn't properly implement the SqlCommandSet class.");
-                    }
-
                     var type = sqlClientAssembly.GetTypes().FirstOrDefault(static x => x.Name == "SqlCommandSet");
                     if (type == null)
                     {

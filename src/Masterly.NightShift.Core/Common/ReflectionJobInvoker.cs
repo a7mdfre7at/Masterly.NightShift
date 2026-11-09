@@ -19,7 +19,7 @@ namespace Masterly.NightShift.Common
 
         public override object? Invoke(object? instance, object?[] arguments)
         {
-            if (arguments == null) throw new ArgumentNullException(nameof(arguments));
+            ArgumentNullException.ThrowIfNull(arguments);
 
             try
             {

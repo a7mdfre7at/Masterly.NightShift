@@ -127,21 +127,8 @@ namespace Masterly.NightShift
             return GetConnection();
         }
 
-#pragma warning disable 618
         /// <summary>
-        /// Gets the storage's background processes the old way. Override <see cref="GetServerRequiredProcesses"/>
-        /// and <see cref="GetStorageWideProcesses"/> instead.
-        /// </summary>
-        [Obsolete($"Use the `{nameof(GetStorageWideProcesses)}` and/or `{nameof(GetServerRequiredProcesses)}` methods instead, and enable `{nameof(JobStorageFeatures)}.{nameof(JobStorageFeatures.ProcessesInsteadOfComponents)}`. Kept for code ported from Hangfire.")]
-        public virtual IEnumerable<IServerComponent> GetComponents()
-        {
-            return Enumerable.Empty<IServerComponent>();
-        }
-#pragma warning restore 618
-
-        /// <summary>
-        /// Gets the processes every server that uses this storage runs, lightweight servers included. Used when
-        /// the storage reports <see cref="JobStorageFeatures.ProcessesInsteadOfComponents"/>. Default is none.
+        /// Gets the processes every server that uses this storage runs, lightweight servers included. Default is none.
         /// </summary>
         public virtual IEnumerable<IBackgroundProcess> GetServerRequiredProcesses()
         {
@@ -150,8 +137,7 @@ namespace Masterly.NightShift
 
         /// <summary>
         /// Gets the maintenance processes, such as cleaning up expired data, run by the servers that aren't
-        /// lightweight. Used when the storage reports <see cref="JobStorageFeatures.ProcessesInsteadOfComponents"/>.
-        /// Default is none.
+        /// lightweight. Default is none.
         /// </summary>
         public virtual IEnumerable<IBackgroundProcess> GetStorageWideProcesses()
         {
@@ -184,7 +170,7 @@ namespace Masterly.NightShift
         /// <param name="featureId">The feature identifier.</param>
         public virtual bool HasFeature([NotNull] string featureId)
         {
-            if (featureId == null) throw new ArgumentNullException(nameof(featureId));
+            ArgumentNullException.ThrowIfNull(featureId);
             return false;
         }
 
@@ -198,7 +184,7 @@ namespace Masterly.NightShift
         /// <exception cref="NotSupportedException">The storage doesn't implement purging.</exception>
         public virtual void Purge([NotNull] StoragePurgeOptions options)
         {
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(options);
             throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Purge);
         }
     }

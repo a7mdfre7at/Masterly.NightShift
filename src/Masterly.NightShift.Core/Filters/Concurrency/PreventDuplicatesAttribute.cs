@@ -109,7 +109,7 @@ namespace Masterly.NightShift
         /// </summary>
         public string GetFingerprint([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             if (!String.IsNullOrWhiteSpace(Template))
             {
@@ -121,30 +121,21 @@ namespace Masterly.NightShift
             var invocation = InvocationData.SerializeJob(job);
             var text = $"{ConcurrencyControl.GetMethodIdentity(job)}:{invocation.Arguments}";
 
-            using (var sha = SHA256.Create())
-            {
-                var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(text));
-                var builder = new StringBuilder(32);
-                for (var i = 0; i < 16; i++)
-                {
-                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
-                }
-
-                return builder.ToString();
-            }
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+            return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
         }
 
         /// <summary>The storage key of a fingerprint record.</summary>
         public static string GetKey([NotNull] string fingerprint)
         {
-            if (fingerprint == null) throw new ArgumentNullException(nameof(fingerprint));
+            ArgumentNullException.ThrowIfNull(fingerprint);
             return KeyPrefix + fingerprint;
         }
 
         /// <summary>Reads the identifier of the job that currently owns a fingerprint, or <c>null</c>.</summary>
         public static string? ReadOwner([NotNull] IStorageConnection connection, [NotNull] string fingerprint)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var hash = connection.GetAllEntriesFromHash(GetKey(fingerprint));
             return hash != null && hash.TryGetValue("JobId", out var jobId) && !String.IsNullOrEmpty(jobId) ? jobId : null;
@@ -153,7 +144,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.Canceled) return;
 
             var fingerprint = GetFingerprint(context.Job);
@@ -195,7 +186,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreated(CreatedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (!context.Items.TryGetValue(ReservationItem, out var value) || value is not Reservation reservation) return;
             context.Items.Remove(ReservationItem);
@@ -260,8 +251,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(transaction);
 
             var release = context.NewState.IsFinal || IsReleasing(context.NewState.Name);
             var storageTransaction = ConcurrencyControl.GetExpiringTransaction(context.Storage, transaction);

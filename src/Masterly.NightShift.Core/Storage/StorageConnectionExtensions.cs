@@ -30,8 +30,8 @@ namespace Masterly.NightShift.Storage
             [NotNull] string jobId, 
             TimeSpan timeout)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             return connection.AcquireDistributedLock(
                 $"job:{jobId}:state-lock",
@@ -43,15 +43,15 @@ namespace Masterly.NightShift.Storage
             [NotNull] string jobId, 
             TimeSpan timeout)
         {
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             transaction.AcquireDistributedLock($"job:{jobId}:state-lock", timeout);
         }
 
         public static long GetRecurringJobCount([NotNull] this JobStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             return connection.GetSetCount("recurring-jobs");
         }
 
@@ -60,7 +60,7 @@ namespace Masterly.NightShift.Storage
             int startingFrom,
             int endingAt)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             return connection.GetRangeFromSet("recurring-jobs", startingFrom, endingAt);
         }
 
@@ -69,7 +69,7 @@ namespace Masterly.NightShift.Storage
             int startingFrom,
             int endingAt)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var ids = connection.GetRecurringJobIds(startingFrom, endingAt);
             return GetRecurringJobDtos(connection, ids);
@@ -77,7 +77,7 @@ namespace Masterly.NightShift.Storage
 
         public static List<RecurringJobDto> GetRecurringJobs([NotNull] this IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var ids = connection.GetAllItemsFromSet("recurring-jobs");
             return GetRecurringJobDtos(connection, ids);
@@ -85,7 +85,7 @@ namespace Masterly.NightShift.Storage
 
         public static List<RecurringJobDto> GetRecurringJobs([NotNull] this IStorageConnection connection, IEnumerable<string> ids)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             return GetRecurringJobDtos(connection, ids);
         }
 

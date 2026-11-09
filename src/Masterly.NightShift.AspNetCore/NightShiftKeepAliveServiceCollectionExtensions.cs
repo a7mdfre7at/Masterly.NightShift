@@ -5,10 +5,8 @@ using System.Linq;
 using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Server;
 using Microsoft.Extensions.DependencyInjection;
-#if !NETSTANDARD2_0
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-#endif
 
 namespace Masterly.NightShift
 {
@@ -19,9 +17,8 @@ namespace Masterly.NightShift
     {
         /// <summary>
         /// Keeps the web host from idling by requesting one of its own URLs at a fixed interval (5 minutes by
-        /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, on .NET 8 and later,
-        /// the first address the server listens on is used with the given path; on other targets the URL is
-        /// required. The request has to reach the host that applies the idle timeout, so behind IIS give the
+        /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, the first address the
+        /// server listens on is used with the given path. The request has to reach the host that applies the idle timeout, so behind IIS give the
         /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
         /// answers without touching the storage.
         /// </summary>
@@ -34,8 +31,8 @@ namespace Masterly.NightShift
             [CanBeNull] Action<KeepAliveOptions>? configure = null,
             [NotNull] string path = "/nightshift/ping")
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (path == null) throw new ArgumentNullException(nameof(path));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(path);
 
             services.AddSingleton<IBackgroundProcess>(provider =>
             {
@@ -44,11 +41,7 @@ namespace Masterly.NightShift
 
                 if (options.Url == null && options.UrlFactory == null)
                 {
-#if NETSTANDARD2_0
-                    throw new InvalidOperationException("Set KeepAliveOptions.Url: the server address can't be resolved automatically on this target framework.");
-#else
                     options.UrlFactory = () => ResolveFromServer(provider, path);
-#endif
                 }
 
                 return new KeepAliveProcess(options);
@@ -57,7 +50,6 @@ namespace Masterly.NightShift
             return services;
         }
 
-#if !NETSTANDARD2_0
         private static string? ResolveFromServer(IServiceProvider provider, string path)
         {
             var server = provider.GetService<IServer>();
@@ -78,8 +70,7 @@ namespace Masterly.NightShift
                 .Replace("://[::]", "://localhost")
                 .TrimEnd('/');
 
-            return normalized + (path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path);
+            return normalized + (path.StartsWith('/') ? path : "/" + path);
         }
-#endif
     }
 }

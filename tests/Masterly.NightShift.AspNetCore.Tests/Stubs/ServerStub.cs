@@ -35,7 +35,6 @@ namespace Masterly.NightShift.AspNetCore.Tests.Stubs
         {
         }
 
-        // Not ServerAddressesFeature: ASP.NET Core 2.x, which the net48 target uses, has it in the Hosting package only
         private sealed class AddressesFeature : IServerAddressesFeature
         {
             public ICollection<string> Addresses { get; } = new List<string>();

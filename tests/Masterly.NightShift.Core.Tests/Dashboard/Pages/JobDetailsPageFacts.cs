@@ -682,36 +682,19 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
 
             var html = _renderer.Render(new JobDetailsPage(JobId));
 
-            Assert.Contains("<div class=\"state-card state-card-state-success\" style=\"\">", html);
+            Assert.Contains("<div class=\"state-card state-card-state-success\">", html);
         }
-
-#pragma warning disable CS0618 // The color methods are obsolete, but still supported
-        [Fact, StaticLock]
-        public void Render_GivesTheCurrentStateCard_TheColorsRegisteredForACustomState()
-        {
-            JobHistoryRenderer.AddForegroundStateColor("Facts.Quarantined", "#aa00aa");
-            JobHistoryRenderer.AddBackgroundStateColor("Facts.Quarantined", "#fbeefb");
-            SetupJob(Details("Facts.Quarantined", new Dictionary<string, string> { { "Reason", "suspicious" } }));
-
-            var html = _renderer.Render(new JobDetailsPage(JobId));
-
-            Assert.Contains("<div class=\"state-card \" style=\"border-color: #aa00aa\">", html);
-            Assert.Contains("<h4 class=\"state-card-title\" style=\"color: #aa00aa\">", html);
-            Assert.Contains("<div class=\"state-card-body\" style=\"background-color: #fbeefb\">", html);
-            Assert.DoesNotContain("state-card-state-", html);
-        }
-#pragma warning restore CS0618
 
         [Fact]
-        public void Render_GivesTheCurrentStateCard_ANeutralLook_ForAStateWithoutSuffixOrColors()
+        public void Render_GivesTheCurrentStateCard_ANeutralLook_ForAStateWithoutASuffix()
         {
             SetupJob(Details("Facts.Unstyled", new Dictionary<string, string> { { "Reason", "none" } }));
 
             var html = _renderer.Render(new JobDetailsPage(JobId));
 
-            Assert.Contains("<div class=\"state-card \" style=\"\">", html);
-            Assert.Contains("<h4 class=\"state-card-title\" style=\"\">", html);
-            Assert.Contains("<div class=\"state-card-body\" style=\"\">", html);
+            Assert.Contains("<div class=\"state-card \">", html);
+            Assert.Contains("<h4 class=\"state-card-title\">", html);
+            Assert.Contains("<div class=\"state-card-body\">", html);
             Assert.DoesNotContain("state-card-state-", html);
             Assert.DoesNotContain("border-color: inherit", html);
         }

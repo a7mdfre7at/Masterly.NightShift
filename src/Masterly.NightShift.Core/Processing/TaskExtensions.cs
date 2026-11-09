@@ -31,8 +31,8 @@ namespace Masterly.NightShift.Processing
 
         public static bool WaitOne([NotNull] this WaitHandle waitHandle, TimeSpan timeout, CancellationToken token)
         {
-            if (waitHandle == null) throw new ArgumentNullException(nameof(waitHandle));
-            if (timeout < Timeout.InfiniteTimeSpan) throw new ArgumentOutOfRangeException(nameof(timeout));
+            ArgumentNullException.ThrowIfNull(waitHandle);
+            ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
 
             token.ThrowIfCancellationRequested();
 
@@ -74,8 +74,8 @@ namespace Masterly.NightShift.Processing
 
         public static async Task<bool> WaitOneAsync([NotNull] this WaitHandle waitHandle, TimeSpan timeout, CancellationToken token)
         {
-            if (waitHandle == null) throw new ArgumentNullException(nameof(waitHandle));
-            if (timeout < Timeout.InfiniteTimeSpan) throw new ArgumentOutOfRangeException(nameof(timeout));
+            ArgumentNullException.ThrowIfNull(waitHandle);
+            ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
 
             token.ThrowIfCancellationRequested();
 
@@ -136,7 +136,7 @@ namespace Masterly.NightShift.Processing
 
         public static object GetTaskLikeResult([NotNull] this Task task, object obj, Type returnType)
         {
-            if (task == null) throw new ArgumentNullException(nameof(task));
+            ArgumentNullException.ThrowIfNull(task);
 
             if (task != obj)
             {

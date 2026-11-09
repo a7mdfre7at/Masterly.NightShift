@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>SQL Server storage for Masterly.NightShift background jobs.</Description>
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <Description>SQL Server storage for Masterly.NightShift background jobs, on Microsoft.Data.SqlClient. Creates and upgrades its own tables; Hangfire databases keep working.</Description>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <PackageReadmeSource>README.md</PackageReadmeSource>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Masterly.NightShift.SqlServer</RootNamespace>
   </PropertyGroup>
@@ -12,6 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <!-- Lifts a transitive dependency of Microsoft.Data.SqlClient to a version without known vulnerabilities
+         (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7), so apps don't get NU1902/NU1903 warnings from this package -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
   
   <ItemGroup>

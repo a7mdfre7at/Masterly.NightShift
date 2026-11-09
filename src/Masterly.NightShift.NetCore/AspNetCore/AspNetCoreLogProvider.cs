@@ -34,7 +34,7 @@ namespace Masterly.NightShift.AspNetCore
         /// <param name="loggerFactory">Creates the loggers.</param>
         public AspNetCoreLogProvider([NotNull] ILoggerFactory loggerFactory)
         {
-            if (loggerFactory == null) throw new ArgumentNullException(nameof(loggerFactory));
+            ArgumentNullException.ThrowIfNull(loggerFactory);
             _loggerFactory = loggerFactory;
         }
 

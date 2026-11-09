@@ -71,7 +71,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.CandidateState is AwaitingJobsState awaiting)
             {
@@ -86,8 +86,8 @@ namespace Masterly.NightShift
         /// <summary>Reads the fan-in children of a job, in registration order.</summary>
         public static IReadOnlyList<string> ReadChildren([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             return Parse(connection.GetJobParameter(jobId, ParameterName));
         }

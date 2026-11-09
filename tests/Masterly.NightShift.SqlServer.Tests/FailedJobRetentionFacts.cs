@@ -58,7 +58,7 @@ namespace Masterly.NightShift.SqlServer.Tests
                 Assert.Null(connection.GetJobData(jobId));
             }
 
-            using (var sql = ConnectionUtils.CreateConnection(microsoftDataSqlClient: false))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 var id = long.Parse(jobId);
                 Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].State where JobId = @id", new { id }));
@@ -117,7 +117,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static string GetStateName(string jobId)
         {
-            using (var sql = ConnectionUtils.CreateConnection(microsoftDataSqlClient: false))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 return sql.ExecuteScalar<string>($"select StateName from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
             }
@@ -125,7 +125,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static DateTime? GetExpireAt(string jobId)
         {
-            using (var sql = ConnectionUtils.CreateConnection(microsoftDataSqlClient: false))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 return sql.ExecuteScalar<DateTime?>($"select ExpireAt from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
             }
@@ -133,7 +133,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static void Backdate(string jobId)
         {
-            using (var sql = ConnectionUtils.CreateConnection(microsoftDataSqlClient: false))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 sql.Execute(
                     $@"update [{Constants.DefaultSchema}].Job set ExpireAt = dateadd(minute, -1, getutcdate()) where Id = @id;

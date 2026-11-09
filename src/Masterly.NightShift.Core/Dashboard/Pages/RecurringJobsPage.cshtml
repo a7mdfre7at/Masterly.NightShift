@@ -317,7 +317,7 @@
                                                     }
                                                     else
                                                     {
-                                                        <span class="label label-default label-hover" style="@JobHistoryRenderer.GetStateLabelStyle(job.LastJobState ?? EnqueuedState.StateName)">
+                                                        <span class="label label-default label-hover">
                                                             @Html.RelativeTime(job.LastExecution.Value)
                                                         </span>
                                                     }

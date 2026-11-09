@@ -65,9 +65,9 @@ namespace Masterly.NightShift
         /// </summary>
         public static JobNote Add([NotNull] IStorageConnection connection, [NotNull] string jobId, [NotNull] string text, [CanBeNull] string? user = null, bool acknowledges = false)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (text == null) throw new ArgumentNullException(nameof(text));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(text);
 
             text = text.Trim();
             if (text.Length == 0 && !acknowledges) throw new ArgumentException("A note needs some text.", nameof(text));
@@ -99,8 +99,8 @@ namespace Masterly.NightShift
         /// <summary>Reads a job's notes, oldest first.</summary>
         public static IReadOnlyList<JobNote> Read([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             return Parse(connection.GetJobParameter(jobId, ParameterName));
         }
@@ -124,7 +124,7 @@ namespace Masterly.NightShift
         /// <summary>The acknowledging note, when there is one.</summary>
         public static JobNote? GetAcknowledgement([NotNull] IReadOnlyList<JobNote> notes)
         {
-            if (notes == null) throw new ArgumentNullException(nameof(notes));
+            ArgumentNullException.ThrowIfNull(notes);
             return notes.LastOrDefault(static n => n.Acknowledges);
         }
     }

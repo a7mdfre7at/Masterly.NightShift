@@ -1,5 +1,4 @@
 // Endpoint routing (MapNightShiftDashboard...) is in the net8.0 and later builds only
-#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -132,4 +131,3 @@ namespace Masterly.NightShift.AspNetCore.Tests
         }
     }
 }
-#endif

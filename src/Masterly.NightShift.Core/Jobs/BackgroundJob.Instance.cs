@@ -33,7 +33,7 @@ namespace Masterly.NightShift
         /// <exclude />
         public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string>? parametersSnapshot)
         {
-            if (id == null) throw new ArgumentNullException(nameof(id));
+            ArgumentNullException.ThrowIfNull(id);
 
             Id = id;
             Job = job;

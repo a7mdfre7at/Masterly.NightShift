@@ -46,7 +46,7 @@ namespace Masterly.NightShift.Dashboard
                 }
 
                 var recurringIds = connection.GetAllItemsFromSet("recurring-jobs")
-                    .Where(id => id.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Where(id => id.Contains(query, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(id => id.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                     .ThenBy(static id => id, StringComparer.OrdinalIgnoreCase)
                     .Take(MaxRecurringJobs)
@@ -70,7 +70,7 @@ namespace Masterly.NightShift.Dashboard
                 var tagQuery = query.StartsWith("tag:", StringComparison.OrdinalIgnoreCase) ? query.Substring(4).Trim() : query;
 
                 foreach (var tag in JobTags.GetNames(connection)
-                    .Where(name => tagQuery.Length == 0 || name.IndexOf(tagQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Where(name => tagQuery.Length == 0 || name.Contains(tagQuery, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(name => name.StartsWith(tagQuery, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                     .Take(MaxTags))
                 {

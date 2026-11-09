@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 #nullable enable
 
 using System;
@@ -60,8 +59,8 @@ namespace Masterly.NightShift
             DashboardOptions? options,
             JobStorage? storage)
         {
-            if (endpoints == null) throw new ArgumentNullException(nameof(endpoints));
-            if (pattern == null) throw new ArgumentNullException(nameof(pattern));
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(pattern);
 
             var services = endpoints.ServiceProvider;
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(services);
@@ -85,4 +84,3 @@ namespace Masterly.NightShift
     }
 }
 
-#endif

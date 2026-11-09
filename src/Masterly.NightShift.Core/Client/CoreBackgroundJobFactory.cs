@@ -63,7 +63,7 @@ namespace Masterly.NightShift.Client
 
         public BackgroundJob Create(CreateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.Job.Queue != null && !context.Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
             {

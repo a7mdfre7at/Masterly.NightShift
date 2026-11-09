@@ -79,19 +79,16 @@ namespace Masterly.NightShift.SqlServer
             var prefixLength = LockResourceLength - LockResourceHashLength - 1;
             if (Char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
 
-            using (var sha = SHA256.Create())
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
+            var builder = new StringBuilder(LockResourceLength);
+            builder.Append(resource, 0, prefixLength).Append('~');
+
+            for (var i = 0; i < LockResourceHashLength / 2; i++)
             {
-                var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(resource));
-                var builder = new StringBuilder(LockResourceLength);
-                builder.Append(resource, 0, prefixLength).Append('~');
-
-                for (var i = 0; i < LockResourceHashLength / 2; i++)
-                {
-                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
-                }
-
-                return builder.ToString();
+                builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
             }
+
+            return builder.ToString();
         }
 
         public static void EnsureKeyFits(string key)
@@ -173,7 +170,7 @@ namespace Masterly.NightShift.SqlServer
 
         private static string Shorten(string value)
         {
-            return value.Length <= ShownPrefixLength ? value : value.Substring(0, ShownPrefixLength) + "...";
+            return value.Length <= ShownPrefixLength ? value : string.Concat(value.AsSpan(0, ShownPrefixLength), "...");
         }
     }
 }

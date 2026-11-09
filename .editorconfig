@@ -3,3 +3,7 @@ root = true
 [*.cs,*.ps1]
 indent_style = space
 indent_size = 4
+
+# Vendored source-only packages: kept as published (apart from their namespaces), so the analyzers skip them
+[src/Masterly.NightShift.Core/App_Packages/**.cs]
+generated_code = true

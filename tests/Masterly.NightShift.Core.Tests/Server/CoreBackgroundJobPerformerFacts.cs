@@ -11,6 +11,7 @@ using Masterly.NightShift.Core.Tests.Common;
 using Masterly.NightShift.Server;
 using Moq;
 using Xunit;
+using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Core.Tests.Server
 {
@@ -103,7 +104,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         }
 
         [Fact, StaticLock]
-        public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingTypeConverter()
+        public void Perform_PassesCorrectDateTime_ReadFromArgumentsStoredByATypeConverter()
         {
             // Arrange
             _methodInvoked = false;
@@ -113,9 +114,8 @@ namespace Masterly.NightShift.Core.Tests.Server
             var type = typeof(CoreBackgroundJobPerformerFacts);
             var method = type.GetMethod("MethodWithDateTimeArgument");
 
-#pragma warning disable CS0618 // Type or member is obsolete
-            _context.BackgroundJob.Job = new Job(type, method, new [] { convertedDate });
-#pragma warning restore CS0618 // Type or member is obsolete
+            // Arguments stored by older versions, read as a server reads them
+            _context.BackgroundJob.Job = new Job(type, method, InvocationData.DeserializeArguments(method, new [] { convertedDate }));
             var performer = CreatePerformer();
 
             // Act
@@ -126,7 +126,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         }
 
         [Fact, StaticLock]
-        public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingOldFormat()
+        public void Perform_PassesCorrectDateTime_ReadFromArgumentsStoredInTheOldFormat()
         {
             // Arrange
             _methodInvoked = false;
@@ -135,9 +135,8 @@ namespace Masterly.NightShift.Core.Tests.Server
             var type = typeof(CoreBackgroundJobPerformerFacts);
             var method = type.GetMethod("MethodWithDateTimeArgument");
 
-#pragma warning disable CS0618 // Type or member is obsolete
-            _context.BackgroundJob.Job = new Job(type, method, new [] { convertedDate });
-#pragma warning restore CS0618 // Type or member is obsolete
+            // Arguments stored by older versions, read as a server reads them
+            _context.BackgroundJob.Job = new Job(type, method, InvocationData.DeserializeArguments(method, new [] { convertedDate }));
             var performer = CreatePerformer();
 
             // Act

@@ -34,7 +34,7 @@ namespace Masterly.NightShift.AspNetCore
         /// <param name="serviceScopeFactory">Creates the scope of each job.</param>
         public AspNetCoreJobActivator([NotNull] IServiceScopeFactory serviceScopeFactory)
         {
-            if (serviceScopeFactory == null) throw new ArgumentNullException(nameof(serviceScopeFactory));
+            ArgumentNullException.ThrowIfNull(serviceScopeFactory);
             _serviceScopeFactory = serviceScopeFactory;
         }
 
@@ -43,16 +43,6 @@ namespace Masterly.NightShift.AspNetCore
         /// </summary>
         /// <param name="context">The job about to run.</param>
         public override JobActivatorScope BeginScope(JobActivatorContext context)
-        {
-            return new AspNetCoreJobActivatorScope(_serviceScopeFactory.CreateScope());
-        }
-
-        /// <summary>
-        /// Creates a service scope; it is disposed, with the services it created, when the scope is disposed.
-        /// </summary>
-#pragma warning disable CS0672 // Member overrides obsolete member
-        public override JobActivatorScope BeginScope()
-#pragma warning restore CS0672 // Member overrides obsolete member
         {
             return new AspNetCoreJobActivatorScope(_serviceScopeFactory.CreateScope());
         }

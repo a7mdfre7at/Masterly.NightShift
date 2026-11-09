@@ -11,7 +11,6 @@
         <DebugType>embedded</DebugType>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <LangVersion>Latest</LangVersion>
-        <CheckNotRecommendedTargetFramework>false</CheckNotRecommendedTargetFramework>
     </PropertyGroup>
     <ItemGroup>
         <Compile Include="..\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
@@ -22,11 +21,10 @@
         <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
     </ItemGroup>
 
-    <!-- CA1510-CA1513, CA1837, CA1845-CA1847, CA1850, CA1863-CA1867, CA1870, CA2249 and CA2263 suggest APIs that
-         netstandard2.0 doesn't have (ArgumentNullException.ThrowIfNull, span overloads, SearchValues, generic Enum
-         methods...). Every file also compiles for netstandard2.0, so following them would need #if at each call. -->
+    <!-- CA1863 (cache a CompositeFormat) doesn't fit: the dashboard formats localized resource strings, which change
+         with the UI culture, so a cached format would freeze one language. -->
     <PropertyGroup>
-        <NoWarn>CA1200;CA1859;1591;CA1510;CA1511;CA1512;CA1513;CA1837;CA1845;CA1846;CA1847;CA1850;CA1863;CA1864;CA1865;CA1866;CA1867;CA1870;CA2249;CA2263</NoWarn>
+        <NoWarn>CA1200;CA1859;CA1863;1591</NoWarn>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <AnalysisLevel>latest</AnalysisLevel>
         <AnalysisMode>Recommended</AnalysisMode>
@@ -46,16 +44,20 @@
         <PackageProjectUrl>https://github.com/a7mdfre7at/Masterly.NightShift</PackageProjectUrl>
         <RepositoryUrl>https://github.com/a7mdfre7at/Masterly.NightShift</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron</PackageTags>
-        <PackageReadmeFile>README.nuget.md</PackageReadmeFile>
+        <PackageTags>Background;Jobs;Scheduler;Recurring;Delayed;FireAndForget;Queue;Dashboard;Cron;SqlServer;Worker;OpenTelemetry;Hangfire</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <!-- The packed README.md. The meta-package packs README.nuget.md; every other package sets this to its own
+             src/<Package>/README.md. Links in these files are absolute, because relative links break on nuget.org. -->
+        <PackageReadmeSource>$(MSBuildThisFileDirectory)..\README.nuget.md</PackageReadmeSource>
         <PackageIcon>logo.png</PackageIcon>
         <PackageLicenseExpression>MIT AND LGPL-3.0-or-later</PackageLicenseExpression>
-        <PackageReleaseNotes>See https://github.com/a7mdfre7at/Masterly.NightShift/blob/main/CHANGELOG.md</PackageReleaseNotes>
+        <PackageReleaseNotes>See https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
 
-    <!-- What every package ships next to the assemblies -->
+    <!-- What every package ships next to the assemblies. Items are evaluated after every property, so a
+         PackageReadmeSource set in a .csproj takes effect here. -->
     <ItemGroup>
-        <None Include="..\..\README.nuget.md" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="$(PackageReadmeSource)" Pack="true" PackagePath="\README.md" Visible="false" />
         <None Include="..\..\assets\logo.png" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
         <None Include="..\..\LICENSE-LGPL-3.0.txt" Pack="true" PackagePath="\" Visible="false" />

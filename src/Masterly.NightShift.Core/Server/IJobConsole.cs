@@ -85,9 +85,9 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static void Resume([NotNull] this IJobConsole console, [NotNull] string checkpoint, [NotNull] Action step)
         {
-            if (console == null) throw new ArgumentNullException(nameof(console));
-            if (checkpoint == null) throw new ArgumentNullException(nameof(checkpoint));
-            if (step == null) throw new ArgumentNullException(nameof(step));
+            ArgumentNullException.ThrowIfNull(console);
+            ArgumentNullException.ThrowIfNull(checkpoint);
+            ArgumentNullException.ThrowIfNull(step);
 
             if (console.HasCheckpoint(checkpoint))
             {
@@ -102,9 +102,9 @@ namespace Masterly.NightShift.Server
         /// <summary>The asynchronous form of <see cref="Resume"/>.</summary>
         public static async Task ResumeAsync([NotNull] this IJobConsole console, [NotNull] string checkpoint, [NotNull] Func<Task> step)
         {
-            if (console == null) throw new ArgumentNullException(nameof(console));
-            if (checkpoint == null) throw new ArgumentNullException(nameof(checkpoint));
-            if (step == null) throw new ArgumentNullException(nameof(step));
+            ArgumentNullException.ThrowIfNull(console);
+            ArgumentNullException.ThrowIfNull(checkpoint);
+            ArgumentNullException.ThrowIfNull(step);
 
             if (console.HasCheckpoint(checkpoint))
             {

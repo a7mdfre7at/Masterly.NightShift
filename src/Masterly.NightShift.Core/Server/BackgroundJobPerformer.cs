@@ -62,8 +62,8 @@ namespace Masterly.NightShift.Server
             [NotNull] IJobFilterProvider filterProvider, 
             [NotNull] IBackgroundJobPerformer innerPerformer)
         {
-            if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
-            if (innerPerformer == null) throw new ArgumentNullException(nameof(innerPerformer));
+            ArgumentNullException.ThrowIfNull(filterProvider);
+            ArgumentNullException.ThrowIfNull(innerPerformer);
 
             _filterProvider = filterProvider;
             _innerPerformer = innerPerformer;
@@ -71,7 +71,7 @@ namespace Masterly.NightShift.Server
 
         public object Perform(PerformContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var filterInfo = GetFilters(context.BackgroundJob.Job);
 

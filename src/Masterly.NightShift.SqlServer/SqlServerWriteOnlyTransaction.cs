@@ -51,7 +51,7 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerWriteOnlyTransaction([NotNull] SqlServerConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             _connection = connection;
             _storage = connection.Storage;
         }
@@ -155,7 +155,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override void ExpireJob(string jobId, TimeSpan expireIn)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) where Id = @id;");
@@ -169,7 +169,7 @@ $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) 
 
         public override void PersistJob(string jobId)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where Id = @id;");
@@ -182,8 +182,8 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
 
         public override void SetJobState(string jobId, IState state)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (state == null) throw new ArgumentNullException(nameof(state));
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(state);
             SqlServerLimits.EnsureStateNameFits(state.Name);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -203,8 +203,8 @@ update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name wher
 
         public override void AddJobState(string jobId, IState state)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (state == null) throw new ArgumentNullException(nameof(state));
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(state);
             SqlServerLimits.EnsureStateNameFits(state.Name);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -223,8 +223,8 @@ values (@jobId, @name, @reason, @createdAt, @data)");
 
         public override void AddToQueue(string queue, string jobId)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             var provider = _storage.QueueProviders.GetProvider(queue);
             var persistentQueue = provider.GetJobQueue();
@@ -255,7 +255,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
         public override void IncrementCounter(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -268,7 +268,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
 
         public override void IncrementCounter(string key, TimeSpan expireIn)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -282,7 +282,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
 
         public override void DecrementCounter(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -295,7 +295,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
 
         public override void DecrementCounter(string key, TimeSpan expireIn)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             SqlServerLimits.EnsureKeyFits(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
@@ -314,8 +314,8 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
 
         public override void AddToSet(string key, string value, double score)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
             SqlServerLimits.EnsureKeyFits(key);
             SqlServerLimits.EnsureSetValueFits(key, value);
 
@@ -338,8 +338,8 @@ when not matched then insert ([Key], Value, Score) values (Source.[Key], Source.
 
         public override void RemoveFromSet(string key, string value)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
 
             // The value parameter is sized to the column, so a longer value would be cut and match another one
             SqlServerLimits.EnsureSetValueFits(key, value);
@@ -355,8 +355,8 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and 
 
         public override void InsertToList(string key, string value)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
             SqlServerLimits.EnsureKeyFits(key);
 
             // The new row takes the expiration of the list, so an item added to a list that expires expires with
@@ -380,8 +380,8 @@ select @key, @value, (
 
         public override void RemoveFromList(string key, string value)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(value);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and Value = @value");
@@ -394,7 +394,7 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
 
         public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@";with cte as (
@@ -413,8 +413,8 @@ delete from cte where row_num not between @start and @end");
 
         public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(keyValuePairs);
             SqlServerLimits.EnsureKeyFits(key);
 
             // Checked before any command is queued, so a bad field doesn't leave half of the fields behind
@@ -447,7 +447,7 @@ when not matched then insert ([Key], Field, Value) values (Source.[Key], Source.
 
         public override void RemoveHash(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
@@ -459,8 +459,8 @@ $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
 
         public override void AddRangeToSet(string key, IList<string> items)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
-            if (items == null) throw new ArgumentNullException(nameof(items));
+            ArgumentNullException.ThrowIfNull(key);
+            ArgumentNullException.ThrowIfNull(items);
             SqlServerLimits.EnsureKeyFits(key);
 
             foreach (var item in items)
@@ -484,7 +484,7 @@ $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, 
 
         public override void RemoveSet(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
@@ -495,9 +495,9 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
 
         public override void ExpireHash(string key, TimeSpan expireIn)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
-             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
+            var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key");
 
             AcquireHashLock(key);
@@ -508,7 +508,7 @@ update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key");
 
         public override void ExpireSet(string key, TimeSpan expireIn)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key");
@@ -521,7 +521,7 @@ update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key");
 
         public override void ExpireList(string key, TimeSpan expireIn)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key");
@@ -534,7 +534,7 @@ update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key");
 
         public override void PersistHash(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].Hash set ExpireAt = null where [Key] = @key");
@@ -545,7 +545,7 @@ update [{schemaName}].Hash set ExpireAt = null where [Key] = @key");
 
         public override void PersistSet(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key");
@@ -556,7 +556,7 @@ update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key");
 
         public override void PersistList(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
 
             var query = _storage.GetQueryFromTemplate(static schemaName => $@"
 update [{schemaName}].[List] set ExpireAt = null where [Key] = @key");
@@ -567,7 +567,7 @@ update [{schemaName}].[List] set ExpireAt = null where [Key] = @key");
 
         public override void RemoveFromQueue(IFetchedJob fetchedJob)
         {
-            if (fetchedJob == null) throw new ArgumentNullException(nameof(fetchedJob));
+            ArgumentNullException.ThrowIfNull(fetchedJob);
 
             if (fetchedJob is SqlServerTimeoutJob timeoutJob)
             {

@@ -214,10 +214,7 @@ namespace Masterly.NightShift.Server
 
         private void CheckDisposed()
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
+            ObjectDisposedException.ThrowIf(_disposed, this);
         }
 
         private sealed class CancellationTokenHolder : IDisposable

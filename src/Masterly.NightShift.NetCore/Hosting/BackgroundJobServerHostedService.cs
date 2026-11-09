@@ -52,9 +52,7 @@ namespace Masterly.NightShift
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses)
-#pragma warning disable 618
             : this(storage, options, additionalProcesses, null, null, null)
-#pragma warning restore 618
         {
         }
 
@@ -70,9 +68,7 @@ namespace Masterly.NightShift
             [NotNull] BackgroundJobServerOptions options,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
             [CanBeNull] IHostApplicationLifetime hostApplicationLifetime)
-#pragma warning disable 618
             : this(storage, options, additionalProcesses, null, null, null, hostApplicationLifetime)
-#pragma warning restore 618
         {
         }
 
@@ -86,7 +82,6 @@ namespace Masterly.NightShift
         /// <param name="factory">The job factory, or <c>null</c>.</param>
         /// <param name="performer">The job performer, or <c>null</c>.</param>
         /// <param name="stateChanger">The state changer, or <c>null</c>.</param>
-        [Obsolete("This constructor uses an obsolete BackgroundJobServer constructor. Use a constructor without the factory, performer and state changer instead. Kept for code ported from Hangfire.")]
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
@@ -109,22 +104,18 @@ namespace Masterly.NightShift
         /// <param name="performer">The job performer, or <c>null</c>.</param>
         /// <param name="stateChanger">The state changer, or <c>null</c>.</param>
         /// <param name="hostApplicationLifetime">The application's lifetime, or <c>null</c> to start the server at once.</param>
-        [Obsolete("This constructor uses an obsolete BackgroundJobServer constructor. Use a constructor without the factory, performer and state changer instead. Kept for code ported from Hangfire.")]
         public BackgroundJobServerHostedService(
             [NotNull] JobStorage storage,
             [NotNull] BackgroundJobServerOptions options,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
             [CanBeNull] IBackgroundJobFactory factory,
             [CanBeNull] IBackgroundJobPerformer performer,
-            [CanBeNull] IBackgroundJobStateChanger stateChanger
-            ,
-            [CanBeNull] IHostApplicationLifetime hostApplicationLifetime
-            )
+            [CanBeNull] IBackgroundJobStateChanger stateChanger,
+            [CanBeNull] IHostApplicationLifetime hostApplicationLifetime)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
-
-            _additionalProcesses = additionalProcesses;
+            _additionalProcesses = additionalProcesses ?? throw new ArgumentNullException(nameof(additionalProcesses));
 
             _factory = factory;
             _performer = performer;
@@ -194,10 +185,8 @@ namespace Masterly.NightShift
         private void InitializeProcessingServer()
         {
             _processingServer = _factory != null && _performer != null && _stateChanger != null
-#pragma warning disable 618
                 ? new BackgroundJobServer(_options, _storage, _additionalProcesses, null, null, _factory, _performer,
                     _stateChanger)
-#pragma warning restore 618
                 : new BackgroundJobServer(_options, _storage, _additionalProcesses);
         }
 

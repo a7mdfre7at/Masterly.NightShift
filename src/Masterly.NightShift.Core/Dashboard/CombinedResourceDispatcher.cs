@@ -31,7 +31,7 @@ namespace Masterly.NightShift.Dashboard
             [NotNull] IEnumerable<Tuple<Assembly, string>> resources)
             : base(contentType, null, null)
         {
-            if (resources == null) throw new ArgumentNullException(nameof(resources));
+            ArgumentNullException.ThrowIfNull(resources);
             _resources = resources;
         }
 

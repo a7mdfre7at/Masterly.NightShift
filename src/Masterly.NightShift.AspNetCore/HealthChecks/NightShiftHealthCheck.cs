@@ -36,7 +36,7 @@ namespace Masterly.NightShift.HealthChecks
 
         public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             return Task.FromResult(Check(context.Registration.FailureStatus, DateTime.UtcNow));
         }
@@ -72,7 +72,7 @@ namespace Masterly.NightShift.HealthChecks
 
         private static bool IsCatchable(Exception exception)
         {
-            return !(exception is OutOfMemoryException || exception is StackOverflowException || exception is ThreadAbortException || exception is AccessViolationException);
+            return !(exception is OutOfMemoryException || exception is StackOverflowException || exception is AccessViolationException);
         }
 
         private static HealthCheckResult CheckCluster(IList<ServerDto> servers, DateTime oldest, HealthStatus failureStatus)

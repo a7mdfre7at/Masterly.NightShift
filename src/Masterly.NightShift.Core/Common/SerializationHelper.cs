@@ -218,7 +218,7 @@ namespace Masterly.NightShift.Common
         /// </summary>
         public static object Deserialize([CanBeNull] string value, [NotNull] Type type, SerializationOption option)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
+            ArgumentNullException.ThrowIfNull(type);
 
             // An empty value means no value, as it did before
             if (String.IsNullOrWhiteSpace(value)) return null;
@@ -284,7 +284,7 @@ namespace Masterly.NightShift.Common
         /// </summary>
         internal static object DeserializeInput([CanBeNull] string value, [NotNull] Type type)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
+            ArgumentNullException.ThrowIfNull(type);
             if (String.IsNullOrWhiteSpace(value)) return null;
 
             return GetUserSerializerOptions().DeserializeInput(value, type);
@@ -296,7 +296,7 @@ namespace Masterly.NightShift.Common
         /// </summary>
         internal static string SerializeInput([CanBeNull] object value, [NotNull] Type type)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
+            ArgumentNullException.ThrowIfNull(type);
             if (value == null) return null;
 
             return SerializeWith(value, type, SerializationOption.User, GetUserSerializerOptions().InputWriting);
@@ -443,7 +443,7 @@ namespace Masterly.NightShift.Common
             // A collection the previous serializer stored with its type name, in the value or in its items. With a
             // reference handler, "$id", "$ref" and "$values" are System.Text.Json's own, and it reads them itself
             if (options.ReferenceHandler == null &&
-                value.IndexOf("\"$", StringComparison.Ordinal) >= 0 &&
+                value.Contains("\"$") &&
                 LegacyCollectionJson.MayHoldWrapped(type))
             {
                 return LegacyCollectionJson.Deserialize(value, type, options);

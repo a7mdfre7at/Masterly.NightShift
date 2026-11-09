@@ -965,8 +965,8 @@ namespace Masterly.NightShift.Common
                 var definition = candidate.GetGenericTypeDefinition();
                 if (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>))
                 {
-                    return (Action<object, object>)SetItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
-                        .CreateDelegate(typeof(Action<object, object>));
+                    return SetItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
+                        .CreateDelegate<Action<object, object>>();
                 }
             }
 
@@ -974,8 +974,8 @@ namespace Masterly.NightShift.Common
             {
                 if (candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                 {
-                    return (Action<object, object>)AddItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
-                        .CreateDelegate(typeof(Action<object, object>));
+                    return AddItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
+                        .CreateDelegate<Action<object, object>>();
                 }
             }
 
@@ -1176,7 +1176,7 @@ namespace Masterly.NightShift.Common
             using var document = JsonDocument.ParseValue(ref reader);
             var root = document.RootElement;
             var elements = root.ValueKind == JsonValueKind.Object
-                ? root.EnumerateObject().Where(static p => !p.Name.StartsWith("?", StringComparison.Ordinal)).ToList()
+                ? root.EnumerateObject().Where(static p => !p.Name.StartsWith('?')).ToList()
                 : null;
 
             if (elements == null || elements.Count != 1)
@@ -1206,7 +1206,7 @@ namespace Masterly.NightShift.Common
                     var result = new XElement(name);
                     foreach (var property in value.EnumerateObject())
                     {
-                        if (property.Name.StartsWith("@", StringComparison.Ordinal))
+                        if (property.Name.StartsWith('@'))
                         {
                             result.SetAttributeValue(property.Name.Substring(1), ScalarText(property.Value));
                         }

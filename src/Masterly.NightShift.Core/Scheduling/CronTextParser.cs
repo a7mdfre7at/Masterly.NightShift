@@ -56,7 +56,7 @@ namespace Masterly.NightShift
 
         public static string Parse(string text)
         {
-            if (text == null) throw new ArgumentNullException(nameof(text));
+            ArgumentNullException.ThrowIfNull(text);
 
             var normalized = Whitespace.Replace(text.Trim(), " ");
             if (normalized.Length == 0) throw new FormatException("The schedule text is empty.");
@@ -88,7 +88,7 @@ namespace Masterly.NightShift
 
         private static bool LooksLikeCron(string text)
         {
-            if (text.StartsWith("@", StringComparison.Ordinal)) return true;
+            if (text.StartsWith('@')) return true;
 
             var parts = text.Split(' ');
             if (parts.Length != 5 && parts.Length != 6) return false;
@@ -103,8 +103,8 @@ namespace Masterly.NightShift
             if (atom.Length == 0) return false;
             if (atom == "*" || atom == "?" || atom == "L" || atom == "LW") return true;
             if (atom.All(static ch => Char.IsDigit(ch))) return true;
-            if (atom.Length >= 2 && atom.Substring(0, atom.Length - 1).All(static ch => Char.IsDigit(ch)) && (atom.EndsWith("W", StringComparison.Ordinal) || atom.EndsWith("L", StringComparison.Ordinal))) return true;
-            if (atom.Contains("#") && atom.Replace("#", String.Empty).All(static ch => Char.IsDigit(ch))) return true;
+            if (atom.Length >= 2 && atom.Substring(0, atom.Length - 1).All(static ch => Char.IsDigit(ch)) && (atom.EndsWith('W') || atom.EndsWith('L'))) return true;
+            if (atom.Contains('#') && atom.Replace("#", String.Empty).All(static ch => Char.IsDigit(ch))) return true;
 
             return atom.Length == 3 && (Days.ContainsKey(atom) || Months.ContainsKey(atom)) && atom.All(static ch => Char.IsLetter(ch));
         }
@@ -437,7 +437,7 @@ namespace Masterly.NightShift
 
         private static string TrimPlural(string token)
         {
-            return token.EndsWith("s", StringComparison.Ordinal) && token.Length > 3 ? token.Substring(0, token.Length - 1) : token;
+            return token.EndsWith('s') && token.Length > 3 ? token.Substring(0, token.Length - 1) : token;
         }
 
         private static string? Peek(List<string> tokens, int position)

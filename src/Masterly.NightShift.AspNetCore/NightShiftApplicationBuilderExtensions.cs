@@ -21,11 +21,7 @@ using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Server;
 using Microsoft.AspNetCore.Builder;
-#if NET8_0_OR_GREATER
 using Microsoft.Extensions.Hosting;
-#else
-using Microsoft.AspNetCore.Hosting;
-#endif
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Masterly.NightShift.Common;
@@ -55,8 +51,8 @@ namespace Masterly.NightShift
             [CanBeNull] DashboardOptions? options = null,
             [CanBeNull] JobStorage? storage = null)
         {
-            if (app == null) throw new ArgumentNullException(nameof(app));
-            if (pathMatch == null) throw new ArgumentNullException(nameof(pathMatch));
+            ArgumentNullException.ThrowIfNull(app);
+            ArgumentNullException.ThrowIfNull(pathMatch);
 
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
 
@@ -74,47 +70,6 @@ namespace Masterly.NightShift
         }
 
         /// <summary>
-        /// Starts a background job server at once and stops it when the application stops. Prefer
-        /// <c>AddNightShiftServer</c>, which runs the server as a hosted service.
-        /// </summary>
-        /// <param name="app">The application builder.</param>
-        /// <param name="options">The server options, or <c>null</c> for the registered ones, or the defaults.</param>
-        /// <param name="additionalProcesses">Extra background processes, or <c>null</c> for the registered ones.</param>
-        /// <param name="storage">The storage, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
-        /// <returns>The application builder.</returns>
-        [Obsolete("Use the IServiceCollection.AddNightShiftServer extension method instead. Kept for code ported from Hangfire.")]
-        public static IApplicationBuilder UseNightShiftServer(
-            [NotNull] this IApplicationBuilder app,
-            [CanBeNull] BackgroundJobServerOptions? options = null,
-            [CanBeNull] IEnumerable<IBackgroundProcess>? additionalProcesses = null,
-            [CanBeNull] JobStorage? storage = null)
-        {
-            if (app == null) throw new ArgumentNullException(nameof(app));
-            
-            NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
-
-            var services = app.ApplicationServices;
-
-            storage = storage ?? services.GetRequiredService<JobStorage>();
-            options = options ?? services.GetService<BackgroundJobServerOptions>() ?? new BackgroundJobServerOptions();
-            additionalProcesses = additionalProcesses ?? services.GetServices<IBackgroundProcess>();
-
-            options.Activator = options.Activator ?? services.GetService<JobActivator>();
-            options.FilterProvider = options.FilterProvider ?? services.GetService<IJobFilterProvider>();
-            options.TimeZoneResolver = options.TimeZoneResolver ?? services.GetService<ITimeZoneResolver>();
-
-            NightShiftServiceCollectionExtensions.GetInternalServices(services, out var factory, out var stateChanger, out var performer);
-
-            services.RegisterNightShiftServer(factory != null && stateChanger != null && performer != null
-#pragma warning disable 618
-                ? new BackgroundJobServer(options, storage, additionalProcesses, null, null, factory, performer, stateChanger)
-#pragma warning restore 618
-                : new BackgroundJobServer(options, storage, additionalProcesses));
-
-            return app;
-        }
-
-        /// <summary>
         /// Creates a background processing server with <paramref name="serverFactory"/> and stops it when the
         /// application stops.
         /// </summary>
@@ -125,8 +80,8 @@ namespace Masterly.NightShift
             [NotNull] this IApplicationBuilder app,
             [NotNull] Func<IBackgroundProcessingServer> serverFactory)
         {
-            if (app == null) throw new ArgumentNullException(nameof(app));
-            if (serverFactory == null) throw new ArgumentNullException(nameof(serverFactory));
+            ArgumentNullException.ThrowIfNull(app);
+            ArgumentNullException.ThrowIfNull(serverFactory);
 
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
             app.ApplicationServices.RegisterNightShiftServer(serverFactory());
@@ -145,11 +100,7 @@ namespace Masterly.NightShift
             [NotNull] this IServiceProvider services,
             [NotNull] IBackgroundProcessingServer server)
         {
-#if NET8_0_OR_GREATER
             var lifetime = services.GetRequiredService<IHostApplicationLifetime>();
-#else
-            var lifetime = services.GetRequiredService<IApplicationLifetime>();
-#endif
 
             lifetime.ApplicationStopping.Register(server.SendStop);
             lifetime.ApplicationStopped.Register(server.Dispose);

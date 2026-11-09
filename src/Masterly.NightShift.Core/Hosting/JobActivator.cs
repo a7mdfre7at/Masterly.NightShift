@@ -41,10 +41,7 @@ namespace Masterly.NightShift
             get { return _current; }
             set
             {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
+                ArgumentNullException.ThrowIfNull(value);
 
                 _current = value;
             }
@@ -62,15 +59,6 @@ namespace Masterly.NightShift
         }
 
         /// <summary>
-        /// Begins a scope without information about the job. Override <see cref="BeginScope(JobActivatorContext)"/> instead.
-        /// </summary>
-        [Obsolete("Implement or use the BeginScope(JobActivatorContext) method instead. Kept for code ported from Hangfire.")]
-        public virtual JobActivatorScope BeginScope()
-        {
-            return new SimpleJobActivatorScope(this);
-        }
-
-        /// <summary>
         /// Begins the scope a job's instance is resolved from, and that is disposed when the job has run.
         /// The default implementation returns a scope that creates instances with <see cref="ActivateJob"/> and
         /// disposes those that implement <see cref="IDisposable"/>.
@@ -78,9 +66,7 @@ namespace Masterly.NightShift
         /// <param name="context">The job about to run.</param>
         public virtual JobActivatorScope BeginScope([NotNull] JobActivatorContext context)
         {
-#pragma warning disable 618
-            return BeginScope();
-#pragma warning restore 618
+            return new SimpleJobActivatorScope(this);
         }
 
         /// <summary>
@@ -89,7 +75,7 @@ namespace Masterly.NightShift
         /// <param name="context">The job about to run.</param>
         public virtual JobActivatorScope BeginScope([NotNull] PerformContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             return this.BeginScope(new JobActivatorContext(context.Connection, context.BackgroundJob, context.CancellationToken));
         }
@@ -101,7 +87,7 @@ namespace Masterly.NightShift
 
             public SimpleJobActivatorScope([NotNull] JobActivator activator)
             {
-                if (activator == null) throw new ArgumentNullException(nameof(activator));
+                ArgumentNullException.ThrowIfNull(activator);
                 _activator = activator;
             }
 

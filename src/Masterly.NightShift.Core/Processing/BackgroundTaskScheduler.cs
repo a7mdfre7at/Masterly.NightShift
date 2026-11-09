@@ -106,15 +106,13 @@ namespace Masterly.NightShift.Processing
             [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory,
             [CanBeNull] Action<Exception> exceptionHandler)
         {
-            if (threadFactory == null) throw new ArgumentNullException(nameof(threadFactory));
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
             _exceptionHandler = exceptionHandler;
             _semaphore = new Semaphore(0, Int32.MaxValue);
 
             // Stopped event should always be the first in this array, see the DispatchLoop method.
             _waitHandles = new WaitHandle[] { _stopped, _semaphore };
-
-            AppDomainUnloadMonitor.EnsureInitialized();
 
             _threads = threadFactory(DispatchLoop)?.ToArray();
 
@@ -207,7 +205,7 @@ namespace Masterly.NightShift.Processing
 
         private static IEnumerable<Thread> DefaultThreadFactory(ThreadStart threadStart, int threadCount)
         {
-            if (threadCount <= 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
             var threads = new Thread[threadCount];
 
             for (var i = 0; i < threadCount; i++)
@@ -269,44 +267,15 @@ namespace Masterly.NightShift.Processing
                         // of this type. Since this is an ordinal shutdown, we can skip
                         // the reporting logic.
                     }
-                    catch (Exception ex) when (ex is ThreadAbortException || ex is ThreadInterruptedException)
+                    catch (ThreadInterruptedException)
                     {
-                        // We don't have methods like IThreadPoolWorkItem.MarkAborted in public
-                        // API, but we should handle non-completed task in case of TIE or TAE,
-                        // because there's a high probability to lose continuations. So we're
-                        // simply re-queueing it.
+                        // There's no public API like IThreadPoolWorkItem.MarkAborted, but a task that didn't
+                        // complete would lose its continuations, so it's queued again.
                         if (task != null && !task.IsCompleted)
                         {
                             QueueTask(task);
                         }
-                        
-                        // Normally, there should be no check for AppDomain unload condition, because we can't
-                        // get here on appdomain unloads. But Mono < 5.4 has an issue with Thread.ResetAbort, and
-                        // it can prevent appdomain to be unloaded: https://bugzilla.xamarin.com/show_bug.cgi?id=5804.
-                        // It's better to reassure this can't happen under all circumstances.
-                        if ((Thread.CurrentThread.ThreadState & ThreadState.AbortRequested) != 0 && 
-                            !AppDomainUnloadMonitor.IsUnloading)
-                        {
-                            try
-                            {
-#pragma warning disable SYSLIB0006 // Still required for .NET Framework hosts running the netstandard2.0 build
-                                Thread.ResetAbort();
-#pragma warning restore SYSLIB0006
-                            }
-                            catch (PlatformNotSupportedException)
-                            {
-                            }
-                        }
                     }
-                }
-            }
-            catch (ThreadAbortException ex)
-            {
-                // ThreadAbortException is expected during AppDomain unloads, so we
-                // don't call the exception handler in this case.
-                if (!AppDomainUnloadMonitor.IsUnloading)
-                {
-                    InvokeUnhandledExceptionHandler(ex);
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -330,10 +299,7 @@ namespace Masterly.NightShift.Processing
 
         private void ThrowIfDisposed()
         {
-            if (Volatile.Read(ref _disposed) == 1)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
         }
     }
 }

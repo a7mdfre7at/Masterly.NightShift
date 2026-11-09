@@ -35,8 +35,8 @@ namespace Masterly.NightShift
             [NotNull] string recurringJobId,
             TimeSpan timeout)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             return connection.AcquireDistributedLock($"lock:recurring-job:{recurringJobId}", timeout);
         }
@@ -45,8 +45,8 @@ namespace Masterly.NightShift
             [NotNull] this IStorageConnection connection,
             [NotNull] string recurringJobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) return null;
@@ -58,8 +58,8 @@ namespace Masterly.NightShift
             [NotNull] this IStorageConnection connection,
             [NotNull] string recurringJobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) recurringJob = new Dictionary<string, string>();
@@ -73,9 +73,9 @@ namespace Masterly.NightShift
             [NotNull] IReadOnlyDictionary<string, string> changedFields,
             [CanBeNull] ILog? logger)
         {
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
-            if (recurringJob == null) throw new ArgumentNullException(nameof(recurringJob));
-            if (changedFields == null) throw new ArgumentNullException(nameof(changedFields));
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(recurringJob);
+            ArgumentNullException.ThrowIfNull(changedFields);
 
             if (changedFields.Count > 0)
             {
@@ -103,11 +103,11 @@ namespace Masterly.NightShift
             [NotNull] RecurringJobEntity recurringJob,
             DateTime now)
         {
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (profiler == null) throw new ArgumentNullException(nameof(profiler));
-            if (recurringJob == null) throw new ArgumentNullException(nameof(recurringJob));
+            ArgumentNullException.ThrowIfNull(factory);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(profiler);
+            ArgumentNullException.ThrowIfNull(recurringJob);
 
             if (recurringJob.Job == null)
             {
@@ -153,13 +153,13 @@ namespace Masterly.NightShift
             [NotNull] IProfiler profiler,
             [CanBeNull] PostCommitActions? afterCommit)
         {
-            if (stateMachine == null) throw new ArgumentNullException(nameof(stateMachine));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
-            if (recurringJob == null) throw new ArgumentNullException(nameof(recurringJob));
-            if (backgroundJob == null) throw new ArgumentNullException(nameof(backgroundJob));
-            if (profiler == null) throw new ArgumentNullException(nameof(profiler));
+            ArgumentNullException.ThrowIfNull(stateMachine);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(recurringJob);
+            ArgumentNullException.ThrowIfNull(backgroundJob);
+            ArgumentNullException.ThrowIfNull(profiler);
 
             var state = new EnqueuedState { Reason = reason };
 

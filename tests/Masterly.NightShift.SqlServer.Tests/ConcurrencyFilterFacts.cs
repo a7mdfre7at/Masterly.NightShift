@@ -202,7 +202,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static string[] QuerySetKeys(string pattern)
         {
-            using (var connection = ConnectionUtils.CreateConnection(microsoftDataSqlClient: true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 return connection.Query<string>("select distinct [Key] from [HangFire].[Set] where [Key] like @pattern", new { pattern }).ToArray();
             }
@@ -210,7 +210,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static DateTime?[] QuerySetExpirations(string key)
         {
-            using (var connection = ConnectionUtils.CreateConnection(microsoftDataSqlClient: true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 return connection.Query<DateTime?>("select ExpireAt from [HangFire].[Set] where [Key] = @key", new { key }).ToArray();
             }

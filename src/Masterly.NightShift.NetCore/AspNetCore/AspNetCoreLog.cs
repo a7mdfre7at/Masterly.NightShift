@@ -29,7 +29,7 @@ namespace Masterly.NightShift.AspNetCore
 
         public AspNetCoreLog([NotNull] ILogger targetLogger)
         {
-            if (targetLogger == null) throw new ArgumentNullException(nameof(targetLogger));
+            ArgumentNullException.ThrowIfNull(targetLogger);
             _targetLogger = targetLogger;
         }
 

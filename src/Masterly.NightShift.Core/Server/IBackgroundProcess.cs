@@ -16,26 +16,22 @@
 using System;
 using Masterly.NightShift.Annotations;
 
-#pragma warning disable 618 // Obsolete member
-
 namespace Masterly.NightShift.Server
 {
     /// <summary>
-    /// Provides methods for defining processes that will be executed in a
-    /// background thread by <see cref="BackgroundProcessingServer"/>.
+    /// A process that a <see cref="BackgroundProcessingServer"/> runs in a loop on a background thread for as long
+    /// as the server runs.
     /// </summary>
-    /// 
     /// <remarks>
-    /// Needs a wait.
-    /// Cancellation token
-    /// Connection disposal
+    /// Each call of <see cref="Execute"/> is one iteration: do one piece of work, or wait, then return. Wait through
+    /// the context (for example <see cref="BackgroundProcessContext.Wait"/>) so that the server can stop the process,
+    /// and dispose the storage connections you open within the iteration.
     /// </remarks>
-    /// 
     /// <seealso cref="BackgroundProcessingServer"/>
-    public interface IBackgroundProcess : IServerProcess
+    public interface IBackgroundProcess
     {
         /// <summary>
-        /// 
+        /// Runs one iteration of the process.
         /// </summary>
         /// <param name="context">Context for a background process.</param>
         /// <exception cref="ArgumentNullException"><paramref name="context"/> is null.</exception>

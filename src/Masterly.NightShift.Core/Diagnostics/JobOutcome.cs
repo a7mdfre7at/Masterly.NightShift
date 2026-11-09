@@ -43,7 +43,7 @@ namespace Masterly.NightShift.Diagnostics
     {
         public static JobOutcome Classify([NotNull] PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.Canceled) return JobOutcome.Canceled;
 
@@ -92,7 +92,7 @@ namespace Masterly.NightShift.Diagnostics
         /// </summary>
         public static long? GetMethodInvokedTimestamp([NotNull] PerformContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             object? value;
 

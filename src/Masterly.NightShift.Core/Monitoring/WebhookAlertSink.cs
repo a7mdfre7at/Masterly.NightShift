@@ -151,7 +151,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void Publish(Alert alert)
         {
-            if (alert == null) throw new ArgumentNullException(nameof(alert));
+            ArgumentNullException.ThrowIfNull(alert);
             if ((_options.Events & alert.Kind) == 0) return;
 
             if (Volatile.Read(ref _disposed) != 0)
@@ -173,7 +173,7 @@ namespace Masterly.NightShift
         /// <summary>Builds the request body for an alert.</summary>
         public string CreateBody([NotNull] Alert alert)
         {
-            if (alert == null) throw new ArgumentNullException(nameof(alert));
+            ArgumentNullException.ThrowIfNull(alert);
 
             if (_options.Format == WebhookFormat.Slack)
             {
@@ -230,7 +230,7 @@ namespace Masterly.NightShift
         /// </summary>
         public async Task<bool> SendAsync([NotNull] Alert alert)
         {
-            if (alert == null) throw new ArgumentNullException(nameof(alert));
+            ArgumentNullException.ThrowIfNull(alert);
 
             return await SendCoreAsync(alert).ConfigureAwait(false);
         }
@@ -253,15 +253,7 @@ namespace Masterly.NightShift
         private static string GetShortHash(string value)
         {
             var bytes = Encoding.UTF8.GetBytes(value);
-#if NET8_0_OR_GREATER
             var hash = SHA256.HashData(bytes);
-#else
-            byte[] hash;
-            using (var sha256 = SHA256.Create())
-            {
-                hash = sha256.ComputeHash(bytes);
-            }
-#endif
             var text = new StringBuilder(6);
             for (var i = 0; i < 3; i++)
             {
@@ -338,12 +330,12 @@ namespace Masterly.NightShift
 
         private static string EscapeTeams(string value)
         {
-            if (value.Length > TeamsMaxTextLength) value = value.Substring(0, TeamsMaxTextLength - 1) + "…";
+            if (value.Length > TeamsMaxTextLength) value = string.Concat(value.AsSpan(0, TeamsMaxTextLength - 1), "…");
 
             var text = new StringBuilder(value.Length + 16);
             foreach (var character in value)
             {
-                if (TeamsMarkdownCharacters.IndexOf(character) >= 0) text.Append('\\');
+                if (TeamsMarkdownCharacters.Contains(character)) text.Append('\\');
                 text.Append(character);
             }
 
@@ -355,7 +347,7 @@ namespace Masterly.NightShift
             var text = new StringBuilder(value.Length + 16);
             foreach (var character in value)
             {
-                if (DiscordMarkdownCharacters.IndexOf(character) >= 0) text.Append('\\');
+                if (DiscordMarkdownCharacters.Contains(character)) text.Append('\\');
                 text.Append(character);
             }
 

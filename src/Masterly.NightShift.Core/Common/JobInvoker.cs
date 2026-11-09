@@ -63,7 +63,7 @@ namespace Masterly.NightShift.Common
 
         internal JobInvoker([NotNull] MethodInfo method, JobInvokerKind kind)
         {
-            if (method == null) throw new ArgumentNullException(nameof(method));
+            ArgumentNullException.ThrowIfNull(method);
             if (method.DeclaringType == null) throw new ArgumentException("Global methods are not supported.", nameof(method));
 
             _method = method;

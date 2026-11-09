@@ -2,6 +2,9 @@
     <PropertyGroup>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+        <!-- net8.0 stays a target after .NET 8 leaves support (2026-11-10): no NETSDK1138 warning, which warnings as
+             errors would turn into a build break -->
+        <CheckEolTargetFramework>false</CheckEolTargetFramework>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(APPVEYOR)' == 'True' or '$(GITHUB_ACTIONS)' == 'true'">

@@ -32,9 +32,7 @@ namespace Masterly.NightShift
         public RecurringJobOptions()
         {
             TimeZone = TimeZoneInfo.Utc;
-#pragma warning disable 618
             QueueName = EnqueuedState.DefaultQueue;
-#pragma warning restore 618
             MisfireHandling = MisfireHandlingMode.Relaxed;
         }
 
@@ -44,13 +42,18 @@ namespace Masterly.NightShift
             get { return _timeZone; }
             set
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
+                ArgumentNullException.ThrowIfNull(value);
 
                 _timeZone = value;
             }
         }
 
-        [Obsolete("Use non-obsolete AddOrUpdate with the explicit `queue` parameter instead. Kept for code ported from Hangfire.")]
+        /// <summary>
+        /// Gets or sets the queue the recurring job's runs are enqueued to. Default is <c>default</c>. Prefer the
+        /// <c>queue</c> parameter of <c>AddOrUpdate</c>, which stores the queue with the job; this property is for
+        /// storages without <see cref="Storage.JobStorageFeatures.JobQueueProperty"/>, where the queue can only be kept with
+        /// the recurring job.
+        /// </summary>
         [NotNull]
         public string QueueName
         {

@@ -43,9 +43,9 @@ namespace Masterly.NightShift.SqlServer
             [NotNull] string queue,
             [NotNull] DateTime? fetchedAt)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(queue);
             if (fetchedAt == null) throw new ArgumentNullException(nameof(fetchedAt));
 
             _storage = storage;

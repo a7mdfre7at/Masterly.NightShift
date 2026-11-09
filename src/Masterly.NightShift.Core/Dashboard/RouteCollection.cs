@@ -34,8 +34,8 @@ namespace Masterly.NightShift.Dashboard
 
         public void Add([NotNull] string pathTemplate, [NotNull] IDashboardDispatcher dispatcher)
         {
-            if (pathTemplate == null) throw new ArgumentNullException(nameof(pathTemplate));
-            if (dispatcher == null) throw new ArgumentNullException(nameof(dispatcher));
+            ArgumentNullException.ThrowIfNull(pathTemplate);
+            ArgumentNullException.ThrowIfNull(dispatcher);
 
             var pattern = pathTemplate;
 
@@ -67,7 +67,7 @@ namespace Masterly.NightShift.Dashboard
         /// <returns>The dispatcher and the match, or <c>null</c> when no route matches.</returns>
         public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path, [CanBeNull] string method)
         {
-            if (path == null) throw new ArgumentNullException(nameof(path));
+            ArgumentNullException.ThrowIfNull(path);
 
             if (path.Length == 0) path = "/";
             else if (path.Length > 1) path = path.TrimEnd('/');

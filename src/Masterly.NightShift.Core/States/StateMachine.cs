@@ -40,8 +40,8 @@ namespace Masterly.NightShift.States
             [NotNull] IJobFilterProvider filterProvider,
             [NotNull] IStateMachine innerStateMachine)
         {
-            if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
-            if (innerStateMachine == null) throw new ArgumentNullException(nameof(innerStateMachine));
+            ArgumentNullException.ThrowIfNull(filterProvider);
+            ArgumentNullException.ThrowIfNull(innerStateMachine);
 
             _filterProvider = filterProvider;
             _innerStateMachine = innerStateMachine;
@@ -52,7 +52,7 @@ namespace Masterly.NightShift.States
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1725:Parameter names should match base declaration", Justification = "Parameter name changed to avoid ambiguity and errors in the method's implementation.")]
         public IState ApplyState(ApplyStateContext initialContext)
         {
-            if (initialContext == null) throw new ArgumentNullException(nameof(initialContext));
+            ArgumentNullException.ThrowIfNull(initialContext);
 
             var filterInfo = GetFilters(initialContext.BackgroundJob.Job);
             var electFilters = filterInfo.ElectStateFilters;

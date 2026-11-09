@@ -96,9 +96,9 @@ namespace Masterly.NightShift
         /// <param name="openSeconds">How long the circuit stays open before a job is let through.</param>
         public CircuitBreakerAttribute([CanBeNull] string? resource, int failureThreshold, int windowSeconds, int openSeconds)
         {
-            if (failureThreshold <= 0) throw new ArgumentOutOfRangeException(nameof(failureThreshold));
-            if (windowSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(windowSeconds));
-            if (openSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(openSeconds));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(failureThreshold);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSeconds);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(openSeconds);
 
             Resource = resource;
             FailureThreshold = failureThreshold;
@@ -143,7 +143,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
             var jobId = context.BackgroundJob.Id;
@@ -211,7 +211,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.BackgroundJob.Job == null) return;
 
             if (context.CandidateState is EnqueuedState enqueuedState)
@@ -350,8 +350,8 @@ namespace Masterly.NightShift
         /// </summary>
         public static void Reset([NotNull] IStorageConnection connection, [NotNull] string resource)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(resource);
 
             using (connection.AcquireDistributedLock(GetLockKey(resource), LockTimeout))
             using (var transaction = connection.CreateWriteTransaction())
@@ -377,8 +377,8 @@ namespace Masterly.NightShift
 
         private static CircuitState ReadCircuit(IStorageConnection connection, string resource, out bool stored)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(resource);
 
             var hash = connection.GetAllEntriesFromHash(GetCircuitKey(resource));
             stored = hash != null && hash.Count > 0;

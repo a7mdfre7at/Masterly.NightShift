@@ -36,15 +36,6 @@ namespace Masterly.NightShift.Server
             Performer = context.Performer;
         }
 
-        [Obsolete("Use PerformContext(JobStorage, IStorageConnection, BackgroundJob, IJobCancellationToken) overload instead. Kept for code ported from Hangfire.")]
-        public PerformContext(
-            [NotNull] IStorageConnection connection,
-            [NotNull] BackgroundJob backgroundJob,
-            [NotNull] IJobCancellationToken cancellationToken)
-            : this(null, connection, backgroundJob, cancellationToken)
-        {
-        }
-
         public PerformContext(
             [CanBeNull] JobStorage? storage,
             [NotNull] IStorageConnection connection, 
@@ -86,15 +77,6 @@ namespace Masterly.NightShift.Server
 
         [NotNull]
         public BackgroundJob BackgroundJob { get; }
-
-        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
-        public string JobId => BackgroundJob.Id;
-
-        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
-        public Job? Job => BackgroundJob.Job;
-
-        [Obsolete("Use BackgroundJob property instead. Kept for code ported from Hangfire.")]
-        public DateTime CreatedAt => BackgroundJob.CreatedAt;
 
         [NotNull]
         public IJobCancellationToken CancellationToken { get; }

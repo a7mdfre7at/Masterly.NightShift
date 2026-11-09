@@ -71,7 +71,7 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static string FormatResource([CanBeNull] string? template, [NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             if (!String.IsNullOrWhiteSpace(template))
             {
@@ -96,7 +96,7 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static string GetMethodIdentity([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             var builder = new StringBuilder();
             AppendTypeName(builder, job.Type);
@@ -209,27 +209,24 @@ namespace Masterly.NightShift.Server
         /// <summary>Shortens a resource longer than <paramref name="maxLength"/>, see <see cref="FormatResourceKey"/>.</summary>
         public static string ShortenResource([NotNull] string resource, int maxLength)
         {
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
-            if (maxLength <= HashLength + 2) throw new ArgumentOutOfRangeException(nameof(maxLength));
+            ArgumentNullException.ThrowIfNull(resource);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxLength, HashLength + 2);
             if (resource.Length <= maxLength) return resource;
 
             // "{prefix}~{hash}" is exactly maxLength characters long; a surrogate pair is never cut in two
             var prefixLength = maxLength - HashLength - 1;
             if (Char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
 
-            using (var sha = SHA256.Create())
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
+            var builder = new StringBuilder(maxLength);
+            builder.Append(resource, 0, prefixLength).Append('~');
+
+            for (var i = 0; i < HashLength / 2; i++)
             {
-                var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(resource));
-                var builder = new StringBuilder(maxLength);
-                builder.Append(resource, 0, prefixLength).Append('~');
-
-                for (var i = 0; i < HashLength / 2; i++)
-                {
-                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
-                }
-
-                return builder.ToString();
+                builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
             }
+
+            return builder.ToString();
         }
 
         /// <summary>
@@ -238,7 +235,7 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static IBackgroundJobStateChanger GetStateChanger([NotNull] PerformContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             return context.Items.TryGetValue(StateChangerItem, out var value) && value is IBackgroundJobStateChanger stateChanger
                 ? stateChanger
@@ -269,7 +266,7 @@ namespace Masterly.NightShift.Server
         {
             var separator = member.IndexOf(':');
 
-            if (separator > 0 && Int64.TryParse(member.Substring(0, separator), NumberStyles.Integer, CultureInfo.InvariantCulture, out timestamp))
+            if (separator > 0 && Int64.TryParse(member.AsSpan(0, separator), NumberStyles.Integer, CultureInfo.InvariantCulture, out timestamp))
             {
                 jobId = member.Substring(separator + 1);
                 return true;
@@ -331,8 +328,8 @@ namespace Masterly.NightShift.Server
         /// </remarks>
         public static void Reschedule([NotNull] PerformingContext context, DateTime enqueueAt, [NotNull] string reason)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (reason == null) throw new ArgumentNullException(nameof(reason));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(reason);
 
             var storage = context.Storage ?? JobStorage.Current;
 
@@ -385,7 +382,7 @@ namespace Masterly.NightShift.Server
         /// <summary>Cancels the current performance: the worker moves the job to the Deleted state.</summary>
         public static void Skip([NotNull] PerformingContext context, [NotNull] string reason)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             context.Items[BackgroundJobPerformer.ContextCanceledKey] = reason;
             context.Canceled = true;

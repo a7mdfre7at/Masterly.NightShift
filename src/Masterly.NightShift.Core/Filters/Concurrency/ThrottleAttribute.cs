@@ -141,7 +141,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (MaxConcurrency <= 0) throw new InvalidOperationException("MaxConcurrency should be greater than zero.");
 
             var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
@@ -191,7 +191,7 @@ namespace Masterly.NightShift
         /// </summary>
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.CandidateState is EnqueuedState enqueuedState)
             {
@@ -205,7 +205,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerformed(PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var itemKey = GetItemKey(context.BackgroundJob.Job!);
 
@@ -261,8 +261,8 @@ namespace Masterly.NightShift
         [NotNull]
         public static IReadOnlyList<ThrottleSlot> GetSlots([NotNull] IStorageConnection connection, [NotNull] string resource)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(resource);
 
             var slots = new List<ThrottleSlot>();
             var members = connection.GetAllItemsFromSet(GetKey(NormalizeResource(resource)));
@@ -296,9 +296,9 @@ namespace Masterly.NightShift
         /// <returns><c>true</c> when a slot was freed; <c>false</c> when the job held none.</returns>
         public static bool Release([NotNull] IStorageConnection connection, [NotNull] string resource, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(resource);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             var key = GetKey(NormalizeResource(resource));
 

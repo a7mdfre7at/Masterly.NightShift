@@ -142,7 +142,6 @@ namespace Masterly.NightShift.Core.Tests.Common
             Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(MarkedWithOverrides).GetMethod(nameof(GetHashCode), Type.EmptyTypes), out _));
         }
 
-#if NET8_0_OR_GREATER // .NET Framework doesn't support static abstract interface members
         [Fact]
         public void GeneratedInvoker_IsRegistered_ForTheInstanceMembersOfAMarkedInterface_WithStaticAbstractMembers()
         {
@@ -151,7 +150,6 @@ namespace Masterly.NightShift.Core.Tests.Common
             Assert.Equal("run", invoker.Invoke(new KindJobs(), new object[0]));
             Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(IKindJobs).GetMethod(nameof(IKindJobs.Kind)), out _));
         }
-#endif
 
         [Fact]
         public void GeneratedInvoker_UnboxesAnUnderlyingValue_ForAnEnumParameter_LikeTheCompiledInvoker()
@@ -227,7 +225,6 @@ namespace Masterly.NightShift.Core.Tests.Common
             public override int GetHashCode() => 1;
         }
 
-#if NET8_0_OR_GREATER
         [GenerateJobInvokers]
         public interface IKindJobs
         {
@@ -240,6 +237,5 @@ namespace Masterly.NightShift.Core.Tests.Common
             public static string Kind() => "kind";
             public string Run() => "run";
         }
-#endif
     }
 }

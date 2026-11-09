@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Dashboard
 
         public AspNetCoreDashboardRequest([NotNull] HttpContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             _context = context;
         }
 
@@ -65,7 +65,7 @@ namespace Masterly.NightShift.Dashboard
 
         public override string GetHeader(string name)
         {
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(name);
 
             return _context.Request.Headers.TryGetValue(name, out var values) && values.Count > 0
                 ? values.ToString()

@@ -21,7 +21,7 @@ namespace Masterly.NightShift.Server
 
         public static IReadOnlyList<IJobInterceptor> GetInterceptors(Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             var declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
             var global = GlobalJobInterceptors.Interceptors;

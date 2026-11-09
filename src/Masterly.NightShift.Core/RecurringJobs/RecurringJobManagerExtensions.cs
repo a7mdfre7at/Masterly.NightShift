@@ -65,7 +65,7 @@ namespace Masterly.NightShift
 
         private static IRecurringJobManagerV3 AsV3(IRecurringJobManager manager)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             return manager as IRecurringJobManagerV3
                 ?? throw new NotSupportedException($"The recurring job manager '{manager.GetType()}' doesn't implement {nameof(IRecurringJobManagerV3)}, so recurring jobs can't be paused, resumed or rescheduled through it.");
@@ -77,7 +77,7 @@ namespace Masterly.NightShift
             [NotNull] Job job,
             [NotNull] string cronExpression)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             manager.AddOrUpdate(recurringJobId, job, cronExpression, new RecurringJobOptions
             {
@@ -85,50 +85,6 @@ namespace Masterly.NightShift
             });
         }
 
-        [Obsolete("Use the AddOrUpdate(string, Job, string, RecurringJobOptions) method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Job job,
-            [NotNull] string cronExpression,
-            [NotNull] TimeZoneInfo timeZone)
-        {
-            AddOrUpdate(manager, recurringJobId, job, cronExpression, timeZone, EnqueuedState.DefaultQueue);
-        }
-
-        [Obsolete("Use the AddOrUpdate(string, Job, string, RecurringJobOptions) method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Job job,
-            [NotNull] string cronExpression,
-            [NotNull] TimeZoneInfo timeZone,
-            [NotNull] string queue)
-        {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (timeZone == null) throw new ArgumentNullException(nameof(timeZone));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-
-            manager.AddOrUpdate(
-                recurringJobId,
-                job,
-                cronExpression,
-                new RecurringJobOptions { QueueName = queue, TimeZone = timeZone });
-        }
-
-        [Obsolete("Use the AddOrUpdate(string, Expression<Action>, Func<string>, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Action> methodCall,
-            [NotNull] Func<string> cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), timeZone, queue);
-        }
-
         public static void AddOrUpdate(
             [NotNull] this IRecurringJobManager manager,
             [NotNull] string recurringJobId,
@@ -145,7 +101,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -167,23 +123,10 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use the AddOrUpdate<T>(string, Expression<Action<T>>, Func<string>, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Action<T>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate<T>(
@@ -202,7 +145,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -224,28 +167,10 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use the AddOrUpdate(string, Expression<Action>, string, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Action> methodCall,
-            [NotNull] string cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
-            if (methodCall == null) throw new ArgumentNullException(nameof(methodCall));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-
-            var job = Job.FromExpression(methodCall);
-            manager.AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
         }
 
         public static void AddOrUpdate(
@@ -264,7 +189,7 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             var job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
@@ -288,31 +213,13 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
-        [Obsolete("Use the AddOrUpdate<T>(string, Expression<Action<T>>, string, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Action<T>> methodCall,
-            [NotNull] string cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
-            if (methodCall == null) throw new ArgumentNullException(nameof(methodCall));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-
-            var job = Job.FromExpression(methodCall);
-            manager.AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
         public static void AddOrUpdate<T>(
             [NotNull] this IRecurringJobManager manager,
             [NotNull] string recurringJobId,
@@ -329,7 +236,7 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             var job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
@@ -353,24 +260,11 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-        }
-
-        [Obsolete("Use the AddOrUpdate(string, Expression<Func<Task>>, Func<string>, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Func<Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate(
@@ -389,7 +283,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -411,23 +305,10 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use the AddOrUpdate<T>(string, Expression<Func<T, Task>>, Func<string>, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Func<T, Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate<T>(
@@ -446,7 +327,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -468,28 +349,10 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use the AddOrUpdate(string, Expression<Func<Task>>, string, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Func<Task>> methodCall,
-            [NotNull] string cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
-            if (methodCall == null) throw new ArgumentNullException(nameof(methodCall));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-
-            var job = Job.FromExpression(methodCall);
-            manager.AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
         }
 
         public static void AddOrUpdate(
@@ -508,7 +371,7 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             var job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
@@ -532,31 +395,13 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
-        [Obsolete("Use the AddOrUpdate<T>(string, Expression<Func<T, Task>>, string, RecurringJobOptions) extension method instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] this IRecurringJobManager manager,
-            [NotNull] string recurringJobId,
-            [NotNull] Expression<Func<T, Task>> methodCall,
-            [NotNull] string cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string queue = EnqueuedState.DefaultQueue)
-        {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
-            if (methodCall == null) throw new ArgumentNullException(nameof(methodCall));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-
-            var job = Job.FromExpression(methodCall);
-            manager.AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
         public static void AddOrUpdate<T>(
             [NotNull] this IRecurringJobManager manager,
             [NotNull] string recurringJobId,
@@ -573,7 +418,7 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            ArgumentNullException.ThrowIfNull(manager);
 
             var job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
@@ -597,8 +442,8 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);

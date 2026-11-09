@@ -31,8 +31,8 @@ namespace Masterly.NightShift.Dashboard
             [CanBeNull] Assembly assembly, 
             [CanBeNull] string resourceName)
         {
-            if (contentType == null) throw new ArgumentNullException(nameof(contentType));
-            
+            ArgumentNullException.ThrowIfNull(contentType);
+
             _assembly = assembly;
             _resourceName = resourceName;
             _contentType = contentType;

@@ -28,8 +28,7 @@ namespace Masterly.NightShift
         /// <summary>The largest <see cref="DelayMilliseconds"/>: 3,600,000 (one hour).</summary>
         public const int MaxDelayMilliseconds = 60 * 60 * 1000;
 
-        // The longest single wait: a wait handle and Task.Delay accept at most Int32.MaxValue milliseconds on
-        // .NET Framework (about 24.8 days)
+        // The longest single wait: a wait handle accepts at most Int32.MaxValue milliseconds (about 24.8 days)
         private static readonly TimeSpan MaxWait = TimeSpan.FromMilliseconds(Int32.MaxValue);
 
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(RetryInProcessAttribute));
@@ -81,7 +80,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         protected override async Task<object?> InterceptAsync(JobInvocation invocation)
         {
-            if (invocation == null) throw new ArgumentNullException(nameof(invocation));
+            ArgumentNullException.ThrowIfNull(invocation);
 
             var shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
 

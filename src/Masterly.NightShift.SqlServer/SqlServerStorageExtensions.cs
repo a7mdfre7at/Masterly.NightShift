@@ -38,17 +38,17 @@ namespace Masterly.NightShift
         /// dashboard's home page.
         /// </summary>
         /// <param name="configuration">The global configuration.</param>
-        /// <param name="nameOrConnectionString">A SQL Server connection string.</param>
+        /// <param name="connectionString">A SQL Server connection string.</param>
         /// <returns>The configuration, to chain further calls.</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> or <paramref name="nameOrConnectionString"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> or <paramref name="connectionString"/> is <c>null</c>.</exception>
         public static IGlobalConfiguration<SqlServerStorage> UseSqlServerStorage(
             [NotNull] this IGlobalConfiguration configuration,
-            [NotNull] string nameOrConnectionString)
+            [NotNull] string connectionString)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (nameOrConnectionString == null) throw new ArgumentNullException(nameof(nameOrConnectionString));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(connectionString);
 
-            var storage = new SqlServerStorage(nameOrConnectionString);
+            var storage = new SqlServerStorage(connectionString);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
 
@@ -57,20 +57,20 @@ namespace Masterly.NightShift
         /// storage, and adds the SQL Server metrics to the dashboard's home page.
         /// </summary>
         /// <param name="configuration">The global configuration.</param>
-        /// <param name="nameOrConnectionString">A SQL Server connection string.</param>
+        /// <param name="connectionString">A SQL Server connection string.</param>
         /// <param name="options">The storage options.</param>
         /// <returns>The configuration, to chain further calls.</returns>
         /// <exception cref="ArgumentNullException">An argument is <c>null</c>.</exception>
         public static IGlobalConfiguration<SqlServerStorage> UseSqlServerStorage(
             [NotNull] this IGlobalConfiguration configuration,
-            [NotNull] string nameOrConnectionString, 
+            [NotNull] string connectionString, 
             [NotNull] SqlServerStorageOptions options)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (nameOrConnectionString == null) throw new ArgumentNullException(nameof(nameOrConnectionString));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(connectionString);
+            ArgumentNullException.ThrowIfNull(options);
 
-            var storage = new SqlServerStorage(nameOrConnectionString, options);
+            var storage = new SqlServerStorage(connectionString, options);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
 
@@ -87,8 +87,8 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] Func<DbConnection> connectionFactory)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (connectionFactory == null) throw new ArgumentNullException(nameof(connectionFactory));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(connectionFactory);
 
             var storage = new SqlServerStorage(connectionFactory);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
@@ -108,9 +108,9 @@ namespace Masterly.NightShift
             [NotNull] Func<DbConnection> connectionFactory,
             [NotNull] SqlServerStorageOptions options)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (connectionFactory == null) throw new ArgumentNullException(nameof(connectionFactory));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(connectionFactory);
+            ArgumentNullException.ThrowIfNull(options);
 
             var storage = new SqlServerStorage(connectionFactory, options);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
@@ -119,7 +119,7 @@ namespace Masterly.NightShift
         private static IGlobalConfiguration<SqlServerStorage> UseSqlServerStorageCommonMetrics(
             [NotNull] this IGlobalConfiguration<SqlServerStorage> configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             if (Interlocked.Exchange(ref _metricsInitialized, 1) == 0)
             {

@@ -48,7 +48,6 @@ namespace Masterly.NightShift.Server
         private readonly CancellationTokenSource _stoppingCts = new CancellationTokenSource();
         private readonly CancellationTokenSource _stoppedCts = new CancellationTokenSource();
         private readonly CancellationTokenSource _shutdownCts = new CancellationTokenSource();
-        private CancellationTokenRegistration _shutdownRegistration;
 
         private readonly IBackgroundServerProcess _process;
         private readonly BackgroundProcessingServerOptions _options;
@@ -117,8 +116,6 @@ namespace Masterly.NightShift.Server
 
             AppDomain.CurrentDomain.DomainUnload += OnCurrentDomainUnload;
             AppDomain.CurrentDomain.ProcessExit += OnCurrentDomainUnload;
-
-            _shutdownRegistration = AspNetShutdownDetector.GetShutdownToken().Register(OnAspNetShutdown);
         }
 
         public void SendStop()
@@ -149,8 +146,6 @@ namespace Masterly.NightShift.Server
         public void Dispose()
         {
             if (Volatile.Read(ref _disposed) == 1) return;
-
-            _shutdownRegistration.Dispose();
 
             if (!_stoppingCts.IsCancellationRequested)
             {
@@ -183,40 +178,12 @@ namespace Masterly.NightShift.Server
             _stoppedCts.Cancel();
             _shutdownCts.Cancel();
 
-            if (!AspNetShutdownDetector.IsSucceeded)
-            {
-                // ASP.NET can be very sensitive to any delays during AppDomain unload.
-                WaitForShutdown(_options.LastChanceTimeout);
-            }
-        }
-
-        private void OnAspNetShutdown()
-        {
-            if (Volatile.Read(ref _disposed) == 1)
-            {
-                // Exit if our server was already disposed, there's no need to
-                // throw ObjectDisposedException when unnecessary.
-                return;
-            }
-
-            try
-            {
-                // When ASP.NET shutdown is detected, we only need to send a stop
-                // signal to our background processing servers to allow correctly
-                // await for background processing server shutdown during a direct
-                // or indirect call to IRegisteredObject.Stop method.
-                SendStop();
-            }
-            catch (ObjectDisposedException)
-            {
-                // There's a benign race condition, when SendStop is called after
-                // processing server was already disposed.
-            }
+            WaitForShutdown(_options.LastChanceTimeout);
         }
 
         private static IBackgroundProcessDispatcherBuilder[] GetProcesses([NotNull] IEnumerable<IBackgroundProcess> processes)
         {
-            if (processes == null) throw new ArgumentNullException(nameof(processes));
+            ArgumentNullException.ThrowIfNull(processes);
             return processes.Select(static x => x.UseBackgroundPool(threadCount: 1)).ToArray();
         }
 
@@ -255,10 +222,7 @@ namespace Masterly.NightShift.Server
 
         private void ThrowIfDisposed()
         {
-            if (Volatile.Read(ref _disposed) == 1)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
         }
     }
 }

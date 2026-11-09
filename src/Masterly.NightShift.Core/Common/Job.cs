@@ -197,10 +197,10 @@ namespace Masterly.NightShift.Common
         /// <exception cref="NotSupportedException"><paramref name="method"/> is not supported.</exception>
         public Job([NotNull] Type type, [NotNull] MethodInfo method, [NotNull] IReadOnlyList<object> args, [CanBeNull] string queue)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
-            if (method == null) throw new ArgumentNullException(nameof(method));
-            if (args == null) throw new ArgumentNullException(nameof(args));
-            
+            ArgumentNullException.ThrowIfNull(type);
+            ArgumentNullException.ThrowIfNull(method);
+            ArgumentNullException.ThrowIfNull(args);
+
             Validate(type, nameof(type), method, nameof(method), args.Count, nameof(args));
 
             if (queue != null)
@@ -419,7 +419,7 @@ namespace Masterly.NightShift.Common
 
         private static Job FromExpression([NotNull] LambdaExpression methodCall, [CanBeNull] Type explicitType, [CanBeNull] string queue)
         {
-            if (methodCall == null) throw new ArgumentNullException(nameof(methodCall));
+            ArgumentNullException.ThrowIfNull(methodCall);
 
             var callExpression = methodCall.Body as MethodCallExpression;
             if (callExpression == null)

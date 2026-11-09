@@ -44,8 +44,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] Action<NightShiftJobLoggingOptions> configure)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (configure == null) throw new ArgumentNullException(nameof(configure));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configure);
 
             NightShiftJobLoggingOptions? options = null;
             foreach (var descriptor in services)
@@ -83,7 +83,7 @@ namespace Masterly.NightShift
         [CanBeNull]
         public static IJobFilterProvider? AddTo([CanBeNull] IJobFilterProvider? filterProvider, [NotNull] IServiceProvider services)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
+            ArgumentNullException.ThrowIfNull(services);
 
             // Options registered as a singleton may be passed to the factory again; one scope per job is enough
             if (filterProvider is ScopeFilterProvider) return filterProvider;
@@ -143,7 +143,7 @@ namespace Masterly.NightShift
 
             public void OnPerforming(PerformingContext context)
             {
-                if (context == null) throw new ArgumentNullException(nameof(context));
+                ArgumentNullException.ThrowIfNull(context);
 
                 var scope = _logger.BeginScope(new ScopeState(context.BackgroundJob));
                 if (scope != null)
@@ -154,7 +154,7 @@ namespace Masterly.NightShift
 
             public void OnPerformed(PerformedContext context)
             {
-                if (context == null) throw new ArgumentNullException(nameof(context));
+                ArgumentNullException.ThrowIfNull(context);
 
                 IDisposable? scope;
                 ICollection<IDisposable>? disposeAfterStateChange;

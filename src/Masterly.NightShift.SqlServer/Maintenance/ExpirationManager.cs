@@ -26,9 +26,7 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.SqlServer
 {
-#pragma warning disable 618
-    internal sealed class ExpirationManager : IServerComponent, IBackgroundProcess
-#pragma warning restore 618
+    internal sealed class ExpirationManager : IBackgroundProcess
     {
         // Prefixed with the schema name, like the other locks, so that storages with different schemas in one
         // database clean up independently
@@ -55,7 +53,7 @@ namespace Masterly.NightShift.SqlServer
 
         public ExpirationManager(SqlServerStorage storage, TimeSpan stateExpirationTimeout, TimeSpan checkInterval)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
             if (stateExpirationTimeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(stateExpirationTimeout), "Timeout value should be equal to or greater than zero.");
             if (checkInterval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(checkInterval), "Timeout value should be greater than zero.");
 

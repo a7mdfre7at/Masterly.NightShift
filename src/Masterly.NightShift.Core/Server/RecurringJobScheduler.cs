@@ -143,9 +143,9 @@ namespace Masterly.NightShift.Server
             [NotNull] ITimeZoneResolver timeZoneResolver,
             [NotNull] Func<DateTime> nowFactory)
         {
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-            if (nowFactory == null) throw new ArgumentNullException(nameof(nowFactory));
-            if (timeZoneResolver == null) throw new ArgumentNullException(nameof(timeZoneResolver));
+            ArgumentNullException.ThrowIfNull(factory);
+            ArgumentNullException.ThrowIfNull(nowFactory);
+            ArgumentNullException.ThrowIfNull(timeZoneResolver);
 
             _factory = factory;
             _nowFactory = nowFactory;
@@ -174,7 +174,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void Execute(BackgroundProcessContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             int jobsProcessed;
 

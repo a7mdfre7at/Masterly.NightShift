@@ -39,7 +39,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.CandidateState is EnqueuedState enqueuedState)
             {

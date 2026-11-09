@@ -101,10 +101,10 @@ namespace Masterly.NightShift
 
         public void AddOrUpdate(string recurringJobId, Job job, string cronExpression, RecurringJobOptions options)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
-            if (job == null) throw new ArgumentNullException(nameof(job));
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
+            ArgumentNullException.ThrowIfNull(job);
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            ArgumentNullException.ThrowIfNull(options);
 
             ValidateCronExpression(cronExpression);
             ValidateMisfireHandling(options.MisfireHandling, nameof(options));
@@ -152,9 +152,7 @@ namespace Masterly.NightShift
                     recurringJob.RecordScheduleChange(now);
                 }
 
-#pragma warning disable 618
                 recurringJob.Queue = options.QueueName;
-#pragma warning restore 618
                 recurringJob.MisfireHandling = options.MisfireHandling;
                 recurringJob.RetryAttempt = 0;
 
@@ -197,9 +195,7 @@ namespace Masterly.NightShift
         {
             if (storedId == null) return false;
 
-#if NET8_0_OR_GREATER
             if (String.Equals(ToIanaId(storedId), ToIanaId(timeZone.Id), StringComparison.OrdinalIgnoreCase)) return true;
-#endif
 
             try
             {
@@ -212,12 +208,10 @@ namespace Masterly.NightShift
             }
         }
 
-#if NET8_0_OR_GREATER
         private static string ToIanaId(string id)
         {
             return TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var ianaId) ? ianaId : id;
         }
-#endif
 
         private static void ValidateCronExpression(string cronExpression)
         {
@@ -237,7 +231,7 @@ namespace Masterly.NightShift
         // A value outside the enum would be stored, and no server could read the recurring job afterwards
         internal static void ValidateMisfireHandling(MisfireHandlingMode misfireHandling, [InvokerParameterName] string parameterName)
         {
-            if (!Enum.IsDefined(typeof(MisfireHandlingMode), misfireHandling))
+            if (!Enum.IsDefined(misfireHandling))
             {
                 throw new ArgumentOutOfRangeException(
                     parameterName,
@@ -277,12 +271,9 @@ namespace Masterly.NightShift
 
         public void Trigger(string recurringJobId) => TriggerJob(recurringJobId);
 
-        [Obsolete("Use the `TriggerJob` method instead. Kept for code ported from Hangfire.")]
-        public string? TriggerExecution(string recurringJobId) => TriggerJob(recurringJobId);
-
         public string? TriggerJob(string recurringJobId)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             using (var connection = _storage.GetConnection())
             using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
@@ -349,7 +340,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public bool Pause(string recurringJobId)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             return UpdateExisting(recurringJobId, static (recurringJob, _) => recurringJob.Pause());
         }
@@ -357,7 +348,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public bool Resume(string recurringJobId)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             return UpdateExisting(recurringJobId, (recurringJob, now) =>
             {
@@ -376,7 +367,7 @@ namespace Masterly.NightShift
             string? queue = null,
             MisfireHandlingMode? misfireHandling = null)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             if (cronExpression != null)
             {
@@ -510,7 +501,7 @@ namespace Masterly.NightShift
 
         public void RemoveIfExists(string recurringJobId)
         {
-            if (recurringJobId == null) throw new ArgumentNullException(nameof(recurringJobId));
+            ArgumentNullException.ThrowIfNull(recurringJobId);
 
             using (var connection = _storage.GetConnection())
             using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))

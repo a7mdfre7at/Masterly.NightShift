@@ -45,7 +45,7 @@ namespace Masterly.NightShift.Dashboard
         /// </summary>
         public static IReadOnlyList<IReadOnlyList<HeatmapCell>> Read(JobStorage storage, DateTime utcNow)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
 
             var cached = Cache.GetValue(storage, static _ => new CachedGrid());
             lock (cached)
@@ -78,7 +78,7 @@ namespace Masterly.NightShift.Dashboard
         /// </summary>
         public static IReadOnlyList<IReadOnlyList<HeatmapCell>> Read(IStorageConnection connection, DateTime utcNow)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             try
             {

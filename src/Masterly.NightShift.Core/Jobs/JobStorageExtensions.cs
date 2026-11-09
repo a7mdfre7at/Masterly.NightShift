@@ -37,7 +37,7 @@ namespace Masterly.NightShift
             [CanBeNull, InstantHandle] Func<FailedJobDto, bool>? filter = null,
             TimeSpan? timeBudget = null)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
 
             return RequeueFailedJobs(storage, new BackgroundJobClient(storage), filter, timeBudget);
         }
@@ -62,8 +62,8 @@ namespace Masterly.NightShift
             [CanBeNull, InstantHandle] Func<FailedJobDto, bool>? filter = null,
             TimeSpan? timeBudget = null)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(client);
             if (timeBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeBudget), "The time budget can't be negative.");
 
             var monitor = storage.GetMonitoringApi();
@@ -87,8 +87,8 @@ namespace Masterly.NightShift
         [CanBeNull]
         public static JobStateInfo? GetJobState([NotNull] this JobStorage storage, [NotNull] string jobId)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             using (var connection = storage.GetReadOnlyConnection())
             {
@@ -128,8 +128,8 @@ namespace Masterly.NightShift
         /// <exception cref="System.Text.Json.JsonException">The stored value can't be read as <typeparamref name="T"/>.</exception>
         public static bool TryGetResult<T>([NotNull] this JobStorage storage, [NotNull] string jobId, out T? result)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             result = default;
             StateData? stateData;

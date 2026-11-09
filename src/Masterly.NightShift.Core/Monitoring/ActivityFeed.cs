@@ -85,7 +85,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<ActivityEntry> Read([NotNull] IStorageConnection connection, int count)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (count <= 0) return Array.Empty<ActivityEntry>();
 
             if (connection is not JobStorageConnection storageConnection) return Array.Empty<ActivityEntry>();
@@ -171,8 +171,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(transaction);
             if (!ActivityFeed.Enabled) return;
 
             var entry = ActivityFeed.Create(context.BackgroundJob, context.NewState, context.OldStateName);

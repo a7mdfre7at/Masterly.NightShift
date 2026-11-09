@@ -38,12 +38,6 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void GetComponents_ReturnsEmptyCollectionByDefault()
-        {
-            Assert.Empty(_storage.Object.GetComponents());
-        }
-
-        [Fact]
         public void GetStateHandlers_ReturnsEmptyCollectionByDefault()
         {
             Assert.Empty(_storage.Object.GetStateHandlers());

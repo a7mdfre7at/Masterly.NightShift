@@ -83,8 +83,8 @@ namespace Masterly.NightShift
 
             if (recurringJob.TryGetValue("Misfire", out var misfireStr))
             {
-                MisfireHandling = (MisfireHandlingMode)Enum.Parse(typeof(MisfireHandlingMode), misfireStr);
-                if (!Enum.IsDefined(typeof(MisfireHandlingMode), MisfireHandling))
+                MisfireHandling = Enum.Parse<MisfireHandlingMode>(misfireStr);
+                if (!Enum.IsDefined(MisfireHandling))
                 {
                     throw new NotSupportedException(String.Format(CultureInfo.CurrentCulture, "Misfire option '{0}' is not supported.", (int)MisfireHandling));
                 }
@@ -277,7 +277,7 @@ namespace Masterly.NightShift
             DateTime now,
             TimeSpan precision)
         {
-            if (timeZoneResolver == null) throw new ArgumentNullException(nameof(timeZoneResolver));
+            ArgumentNullException.ThrowIfNull(timeZoneResolver);
 
             var result = new List<DateTime>();
 
@@ -491,7 +491,7 @@ namespace Masterly.NightShift
 
         public static CronExpression ParseCronExpression([NotNull] string cronExpression)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             var format = CronFormat.Standard;
 

@@ -70,7 +70,7 @@ namespace Masterly.NightShift.Processing
             get { return _retryDelay; }
             set
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
+                ArgumentNullException.ThrowIfNull(value);
                 _retryDelay = value;
             }
         }

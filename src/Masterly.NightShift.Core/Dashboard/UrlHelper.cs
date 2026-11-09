@@ -27,7 +27,7 @@ namespace Masterly.NightShift.Dashboard
 
         public UrlHelper([NotNull] DashboardContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             _context = context;
         }
 

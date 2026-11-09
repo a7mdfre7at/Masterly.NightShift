@@ -4,7 +4,6 @@ using Masterly.NightShift.Common;
 using Masterly.NightShift.States;
 using Moq;
 using Xunit;
-#pragma warning disable 618
 
 // ReSharper disable AssignNullToNotNullAttribute
 
@@ -97,7 +96,7 @@ namespace Masterly.NightShift.Core.Tests.States
             context.SetJobParameter("Name", "Value");
 
             _applyContext.Connection.Verify(x => x.SetJobParameter(
-                _applyContext.BackgroundJob.Id, "Name", JobHelper.ToJson("Value")));
+                _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson("Value")));
         }
 
         [Fact]
@@ -108,7 +107,7 @@ namespace Masterly.NightShift.Core.Tests.States
             context.SetJobParameter("Name", (string)null);
 
             _applyContext.Connection.Verify(x => x.SetJobParameter(
-                _applyContext.BackgroundJob.Id, "Name", JobHelper.ToJson(null)));
+                _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson(null)));
         }
 
         [Fact]
@@ -116,7 +115,7 @@ namespace Masterly.NightShift.Core.Tests.States
         {
             var context = CreateContext();
             _applyContext.Connection.Setup(x => x.GetJobParameter(_applyContext.BackgroundJob.Id, "Name"))
-                .Returns(JobHelper.ToJson("Value"));
+                .Returns(TestJson.ToJson("Value"));
 
             var value = context.GetJobParameter<string>("Name");
 
@@ -128,7 +127,7 @@ namespace Masterly.NightShift.Core.Tests.States
         {
             var context = CreateContext();
             _applyContext.Connection.Setup(x => x.GetJobParameter("1", "Value"))
-                .Returns(JobHelper.ToJson(null));
+                .Returns(TestJson.ToJson(null));
 
             var value = context.GetJobParameter<int>("Name");
 

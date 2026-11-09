@@ -69,8 +69,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] Action<IServiceProvider, IGlobalConfiguration> configuration)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuration);
 
             services.TryAddSingletonChecked(static _ => JobStorage.Current);
             services.TryAddSingletonChecked(static _ => JobActivator.Current);
@@ -167,8 +167,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] Action<BackgroundJobServerOptions> optionsAction)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (optionsAction == null) throw new ArgumentNullException(nameof(optionsAction));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(optionsAction);
 
             return AddNightShiftServerInner(services, null, null, (provider, options) => optionsAction(options));
         }
@@ -184,8 +184,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] Action<IServiceProvider, BackgroundJobServerOptions> optionsAction)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (optionsAction == null) throw new ArgumentNullException(nameof(optionsAction));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(optionsAction);
 
             return AddNightShiftServerInner(services, null, null, optionsAction);
         }
@@ -203,9 +203,9 @@ namespace Masterly.NightShift
             [NotNull] Action<IServiceProvider, BackgroundJobServerOptions> optionsAction,
             [NotNull] JobStorage storage)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (optionsAction == null) throw new ArgumentNullException(nameof(optionsAction));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(optionsAction);
+            ArgumentNullException.ThrowIfNull(storage);
 
             return AddNightShiftServerInner(services, storage, null, optionsAction);
         }
@@ -225,10 +225,10 @@ namespace Masterly.NightShift
             [NotNull] JobStorage storage,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (optionsAction == null) throw new ArgumentNullException(nameof(optionsAction));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (additionalProcesses == null) throw new ArgumentNullException(nameof(additionalProcesses));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(optionsAction);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(additionalProcesses);
 
             return AddNightShiftServerInner(services, storage, additionalProcesses, optionsAction);
         }
@@ -248,8 +248,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] IConfiguration configuration)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return AddNightShiftServerInner(services, null, null, (provider, options) => BackgroundJobServerOptionsBinder.Bind(configuration, options));
         }
@@ -268,9 +268,9 @@ namespace Masterly.NightShift
             [NotNull] IConfiguration configuration,
             [NotNull] Action<IServiceProvider, BackgroundJobServerOptions> optionsAction)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (optionsAction == null) throw new ArgumentNullException(nameof(optionsAction));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(optionsAction);
 
             return AddNightShiftServerInner(services, null, null, (provider, options) =>
             {
@@ -288,7 +288,7 @@ namespace Masterly.NightShift
         /// <returns>The service collection.</returns>
         public static IServiceCollection AddNightShiftServer([NotNull] this IServiceCollection services)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
+            ArgumentNullException.ThrowIfNull(services);
             return AddNightShiftServerInner(services, null, null);
         }
 
@@ -303,8 +303,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] JobStorage storage)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(storage);
 
             return AddNightShiftServerInner(services, storage, null);
         }
@@ -323,9 +323,9 @@ namespace Masterly.NightShift
             [NotNull] JobStorage storage,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (additionalProcesses == null) throw new ArgumentNullException(nameof(additionalProcesses));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(additionalProcesses);
 
             return AddNightShiftServerInner(services, storage, additionalProcesses);
         }
@@ -372,8 +372,8 @@ namespace Masterly.NightShift
             [NotNull] this IServiceCollection services,
             [NotNull] Func<IServiceProvider, IBackgroundProcessingServer> implementationFactory)
         {
-            if (services == null) throw new ArgumentNullException(nameof(services));
-            if (implementationFactory == null) throw new ArgumentNullException(nameof(implementationFactory));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(implementationFactory);
 
             services.AddTransient<IHostedService, BackgroundProcessingServerHostedService>(
                 provider => new BackgroundProcessingServerHostedService(
@@ -401,12 +401,10 @@ namespace Masterly.NightShift
 
             GetInternalServices(provider, out var factory, out var stateChanger, out var performer);
 
-            // Hosts that don't register it (the ASP.NET Core 2.x web host) start the server at once, as before
+            // Hosts that don't register it start the server at once
             var lifetime = provider.GetService<IHostApplicationLifetime>();
 
-#pragma warning disable 618
             return new BackgroundJobServerHostedService(
-#pragma warning restore 618
                 storage, options, additionalProcesses, factory, performer, stateChanger, lifetime);
         }
 
@@ -451,7 +449,7 @@ namespace Masterly.NightShift
         {
             serviceCollection.TryAddSingleton<T>(serviceProvider =>
             {
-                if (serviceProvider == null) throw new ArgumentNullException(nameof(serviceProvider));
+                ArgumentNullException.ThrowIfNull(serviceProvider);
 
                 // ensure the configuration was performed
                 serviceProvider.GetRequiredService<IGlobalConfiguration>();

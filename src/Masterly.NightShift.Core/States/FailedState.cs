@@ -94,7 +94,7 @@ namespace Masterly.NightShift.States
         /// argument is <see langword="null" /></exception>
         public FailedState([NotNull] Exception exception, [CanBeNull] string? serverId)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentNullException.ThrowIfNull(exception);
 
             FailedAt = DateTime.UtcNow;
             Exception = exception;

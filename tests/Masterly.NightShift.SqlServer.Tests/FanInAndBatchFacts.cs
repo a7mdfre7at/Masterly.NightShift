@@ -77,7 +77,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             });
             BatchJob.ContinueWith(client, storage, batchId, Job.FromExpression(() => FanInJobs.BatchDone()));
 
-            using (var connection = ConnectionUtils.CreateConnection(microsoftDataSqlClient: true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 var rows = connection.Query<(string Key, DateTime? ExpireAt)>(
                     "select [Key], ExpireAt from [HangFire].[Set] where [Key] like 'batch:%' " +
@@ -205,7 +205,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
         private static int CountJobs(string state)
         {
-            using (var connection = ConnectionUtils.CreateConnection(microsoftDataSqlClient: true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 return connection.ExecuteScalar<int>("select count(*) from [HangFire].[Job] where StateName = @state", new { state });
             }

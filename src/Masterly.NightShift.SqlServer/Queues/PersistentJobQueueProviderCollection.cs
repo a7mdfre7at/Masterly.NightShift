@@ -37,7 +37,7 @@ namespace Masterly.NightShift.SqlServer
         /// <param name="defaultProvider">The default provider.</param>
         public PersistentJobQueueProviderCollection(IPersistentJobQueueProvider defaultProvider)
         {
-            if (defaultProvider == null) throw new ArgumentNullException(nameof(defaultProvider));
+            ArgumentNullException.ThrowIfNull(defaultProvider);
 
             _defaultProvider = defaultProvider;
 
@@ -52,8 +52,8 @@ namespace Masterly.NightShift.SqlServer
         /// <exception cref="ArgumentException">A queue already has a provider.</exception>
         public void Add(IPersistentJobQueueProvider provider, IEnumerable<string> queues)
         {
-            if (provider == null) throw new ArgumentNullException(nameof(provider));
-            if (queues == null) throw new ArgumentNullException(nameof(queues));
+            ArgumentNullException.ThrowIfNull(provider);
+            ArgumentNullException.ThrowIfNull(queues);
 
             _providers.Add(provider);
 

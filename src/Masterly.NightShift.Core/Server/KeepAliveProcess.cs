@@ -157,7 +157,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void Execute(BackgroundProcessContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             // The stopping token, so a server that is asked to stop doesn't wait for the next request
             context.StoppingToken.WaitOrThrow(_options.Interval);

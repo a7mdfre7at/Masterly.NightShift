@@ -44,7 +44,7 @@ namespace Masterly.NightShift
         /// <exception cref="ArgumentException">The text is not a time span, or it is not positive, or it is too long.</exception>
         public ExpireAfterAttribute([NotNull] string timeSpan)
         {
-            if (timeSpan == null) throw new ArgumentNullException(nameof(timeSpan));
+            ArgumentNullException.ThrowIfNull(timeSpan);
             if (!TimeSpan.TryParse(timeSpan, CultureInfo.InvariantCulture, out var parsed) || parsed <= TimeSpan.Zero)
             {
                 throw new ArgumentException($"'{timeSpan}' is not a positive time span.", nameof(timeSpan));
@@ -97,7 +97,7 @@ namespace Masterly.NightShift
 
         private void SetExpiration(ApplyStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.NewState.IsFinal)
             {

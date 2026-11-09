@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -62,4 +61,3 @@ namespace Masterly.NightShift
         }
     }
 }
-#endif

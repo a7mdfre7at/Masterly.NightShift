@@ -571,16 +571,11 @@
 
             foreach (var entry in job.History)
             {
-                // The current state uses its CSS suffix, else the colors registered for it, else the neutral card
+                // The current state uses its CSS suffix, else the neutral card
                 var cardCss = index == 0 ? JobHistoryRenderer.GetStateCssSuffix(entry.StateName) : null;
-                var accentColor = index == 0 && cardCss == null ? JobHistoryRenderer.FindForegroundStateColor(entry.StateName) : null;
-                var backgroundColor = index == 0 && cardCss == null ? JobHistoryRenderer.FindBackgroundStateColor(entry.StateName) : null;
-                var cardStyle = accentColor != null ? $"border-color: {accentColor}" : null;
-                var cardTitleStyle = accentColor != null ? $"color: {accentColor}" : null;
-                var cardBackgroundStyle = backgroundColor != null ? $"background-color: {backgroundColor}" : null;
 
-                <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)" style="@cardStyle">
-                    <h4 class="state-card-title" style="@cardTitleStyle">
+                <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)">
+                    <h4 class="state-card-title">
                         <small class="pull-right text-muted">
                             @if (index == job.History.Count - 1)
                             {
@@ -615,7 +610,7 @@
 
                     @if (rendered != null)
                     {
-                        <div class="state-card-body" style="@cardBackgroundStyle">
+                        <div class="state-card-body">
                             @rendered
                         </div>
                     }

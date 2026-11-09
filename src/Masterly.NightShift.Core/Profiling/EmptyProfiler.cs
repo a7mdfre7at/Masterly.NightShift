@@ -30,7 +30,7 @@ namespace Masterly.NightShift.Profiling
             Func<TInstance, TResult> action,
             Func<TInstance, string> messageFunc)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
             return action(instance);
         }
     }

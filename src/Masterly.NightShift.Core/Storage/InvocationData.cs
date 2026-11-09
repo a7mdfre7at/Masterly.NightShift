@@ -46,18 +46,6 @@ namespace Masterly.NightShift.Storage
         private static readonly ConcurrentDictionary<Tuple<Func<Type, string>, string>, string[]>
             ParameterTypesDeserializerCache = new();
 
-        [Obsolete("Use IGlobalConfiguration.UseTypeResolver instead. Kept for code ported from Hangfire.")]
-        public static void SetTypeResolver([CanBeNull] Func<string, Type> typeResolver)
-        {
-            TypeHelper.CurrentTypeResolver = typeResolver;
-        }
-
-        [Obsolete("Use IGlobalConfiguration.UseTypeSerializer instead. Kept for code ported from Hangfire.")]
-        public static void SetTypeSerializer([CanBeNull] Func<Type, string> typeSerializer)
-        {
-            TypeHelper.CurrentTypeSerializer = typeSerializer;
-        }
-
         public InvocationData(string type, string method, string parameterTypes, string arguments)
             : this(type, method, parameterTypes, arguments, null)
         {
@@ -83,18 +71,6 @@ namespace Masterly.NightShift.Storage
 
         [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string Queue { get; }
-
-        [Obsolete("Use DeserializeJob() method instead. Kept for code ported from Hangfire.")]
-        public Job Deserialize()
-        {
-            return DeserializeJob();
-        }
-
-        [Obsolete("Use SerializeJob(Job) method instead. Kept for code ported from Hangfire.")]
-        public static InvocationData Serialize(Job job)
-        {
-            return SerializeJob(job);
-        }
 
         public Job DeserializeJob()
         {
@@ -153,7 +129,7 @@ namespace Masterly.NightShift.Storage
 
         public static InvocationData DeserializePayload(string payload)
         {
-            if (payload == null) throw new ArgumentNullException(nameof(payload));
+            ArgumentNullException.ThrowIfNull(payload);
 
             JobPayload jobPayload = null;
             Exception exception = null;

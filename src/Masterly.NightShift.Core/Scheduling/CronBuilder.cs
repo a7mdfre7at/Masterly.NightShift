@@ -240,7 +240,7 @@ namespace Masterly.NightShift
         /// <summary>The builder can be passed wherever a CRON string is expected.</summary>
         public static implicit operator string(CronBuilder builder)
         {
-            if (builder == null) throw new ArgumentNullException(nameof(builder));
+            ArgumentNullException.ThrowIfNull(builder);
             return builder.ToString();
         }
 

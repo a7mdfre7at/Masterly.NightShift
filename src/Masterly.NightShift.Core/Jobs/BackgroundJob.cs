@@ -674,21 +674,6 @@ namespace Masterly.NightShift
         }
 
         /// <summary>
-        /// Creates a new background job that will wait for a successful completion
-        /// of another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] string parentId, 
-            [NotNull, InstantHandle] Expression<Action> methodCall)
-        {
-            return ContinueJobWith(parentId, methodCall);
-        }
-
-        /// <summary>
         /// Creates a new background job that will wait for a successful completion 
         /// of another background job to be enqueued.
         /// </summary>
@@ -709,42 +694,11 @@ namespace Masterly.NightShift
         /// <param name="parentId">Identifier of a background job to wait completion for.</param>
         /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] string parentId, 
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall)
-        {
-            return ContinueJobWith(parentId, methodCall);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for a successful completion 
-        /// of another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith<T>(
             [NotNull] string parentId,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall)
         {
             return ClientFactory().ContinueJobWith(parentId, methodCall);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] string parentId, 
-            [NotNull, InstantHandle] Expression<Action> methodCall, 
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(parentId, methodCall, options);
         }
 
         /// <summary>
@@ -778,23 +732,6 @@ namespace Masterly.NightShift
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
             return ClientFactory().ContinueJobWith(parentId, queue, methodCall, options: options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="options">Continuation options. By default, 
-        /// <see cref="JobContinuationOptions.OnlyOnSucceededState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-        {
-            return ContinueJobWith(parentId, methodCall, options);
         }
 
         /// <summary>
@@ -839,22 +776,6 @@ namespace Masterly.NightShift
         /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
         /// <param name="options">Continuation options.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] string parentId, 
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall, 
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(parentId, methodCall, options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith<T>(
             [NotNull] string parentId,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
@@ -879,23 +800,6 @@ namespace Masterly.NightShift
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
             return ClientFactory().ContinueJobWith(parentId, queue, methodCall, options: options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be enqueued.
-        /// </summary>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="options">Continuation options. By default, 
-        /// <see cref="JobContinuationOptions.OnlyOnSucceededState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-        {
-            return ContinueJobWith(parentId, methodCall, options);
         }
 
         /// <summary>

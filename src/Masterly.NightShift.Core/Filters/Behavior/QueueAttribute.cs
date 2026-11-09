@@ -79,7 +79,7 @@ namespace Masterly.NightShift
         /// <exception cref="InvalidOperationException">The template doesn't produce a valid queue name.</exception>
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.CandidateState is not EnqueuedState enqueuedState) return;
 
             if (!IsTemplate(Queue))
@@ -114,7 +114,7 @@ namespace Masterly.NightShift
 
         private static bool IsTemplate(string queue)
         {
-            return queue != null && queue.IndexOf('{') >= 0;
+            return queue != null && queue.Contains('{');
         }
     }
 }

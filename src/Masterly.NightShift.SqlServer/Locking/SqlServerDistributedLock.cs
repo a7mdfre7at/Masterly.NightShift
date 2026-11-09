@@ -18,31 +18,22 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Threading;
 using Dapper;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Storage;
-using NotNullAttribute = Masterly.NightShift.Annotations.NotNullAttribute;
 
 namespace Masterly.NightShift.SqlServer
 {
     /// <summary>
-    /// A distributed lock held with <c>sp_getapplock</c> on a dedicated connection. Use
-    /// <see cref="IStorageConnection.AcquireDistributedLock"/> instead of creating it directly.
+    /// Takes and releases session-scoped application locks with <c>sp_getapplock</c>. The locks users take go through
+    /// <see cref="IStorageConnection.AcquireDistributedLock"/>, which holds them on the connection's dedicated
+    /// connection.
     /// </summary>
-    public class SqlServerDistributedLock : IDisposable
+    internal static class SqlServerDistributedLock
     {
         private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(1);
 
         private const string LockMode = "Exclusive";
         private const string LockOwner = "Session";
-
-        // Connections to SQL Azure Database that are idle for 30 minutes 
-        // or longer will be terminated. And since we are using separate
-        // connection for a distributed lock, we'd like to prevent Resource
-        // Governor from terminating it.
-        private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(1);
 
         private static readonly IDictionary<int, string> LockErrorMessages
             = new Dictionary<int, string>
@@ -52,131 +43,6 @@ namespace Masterly.NightShift.SqlServer
                 { -3, "The lock request was chosen as a deadlock victim" },
                 { -999, "Indicates a parameter validation or other call error" }
             };
-
-        private static readonly ThreadLocal<Dictionary<string, int>> AcquiredLocks
-            = new ThreadLocal<Dictionary<string, int>>(static () => new Dictionary<string, int>()); 
-
-        private DbConnection _connection;
-        private readonly SqlServerStorage _storage;
-        private readonly string _resource;
-        private readonly Timer _timer;
-        private readonly object _lockObject = new object();
-
-        private bool _completed;
-
-        /// <summary>
-        /// Acquires the lock on <paramref name="resource"/>, waiting up to <paramref name="timeout"/>.
-        /// </summary>
-        /// <param name="storage">The storage.</param>
-        /// <param name="resource">The name of the locked resource.</param>
-        /// <param name="timeout">How long to wait for the lock.</param>
-        [Obsolete("Use SqlServerConnection.AcquireDistributedLock instead, which is safer. Kept for code ported from Hangfire.")]
-        [SuppressMessage("Performance", "CA1854:Prefer the \'IDictionary.TryGetValue(TKey, out TValue)\' method")]
-        public SqlServerDistributedLock([NotNull] SqlServerStorage storage, [NotNull] string resource, TimeSpan timeout)
-        {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (String.IsNullOrEmpty(resource)) throw new ArgumentNullException(nameof(resource));
-
-            _storage = storage;
-            _resource = resource;
-
-            if (!AcquiredLocks.Value.ContainsKey(_resource) || AcquiredLocks.Value[_resource] == 0)
-            {
-                _connection = storage.CreateAndOpenConnection();
-
-                try
-                {
-                    Acquire(_connection, _resource, timeout);
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    storage.ReleaseConnection(_connection);
-                    throw;
-                }
-
-                if (!_storage.IsExistingConnection(_connection))
-                {
-                    _timer = new Timer(ExecuteKeepAliveQuery, null, KeepAliveInterval, KeepAliveInterval);
-                }
-
-                AcquiredLocks.Value[_resource] = 1;
-            }
-            else
-            {
-                AcquiredLocks.Value[_resource]++;
-            }
-        }
-
-        /// <summary>
-        /// Releases the lock.
-        /// </summary>
-        [SuppressMessage("Performance", "CA1854:Prefer the \'IDictionary.TryGetValue(TKey, out TValue)\' method")]
-        public void Dispose()
-        {
-            if (_completed) return;
-
-            _completed = true;
-
-            if (!AcquiredLocks.Value.ContainsKey(_resource)) return;
-
-            AcquiredLocks.Value[_resource]--;
-
-            if (AcquiredLocks.Value[_resource] != 0) return;
-
-            lock (_lockObject)
-            {
-                // Timer callback may be invoked after the Dispose method call,
-                // so we are using lock to avoid unsynchronized calls.
-
-                try
-                {
-                    AcquiredLocks.Value.Remove(_resource);
-
-                    _timer?.Dispose();
-
-                    if (_connection.State == ConnectionState.Open)
-                    {
-                        // Session-scoped application locks are held only when connection
-                        // is open. When connection is closed or broken, for example, when
-                        // there was an error, application lock is already released by SQL
-                        // Server itself, and we shouldn't do anything.
-                        Release(_connection, _resource);
-                    }
-                }
-                finally
-                {
-                    _storage.ReleaseConnection(_connection);
-                    _connection = null;
-                }
-            }
-
-            GC.SuppressFinalize(this);
-        }
-
-        private void ExecuteKeepAliveQuery(object obj)
-        {
-            lock (_lockObject)
-            {
-                try
-                {
-                    _connection?.Execute("SELECT 1;");
-                }
-                catch
-                {
-                    // Connection is broken. This means that distributed lock
-                    // was released, and we can't guarantee the safety property
-                    // for the code that is wrapped with this block. So it was
-                    // a bad idea to have a separate connection for just
-                    // distributed lock.
-                    
-                    // OBSOLETE. This class is not used anymore by the SqlServerConnection
-                    // class. The problem above was solved there by establishing a
-                    // dedicated connection, when there is at least one acquired lock.
-                    // Since the acquisition, all the commands and transactions are routed
-                    // through that connection to ensure all the locks are still active.
-                }
-            }
-        }
 
         internal static void Acquire(DbConnection connection, string resource, TimeSpan timeout)
         {

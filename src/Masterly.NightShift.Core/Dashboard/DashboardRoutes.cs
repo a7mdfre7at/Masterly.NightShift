@@ -356,8 +356,8 @@ namespace Masterly.NightShift.Dashboard
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
         public static void AddStylesheet([NotNull] Assembly assembly, [NotNull] string resource)
         {
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             lock (Stylesheets)
             {
@@ -379,8 +379,8 @@ namespace Masterly.NightShift.Dashboard
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
         public static void AddStylesheetDarkMode([NotNull] Assembly assembly, [NotNull] string resource)
         {
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             lock (StylesheetsDarkMode)
             {
@@ -401,8 +401,8 @@ namespace Masterly.NightShift.Dashboard
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
         public static void AddJavaScript([NotNull] Assembly assembly, [NotNull] string resource)
         {
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             lock (JavaScripts)
             {

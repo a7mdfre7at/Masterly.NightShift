@@ -122,7 +122,7 @@ namespace Masterly.NightShift.SqlServer.Tests
         [Fact, CleanDatabase]
         public void Storage_AdvertisesTheQueueCountsFeature()
         {
-            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(true));
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
 
             Assert.True(storage.HasFeature(JobStorageFeatures.Monitoring.QueueCounts));
         }
@@ -1693,24 +1693,24 @@ namespace Masterly.NightShift.SqlServer.Tests
             return createdId;
         }
 
-        private SqlServerMonitoringApi CreateMonitoringApi(bool useMicrosoftDataSqlClient = true)
+        private SqlServerMonitoringApi CreateMonitoringApi()
         {
-            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient));
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
             return new SqlServerMonitoringApi(storage, 1_000);
         }
 
-        private T UseConnection<T>(Func<SqlServerConnection, T> action, bool useMicrosoftDataSqlClient = true)
+        private T UseConnection<T>(Func<SqlServerConnection, T> action)
         {
-            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient));
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
             using (var connection = new SqlServerConnection(storage))
             {
                 return action(connection);
             }
         }
 
-        private void UseSqlConnection(Action<DbConnection> action, bool useMicrosoftDataSqlClient = true)
+        private void UseSqlConnection(Action<DbConnection> action)
         {
-            using (var connection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 action(connection);
             }

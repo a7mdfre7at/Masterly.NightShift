@@ -46,7 +46,7 @@ namespace Masterly.NightShift
             [NotNull] this IBackgroundJobClient client, 
             [NotNull, InstantHandle] Expression<Action> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new EnqueuedState());
         }
 
@@ -66,7 +66,7 @@ namespace Masterly.NightShift
             [NotNull] string queue,
             [NotNull, InstantHandle] Expression<Action> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new EnqueuedState());
         }
 
@@ -84,7 +84,7 @@ namespace Masterly.NightShift
             [NotNull] this IBackgroundJobClient client,
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new EnqueuedState());
         }
 
@@ -104,7 +104,7 @@ namespace Masterly.NightShift
             [NotNull] string queue,
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new EnqueuedState());
         }
 
@@ -123,7 +123,7 @@ namespace Masterly.NightShift
             [NotNull] this IBackgroundJobClient client, 
             [NotNull, InstantHandle] Expression<Action<T>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new EnqueuedState());
         }
 
@@ -144,7 +144,7 @@ namespace Masterly.NightShift
             [NotNull] string queue,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new EnqueuedState());
         }
 
@@ -163,7 +163,7 @@ namespace Masterly.NightShift
             [NotNull] this IBackgroundJobClient client,
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new EnqueuedState());
         }
 
@@ -184,7 +184,7 @@ namespace Masterly.NightShift
             [NotNull] string queue,
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new EnqueuedState());
         }
 
@@ -201,7 +201,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(delay));
         }
 
@@ -215,8 +215,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -226,8 +226,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -237,8 +237,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -248,8 +248,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -269,8 +269,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(queue, methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -281,8 +281,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(queue, methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -293,8 +293,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(queue, methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -305,8 +305,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             [NotNull] string when)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (when == null) throw new ArgumentNullException(nameof(when));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(when);
             return client.Create(queue, methodCall, new ScheduledState(TimeText.Parse(when)));
         }
 
@@ -325,7 +325,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(delay));
         }
 
@@ -342,7 +342,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(delay));
         }
 
@@ -361,7 +361,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(delay));
         }
 
@@ -378,7 +378,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -397,7 +397,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -414,7 +414,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -433,7 +433,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -452,7 +452,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall, 
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(delay));
         }
 
@@ -473,7 +473,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(delay));
         }
 
@@ -492,7 +492,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(delay));
         }
 
@@ -513,7 +513,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             TimeSpan delay)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(delay));
         }
 
@@ -531,7 +531,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -551,7 +551,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -569,7 +569,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -589,7 +589,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             DateTimeOffset enqueueAt)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.Create(queue, methodCall, new ScheduledState(enqueueAt.UtcDateTime));
         }
 
@@ -605,7 +605,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             return client.Create(Job.FromExpression(methodCall), state);
         }
@@ -625,8 +625,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(queue);
 
             return client.Create(Job.FromExpression(methodCall, queue), state);
         }
@@ -643,7 +643,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             return client.Create(Job.FromExpression(methodCall), state);
         }
@@ -663,8 +663,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(queue);
 
             return client.Create(Job.FromExpression(methodCall, queue), state);
         }
@@ -682,7 +682,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             return client.Create(Job.FromExpression(methodCall), state);
         }
@@ -703,8 +703,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(queue);
 
             return client.Create(Job.FromExpression(methodCall, queue), state);
         }
@@ -723,7 +723,7 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             return client.Create(Job.FromExpression(methodCall), state);
         }
@@ -745,8 +745,8 @@ namespace Masterly.NightShift
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(queue);
 
             return client.Create(Job.FromExpression(methodCall, queue), state);
         }
@@ -765,7 +765,7 @@ namespace Masterly.NightShift
             [NotNull] string jobId, 
             [NotNull] IState state)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
             return client.ChangeState(jobId, state, null);
         }
 
@@ -824,7 +824,7 @@ namespace Masterly.NightShift
             [NotNull] string jobId, 
             [CanBeNull] string? fromState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new DeletedState();
             return client.ChangeState(jobId, state, fromState);
@@ -861,7 +861,7 @@ namespace Masterly.NightShift
             TimeSpan delay,
             [CanBeNull] string? fromState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new ScheduledState(delay);
             return client.ChangeState(jobId, state, fromState);
@@ -899,7 +899,7 @@ namespace Masterly.NightShift
             DateTimeOffset enqueueAt,
             [CanBeNull] string? fromState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new ScheduledState(enqueueAt.UtcDateTime);
             return client.ChangeState(jobId, state, fromState);
@@ -935,7 +935,7 @@ namespace Masterly.NightShift
             [NotNull] string jobId, 
             [CanBeNull] string? fromState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new EnqueuedState();
             return client.ChangeState(jobId, state, fromState);
@@ -949,23 +949,6 @@ namespace Masterly.NightShift
         /// <param name="parentId">Identifier of a background job to wait completion for.</param>
         /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] this IBackgroundJobClient client, 
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action> methodCall)
-        {
-            return ContinueJobWith(client, parentId, methodCall);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for a successful completion 
-        /// of another background job to be triggered in the <see cref="EnqueuedState"/>.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith(
             [NotNull] this IBackgroundJobClient client,
             [NotNull] string parentId,
@@ -982,49 +965,12 @@ namespace Masterly.NightShift
         /// <param name="parentId">Identifier of a background job to wait completion for.</param>
         /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] this IBackgroundJobClient client, 
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall)
-        {
-            return ContinueJobWith(client, parentId, methodCall);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for a successful completion 
-        /// of another background job to be triggered in the <see cref="EnqueuedState"/>.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith<T>(
             [NotNull] this IBackgroundJobClient client,
             [NotNull] string parentId,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall)
         {
             return ContinueJobWith(client, parentId, methodCall, new EnqueuedState());
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for a successful completion 
-        /// of another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered. 
-        /// If null, then <see cref="EnqueuedState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] IState nextState)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState);
         }
 
         /// <summary>
@@ -1056,26 +1002,6 @@ namespace Masterly.NightShift
         /// <param name="nextState">Next state for a job, when continuation is triggered. 
         /// If null, then <see cref="EnqueuedState"/> is used.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] IState nextState)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for a successful completion
-        /// of another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered. 
-        /// If null, then <see cref="EnqueuedState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith<T>(
             [NotNull] this IBackgroundJobClient client,
             [NotNull] string parentId,
@@ -1094,25 +1020,6 @@ namespace Masterly.NightShift
         /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
         /// <param name="options">Continuation options.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(client, parentId, methodCall, options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered
-        /// in the <see cref="EnqueuedState"/>.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith(
             [NotNull] this IBackgroundJobClient client,
             [NotNull] string parentId,
@@ -1120,25 +1027,6 @@ namespace Masterly.NightShift
             JobContinuationOptions options)
         {
             return ContinueJobWith(client, parentId, methodCall, new EnqueuedState(), options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered
-        /// in the <see cref="EnqueuedState"/>.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param> 
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(client, parentId, methodCall, options);
         }
 
         /// <summary>
@@ -1168,26 +1056,6 @@ namespace Masterly.NightShift
         /// <param name="nextState">Next state for a job, when continuation is triggered.</param>
         /// <param name="options">Continuation options.</param>
         /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [InstantHandle] Expression<Action> methodCall,
-            [NotNull] IState nextState,
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState, options);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered.</param>
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
         public static string? ContinueJobWith(
             [NotNull] this IBackgroundJobClient client,
             [NotNull] string parentId,
@@ -1195,7 +1063,7 @@ namespace Masterly.NightShift
             [NotNull] IState nextState,
             JobContinuationOptions options)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState, options);
             return client.Create(methodCall, state);
@@ -1220,32 +1088,10 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered. 
-        /// If null, then <see cref="EnqueuedState"/> is used.</param>
-        /// <param name="options">Continuation options. By default, 
-        /// <see cref="JobContinuationOptions.OnlyOnSucceededState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [InstantHandle] Expression<Func<Task>> methodCall,
-            [CanBeNull] IState? nextState = null,
-            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState, options);
         }
 
         /// <summary>
@@ -1266,7 +1112,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(methodCall, state);
@@ -1293,30 +1139,10 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered.</param>
-        /// <param name="options">Continuation options.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] IState nextState,
-            JobContinuationOptions options)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState, options);
         }
 
         /// <summary>
@@ -1335,7 +1161,7 @@ namespace Masterly.NightShift
             [NotNull] IState nextState,
             JobContinuationOptions options)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState, options);
             return client.Create(methodCall, state);
@@ -1360,32 +1186,10 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
-        }
-
-        /// <summary>
-        /// Creates a new background job that will wait for another background job to be triggered.
-        /// </summary>
-        /// <param name="client">A job client instance.</param>
-        /// <param name="parentId">Identifier of a background job to wait completion for.</param>
-        /// <param name="methodCall">Method call expression that will be marshalled to a server.</param>
-        /// <param name="nextState">Next state for a job, when continuation is triggered. 
-        /// If null, then <see cref="EnqueuedState"/> is used.</param>
-        /// <param name="options">Continuation options. By default, 
-        /// <see cref="JobContinuationOptions.OnlyOnSucceededState"/> is used.</param>
-        /// <returns>Unique identifier of a created job.</returns>
-        [Obsolete("Use the ContinueJobWith method with the same arguments instead. Kept for code ported from Hangfire.")]
-        public static string? ContinueWith<T>(
-            [NotNull] this IBackgroundJobClient client,
-            [NotNull] string parentId,
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [CanBeNull] IState? nextState = null,
-            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-        {
-            return ContinueJobWith(client, parentId, methodCall, nextState, options);
         }
 
         /// <summary>
@@ -1406,7 +1210,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(methodCall, state);
@@ -1433,7 +1237,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            ArgumentNullException.ThrowIfNull(client);
 
             var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);

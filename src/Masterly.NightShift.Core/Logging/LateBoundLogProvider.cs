@@ -14,10 +14,7 @@ namespace Masterly.NightShift.Logging
     /// is first used, still writes to a provider set later by <c>AddNightShift</c> or <c>Use...LogProvider()</c>.
     /// </summary>
     /// <remarks>
-    /// On .NET 5 and later a module initializer makes it LibLog's current provider before any logger exists.
-    /// The netstandard2.0 build can't have one (the attribute would need a polyfill that consumers' source
-    /// generators would see), so there it becomes the current provider on the first <c>UseLogProvider</c> call,
-    /// and only loggers created after that call follow later changes.
+    /// A module initializer makes it LibLog's current provider before any logger exists.
     /// </remarks>
     internal sealed class LateBoundLogProvider : ILogProvider
     {
@@ -44,15 +41,14 @@ namespace Masterly.NightShift.Logging
         /// <summary>Makes <paramref name="provider"/> the target of every Masterly.NightShift logger, old and new.</summary>
         public static void Use([NotNull] ILogProvider provider)
         {
-            if (provider == null) throw new ArgumentNullException(nameof(provider));
+            ArgumentNullException.ThrowIfNull(provider);
 
             Target = provider;
 
-            // Also covers the netstandard2.0 build, and code that replaced the provider with LogProvider.SetCurrentLogProvider
+            // Again, in case code replaced the provider with LogProvider.SetCurrentLogProvider
             LogProvider.SetCurrentLogProvider(Instance);
         }
 
-#if NET5_0_OR_GREATER
         // A library rarely needs a module initializer, but nothing else runs before the first logger is created
 #pragma warning disable CA2255 // The 'ModuleInitializer' attribute should not be used in libraries
         [System.Runtime.CompilerServices.ModuleInitializer]
@@ -61,7 +57,6 @@ namespace Masterly.NightShift.Logging
         {
             LogProvider.SetCurrentLogProvider(Instance);
         }
-#endif
 
         /// <inheritdoc />
         public ILog GetLogger(string name)

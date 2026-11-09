@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Client
         public ClientExceptionContext(CreateContext createContext, Exception exception)
             : base(createContext)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentNullException.ThrowIfNull(exception);
 
             Exception = exception;
         }

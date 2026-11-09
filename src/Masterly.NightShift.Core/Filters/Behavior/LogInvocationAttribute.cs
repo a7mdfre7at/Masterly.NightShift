@@ -17,7 +17,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         protected override async Task<object?> InterceptAsync(JobInvocation invocation)
         {
-            if (invocation == null) throw new ArgumentNullException(nameof(invocation));
+            ArgumentNullException.ThrowIfNull(invocation);
 
             var console = invocation.Context.Console;
             var invoker = invocation.Invoker;

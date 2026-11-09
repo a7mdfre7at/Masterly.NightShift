@@ -473,7 +473,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         {
             // Arrange
             SetupConnection(useJobStorageConnection);
-            _recurringJob["Job"] = JobHelper.ToJson(new InvocationData("SomeType", "SomeMethod", "Parameters", "arguments"));
+            _recurringJob["Job"] = TestJson.ToJson(new InvocationData("SomeType", "SomeMethod", "Parameters", "arguments"));
 
             var scheduler = CreateScheduler();
 

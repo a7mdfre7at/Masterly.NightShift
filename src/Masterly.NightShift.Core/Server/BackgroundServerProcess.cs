@@ -41,7 +41,7 @@ namespace Masterly.NightShift.Server
             [NotNull] BackgroundProcessingServerOptions options,
             [NotNull] IDictionary<string, object> properties)
         {
-            if (dispatcherBuilders == null) throw new ArgumentNullException(nameof(dispatcherBuilders));
+            ArgumentNullException.ThrowIfNull(dispatcherBuilders);
 
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
             _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -151,27 +151,15 @@ namespace Masterly.NightShift.Server
             yield return new ServerWatchdog(_options.ServerCheckInterval, _options.ServerTimeout).UseBackgroundPool(threadCount: 1);
             yield return new ServerJobCancellationWatcher(_options.CancellationCheckInterval).UseBackgroundPool(threadCount: 1);
 
-            if (_storage.HasFeature(Storage.JobStorageFeatures.ProcessesInsteadOfComponents))
+            foreach (var serverProcess in _storage.GetServerRequiredProcesses())
             {
-                foreach (var serverProcess in _storage.GetServerRequiredProcesses())
-                {
-                    yield return serverProcess.UseBackgroundPool(threadCount: 1);
-                }
+                yield return serverProcess.UseBackgroundPool(threadCount: 1);
             }
         }
 
         private IEnumerable<IBackgroundProcessDispatcherBuilder> GetStorageComponents()
         {
-            if (_storage.HasFeature(Storage.JobStorageFeatures.ProcessesInsteadOfComponents))
-            {
-                return _storage.GetStorageWideProcesses().Select(static process => process.UseBackgroundPool(threadCount: 1));
-            }
-
-#pragma warning disable CS0618 // Type or member is obsolete
-            return _storage.GetComponents().Select(static component => new ServerProcessDispatcherBuilder(
-#pragma warning restore CS0618 // Type or member is obsolete
-                component, 
-                threadStart => BackgroundProcessExtensions.DefaultThreadFactory(1, component.GetType().Name, threadStart, null)));
+            return _storage.GetStorageWideProcesses().Select(static process => process.UseBackgroundPool(threadCount: 1));
         }
 
         private string GetServerId()
@@ -186,7 +174,7 @@ namespace Masterly.NightShift.Server
 
             if (!String.IsNullOrWhiteSpace(serverName))
             {
-                serverName += ":" + Process.GetCurrentProcess().Id;
+                serverName += ":" + Environment.ProcessId;
             }
 
             return !String.IsNullOrWhiteSpace(serverName) ? $"{serverName.ToLowerInvariant()}:{guid}" : guid;

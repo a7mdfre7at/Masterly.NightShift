@@ -15,7 +15,6 @@
 
 #nullable enable
 
-#if NET8_0_OR_GREATER
 using System.Collections.Generic;
 using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Dashboard;
@@ -65,8 +64,8 @@ namespace Masterly.NightShift
             [CanBeNull] DashboardOptions? options = null,
             [CanBeNull] JobStorage? storage = null)
         {
-            if (endpoints == null) throw new ArgumentNullException(nameof(endpoints));
-            if (pattern == null) throw new ArgumentNullException(nameof(pattern));
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(pattern);
 
             var app = endpoints.CreateApplicationBuilder();
 
@@ -106,7 +105,7 @@ namespace Masterly.NightShift
             [CanBeNull] DashboardOptions? options = null,
             [CanBeNull] JobStorage? storage = null)
         {
-            if (endpoints == null) throw new ArgumentNullException(nameof(endpoints));
+            ArgumentNullException.ThrowIfNull(endpoints);
 
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(endpoints.ServiceProvider);
 
@@ -136,8 +135,8 @@ namespace Masterly.NightShift
             [CanBeNull] DashboardOptions? options = null,
             [CanBeNull] JobStorage? storage = null)
         {
-            if (endpoints == null) throw new ArgumentNullException(nameof(endpoints));
-            if (authorizationPolicyName == null) throw new ArgumentNullException(nameof(authorizationPolicyName));
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(authorizationPolicyName);
 
             return endpoints
                 .MapNightShiftDashboardWithNoAuthorizationFilters(pattern, options, storage)
@@ -174,4 +173,3 @@ namespace Masterly.NightShift
     }
 }
 
-#endif

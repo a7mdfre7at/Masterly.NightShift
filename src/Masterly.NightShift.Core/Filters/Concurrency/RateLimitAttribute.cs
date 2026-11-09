@@ -96,7 +96,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
             var key = GetKey(resource);
@@ -156,7 +156,7 @@ namespace Masterly.NightShift
         /// </summary>
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.CandidateState is EnqueuedState enqueuedState)
             {
@@ -170,7 +170,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerformed(PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var itemKey = GetItemKey(context.BackgroundJob.Job!);
 

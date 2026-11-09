@@ -23,7 +23,7 @@ namespace Masterly.NightShift.States
 
         public void Add([NotNull] Action action)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
             _actions.Add(new KeyValuePair<Action, bool>(action, false));
         }
 
@@ -33,7 +33,7 @@ namespace Masterly.NightShift.States
         /// </summary>
         public void AddRegardless([NotNull] Action action)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
             _actions.Add(new KeyValuePair<Action, bool>(action, true));
         }
 
@@ -76,7 +76,7 @@ namespace Masterly.NightShift.States
         /// <summary>Queues the action when the state change has post-commit actions, otherwise runs it right away.</summary>
         public static void RunAfterCommit([CanBeNull] PostCommitActions? actions, [NotNull] Action action)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
 
             if (actions != null)
             {
@@ -94,7 +94,7 @@ namespace Masterly.NightShift.States
         /// </summary>
         public static void RunAfterCommitAttempt([CanBeNull] PostCommitActions? actions, [NotNull] Action action)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
 
             if (actions != null)
             {

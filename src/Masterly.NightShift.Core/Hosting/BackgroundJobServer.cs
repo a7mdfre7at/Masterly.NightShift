@@ -86,13 +86,26 @@ namespace Masterly.NightShift
             [NotNull] BackgroundJobServerOptions options,
             [NotNull] JobStorage storage,
             [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses)
-#pragma warning disable 618
             : this(options, storage, additionalProcesses, null, null, null, null, null)
-#pragma warning restore 618
         {
         }
 
-        [Obsolete("Create your own BackgroundJobServer-like type and pass custom services to it. Kept for code ported from Hangfire.")]
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BackgroundJobServer"/> class with the specified options,
+        /// storage and additional processes, and the services that create, run and move jobs. A <c>null</c> service
+        /// means the default one. <c>AddNightShiftServer</c> uses this constructor to pass the services registered
+        /// in the container.
+        /// </summary>
+        /// <param name="options">Server options.</param>
+        /// <param name="storage">The storage.</param>
+        /// <param name="additionalProcesses">Background processes to run next to the workers.</param>
+        /// <param name="filterProvider">The job filter provider, or <c>null</c> for <see cref="BackgroundJobServerOptions.FilterProvider"/>,
+        /// or <see cref="JobFilterProviders.Providers"/> when that isn't set either.</param>
+        /// <param name="activator">The job activator, or <c>null</c> for <see cref="BackgroundJobServerOptions.Activator"/>,
+        /// or <see cref="JobActivator.Current"/> when that isn't set either.</param>
+        /// <param name="factory">The background job factory, or <c>null</c> for the default one.</param>
+        /// <param name="performer">The background job performer, or <c>null</c> for the default one.</param>
+        /// <param name="stateChanger">The background job state changer, or <c>null</c> for the default one.</param>
         [EditorBrowsable(EditorBrowsableState.Advanced)]
         public BackgroundJobServer(
             [NotNull] BackgroundJobServerOptions options,
@@ -104,9 +117,9 @@ namespace Masterly.NightShift
             [CanBeNull] IBackgroundJobPerformer? performer,
             [CanBeNull] IBackgroundJobStateChanger? stateChanger)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
-            if (additionalProcesses == null) throw new ArgumentNullException(nameof(additionalProcesses));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(additionalProcesses);
 
             _options = options;
 
@@ -145,9 +158,9 @@ namespace Masterly.NightShift
             }
 
             _processingServer = new BackgroundProcessingServer(
-                storage, 
-                processes, 
-                properties, 
+                storage,
+                processes,
+                properties,
                 GetProcessingServerOptions());
         }
 
@@ -161,23 +174,6 @@ namespace Masterly.NightShift
         {
             _processingServer.Dispose();
             GC.SuppressFinalize(this);
-        }
-
-        [Obsolete("This method is a stub. There is no need to call the `Start` method. Kept for code ported from Hangfire.")]
-        public void Start()
-        {
-        }
-
-        [Obsolete("Call the `Shutdown` method instead. Kept for code ported from Hangfire.")]
-        public void Stop()
-        {
-            SendStop();
-        }
-
-        [Obsolete("Call the `Shutdown` method instead. Kept for code ported from Hangfire.")]
-        public void Stop(bool force)
-        {
-            SendStop();
         }
 
         public bool WaitForShutdown(TimeSpan timeout)
@@ -211,9 +207,9 @@ namespace Masterly.NightShift
             }
             else
             {
-                if (factory == null) throw new ArgumentNullException(nameof(factory));
-                if (performer == null) throw new ArgumentNullException(nameof(performer));
-                if (stateChanger == null) throw new ArgumentNullException(nameof(stateChanger));
+                ArgumentNullException.ThrowIfNull(factory);
+                ArgumentNullException.ThrowIfNull(performer);
+                ArgumentNullException.ThrowIfNull(stateChanger);
             }
 
             processes.Add(new Worker(_options.Queues, performer, stateChanger).UseBackgroundPool(_options.WorkerCount, _options.WorkerThreadConfigurationAction));
@@ -247,10 +243,8 @@ namespace Masterly.NightShift
                 StopTimeout = _options.StopTimeout,
                 ShutdownTimeout = _options.ShutdownTimeout,
                 HeartbeatInterval = _options.HeartbeatInterval,
-#pragma warning disable 618
-                ServerCheckInterval = _options.ServerWatchdogOptions?.CheckInterval ?? _options.ServerCheckInterval,
-                ServerTimeout = _options.ServerWatchdogOptions?.ServerTimeout ?? _options.ServerTimeout,
-#pragma warning restore 618
+                ServerCheckInterval = _options.ServerCheckInterval,
+                ServerTimeout = _options.ServerTimeout,
                 CancellationCheckInterval = _options.CancellationCheckInterval,
                 ServerName = _options.ServerName,
                 ExcludeStorageProcesses = _options.IsLightweightServer

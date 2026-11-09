@@ -47,8 +47,8 @@ namespace Masterly.NightShift.Server
             int threadCount,
             [CanBeNull] Action<Thread> threadConfig)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (threadCount <= 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
 
             return UseBackgroundPool(
                 process,
@@ -59,8 +59,8 @@ namespace Masterly.NightShift.Server
             [NotNull] this IBackgroundProcess process,
             [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (threadFactory == null) throw new ArgumentNullException(nameof(threadFactory));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
             return new BackgroundProcessDispatcherBuilder(
                 process,
@@ -88,9 +88,9 @@ namespace Masterly.NightShift.Server
             int maxConcurrency,
             int threadCount)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (maxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maxConcurrency));
-            if (threadCount <= 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
 
             return UseBackgroundPool(
                 process,
@@ -103,9 +103,9 @@ namespace Masterly.NightShift.Server
             int maxConcurrency,
             [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (maxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maxConcurrency));
-            if (threadFactory == null) throw new ArgumentNullException(nameof(threadFactory));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
             Func<TaskScheduler> createScheduler = () => new BackgroundTaskScheduler(
                 threadStart => threadFactory(process.GetType().Name, threadStart),
@@ -129,8 +129,8 @@ namespace Masterly.NightShift.Server
             [NotNull] this IBackgroundProcessAsync process,
             int maxConcurrency)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (maxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maxConcurrency));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 
             return new BackgroundProcessDispatcherBuilderAsync(process, static () => TaskScheduler.Default, maxConcurrency, false);
         }
@@ -141,9 +141,9 @@ namespace Masterly.NightShift.Server
             [NotNull] ThreadStart threadStart,
             [CanBeNull] Action<Thread> threadConfig = null)
         {
-            if (threadName == null) throw new ArgumentNullException(nameof(threadName));
-            if (threadStart == null) throw new ArgumentNullException(nameof(threadStart));
-            if (threadCount <= 0) throw new ArgumentOutOfRangeException(nameof(threadCount));
+            ArgumentNullException.ThrowIfNull(threadName);
+            ArgumentNullException.ThrowIfNull(threadStart);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
 
             for (var i = 0; i < threadCount; i++)
             {

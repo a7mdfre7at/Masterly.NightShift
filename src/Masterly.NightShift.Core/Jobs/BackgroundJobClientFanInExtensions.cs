@@ -50,7 +50,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
         }
 
@@ -87,7 +87,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
         }
 
@@ -124,7 +124,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
         }
 
@@ -161,7 +161,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
         }
 
@@ -198,7 +198,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
         }
 
@@ -235,7 +235,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
         }
 
@@ -272,7 +272,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
         }
 
@@ -309,7 +309,7 @@ namespace Masterly.NightShift
             [CanBeNull] IState? nextState = null,
             JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
             return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
         }
 
@@ -321,9 +321,9 @@ namespace Masterly.NightShift
             JobContinuationOptions options,
             FanInMode mode)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (parentIds == null) throw new ArgumentNullException(nameof(parentIds));
-            if (nextState == null) throw new ArgumentNullException(nameof(nextState));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(parentIds);
+            ArgumentNullException.ThrowIfNull(nextState);
 
             var parents = new List<string>();
             foreach (var parentId in parentIds)

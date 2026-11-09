@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>ASP.NET Core integration for Masterly.NightShift: dashboard middleware and endpoint mapping.</Description>
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <Description>Masterly.NightShift for ASP.NET Core: the dashboard as an endpoint or middleware, health checks, and /health and Prometheus /metrics endpoints.</Description>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <PackageReadmeSource>README.md</PackageReadmeSource>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <RootNamespace>Masterly.NightShift</RootNamespace>
@@ -11,17 +12,7 @@
     <ProjectReference Include="..\Masterly.NightShift.NetCore\Masterly.NightShift.NetCore.csproj" PrivateAssets="none" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'=='netstandard2.0'">
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
-    <PackageReference Include="Microsoft.AspNetCore.Antiforgery" />
-    <!-- Health checks (AddNightShift); net8.0 and later get them from the shared framework -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
-    <!-- Lift vulnerable transitive dependencies of Antiforgery 2.0.0 to their first patched versions -->
-    <PackageReference Include="System.Security.Cryptography.Xml" />
-    <PackageReference Include="System.Text.Encodings.Web" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)'!='netstandard2.0'">
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

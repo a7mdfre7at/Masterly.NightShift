@@ -97,8 +97,8 @@ namespace Masterly.NightShift
         /// <summary>Records that a worker took a job that waited <paramref name="latency"/> in <paramref name="queue"/>.</summary>
         public static void Record([NotNull] IWriteOnlyTransaction transaction, [NotNull] string queue, TimeSpan latency, DateTime now)
         {
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(queue);
 
             var ms = Math.Max(0, (long)latency.TotalMilliseconds);
 
@@ -112,8 +112,8 @@ namespace Masterly.NightShift
         /// <summary>Reads a queue's statistics, or <c>null</c> when nothing was recorded or the storage can't read lists.</summary>
         public static QueueHealth? Read([NotNull] IStorageConnection connection, [NotNull] string queue)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(queue);
 
             if (connection is not JobStorageConnection storageConnection) return null;
 
@@ -153,7 +153,7 @@ namespace Masterly.NightShift
         /// <summary>Reads the statistics of every queue that has some.</summary>
         public static IReadOnlyDictionary<string, QueueHealth> ReadAll([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var result = new Dictionary<string, QueueHealth>(StringComparer.OrdinalIgnoreCase);
             if (connection is not JobStorageConnection) return result;
@@ -184,8 +184,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(transaction);
 
             if (context.NewState is not ProcessingState) return;
             if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;

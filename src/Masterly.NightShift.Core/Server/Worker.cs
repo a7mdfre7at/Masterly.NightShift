@@ -42,8 +42,6 @@ namespace Masterly.NightShift.Server
     /// <seealso cref="EnqueuedState"/>
     public class Worker : IBackgroundProcess
     {
-        [Obsolete("Use JobStorageFeatures.StorageTransactionalAcknowledge instead. Kept for code ported from Hangfire.")]
-        public static readonly string TransactionalAcknowledgePrefix = JobStorageFeatures.TransactionalAcknowledgePrefix;
 
         private static readonly ConcurrentDictionary<Guid, string> WorkerGuidCache = new();
         private static readonly string[] EligibleWorkerStates = new[] { EnqueuedState.StateName, ScheduledState.StateName, ProcessingState.StateName };
@@ -94,10 +92,10 @@ namespace Masterly.NightShift.Server
             TimeSpan jobInitializationTimeout,
             int maxStateChangeAttempts)
         {
-            if (queues == null) throw new ArgumentNullException(nameof(queues));
-            if (performer == null) throw new ArgumentNullException(nameof(performer));
-            if (stateChanger == null) throw new ArgumentNullException(nameof(stateChanger));
-            
+            ArgumentNullException.ThrowIfNull(queues);
+            ArgumentNullException.ThrowIfNull(performer);
+            ArgumentNullException.ThrowIfNull(stateChanger);
+
             _queues = queues;
             _performer = performer;
             _stateChanger = stateChanger;
@@ -111,7 +109,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void Execute(BackgroundProcessContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             using (var connection = context.Storage.GetConnection())
             using (var fetchedJob = connection.FetchNextJob(_queues.ToArray(), context.StoppingToken))

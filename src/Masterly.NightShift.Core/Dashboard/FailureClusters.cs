@@ -59,7 +59,7 @@ namespace Masterly.NightShift.Dashboard
 
         public static IReadOnlyList<FailureCluster> Build(IMonitoringApi monitor, int sampleSize = SampleSize, int maxClusters = MaxClusters)
         {
-            if (monitor == null) throw new ArgumentNullException(nameof(monitor));
+            ArgumentNullException.ThrowIfNull(monitor);
 
             var clusters = new Dictionary<string, FailureCluster>(StringComparer.Ordinal);
 

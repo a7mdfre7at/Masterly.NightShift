@@ -66,8 +66,8 @@ namespace Masterly.NightShift.Client
             [NotNull] IJobFilterProvider filterProvider, 
             [NotNull] IBackgroundJobFactory innerFactory)
         {
-            if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
-            if (innerFactory == null) throw new ArgumentNullException(nameof(innerFactory));
+            ArgumentNullException.ThrowIfNull(filterProvider);
+            ArgumentNullException.ThrowIfNull(innerFactory);
 
             _filterProvider = filterProvider;
             _innerFactory = innerFactory;
@@ -77,7 +77,7 @@ namespace Masterly.NightShift.Client
 
         public BackgroundJob Create(CreateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var filterInfo = GetFilters(context.Job);
 

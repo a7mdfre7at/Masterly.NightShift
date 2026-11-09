@@ -80,7 +80,6 @@ namespace Masterly.NightShift.SqlServer
             {
                 { JobStorageFeatures.ExtendedApi, true },
                 { JobStorageFeatures.JobQueueProperty, true },
-                { JobStorageFeatures.ProcessesInsteadOfComponents, true },
                 { JobStorageFeatures.Connection.BatchedGetFirstByLowest, true },
                 { JobStorageFeatures.Connection.GetUtcDateTime, true },
                 { JobStorageFeatures.Connection.GetSetContains, true },
@@ -97,16 +96,12 @@ namespace Masterly.NightShift.SqlServer
         /// <summary>
         /// Initializes the storage from a connection string, with the default <see cref="SqlServerStorageOptions"/>.
         /// </summary>
-        /// <param name="nameOrConnectionString">A SQL Server connection string, or the name of one in the
-        /// <c>connectionStrings</c> section of <c>app.config</c>/<c>web.config</c> (.NET Framework, or an app that
-        /// has <c>System.Configuration.ConfigurationManager</c>). A text without <c>=</c> is taken for a name.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="nameOrConnectionString"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException"><paramref name="nameOrConnectionString"/> has no <c>=</c>, and no
-        /// connection string with that name is configured.</exception>
-        /// <exception cref="InvalidOperationException">Neither <c>Microsoft.Data.SqlClient</c> nor
-        /// <c>System.Data.SqlClient</c> is available.</exception>
-        public SqlServerStorage(string nameOrConnectionString)
-            : this(nameOrConnectionString, new SqlServerStorageOptions())
+        /// <param name="connectionString">A SQL Server connection string.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="connectionString"/> has no <c>key=value</c> pair, for
+        /// example because it is a connection string name.</exception>
+        public SqlServerStorage(string connectionString)
+            : this(connectionString, new SqlServerStorageOptions())
         {
         }
 
@@ -114,27 +109,18 @@ namespace Masterly.NightShift.SqlServer
         /// Initializes SqlServerStorage from the provided SqlServerStorageOptions and the provided connection
         /// string.
         /// </summary>
-        /// <param name="nameOrConnectionString">A SQL Server connection string, or the name of one in the
-        /// <c>connectionStrings</c> section of <c>app.config</c>/<c>web.config</c> (.NET Framework, or an app that
-        /// has <c>System.Configuration.ConfigurationManager</c>). A text without <c>=</c> is taken for a name.</param>
+        /// <param name="connectionString">A SQL Server connection string.</param>
         /// <param name="options">The storage options.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="nameOrConnectionString"/> argument is null.</exception>
-        /// <exception cref="ArgumentException"><paramref name="nameOrConnectionString"/> has no <c>=</c>, and no
-        /// connection string with that name is configured.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="connectionString"/> has no <c>key=value</c> pair, for
+        /// example because it is a connection string name.</exception>
         /// <exception cref="ArgumentNullException"><paramref name="options"/> argument is null.</exception>
-        /// <exception cref="InvalidOperationException">Neither <c>Microsoft.Data.SqlClient</c> nor
-        /// <c>System.Data.SqlClient</c> is available, and <see cref="SqlServerStorageOptions.SqlClientFactory"/> wasn't
-        /// set.</exception>
-        public SqlServerStorage(string nameOrConnectionString, SqlServerStorageOptions options)
+        public SqlServerStorage(string connectionString, SqlServerStorageOptions options)
         {
-            if (nameOrConnectionString == null) throw new ArgumentNullException(nameof(nameOrConnectionString));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(connectionString);
+            ArgumentNullException.ThrowIfNull(options);
 
-            // Reading the factory throws when no SQL client is available. Done here, so that this fails at once
-            // instead of being taken for a database that isn't reachable yet by the install, which tolerates errors
-            _ = options.SqlClientFactory;
-
-            _connectionString = ResolveConnectionString(nameOrConnectionString);
+            _connectionString = ResolveConnectionString(connectionString);
             _connectionFactory = DefaultConnectionFactory;
             _options = options;
 
@@ -142,47 +128,17 @@ namespace Masterly.NightShift.SqlServer
         }
 
         /// <summary>
-        /// Returns a connection string as it is, and looks a name up in the <c>connectionStrings</c> section of
-        /// the application's configuration file. Every connection string has a <c>key=value</c> pair, so a text
-        /// without <c>=</c> is a name. Throws when it isn't found, so that a name isn't taken for a connection string
-        /// and the storage fails at its first use instead.
+        /// Returns the connection string, after checking it has at least one <c>key=value</c> pair. Every connection
+        /// string has one, so a text without <c>=</c> is most likely a connection string name passed by mistake; it
+        /// fails here, at start-up, instead of at the first query.
         /// </summary>
-        internal static string ResolveConnectionString(string nameOrConnectionString)
+        internal static string ResolveConnectionString(string connectionString)
         {
-            if (nameOrConnectionString.IndexOf('=') >= 0) return nameOrConnectionString;
-
-            var connectionString = GetConnectionStringFromConfiguration(nameOrConnectionString, out var error);
-            if (!String.IsNullOrEmpty(connectionString)) return connectionString;
+            if (connectionString.Contains('=')) return connectionString;
 
             throw new ArgumentException(
-                $"'{nameOrConnectionString}' looks like a connection string name, as it has no 'key=value' pairs, but no connection string with that name was found in the connectionStrings section of the application's configuration file. Pass a connection string, or add one with that name. Configuration files are read on .NET Framework, or when the app has System.Configuration.ConfigurationManager; on .NET, read the connection string with IConfiguration.GetConnectionString and pass it.",
-                nameof(nameOrConnectionString),
-                error);
-        }
-
-        // Read through reflection so that no package is needed: System.Configuration is part of .NET Framework,
-        // and on .NET it forwards to System.Configuration.ConfigurationManager when the app has that package
-        private static string GetConnectionStringFromConfiguration(string name, out Exception error)
-        {
-            error = null;
-
-            try
-            {
-                var configurationManager = Type.GetType(
-                    "System.Configuration.ConfigurationManager, System.Configuration, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a",
-                    throwOnError: false);
-
-                var connectionStrings = configurationManager?.GetProperty("ConnectionStrings")?.GetValue(null);
-                var settings = connectionStrings?.GetType().GetProperty("Item", new[] { typeof(string) })?.GetValue(connectionStrings, new object[] { name });
-
-                return settings?.GetType().GetProperty("ConnectionString")?.GetValue(settings) as string;
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                // The configuration system's assembly is missing, or the configuration file can't be read
-                error = ex is TargetInvocationException { InnerException: not null } ? ex.InnerException : ex;
-                return null;
-            }
+                $"'{connectionString}' is not a connection string: it has no 'key=value' pairs. If it is the name of a connection string, read the connection string first, for example with IConfiguration.GetConnectionString(\"{connectionString}\"), and pass it.",
+                nameof(connectionString));
         }
 
         /// <summary>
@@ -202,8 +158,8 @@ namespace Masterly.NightShift.SqlServer
         /// </summary>
         public SqlServerStorage([NotNull] DbConnection existingConnection, [NotNull] SqlServerStorageOptions options)
         {
-            if (existingConnection == null) throw new ArgumentNullException(nameof(existingConnection));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(existingConnection);
+            ArgumentNullException.ThrowIfNull(options);
 
             _existingConnection = existingConnection;
             _options = options;
@@ -228,8 +184,8 @@ namespace Masterly.NightShift.SqlServer
         /// </summary>
         public SqlServerStorage([NotNull] Func<DbConnection> connectionFactory, [NotNull] SqlServerStorageOptions options)
         {
-            if (connectionFactory == null) throw new ArgumentNullException(nameof(connectionFactory));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(connectionFactory);
+            ArgumentNullException.ThrowIfNull(options);
 
             _connectionFactory = connectionFactory;
             _options = options;
@@ -311,17 +267,6 @@ namespace Masterly.NightShift.SqlServer
             return new SqlServerConnection(this);
         }
 
-        /// <inheritdoc />
-#pragma warning disable 618
-        [Obsolete($"Use the `{nameof(GetStorageWideProcesses)}` and/or `{nameof(GetServerRequiredProcesses)}` methods instead, and enable `{nameof(JobStorageFeatures)}.{nameof(JobStorageFeatures.ProcessesInsteadOfComponents)}`. Kept for code ported from Hangfire.")]
-        public override IEnumerable<IServerComponent> GetComponents()
-#pragma warning restore 618
-        {
-            yield return new ExpirationManager(this, _options.InactiveStateExpirationTimeout, _options.JobExpirationCheckInterval);
-            yield return new CountersAggregator(this, _options.CountersAggregateInterval);
-            yield return _heartbeatProcess;
-        }
-
         /// <summary>
         /// Gets the process every server runs for this storage: the heartbeat that keeps the queue rows of the
         /// server's running jobs fetched.
@@ -350,7 +295,7 @@ namespace Masterly.NightShift.SqlServer
         /// <inheritdoc />
         public override bool HasFeature(string featureId)
         {
-            if (featureId == null) throw new ArgumentNullException(nameof(featureId));
+            ArgumentNullException.ThrowIfNull(featureId);
 
             return _features.TryGetValue(featureId, out var isSupported)
                 ? isSupported
@@ -368,7 +313,7 @@ namespace Masterly.NightShift.SqlServer
         /// </remarks>
         public override void Purge(StoragePurgeOptions options)
         {
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(options);
 
             var log = LogProvider.GetLogger(typeof(SqlServerStorage));
             log.Info("Purging the SQL Server job storage...");
@@ -544,11 +489,7 @@ namespace Masterly.NightShift.SqlServer
             TContext context,
             IsolationLevel? isolationLevel)
         {
-            isolationLevel = isolationLevel ?? (_options.UseRecommendedIsolationLevel
-                ? IsolationLevel.ReadCommitted
-#pragma warning disable 618
-                : _options.TransactionIsolationLevel);
-#pragma warning restore 618
+            isolationLevel ??= IsolationLevel.ReadCommitted;
 
             return UseConnection(dedicatedConnection, static (storage, connection, ctx) =>
             {
@@ -1018,8 +959,8 @@ where type = 1;";
             counterName,
             page =>
             {
-                if (objectName == null) throw new ArgumentNullException(nameof(objectName));
-                if (counterName == null) throw new ArgumentNullException(nameof(counterName));
+                ArgumentNullException.ThrowIfNull(objectName);
+                ArgumentNullException.ThrowIfNull(counterName);
 
                 var sqlStorage = page.Storage as SqlServerStorage;
                 if (sqlStorage == null) return new Metric("???");

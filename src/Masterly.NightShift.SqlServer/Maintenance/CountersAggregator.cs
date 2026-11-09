@@ -22,9 +22,7 @@ using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.SqlServer
 {
-#pragma warning disable 618
-    internal sealed class CountersAggregator : IServerComponent, IBackgroundProcess
-#pragma warning restore 618
+    internal sealed class CountersAggregator : IBackgroundProcess
     {
         // This number should be high enough to aggregate counters efficiently,
         // but low enough to not to cause large amount of row locks to be taken.
@@ -38,7 +36,7 @@ namespace Masterly.NightShift.SqlServer
 
         public CountersAggregator(SqlServerStorage storage, TimeSpan interval)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
 
             _storage = storage;
             _interval = interval;

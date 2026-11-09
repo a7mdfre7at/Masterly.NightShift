@@ -109,7 +109,7 @@ namespace Masterly.NightShift
             get { return _queues; }
             set
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
+                ArgumentNullException.ThrowIfNull(value);
                 if (value.Length == 0) throw new ArgumentException("You should specify at least one queue to listen.", nameof(value));
 
                 _queues = value;
@@ -256,13 +256,6 @@ namespace Masterly.NightShift
                 _cancellationCheckInterval = value;
             }
         }
-
-        /// <summary>
-        /// Gets or sets watchdog options whose <c>ServerTimeout</c> and <c>CheckInterval</c>, when set, replace
-        /// <see cref="ServerTimeout"/> and <see cref="ServerCheckInterval"/>. Use those two properties instead.
-        /// </summary>
-        [Obsolete("Use `ServerTimeout` or `ServerCheckInterval` options instead. Kept for code ported from Hangfire.")]
-        public ServerWatchdogOptions? ServerWatchdogOptions { get; set; }
 
         /// <summary>
         /// Gets or sets where the server gets job filters. <c>null</c> (the default) uses

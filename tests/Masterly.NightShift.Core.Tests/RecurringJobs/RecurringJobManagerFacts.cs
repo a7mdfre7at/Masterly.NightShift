@@ -7,7 +7,6 @@ using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
 using Moq;
 using Xunit;
-#pragma warning disable 618
 
 // ReSharper disable AssignNullToNotNullAttribute
 
@@ -116,17 +115,6 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void AddOrUpdate_ThrowsAnException_WhenQueueNameIsNull()
-        {
-            var manager = CreateManager();
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => manager.AddOrUpdate(_id, _job, Cron.Daily(), TimeZoneInfo.Local, null));
-
-            Assert.Equal("queue", exception.ParamName);
-        }
-        
-        [Fact]
         public void AddOrUpdate_ThrowsAnException_WhenCronExpressionIsNull()
         {
             var manager = CreateManager();
@@ -160,17 +148,6 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void AddOrUpdate_ThrowsAnException_WhenTimeZoneIsNull()
-        {
-            var manager = CreateManager();
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => manager.AddOrUpdate(_id, _job, _cronExpression, (TimeZoneInfo) null));
-
-            Assert.Equal("timeZone", exception.ParamName);
-        }
-
-        [Fact]
         public void AddOrUpdate_ThrowsAnException_WhenOptionsArgumentIsNull()
         {
             var manager = CreateManager();
@@ -179,17 +156,6 @@ namespace Masterly.NightShift.Core.Tests
                 () => manager.AddOrUpdate(_id, _job, _cronExpression, null));
 
             Assert.Equal("options", exception.ParamName);
-        }
-
-        [Fact]
-        public void AddOrUpdate_ThrowsAnException_WhenQueueIsNull()
-        {
-            var manager = CreateManager();
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => manager.AddOrUpdate(_id, _job, _cronExpression, TimeZoneInfo.Utc, null));
-
-            Assert.Equal("queue", exception.ParamName);
         }
 
         [Fact]
@@ -314,7 +280,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", _cronExpression },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now) },
                 { "NextExecution", JobHelper.SerializeDateTime(_now) },
                 { "Queue", "default" },
@@ -363,7 +329,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "0 0 31 2 *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddDays(-1)) },
                 { "NextExecution", String.Empty },
                 { "TimeZoneId", "UTC" },
@@ -387,50 +353,13 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void AddOrUpdate_UsesTimeZoneResolver_WhenCalculatingNextExecution()
-        {
-            // Arrange
-            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
-                ? "Hawaiian Standard Time"
-                : "Pacific/Honolulu");
-
-            _timeZoneResolver.Setup(x => x.GetTimeZoneById(It.IsAny<string>())).Throws<InvalidOperationException>();
-            _timeZoneResolver
-                .Setup(x => x.GetTimeZoneById(It.Is<string>(id => id == "Hawaiian Standard Time" || id == "Pacific/Honolulu")))
-                .Returns(timeZone);
-
-            // We are returning IANA time zone on Windows and Windows time zone on Linux.
-            _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
-            {
-                { "Cron", "0 0 * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
-                { "CreatedAt", JobHelper.SerializeDateTime(_now) },
-                { "TimeZoneId", PlatformHelper.IsRunningOnWindows() ? "Pacific/Honolulu" : "Hawaiian Standard Time" },
-                { "NextExecution", JobHelper.SerializeDateTime(_now.AddHours(18).AddMinutes(30)) },
-                { "Queue", "default" },
-                { "V", "2" }
-            });
-
-            var manager = CreateManager();
-
-            // Act
-            manager.AddOrUpdate(_id, _job, "0 0 * * *", timeZone, "default");
-
-            // Assert
-            _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
-                dict.ContainsKey("TimeZoneId") && !dict.ContainsKey("NextExecution"))));
-            _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddHours(18).AddMinutes(30))));
-            _transaction.Verify(x => x.Commit());
-        }
-
-        [Fact]
         public void AddOrUpdate_DoesNotReScheduleJob_WhenUpdatingIt()
         {
             // Arrange
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "* * * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddMinutes(-3)) },
                 { "LastExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-2)) },
                 { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1)) }
@@ -455,7 +384,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "* * * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload().Replace("Masterly.NightShift", "Test") },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload().Replace("Masterly.NightShift", "Test") },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddMinutes(-2)) },
                 { "LastExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1)) },
                 { "NextExecution", JobHelper.SerializeDateTime(_now) }
@@ -527,7 +456,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "30 12 * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "LastExecution", JobHelper.SerializeDateTime(_now.AddHours(-3)) }
             });
 
@@ -544,37 +473,13 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void AddOrUpdate_UsesCurrentTime_InsteadOfLastExecution_ToCalculateNextExecution_WhenChangingTimeZone()
-        {
-            // Arrange
-            _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
-            {
-                { "Cron", "30 13 * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
-                { "TimeZoneId", PlatformHelper.IsRunningOnWindows() ? "Pacific/Honolulu" : "Hawaiian Standard Time" },
-                { "LastExecution", JobHelper.SerializeDateTime(_now.AddDays(-3)) }
-            });
-
-            var manager = CreateManager();
-
-            // Act
-            manager.AddOrUpdate(_id, _job, "30 13 * * *", TimeZoneInfo.Utc);
-
-            // Assert
-            _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
-                JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now.AddHours(22))));
-            _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddHours(22))));
-            _transaction.Verify(x => x.Commit());
-        }
-
-        [Fact]
         public void AddOrUpdate_CanRecoverARecurringJob_FromErrorState_WithoutSchedulingToThePast()
         {
             // Arrange
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "* * * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddDays(-1)) },
                 { "Error", "Some error that's gone" },
                 { "NextExecution", String.Empty },
@@ -605,7 +510,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "* * * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddDays(-1)) },
                 { "LastExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-5)) },
                 { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(1)) },
@@ -722,7 +627,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
                 .Returns(new Dictionary<string, string>
                 {
-                    { "Job", JobHelper.ToJson(InvocationData.Serialize(Job.FromExpression(() => Console.WriteLine()))) },
+                    { "Job", TestJson.ToJson(InvocationData.SerializeJob(Job.FromExpression(() => Console.WriteLine()))) },
                     { "Cron", Cron.Minutely() }
                 });
 
@@ -743,7 +648,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
                 .Returns(new Dictionary<string, string>
                 {
-                    { "Job", JobHelper.ToJson(InvocationData.Serialize(_job)) },
+                    { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
                     { "Cron", _cronExpression },
                     { "Queue", "my_queue" }
                 });
@@ -769,40 +674,11 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
-        public void TriggerExecution_ThrowsAnException_WhenIdIsNull()
+        public void TriggerJob_ReturnsNull_WhenRecurringJobDoesNotExist()
         {
             var manager = CreateManager();
 
-            var exception = Assert.Throws<ArgumentNullException>(() => manager.TriggerExecution(null));
-
-            Assert.Equal("recurringJobId", exception.ParamName);
-        }
-
-        [Fact]
-        public void TriggerExecution_EnqueuesTheJob_AndReturnsItsId()
-        {
-            _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
-                .Returns(new Dictionary<string, string>
-                {
-                    { "Job", JobHelper.ToJson(InvocationData.Serialize(_job)) },
-                    { "Cron", _cronExpression }
-                });
-
-            var manager = CreateManager();
-
-            var jobId = manager.TriggerExecution(_id);
-
-            Assert.Equal(_backgroundJob.Id, jobId);
-            _stateMachine.Verify(x => x.ApplyState(
-                It.Is<ApplyStateContext>(context => context.NewState is EnqueuedState)));
-        }
-
-        [Fact]
-        public void TriggerExecution_ReturnsNull_WhenRecurringJobDoesNotExist()
-        {
-            var manager = CreateManager();
-
-            var jobId = manager.TriggerExecution(_id);
+            var jobId = manager.TriggerJob(_id);
 
             Assert.Null(jobId);
             _factory.Verify(x => x.Create(It.IsAny<CreateContext>()), Times.Never);
@@ -815,7 +691,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
                 .Returns(new Dictionary<string, string>
                 {
-                    { "Job", JobHelper.ToJson(InvocationData.Serialize(_job)) },
+                    { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
                     { "Cron", "0 0 31 2 *" },
                 });
 
@@ -842,7 +718,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
             {
                 { "Cron", "* * * * *" },
-                { "Job", InvocationData.Serialize(_job).SerializePayload() },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
                 { "CreatedAt", JobHelper.SerializeDateTime(_now.AddMinutes(-3)) },
                 { "LastExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-2)) },
                 { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1)) }
@@ -868,7 +744,7 @@ namespace Masterly.NightShift.Core.Tests
             _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
                 .Returns(new Dictionary<string, string>
                 {
-                    { "Job", JobHelper.ToJson(InvocationData.Serialize(Job.FromExpression(() => Console.WriteLine()))) },
+                    { "Job", TestJson.ToJson(InvocationData.SerializeJob(Job.FromExpression(() => Console.WriteLine()))) },
                     { "Cron", Cron.Minutely() },
                     { "TimeZoneId", "UnexistingID" }
                 });
@@ -909,12 +785,12 @@ namespace Masterly.NightShift.Core.Tests
             SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
             var initialJob = Job.FromExpression(() => Console.WriteLine());
-            var invocationData = InvocationData.Serialize(initialJob);
+            var invocationData = InvocationData.SerializeJob(initialJob);
 
             var serializedInvocationData = SerializationHelper.Serialize(invocationData, SerializationOption.User);
 
             var deserializedInvocationData = SerializationHelper.Deserialize<InvocationData>(serializedInvocationData);
-            var deserializedJob = deserializedInvocationData.Deserialize();
+            var deserializedJob = deserializedInvocationData.DeserializeJob();
 
             Assert.Equal(initialJob.Args, deserializedJob.Args);
             Assert.Equal(initialJob.Method, deserializedJob.Method);
@@ -986,5 +862,66 @@ namespace Masterly.NightShift.Core.Tests
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public static void Method() { }
+
+        [Fact]
+        public void AddOrUpdate_UsesTimeZoneResolver_WhenCalculatingNextExecution()
+        {
+            // Arrange
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
+                ? "Hawaiian Standard Time"
+                : "Pacific/Honolulu");
+
+            _timeZoneResolver.Setup(x => x.GetTimeZoneById(It.IsAny<string>())).Throws<InvalidOperationException>();
+            _timeZoneResolver
+                .Setup(x => x.GetTimeZoneById(It.Is<string>(id => id == "Hawaiian Standard Time" || id == "Pacific/Honolulu")))
+                .Returns(timeZone);
+
+            // We are returning IANA time zone on Windows and Windows time zone on Linux.
+            _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
+            {
+                { "Cron", "0 0 * * *" },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
+                { "CreatedAt", JobHelper.SerializeDateTime(_now) },
+                { "TimeZoneId", PlatformHelper.IsRunningOnWindows() ? "Pacific/Honolulu" : "Hawaiian Standard Time" },
+                { "NextExecution", JobHelper.SerializeDateTime(_now.AddHours(18).AddMinutes(30)) },
+                { "Queue", "default" },
+                { "V", "2" }
+            });
+
+            var manager = CreateManager();
+
+            // Act
+            manager.AddOrUpdate(_id, _job, "0 0 * * *", new RecurringJobOptions { TimeZone = timeZone });
+
+            // Assert
+            _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+                dict.ContainsKey("TimeZoneId") && !dict.ContainsKey("NextExecution"))));
+            _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddHours(18).AddMinutes(30))));
+            _transaction.Verify(x => x.Commit());
+        }
+
+        [Fact]
+        public void AddOrUpdate_UsesCurrentTime_InsteadOfLastExecution_ToCalculateNextExecution_WhenChangingTimeZone()
+        {
+            // Arrange
+            _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(new Dictionary<string, string>
+            {
+                { "Cron", "30 13 * * *" },
+                { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
+                { "TimeZoneId", PlatformHelper.IsRunningOnWindows() ? "Pacific/Honolulu" : "Hawaiian Standard Time" },
+                { "LastExecution", JobHelper.SerializeDateTime(_now.AddDays(-3)) }
+            });
+
+            var manager = CreateManager();
+
+            // Act
+            manager.AddOrUpdate(_id, _job, "30 13 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+            // Assert
+            _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+                JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now.AddHours(22))));
+            _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddHours(22))));
+            _transaction.Verify(x => x.Commit());
+        }
     }
 }

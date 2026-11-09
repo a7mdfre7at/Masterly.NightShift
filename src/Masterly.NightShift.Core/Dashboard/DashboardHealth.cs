@@ -123,7 +123,7 @@ namespace Masterly.NightShift.Dashboard
         /// </summary>
         public static bool IsLate(RecurringJobDto job, DateTime utcNow)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
             return !job.Paused && !job.Removed && job.NextExecution.HasValue && job.NextExecution.Value < utcNow - RecurringLateThreshold;
         }
 
@@ -134,7 +134,7 @@ namespace Masterly.NightShift.Dashboard
         /// </summary>
         public static IReadOnlyList<string> GetStalePausedServers(DrainModeStatus drain, IEnumerable<ServerDto>? servers)
         {
-            if (drain == null) throw new ArgumentNullException(nameof(drain));
+            ArgumentNullException.ThrowIfNull(drain);
             if (drain.PausedServers.Count == 0) return Array.Empty<string>();
 
             var registered = new HashSet<string>((servers ?? Array.Empty<ServerDto>()).Select(static s => s.Name), StringComparer.OrdinalIgnoreCase);
@@ -147,16 +147,16 @@ namespace Masterly.NightShift.Dashboard
         /// </summary>
         public static HealthReport GetReport(JobStorage storage, DashboardOptions options, DateTime utcNow)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
 
             return Reports.Get(storage, options, utcNow, () => Check(storage, options, utcNow));
         }
 
         public static HealthReport Check(JobStorage storage, DashboardOptions options, DateTime utcNow)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
 
             var checks = new List<HealthCheck>();
             StatisticsDto? statistics = null;

@@ -216,7 +216,7 @@ namespace Masterly.NightShift
             get { lock (_lockObject) { return _delayInSecondsByAttemptFunc;} }
             set
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
+                ArgumentNullException.ThrowIfNull(value);
                 lock (_lockObject) { _delayInSecondsByAttemptFunc = value; }
             }
         }
@@ -402,7 +402,7 @@ namespace Masterly.NightShift
         private static string TruncateMessage(string message)
         {
             const int maxMessageLength = 50;
-            return message.Length > maxMessageLength ? message.Substring(0, maxMessageLength - 1) + "…" : message;
+            return message.Length > maxMessageLength ? string.Concat(message.AsSpan(0, maxMessageLength - 1), "…") : message;
         }
 
         /// <summary>
@@ -435,7 +435,7 @@ namespace Masterly.NightShift
 
             const int maxMessageLength = 50;
             var exceptionMessage = failedState.Exception.Message.Length > maxMessageLength
-                ? failedState.Exception.Message.Substring(0, maxMessageLength - 1) + "…" 
+                ? string.Concat(failedState.Exception.Message.AsSpan(0, maxMessageLength - 1), "…")
                 : failedState.Exception.Message;
 
             // If attempt number is less than max attempts, we should

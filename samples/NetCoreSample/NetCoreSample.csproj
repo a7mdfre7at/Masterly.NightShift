@@ -21,10 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Masterly.NightShift.SqlServer references no SQL client: the app picks one, and Microsoft.Data.SqlClient is preferred -->
-    <PackageReference Include="Microsoft.Data.SqlClient" />
-    <!-- Lifts a vulnerable transitive dependency of Microsoft.Data.SqlClient, as in the tests -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>

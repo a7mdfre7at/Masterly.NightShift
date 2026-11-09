@@ -7,7 +7,6 @@ using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
 using Moq;
 using Xunit;
-#pragma warning disable 618
 
 // ReSharper disable AssignNullToNotNullAttribute
 

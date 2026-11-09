@@ -64,9 +64,9 @@ namespace Masterly.NightShift.Client
             [NotNull] IProfiler profiler,
             [CanBeNull] IDictionary<string, object>? items)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(job);
 
             Storage = storage;
             Connection = connection;

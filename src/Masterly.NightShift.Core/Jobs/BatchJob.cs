@@ -166,9 +166,9 @@ namespace Masterly.NightShift
         /// <summary>Creates a batch: the action creates its jobs through the builder, all tagged with the new batch id.</summary>
         public static string StartNew([NotNull] IBackgroundJobClient client, [NotNull] JobStorage storage, [NotNull, InstantHandle] Action<IBatchBuilder> createJobs, [CanBeNull] string? description = null)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (createJobs == null) throw new ArgumentNullException(nameof(createJobs));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(createJobs);
             if (description != null && description.Length > MaxDescriptionLength) throw new ArgumentException($"The description can't be longer than {MaxDescriptionLength} characters.", nameof(description));
 
             var batchId = Guid.NewGuid().ToString("N").Substring(0, 12);
@@ -294,10 +294,10 @@ namespace Masterly.NightShift
         /// </summary>
         public static string? ContinueWith([NotNull] IBackgroundJobClient client, [NotNull] JobStorage storage, [NotNull] string batchId, [NotNull] Job job, JobContinuationOptions options = JobContinuationOptions.OnAnyFinishedState)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (batchId == null) throw new ArgumentNullException(nameof(batchId));
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(batchId);
+            ArgumentNullException.ThrowIfNull(job);
 
             IReadOnlyList<string> jobIds;
             using (var connection = storage.GetConnection())
@@ -398,9 +398,9 @@ namespace Masterly.NightShift
             Func<string?, bool> select,
             Func<IBackgroundJobClient, string, string?, bool> action)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (batchId == null) throw new ArgumentNullException(nameof(batchId));
+            ArgumentNullException.ThrowIfNull(client);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(batchId);
             if (timeBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeBudget), "The time budget can't be negative.");
 
             return BulkStateChange.RunOnBatch(storage, client, batchId, select, action, BulkStateChange.Unlimited, timeBudget)
@@ -410,8 +410,8 @@ namespace Masterly.NightShift
         /// <summary>Reads a batch, or <c>null</c> when it doesn't exist or expired.</summary>
         public static JobBatch? Get([NotNull] IStorageConnection connection, [NotNull] string batchId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (batchId == null) throw new ArgumentNullException(nameof(batchId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(batchId);
 
             var hash = connection.GetAllEntriesFromHash(GetHashKey(batchId));
             if (hash == null) return null;
@@ -453,8 +453,8 @@ namespace Masterly.NightShift
         /// <summary>The ids of the jobs in a batch, in creation order.</summary>
         public static IReadOnlyList<string> GetJobIds([NotNull] IStorageConnection connection, [NotNull] string batchId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (batchId == null) throw new ArgumentNullException(nameof(batchId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(batchId);
 
             var key = GetJobsKey(batchId);
 
@@ -470,7 +470,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static long Count([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return ExtendedStorage.Read(
                 connection,
@@ -485,9 +485,9 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<JobBatch> List([NotNull] IStorageConnection connection, int from, int count)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (from < 0) throw new ArgumentOutOfRangeException(nameof(from));
-            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentOutOfRangeException.ThrowIfNegative(from);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
             var ids = ExtendedStorage.Read(
                 connection,
@@ -565,7 +565,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var batchId = BatchJob.Current;
             if (batchId != null)
@@ -583,7 +583,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreated(CreatedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             // A continuation is added to its batch's list in the transaction that stores its first state (see
             // OnStateApplied), not here: a write after the job exists could fail and make the caller create it again
@@ -592,8 +592,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(transaction);
 
             context.BatchCountersApplied = true;
             Apply(context, transaction);

@@ -24,13 +24,11 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.States
 {
-#pragma warning disable 618
     /// <summary>
     /// What state handlers and <see cref="IApplyStateFilter"/> filters get while a new state is applied: the job, the
     /// old and new states, the storage and the transaction.
     /// </summary>
-    public class ApplyStateContext : StateContext
-#pragma warning restore 618
+    public class ApplyStateContext
     {
         public ApplyStateContext(
             [NotNull] IWriteOnlyTransaction transaction, 
@@ -84,7 +82,7 @@ namespace Masterly.NightShift.States
         [NotNull]
         public IWriteOnlyTransaction Transaction { get; }
         
-        public override BackgroundJob BackgroundJob { get; }
+        public BackgroundJob BackgroundJob { get; }
 
         [CanBeNull]
         public string? OldStateName { get; }

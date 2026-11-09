@@ -1,5 +1,3 @@
-// UseTelemetry() exists on net8.0 and later only (ActivitySource and Meter are not on .NET Framework)
-#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -154,4 +152,3 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
     }
 }
-#endif

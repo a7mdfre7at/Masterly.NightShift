@@ -93,7 +93,7 @@ namespace Masterly.NightShift
         /// <summary>Registers a sink.</summary>
         public static void AddSink([NotNull] IAlertSink sink)
         {
-            if (sink == null) throw new ArgumentNullException(nameof(sink));
+            ArgumentNullException.ThrowIfNull(sink);
 
             lock (SyncRoot)
             {
@@ -114,7 +114,7 @@ namespace Masterly.NightShift
         /// <summary>Delivers an alert to every sink. A failing sink is logged and skipped.</summary>
         public static void Raise([NotNull] Alert alert)
         {
-            if (alert == null) throw new ArgumentNullException(nameof(alert));
+            ArgumentNullException.ThrowIfNull(alert);
 
             foreach (var sink in _sinks)
             {
@@ -144,7 +144,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (!Alerts.HasSinks) return;
             if (context.NewState is not FailedState failed) return;
 

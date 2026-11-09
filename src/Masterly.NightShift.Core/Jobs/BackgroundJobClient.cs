@@ -109,10 +109,10 @@ namespace Masterly.NightShift
             [NotNull] IBackgroundJobFactory factory,
             [NotNull] IBackgroundJobStateChanger stateChanger)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-            if (stateChanger == null) throw new ArgumentNullException(nameof(stateChanger));
-            
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(factory);
+            ArgumentNullException.ThrowIfNull(stateChanger);
+
             _storage = storage;
             _stateChanger = stateChanger;
             _factory = factory;
@@ -147,8 +147,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public string? Create(Job job, IState state, IDictionary<string, object>? parameters)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
-            if (state == null) throw new ArgumentNullException(nameof(state));
+            ArgumentNullException.ThrowIfNull(job);
+            ArgumentNullException.ThrowIfNull(state);
 
             try
             {
@@ -169,8 +169,8 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public bool ChangeState(string jobId, IState state, string? expectedState)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (state == null) throw new ArgumentNullException(nameof(state));
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(state);
 
             try
             {

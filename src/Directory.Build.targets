@@ -1,0 +1,8 @@
+<Project>
+    <!-- The source generators must target netstandard2.0, the only target Roslyn loads analyzers from. These rules
+         suggest APIs it doesn't have (ArgumentNullException.ThrowIfNull, span overloads, SearchValues, generic Enum
+         methods...). In a .targets file, because a project's own TargetFramework is set after Directory.Build.props. -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <NoWarn>$(NoWarn);CA1510;CA1511;CA1512;CA1513;CA1837;CA1845;CA1846;CA1847;CA1850;CA1864;CA1865;CA1866;CA1867;CA1870;CA2249;CA2263</NoWarn>
+    </PropertyGroup>
+</Project>

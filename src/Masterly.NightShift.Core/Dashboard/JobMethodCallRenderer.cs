@@ -26,6 +26,7 @@ using System.Threading;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Dashboard.Resources;
 using Masterly.NightShift.Processing;
+using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.Dashboard
 {
@@ -92,6 +93,7 @@ namespace Masterly.NightShift.Dashboard
             builder.Append('(');
 
             var parameters = job.Method.GetParameters();
+            var arguments = InvocationData.SerializeArguments(job.Method, job.Args);
             var renderedArguments = new List<string>(parameters.Length);
             var renderedArgumentsTotalLength = 0;
 
@@ -100,9 +102,6 @@ namespace Masterly.NightShift.Dashboard
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
-#pragma warning disable 618
-                var arguments = job.Arguments;
-#pragma warning restore 618
 
                 if (RedactedAttribute.IsRedacted(parameter))
                 {

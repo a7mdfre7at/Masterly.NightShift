@@ -52,8 +52,8 @@ namespace Masterly.NightShift.States
             JobContinuationOptions options,
             FanInMode mode)
         {
-            if (parentIds == null) throw new ArgumentNullException(nameof(parentIds));
-            if (nextState == null) throw new ArgumentNullException(nameof(nextState));
+            ArgumentNullException.ThrowIfNull(parentIds);
+            ArgumentNullException.ThrowIfNull(nextState);
 
             ParentIds = parentIds.Where(static x => !String.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToArray();
             if (ParentIds.Count == 0) throw new ArgumentException("At least one parent job identifier is required.", nameof(parentIds));
@@ -111,7 +111,7 @@ namespace Masterly.NightShift.States
         /// </summary>
         public static AwaitingJobsState? FromStateData([NotNull] IDictionary<string, string> data)
         {
-            if (data == null) throw new ArgumentNullException(nameof(data));
+            ArgumentNullException.ThrowIfNull(data);
 
             if (!data.TryGetValue("ParentIds", out var parentIds) || String.IsNullOrEmpty(parentIds))
             {

@@ -62,7 +62,7 @@ namespace Masterly.NightShift.Dashboard
 
         public HtmlHelper([NotNull] RazorPage page)
         {
-            if (page == null) throw new ArgumentNullException(nameof(page));
+            ArgumentNullException.ThrowIfNull(page);
             _page = page;
         }
 
@@ -70,7 +70,7 @@ namespace Masterly.NightShift.Dashboard
 
         public NonEscapedString Breadcrumbs(string title, [NotNull] IDictionary<string, string> items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
+            ArgumentNullException.ThrowIfNull(items);
             return RenderPartial(new Breadcrumbs(title, items));
         }
 
@@ -81,31 +81,31 @@ namespace Masterly.NightShift.Dashboard
 
         public NonEscapedString SidebarMenu([NotNull] IEnumerable<Func<RazorPage, MenuItem>> items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
+            ArgumentNullException.ThrowIfNull(items);
             return RenderPartial(new SidebarMenu(items));
         }
 
         public NonEscapedString BlockMetric([NotNull] DashboardMetric metric)
         {
-            if (metric == null) throw new ArgumentNullException(nameof(metric));
+            ArgumentNullException.ThrowIfNull(metric);
             return RenderPartial(new BlockMetric(metric));
         }
 
         public NonEscapedString InlineMetric([NotNull] DashboardMetric metric)
         {
-            if (metric == null) throw new ArgumentNullException(nameof(metric));
+            ArgumentNullException.ThrowIfNull(metric);
             return RenderPartial(new InlineMetric(metric));
         }
 
         public NonEscapedString Paginator([NotNull] Pager pager)
         {
-            if (pager == null) throw new ArgumentNullException(nameof(pager));
+            ArgumentNullException.ThrowIfNull(pager);
             return RenderPartial(new Paginator(pager));
         }
 
         public NonEscapedString PerPageSelector([NotNull] Pager pager)
         {
-            if (pager == null) throw new ArgumentNullException(nameof(pager));
+            ArgumentNullException.ThrowIfNull(pager);
             return RenderPartial(new PerPageSelector(pager));
         }
 
@@ -124,7 +124,7 @@ namespace Masterly.NightShift.Dashboard
         {
             Guid guid;
             return new NonEscapedString(HtmlEncode(Guid.TryParse(jobId, out guid)
-                ? (shorten ? jobId.Substring(0, 8) + "…" : jobId)
+                ? (shorten ? string.Concat(jobId.AsSpan(0, 8), "…") : jobId)
                 : $"#{jobId}"));
         }
 
@@ -208,13 +208,7 @@ namespace Masterly.NightShift.Dashboard
                 return Raw($"<span class=\"label label-default {cssHover} label-state-{HtmlEncode(cssSuffix)}\">{HtmlEncode(text)}</span>");
             }
 
-            // No suffix: the color registered for the state, or the neutral label look
-            var style = JobHistoryRenderer.GetStateLabelStyle(stateName);
-            if (style != null)
-            {
-                return Raw($"<span class=\"label label-default {cssHover}\" style=\"{HtmlEncode(style)}\">{HtmlEncode(text)}</span>");
-            }
-
+            // No suffix: the neutral label look
             return Raw($"<span class=\"label label-default {cssHover}\">{HtmlEncode(text)}</span>");
         }
 
@@ -304,12 +298,6 @@ namespace Masterly.NightShift.Dashboard
             builder.Remove(builder.Length - 1, 1);
 
             return builder.ToString();
-        }
-
-        [Obsolete("This method isn't used. Kept for code ported from Hangfire.")]
-        public string FormatProperties(IDictionary<string, string> properties)
-        {
-            return String.Join(", ", properties.Select(static x => $"{x.Key}: \"{x.Value}\""));
         }
 
         public NonEscapedString QueueLabel(string queue)

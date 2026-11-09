@@ -71,16 +71,6 @@ namespace Masterly.NightShift.Core.Tests.Server
         }
 
         [Fact]
-        public void ObsoleteProperties_ForwardToTheBackgroundJob()
-        {
-            var context = CreateContext();
-
-            Assert.Same(_backgroundJob.Object.Job, context.Job);
-            Assert.Equal(_backgroundJob.Object.Id, context.JobId);
-            Assert.Equal(_backgroundJob.Object.CreatedAt, context.CreatedAt);
-        }
-
-        [Fact]
         public void CopyCtor_ThrowsAnException_WhenContextIsNull()
         {
             Assert.Throws<NullReferenceException>(

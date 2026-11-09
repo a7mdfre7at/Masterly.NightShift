@@ -12,8 +12,7 @@ using Xunit;
 namespace Masterly.NightShift.AspNetCore.Tests.Dashboard
 {
     /// <summary>
-    /// Reading form fields through the ASP.NET Core adapter, on every target: the net48 build runs it on ASP.NET
-    /// Core 2.x, where a real host isn't available to the tests.
+    /// Reading form fields through the ASP.NET Core adapter, without a real host.
     /// </summary>
     public class AspNetCoreDashboardRequestFacts
     {

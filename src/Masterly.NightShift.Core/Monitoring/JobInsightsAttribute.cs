@@ -62,7 +62,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static string GetKey([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             var typeName = job.Type.ToGenericTypeString();
             var key = $"{typeName}.{job.Method.Name}";
@@ -72,22 +72,14 @@ namespace Masterly.NightShift
             var suffix = $"~{hash}.{job.Method.Name}";
 
             return suffix.Length <= MaxKeyLength - 10
-                ? typeName.Substring(0, MaxKeyLength - suffix.Length) + suffix
+                ? string.Concat(typeName.AsSpan(0, MaxKeyLength - suffix.Length), suffix)
                 : $"{key.Substring(0, MaxKeyLength - hash.Length - 1)}~{hash}";
         }
 
         private static string GetShortHash(string value)
         {
             var bytes = Encoding.UTF8.GetBytes(value);
-#if NET8_0_OR_GREATER
             var hash = SHA256.HashData(bytes);
-#else
-            byte[] hash;
-            using (var sha256 = SHA256.Create())
-            {
-                hash = sha256.ComputeHash(bytes);
-            }
-#endif
             var text = new StringBuilder(8);
             for (var i = 0; i < 4; i++)
             {
@@ -100,14 +92,14 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             context.Items[StartedAtItem] = Stopwatch.StartNew();
         }
 
         /// <inheritdoc />
         public void OnPerformed(PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.BackgroundJob.Job == null) return;
 
             // A canceled run (a filter canceled it, a state change aborted it, the server shut down), a run that
@@ -171,7 +163,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<JobInsight> ReadAll([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             if (connection is not JobStorageConnection storageConnection)
             {
@@ -195,8 +187,8 @@ namespace Masterly.NightShift
         /// </summary>
         public static JobInsight? Read([NotNull] JobStorageConnection connection, [NotNull] string key)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(key);
 
             var hash = connection.GetAllEntriesFromHash(GetHashKey(key));
             if (hash == null || hash.Count == 0) return null;

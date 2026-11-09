@@ -11,7 +11,6 @@ using Moq;
 using System.Text.Json;
 using Xunit;
 
-#pragma warning disable 618
 
 namespace Masterly.NightShift.Core.Tests.Common
 {
@@ -449,8 +448,8 @@ namespace Masterly.NightShift.Core.Tests.Common
 				var data = new InvocationData(
 					methodInfo?.DeclaringType?.AssemblyQualifiedName,
 					methodInfo?.Name,
-					JobHelper.ToJson(methodInfo?.GetParameters().Select(x => x.ParameterType).ToArray()),
-					JobHelper.ToJson(new[] { method.Item2() }));
+					TestJson.ToJson(methodInfo?.GetParameters().Select(x => x.ParameterType).ToArray()),
+					TestJson.ToJson(new[] { method.Item2() }));
 
 				var job = data.DeserializeJob();
 

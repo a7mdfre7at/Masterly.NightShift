@@ -31,7 +31,6 @@ namespace Masterly.NightShift.Storage
 
         public static readonly string JobQueueProperty = "Job.Queue";
         public static readonly string ExtendedApi = "Storage.ExtendedApi";
-        public static readonly string ProcessesInsteadOfComponents = "Storage.ProcessesInsteadOfComponents";
 
         /// <summary>The storage implements <see cref="JobStorage.Purge"/>.</summary>
         public static readonly string Purge = "Storage.Purge";
@@ -86,7 +85,7 @@ namespace Masterly.NightShift.Storage
 
         public static Exception GetNotSupportedException([NotNull] string featureId)
         {
-            if (featureId == null) throw new ArgumentNullException(nameof(featureId));
+            ArgumentNullException.ThrowIfNull(featureId);
             return new NotSupportedException(
                 $"Current storage implementation does not support the '{featureId}' feature.");
         }

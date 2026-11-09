@@ -133,6 +133,18 @@ namespace Masterly.NightShift.Core.Tests.Server
         }
 
         [Fact]
+        public void ShortenResource_MatchesEarlierVersions()
+        {
+            // Keys already in storage were built this way, so it must not change: the prefix, '~', and the first
+            // 16 bytes of SHA-256 over the UTF-8 resource as lowercase hex
+            var resource = "resource:" + new string('x', 100);
+
+            Assert.Equal(
+                "resource:xxxxxxxxxxxxxxxxxx~7f3782a675eae3a65bd5326f9b9d3a7a",
+                ConcurrencyControl.ShortenResource(resource, 60));
+        }
+
+        [Fact]
         public void ShortenResource_DoesNotCutASurrogatePairInTwo()
         {
             // Every character is half of a surrogate pair, so the cut must move to keep pairs whole

@@ -38,7 +38,7 @@ namespace Masterly.NightShift
             [CanBeNull] HealthStatus? failureStatus = null,
             [CanBeNull] IEnumerable<string>? tags = null)
         {
-            if (builder == null) throw new ArgumentNullException(nameof(builder));
+            ArgumentNullException.ThrowIfNull(builder);
 
             var options = new NightShiftHealthCheckOptions();
             configure?.Invoke(options);

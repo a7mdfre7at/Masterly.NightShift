@@ -46,8 +46,8 @@ namespace Masterly.NightShift.Common
             [NotNull] string name,
             [CanBeNull] Type[] parameterTypes)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(type);
+            ArgumentNullException.ThrowIfNull(name);
 
             parameterTypes = parameterTypes ?? Type.EmptyTypes;
 
@@ -239,7 +239,7 @@ namespace Masterly.NightShift.Common
 
             typeName = GenericArgumentsRegex.Replace(typeName, match =>
             {
-                var currentGenericArgumentNumbers = int.Parse(match.Value.Substring(1), CultureInfo.InvariantCulture);
+                var currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
                 var currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));
                 genericArguments = genericArguments.Skip(currentGenericArgumentNumbers).ToArray();
                 return string.Concat("<", currentArguments, ">");

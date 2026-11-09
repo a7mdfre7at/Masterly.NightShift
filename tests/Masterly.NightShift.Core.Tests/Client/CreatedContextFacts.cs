@@ -9,7 +9,6 @@ using Xunit;
 
 // ReSharper disable AssignNullToNotNullAttribute
 
-#pragma warning disable 618
 
 namespace Masterly.NightShift.Core.Tests.Client
 {
@@ -31,38 +30,6 @@ namespace Masterly.NightShift.Core.Tests.Client
                 () => new CreatedContext(null, _backgroundJob.Object, false, null));
         }
 
-        [Fact]
-        public void Ctor_CorrectlySetsAllProperties()
-        {
-            var context = CreateContext();
-
-            Assert.True(context.Canceled);
-            Assert.Same(_exception, context.Exception);
-            Assert.Equal(_backgroundJob.Id, context.JobId);
-        }
-
-        [Fact]
-        public void SetJobParameter_ThrowsAnException_WhenParameterNameIsNull()
-        {
-            var context = CreateContext();
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => context.SetJobParameter(null, null));
-
-            Assert.Equal("name", exception.ParamName);
-        }
-
-        [Fact]
-        public void SetJobParameter_ThrowsAnException_AfterCreateJobWasCalled()
-        {
-            // TODO: incorrect test.
-
-            var context = CreateContext();
-
-            Assert.Throws<InvalidOperationException>(
-                () => context.SetJobParameter("name", "value"));
-        }
-
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public static void TestMethod() { }
@@ -76,6 +43,16 @@ namespace Masterly.NightShift.Core.Tests.Client
             
             var createContext = new CreateContext(storage.Object, connection.Object, job, state.Object);
             return new CreatedContext(createContext, _backgroundJob.Object, true, _exception);
+        }
+
+        [Fact]
+        public void Ctor_CorrectlySetsAllProperties()
+        {
+            var context = CreateContext();
+
+            Assert.True(context.Canceled);
+            Assert.Same(_exception, context.Exception);
+            Assert.Equal(_backgroundJob.Id, context.BackgroundJob.Id);
         }
     }
 }

@@ -30,7 +30,7 @@ namespace Masterly.NightShift
     {
         public ExceptionInfo([NotNull] Exception exception)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentNullException.ThrowIfNull(exception);
 
             Message = exception.Message;
             Type = TypeHelper.CurrentTypeSerializer(exception.GetType());

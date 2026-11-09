@@ -71,7 +71,7 @@ namespace Masterly.NightShift
 
         private void SetExpiration(ApplyStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (IsFailed(context.NewState))
             {

@@ -25,7 +25,7 @@ namespace Masterly.NightShift.AspNetCore
 
         public AspNetCoreJobActivatorScope([NotNull] IServiceScope serviceScope)
         {
-            if (serviceScope == null) throw new ArgumentNullException(nameof(serviceScope));
+            ArgumentNullException.ThrowIfNull(serviceScope);
             _serviceScope = serviceScope;
         }
 
@@ -36,8 +36,7 @@ namespace Masterly.NightShift.AspNetCore
 
         public override void DisposeScope()
         {
-            // On every target: netstandard2.0 gets IAsyncDisposable from Microsoft.Bcl.AsyncInterfaces, and there too
-            // the container's scope throws from Dispose when a scoped service only implements IAsyncDisposable
+            // The container's scope throws from Dispose when a scoped service only implements IAsyncDisposable
             if (_serviceScope is IAsyncDisposable asyncDisposable)
             {
                 // Service scope disposal is triggered inside a dedicated background thread,

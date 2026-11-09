@@ -1,8 +1,8 @@
 using System;
 using System.Data.Common;
-using System.Reflection;
 using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
+using Microsoft.Data.SqlClient;
 
 namespace Masterly.NightShift.SqlServer
 {
@@ -17,22 +17,19 @@ namespace Masterly.NightShift.SqlServer
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(ConnectionPools));
 
         /// <summary>
-        /// Calls the static <c>ClearPool</c> method of the connection's type: <c>SqlConnection.ClearPool</c> of
-        /// <c>Microsoft.Data.SqlClient</c> or <c>System.Data.SqlClient</c>. It is found by reflection, so that neither
-        /// package becomes a dependency. A connection of another type is left alone.
+        /// Clears the connection pool of a <c>Microsoft.Data.SqlClient</c> connection. A connection of another type, for
+        /// example one wrapped by a profiler, is left alone.
         /// </summary>
         /// <returns><c>true</c> when the pool was cleared.</returns>
         public static bool TryClear([NotNull] DbConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             try
             {
-                var type = connection.GetType();
-                var clearPool = type.GetMethod("ClearPool", BindingFlags.Public | BindingFlags.Static, null, new[] { type }, null);
-                if (clearPool == null) return false;
+                if (connection is not SqlConnection sqlConnection) return false;
 
-                clearPool.Invoke(null, new object[] { connection });
+                SqlConnection.ClearPool(sqlConnection);
                 return true;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())

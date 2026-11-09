@@ -19,14 +19,13 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.Throws<ArgumentNullException>(() => new ExpirationManager(null, TimeSpan.Zero, TimeSpan.FromTicks(1)));
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_RemovesOutdatedRecords(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_RemovesOutdatedRecords()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 CreateExpirationEntry(connection, DateTime.UtcNow.AddMonths(-1));
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 manager.Execute(_cts.Token);
 
@@ -34,14 +33,13 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_DoesNotRemoveEntries_WithNoExpirationTimeSet(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_DoesNotRemoveEntries_WithNoExpirationTimeSet()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 CreateExpirationEntry(connection, null);
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 manager.Execute(_cts.Token);
 
@@ -49,14 +47,13 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_DoesNotRemoveEntries_WithFreshExpirationTime(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_DoesNotRemoveEntries_WithFreshExpirationTime()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 CreateExpirationEntry(connection, DateTime.UtcNow.AddMonths(1));
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 manager.Execute(_cts.Token);
 
@@ -64,11 +61,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_AggregatedCounterTable(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_AggregatedCounterTable()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var createSql = $@"
@@ -76,7 +72,7 @@ insert into [{Constants.DefaultSchema}].AggregatedCounter ([Key], [Value], Expir
 values ('key', 1, @expireAt)";
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -86,11 +82,10 @@ values ('key', 1, @expireAt)";
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_JobTable(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_JobTable()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var createSql = $@"
@@ -98,7 +93,7 @@ insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedA
 values ('', '', getutcdate(), @expireAt)";
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -108,15 +103,14 @@ values ('', '', getutcdate(), @expireAt)";
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_StateTable_WhenOptionIsConfigured(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_StateTable_WhenOptionIsConfigured()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var jobId = CreateJobWithStateHistory(connection);
-                var manager = CreateManager(useMicrosoftDataSqlClient, TimeSpan.FromDays(7));
+                var manager = CreateManager(TimeSpan.FromDays(7));
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -131,14 +125,13 @@ values ('', '', getutcdate(), @expireAt)";
 
         // Before schema 9 there's no [State].[CreatedAt] index, and the cleanup query, which seeks on it, fails with
         // error 8622 at every check interval
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_SkipsTheStateCleanup_OnASchemaOlderThan9(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_SkipsTheStateCleanup_OnASchemaOlderThan9()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 var jobId = CreateJobWithStateHistory(connection);
-                var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient));
+                var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
 
                 // The test database is at the latest schema; pretend detection found version 8
                 typeof(SqlServerStorage)
@@ -154,15 +147,14 @@ values ('', '', getutcdate(), @expireAt)";
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_CleansUpStates_WhenTheSchemaVersionIsNotKnown(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_CleansUpStates_WhenTheSchemaVersionIsNotKnown()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 var jobId = CreateJobWithStateHistory(connection);
                 var storage = new SqlServerStorage(
-                    () => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient),
+                    () => ConnectionUtils.CreateConnection(),
                     new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
                 var manager = new ExpirationManager(storage, TimeSpan.FromDays(7), TimeSpan.FromTicks(1));
 
@@ -186,11 +178,10 @@ values ('', '', getutcdate(), @expireAt)";
             Assert.Equal("Reports:locks:expirationmanager", ExpirationManager.GetDistributedLockKey(reportsStorage));
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_ListTable(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_ListTable()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var createSql = $@"
@@ -198,7 +189,7 @@ insert into [{Constants.DefaultSchema}].List ([Key], ExpireAt)
 values ('key', @expireAt)";
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -208,11 +199,10 @@ values ('key', @expireAt)";
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_SetTable(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_SetTable()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var createSql = $@"
@@ -220,7 +210,7 @@ insert into [{Constants.DefaultSchema}].[Set] ([Key], [Score], [Value], ExpireAt
 values ('key', 0, '', @expireAt)";
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -230,11 +220,10 @@ values ('key', 0, '', @expireAt)";
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Execute_Processes_HashTable(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Execute_Processes_HashTable()
         {
-            using (var connection = CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = CreateConnection())
             {
                 // Arrange
                 var createSql = $@"
@@ -242,7 +231,7 @@ insert into [{Constants.DefaultSchema}].Hash ([Key], [Field], [Value], ExpireAt)
 values ('key', 'field', '', @expireAt)";
                 connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(useMicrosoftDataSqlClient);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_cts.Token);
@@ -300,14 +289,14 @@ values (N'key', 1, @expireAt)";
             return count == 0;
         }
 
-        private DbConnection CreateConnection(bool useMicrosoftDataSqlClient)
+        private DbConnection CreateConnection()
         {
-            return ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient);
+            return ConnectionUtils.CreateConnection();
         }
 
-        private ExpirationManager CreateManager(bool useMicrosoftDataSqlClient, TimeSpan? stateExpirationTimeout = null)
+        private ExpirationManager CreateManager(TimeSpan? stateExpirationTimeout = null)
         {
-            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient));
+            var storage = new SqlServerStorage(() => ConnectionUtils.CreateConnection());
             return new ExpirationManager(storage, stateExpirationTimeout ?? TimeSpan.Zero, TimeSpan.FromTicks(1));
         }
     }

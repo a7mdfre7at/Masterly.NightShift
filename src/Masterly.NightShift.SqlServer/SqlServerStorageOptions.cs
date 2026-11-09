@@ -36,7 +36,7 @@ namespace Masterly.NightShift.SqlServer
         private TimeSpan? _slidingInvisibilityTimeout;
         private TimeSpan? _commandTimeout;
         private TimeSpan? _commandBatchMaxTimeout;
-        private DbProviderFactory? _sqlClientFactory;
+        private DbProviderFactory _sqlClientFactory;
 
         // null until the user sets them, so auto-detection only decides the values nobody chose
         private bool? _disableGlobalLocks;
@@ -49,63 +49,19 @@ namespace Masterly.NightShift.SqlServer
         {
             QueuePollInterval = TimeSpan.Zero;
             SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5);
-#pragma warning disable 618
             InvisibilityTimeout = TimeSpan.FromMinutes(30);
-#pragma warning restore 618
             JobExpirationCheckInterval = TimeSpan.FromMinutes(30);
             CountersAggregateInterval = TimeSpan.FromMinutes(5);
             PrepareSchemaIfNecessary = true;
             DashboardJobListLimit = 10000;
             _schemaName = Constants.DefaultSchema;
-#pragma warning disable 618
-            TransactionTimeout = TimeSpan.FromMinutes(1);
-#pragma warning restore 618
             DeleteExpiredBatchSize = -1;
             UseTransactionalAcknowledge = false;
-            UseRecommendedIsolationLevel = true;
             CommandBatchMaxTimeout = TimeSpan.FromMinutes(5);
             TryAutoDetectSchemaDependentOptions = true;
-            _sqlClientFactory = GetDefaultSqlClientFactory();
+            _sqlClientFactory = Microsoft.Data.SqlClient.SqlClientFactory.Instance;
             InactiveStateExpirationTimeout = TimeSpan.Zero;
         }
-
-        private static DbProviderFactory? GetDefaultSqlClientFactory()
-        {
-            var dbProviderFactoryTypes = new[]
-            {
-                "Microsoft.Data.SqlClient.SqlClientFactory, Microsoft.Data.SqlClient",
-                // Available in the .NET Framework GAC, requires Version + Culture + PublicKeyToken to be explicitly specified
-                "System.Data.SqlClient.SqlClientFactory, System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
-                "System.Data.SqlClient.SqlClientFactory, System.Data.SqlClient",
-            };
-
-            foreach (var dbProviderFactoryType in dbProviderFactoryTypes)
-            {
-                var providerFactoryType = Type.GetType(dbProviderFactoryType, throwOnError: false);
-                if (providerFactoryType != null)
-                {
-                    var instanceField = providerFactoryType.GetField("Instance");
-                    if (instanceField == null)
-                    {
-                        continue;
-                    }
-                    var instance = (DbProviderFactory?)instanceField.GetValue(null);
-                    if (instance != null)
-                    {
-                        return instance;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets or sets the isolation level of storage transactions, used only when
-        /// <see cref="UseRecommendedIsolationLevel"/> is <c>false</c>. <c>null</c> means <c>READ COMMITTED</c>.
-        /// </summary>
-        [Obsolete("Set UseRecommendedIsolationLevel instead. Kept for code ported from Hangfire.")]
-        public IsolationLevel? TransactionIsolationLevel { get; set; }
 
         /// <summary>
         /// Gets or sets how long an idle worker waits before asking for a job again. Values below 1 second are
@@ -133,7 +89,6 @@ namespace Masterly.NightShift.SqlServer
         /// Gets or sets how long ago a queue row must have been marked as fetched for the legacy transactional
         /// fetch to take it anyway. No effect with sliding invisibility. Default is 30 minutes.
         /// </summary>
-        [Obsolete("Used only by the legacy transactional fetch (SlidingInvisibilityTimeout = null), to also take queue rows that were marked as fetched longer ago than this. It has no effect with sliding invisibility, the default. Kept for code ported from Hangfire.")]
         public TimeSpan InvisibilityTimeout { get; set; }
 
         /// <summary>
@@ -206,12 +161,6 @@ namespace Masterly.NightShift.SqlServer
         /// at this number, which keeps the query cheap on large tables. Default is 10000; <c>null</c> counts every job.
         /// </summary>
         public int? DashboardJobListLimit { get; set; }
-
-        /// <summary>
-        /// Has no effect: explicit transactions are always used.
-        /// </summary>
-        [Obsolete("This option has no effect, because TransactionScope is no longer used and explicit transactions are always used instead. You can safely remove it. Kept for code ported from Hangfire.")]
-        public TimeSpan TransactionTimeout { get; set; }
 
         /// <summary>
         /// Gets or sets the timeout of each SQL command. Default is <c>null</c>, the SQL client's default
@@ -301,7 +250,7 @@ namespace Masterly.NightShift.SqlServer
 
         /// <summary>
         /// Gets or sets a function called before each connection is opened, whose result is disposed right after,
-        /// for example to open a connection under another Windows identity on .NET Framework. Default is <c>null</c>.
+        /// for example to open a connection under another Windows identity. Default is <c>null</c>.
         /// </summary>
         public Func<IDisposable>? ImpersonationFunc { get; set; }
 
@@ -316,18 +265,6 @@ namespace Masterly.NightShift.SqlServer
             get { return _disableGlobalLocks ?? false; }
             set { _disableGlobalLocks = value; }
         }
-
-        /// <summary>
-        /// Has no effect.
-        /// </summary>
-        [Obsolete("This option doesn't change anything. You can safely remove it. Kept for code ported from Hangfire.")]
-        public bool UsePageLocksOnDequeue { get; set; }
-
-        /// <summary>
-        /// Gets or sets whether storage transactions run as <c>READ COMMITTED</c>. Default is <c>true</c>.
-        /// When <c>false</c>, the obsolete <c>TransactionIsolationLevel</c> is used instead.
-        /// </summary>
-        public bool UseRecommendedIsolationLevel { get; set; }
 
         /// <summary>
         /// Gets or sets whether the startup install may apply the upgrades from schema version 5 to 6 and from 7
@@ -382,15 +319,14 @@ namespace Masterly.NightShift.SqlServer
         public bool UseTransactionalAcknowledge { get; set; }
 
         /// <summary>
-        /// Gets or sets the <see cref="DbProviderFactory"/> for creating <c>SqlConnection</c> instances.
-        /// Defaults to either <c>System.Data.SqlClient.SqlClientFactory.Instance</c> or
-        /// <c>Microsoft.Data.SqlClient.SqlClientFactory</c> depending on which package reference exists
-        /// on the consuming project.
+        /// Gets or sets the <see cref="DbProviderFactory"/> that creates the connections.
+        /// Defaults to <c>Microsoft.Data.SqlClient.SqlClientFactory.Instance</c>. Set it to wrap the connections,
+        /// for example for profiling; the factory must create <c>Microsoft.Data.SqlClient</c> connections, or
+        /// connections that wrap them.
         /// </summary>
         public DbProviderFactory SqlClientFactory
         {
-            get => _sqlClientFactory ?? throw new InvalidOperationException("Please add a NuGet package reference to either 'Microsoft.Data.SqlClient' or 'System.Data.SqlClient' in your application project. " +
-                                                                            "Masterly.NightShift.SqlServer supports both providers but let the consumer decide which one should be used.");
+            get => _sqlClientFactory;
             set => _sqlClientFactory = value ?? throw new ArgumentNullException(nameof(value));
         }
 
@@ -411,13 +347,6 @@ namespace Masterly.NightShift.SqlServer
         /// registered for a particular queue.
         /// </summary>
         public IPersistentJobQueueProvider? DefaultQueueProvider { get; set; }
-
-        /// <summary>
-        /// This option has no effect and is kept only for compatibility. <see cref="SqlServerStorage"/>
-        /// no longer uses the System.Transactions namespace, and always uses regular explicit transactions.
-        /// </summary>
-        [Obsolete("This option has no effect, because TransactionScope is no longer used and explicit transactions are always used instead. You can safely remove it. Kept for code ported from Hangfire.")]
-        public bool DisableTransactionScope { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to disable semaphores used to limit the number

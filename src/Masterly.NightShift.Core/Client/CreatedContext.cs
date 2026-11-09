@@ -41,10 +41,6 @@ namespace Masterly.NightShift.Client
         }
 
         [CanBeNull]
-        [Obsolete("Use `BackgroundJob` property instead. Kept for code ported from Hangfire.")]
-        public string? JobId => BackgroundJob?.Id;
-
-        [CanBeNull]
         public BackgroundJob? BackgroundJob { get; }
         
         public override IDictionary<string, object> Parameters => new ReadOnlyDictionary<string, object>(base.Parameters);
@@ -66,13 +62,5 @@ namespace Masterly.NightShift.Client
         /// object handles an exception occurred during the creation of the job.
         /// </summary>
         public bool ExceptionHandled { get; set; }
-
-        [Obsolete("This method only throws InvalidOperationException. Set job parameters in OnCreating instead. Kept for code ported from Hangfire.")]
-        public void SetJobParameter([NotNull] string name, object value)
-        {
-            if (String.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-
-            throw new InvalidOperationException("Could not set parameter for a created job.");
-        }
     }
 }

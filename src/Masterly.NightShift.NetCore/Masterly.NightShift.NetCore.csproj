@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Microsoft.Extensions integration for Masterly.NightShift: dependency injection, logging and hosted services.</Description>
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <Description>Masterly.NightShift for the generic host: dependency injection, ILogger logging and the job server as a hosted service, for Worker Services and console apps.</Description>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <PackageReadmeSource>README.md</PackageReadmeSource>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Masterly.NightShift</RootNamespace>
   </PropertyGroup>

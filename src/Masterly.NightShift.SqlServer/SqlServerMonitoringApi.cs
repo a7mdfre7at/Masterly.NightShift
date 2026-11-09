@@ -37,7 +37,7 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerMonitoringApi([NotNull] SqlServerStorage storage, int? jobListLimit)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
 
             _storage = storage;
             _jobListLimit = jobListLimit;
@@ -51,7 +51,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override long EnqueuedCount(string queue)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var queueApi = GetQueueApi(queue);
             var counters = queueApi.GetEnqueuedAndFetchedCount(queue);
@@ -61,7 +61,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override long FetchedCount(string queue)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var queueApi = GetQueueApi(queue);
             var counters = queueApi.GetEnqueuedAndFetchedCount(queue);
@@ -340,7 +340,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var queueApi = GetQueueApi(queue);
             var enqueuedJobIds = queueApi.GetEnqueuedJobIds(queue, from, perPage);
@@ -350,7 +350,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var queueApi = GetQueueApi(queue);
             var fetchedJobIds = queueApi.GetFetchedJobIds(queue, from, perPage);
@@ -378,7 +378,7 @@ namespace Masterly.NightShift.SqlServer
 
         public override JobDetailsDto JobDetails(string jobId)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
 
             // Ids are bigint here, so any other string names no job (as in GetJobData), rather than
             // failing the conversion in SQL Server

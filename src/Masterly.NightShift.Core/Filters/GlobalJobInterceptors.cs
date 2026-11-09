@@ -25,7 +25,7 @@ namespace Masterly.NightShift
         /// <param name="interceptor">The interceptor.</param>
         public static void Add([NotNull] IJobInterceptor interceptor)
         {
-            if (interceptor == null) throw new ArgumentNullException(nameof(interceptor));
+            ArgumentNullException.ThrowIfNull(interceptor);
 
             lock (SyncRoot)
             {
@@ -41,7 +41,7 @@ namespace Masterly.NightShift
         /// <returns><c>true</c> when it was registered.</returns>
         public static bool Remove([NotNull] IJobInterceptor interceptor)
         {
-            if (interceptor == null) throw new ArgumentNullException(nameof(interceptor));
+            ArgumentNullException.ThrowIfNull(interceptor);
 
             lock (SyncRoot)
             {

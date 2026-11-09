@@ -30,7 +30,7 @@ namespace Masterly.NightShift
 
         /// <summary>
         /// The longest timeout, in seconds: 2,147,483 seconds (about 24.8 days). A timer accepts at most
-        /// <see cref="Int32.MaxValue"/> milliseconds on .NET Framework, so that is the limit on every framework.
+        /// <see cref="Int32.MaxValue"/> milliseconds.
         /// </summary>
         public const int MaxTimeoutInSeconds = Int32.MaxValue / 1000;
 
@@ -53,7 +53,7 @@ namespace Masterly.NightShift
                 throw new ArgumentOutOfRangeException(
                     nameof(timeoutInSeconds),
                     timeoutInSeconds,
-                    $"Timeout should be between 1 and {MaxTimeoutInSeconds} seconds (about 24.8 days), the longest a timer accepts on every framework.");
+                    $"Timeout should be between 1 and {MaxTimeoutInSeconds} seconds (about 24.8 days), the longest a timer accepts.");
             }
 
             Timeout = TimeSpan.FromSeconds(timeoutInSeconds);
@@ -65,7 +65,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         protected override async Task<object?> InterceptAsync(JobInvocation invocation)
         {
-            if (invocation == null) throw new ArgumentNullException(nameof(invocation));
+            ArgumentNullException.ThrowIfNull(invocation);
 
             var shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
 

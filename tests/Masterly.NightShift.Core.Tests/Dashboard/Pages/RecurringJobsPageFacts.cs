@@ -324,7 +324,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard.Pages
             Assert.Contains("href=\"/jobs/details/101\"", html);
             Assert.Contains("label-state-success", html);
             Assert.Contains("href=\"/jobs/details/102\"", html);
-            Assert.Contains("<span class=\"label label-default label-hover\" style=\"\">", html);
+            Assert.Contains("<span class=\"label label-default label-hover\">", html);
             Assert.DoesNotContain("label-state-inherit", html);
             Assert.Contains("label-state-inactive\" title=\"" + H(Strings.RecurringJobsPage_Canceled) + "\"", html);
             Assert.Contains("<em>N/A</em>", html);

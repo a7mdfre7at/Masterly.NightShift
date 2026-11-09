@@ -77,110 +77,6 @@ namespace Masterly.NightShift
             return ManagerFactory().UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
         }
 
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), timeZone, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), timeZone, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] string cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] string cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, options);
-        }
-
-        [Obsolete("Use AddOrUpdate(string, Expression<Action>, Func<string>, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(recurringJobId, methodCall, cronExpression(), timeZone, queue);
-        }
-
         public static void AddOrUpdate(
             [NotNull] string recurringJobId,
             [NotNull, InstantHandle] Expression<Action> methodCall,
@@ -195,7 +91,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -215,20 +111,8 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use AddOrUpdate<T>(string, Expression<Action<T>>, Func<string>, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate<T>(
@@ -245,7 +129,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -265,20 +149,8 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use AddOrUpdate(string, Expression<Action>, string, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Action> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
         }
 
         public static void AddOrUpdate(
@@ -315,24 +187,12 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
-        [Obsolete("Use AddOrUpdate<T>(string, Expression<Action<T>>, string, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
         public static void AddOrUpdate<T>(
             [NotNull] string recurringJobId,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall,
@@ -367,114 +227,10 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), timeZone, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), timeZone, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] string cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, options);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter and RecurringJobOptions instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
-        [Obsolete("Use an overload with the explicit recurringJobId parameter instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] string cronExpression,
-            [NotNull] RecurringJobOptions options)
-        {
-            var job = Job.FromExpression(methodCall);
-            var id = GetRecurringJobId(job);
-
-            ManagerFactory().AddOrUpdate(id, job, cronExpression, options);
-        }
-
-        [Obsolete("Use AddOrUpdate(string, Expression<Func<Task>>, Func<string>, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate(
@@ -491,7 +247,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -511,20 +267,8 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use AddOrUpdate<T>(string, Expression<Func<T, Task>>, Func<string>, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] Func<string> cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            AddOrUpdate(recurringJobId, methodCall, cronExpression(), timeZone, queue);
         }
 
         public static void AddOrUpdate<T>(
@@ -541,7 +285,7 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, methodCall, cronExpression(), options);
         }
 
@@ -561,20 +305,8 @@ namespace Masterly.NightShift
             [NotNull] Func<string> cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
             AddOrUpdate(recurringJobId, queue, methodCall, cronExpression(), options);
-        }
-
-        [Obsolete("Use AddOrUpdate(string, Expression<Func<Task>>, string, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
         }
 
         public static void AddOrUpdate(
@@ -611,24 +343,12 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
-        [Obsolete("Use AddOrUpdate<T>(string, Expression<Func<T, Task>>, string, RecurringJobOptions) instead. Kept for code ported from Hangfire.")]
-        public static void AddOrUpdate<T>(
-            [NotNull] string recurringJobId,
-            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-            [NotNull] string cronExpression,
-            [CanBeNull] TimeZoneInfo? timeZone = null,
-            [NotNull] string queue = EnqueuedState.DefaultQueue)
-        {
-            var job = Job.FromExpression(methodCall);
-            ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, timeZone ?? TimeZoneInfo.Utc, queue);
-        }
-
         public static void AddOrUpdate<T>(
             [NotNull] string recurringJobId,
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
@@ -663,7 +383,7 @@ namespace Masterly.NightShift
             [NotNull] string cronExpression,
             [NotNull] RecurringJobOptions options)
         {
-            if (queue == null) throw new ArgumentNullException(nameof(queue));
+            ArgumentNullException.ThrowIfNull(queue);
 
             var job = Job.FromExpression(methodCall, queue);
             ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
@@ -674,20 +394,9 @@ namespace Masterly.NightShift
             ManagerFactory().RemoveIfExists(recurringJobId);
         }
 
-        [Obsolete("Use the TriggerJob method instead. Kept for code ported from Hangfire.")]
-        public static void Trigger([NotNull] string recurringJobId)
-        {
-            ManagerFactory().Trigger(recurringJobId);
-        }
-
         public static string? TriggerJob([NotNull] string recurringJobId)
         {
             return ManagerFactory().TriggerJob(recurringJobId);
-        }
-
-        private static string GetRecurringJobId(Job job)
-        {
-            return $"{job.Type.ToGenericTypeString()}.{job.Method.Name}";
         }
     }
 }

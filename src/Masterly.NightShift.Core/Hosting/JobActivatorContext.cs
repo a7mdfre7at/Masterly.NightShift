@@ -38,9 +38,9 @@ namespace Masterly.NightShift
             [NotNull] BackgroundJob backgroundJob,
             [NotNull] IJobCancellationToken cancellationToken)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (backgroundJob == null) throw new ArgumentNullException(nameof(backgroundJob));
-            if (cancellationToken == null) throw new ArgumentNullException(nameof(cancellationToken));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(backgroundJob);
+            ArgumentNullException.ThrowIfNull(cancellationToken);
 
             Connection = connection;
             BackgroundJob = backgroundJob;

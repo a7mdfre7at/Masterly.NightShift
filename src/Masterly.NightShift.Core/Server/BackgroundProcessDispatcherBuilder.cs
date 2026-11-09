@@ -31,8 +31,8 @@ namespace Masterly.NightShift.Server
             [NotNull] IBackgroundProcess process,
             [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
         {
-            if (process == null) throw new ArgumentNullException(nameof(process));
-            if (threadFactory == null) throw new ArgumentNullException(nameof(threadFactory));
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
             _process = process;
             _threadFactory = threadFactory;
@@ -40,8 +40,8 @@ namespace Masterly.NightShift.Server
 
         public IBackgroundDispatcher Create(BackgroundServerContext context, BackgroundProcessingServerOptions options)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(options);
 
             var execution = new BackgroundExecution(
                 new BackgroundExecutionOptions

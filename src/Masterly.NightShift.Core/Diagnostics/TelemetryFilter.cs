@@ -1,4 +1,3 @@
-#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -42,7 +41,7 @@ namespace Masterly.NightShift.Diagnostics
 
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var jobName = GetJobName(context.Job);
             var activity = NightShiftTelemetry.ActivitySource.StartActivity($"create {jobName}", ActivityKind.Producer);
@@ -73,7 +72,7 @@ namespace Masterly.NightShift.Diagnostics
 
         public void OnCreated(CreatedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var failed = context.Exception != null && !context.ExceptionHandled;
 
@@ -110,7 +109,7 @@ namespace Masterly.NightShift.Diagnostics
 
         public void OnPerforming(PerformingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var job = context.BackgroundJob.Job;
             var jobName = GetJobName(job);
@@ -160,7 +159,7 @@ namespace Masterly.NightShift.Diagnostics
 
         public void OnPerformed(PerformedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var outcome = GetOutcome(context);
             var errorType = outcome == OutcomeFailed ? GetErrorType(context.Exception) : null;
@@ -199,7 +198,7 @@ namespace Masterly.NightShift.Diagnostics
 
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             if (context.NewState is not ProcessingState) return;
             if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;
@@ -322,4 +321,3 @@ namespace Masterly.NightShift.Diagnostics
         }
     }
 }
-#endif

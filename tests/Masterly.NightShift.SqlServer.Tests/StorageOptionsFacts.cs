@@ -11,13 +11,29 @@ namespace Masterly.NightShift.SqlServer.Tests
             var options = new SqlServerStorageOptions();
 
             Assert.True(options.QueuePollInterval == TimeSpan.Zero);
-#pragma warning disable 618
             Assert.True(options.InvisibilityTimeout > TimeSpan.Zero);
-#pragma warning restore 618
             Assert.True(options.JobExpirationCheckInterval > TimeSpan.Zero);
             Assert.Equal(TimeSpan.FromMinutes(5), options.CountersAggregateInterval);
             Assert.Equal("HangFire", options.SchemaName);
             Assert.True(options.PrepareSchemaIfNecessary);
+        }
+
+        [Fact]
+        public void Ctor_DefaultsSqlClientFactory_ToMicrosoftDataSqlClient()
+        {
+            var options = new SqlServerStorageOptions();
+
+            Assert.Same(Microsoft.Data.SqlClient.SqlClientFactory.Instance, options.SqlClientFactory);
+        }
+
+        [Fact]
+        public void Set_SqlClientFactory_ThrowsAnException_WhenValueIsNull()
+        {
+            var options = new SqlServerStorageOptions();
+
+            var exception = Assert.Throws<ArgumentNullException>(() => options.SqlClientFactory = null);
+
+            Assert.Equal("value", exception.ParamName);
         }
 
         [Fact]
@@ -40,18 +56,6 @@ namespace Masterly.NightShift.SqlServer.Tests
         {
             var options = new SqlServerStorageOptions { QueuePollInterval = TimeSpan.FromSeconds(1) };
             Assert.Equal(TimeSpan.FromSeconds(1), options.QueuePollInterval);
-        }
-
-        [Fact]
-        public void Ctor_SetsTheDefaults_OfSchemaDependentOptions()
-        {
-            var options = new SqlServerStorageOptions();
-
-            Assert.True(options.UseRecommendedIsolationLevel);
-            Assert.False(options.DisableGlobalLocks);
-            Assert.False(options.UseIgnoreDupKeyOption);
-            Assert.Equal(-1, options.DeleteExpiredBatchSize);
-            Assert.True(options.TryAutoDetectSchemaDependentOptions);
         }
 
         [Theory]
@@ -241,6 +245,17 @@ namespace Masterly.NightShift.SqlServer.Tests
 
             options.CommandBatchMaxTimeout = null;
             Assert.Null(options.CommandBatchMaxTimeout);
+        }
+
+        [Fact]
+        public void Ctor_SetsTheDefaults_OfSchemaDependentOptions()
+        {
+            var options = new SqlServerStorageOptions();
+
+            Assert.False(options.DisableGlobalLocks);
+            Assert.False(options.UseIgnoreDupKeyOption);
+            Assert.Equal(-1, options.DeleteExpiredBatchSize);
+            Assert.True(options.TryAutoDetectSchemaDependentOptions);
         }
     }
 }

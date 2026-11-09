@@ -92,9 +92,9 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             CompatibilityLevel compatibilityLevel)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
-            if (!Enum.IsDefined(typeof(CompatibilityLevel), compatibilityLevel))
+            if (!Enum.IsDefined(compatibilityLevel))
                 throw new InvalidEnumArgumentException(nameof(compatibilityLevel), (int) compatibilityLevel,
                     typeof(CompatibilityLevel));
 

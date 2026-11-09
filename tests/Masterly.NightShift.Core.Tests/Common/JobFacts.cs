@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
@@ -13,26 +12,22 @@ using Masterly.NightShift.Server;
 using Moq;
 using System.Text.Json;
 using Xunit;
+using Masterly.NightShift.Storage;
 
 // ReSharper disable LocalizableElement
 // ReSharper disable AssignNullToNotNullAttribute
 
-#pragma warning disable 618
 
 namespace Masterly.NightShift.Core.Tests.Common
 {
     public class JobFacts
     {
         private static readonly DateTime SomeDateTime = new DateTime(2014, 5, 30, 12, 0, 0);
-        private static bool _methodInvoked;
-        private static bool _disposed;
 
         private readonly Type _type;
         private readonly MethodInfo _method;
         private readonly object[] _arguments;
         private readonly string _queue;
-        private readonly Mock<JobActivator> _activator;
-        private readonly Mock<IJobCancellationToken> _token;
         
         public JobFacts()
         {
@@ -40,9 +35,6 @@ namespace Masterly.NightShift.Core.Tests.Common
             _method = _type.GetMethod("StaticMethod");
             _arguments = new object[0];
             _queue = "critical";
-
-            _activator = new Mock<JobActivator> { CallBase = true };
-            _token = new Mock<IJobCancellationToken>();
         }
 
         [Fact]
@@ -107,7 +99,7 @@ namespace Masterly.NightShift.Core.Tests.Common
 
             Assert.Same(_type, job.Type);
             Assert.Same(_method, job.Method);
-            Assert.True(_arguments.SequenceEqual(job.Arguments));
+            Assert.True(_arguments.SequenceEqual(InvocationData.SerializeArguments(job.Method, job.Args)));
             Assert.Null(job.Queue);
         }
 
@@ -127,7 +119,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         {
             var job = new Job(_type, _method);
 
-            Assert.Empty(job.Arguments);
+            Assert.Empty(InvocationData.SerializeArguments(job.Method, job.Args));
         }
 
         [Fact]
@@ -250,7 +242,7 @@ namespace Masterly.NightShift.Core.Tests.Common
 
             var job = Job.FromExpression(() => MethodWithDateTimeArgument(date));
 
-            Assert.Equal(expected, job.Arguments[0]);
+            Assert.Equal(expected, InvocationData.SerializeArguments(job.Method, job.Args)[0]);
         }
 
         [Fact]
@@ -258,8 +250,8 @@ namespace Masterly.NightShift.Core.Tests.Common
         {
             var job = Job.FromExpression(() => MethodWithArguments("123", 1));
 
-            Assert.Equal("\"123\"", job.Arguments[0]);
-            Assert.Equal("1", job.Arguments[1]);
+            Assert.Equal("\"123\"", InvocationData.SerializeArguments(job.Method, job.Args)[0]);
+            Assert.Equal("1", InvocationData.SerializeArguments(job.Method, job.Args)[1]);
         }
 
         [Fact]
@@ -267,7 +259,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         {
             var job = Job.FromExpression(() => MethodWithObjectArgument("hello"));
 
-            Assert.Equal("\"hello\"", job.Arguments[0]);
+            Assert.Equal("\"hello\"", InvocationData.SerializeArguments(job.Method, job.Args)[0]);
         }
 
         [Fact]
@@ -281,7 +273,7 @@ namespace Masterly.NightShift.Core.Tests.Common
             CultureHelper.SetCurrentCulture("ru-RU");
             var ruJob = Job.FromExpression(() => MethodWithDateTimeArgument(date));
 
-            Assert.Equal(enJob.Arguments[0], ruJob.Arguments[0]);
+            Assert.Equal(InvocationData.SerializeArguments(enJob.Method, enJob.Args)[0], InvocationData.SerializeArguments(ruJob.Method, ruJob.Args)[0]);
         }
 
         [Fact]
@@ -490,284 +482,12 @@ namespace Masterly.NightShift.Core.Tests.Common
         }
 
         [Fact]
-        public void Perform_ThrowsAnException_WhenActivatorIsNull()
+        public void DeserializeArguments_ThrowsJsonException_WhenAStoredArgumentCanNotBeRead()
         {
-            var job = Job.FromExpression(() => StaticMethod());
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => job.Perform(null, _token.Object));
-
-            Assert.Equal("activator", exception.ParamName);
-        }
-
-        [Fact]
-        public void Perform_ThrowsAnException_WhenCancellationTokenIsNull()
-        {
-            var job = Job.FromExpression(() => StaticMethod());
-
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => job.Perform(_activator.Object, null));
-
-            Assert.Equal("cancellationToken", exception.ParamName);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_CanInvokeStaticMethods()
-        {
-            _methodInvoked = false;
-            var job = Job.FromExpression(() => StaticMethod());
-
-            job.Perform(_activator.Object, _token.Object);
-
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_CanInvokeInstanceMethods()
-        {
-            _methodInvoked = false;
-            var job = Job.FromExpression<Instance>(x => x.Method());
-
-            job.Perform(_activator.Object, _token.Object);
-
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_DisposesDisposableInstance_AfterPerformance()
-        {
-            _disposed = false;
-            var job = Job.FromExpression<Instance>(x => x.Method());
-
-            job.Perform(_activator.Object, _token.Object);
-
-            Assert.True(_disposed);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_PassesArguments_ToACallingMethod()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var job = Job.FromExpression(() => MethodWithArguments("hello", 5));
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see the `MethodWithArguments` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_PassesObjectArguments_ToACallingMethod()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var job = Job.FromExpression(() => MethodWithObjectArgument("5"));
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see the `MethodWithArguments` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingTypeConverter()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var typeConverter = TypeDescriptor.GetConverter(typeof (DateTime));
-            var convertedDate = typeConverter.ConvertToInvariantString(SomeDateTime);
-
-            var type = typeof (JobFacts);
-            var method = type.GetMethod("MethodWithDateTimeArgument");
-
-            var job = new Job(type, method, new[] { convertedDate });
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see also the `MethodWithDateTimeArgument` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_PassesCorrectDateTime_IfItWasSerialized_UsingOldFormat()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var convertedDate = SomeDateTime.ToString("MM/dd/yyyy HH:mm:ss.ffff");
-
-            var type = typeof(JobFacts);
-            var method = type.GetMethod("MethodWithDateTimeArgument");
-
-            var job = new Job(type, method, new[] { convertedDate });
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see also the `MethodWithDateTimeArgument` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_PassesCorrectDateTimeArguments()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var job = Job.FromExpression(() => MethodWithDateTimeArgument(SomeDateTime));
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see also the `MethodWithDateTimeArgument` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact, StaticLock]
-        public void Perform_WorksCorrectly_WithNullValues()
-        {
-            // Arrange
-            _methodInvoked = false;
-            var job = Job.FromExpression(() => NullArgumentMethod(null));
-
-            // Act
-            job.Perform(_activator.Object, _token.Object);
-
-            // Assert - see also `NullArgumentMethod` method.
-            Assert.True(_methodInvoked);
-        }
-
-        [Fact]
-        public void Perform_ThrowsPerformanceException_WhenActivatorThrowsAnException()
-        {
-            var exception = new InvalidOperationException();
-            _activator.Setup(x => x.ActivateJob(It.IsAny<Type>())).Throws(exception);
-
-            var job = Job.FromExpression(() => InstanceMethod());
-
-            var thrownException = Assert.Throws<JobPerformanceException>(
-                () => job.Perform(_activator.Object, _token.Object));
-
-            Assert.Same(exception, thrownException.InnerException);
-        }
-
-        [Fact]
-        public void Perform_ThrowsPerformanceException_WhenActivatorReturnsNull()
-        {
-            _activator.Setup(x => x.ActivateJob(It.IsNotNull<Type>())).Returns(null);
-            var job = Job.FromExpression(() => InstanceMethod());
-
-            var thrownException = Assert.Throws<JobPerformanceException>(
-                () => job.Perform(_activator.Object, _token.Object));
-
-            Assert.IsType<InvalidOperationException>(thrownException.InnerException);
-        }
-
-        [Fact]
-        public void Ctor_ThrowsJsonReaderException_OnArgumentsDeserializationFailure()
-        {
-            var type = typeof (JobFacts);
-            var method = type.GetMethod("MethodWithDateTimeArgument");
+            var method = typeof(JobFacts).GetMethod("MethodWithDateTimeArgument");
 
             Assert.ThrowsAny<JsonException>(
-                () => new Job(type, method, new []{ JobHelper.ToJson("sdfa") }));
-        }
-
-        [Fact, StaticLock]
-        public void Perform_ThrowsPerformanceException_OnDisposalFailure()
-        {
-            _methodInvoked = false;
-
-            var job = Job.FromExpression<BrokenDispose>(x => x.Method());
-
-            var exception = Assert.Throws<JobPerformanceException>(
-                () => job.Perform(_activator.Object, _token.Object));
-
-            Assert.True(_methodInvoked);
-            Assert.NotNull(exception.InnerException);
-        }
-
-        [Fact]
-        public void Perform_ThrowsPerformanceException_WithUnwrappedInnerException()
-        {
-            var job = Job.FromExpression(() => ExceptionMethod());
-
-            var thrownException = Assert.Throws<JobPerformanceException>(
-                () => job.Perform(_activator.Object, _token.Object));
-
-            Assert.IsType<InvalidOperationException>(thrownException.InnerException);
-            Assert.Equal("exception", thrownException.InnerException.Message);
-        }
-
-        [Fact]
-        public void Perform_ThrowsPerformanceException_WhenAMethodThrowsTaskCanceledException()
-        {
-            var job = Job.FromExpression(() => TaskCanceledExceptionMethod());
-
-            var thrownException = Assert.Throws<JobPerformanceException>(
-                () => job.Perform(_activator.Object, _token.Object));
-
-            Assert.IsType<TaskCanceledException>(thrownException.InnerException);
-        }
-
-        [Fact]
-        public void Perform_RethrowsOperationCanceledException_WhenShutdownTokenIsCanceled()
-        {
-            // Arrange
-            var job = Job.FromExpression(() => CancelableJob(JobCancellationToken.Null));
-            _token.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
-            _token.Setup(x => x.ThrowIfCancellationRequested()).Throws<OperationCanceledException>();
-
-            // Act & Assert
-            Assert.Throws<OperationCanceledException>(() => job.Perform(_activator.Object, _token.Object));
-        }
-
-        [Fact]
-        public void Run_RethrowsTaskCanceledException_WhenShutdownTokenIsCanceled()
-        {
-            // Arrange
-            var job = Job.FromExpression(() => CancelableJob(JobCancellationToken.Null));
-            _token.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
-            _token.Setup(x => x.ThrowIfCancellationRequested()).Throws<TaskCanceledException>();
-
-            // Act & Assert
-            Assert.Throws<TaskCanceledException>(() => job.Perform(_activator.Object, _token.Object));
-        }
-
-        [Fact]
-        public void Run_RethrowsJobAbortedException()
-        {
-            // Arrange
-            var job = Job.FromExpression(() => CancelableJob(JobCancellationToken.Null));
-            _token.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-            _token.Setup(x => x.ThrowIfCancellationRequested()).Throws<JobAbortedException>();
-
-            // Act & Assert
-            Assert.Throws<JobAbortedException>(() => job.Perform(_activator.Object, _token.Object));
-        }
-
-        [Fact]
-        public void Run_ThrowsJobPerformanceException_InsteadOfOperationCanceled_WhenShutdownWasNOTInitiated()
-        {
-            // Arrange
-            var job = Job.FromExpression(() => CancelableJob(JobCancellationToken.Null));
-            _token.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-            _token.Setup(x => x.ThrowIfCancellationRequested()).Throws<OperationCanceledException>();
-
-            // Act & Assert
-            Assert.Throws<JobPerformanceException>(() => job.Perform(_activator.Object, _token.Object));
-        }
-
-        [Fact]
-        public void Perform_ReturnsValue_WhenCallingFunctionReturningValue()
-        {
-            var job = Job.FromExpression<Instance>(x => x.FunctionReturningValue());
-
-            var result = job.Perform(_activator.Object, _token.Object);
-
-            Assert.Equal("Return value", result);
+                () => InvocationData.DeserializeArguments(method, new []{ TestJson.ToJson("sdfa") }));
         }
 
         [Fact]
@@ -819,7 +539,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public static void StaticMethod()
         {
-            _methodInvoked = true;
         }
 
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
@@ -828,22 +547,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global")]
         public void InstanceMethod()
         {
-            _methodInvoked = true;
-        }
-
-        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
-        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
-        public static void CancelableJob(IJobCancellationToken token)
-        {
-            token.ThrowIfCancellationRequested();
-        }
-
-        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
-        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
-        public static void NullArgumentMethod(string[] argument)
-        {
-            _methodInvoked = true;
-            Assert.Null(argument);
         }
 
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
@@ -852,7 +555,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public void MethodWithArguments(string stringArg, int intArg)
         {
-            _methodInvoked = true;
 
             Assert.Equal("hello", stringArg);
             Assert.Equal(5, intArg);
@@ -864,7 +566,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public void MethodWithObjectArgument(object argument)
         {
-            _methodInvoked = true;
 
             Assert.Equal("5", argument);
         }
@@ -880,7 +581,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global")]
         public void MethodWithDateTimeArgument(DateTime argument)
         {
-            _methodInvoked = true;
 
             Assert.Equal(SomeDateTime, argument);
         }
@@ -890,13 +590,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         public static void ExceptionMethod()
         {
             throw new InvalidOperationException("exception");
-        }
-
-        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
-        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
-        public static void TaskCanceledExceptionMethod()
-        {
-            throw new TaskCanceledException();
         }
 
         [UsedImplicitly]
@@ -957,12 +650,10 @@ namespace Masterly.NightShift.Core.Tests.Common
             [TestMethod]
             public void Method()
             {
-                _methodInvoked = true;
             }
 
             public void Dispose()
             {
-                _disposed = true;
             }
 
             public string FunctionReturningValue()
@@ -996,19 +687,6 @@ namespace Masterly.NightShift.Core.Tests.Common
 
         public class DerivedInstance : Instance
         {
-        }
-
-        public class BrokenDispose : IDisposable
-        {
-            public void Method()
-            {
-                _methodInvoked = true;
-            }
-
-            public void Dispose()
-            {
-                throw new InvalidOperationException();
-            }
         }
 
         // ReSharper disable once UnusedTypeParameter

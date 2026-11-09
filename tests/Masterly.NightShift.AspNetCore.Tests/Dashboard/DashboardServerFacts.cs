@@ -1,5 +1,3 @@
-// Hosts the dashboard with WebApplication and endpoint routing, which ASP.NET Core 2.x on .NET Framework doesn't have
-#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -546,4 +544,3 @@ namespace Masterly.NightShift.AspNetCore.Tests.Dashboard
         }
     }
 }
-#endif

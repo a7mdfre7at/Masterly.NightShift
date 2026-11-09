@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Data.Common;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 
 namespace Masterly.NightShift.SqlServer.Tests
 {
@@ -17,8 +17,6 @@ namespace Masterly.NightShift.SqlServer.Tests
                 "Masterly.NightShift.SqlServer.Tests.net10_0"
 #elif NET8_0
                 "Masterly.NightShift.SqlServer.Tests.net8_0"
-#elif NET48
-                "Masterly.NightShift.SqlServer.Tests.net48"
 #else
                 "Masterly.NightShift.SqlServer.Tests"
 #endif
@@ -52,11 +50,9 @@ namespace Masterly.NightShift.SqlServer.Tests
                    ?? DefaultConnectionStringTemplate;
         }
 
-        public static DbConnection CreateConnection(bool microsoftDataSqlClient)
+        public static DbConnection CreateConnection()
         {
-            var connection =
-                microsoftDataSqlClient ? (DbConnection)new Microsoft.Data.SqlClient.SqlConnection(GetConnectionString()) :
-                new SqlConnection(GetConnectionString());
+            var connection = new SqlConnection(GetConnectionString());
 
             connection.Open();
 

@@ -111,8 +111,8 @@ namespace Masterly.NightShift.States
             JobContinuationOptions options,
             TimeSpan expiration)
         {
-            if (parentId == null) throw new ArgumentNullException(nameof(parentId));
-            if (nextState == null) throw new ArgumentNullException(nameof(nextState));
+            ArgumentNullException.ThrowIfNull(parentId);
+            ArgumentNullException.ThrowIfNull(nextState);
 
             ParentId = parentId;
             NextState = nextState;

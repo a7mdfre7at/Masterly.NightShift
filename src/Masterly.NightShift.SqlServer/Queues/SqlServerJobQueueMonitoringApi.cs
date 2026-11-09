@@ -36,7 +36,7 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerJobQueueMonitoringApi([NotNull] SqlServerStorage storage)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
             _storage = storage;
         }
 

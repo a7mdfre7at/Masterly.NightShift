@@ -26,8 +26,8 @@ namespace Masterly.NightShift.Profiling
             [NotNull] Action<TInstance> action,
             [CanBeNull] Func<TInstance, string> messageFunc = null)
         {
-            if (profiler == null) throw new ArgumentNullException(nameof(profiler));
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(profiler);
+            ArgumentNullException.ThrowIfNull(action);
 
             profiler.InvokeMeasured(new InstanceAction<TInstance>(instance, action, messageFunc), InvokeAction, MessageCallback);
         }
@@ -47,7 +47,7 @@ namespace Masterly.NightShift.Profiling
         {
             public InstanceAction([CanBeNull] TInstance instance, [NotNull] Action<TInstance> action, [CanBeNull] Func<TInstance, string> messageFunc)
             {
-                if (action == null) throw new ArgumentNullException(nameof(action));
+                ArgumentNullException.ThrowIfNull(action);
 
                 Instance = instance;
                 Action = action;

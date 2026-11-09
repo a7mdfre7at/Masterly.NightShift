@@ -42,7 +42,7 @@ namespace Masterly.NightShift.Profiling
             Func<TInstance, TResult> action,
             Func<TInstance, string> messageFunc = null)
         {
-            if (action == null) throw new ArgumentNullException(nameof(action));
+            ArgumentNullException.ThrowIfNull(action);
 
             var startedAt = Environment.TickCount;
 

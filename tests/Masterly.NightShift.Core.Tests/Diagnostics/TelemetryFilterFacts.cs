@@ -1,5 +1,3 @@
-// UseTelemetry() and the filter exist on net8.0 and later only (ActivitySource and Meter are not on .NET Framework)
-#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -458,4 +456,3 @@ namespace Masterly.NightShift.Core.Tests.Diagnostics
         }
     }
 }
-#endif

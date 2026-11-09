@@ -162,29 +162,25 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
             Assert.Equal("danger", JobHistoryRenderer.GetStateCssSuffix("Facts.Suffixed"));
         }
 
-#pragma warning disable CS0618 // The color methods are obsolete, but still supported
         [Fact, StaticLock]
-        public void AddStateColors_ReplaceTheColors_WhenCalledAgainForTheSameState()
+        public void StateColors_ComeFromTheCssSuffix_ForACustomState()
         {
-            JobHistoryRenderer.AddForegroundStateColor("Facts.Recolored", "#111");
-            JobHistoryRenderer.AddForegroundStateColor("Facts.Recolored", "#222");
-            JobHistoryRenderer.AddBackgroundStateColor("Facts.Recolored", "#333");
-            JobHistoryRenderer.AddBackgroundStateColor("Facts.Recolored", "#444");
+            JobHistoryRenderer.AddStateCssSuffix("Facts.Colored", "danger");
 
-            Assert.Equal("#222", JobHistoryRenderer.GetForegroundStateColor("Facts.Recolored"));
-            Assert.Equal("#444", JobHistoryRenderer.GetBackgroundStateColor("Facts.Recolored"));
+            Assert.Equal(
+                JobHistoryRenderer.GetForegroundStateColor(FailedState.StateName),
+                JobHistoryRenderer.GetForegroundStateColor("Facts.Colored"));
+            Assert.Equal(
+                JobHistoryRenderer.GetBackgroundStateColor(FailedState.StateName),
+                JobHistoryRenderer.GetBackgroundStateColor("Facts.Colored"));
         }
 
-        [Fact, StaticLock]
-        public void StateLabel_UsesTheRegisteredColor_ForAStateWithoutASuffix()
+        [Fact]
+        public void StateColors_AreInherit_ForAStateWithoutASuffix()
         {
-            JobHistoryRenderer.AddForegroundStateColor("Facts.Colored", "#123456");
-
-            var html = CreateHelper().StateLabel("Facts.Colored").ToString();
-
-            Assert.Equal("<span class=\"label label-default \" style=\"background-color: #123456;\">Facts.Colored</span>", html);
+            Assert.Equal("inherit", JobHistoryRenderer.GetForegroundStateColor("Facts.NoSuffix"));
+            Assert.Equal("inherit", JobHistoryRenderer.GetBackgroundStateColor("Facts.NoSuffix"));
         }
-#pragma warning restore CS0618
 
         [Fact]
         public void StateLabel_UsesTheSuffixClass_ForABuiltInState()
@@ -195,7 +191,7 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         }
 
         [Fact]
-        public void StateLabel_KeepsTheNeutralLook_ForAStateWithNeitherSuffixNorColor()
+        public void StateLabel_KeepsTheNeutralLook_ForAStateWithoutASuffix()
         {
             var html = CreateHelper().StateLabel("Facts.Unknown").ToString();
 

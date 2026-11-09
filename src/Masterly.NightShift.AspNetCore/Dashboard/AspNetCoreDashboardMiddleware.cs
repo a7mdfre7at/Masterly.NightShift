@@ -73,10 +73,10 @@ namespace Masterly.NightShift.Dashboard
             [NotNull] RouteCollection routes,
             bool finalizeWhenNotFound)
         {
-            if (next == null) throw new ArgumentNullException(nameof(next));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
-            if (routes == null) throw new ArgumentNullException(nameof(routes));
+            ArgumentNullException.ThrowIfNull(next);
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(routes);
 
             _next = next;
             _storage = storage;

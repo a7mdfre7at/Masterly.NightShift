@@ -40,8 +40,8 @@ namespace Masterly.NightShift
             [NotNull] TStorage storage)
             where TStorage : JobStorage
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(storage);
 
             return configuration.Use(storage, static x => JobStorage.Current = x);
         }
@@ -51,7 +51,7 @@ namespace Masterly.NightShift
             TimeSpan timeout)
             where TStorage : JobStorage
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             configuration.Entry.JobExpirationTimeout = timeout;
             return configuration;
@@ -71,7 +71,7 @@ namespace Masterly.NightShift
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="retention"/> is not positive, or it is too long.</exception>
         public static IGlobalConfiguration UseFailedJobRetention([NotNull] this IGlobalConfiguration configuration, TimeSpan retention)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             FailedJobRetentionFilter.Validate(retention, nameof(retention));
 
             var filter = (FailedJobRetentionFilter)AddGlobalFilterOnce(
@@ -87,8 +87,8 @@ namespace Masterly.NightShift
             [NotNull] TActivator activator)
             where TActivator : JobActivator
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (activator == null) throw new ArgumentNullException(nameof(activator));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(activator);
 
             return configuration.Use(activator, static x => JobActivator.Current = x);
         }
@@ -96,22 +96,21 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<JobActivator> UseDefaultActivator(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseActivator(new JobActivator());
         }
 
         /// <summary>
         /// Sends Masterly.NightShift's log messages to <paramref name="provider"/>, including those of loggers
-        /// created before this call. On the netstandard2.0 build, loggers created before the first call keep the
-        /// provider they started with.
+        /// created before this call.
         /// </summary>
         public static IGlobalConfiguration<TLogProvider> UseLogProvider<TLogProvider>(
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] TLogProvider provider)
             where TLogProvider : ILogProvider
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (provider == null) throw new ArgumentNullException(nameof(provider));
             
             return configuration.Use(provider, static x => LateBoundLogProvider.Use(x));
@@ -125,14 +124,14 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<ILogProvider> UseNoOpLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseLogProvider(LogProvider.NoOpLogProvider.Instance);
         }
 
         public static IGlobalConfiguration<NLogLogProvider> UseNLogLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new NLogLogProvider());
         }
@@ -140,7 +139,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<ColouredConsoleLogProvider> UseColouredConsoleLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new ColouredConsoleLogProvider());
         }
@@ -149,7 +148,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             LogLevel minLevel)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new ColouredConsoleLogProvider(minLevel));
         }
@@ -157,7 +156,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<Log4NetLogProvider> UseLog4NetLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new Log4NetLogProvider());
         }
@@ -165,7 +164,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<ElmahLogProvider> UseElmahLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new ElmahLogProvider());
         }
@@ -174,7 +173,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             LogLevel minLevel)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new ElmahLogProvider(minLevel));
         }
@@ -182,7 +181,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<EntLibLogProvider> UseEntLibLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new EntLibLogProvider());
         }
@@ -190,7 +189,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<SerilogLogProvider> UseSerilogLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new SerilogLogProvider());
         }
@@ -198,7 +197,7 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration<LoupeLogProvider> UseLoupeLogProvider(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             return configuration.UseLogProvider(new LoupeLogProvider());
         }
@@ -207,7 +206,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration, 
             [NotNull] TFilter filter)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (filter == null) throw new ArgumentNullException(nameof(filter));
 
             return configuration.Use(filter, static x => GlobalJobFilters.Filters.Add(x));
@@ -218,7 +217,7 @@ namespace Masterly.NightShift
             [NotNull] TFilterProvider filterProvider)
             where TFilterProvider : IJobFilterProvider
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
 
             return configuration.Use(filterProvider, static x => JobFilterProviders.Providers.Add(x));
@@ -228,8 +227,8 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] DashboardMetric metric)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (metric == null) throw new ArgumentNullException(nameof(metric));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(metric);
 
             DashboardMetrics.AddMetric(metric);
             HomePage.Metrics.Add(metric);
@@ -241,8 +240,8 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] params DashboardMetric[] metrics)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (metrics == null) throw new ArgumentNullException(nameof(metrics));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(metrics);
 
             foreach (var metric in metrics)
             {
@@ -258,8 +257,8 @@ namespace Masterly.NightShift
             int order,
             [NotNull] Func<JobDetailsRendererDto, NonEscapedString> renderer)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (renderer == null) throw new ArgumentNullException(nameof(renderer));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(renderer);
 
             JobDetailsRenderer.AddRenderer(order, renderer);
 
@@ -270,7 +269,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] Func<string, Type> typeResolver)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             TypeHelper.CurrentTypeResolver = typeResolver;
             return configuration;
@@ -280,7 +279,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] Func<Type, string> typeSerializer)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             TypeHelper.CurrentTypeSerializer = typeSerializer;
             return configuration;
@@ -289,28 +288,28 @@ namespace Masterly.NightShift
         public static IGlobalConfiguration UseDefaultTypeResolver(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseTypeResolver(null);
         }
 
         public static IGlobalConfiguration UseDefaultTypeSerializer(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseTypeSerializer(null);
         }
 
         public static IGlobalConfiguration UseSimpleAssemblyNameTypeSerializer(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseTypeSerializer(TypeHelper.SimpleAssemblyTypeSerializer);
         }
 
         public static IGlobalConfiguration UseIgnoredAssemblyVersionTypeResolver(
             [NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseTypeResolver(TypeHelper.IgnoredAssemblyVersionTypeResolver);
         }
 
@@ -334,7 +333,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] ITimeZoneResolver timeZoneResolver)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             GlobalTimeZoneResolver.Set(timeZoneResolver);
             return configuration;
@@ -356,7 +355,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] JsonSerializerOptions settings)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             SerializationHelper.SetUserSerializerSettings(settings);
             return configuration;
@@ -379,7 +378,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] Action<JsonSerializerOptions> settingsConfiguration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             SerializationHelper.SetRecommendedSerializerSettings(settingsConfiguration);
             return configuration;
@@ -418,7 +417,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] int? numberOfLines)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (numberOfLines.HasValue && numberOfLines.Value <= 1) throw new ArgumentOutOfRangeException(nameof(numberOfLines), "Must be either a positive value larger than 1; or a null value.");
 
             States.FailedState.MaxLinesInExceptionDetails = numberOfLines;
@@ -429,7 +428,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             int size)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (size < 0) throw new ArgumentOutOfRangeException(nameof(size), "Must be a positive value");
 
             JobMethodCallRenderer.MaxArgumentToRenderSize = size;
@@ -440,7 +439,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [CanBeNull] CultureInfo culture)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name));
         }
 
@@ -449,7 +448,7 @@ namespace Masterly.NightShift
             [CanBeNull] CultureInfo culture,
             bool captureDefault)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name, captureDefault));
         }
 
@@ -458,7 +457,7 @@ namespace Masterly.NightShift
             [CanBeNull] CultureInfo culture,
             [CanBeNull] CultureInfo uiCulture)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name, uiCulture?.Name));
         }
 
@@ -468,11 +467,10 @@ namespace Masterly.NightShift
             [CanBeNull] CultureInfo uiCulture,
             bool captureDefault)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name, uiCulture?.Name, captureDefault));
         }
 
-#if NET8_0_OR_GREATER
         /// <summary>
         /// Emits OpenTelemetry-compatible traces and metrics for background jobs through the
         /// <see cref="NightShiftTelemetry.ActivitySourceName"/> activity source and the
@@ -484,13 +482,12 @@ namespace Masterly.NightShift
         /// <returns>The same configuration, for chaining.</returns>
         public static IGlobalConfiguration UseTelemetry([NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             var telemetry = (Diagnostics.TelemetryFilter)AddGlobalFilterOnce(static filter => filter is Diagnostics.TelemetryFilter, static () => new Diagnostics.TelemetryFilter());
             return configuration.Use(telemetry, static _ => { });
         }
 
-#endif
 
         /// <summary>
         /// Adds an interceptor that runs around every background job method, before the interceptors declared
@@ -503,8 +500,8 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] IJobInterceptor interceptor)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (interceptor == null) throw new ArgumentNullException(nameof(interceptor));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(interceptor);
 
             GlobalJobInterceptors.Add(interceptor);
             return configuration;
@@ -518,7 +515,7 @@ namespace Masterly.NightShift
         /// <returns>The same configuration, for chaining.</returns>
         public static IGlobalConfiguration UseJobInsights([NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             AddGlobalFilterOnce(static filter => filter is JobInsightsAttribute, static () => new JobInsightsAttribute());
             var queueInsights = (QueueInsightsFilter)AddGlobalFilterOnce(static filter => filter is QueueInsightsFilter, static () => new QueueInsightsFilter());
@@ -536,7 +533,7 @@ namespace Masterly.NightShift
         /// <returns>The same configuration, for chaining.</returns>
         public static IGlobalConfiguration UseActivityFeed([NotNull] this IGlobalConfiguration configuration)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             AddGlobalFilterOnce(static filter => filter is ActivityFeedFilter, static () => new ActivityFeedFilter());
 
@@ -553,7 +550,7 @@ namespace Masterly.NightShift
         /// <returns>The same configuration, for chaining.</returns>
         public static IGlobalConfiguration UseActivityFeed([NotNull] this IGlobalConfiguration configuration, int maxEntries)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
             if (maxEntries <= 0) throw new ArgumentOutOfRangeException(nameof(maxEntries), "Value must be positive.");
 
             ActivityFeed.MaxEntries = maxEntries;
@@ -574,8 +571,8 @@ namespace Masterly.NightShift
             [NotNull] string url,
             [CanBeNull] Action<WebhookAlertOptions> configure = null)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (url == null) throw new ArgumentNullException(nameof(url));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(url);
 
             var options = new WebhookAlertOptions { Url = url };
             configure?.Invoke(options);
@@ -594,8 +591,8 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             [NotNull] IAlertSink sink)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (sink == null) throw new ArgumentNullException(nameof(sink));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(sink);
 
             Alerts.AddSink(sink);
             AddGlobalFilterOnce(static filter => filter is AlertsFilter, static () => new AlertsFilter());
@@ -614,7 +611,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration,
             bool enabled)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             JobInvokerRegistry.UseCompiledInvokers = enabled;
             return configuration;
@@ -625,9 +622,9 @@ namespace Masterly.NightShift
             [NotNull] Assembly assembly,
             [NotNull] string resource)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             DashboardRoutes.AddStylesheet(assembly, resource);
             return configuration;
@@ -638,9 +635,9 @@ namespace Masterly.NightShift
             [NotNull] Assembly assembly,
             [NotNull] string resource)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             DashboardRoutes.AddStylesheetDarkMode(assembly, resource);
             return configuration;
@@ -651,9 +648,9 @@ namespace Masterly.NightShift
             [NotNull] Assembly assembly,
             [NotNull] string resource)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            if (resource == null) throw new ArgumentNullException(nameof(resource));
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(assembly);
+            ArgumentNullException.ThrowIfNull(resource);
 
             DashboardRoutes.AddJavaScript(assembly, resource);
             return configuration;
@@ -664,7 +661,7 @@ namespace Masterly.NightShift
             [NotNull] this IGlobalConfiguration configuration, T entry,
             [NotNull] Action<T> entryAction)
         {
-            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            ArgumentNullException.ThrowIfNull(configuration);
 
             entryAction(entry);
 

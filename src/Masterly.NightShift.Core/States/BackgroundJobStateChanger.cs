@@ -48,8 +48,8 @@ namespace Masterly.NightShift.States
 
         internal BackgroundJobStateChanger([NotNull] IJobFilterProvider filterProvider, [NotNull] IStateMachine stateMachine)
         {
-            if (filterProvider == null) throw new ArgumentNullException(nameof(filterProvider));
-            if (stateMachine == null) throw new ArgumentNullException(nameof(stateMachine));
+            ArgumentNullException.ThrowIfNull(filterProvider);
+            ArgumentNullException.ThrowIfNull(stateMachine);
 
             _stateMachine = new StateMachine(filterProvider, stateMachine);
         }

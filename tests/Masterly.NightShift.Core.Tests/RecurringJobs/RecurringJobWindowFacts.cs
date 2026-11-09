@@ -21,12 +21,7 @@ namespace Masterly.NightShift.Core.Tests
         private const string Id = "window-job";
         private const string Daily = "0 9 * * *";
 
-        // .NET Framework doesn't know IANA time zone ids
-#if NETFRAMEWORK
-        private const string BerlinTimeZoneId = "W. Europe Standard Time";
-#else
         private const string BerlinTimeZoneId = "Europe/Berlin";
-#endif
 
         private readonly Dictionary<string, Dictionary<string, string>> _hashes = new Dictionary<string, Dictionary<string, string>>();
         private readonly Dictionary<string, double> _schedule = new Dictionary<string, double>();

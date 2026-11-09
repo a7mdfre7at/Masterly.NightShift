@@ -28,7 +28,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new SqlServerStorage((string)null));
 
-            Assert.Equal("nameOrConnectionString", exception.ParamName);
+            Assert.Equal("connectionString", exception.ParamName);
         }
 
         [Fact]
@@ -41,13 +41,14 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Fact]
-        public void Ctor_ThrowsAClearException_WhenGivenANameThatIsNotConfigured()
+        public void Ctor_ThrowsAClearException_WhenGivenAConnectionStringName()
         {
             var exception = Assert.Throws<ArgumentException>(
-                () => new SqlServerStorage("NoSuchConnectionStringName", _options));
+                () => new SqlServerStorage("NightShift", _options));
 
-            Assert.Equal("nameOrConnectionString", exception.ParamName);
-            Assert.Contains("'NoSuchConnectionStringName' looks like a connection string name", exception.Message);
+            Assert.Equal("connectionString", exception.ParamName);
+            Assert.Contains("'NightShift' is not a connection string", exception.Message);
+            Assert.Contains("IConfiguration.GetConnectionString", exception.Message);
         }
 
         [Fact]
@@ -57,17 +58,6 @@ namespace Masterly.NightShift.SqlServer.Tests
 
             Assert.Same(connectionString, SqlServerStorage.ResolveConnectionString(connectionString));
         }
-
-#if NETFRAMEWORK
-        [Fact]
-        public void ResolveConnectionString_ReadsANamedConnectionString_FromTheConfigurationFile()
-        {
-            // App.config of this project holds it
-            var connectionString = SqlServerStorage.ResolveConnectionString("NightShiftNamedConnection");
-
-            Assert.Equal(@"Server=(localdb)\NamedConnectionTest;Database=NightShiftNamed;Integrated Security=True;", connectionString);
-        }
-#endif
 
         [Fact]
         public void JobExpirationTimeout_AcceptsTheLongestRetention()
@@ -91,11 +81,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.Equal(TimeSpan.FromDays(1), storage.JobExpirationTimeout);
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_CanCreateSqlServerStorage_WithExistingConnection(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Ctor_CanCreateSqlServerStorage_WithExistingConnection()
         {
-            using (var connection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 var storage = new SqlServerStorage(connection);
                 Assert.NotNull(storage);
@@ -113,11 +102,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.Equal("connectionFactory", exception.ParamName);
         }
 
-        [Theory]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_ThrowsAnException_WhenOptionsValueIsNull_WithConnectionFactory(bool useMicrosoftDataSqlClient)
+        [Fact]
+        public void Ctor_ThrowsAnException_WhenOptionsValueIsNull_WithConnectionFactory()
         {
-            Func<DbConnection> connectionFactory = () => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient);
+            Func<DbConnection> connectionFactory = () => ConnectionUtils.CreateConnection();
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new SqlServerStorage(connectionFactory, null));
 
@@ -162,25 +150,55 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Fact, CleanDatabase]
-        public void UseConnection_UsesSystemDataSqlClient_WhenSqlClientFactoryIsSet()
+        public void UseConnection_UsesTheConfiguredSqlClientFactory()
         {
-            _options.SqlClientFactory = System.Data.SqlClient.SqlClientFactory.Instance;
+            var factory = new CountingFactory();
+            _options.SqlClientFactory = factory;
             var storage = CreateStorage();
+
             storage.UseConnection(null, (_, connection) =>
             {
-                Assert.IsType<System.Data.SqlClient.SqlConnection>(connection);
+                Assert.IsType<Microsoft.Data.SqlClient.SqlConnection>(connection);
             });
+
+            Assert.True(factory.CreatedConnections > 0);
         }
 
         [Fact, CleanDatabase]
-        public void GetComponents_ReturnsAllNeededComponents()
+        public void UseTransaction_UsesReadCommitted_ByDefault()
         {
             var storage = CreateStorage();
 
-            var components = storage.GetComponents();
+            var isolationLevel = storage.UseTransaction(null, static (_, connection, transaction, _) =>
+                connection.ExecuteScalar<short>(
+                    "select transaction_isolation_level from sys.dm_exec_sessions where session_id = @@SPID",
+                    transaction: transaction), 0, null);
 
-            var componentTypes = components.Select(x => x.GetType()).ToArray();
-            Assert.Contains(typeof(ExpirationManager), componentTypes);
+            // 2 is READ COMMITTED
+            Assert.Equal(2, isolationLevel);
+        }
+
+        [Fact]
+        public void GetServerRequiredProcesses_ReturnsTheHeartbeatProcess()
+        {
+            var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options);
+
+            var processes = storage.GetServerRequiredProcesses().ToArray();
+
+            Assert.Single(processes);
+            Assert.IsType<SqlServerHeartbeatProcess>(processes[0]);
+        }
+
+        [Fact]
+        public void GetStorageWideProcesses_ReturnsTheMaintenanceProcesses()
+        {
+            var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options);
+
+            var processes = storage.GetStorageWideProcesses().ToArray();
+
+            Assert.Equal(2, processes.Length);
+            Assert.Contains(processes, x => x is ExpirationManager);
+            Assert.Contains(processes, x => x is CountersAggregator);
         }
 
         [Fact, CleanDatabase]
@@ -274,18 +292,6 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_AutoDetectsTheSchemaDependentOptions_ThatWereNotSet()
-        {
-            // The test database is at the latest schema version
-            var storage = CreateStorage();
-
-            Assert.True(storage.DisableGlobalLocks);
-            Assert.True(storage.UseIgnoreDupKeyOption);
-            Assert.Equal(10000, storage.DeleteExpiredBatchSize);
-            Assert.True(storage.Options.UseRecommendedIsolationLevel);
-        }
-
-        [Fact, CleanDatabase]
         public void Ctor_DoesNotWriteTheAutoDetectedValues_IntoTheOptionsObject()
         {
             CreateStorage();
@@ -293,24 +299,6 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.False(_options.DisableGlobalLocks);
             Assert.False(_options.UseIgnoreDupKeyOption);
             Assert.Equal(-1, _options.DeleteExpiredBatchSize);
-        }
-
-        [Fact, CleanDatabase]
-        public void Ctor_KeepsTheSchemaDependentOptions_ThatWereSetExplicitly()
-        {
-            _options.DisableGlobalLocks = false;
-            _options.UseIgnoreDupKeyOption = false;
-            _options.DeleteExpiredBatchSize = 500;
-            _options.UseRecommendedIsolationLevel = false;
-
-            var storage = CreateStorage();
-
-            Assert.False(storage.DisableGlobalLocks);
-            Assert.False(storage.UseIgnoreDupKeyOption);
-            Assert.Equal(500, storage.DeleteExpiredBatchSize);
-            Assert.False(_options.DisableGlobalLocks);
-            Assert.False(_options.UseIgnoreDupKeyOption);
-            Assert.False(_options.UseRecommendedIsolationLevel);
         }
 
         [Fact, CleanDatabase]
@@ -353,27 +341,6 @@ namespace Masterly.NightShift.SqlServer.Tests
         }
 
         [Fact, CleanDatabase]
-        public void UseTransaction_UsesTheConfiguredIsolationLevel_WhenTheRecommendedOneIsTurnedOff()
-        {
-            _options.UseRecommendedIsolationLevel = false;
-            _options.TransactionIsolationLevel = IsolationLevel.Serializable;
-            var storage = CreateStorage();
-
-            var level = storage.UseTransaction(null, static (_, connection, transaction, _) =>
-            {
-                using (var command = connection.CreateCommand())
-                {
-                    command.Transaction = transaction;
-                    command.CommandText = "select transaction_isolation_level from sys.dm_exec_sessions where session_id = @@SPID";
-                    return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-                }
-            }, (object)null, null);
-
-            // 4 is SERIALIZABLE in sys.dm_exec_sessions
-            Assert.Equal(4, level);
-        }
-
-        [Fact, CleanDatabase]
         public void Ctor_WaitsBetweenInstallAttempts_WhenTheDatabaseIsNotReachableYet()
         {
             _options.PrepareSchemaIfNecessary = true;
@@ -383,7 +350,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var stopwatch = Stopwatch.StartNew();
             var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
                 ? throw new DatabaseStartingException()
-                : ConnectionUtils.CreateConnection(true), _options);
+                : ConnectionUtils.CreateConnection(), _options);
             stopwatch.Stop();
 
             // The third attempt succeeds, after waiting 1 s and 3 s
@@ -403,7 +370,7 @@ namespace Masterly.NightShift.SqlServer.Tests
 
             var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
                 ? throw new InvalidOperationException("The token service isn't ready yet.")
-                : ConnectionUtils.CreateConnection(true), _options);
+                : ConnectionUtils.CreateConnection(), _options);
 
             Assert.False(storage.SchemaInstallPending);
             Assert.Equal(3, attempts);
@@ -420,30 +387,11 @@ namespace Masterly.NightShift.SqlServer.Tests
             Assert.True(storage.SchemaInstallPending);
         }
 
-        [Fact]
-        public void Ctor_ThrowsAtOnce_WhenNoSqlClientIsAvailable_EvenThoughTheInstallToleratesErrors()
-        {
-            var options = new SqlServerStorageOptions();
-
-            // As when neither Microsoft.Data.SqlClient nor System.Data.SqlClient can be loaded
-            typeof(SqlServerStorageOptions)
-                .GetField("_sqlClientFactory", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                .SetValue(options, null);
-
-            var stopwatch = Stopwatch.StartNew();
-            var exception = Assert.Throws<InvalidOperationException>(
-                () => new SqlServerStorage(ConnectionUtils.GetConnectionString(), options));
-
-            Assert.Contains("Microsoft.Data.SqlClient", exception.Message);
-            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"Took {stopwatch.Elapsed}.");
-        }
-
         // After a failed open, the SQL client fails every open of a pooled connection string at once, with the same
         // error, for 5 seconds or more (its pool blocking period), so the retries 1 and 3 seconds later never reached
         // the server
-        [Theory, CleanDatabase]
-        [InlineData(false), InlineData(true)]
-        public void Ctor_InstallRetriesReachTheServer_AfterAPooledConnectionFailedToOpen(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Ctor_InstallRetriesReachTheServer_AfterAPooledConnectionFailedToOpen()
         {
             // The database doesn't exist at the first attempt, and is created before the second one opens its connection
             var databaseName = ConnectionUtils.GetDatabaseName() + "_starting";
@@ -456,9 +404,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var options = new SqlServerStorageOptions
             {
                 TryAutoDetectSchemaDependentOptions = false,
-                SqlClientFactory = useMicrosoftDataSqlClient
-                    ? Microsoft.Data.SqlClient.SqlClientFactory.Instance
-                    : System.Data.SqlClient.SqlClientFactory.Instance,
+                SqlClientFactory = Microsoft.Data.SqlClient.SqlClientFactory.Instance,
                 // Called before each connection is opened
                 ImpersonationFunc = () =>
                 {
@@ -488,7 +434,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var attempts = 0;
             var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) == 1
                 ? throw new DatabaseStartingException()
-                : ConnectionUtils.CreateConnection(true), _options);
+                : ConnectionUtils.CreateConnection(), _options);
 
             Assert.True(storage.DisableGlobalLocks);
             Assert.True(storage.UseIgnoreDupKeyOption);
@@ -506,7 +452,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var storage = new SqlServerStorage(() =>
             {
                 Interlocked.Increment(ref attempts);
-                return Volatile.Read(ref reachable) == 1 ? ConnectionUtils.CreateConnection(true) : throw new DatabaseStartingException();
+                return Volatile.Read(ref reachable) == 1 ? ConnectionUtils.CreateConnection() : throw new DatabaseStartingException();
             }, _options);
 
             // The three startup attempts and the version detection failed
@@ -579,7 +525,7 @@ namespace Masterly.NightShift.SqlServer.Tests
             var attempts = 0;
             var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
                 ? throw new DatabaseStartingException()
-                : ConnectionUtils.CreateConnection(true), _options);
+                : ConnectionUtils.CreateConnection(), _options);
 
             // The first use tries again and fails; the next ones wait for the retry interval
             Assert.False(storage.DisableGlobalLocks);
@@ -627,7 +573,7 @@ namespace Masterly.NightShift.SqlServer.Tests
         {
             const string schemaName = "Задания";
 
-            using (var connection = ConnectionUtils.CreateConnection(true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 // The test database's collation (SQL_Latin1_General_CP1_CS_AS) has no Cyrillic in its code page
                 var lostInNonUnicodeLiteral = connection.ExecuteScalar<int>(
@@ -687,7 +633,7 @@ if db_id(@name) is not null exec sp_executesql @sql;", new { name = databaseName
 
         private static void DropSchema(string schemaName)
         {
-            using (var connection = ConnectionUtils.CreateConnection(true))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 // State and JobParameter first, because of their foreign keys to Job
                 connection.Execute(@"
@@ -713,11 +659,49 @@ if schema_id(@schema) is not null exec sp_executesql @sql;", new { schema = sche
             }
         }
 
+        private sealed class CountingFactory : DbProviderFactory
+        {
+            public int CreatedConnections { get; private set; }
+
+            public override DbConnection CreateConnection()
+            {
+                CreatedConnections++;
+                return Microsoft.Data.SqlClient.SqlClientFactory.Instance.CreateConnection();
+            }
+        }
+
         private SqlServerStorage CreateStorage()
         {
             return new SqlServerStorage(
                 ConnectionUtils.GetConnectionString(),
                 _options);
+        }
+
+        [Fact, CleanDatabase]
+        public void Ctor_AutoDetectsTheSchemaDependentOptions_ThatWereNotSet()
+        {
+            // The test database is at the latest schema version
+            var storage = CreateStorage();
+
+            Assert.True(storage.DisableGlobalLocks);
+            Assert.True(storage.UseIgnoreDupKeyOption);
+            Assert.Equal(10000, storage.DeleteExpiredBatchSize);
+        }
+
+        [Fact, CleanDatabase]
+        public void Ctor_KeepsTheSchemaDependentOptions_ThatWereSetExplicitly()
+        {
+            _options.DisableGlobalLocks = false;
+            _options.UseIgnoreDupKeyOption = false;
+            _options.DeleteExpiredBatchSize = 500;
+
+            var storage = CreateStorage();
+
+            Assert.False(storage.DisableGlobalLocks);
+            Assert.False(storage.UseIgnoreDupKeyOption);
+            Assert.Equal(500, storage.DeleteExpiredBatchSize);
+            Assert.False(_options.DisableGlobalLocks);
+            Assert.False(_options.UseIgnoreDupKeyOption);
         }
     }
 }

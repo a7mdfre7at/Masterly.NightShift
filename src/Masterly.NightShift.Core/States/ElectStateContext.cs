@@ -25,13 +25,11 @@ using Masterly.NightShift.Storage;
 
 namespace Masterly.NightShift.States
 {
-#pragma warning disable 618
     /// <summary>
     /// What <see cref="IElectStateFilter"/> filters get while the next state of a job is chosen; setting <see
     /// cref="CandidateState"/> changes it.
     /// </summary>
-    public class ElectStateContext : StateContext
-#pragma warning restore 618
+    public class ElectStateContext
     {
         private readonly IList<IState> _traversedStates = new List<IState>();
         private IState _candidateState;
@@ -43,8 +41,8 @@ namespace Masterly.NightShift.States
 
         public ElectStateContext([NotNull] ApplyStateContext applyContext, [CanBeNull] StateMachine? stateMachine)
         {
-            if (applyContext == null) throw new ArgumentNullException(nameof(applyContext));
-            
+            ArgumentNullException.ThrowIfNull(applyContext);
+
             BackgroundJob = applyContext.BackgroundJob;
             _candidateState = applyContext.NewState;
 
@@ -58,7 +56,7 @@ namespace Masterly.NightShift.States
             AfterCommit = applyContext.AfterCommit;
         }
         
-        public override BackgroundJob BackgroundJob { get; }
+        public BackgroundJob BackgroundJob { get; }
 
         [NotNull]
         public JobStorage Storage { get; }

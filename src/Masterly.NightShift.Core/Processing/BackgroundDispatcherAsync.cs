@@ -42,15 +42,13 @@ namespace Masterly.NightShift.Processing
             int maxConcurrency,
             bool ownsScheduler)
         {
-            if (maxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maxConcurrency));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 
             _execution = execution ?? throw new ArgumentNullException(nameof(execution));
             _action = action ?? throw new ArgumentNullException(nameof(action));
             _state = state;
             _taskScheduler = taskScheduler ?? throw new ArgumentNullException(nameof(taskScheduler));
             _ownsScheduler = ownsScheduler;
-
-            AppDomainUnloadMonitor.EnsureInitialized();
 
             _stopped = new CountdownEvent(maxConcurrency);
 
@@ -98,16 +96,13 @@ namespace Masterly.NightShift.Processing
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                if (!(ex is ThreadAbortException) || !AppDomainUnloadMonitor.IsUnloading)
+                try
                 {
-                    try
-                    {
-                        _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
-                    }
-                    catch (Exception inner) when (inner.IsCatchableExceptionType())
-                    {
-                        Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
-                    }
+                    _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
+                }
+                catch (Exception inner) when (inner.IsCatchableExceptionType())
+                {
+                    Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
                 }
             }
             finally

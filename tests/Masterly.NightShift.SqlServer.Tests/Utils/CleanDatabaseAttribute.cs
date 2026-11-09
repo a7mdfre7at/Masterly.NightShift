@@ -1,7 +1,7 @@
 ﻿extern alias ReferencedDapper;
 
 using System;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Reflection;
 using System.Threading;
 using ReferencedDapper::Dapper;

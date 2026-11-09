@@ -54,14 +54,14 @@ namespace Masterly.NightShift
         [CanBeNull]
         public string? GetTag([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
             return JobTags.FromText(ConcurrencyControl.FormatResource(Template, job));
         }
 
         /// <inheritdoc />
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var tag = GetTag(context.Job);
             if (tag == null) return;
@@ -80,7 +80,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreated(CreatedContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.Canceled || context.Exception != null || context.BackgroundJob == null) return;
 
             var tag = GetTag(context.Job);
@@ -146,7 +146,7 @@ namespace Masterly.NightShift
         /// <summary>The set holding the ids of the jobs carrying a tag.</summary>
         public static string GetKey([NotNull] string tag)
         {
-            if (tag == null) throw new ArgumentNullException(nameof(tag));
+            ArgumentNullException.ThrowIfNull(tag);
             return $"tags:{tag}";
         }
 
@@ -182,7 +182,7 @@ namespace Masterly.NightShift
         /// </summary>
         private static string NormalizeName([NotNull] string tag)
         {
-            if (tag == null) throw new ArgumentNullException(nameof(tag));
+            ArgumentNullException.ThrowIfNull(tag);
 
             var normalized = Collapse(tag);
             if (normalized.Length == 0) throw new ArgumentException("A tag can't be empty.", nameof(tag));
@@ -207,9 +207,9 @@ namespace Masterly.NightShift
         /// <summary>Tags an existing job.</summary>
         public static void Add([NotNull] IStorageConnection connection, [NotNull] string jobId, [NotNull] IEnumerable<string> tags)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (tags == null) throw new ArgumentNullException(nameof(tags));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(tags);
 
             var normalized = tags.Select(Normalize).Distinct(StringComparer.Ordinal).ToList();
             if (normalized.Count == 0) return;
@@ -231,8 +231,8 @@ namespace Masterly.NightShift
         /// <summary>Removes a tag from a job.</summary>
         public static void Remove([NotNull] IStorageConnection connection, [NotNull] string jobId, [NotNull] string tag)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             var normalized = NormalizeName(tag);
 
@@ -266,8 +266,8 @@ namespace Masterly.NightShift
         /// <summary>Reads a job's tags.</summary>
         public static IReadOnlyList<string> GetTags([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             return Parse(connection.GetJobParameter(jobId, ParameterName));
         }
@@ -278,7 +278,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<JobTagSummary> GetAll([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return GetNames(connection)
                 .Select(tag => new JobTagSummary(tag, CountMembers(connection, GetKey(tag))))
@@ -290,7 +290,7 @@ namespace Masterly.NightShift
         /// <summary>Lists every tag name in ordinal order, without counting their jobs: one storage query.</summary>
         public static IReadOnlyList<string> GetNames([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return (connection.GetAllItemsFromSet(IndexKey) ?? new HashSet<string>())
                 .OrderBy(static x => x, StringComparer.Ordinal)
@@ -300,7 +300,7 @@ namespace Masterly.NightShift
         /// <summary>Counts the jobs carrying a tag.</summary>
         public static long Count([NotNull] IStorageConnection connection, [NotNull] string tag)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return CountMembers(connection, GetKey(NormalizeName(tag)));
         }
@@ -308,9 +308,9 @@ namespace Masterly.NightShift
         /// <summary>Lists the ids of the jobs carrying a tag, newest first.</summary>
         public static IReadOnlyList<string> GetJobIds([NotNull] IStorageConnection connection, [NotNull] string tag, int from, int count)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (from < 0) throw new ArgumentOutOfRangeException(nameof(from));
-            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentOutOfRangeException.ThrowIfNegative(from);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
             var key = GetKey(NormalizeName(tag));
 
@@ -342,8 +342,8 @@ namespace Masterly.NightShift
         /// <summary>Forgets job ids that no longer exist, so a tag doesn't keep listing expired jobs.</summary>
         public static void Forget([NotNull] IStorageConnection connection, [NotNull] string tag, [NotNull] IEnumerable<string> jobIds)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobIds == null) throw new ArgumentNullException(nameof(jobIds));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobIds);
 
             var key = GetKey(NormalizeName(tag));
             var ids = jobIds.ToList();
@@ -363,7 +363,7 @@ namespace Masterly.NightShift
         /// <summary>Deletes a tag and its list of jobs. The jobs themselves are untouched.</summary>
         public static void Delete([NotNull] IStorageConnection connection, [NotNull] string tag)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var normalized = NormalizeName(tag);
             var key = GetKey(normalized);

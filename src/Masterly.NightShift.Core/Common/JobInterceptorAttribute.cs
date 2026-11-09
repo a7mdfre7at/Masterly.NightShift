@@ -39,7 +39,7 @@ namespace Masterly.NightShift.Common
         /// <inheritdoc />
         public sealed override object? Intercept(JobInvocation invocation)
         {
-            if (invocation == null) throw new ArgumentNullException(nameof(invocation));
+            ArgumentNullException.ThrowIfNull(invocation);
 
             var task = InterceptAsync(invocation);
             if (task == null) throw new InvalidOperationException($"{GetType().Name}.InterceptAsync returned null instead of a task.");

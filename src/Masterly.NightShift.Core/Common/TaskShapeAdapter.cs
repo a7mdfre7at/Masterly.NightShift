@@ -20,8 +20,8 @@ namespace Masterly.NightShift.Common
 
         public static object? Adapt(Task<object?> source, Type returnType)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
-            if (returnType == null) throw new ArgumentNullException(nameof(returnType));
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(returnType);
 
             if (returnType == typeof(void) || !IsTaskLikeType(returnType))
             {
@@ -52,7 +52,7 @@ namespace Masterly.NightShift.Common
             {
                 var resultType = typeInfo.GenericTypeArguments[0];
                 var toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
-                var converter = (Func<Task<object?>, Task>)toTaskOf.CreateDelegate(typeof(Func<Task<object?>, Task>));
+                var converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
 
                 return source => converter(source);
             }
@@ -67,7 +67,7 @@ namespace Masterly.NightShift.Common
                 if (constructor != null)
                 {
                     var toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
-                    var converter = (Func<Task<object?>, Task>)toTaskOf.CreateDelegate(typeof(Func<Task<object?>, Task>));
+                    var converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
 
                     return source => constructor.Invoke(new object[] { converter(source) });
                 }

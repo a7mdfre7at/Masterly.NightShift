@@ -44,7 +44,7 @@ namespace Masterly.NightShift.Dashboard
                 MisfireHandlingMode? misfire = null;
                 if (misfireText != null)
                 {
-                    if (!Enum.TryParse<MisfireHandlingMode>(misfireText, ignoreCase: true, out var parsed) || !Enum.IsDefined(typeof(MisfireHandlingMode), parsed))
+                    if (!Enum.TryParse<MisfireHandlingMode>(misfireText, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
                     {
                         throw new ArgumentException($"Unknown misfire handling mode '{misfireText}'.");
                     }

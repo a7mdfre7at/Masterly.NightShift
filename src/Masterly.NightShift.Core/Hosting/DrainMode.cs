@@ -129,7 +129,7 @@ namespace Masterly.NightShift
         /// <summary>Reads the switch directly from the storage.</summary>
         public static DrainModeStatus Read([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var hash = connection.GetAllEntriesFromHash(HashKey);
             if (hash == null) return DrainModeStatus.Inactive;
@@ -176,7 +176,7 @@ namespace Masterly.NightShift
         /// <param name="reason">An optional reason, shown on the dashboard and in the held jobs' history.</param>
         public static void PauseServer([NotNull] IStorageConnection connection, [NotNull] string serverId, [CanBeNull] string? reason = null)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (String.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
 
             var id = serverId.Trim();
@@ -200,7 +200,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static void ResumeServer([NotNull] IStorageConnection connection, [NotNull] string serverId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (String.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
 
             using (var transaction = connection.CreateWriteTransaction())
@@ -222,7 +222,7 @@ namespace Masterly.NightShift
         /// <returns>The IDs of the servers whose pause was cleared, empty when there was none.</returns>
         public static IReadOnlyList<string> ClearStaleServerPauses([NotNull] JobStorage storage)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            ArgumentNullException.ThrowIfNull(storage);
 
             using (var connection = storage.GetConnection())
             {
@@ -266,7 +266,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static DrainModeStatus GetStatus([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return GetStatus(SharedCache, connection);
         }
@@ -279,8 +279,8 @@ namespace Masterly.NightShift
         /// <param name="connection">An open connection to <paramref name="storage"/>, used when the cache is out of date.</param>
         public static DrainModeStatus GetStatus([NotNull] JobStorage storage, [NotNull] IStorageConnection connection)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(connection);
 
             return GetStatus(StorageCaches.GetValue(storage, static _ => new CacheSlot()), connection);
         }
@@ -306,7 +306,7 @@ namespace Masterly.NightShift
         /// <summary>Holds the jobs of one queue; the other queues keep flowing. Running jobs finish.</summary>
         public static void PauseQueue([NotNull] IStorageConnection connection, [NotNull] string queue, [CanBeNull] string? reason = null)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (String.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
 
             using (var transaction = connection.CreateWriteTransaction())
@@ -324,7 +324,7 @@ namespace Masterly.NightShift
         /// <summary>Lets the jobs of a paused queue go again. Held jobs run as soon as their hold interval ends.</summary>
         public static void ResumeQueue([NotNull] IStorageConnection connection, [NotNull] string queue)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
             if (String.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
 
             var field = QueueFieldPrefix + queue.Trim().ToLowerInvariant();
@@ -345,7 +345,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static bool IsActive([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             return GetStatus(connection).Active;
         }
@@ -359,7 +359,7 @@ namespace Masterly.NightShift
         /// <summary>Turns the switch on. Running jobs finish; new ones are held.</summary>
         public static void Enable([NotNull] IStorageConnection connection, [CanBeNull] string? reason = null)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             using (var transaction = connection.CreateWriteTransaction())
             {
@@ -378,7 +378,7 @@ namespace Masterly.NightShift
         /// <summary>Turns the switch off. Held jobs run as soon as their hold interval ends.</summary>
         public static void Disable([NotNull] IStorageConnection connection)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             using (var transaction = connection.CreateWriteTransaction())
             {
@@ -409,15 +409,7 @@ namespace Masterly.NightShift
             if (field.Length <= MaxFieldLength) return field;
 
             var bytes = Encoding.UTF8.GetBytes(serverId.ToLowerInvariant());
-#if NET8_0_OR_GREATER
             var hash = SHA256.HashData(bytes);
-#else
-            byte[] hash;
-            using (var sha256 = SHA256.Create())
-            {
-                hash = sha256.ComputeHash(bytes);
-            }
-#endif
 
             const string digits = "0123456789abcdef";
             var builder = new StringBuilder(HashedServerFieldLength);

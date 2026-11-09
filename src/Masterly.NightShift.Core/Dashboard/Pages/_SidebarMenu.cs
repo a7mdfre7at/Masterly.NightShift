@@ -23,7 +23,7 @@ namespace Masterly.NightShift.Dashboard.Pages
     {
         public SidebarMenu([NotNull] IEnumerable<Func<RazorPage, MenuItem>> items)
         {
-            if (items == null) throw new ArgumentNullException(nameof(items));
+            ArgumentNullException.ThrowIfNull(items);
             Items = items;
         }
 

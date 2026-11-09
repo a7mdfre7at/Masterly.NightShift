@@ -50,7 +50,7 @@ namespace Masterly.NightShift
         /// <exception cref="FormatException">The expression can't be parsed.</exception>
         public static string Describe(string cronExpression)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
             RecurringJobEntity.ParseCronExpression(cronExpression);
             return CronDescriber.Describe(cronExpression);
@@ -118,9 +118,9 @@ namespace Masterly.NightShift
         /// <returns>Up to <paramref name="count"/> UTC instants; fewer when the expression stops firing.</returns>
         public static IReadOnlyList<DateTime> GetNextOccurrences(string cronExpression, TimeZoneInfo timeZone, DateTime fromUtc, int count)
         {
-            if (cronExpression == null) throw new ArgumentNullException(nameof(cronExpression));
-            if (timeZone == null) throw new ArgumentNullException(nameof(timeZone));
-            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            ArgumentNullException.ThrowIfNull(timeZone);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
             var expression = RecurringJobEntity.ParseCronExpression(cronExpression);
             var result = new List<DateTime>(count);

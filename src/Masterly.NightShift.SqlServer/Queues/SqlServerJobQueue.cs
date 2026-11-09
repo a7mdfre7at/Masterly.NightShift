@@ -49,8 +49,8 @@ namespace Masterly.NightShift.SqlServer
 
         public SqlServerJobQueue([NotNull] SqlServerStorage storage, SqlServerStorageOptions options)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
 
             _storage = storage;
             _options = options;
@@ -59,7 +59,7 @@ namespace Masterly.NightShift.SqlServer
         [NotNull]
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
-            if (queues == null) throw new ArgumentNullException(nameof(queues));
+            ArgumentNullException.ThrowIfNull(queues);
             if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
             if (_options.SlidingInvisibilityTimeout.HasValue)
@@ -89,7 +89,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
         private SqlServerTimeoutJob DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
         {
-            if (queues == null) throw new ArgumentNullException(nameof(queues));
+            ArgumentNullException.ThrowIfNull(queues);
             if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
             
             cancellationToken.ThrowIfCancellationRequested();
@@ -273,9 +273,7 @@ where Queue in @queues and
                 {
                     transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
 
-#pragma warning disable 618
                     using var command = CreateTransactionalFetchCommand(_storage, connection, queues, (int)_options.InvisibilityTimeout.Negate().TotalSeconds);
-#pragma warning restore 618
                     command.Transaction = transaction;
 
                     // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
@@ -298,9 +296,7 @@ where Queue in @queues and
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
-                    // Check connection isn't broken first, and that transaction
-                    // can be rolled back without throwing InvalidOperationException
-                    // on older System.Data.SqlClient in .NET Core.
+                    // Check connection isn't broken first, so rolling back doesn't throw InvalidOperationException
                     // https://github.com/HangfireIO/Hangfire/issues/1494
                     // https://github.com/dotnet/efcore/issues/12864
                     if (transaction?.Connection != null) transaction.Rollback();

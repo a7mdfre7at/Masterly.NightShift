@@ -199,7 +199,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static string Export([NotNull] IStorageConnection connection, bool maskRedacted)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var logger = LogProvider.GetLogger(typeof(RecurringJobManifest));
             var entries = new List<RecurringJobManifestEntry>();
@@ -216,7 +216,7 @@ namespace Masterly.NightShift
         /// <summary>Reads a manifest document without applying it.</summary>
         public static IReadOnlyList<RecurringJobManifestEntry> Parse([NotNull] string json)
         {
-            if (json == null) throw new ArgumentNullException(nameof(json));
+            ArgumentNullException.ThrowIfNull(json);
 
             ManifestDocument? document;
             try
@@ -304,8 +304,8 @@ namespace Masterly.NightShift
         /// </remarks>
         public static RecurringJobManifestResult Apply([NotNull] IRecurringJobManager manager, [NotNull] IStorageConnection connection, [NotNull] string json, bool prune, bool allowAnyMethod)
         {
-            if (manager == null) throw new ArgumentNullException(nameof(manager));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(connection);
 
             var entries = Parse(json);
             var recurringJobs = connection.GetRecurringJobs().Where(static dto => !dto.Removed).ToList();
@@ -339,7 +339,7 @@ namespace Masterly.NightShift
                     continue;
                 }
 
-                if (!Enum.IsDefined(typeof(MisfireHandlingMode), entry.MisfireHandling))
+                if (!Enum.IsDefined(entry.MisfireHandling))
                 {
                     errors.Add(new RecurringJobManifestError(id, $"\"misfireHandling\" {(int)entry.MisfireHandling} is not defined. Use 0 (Relaxed), 1 (Strict) or 2 (Ignorable)."));
                     continue;
@@ -369,9 +369,7 @@ namespace Masterly.NightShift
                     if (queue != null && !jobQueues)
                     {
                         // The recurring job's own queue works with every storage
-#pragma warning disable 618
                         options.QueueName = queue;
-#pragma warning restore 618
                     }
 
                     manager.AddOrUpdate(id, job, entry.Cron, options);

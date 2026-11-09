@@ -4,7 +4,6 @@ using Masterly.NightShift.Common;
 using Masterly.NightShift.Storage;
 using System.Text.Json;
 using Xunit;
-#pragma warning disable 618
 
 // ReSharper disable AssignNullToNotNullAttribute
 
@@ -15,57 +14,6 @@ namespace Masterly.NightShift.Core.Tests.Common
         private static readonly DateTime WellKnownDateTime = new DateTime(1988, 04, 20, 01, 12, 32, DateTimeKind.Utc);
         private const int WellKnownTimestamp = 577501952;
         private const long WellKnownMillisecondTimestamp = 577501952000;
-
-        [DataCompatibilityRangeFact]
-        public void ToJson_EncodesNullValueAsNull()
-        {
-            var result = JobHelper.ToJson(null);
-            Assert.Null(result);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void ToJson_EncodesGivenValue_ToJsonString()
-        {
-            var result = JobHelper.ToJson("hello");
-            Assert.Equal("\"hello\"", result);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void FromJson_DecodesNullAsDefaultValue()
-        {
-            var stringResult = JobHelper.FromJson<string>(null);
-            var intResult = JobHelper.FromJson<int>(null);
-
-            Assert.Null(stringResult);
-            Assert.Equal(0, intResult);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void FromJson_DecodesFromJsonString()
-        {
-            var result = JobHelper.FromJson<string>("\"hello\"");
-            Assert.Equal("hello", result);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void FromJson_ThrowsAnException_WhenTypeIsNull()
-        {
-            Assert.Throws<ArgumentNullException>(() => JobHelper.FromJson("1", null));
-        }
-
-        [DataCompatibilityRangeFact]
-        public void FromJson_WithType_DecodesFromJsonString()
-        {
-            var result = (string) JobHelper.FromJson("\"hello\"", typeof (string));
-            Assert.Equal("hello", result);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void FromJson_WithType_DecodesNullValue_ToNull()
-        {
-            var result = (string) JobHelper.FromJson(null, typeof (string));
-            Assert.Null(result);
-        }
 
         [DataCompatibilityRangeFact]
         public void ToTimestamp_ReturnsUnixTimestamp_OfTheGivenDateTime()
@@ -200,41 +148,6 @@ namespace Masterly.NightShift.Core.Tests.Common
             Assert.Equal(WellKnownDateTime, result);
         }
 
-        [DataCompatibilityRangeFact]
-        public void FromJson_WithObjectType_DecodesFromJsonString()
-        {
-            var result = (ClassA)JobHelper.FromJson(@"{ ""PropertyA"": ""hello"" }", typeof(ClassA));
-            Assert.NotNull(result);
-            Assert.Equal("hello", result.PropertyA);
-        }
-
-        [DataCompatibilityRangeFact]
-        public void ForSerializeUseDefaultConfigurationOfJsonNet()
-        {
-            var result = JobHelper.ToJson(new ClassA("A"));
-            Assert.Equal(@"{""PropertyA"":""A""}", result);
-        }
-
-        [DataCompatibilityRangeFact, CleanSerializerSettings]
-        public void ForSerializeCanUseCustomSerializerOptions()
-        {
-            GlobalConfiguration.Configuration.UseSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-
-            var result = JobHelper.ToJson(new ClassA("A"));
-
-            Assert.Equal(@"{""propertyA"":""A""}", result);
-        }
-
-        [DataCompatibilityRangeFact, CleanSerializerSettings]
-        public void ForDeserializeCanUseCustomSerializerOptions()
-        {
-            GlobalConfiguration.Configuration.UseSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-
-            var result = JobHelper.FromJson<ClassA>(@"{ ""property_a"": ""A"" }");
-
-            Assert.Equal("A", result.PropertyA);
-        }
-
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void ForDeserializeCanUseCustomSerializerOptionsWithInvocationData()
         {
@@ -244,23 +157,12 @@ namespace Masterly.NightShift.Core.Tests.Common
             var args = new object[] { "123", "Test" };
             var job = new Job(typeof(BackgroundJob), method, args);
 
-            var invocationData = InvocationData.Serialize(job);
-            var deserializedJob = invocationData.Deserialize();
+            var invocationData = InvocationData.SerializeJob(job);
+            var deserializedJob = invocationData.DeserializeJob();
 
             Assert.Equal(typeof(BackgroundJob), deserializedJob.Type);
             Assert.Equal(method, deserializedJob.Method);
             Assert.Equal(args, deserializedJob.Args);
-        }
-
-        [DataCompatibilityRangeFact, CleanSerializerSettings]
-        public void ForDeserializeWithTypeCanUseCustomSerializerOptions()
-        {
-            GlobalConfiguration.Configuration.UseSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-
-            var result = (ClassA)JobHelper.FromJson(@"{ ""property_a"": ""A"" }", typeof(ClassA));
-
-            Assert.NotNull(result);
-            Assert.Equal("A", result.PropertyA);
         }
 
         private interface IClass

@@ -31,7 +31,7 @@ namespace Masterly.NightShift.States
 
         internal CoreStateMachine([NotNull] Func<JobStorage, string, StateHandlersCollection> stateHandlersThunk)
         {
-            if (stateHandlersThunk == null) throw new ArgumentNullException(nameof(stateHandlersThunk));
+            ArgumentNullException.ThrowIfNull(stateHandlersThunk);
             _stateHandlersThunk = stateHandlersThunk;
         }
 

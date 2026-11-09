@@ -37,10 +37,7 @@ namespace Masterly.NightShift.Common
         /// <param name="order">The run order.</param>
         public JobFilter(object instance, JobFilterScope scope, int? order)
         {
-            if (instance == null)
-            {
-                throw new ArgumentNullException(nameof(instance));
-            }
+            ArgumentNullException.ThrowIfNull(instance);
 
             if (order == null && instance is IJobFilter jobFilter)
             {

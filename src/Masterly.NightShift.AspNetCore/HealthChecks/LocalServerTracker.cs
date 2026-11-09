@@ -25,7 +25,7 @@ namespace Masterly.NightShift.HealthChecks
 
         public void Execute(BackgroundProcessContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             Servers[context.ServerId] = context.Storage;
             try

@@ -182,7 +182,6 @@ namespace Masterly.NightShift.Core.Tests
             Assert.False(written.ContainsKey("ScheduleChangedAt"));
         }
 
-#if NET8_0_OR_GREATER // .NET Framework doesn't know IANA time zone ids like Europe/Berlin
         [Fact]
         public void Manager_AddOrUpdate_DoesNotRecordAScheduleChange_WhenTheSameTimeZoneHasAnotherId()
         {
@@ -197,7 +196,6 @@ namespace Masterly.NightShift.Core.Tests
             Assert.Equal("Europe/Berlin", written["TimeZoneId"]);
             Assert.False(written.ContainsKey("ScheduleChangedAt"));
         }
-#endif
 
         [Fact]
         public void Manager_AddOrUpdate_DoesNotRecordAScheduleChange_WhenOnlyTheMisfireHandlingChanges()

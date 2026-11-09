@@ -81,32 +81,18 @@ namespace Masterly.NightShift.Dashboard
         }
 
         /// <summary>
-        /// Sets the background color of the current-state card body for a state that has no CSS suffix
-        /// (see <see cref="AddStateCssSuffix"/>). Calling it again for the same state replaces the color.
+        /// The background color of a state: its own for a built-in state, else the color of its CSS suffix (see
+        /// <see cref="AddStateCssSuffix"/>), else <c>"inherit"</c>.
         /// </summary>
-        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Kept for code ported from Hangfire.")]
-        public static void AddBackgroundStateColor(string stateName, string color)
-        {
-            BackgroundStateColors[stateName] = color;
-        }
-
-        /// <summary>The background color of a state, or <c>"inherit"</c> when none is registered.</summary>
         public static string GetBackgroundStateColor(string stateName)
         {
             return FindBackgroundStateColor(stateName) ?? "inherit";
         }
 
         /// <summary>
-        /// Sets the color of a state's labels and of its current-state card border and title, for a state that
-        /// has no CSS suffix (see <see cref="AddStateCssSuffix"/>). Calling it again for the same state replaces the color.
+        /// The foreground color of a state: its own for a built-in state, else the color of its CSS suffix (see
+        /// <see cref="AddStateCssSuffix"/>), else <c>"inherit"</c>. Lineage diagrams and the state timeline use it.
         /// </summary>
-        [Obsolete("Use `AddStateCssSuffix` method's logic instead. Kept for code ported from Hangfire.")]
-        public static void AddForegroundStateColor(string stateName, string color)
-        {
-            ForegroundStateColors[stateName] = color;
-        }
-
-        /// <summary>The foreground color of a state, or <c>"inherit"</c> when none is registered.</summary>
         public static string GetForegroundStateColor(string stateName)
         {
             return FindForegroundStateColor(stateName) ?? "inherit";
@@ -115,8 +101,8 @@ namespace Masterly.NightShift.Dashboard
         /// <summary>
         /// Gives a state's labels the CSS class <c>label-state-{cssSuffix}</c> and its current-state card the class
         /// <c>state-card-state-{cssSuffix}</c>. The built-in suffixes are <c>active</c>, <c>success</c>, <c>danger</c>,
-        /// <c>warning</c>, <c>info</c> and <c>inactive</c>. A suffix wins over colors registered for the same state.
-        /// Calling it again for the same state replaces the suffix.
+        /// <c>warning</c>, <c>info</c> and <c>inactive</c>; with one of these the state also gets the matching colors in
+        /// lineage diagrams and the state timeline. Calling it again for the same state replaces the suffix.
         /// </summary>
         public static void AddStateCssSuffix(string stateName, string cssSuffix)
         {
@@ -124,8 +110,8 @@ namespace Masterly.NightShift.Dashboard
         }
 
         /// <summary>
-        /// The CSS suffix of a state, or <c>null</c> when none is registered. Without a suffix, the dashboard uses
-        /// the state's registered colors, or a neutral look when it has none.
+        /// The CSS suffix of a state, or <c>null</c> when none is registered. A state without a suffix gets a
+        /// neutral look.
         /// </summary>
         [CanBeNull]
         public static string GetStateCssSuffix(string stateName)
@@ -138,27 +124,37 @@ namespace Masterly.NightShift.Dashboard
             return suffix;
         }
 
-        /// <summary>
-        /// The inline style of a label for a state without a CSS suffix: its registered foreground color, or
-        /// <c>null</c> to keep the neutral label look.
-        /// </summary>
-        [CanBeNull]
-        internal static string GetStateLabelStyle(string stateName)
-        {
-            var color = FindForegroundStateColor(stateName);
-            return color != null ? $"background-color: {color};" : null;
-        }
-
         [CanBeNull]
         internal static string FindForegroundStateColor(string stateName)
         {
-            return stateName != null && ForegroundStateColors.TryGetValue(stateName, out var color) ? color : null;
+            return FindStateColor(stateName, ForegroundStateColors);
         }
 
         [CanBeNull]
         internal static string FindBackgroundStateColor(string stateName)
         {
-            return stateName != null && BackgroundStateColors.TryGetValue(stateName, out var color) ? color : null;
+            return FindStateColor(stateName, BackgroundStateColors);
+        }
+
+        // A built-in state's own color, else the color of a built-in state with the same CSS suffix (only built-in
+        // states have colors, and built-in states that share a suffix share colors too)
+        [CanBeNull]
+        private static string FindStateColor(string stateName, IDictionary<string, string> colors)
+        {
+            if (stateName == null) return null;
+            if (colors.TryGetValue(stateName, out var color)) return color;
+            if (!StateCssSuffixes.TryGetValue(stateName, out var suffix)) return null;
+
+            foreach (var builtIn in colors)
+            {
+                if (StateCssSuffixes.TryGetValue(builtIn.Key, out var builtInSuffix)
+                    && String.Equals(builtInSuffix, suffix, StringComparison.Ordinal))
+                {
+                    return builtIn.Value;
+                }
+            }
+
+            return null;
         }
 
         public static void Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString> renderer)

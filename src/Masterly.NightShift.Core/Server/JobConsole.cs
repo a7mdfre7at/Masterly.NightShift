@@ -131,7 +131,7 @@ namespace Masterly.NightShift.Server
         /// <summary>Gets the storage list key holding a job's console entries.</summary>
         public static string GetConsoleKey([NotNull] string jobId)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
             return $"job:{jobId}:console";
         }
 
@@ -141,7 +141,7 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static string GetCheckpointsKey([NotNull] string jobId)
         {
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(jobId);
             return $"job:{jobId}:checkpoints";
         }
 
@@ -186,7 +186,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void WriteLine(JobConsoleLevel level, string message)
         {
-            if (message == null) throw new ArgumentNullException(nameof(message));
+            ArgumentNullException.ThrowIfNull(message);
 
             lock (_syncRoot)
             {
@@ -239,7 +239,7 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public bool HasCheckpoint(string name)
         {
-            if (name == null) throw new ArgumentNullException(nameof(name));
+            ArgumentNullException.ThrowIfNull(name);
 
             lock (_syncRoot)
             {
@@ -253,8 +253,8 @@ namespace Masterly.NightShift.Server
         /// </summary>
         public static IReadOnlyList<JobConsoleEntry> ReadEntries([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             return connection is JobStorageConnection storageConnection
                 ? ReadList(storageConnection, GetConsoleKey(jobId))
@@ -264,8 +264,8 @@ namespace Masterly.NightShift.Server
         /// <summary>Reads the last progress a job reported, or <c>null</c>.</summary>
         public static JobProgress? ReadProgress([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             try
             {

@@ -35,7 +35,7 @@ namespace Masterly.NightShift.Dashboard
 
         public bool Authorize(DashboardContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             // if unknown, assume not local
             if (String.IsNullOrEmpty(context.Request.RemoteIpAddress))

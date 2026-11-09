@@ -79,6 +79,14 @@ namespace Masterly.NightShift.Core.Tests
         }
 
         [Fact]
+        public void Hash_MatchesEarlierVersions()
+        {
+            // Job names already in storage show this hash, so it must not change: the first 8 bytes of SHA-256
+            // over the UTF-8 text, as lowercase hex
+            Assert.Equal("f52fbd32b2b3b86f", RedactedAttribute.Hash("hunter2"));
+        }
+
+        [Fact]
         public void ResourceTemplates_UseAHash_ForARedactedArgument()
         {
             var job = Job.FromExpression(() => Connect("DB.local", "hunter2", 1433));

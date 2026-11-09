@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.States;
@@ -26,6 +27,13 @@ namespace Masterly.NightShift.Core.Tests.Common
             var type = TypeHelper.DefaultTypeResolver(typeName);
 
             Assert.Equal(typeof(PerformContext), type);
+        }
+
+        [Fact]
+        public void DefaultTypeResolver_Throws_ForAPartialNameOfAMissingAssembly()
+        {
+            Assert.ThrowsAny<FileNotFoundException>(
+                () => TypeHelper.DefaultTypeResolver("Some.Type, Masterly.NightShift.NoSuchAssembly"));
         }
 
         [Fact]

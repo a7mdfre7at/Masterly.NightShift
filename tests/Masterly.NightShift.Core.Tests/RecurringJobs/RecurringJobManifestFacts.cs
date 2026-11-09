@@ -9,7 +9,6 @@ using Masterly.NightShift.Storage;
 using Moq;
 using System.Text.Json.Nodes;
 using Xunit;
-#pragma warning disable 618
 
 namespace Masterly.NightShift.Core.Tests
 {
@@ -72,12 +71,8 @@ namespace Masterly.NightShift.Core.Tests
             return storage;
         }
 
-        // Apply resolves the zone, and .NET Framework doesn't know IANA time zone ids
-#if NETFRAMEWORK
-        private const string BerlinTimeZoneId = "W. Europe Standard Time";
-#else
+        // Apply resolves the zone
         private const string BerlinTimeZoneId = "Europe/Berlin";
-#endif
 
         private static RecurringJobManager CreateManager(JobStorage storage, ITimeZoneResolver timeZoneResolver = null)
         {

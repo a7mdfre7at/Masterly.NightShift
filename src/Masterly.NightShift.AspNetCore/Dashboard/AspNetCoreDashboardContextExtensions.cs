@@ -31,7 +31,7 @@ namespace Masterly.NightShift.Dashboard
         /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
         public static HttpContext GetHttpContext([NotNull] this DashboardContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
 
             var aspNetCoreContext = context as AspNetCoreDashboardContext;
             if (aspNetCoreContext == null)

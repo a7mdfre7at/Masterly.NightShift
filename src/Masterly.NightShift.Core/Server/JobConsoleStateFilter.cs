@@ -25,8 +25,8 @@ namespace Masterly.NightShift.Server
         /// <inheritdoc />
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(transaction);
 
             // ExpireList and PersistList throw NotSupportedException without the extended API, which would fail the transition
             if (transaction is not JobStorageTransaction storageTransaction || !context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))

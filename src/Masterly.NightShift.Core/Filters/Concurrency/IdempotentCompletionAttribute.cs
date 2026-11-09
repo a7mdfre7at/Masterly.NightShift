@@ -59,7 +59,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (String.IsNullOrEmpty(context.CurrentState)) return;
 
             var serializedState = context.GetJobParameter<string>(CompletionParameter, allowStale: true);
@@ -99,7 +99,7 @@ namespace Masterly.NightShift
         /// </summary>
         public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (String.IsNullOrEmpty(context.OldStateName) || !context.NewState.IsFinal) return;
 
             // Only the first final state is recorded; a later one, such as a Delete, is applied as it is

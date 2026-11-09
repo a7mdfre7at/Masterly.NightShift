@@ -14,31 +14,27 @@ namespace Masterly.NightShift.SqlServer.Tests
         [Fact]
         public void Storage_ReportsThePurgeFeature()
         {
-            using (var connection = ConnectionUtils.CreateConnection(false))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 var storage = new SqlServerStorage(connection);
                 Assert.True(storage.HasFeature(JobStorageFeatures.Purge));
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_ThrowsAnException_WhenOptionsAreNull(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_ThrowsAnException_WhenOptionsAreNull()
         {
-            using (var connection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var connection = ConnectionUtils.CreateConnection())
             {
                 var storage = new SqlServerStorage(connection);
                 Assert.Throws<ArgumentNullException>(() => storage.Purge(null));
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_RemovesJobs_AndKeepsRecurringJobsByDefault(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_RemovesJobs_AndKeepsRecurringJobsByDefault()
         {
-            using (var sqlConnection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var sqlConnection = ConnectionUtils.CreateConnection())
             {
                 var storage = new SqlServerStorage(sqlConnection);
                 string jobId;
@@ -80,12 +76,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_RemovesEverything_WhenNothingIsKept(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_RemovesEverything_WhenNothingIsKept()
         {
-            using (var sqlConnection = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var sqlConnection = ConnectionUtils.CreateConnection())
             {
                 var storage = new SqlServerStorage(sqlConnection);
 
@@ -113,12 +107,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_KeepsTheAuditLogAndDrainMode_ByDefault(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_KeepsTheAuditLogAndDrainMode_ByDefault()
         {
-            var storage = CreateStorage(useMicrosoftDataSqlClient);
+            var storage = CreateStorage();
             WriteAuditLogDrainModeAndOtherData(storage);
 
             storage.Purge(new StoragePurgeOptions());
@@ -133,12 +125,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_RemovesTheAuditLogAndDrainMode_WhenTheyAreNotKept(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_RemovesTheAuditLogAndDrainMode_WhenTheyAreNotKept()
         {
-            var storage = CreateStorage(useMicrosoftDataSqlClient);
+            var storage = CreateStorage();
             WriteAuditLogDrainModeAndOtherData(storage);
 
             storage.Purge(new StoragePurgeOptions { KeepAuditLog = false, KeepDrainMode = false });
@@ -152,12 +142,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_KeepsDrainMode_WithoutRecurringJobs(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_KeepsDrainMode_WithoutRecurringJobs()
         {
-            var storage = CreateStorage(useMicrosoftDataSqlClient);
+            var storage = CreateStorage();
             WriteAuditLogDrainModeAndOtherData(storage);
 
             storage.Purge(new StoragePurgeOptions { KeepRecurringJobs = false, KeepDrainMode = true, KeepAuditLog = false });
@@ -171,14 +159,12 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_DeletesEveryRow_WhenThereAreMoreRowsThanFitInOneBatch(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_DeletesEveryRow_WhenThereAreMoreRowsThanFitInOneBatch()
         {
-            var storage = CreateStorage(useMicrosoftDataSqlClient, options => options.DeleteExpiredBatchSize = 10);
+            var storage = CreateStorage(options => options.DeleteExpiredBatchSize = 10);
 
-            using (var sql = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 InsertJobs(sql, 25);
                 Assert.Equal(25 + 75 + 50, CountJobRows(sql));
@@ -189,12 +175,10 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_DeletesEveryRow_WhenTheExistingConnectionHasNocountOn(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_DeletesEveryRow_WhenTheExistingConnectionHasNocountOn()
         {
-            using (var sql = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var sql = ConnectionUtils.CreateConnection())
             {
                 // Storage transactions turn NOCOUNT on, and an existing connection keeps it
                 using (var command = sql.CreateCommand())
@@ -212,15 +196,13 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        [Theory, CleanDatabase]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Purge_KeepsWhatItAlreadyDeleted_WhenALaterBatchFails(bool useMicrosoftDataSqlClient)
+        [Fact, CleanDatabase]
+        public void Purge_KeepsWhatItAlreadyDeleted_WhenALaterBatchFails()
         {
-            var storage = CreateStorage(useMicrosoftDataSqlClient, options => options.CommandTimeout = TimeSpan.FromSeconds(1));
+            var storage = CreateStorage(options => options.CommandTimeout = TimeSpan.FromSeconds(1));
 
-            using (var sql = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
-            using (var blocker = ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient))
+            using (var sql = ConnectionUtils.CreateConnection())
+            using (var blocker = ConnectionUtils.CreateConnection())
             {
                 InsertJobs(sql, 5);
 
@@ -257,12 +239,12 @@ namespace Masterly.NightShift.SqlServer.Tests
             }
         }
 
-        private static SqlServerStorage CreateStorage(bool useMicrosoftDataSqlClient, Action<SqlServerStorageOptions> configure = null)
+        private static SqlServerStorage CreateStorage(Action<SqlServerStorageOptions> configure = null)
         {
             var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false };
             configure?.Invoke(options);
 
-            return new SqlServerStorage(() => ConnectionUtils.CreateConnection(useMicrosoftDataSqlClient), options);
+            return new SqlServerStorage(() => ConnectionUtils.CreateConnection(), options);
         }
 
         private static void WriteAuditLogDrainModeAndOtherData(SqlServerStorage storage)

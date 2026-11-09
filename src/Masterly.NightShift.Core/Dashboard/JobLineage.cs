@@ -91,9 +91,9 @@ namespace Masterly.NightShift.Dashboard
 
         public static JobLineage Build(IMonitoringApi monitor, string jobId, JobDetailsDto details)
         {
-            if (monitor == null) throw new ArgumentNullException(nameof(monitor));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
-            if (details == null) throw new ArgumentNullException(nameof(details));
+            ArgumentNullException.ThrowIfNull(monitor);
+            ArgumentNullException.ThrowIfNull(jobId);
+            ArgumentNullException.ThrowIfNull(details);
 
             var nodes = new Dictionary<string, JobLineageNode>(StringComparer.Ordinal);
             var edges = new List<JobLineageEdge>();
@@ -285,7 +285,7 @@ namespace Masterly.NightShift.Dashboard
             JobContinuationOptions parsed;
             try
             {
-                parsed = (JobContinuationOptions)Enum.Parse(typeof(JobContinuationOptions), options, ignoreCase: true);
+                parsed = Enum.Parse<JobContinuationOptions>(options, ignoreCase: true);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -310,8 +310,8 @@ namespace Masterly.NightShift.Dashboard
 
         public static NonEscapedString Render(RazorPage page, JobLineage lineage)
         {
-            if (page == null) throw new ArgumentNullException(nameof(page));
-            if (lineage == null) throw new ArgumentNullException(nameof(lineage));
+            ArgumentNullException.ThrowIfNull(page);
+            ArgumentNullException.ThrowIfNull(lineage);
 
             var columns = lineage.Nodes.GroupBy(static x => x.Depth).OrderBy(static g => g.Key).Select(static g => g.ToList()).ToList();
             var tallest = columns.Max(static c => c.Count);
@@ -384,7 +384,7 @@ namespace Masterly.NightShift.Dashboard
 
         private static string Truncate(string value)
         {
-            return value.Length <= MaxNameLength ? value : value.Substring(0, MaxNameLength - 1) + "…";
+            return value.Length <= MaxNameLength ? value : string.Concat(value.AsSpan(0, MaxNameLength - 1), "…");
         }
 
         private static string Encode(string value)

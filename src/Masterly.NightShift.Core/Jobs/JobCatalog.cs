@@ -124,7 +124,7 @@ namespace Masterly.NightShift
         /// <summary>Adds every public instance and static method of a type to the catalog.</summary>
         public static void Add([NotNull] Type type)
         {
-            if (type == null) throw new ArgumentNullException(nameof(type));
+            ArgumentNullException.ThrowIfNull(type);
 
             lock (SyncRoot)
             {
@@ -193,7 +193,7 @@ namespace Masterly.NightShift
         /// <summary>Finds an entry by its <see cref="JobCatalogEntry.Id"/>.</summary>
         public static JobCatalogEntry? Find([NotNull] string id)
         {
-            if (id == null) throw new ArgumentNullException(nameof(id));
+            ArgumentNullException.ThrowIfNull(id);
             return GetEntries().FirstOrDefault(e => String.Equals(e.Id, id, StringComparison.Ordinal));
         }
 
@@ -203,7 +203,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static JobCatalogEntry CreateEntry([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             // Only a lookup: resolving an invoker here would register a compiled one as a side effect
             var invoker = JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var generated) && generated != null ? generated.Kind : (JobInvokerKind?)null;
@@ -219,7 +219,7 @@ namespace Masterly.NightShift
         /// </summary>
         public static IReadOnlyList<string?> FormatArguments([NotNull] Job job)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             var parameters = job.Method.GetParameters();
             var result = new string?[parameters.Length];
@@ -279,8 +279,8 @@ namespace Masterly.NightShift
         /// </remarks>
         public static Job CreateJob([NotNull] JobCatalogEntry entry, [NotNull] IReadOnlyDictionary<string, string?> arguments, [CanBeNull] string? queue = null)
         {
-            if (entry == null) throw new ArgumentNullException(nameof(entry));
-            if (arguments == null) throw new ArgumentNullException(nameof(arguments));
+            ArgumentNullException.ThrowIfNull(entry);
+            ArgumentNullException.ThrowIfNull(arguments);
 
             var values = new object?[entry.Parameters.Count];
 

@@ -60,172 +60,76 @@ namespace Masterly.NightShift.Processing
             _stopToken = stopToken;
 
             _stopRegistration = _stopToken.Register(SetStoppedAt);
-
-            AppDomainUnloadMonitor.EnsureInitialized();
         }
 
         public bool StopRequested => _disposed || _stopToken.IsCancellationRequested;
 
         public void Run(Action<Guid, object> callback, object state)
         {
-            if (callback == null) throw new ArgumentNullException(nameof(callback));
+            ArgumentNullException.ThrowIfNull(callback);
 
             var executionId = Guid.NewGuid();
 
-            // ExecutionId is a custom correlation id for logging purposes. We can use Thread's
-            // ManagedThreadId property here, but it's better to have a single implementation between
-            // sync and async dispatchers - async one can execute related tasks on different threads,
-            // so ManagedThreadId doesn't work there.
-            //using (LogProvider.OpenMappedContext("ExecutionId", executionId.ToString()))
+            // ExecutionId correlates the log entries of one execution loop. Thread.ManagedThreadId can't, because
+            // the async loop runs its continuations on different threads.
+            HandleStarted(executionId, out var nextDelay);
+
+            // Every exception is handled inside the loop, so only the stop token ends it
+            while (!StopRequested)
             {
                 try
                 {
-                    HandleStarted(executionId, out var nextDelay);
+                    // Being unable to wait means the execution was stopped meanwhile
+                    if (nextDelay != TimeSpan.Zero && !HandleDelay(executionId, nextDelay)) break;
 
-                    // There should be no operations between the `while` and `try` blocks to
-                    // avoid unintended stopping due to ThreadAbortException between the loop
-                    // iterations. Even loop condition is placed into the `try` block.
-                    while (true)
-                    {
-                        // Don't place anything here.
-                        try
-                        {
-                            // All possible exceptions should be handled inside this try/catch
-                            // block, including ThreadAbortException (ResetAbort is called when
-                            // possible) and ThreadInterruptedException. The loop could only be
-                            // interrupted by the corresponding cancellation token, or thread
-                            // abort, caused by appdomain unload.
-
-                            // Don't use ThrowIfCancellationRequested here, because it may cause
-                            // infinite looping when ThreadAbortException is raised during app
-                            // domain unloads.
-                            if (StopRequested) break;
-
-                            if (nextDelay != TimeSpan.Zero)
-                            {
-                                if (!HandleDelay(executionId, nextDelay))
-                                {
-                                    // Inability to handle the delay means that execution was
-                                    // already stopped, so we should break the loop.
-                                    break;
-                                }
-                            }
-
-                            callback(executionId, state);
-                            HandleSuccess(out nextDelay);
-                        }
-                        catch (ThreadAbortException) when (AppDomainUnloadMonitor.IsUnloading)
-                        {
-                            // Our thread is aborted due to AppDomain unload. It's better to give up to
-                            // not to cause the host to be more aggressive.
-                            throw;
-                        }
-                        catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
-                        {
-                            // We are catching general OCE exception without checking its CancellationToken
-                            // property, because the concrete token may be different than our one, for
-                            // example when using linked token sources. When we get OCE and our stop token
-                            // is canceled, we can simply break the execution loop, because it will be
-                            // broken on next iteration anyway.
-                            break;
-                        }
-                        catch (Exception ex) when (ex.IsCatchableExceptionType())
-                        {
-                            HandleException(executionId, ex, out nextDelay);
-                        }
-                    }
-
-                    HandleStop(executionId);
+                    callback(executionId, state);
+                    HandleSuccess(out nextDelay);
                 }
-                catch (ThreadAbortException ex)
+                catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
                 {
-                    // This is a rude stop. Since we are handling all the thread aborts
-                    // inside the loop, only appdomain unload can bring us there. In this
-                    // case we don't reset thread abort.
-                    HandleThreadAbort(executionId, ex);
+                    // The token of the exception may be a linked one, so StopRequested is checked too
+                    break;
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    HandleException(executionId, ex, out nextDelay);
                 }
             }
+
+            HandleStop(executionId);
         }
 
         public async Task RunAsync(Func<Guid, object, Task> callback, object state)
         {
-            if (callback == null) throw new ArgumentNullException(nameof(callback));
+            ArgumentNullException.ThrowIfNull(callback);
 
             var executionId = Guid.NewGuid();
 
-            // We can't use Thread.ManagedThreadId to provide a correlation id for logging subsystem,
-            // because task and its continuations can run in different threads due to work stealing
-            // nature of fetching. So instead we are using a custom identifier, hoping OpenMappedContext
-            // implementation uses AsyncLocal instead of ThreadLocal ;-)
-            //using (LogProvider.OpenMappedContext("ExecutionId", executionId.ToString()))
+            HandleStarted(executionId, out var nextDelay);
+
+            // Every exception is handled inside the loop, so only the stop token ends it
+            while (!StopRequested)
             {
                 try
                 {
-                    HandleStarted(executionId, out var nextDelay);
+                    // Being unable to wait means the execution was stopped meanwhile
+                    if (nextDelay != TimeSpan.Zero && !await HandleDelayAsync(executionId, nextDelay).ConfigureAwait(true)) break;
 
-                    // There should be no operations between the `while` and `try` blocks to
-                    // avoid unintended stopping due to ThreadAbortException between the loop
-                    // iterations. Even loop condition is placed into the `try` block.
-                    while (true)
-                    {
-                        // Don't place anything here.
-                        try
-                        {
-                            // All possible exceptions should be handled inside this try/catch
-                            // block, including ThreadAbortException (ResetAbort is called when
-                            // possible) and ThreadInterruptedException. The loop could only be
-                            // interrupted by the corresponding cancellation token, or thread
-                            // abort, caused by appdomain unload.
-
-                            // Don't use ThrowIfCancellationRequested here, because it may cause
-                            // infinite looping when ThreadAbortException is raised during app
-                            // domain unloads.
-                            if (StopRequested) break;
-
-                            if (nextDelay != TimeSpan.Zero)
-                            {
-                                if (!await HandleDelayAsync(executionId, nextDelay).ConfigureAwait(true))
-                                {
-                                    // Inability to handle the delay means that execution was
-                                    // already stopped, so we should break the loop.
-                                    break;
-                                }
-                            }
-
-                            await callback(executionId, state).ConfigureAwait(true);
-                            HandleSuccess(out nextDelay);
-                        }
-                        catch (ThreadAbortException) when (AppDomainUnloadMonitor.IsUnloading)
-                        {
-                            // Our previous task was aborted due to AppDomain unload. It's better to
-                            // give up to not to cause the host to be more aggressive.
-                            throw;
-                        }
-                        catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
-                        {
-                            // We are catching general OCE exception without checking its CancellationToken
-                            // property, because the concrete token may be different than our one, for
-                            // example when using linked token sources. When we get OCE and our stop token
-                            // is canceled, we can simply break the execution loop, because it will be
-                            // broken on next iteration anyway.
-                            break;
-                        }
-                        catch (Exception ex) when (ex.IsCatchableExceptionType())
-                        {
-                            HandleException(executionId, ex, out nextDelay);
-                        }
-                    }
-
-                    HandleStop(executionId);
+                    await callback(executionId, state).ConfigureAwait(true);
+                    HandleSuccess(out nextDelay);
                 }
-                catch (ThreadAbortException ex)
+                catch (OperationCanceledException ex) when (ex.CancellationToken.Equals(_stopToken) || StopRequested)
                 {
-                    // This is a rude stop. Since we are handling all the thread aborts
-                    // inside the loop, only appdomain unload can bring us there. In this
-                    // case we don't reset thread abort.
-                    HandleThreadAbort(executionId, ex);
+                    // The token of the exception may be a linked one, so StopRequested is checked too
+                    break;
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    HandleException(executionId, ex, out nextDelay);
                 }
             }
+
+            HandleStop(executionId);
         }
 
         public void Dispose()
@@ -342,27 +246,6 @@ namespace Masterly.NightShift.Processing
 
         private void HandleException(Guid executionId, Exception exception, out TimeSpan delay)
         {
-            // Normally, there should be no checks for AppDomain unload condition, because we can't
-            // get here on appdomain unloads. But Mono < 5.4 has an issue with Thread.ResetAbort, and
-            // it can prevent appdomain to be unloaded: https://bugzilla.xamarin.com/show_bug.cgi?id=5804.
-            // It's better to reassure this can't happen under all circumstances.
-            if ((Thread.CurrentThread.ThreadState & ThreadState.AbortRequested) != 0 && !AppDomainUnloadMonitor.IsUnloading)
-            {
-                try
-                {
-#pragma warning disable SYSLIB0006 // Still required for .NET Framework hosts running the netstandard2.0 build
-                    Thread.ResetAbort();
-#pragma warning restore SYSLIB0006
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    // .NET Core doesn't support both Thread.Abort and Thread.ResetAbort methods.
-                    // I don't see any possible cases, where thread is aborted, but nevertheless
-                    // we shouldn't hide the original exception.
-                    _logger.ErrorException($"{GetExecutionLoopTemplate(executionId)} was unable to reset thread abort request due to an exception. Background execution can be prematurely stopped.", ex);
-                }
-            }
-
             if (StopRequested)
             {
                 delay = FallbackRetryDelay;
@@ -395,11 +278,6 @@ namespace Masterly.NightShift.Processing
         {
             var stoppedAt = Volatile.Read(ref _stoppedAt);
             _logger.Debug($"{GetExecutionLoopTemplate(executionId)} stopped in {stoppedAt?.Elapsed.TotalMilliseconds ?? 0} ms");
-        }
-
-        private void HandleThreadAbort(Guid executionId, Exception exception)
-        {
-            _logger.WarnException($"{GetExecutionLoopTemplate(executionId)} caught ThreadAbortException, see inner exception for details", exception);
         }
 
         private void ToRunningState()

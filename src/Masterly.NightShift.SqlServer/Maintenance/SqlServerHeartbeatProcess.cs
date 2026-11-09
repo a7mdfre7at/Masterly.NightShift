@@ -21,9 +21,7 @@ using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.SqlServer
 {
-#pragma warning disable CS0618
-    internal sealed class SqlServerHeartbeatProcess : IServerComponent, IBackgroundProcess
-#pragma warning restore CS0618
+    internal sealed class SqlServerHeartbeatProcess : IBackgroundProcess
     {
         private readonly ConcurrentDictionary<SqlServerTimeoutJob, object> _items =
             new ConcurrentDictionary<SqlServerTimeoutJob, object>();

@@ -48,7 +48,7 @@ namespace Masterly.NightShift.Dashboard
 
         public static void AddMetric([NotNull] DashboardMetric metric)
         {
-            if (metric == null) throw new ArgumentNullException(nameof(metric));
+            ArgumentNullException.ThrowIfNull(metric);
 
             lock (Metrics)
             {

@@ -28,9 +28,6 @@ namespace Masterly.NightShift.SqlServer
     /// </summary>
     public static class SqlServerObjectsInstaller
     {
-        /// <summary>Not used.</summary>
-        [Obsolete("This field isn't used. Use LatestSchemaVersion instead. Kept for code ported from Hangfire.")]
-        public static readonly int RequiredSchemaVersion = 5;
 
         /// <summary>The schema version the install script upgrades to.</summary>
         public static readonly int LatestSchemaVersion = 9;
@@ -62,7 +59,7 @@ namespace Masterly.NightShift.SqlServer
         /// <param name="enableHeavyMigrations">Whether the upgrades that rebuild large tables (5 to 6, 7 to 8) may run.</param>
         public static void Install(DbConnection connection, string schema, bool enableHeavyMigrations)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            ArgumentNullException.ThrowIfNull(connection);
 
             var script = GetInstallScript(schema, enableHeavyMigrations);
 

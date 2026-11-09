@@ -78,8 +78,8 @@ namespace Masterly.NightShift
             [NotNull] HashSet<string> knownFinalStates, 
             [NotNull] IBackgroundJobStateChanger stateChanger)
         {
-            if (knownFinalStates == null) throw new ArgumentNullException(nameof(knownFinalStates));
-            if (stateChanger == null) throw new ArgumentNullException(nameof(stateChanger));
+            ArgumentNullException.ThrowIfNull(knownFinalStates);
+            ArgumentNullException.ThrowIfNull(stateChanger);
 
             _pushResults = pushResults;
             _knownFinalStates = knownFinalStates;
@@ -235,13 +235,9 @@ namespace Masterly.NightShift
                     }
                 }
 
-                if (!nextStates.ContainsKey(continuation.JobId))
-                {
-                    // Duplicate continuations possible, when they were added before version 1.6.10.
-                    // Please see details in comments for the AddContinuation method near the line
-                    // with checking for existence (continuations.Exists).
-                    nextStates.Add(continuation.JobId, nextState);
-                }
+                // Duplicate continuations are possible when they were added by Hangfire before version 1.6.10, see the
+                // check for existing continuations in AddContinuation; the first one wins.
+                nextStates.TryAdd(continuation.JobId, nextState);
             }
             
             string antecedentResult = null;

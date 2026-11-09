@@ -34,7 +34,7 @@ namespace Masterly.NightShift.Common
 
         public static string ToStringWithOriginalStackTrace([NotNull] this Exception exception, int? numLines, bool includeFileInfo)
         {
-            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            ArgumentNullException.ThrowIfNull(exception);
             return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
         }
 

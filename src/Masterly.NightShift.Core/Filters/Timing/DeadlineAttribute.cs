@@ -36,7 +36,7 @@ namespace Masterly.NightShift
         /// <param name="timeout">Time after creation by which the job should be done, like <c>"00:10:00"</c>.</param>
         public DeadlineAttribute([NotNull] string timeout)
         {
-            if (timeout == null) throw new ArgumentNullException(nameof(timeout));
+            ArgumentNullException.ThrowIfNull(timeout);
 
             Timeout = TimeSpan.Parse(timeout, CultureInfo.InvariantCulture);
             if (Timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeout), "The deadline should be greater than zero.");
@@ -58,7 +58,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnCreating(CreatingContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             context.SetJobParameter(DeadlineAtParameter, Clock().Add(Timeout));
         }
 
@@ -70,7 +70,7 @@ namespace Masterly.NightShift
         /// <inheritdoc />
         public void OnStateElection(ElectStateContext context)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            ArgumentNullException.ThrowIfNull(context);
             if (context.CandidateState is not SucceededState) return;
 
             var deadline = ReadDeadline(context.Connection, context.BackgroundJob.Id);
@@ -116,8 +116,8 @@ namespace Masterly.NightShift
         /// <summary>Reads a job's deadline, or <c>null</c> when it has none.</summary>
         public static DateTime? ReadDeadline([NotNull] IStorageConnection connection, [NotNull] string jobId)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (jobId == null) throw new ArgumentNullException(nameof(jobId));
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
             try
             {

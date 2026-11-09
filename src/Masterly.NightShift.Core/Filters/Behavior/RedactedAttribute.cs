@@ -47,7 +47,7 @@ namespace Masterly.NightShift
         /// <summary>Whether a parameter is marked with <see cref="RedactedAttribute"/>.</summary>
         public static bool IsRedacted([NotNull] ParameterInfo parameter)
         {
-            if (parameter == null) throw new ArgumentNullException(nameof(parameter));
+            ArgumentNullException.ThrowIfNull(parameter);
             return parameter.GetCustomAttribute<RedactedAttribute>(inherit: true) != null;
         }
 
@@ -71,22 +71,13 @@ namespace Masterly.NightShift
         {
             var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? String.Empty;
 
-            using (var sha = SHA256.Create())
-            {
-                var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(text));
-                var builder = new StringBuilder(HashBytes * 2);
-                for (var i = 0; i < HashBytes; i++)
-                {
-                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
-                }
-
-                return builder.ToString();
-            }
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+            return Convert.ToHexString(hash, 0, HashBytes).ToLowerInvariant();
         }
 
         private static object?[] ReplaceRedacted(Job job, Func<object?, string> replace)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
+            ArgumentNullException.ThrowIfNull(job);
 
             var arguments = job.Args.ToArray<object?>();
             var positions = RedactedPositions.GetOrAdd(

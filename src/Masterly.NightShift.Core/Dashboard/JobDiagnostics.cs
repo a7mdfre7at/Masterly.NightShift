@@ -73,8 +73,8 @@ namespace Masterly.NightShift.Dashboard
 
         public static IReadOnlyList<JobDiagnostic> Diagnose(RazorPage page, string jobId, JobDetailsDto details)
         {
-            if (page == null) throw new ArgumentNullException(nameof(page));
-            if (details == null) throw new ArgumentNullException(nameof(details));
+            ArgumentNullException.ThrowIfNull(page);
+            ArgumentNullException.ThrowIfNull(details);
             if (details.History == null || details.History.Count == 0) return Array.Empty<JobDiagnostic>();
 
             var current = details.History[0];
@@ -483,7 +483,7 @@ namespace Masterly.NightShift.Dashboard
             {
                 try
                 {
-                    return (JobContinuationOptions)Enum.Parse(typeof(JobContinuationOptions), value, ignoreCase: true);
+                    return Enum.Parse<JobContinuationOptions>(value, ignoreCase: true);
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {

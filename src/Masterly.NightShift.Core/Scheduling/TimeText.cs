@@ -76,7 +76,7 @@ namespace Masterly.NightShift
         // The error, when there is one more useful than "unable to understand", is the message Parse throws
         private static bool TryParse(string text, DateTime utcNow, TimeZoneInfo? timeZone, out DateTime result, out string? error)
         {
-            if (text == null) throw new ArgumentNullException(nameof(text));
+            ArgumentNullException.ThrowIfNull(text);
 
             try
             {
@@ -112,7 +112,7 @@ namespace Masterly.NightShift
                 var unit = relative.Groups[2].Value;
                 double seconds;
 
-                if (unit.StartsWith("s", StringComparison.Ordinal)) seconds = amount;
+                if (unit.StartsWith('s')) seconds = amount;
                 else if (unit.StartsWith("mo", StringComparison.Ordinal))
                 {
                     if (amount > MaxRelativeMonths) return false;
@@ -127,9 +127,9 @@ namespace Masterly.NightShift
                     result = AddMonths(utcNow, (int)amount, timeZone);
                     return true;
                 }
-                else if (unit.StartsWith("m", StringComparison.Ordinal)) seconds = amount * 60;
-                else if (unit.StartsWith("h", StringComparison.Ordinal)) seconds = amount * 3600;
-                else if (unit.StartsWith("d", StringComparison.Ordinal)) seconds = amount * 86400;
+                else if (unit.StartsWith('m')) seconds = amount * 60;
+                else if (unit.StartsWith('h')) seconds = amount * 3600;
+                else if (unit.StartsWith('d')) seconds = amount * 86400;
                 else seconds = amount * 7 * 86400;
 
                 if (seconds > MaxRelativeDelay.TotalSeconds) return false;
@@ -139,11 +139,11 @@ namespace Masterly.NightShift
             }
 
             // Absolute dates: "2026-12-24", "2026-12-24 08:00", "2026-12-24T08:00:00Z"
-            if (Char.IsDigit(phrase[0]) && phrase.Length >= 8 && phrase.Contains("-"))
+            if (Char.IsDigit(phrase[0]) && phrase.Length >= 8 && phrase.Contains('-'))
             {
                 if (DateTime.TryParse(phrase, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var absolute))
                 {
-                    var hasZone = phrase.EndsWith("z", StringComparison.Ordinal) || phrase.Contains("+") || phrase.LastIndexOf('-') > 9;
+                    var hasZone = phrase.EndsWith('z') || phrase.Contains('+') || phrase.LastIndexOf('-') > 9;
                     result = hasZone ? DateTime.SpecifyKind(absolute, DateTimeKind.Utc) : ToUtc(DateTime.SpecifyKind(absolute, DateTimeKind.Unspecified), timeZone);
                     if (result >= utcNow) return true;
 
