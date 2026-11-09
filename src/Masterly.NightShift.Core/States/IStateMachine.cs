@@ -13,20 +13,19 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.States
+namespace Masterly.NightShift.States;
+
+/// <summary>
+/// Provides a mechanism for running state election and state applying processes.
+/// </summary>
+/// 
+/// <seealso cref="StateMachine"/>
+public interface IStateMachine
 {
     /// <summary>
-    /// Provides a mechanism for running state election and state applying processes.
+    /// Performs the state applying process, where a current background job
+    /// will be moved to the elected state.
     /// </summary>
-    /// 
-    /// <seealso cref="StateMachine"/>
-    public interface IStateMachine
-    {
-        /// <summary>
-        /// Performs the state applying process, where a current background job
-        /// will be moved to the elected state.
-        /// </summary>
-        /// <param name="context">The context of a state applying process.</param>
-        IState ApplyState(ApplyStateContext context);
-    }
+    /// <param name="context">The context of a state applying process.</param>
+    IState ApplyState(ApplyStateContext context);
 }

@@ -15,20 +15,19 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.States
+namespace Masterly.NightShift.States;
+
+/// <summary>
+/// Defines methods that are required for a state changing filter.
+/// </summary>
+public interface IElectStateFilter
 {
     /// <summary>
-    /// Defines methods that are required for a state changing filter.
+    /// Called when the current state of the job is being changed to the
+    /// specified candidate state.
+    /// This state change could be intercepted and the final state could
+    /// be changed through setting the different state in the context 
+    /// in an implementation of this method.
     /// </summary>
-    public interface IElectStateFilter
-    {
-        /// <summary>
-        /// Called when the current state of the job is being changed to the
-        /// specified candidate state.
-        /// This state change could be intercepted and the final state could
-        /// be changed through setting the different state in the context 
-        /// in an implementation of this method.
-        /// </summary>
-        void OnStateElection(ElectStateContext context);
-    }
+    void OnStateElection(ElectStateContext context);
 }

@@ -13,22 +13,14 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// Fills a job method's parameter, when the job runs, with the value of the job parameter named <see
+/// cref="ParameterName"/>.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+public class FromParameterAttribute(string parameterName) : Attribute
 {
-    /// <summary>
-    /// Fills a job method's parameter, when the job runs, with the value of the job parameter named <see
-    /// cref="ParameterName"/>.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Parameter)]
-    public class FromParameterAttribute : Attribute
-    {
-        public FromParameterAttribute(string parameterName)
-        {
-            ParameterName = parameterName;
-        }
-
-        public string ParameterName { get; }
-    }
+    public string ParameterName { get; } = parameterName;
 }

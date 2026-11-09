@@ -1,38 +1,34 @@
 ﻿extern alias ReferencedDapper;
-
-using System;
-using Microsoft.Data.SqlClient;
 using System.Reflection;
-using System.Threading;
+using Microsoft.Data.SqlClient;
 using ReferencedDapper::Dapper;
 using Xunit.v3;
 
-namespace Masterly.NightShift.SqlServer.Tests
+namespace Masterly.NightShift.SqlServer.Tests;
+
+public class CleanDatabaseAttribute : BeforeAfterTestAttribute
 {
-    public class CleanDatabaseAttribute : BeforeAfterTestAttribute
+    // Not Monitor: xUnit v3 may call After on a different thread than Before
+    private static readonly SemaphoreSlim GlobalLock = new(1, 1);
+    private static bool _sqlObjectInstalled;
+
+    public CleanDatabaseAttribute()
     {
-        // Not Monitor: xUnit v3 may call After on a different thread than Before
-        private static readonly SemaphoreSlim GlobalLock = new SemaphoreSlim(1, 1);
-        private static bool _sqlObjectInstalled;
-        
-        public CleanDatabaseAttribute()
+    }
+
+    public override void Before(MethodInfo methodUnderTest, IXunitTest test)
+    {
+        GlobalLock.Wait();
+
+        if (!_sqlObjectInstalled)
         {
+            CreateAndInitializeDatabaseIfNotExists();
+            _sqlObjectInstalled = true;
         }
 
-        public override void Before(MethodInfo methodUnderTest, IXunitTest test)
-        {
-            GlobalLock.Wait();
-
-            if (!_sqlObjectInstalled)
-            {
-                CreateAndInitializeDatabaseIfNotExists();
-                _sqlObjectInstalled = true;
-            }
-
-            using (var connection = new SqlConnection(
-                ConnectionUtils.GetConnectionString()))
-            {
-                connection.Execute(@"
+        using var connection = new SqlConnection(
+            ConnectionUtils.GetConnectionString());
+        connection.Execute(@"
 truncate table [HangFire].[AggregatedCounter];
 truncate table [HangFire].[Counter];
 truncate table [HangFire].[Hash];
@@ -43,31 +39,29 @@ truncate table [HangFire].[JobQueue];
 truncate table [HangFire].[Set];
 truncate table [HangFire].[Server];
 ");
-            }
+    }
+
+    public override void After(MethodInfo methodUnderTest, IXunitTest test)
+    {
+        GlobalLock.Release();
+    }
+
+    private static void CreateAndInitializeDatabaseIfNotExists()
+    {
+        var recreateDatabaseSql = string.Format(
+            @"if db_id('{0}') is null create database [{0}] COLLATE SQL_Latin1_General_CP1_CS_AS",
+            ConnectionUtils.GetDatabaseName());
+
+        using (var connection = new SqlConnection(
+            ConnectionUtils.GetMasterConnectionString()))
+        {
+            connection.Execute(recreateDatabaseSql);
         }
 
-        public override void After(MethodInfo methodUnderTest, IXunitTest test)
+        using (var connection = new SqlConnection(
+            ConnectionUtils.GetConnectionString()))
         {
-            GlobalLock.Release();
-        }
-
-        private static void CreateAndInitializeDatabaseIfNotExists()
-        {
-            var recreateDatabaseSql = String.Format(
-                @"if db_id('{0}') is null create database [{0}] COLLATE SQL_Latin1_General_CP1_CS_AS",
-                ConnectionUtils.GetDatabaseName());
-
-            using (var connection = new SqlConnection(
-                ConnectionUtils.GetMasterConnectionString()))
-            {
-                connection.Execute(recreateDatabaseSql);
-            }
-
-            using (var connection = new SqlConnection(
-                ConnectionUtils.GetConnectionString()))
-            {
-                SqlServerObjectsInstaller.Install(connection, null, true);
-            }
+            SqlServerObjectsInstaller.Install(connection, null, true);
         }
     }
 }

@@ -13,63 +13,60 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using Masterly.NightShift.Dashboard.Resources;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// The items of the sidebar of the dashboard's job pages, one per job state. Extensions can add items.
+/// </summary>
+public static class JobsSidebarMenu
 {
-    /// <summary>
-    /// The items of the sidebar of the dashboard's job pages, one per job state. Extensions can add items.
-    /// </summary>
-    public static class JobsSidebarMenu
+    public static readonly List<Func<RazorPage, MenuItem>> Items
+        = [];
+
+    static JobsSidebarMenu()
     {
-        public static readonly List<Func<RazorPage, MenuItem>> Items
-            = new List<Func<RazorPage, MenuItem>>();
-
-        static JobsSidebarMenu()
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Enqueued, page.Url.LinkToQueues())
         {
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Enqueued, page.Url.LinkToQueues())
-            {
-                Active = page.RequestPath.StartsWith("/jobs/enqueued", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.EnqueuedAndQueueCount
-            });
+            Active = page.RequestPath.StartsWith("/jobs/enqueued", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.EnqueuedAndQueueCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Scheduled, page.Url.To("/jobs/scheduled"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/scheduled", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.ScheduledCount
-            });
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Scheduled, page.Url.To("/jobs/scheduled"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/scheduled", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.ScheduledCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Processing, page.Url.To("/jobs/processing"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/processing", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.ProcessingCount
-            });
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Processing, page.Url.To("/jobs/processing"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/processing", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.ProcessingCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Succeeded, page.Url.To("/jobs/succeeded"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/succeeded", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.SucceededCount
-            });
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Succeeded, page.Url.To("/jobs/succeeded"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/succeeded", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.SucceededCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Failed, page.Url.To("/jobs/failed"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/failed", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.FailedCount
-            });
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Failed, page.Url.To("/jobs/failed"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/failed", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.FailedCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Deleted, page.Url.To("/jobs/deleted"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/deleted", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.DeletedCount
-            });
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Deleted, page.Url.To("/jobs/deleted"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/deleted", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.DeletedCount
+        });
 
-            Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Awaiting, page.Url.To("/jobs/awaiting"))
-            {
-                Active = page.RequestPath.StartsWith("/jobs/awaiting", StringComparison.OrdinalIgnoreCase),
-                Metric = DashboardMetrics.AwaitingCount
-            });
-        }
+        Items.Add(static page => new MenuItem(Strings.JobsSidebarMenu_Awaiting, page.Url.To("/jobs/awaiting"))
+        {
+            Active = page.RequestPath.StartsWith("/jobs/awaiting", StringComparison.OrdinalIgnoreCase),
+            Metric = DashboardMetrics.AwaitingCount
+        });
     }
 }

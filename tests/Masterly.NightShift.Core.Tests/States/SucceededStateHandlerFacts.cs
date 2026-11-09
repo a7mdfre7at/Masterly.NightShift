@@ -1,44 +1,38 @@
-﻿using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
-using Moq;
-using Xunit;
+﻿namespace Masterly.NightShift.Core.Tests.States;
 
-namespace Masterly.NightShift.Core.Tests.States
+public class SucceededStateHandlerFacts
 {
-    public class SucceededStateHandlerFacts
+    private readonly ApplyStateContextMock _context;
+    private readonly Mock<IWriteOnlyTransaction> _transactionMock
+        = new();
+
+    public SucceededStateHandlerFacts()
     {
-        private readonly ApplyStateContextMock _context;
-        private readonly Mock<IWriteOnlyTransaction> _transactionMock
-            = new Mock<IWriteOnlyTransaction>();
+        _context = new ApplyStateContextMock();
+    }
 
-        public SucceededStateHandlerFacts()
-        {
-            _context = new ApplyStateContextMock();
-        }
+    [Fact]
+    public void ShouldWorkOnlyWithSucceededState()
+    {
+        var handler = new SucceededState.Handler();
+        Assert.Equal(SucceededState.StateName, handler.StateName);
+    }
 
-        [Fact]
-        public void ShouldWorkOnlyWithSucceededState()
-        {
-            var handler = new SucceededState.Handler();
-            Assert.Equal(SucceededState.StateName, handler.StateName);
-        }
+    [Fact]
+    public void Apply_ShouldIncrease_SucceededCounter()
+    {
+        var handler = new SucceededState.Handler();
+        handler.Apply(_context.Object, _transactionMock.Object);
 
-        [Fact]
-        public void Apply_ShouldIncrease_SucceededCounter()
-        {
-            var handler = new SucceededState.Handler();
-            handler.Apply(_context.Object, _transactionMock.Object);
+        _transactionMock.Verify(x => x.IncrementCounter("stats:succeeded"), Times.Once);
+    }
 
-            _transactionMock.Verify(x => x.IncrementCounter("stats:succeeded"), Times.Once);
-        }
+    [Fact]
+    public void Unapply_ShouldDecrementStatistics()
+    {
+        var handler = new SucceededState.Handler();
+        handler.Unapply(_context.Object, _transactionMock.Object);
 
-        [Fact]
-        public void Unapply_ShouldDecrementStatistics()
-        {
-            var handler = new SucceededState.Handler();
-            handler.Unapply(_context.Object, _transactionMock.Object);
-
-            _transactionMock.Verify(x => x.DecrementCounter("stats:succeeded"), Times.Once);
-        }
+        _transactionMock.Verify(x => x.DecrementCounter("stats:succeeded"), Times.Once);
     }
 }

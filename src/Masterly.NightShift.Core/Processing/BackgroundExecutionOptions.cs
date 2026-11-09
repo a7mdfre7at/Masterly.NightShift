@@ -13,76 +13,69 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Processing
+internal sealed class BackgroundExecutionOptions
 {
-    internal sealed class BackgroundExecutionOptions
+    private static readonly TimeSpan DefaultMaxAttemptDelay = TimeSpan.FromMinutes(5);
+
+    public BackgroundExecutionOptions()
     {
-        private static readonly TimeSpan DefaultMaxAttemptDelay = TimeSpan.FromMinutes(5);
-        private TimeSpan _warningThreshold;
-        private TimeSpan _errorThreshold;
-        private TimeSpan _stillErrorThreshold;
-        private Func<int, TimeSpan> _retryDelay;
+        WarningThreshold = TimeSpan.FromSeconds(5);
+        ErrorThreshold = TimeSpan.FromSeconds(15);
+        StillErrorThreshold = TimeSpan.FromSeconds(60);
+        RetryDelay = GetBackOffMultiplier;
+    }
 
-        public BackgroundExecutionOptions()
+    public string Name { get; set; }
+
+    public TimeSpan WarningThreshold
+    {
+        get;
+        set
         {
-            WarningThreshold = TimeSpan.FromSeconds(5);
-            ErrorThreshold = TimeSpan.FromSeconds(15);
-            StillErrorThreshold = TimeSpan.FromSeconds(60);
-            RetryDelay = GetBackOffMultiplier;
+            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            field = value;
         }
+    }
 
-        public string Name { get; set; }
-
-        public TimeSpan WarningThreshold
+    public TimeSpan ErrorThreshold
+    {
+        get;
+        set
         {
-            get { return _warningThreshold; }
-            set
-            {
-                if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
-                _warningThreshold = value;
-            }
+            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            field = value;
         }
+    }
 
-        public TimeSpan ErrorThreshold
+    public TimeSpan StillErrorThreshold
+    {
+        get;
+        set
         {
-            get { return _errorThreshold; }
-            set
-            {
-                if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
-                _errorThreshold = value;
-            }
+            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            field = value;
         }
+    }
 
-        public TimeSpan StillErrorThreshold
+    public Func<int, TimeSpan> RetryDelay
+    {
+        get;
+        set
         {
-            get { return _stillErrorThreshold; }
-            set
-            {
-                if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
-                _stillErrorThreshold = value;
-            }
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
         }
+    }
 
-        public Func<int, TimeSpan> RetryDelay
-        {
-            get { return _retryDelay; }
-            set
-            {
-                ArgumentNullException.ThrowIfNull(value);
-                _retryDelay = value;
-            }
-        }
+    internal static TimeSpan GetBackOffMultiplier(int retryAttemptNumber)
+    {
+        //exponential/random retry back-off.
+        var rand = new Random(Guid.NewGuid().GetHashCode());
+        var nextTry = rand.Next(
+            (int)Math.Pow(retryAttemptNumber, 2), (int)Math.Pow(retryAttemptNumber, 2) + 1);
 
-        internal static TimeSpan GetBackOffMultiplier(int retryAttemptNumber)
-        {
-            //exponential/random retry back-off.
-            var rand = new Random(Guid.NewGuid().GetHashCode());
-            var nextTry = rand.Next(
-                (int)Math.Pow(retryAttemptNumber, 2), (int)Math.Pow(retryAttemptNumber, 2) + 1);
-
-            return TimeSpan.FromSeconds(Math.Min(nextTry, DefaultMaxAttemptDelay.TotalSeconds));
-        }
+        return TimeSpan.FromSeconds(Math.Min(nextTry, DefaultMaxAttemptDelay.TotalSeconds));
     }
 }

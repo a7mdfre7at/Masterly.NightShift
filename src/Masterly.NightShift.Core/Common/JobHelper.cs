@@ -13,76 +13,73 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Globalization;
-using Masterly.NightShift.Annotations;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Helpers that serialize values and dates the way the storage stores them.
+/// </summary>
+public static class JobHelper
 {
-    /// <summary>
-    /// Helpers that serialize values and dates the way the storage stores them.
-    /// </summary>
-    public static class JobHelper
+
+    private static readonly DateTime Epoch = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime MillisecondTimestampBoundaryDate = new(1978, 1, 11, 21, 31, 40, 799, DateTimeKind.Utc);
+    private static readonly long MillisecondTimestampBoundary = 253402300799L;
+
+    public static long ToTimestamp(DateTime value)
     {
+        TimeSpan elapsedTime = value - Epoch;
+        return (long)elapsedTime.TotalSeconds;
+    }
 
-        private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        private static readonly DateTime MillisecondTimestampBoundaryDate = new DateTime(1978, 1, 11, 21, 31, 40, 799, DateTimeKind.Utc);
-        private static readonly long MillisecondTimestampBoundary = 253402300799L;
+    public static DateTime FromTimestamp(long value)
+    {
+        return Epoch.AddSeconds(value);
+    }
 
-        public static long ToTimestamp(DateTime value)
+    public static long ToMillisecondTimestamp(DateTime value)
+    {
+        TimeSpan elapsedTime = value - Epoch;
+        return (long)elapsedTime.TotalMilliseconds;
+    }
+
+    public static DateTime FromMillisecondTimestamp(long value)
+    {
+        return Epoch.AddMilliseconds(value);
+    }
+
+    public static string SerializeDateTime(DateTime value)
+    {
+        if (value > MillisecondTimestampBoundaryDate &&
+            value < DateTime.MaxValue &&
+            GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170))
         {
-            TimeSpan elapsedTime = value - Epoch;
-            return (long)elapsedTime.TotalSeconds;
+            return ToMillisecondTimestamp(value).ToString("D", CultureInfo.InvariantCulture);
         }
 
-        public static DateTime FromTimestamp(long value)
+        return value.ToString("O", CultureInfo.InvariantCulture);
+    }
+
+    public static DateTime DeserializeDateTime(string value)
+    {
+        if (long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var timestamp))
         {
-            return Epoch.AddSeconds(value);
+            return timestamp > MillisecondTimestampBoundary
+                ? FromMillisecondTimestamp(timestamp)
+                : FromTimestamp(timestamp);
         }
 
-        public static long ToMillisecondTimestamp(DateTime value)
+        return DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+    }
+
+    public static DateTime? DeserializeNullableDateTime(string value)
+    {
+        if (string.IsNullOrEmpty(value))
         {
-            TimeSpan elapsedTime = value - Epoch;
-            return (long)elapsedTime.TotalMilliseconds;
+            return null;
         }
 
-        public static DateTime FromMillisecondTimestamp(long value)
-        {
-            return Epoch.AddMilliseconds(value);
-        }
-
-        public static string SerializeDateTime(DateTime value)
-        {
-            if (value > MillisecondTimestampBoundaryDate && 
-                value < DateTime.MaxValue &&
-                GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170))
-            {
-                return ToMillisecondTimestamp(value).ToString("D", CultureInfo.InvariantCulture);
-            }
-
-            return value.ToString("O", CultureInfo.InvariantCulture);
-        }
-
-        public static DateTime DeserializeDateTime(string value)
-        {
-            if (long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var timestamp))
-            {
-                return timestamp > MillisecondTimestampBoundary
-                    ? FromMillisecondTimestamp(timestamp) 
-                    : FromTimestamp(timestamp);
-            }
-
-            return DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-        }
-
-        public static DateTime? DeserializeNullableDateTime(string value)
-        {
-            if (String.IsNullOrEmpty(value))
-            {
-                return null;
-            }
-
-            return DeserializeDateTime(value);
-        }
+        return DeserializeDateTime(value);
     }
 }

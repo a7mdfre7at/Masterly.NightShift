@@ -13,10 +13,9 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal sealed class Constants
 {
-    internal sealed class Constants
-    {
-        public static readonly string DefaultSchema = "HangFire";
-    }
+    public static readonly string DefaultSchema = "HangFire";
 }

@@ -1,22 +1,20 @@
 ﻿using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
-using Xunit;
 
-namespace Masterly.NightShift.Core.Tests.Dashboard
+namespace Masterly.NightShift.Core.Tests.Dashboard;
+
+public class CommandDispatcherFacts
 {
-    public class CommandDispatcherFacts
+    [Fact]
+    public void Dispatch_Sets401StatusCode_WhenNotPermitted()
     {
-        [Fact]
-        public void Dispatch_Sets401StatusCode_WhenNotPermitted()
+        var options = new DashboardOptions
         {
-            var options = new DashboardOptions
-            {
-                IsReadOnlyFunc = _ => true
-            };
-            var context = new DashboardContextStub(options);
-            var dispatcher = new CommandDispatcher((DashboardContext _) => false);
-            dispatcher.Dispatch(context);
-            Assert.Equal(401, context.Response.StatusCode);
-        }
+            IsReadOnlyFunc = _ => true
+        };
+        var context = new DashboardContextStub(options);
+        var dispatcher = new CommandDispatcher(_ => false);
+        dispatcher.Dispatch(context);
+        Assert.Equal(401, context.Response.StatusCode);
     }
 }

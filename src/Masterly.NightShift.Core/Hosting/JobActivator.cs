@@ -15,101 +15,94 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Creates the instances that jobs run on. The default implementation calls the type's parameterless
+/// constructor; <c>Masterly.NightShift.NetCore</c> provides one that resolves them from the
+/// <see cref="IServiceProvider"/>. Set it with <c>UseActivator</c> or <see cref="Current"/>, or per server
+/// with <see cref="BackgroundJobServerOptions.Activator"/>.
+/// </summary>
+public class JobActivator
 {
     /// <summary>
-    /// Creates the instances that jobs run on. The default implementation calls the type's parameterless
-    /// constructor; <c>Masterly.NightShift.NetCore</c> provides one that resolves them from the
-    /// <see cref="IServiceProvider"/>. Set it with <c>UseActivator</c> or <see cref="Current"/>, or per server
-    /// with <see cref="BackgroundJobServerOptions.Activator"/>.
+    /// Gets or sets the current <see cref="JobActivator"/> instance 
+    /// that will be used to activate jobs during performance.
     /// </summary>
-    public class JobActivator
+    public static JobActivator Current
     {
-        private static JobActivator _current = new JobActivator();
-
-        /// <summary>
-        /// Gets or sets the current <see cref="JobActivator"/> instance 
-        /// that will be used to activate jobs during performance.
-        /// </summary>
-        public static JobActivator Current
+        get;
+        set
         {
-            get { return _current; }
-            set
+            ArgumentNullException.ThrowIfNull(value);
+
+            field = value;
+        }
+    } = new();
+
+    /// <summary>
+    /// Creates an instance of <paramref name="jobType"/>. The default implementation calls its public
+    /// parameterless constructor.
+    /// </summary>
+    /// <param name="jobType">The type that declares the job method.</param>
+    /// <returns>The instance; the server fails the job when it is <c>null</c>.</returns>
+    public virtual object? ActivateJob([NotNull] Type jobType)
+    {
+        return Activator.CreateInstance(jobType);
+    }
+
+    /// <summary>
+    /// Begins the scope a job's instance is resolved from, and that is disposed when the job has run.
+    /// The default implementation returns a scope that creates instances with <see cref="ActivateJob"/> and
+    /// disposes those that implement <see cref="IDisposable"/>.
+    /// </summary>
+    /// <param name="context">The job about to run.</param>
+    public virtual JobActivatorScope BeginScope([NotNull] JobActivatorContext context)
+    {
+        return new SimpleJobActivatorScope(this);
+    }
+
+    /// <summary>
+    /// Begins the scope for a job performed by a server, by calling <see cref="BeginScope(JobActivatorContext)"/>.
+    /// </summary>
+    /// <param name="context">The job about to run.</param>
+    public virtual JobActivatorScope BeginScope([NotNull] PerformContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return this.BeginScope(new JobActivatorContext(context.Connection, context.BackgroundJob, context.CancellationToken));
+    }
+
+    private class SimpleJobActivatorScope : JobActivatorScope
+    {
+        private readonly JobActivator _activator;
+        private readonly List<IDisposable> _disposables = [];
+
+        public SimpleJobActivatorScope([NotNull] JobActivator activator)
+        {
+            ArgumentNullException.ThrowIfNull(activator);
+            _activator = activator;
+        }
+
+        public override object? Resolve(Type type)
+        {
+            var instance = _activator.ActivateJob(type);
+
+            if (instance is IDisposable disposable)
             {
-                ArgumentNullException.ThrowIfNull(value);
-
-                _current = value;
-            }
-        }
-
-        /// <summary>
-        /// Creates an instance of <paramref name="jobType"/>. The default implementation calls its public
-        /// parameterless constructor.
-        /// </summary>
-        /// <param name="jobType">The type that declares the job method.</param>
-        /// <returns>The instance; the server fails the job when it is <c>null</c>.</returns>
-        public virtual object? ActivateJob([NotNull] Type jobType)
-        {
-            return Activator.CreateInstance(jobType);
-        }
-
-        /// <summary>
-        /// Begins the scope a job's instance is resolved from, and that is disposed when the job has run.
-        /// The default implementation returns a scope that creates instances with <see cref="ActivateJob"/> and
-        /// disposes those that implement <see cref="IDisposable"/>.
-        /// </summary>
-        /// <param name="context">The job about to run.</param>
-        public virtual JobActivatorScope BeginScope([NotNull] JobActivatorContext context)
-        {
-            return new SimpleJobActivatorScope(this);
-        }
-
-        /// <summary>
-        /// Begins the scope for a job performed by a server, by calling <see cref="BeginScope(JobActivatorContext)"/>.
-        /// </summary>
-        /// <param name="context">The job about to run.</param>
-        public virtual JobActivatorScope BeginScope([NotNull] PerformContext context)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-
-            return this.BeginScope(new JobActivatorContext(context.Connection, context.BackgroundJob, context.CancellationToken));
-        }
-
-        class SimpleJobActivatorScope : JobActivatorScope
-        {
-            private readonly JobActivator _activator;
-            private readonly List<IDisposable> _disposables = new List<IDisposable>();
-
-            public SimpleJobActivatorScope([NotNull] JobActivator activator)
-            {
-                ArgumentNullException.ThrowIfNull(activator);
-                _activator = activator;
-            }
-
-            public override object? Resolve(Type type)
-            {
-                var instance = _activator.ActivateJob(type);
-                var disposable = instance as IDisposable;
-
-                if (disposable != null)
-                {
-                    _disposables.Add(disposable);
-                }
-
-                return instance;
+                _disposables.Add(disposable);
             }
 
-            public override void DisposeScope()
+            return instance;
+        }
+
+        public override void DisposeScope()
+        {
+            foreach (var disposable in _disposables)
             {
-                foreach (var disposable in _disposables)
-                {
-                    disposable.Dispose();
-                }
+                disposable.Dispose();
             }
         }
     }

@@ -9,7 +9,6 @@
     <EnablePackageValidation>false</EnablePackageValidation>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 

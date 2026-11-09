@@ -13,104 +13,96 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Data;
-using System.Threading;
-using Dapper;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Storage;
+namespace Masterly.NightShift.SqlServer;
 
-namespace Masterly.NightShift.SqlServer
+internal sealed class SqlServerTransactionJob : IFetchedJob
 {
-    internal sealed class SqlServerTransactionJob : IFetchedJob
+    // Connections to SQL Azure Database that are idle for 30 minutes 
+    // or longer will be terminated. And since we are using separate
+    // connection for a holding a transaction during the background
+    // job processing, we'd like to prevent Resource Governor from 
+    // terminating it.
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(1);
+
+    private readonly SqlServerStorage _storage;
+    private IDbConnection _connection;
+    private readonly IDbTransaction _transaction;
+    private readonly Timer _timer;
+    private readonly object _lockObject = new();
+
+    public SqlServerTransactionJob(
+        [NotNull] SqlServerStorage storage,
+        [NotNull] IDbConnection connection,
+        [NotNull] IDbTransaction transaction,
+        string jobId,
+        string queue)
     {
-        // Connections to SQL Azure Database that are idle for 30 minutes 
-        // or longer will be terminated. And since we are using separate
-        // connection for a holding a transaction during the background
-        // job processing, we'd like to prevent Resource Governor from 
-        // terminating it.
-        private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(1);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(jobId);
+        ArgumentNullException.ThrowIfNull(queue);
 
-        private readonly SqlServerStorage _storage;
-        private IDbConnection _connection;
-        private readonly IDbTransaction _transaction;
-        private readonly Timer _timer;
-        private readonly object _lockObject = new object();
+        _storage = storage;
+        _connection = connection;
+        _transaction = transaction;
 
-        public SqlServerTransactionJob(
-            [NotNull] SqlServerStorage storage,
-            [NotNull] IDbConnection connection, 
-            [NotNull] IDbTransaction transaction, 
-            string jobId, 
-            string queue)
+        JobId = jobId;
+        Queue = queue;
+
+        if (!_storage.IsExistingConnection(_connection))
         {
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(jobId);
-            ArgumentNullException.ThrowIfNull(queue);
-
-            _storage = storage;
-            _connection = connection;
-            _transaction = transaction;
-
-            JobId = jobId;
-            Queue = queue;
-
-            if (!_storage.IsExistingConnection(_connection))
-            {
-                _timer = new Timer(ExecuteKeepAliveQuery, null, KeepAliveInterval, KeepAliveInterval);
-            }
+            _timer = new Timer(ExecuteKeepAliveQuery, null, KeepAliveInterval, KeepAliveInterval);
         }
+    }
 
-        public string JobId { get; }
-        public string Queue { get; }
+    public string JobId { get; }
+    public string Queue { get; }
 
-        public void RemoveFromQueue()
+    public void RemoveFromQueue()
+    {
+        lock (_lockObject)
         {
-            lock (_lockObject)
-            {
-                _transaction.Commit();
-            }
+            _transaction.Commit();
         }
+    }
 
-        public void Requeue()
+    public void Requeue()
+    {
+        lock (_lockObject)
         {
-            lock (_lockObject)
-            {
-                _transaction.Rollback();
-            }
+            _transaction.Rollback();
         }
+    }
 
-        public void Dispose()
+    public void Dispose()
+    {
+        // Timer callback may be invoked after the Dispose method call,
+        // so we are using lock to avoid unsynchronized calls.
+        lock (_lockObject)
         {
-            // Timer callback may be invoked after the Dispose method call,
-            // so we are using lock to avoid unsynchronized calls.
-            lock (_lockObject)
-            {
-                _timer?.Dispose();
-                _transaction.Dispose();
-                _storage.ReleaseConnection(_connection);
-                _connection = null;
-            }
+            _timer?.Dispose();
+            _transaction.Dispose();
+            _storage.ReleaseConnection(_connection);
+            _connection = null;
         }
+    }
 
-        private void ExecuteKeepAliveQuery(object obj)
+    private void ExecuteKeepAliveQuery(object obj)
+    {
+        lock (_lockObject)
         {
-            lock (_lockObject)
+            try
             {
-                try
-                {
-                    _connection?.Execute("SELECT 1;", transaction: _transaction);
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    // Connection was closed. So we can't continue to send
-                    // keep-alive queries. Unlike for distributed locks,
-                    // there is no any caveats of having this issue for
-                    // queues, because Masterly.NightShift guarantees only the "at least
-                    // once" processing.
-                }
+                _connection?.Execute("SELECT 1;", transaction: _transaction);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Connection was closed. So we can't continue to send
+                // keep-alive queries. Unlike for distributed locks,
+                // there is no any caveats of having this issue for
+                // queues, because Masterly.NightShift guarantees only the "at least
+                // once" processing.
             }
         }
     }

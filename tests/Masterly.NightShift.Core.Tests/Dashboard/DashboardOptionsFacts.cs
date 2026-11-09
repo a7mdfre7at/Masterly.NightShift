@@ -1,22 +1,19 @@
-﻿using System.Linq;
-using Masterly.NightShift.Dashboard;
-using Xunit;
+﻿using Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Core.Tests.Dashboard
+namespace Masterly.NightShift.Core.Tests.Dashboard;
+
+public class DashboardOptionsFacts
 {
-    public class DashboardOptionsFacts
+    [Fact]
+    public void Ctor_SetsDefaultValues_ForAllOptions()
     {
-        [Fact]
-        public void Ctor_SetsDefaultValues_ForAllOptions()
-        {
-            var options = new DashboardOptions();
-            Assert.Equal("/", options.AppPath);
-            Assert.Equal("", options.PrefixPath);
-            Assert.NotNull(options.Authorization);
-            Assert.IsType<LocalRequestsOnlyAuthorizationFilter>(options.Authorization.FirstOrDefault());
-            Assert.Equal(2000, options.StatsPollingInterval);
-            Assert.True(options.DisplayStorageConnectionString);
-            Assert.Equal("Masterly.NightShift Dashboard", options.DashboardTitle);
-        }
+        var options = new DashboardOptions();
+        Assert.Equal("/", options.AppPath);
+        Assert.Equal("", options.PrefixPath);
+        Assert.NotNull(options.Authorization);
+        Assert.IsType<LocalRequestsOnlyAuthorizationFilter>(options.Authorization.FirstOrDefault());
+        Assert.Equal(2000, options.StatsPollingInterval);
+        Assert.True(options.DisplayStorageConnectionString);
+        Assert.Equal("Masterly.NightShift Dashboard", options.DashboardTitle);
     }
 }

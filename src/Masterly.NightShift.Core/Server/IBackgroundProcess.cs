@@ -13,28 +13,24 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// A process that a <see cref="BackgroundProcessingServer"/> runs in a loop on a background thread for as long
+/// as the server runs.
+/// </summary>
+/// <remarks>
+/// Each call of <see cref="Execute"/> is one iteration: do one piece of work, or wait, then return. Wait through
+/// the context (for example <see cref="BackgroundProcessContext.Wait"/>) so that the server can stop the process,
+/// and dispose the storage connections you open within the iteration.
+/// </remarks>
+/// <seealso cref="BackgroundProcessingServer"/>
+public interface IBackgroundProcess
 {
     /// <summary>
-    /// A process that a <see cref="BackgroundProcessingServer"/> runs in a loop on a background thread for as long
-    /// as the server runs.
+    /// Runs one iteration of the process.
     /// </summary>
-    /// <remarks>
-    /// Each call of <see cref="Execute"/> is one iteration: do one piece of work, or wait, then return. Wait through
-    /// the context (for example <see cref="BackgroundProcessContext.Wait"/>) so that the server can stop the process,
-    /// and dispose the storage connections you open within the iteration.
-    /// </remarks>
-    /// <seealso cref="BackgroundProcessingServer"/>
-    public interface IBackgroundProcess
-    {
-        /// <summary>
-        /// Runs one iteration of the process.
-        /// </summary>
-        /// <param name="context">Context for a background process.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="context"/> is null.</exception>
-        void Execute([NotNull] BackgroundProcessContext context);
-    }
+    /// <param name="context">Context for a background process.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is null.</exception>
+    void Execute([NotNull] BackgroundProcessContext context);
 }

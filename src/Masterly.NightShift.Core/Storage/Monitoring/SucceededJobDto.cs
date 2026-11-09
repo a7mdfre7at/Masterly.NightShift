@@ -15,29 +15,24 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job in the Succeeded state, as listed by the dashboard.
+/// </summary>
+public class SucceededJobDto
 {
-    /// <summary>
-    /// A job in the Succeeded state, as listed by the dashboard.
-    /// </summary>
-    public class SucceededJobDto
+    public SucceededJobDto()
     {
-        public SucceededJobDto()
-        {
-            InSucceededState = true;
-        }
-
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public object? Result { get; set; }
-        public long? TotalDuration { get; set; }
-        public DateTime? SucceededAt { get; set; }
-        public bool InSucceededState { get; set; }
-        public IDictionary<string, string>? StateData { get; set; }
+        InSucceededState = true;
     }
+
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public object? Result { get; set; }
+    public long? TotalDuration { get; set; }
+    public DateTime? SucceededAt { get; set; }
+    public bool InSucceededState { get; set; }
+    public IDictionary<string, string>? StateData { get; set; }
 }

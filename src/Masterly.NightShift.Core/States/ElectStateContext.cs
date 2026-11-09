@@ -15,138 +15,131 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Profiling;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.States
+namespace Masterly.NightShift.States;
+
+/// <summary>
+/// What <see cref="IElectStateFilter"/> filters get while the next state of a job is chosen; setting <see
+/// cref="CandidateState"/> changes it.
+/// </summary>
+public class ElectStateContext
 {
-    /// <summary>
-    /// What <see cref="IElectStateFilter"/> filters get while the next state of a job is chosen; setting <see
-    /// cref="CandidateState"/> changes it.
-    /// </summary>
-    public class ElectStateContext
+    private readonly IList<IState> _traversedStates = [];
+    private IState _candidateState;
+
+    public ElectStateContext([NotNull] ApplyStateContext applyContext)
+        : this(applyContext, null)
     {
-        private readonly IList<IState> _traversedStates = new List<IState>();
-        private IState _candidateState;
+    }
 
-        public ElectStateContext([NotNull] ApplyStateContext applyContext)
-            : this(applyContext, null)
+    public ElectStateContext([NotNull] ApplyStateContext applyContext, [CanBeNull] StateMachine? stateMachine)
+    {
+        ArgumentNullException.ThrowIfNull(applyContext);
+
+        BackgroundJob = applyContext.BackgroundJob;
+        _candidateState = applyContext.NewState;
+
+        Storage = applyContext.Storage;
+        Connection = applyContext.Connection;
+        Transaction = applyContext.Transaction;
+        CurrentState = applyContext.OldStateName;
+        Profiler = applyContext.Profiler;
+        CustomData = applyContext.CustomData?.ToDictionary(static x => x.Key, static x => x.Value);
+        StateMachine = stateMachine;
+        AfterCommit = applyContext.AfterCommit;
+    }
+
+    public BackgroundJob BackgroundJob { get; }
+
+    [NotNull]
+    public JobStorage Storage { get; }
+
+    [NotNull]
+    public IStorageConnection Connection { get; }
+
+    [NotNull]
+    public IWriteOnlyTransaction Transaction { get; }
+
+    [NotNull]
+    public IState CandidateState
+    {
+        get => _candidateState;
+        set
         {
-        }
-
-        public ElectStateContext([NotNull] ApplyStateContext applyContext, [CanBeNull] StateMachine? stateMachine)
-        {
-            ArgumentNullException.ThrowIfNull(applyContext);
-
-            BackgroundJob = applyContext.BackgroundJob;
-            _candidateState = applyContext.NewState;
-
-            Storage = applyContext.Storage;
-            Connection = applyContext.Connection;
-            Transaction = applyContext.Transaction;
-            CurrentState = applyContext.OldStateName;
-            Profiler = applyContext.Profiler;
-            CustomData = applyContext.CustomData?.ToDictionary(static x => x.Key, static x => x.Value);
-            StateMachine = stateMachine;
-            AfterCommit = applyContext.AfterCommit;
-        }
-        
-        public BackgroundJob BackgroundJob { get; }
-
-        [NotNull]
-        public JobStorage Storage { get; }
-
-        [NotNull]
-        public IStorageConnection Connection { get; }
-
-        [NotNull]
-        public IWriteOnlyTransaction Transaction { get; }
-
-        [NotNull]
-        public IState CandidateState
-        {
-            get => _candidateState;
-            set
+            if (value == null)
             {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(value), "The CandidateState property can not be set to null.");
-                }
+                throw new ArgumentNullException(nameof(value), "The CandidateState property can not be set to null.");
+            }
 
-                if (_candidateState != value)
-                {
-                    _traversedStates.Add(_candidateState);
-                    _candidateState = value;
-                }
+            if (_candidateState != value)
+            {
+                _traversedStates.Add(_candidateState);
+                _candidateState = value;
             }
         }
+    }
 
-        [CanBeNull]
-        public string? CurrentState { get; }
+    [CanBeNull]
+    public string? CurrentState { get; }
 
-        [NotNull]
-        public IState[] TraversedStates => _traversedStates.ToArray();
+    [NotNull]
+    public IState[] TraversedStates => [.. _traversedStates];
 
-        [NotNull]
-        internal IProfiler Profiler { get; }
+    [NotNull]
+    internal IProfiler Profiler { get; }
 
-        [CanBeNull]
-        public IDictionary<string, object>? CustomData { get; }
-        
-        [CanBeNull]
-        public StateMachine? StateMachine { get; }
+    [CanBeNull]
+    public IDictionary<string, object>? CustomData { get; }
 
-        /// <summary>The <see cref="ApplyStateContext.AfterCommit"/> of the state change being elected.</summary>
-        [CanBeNull]
-        internal PostCommitActions? AfterCommit { get; }
+    [CanBeNull]
+    public StateMachine? StateMachine { get; }
 
-        /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
-        internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);
+    /// <summary>The <see cref="ApplyStateContext.AfterCommit"/> of the state change being elected.</summary>
+    [CanBeNull]
+    internal PostCommitActions? AfterCommit { get; }
 
-        /// <summary>
-        /// Runs the action once the commit of the state change is over, whether it succeeded or threw (so after the
-        /// job's lock is released), or right away when that isn't known. For work about something already stored on
-        /// its own, which a retried state change wouldn't do again.
-        /// </summary>
-        internal void RunAfterCommitAttempt([NotNull] Action action) => PostCommitActions.RunAfterCommitAttempt(AfterCommit, action);
+    /// <summary>Runs the action once the state change is committed, or right away when that isn't known.</summary>
+    internal void RunAfterCommit([NotNull] Action action) => PostCommitActions.RunAfterCommit(AfterCommit, action);
 
-        public void SetJobParameter<T>([NotNull] string name, T value)
+    /// <summary>
+    /// Runs the action once the commit of the state change is over, whether it succeeded or threw (so after the
+    /// job's lock is released), or right away when that isn't known. For work about something already stored on
+    /// its own, which a retried state change wouldn't do again.
+    /// </summary>
+    internal void RunAfterCommitAttempt([NotNull] Action action) => PostCommitActions.RunAfterCommitAttempt(AfterCommit, action);
+
+    public void SetJobParameter<T>([NotNull] string name, T value)
+    {
+        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+        Connection.SetJobParameter(BackgroundJob.Id, name, SerializationHelper.Serialize(value, SerializationOption.User));
+    }
+
+    public T? GetJobParameter<T>([NotNull] string name) => GetJobParameter<T>(name, allowStale: false);
+
+    public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
+    {
+        if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+
+        try
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            Connection.SetJobParameter(BackgroundJob.Id, name, SerializationHelper.Serialize(value, SerializationOption.User));
+            string? value;
+
+            if (allowStale && BackgroundJob.ParametersSnapshot != null)
+            {
+                BackgroundJob.ParametersSnapshot.TryGetValue(name, out value);
+            }
+            else
+            {
+                value = Connection.GetJobParameter(BackgroundJob.Id, name);
+            }
+
+            return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
         }
-
-        public T? GetJobParameter<T>([NotNull] string name) => GetJobParameter<T>(name, allowStale: false);
-
-        public T? GetJobParameter<T>([NotNull] string name, bool allowStale)
+        catch (Exception ex)
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-
-            try
-            {
-                string? value;
-
-                if (allowStale && BackgroundJob.ParametersSnapshot != null)
-                {
-                    BackgroundJob.ParametersSnapshot.TryGetValue(name, out value);
-                }
-                else
-                {
-                    value = Connection.GetJobParameter(BackgroundJob.Id, name);                
-                }
-
-                return SerializationHelper.Deserialize<T>(value, SerializationOption.User);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);
-            }
+            throw new InvalidOperationException(
+                $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);
         }
     }
 }

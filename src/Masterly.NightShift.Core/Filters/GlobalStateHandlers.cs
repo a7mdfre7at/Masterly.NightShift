@@ -13,29 +13,25 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Collections.Generic;
-using Masterly.NightShift.States;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// The state handlers that perform the storage side effects of every state change, such as adding a job to its
+/// queue when it is enqueued.
+/// </summary>
+public static class GlobalStateHandlers
 {
-    /// <summary>
-    /// The state handlers that perform the storage side effects of every state change, such as adding a job to its
-    /// queue when it is enqueued.
-    /// </summary>
-    public static class GlobalStateHandlers
+    static GlobalStateHandlers()
     {
-        static GlobalStateHandlers()
-        {
-            Handlers = new List<IStateHandler>
-            {
-                new SucceededState.Handler(),
-                new ScheduledState.Handler(),
-                new EnqueuedState.Handler(),
-                new DeletedState.Handler(),
-                new AwaitingState.Handler()
-            };
-        }
-
-        public static ICollection<IStateHandler> Handlers { get; }
+        Handlers =
+        [
+            new SucceededState.Handler(),
+            new ScheduledState.Handler(),
+            new EnqueuedState.Handler(),
+            new DeletedState.Handler(),
+            new AwaitingState.Handler()
+        ];
     }
+
+    public static ICollection<IStateHandler> Handlers { get; }
 }

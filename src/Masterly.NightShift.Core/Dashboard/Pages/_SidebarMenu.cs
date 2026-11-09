@@ -13,20 +13,15 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Dashboard.Pages;
 
-namespace Masterly.NightShift.Dashboard.Pages
+internal partial class SidebarMenu
 {
-    partial class SidebarMenu
+    public SidebarMenu([NotNull] IEnumerable<Func<RazorPage, MenuItem>> items)
     {
-        public SidebarMenu([NotNull] IEnumerable<Func<RazorPage, MenuItem>> items)
-        {
-            ArgumentNullException.ThrowIfNull(items);
-            Items = items;
-        }
-
-        public IEnumerable<Func<RazorPage, MenuItem>> Items { get; }
+        ArgumentNullException.ThrowIfNull(items);
+        Items = items;
     }
+
+    public IEnumerable<Func<RazorPage, MenuItem>> Items { get; }
 }

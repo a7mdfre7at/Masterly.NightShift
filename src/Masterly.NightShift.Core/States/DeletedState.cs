@@ -15,164 +15,152 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.States
+namespace Masterly.NightShift.States;
+
+/// <summary>
+/// Defines the <i>final</i> state of a background job when nobody
+/// is interested whether it was performed or not.
+/// </summary>
+/// <remarks>
+/// <para>Deleted state is used when you are not interested in a processing
+/// of a background job. This state isn't backed by any background process,
+/// so when you change a state of the job to the <i>Deleted</i>, only
+/// expiration time will be set on a job without any additional processing.</para>
+/// </remarks>
+/// 
+/// <example>
+/// <para>The following example demonstrates how to cancel an <i>enqueued</i> background
+/// job. Please note that this job may be processed before you change its state.</para>
+/// <para>This example shows how to create an instance of the <see cref="DeletedState"/>
+/// class and use the <see cref="IBackgroundJobClient.ChangeState"/> method. Please see
+/// <see cref="O:Masterly.NightShift.BackgroundJob.Delete">BackgroundJob.Delete</see>
+/// and <see cref="O:Masterly.NightShift.BackgroundJobClientExtensions.Delete">BackgroundJobClientExtensions.Delete</see>
+/// method overloads for simpler API.</para> 
+/// 
+/// <code lang="cs" source="..\Samples\States.cs" region="DeletedState" />
+/// 
+/// </example>
+/// 
+/// <seealso cref="O:Masterly.NightShift.BackgroundJob.Delete">BackgroundJob.Delete Overload</seealso>
+/// <seealso cref="O:Masterly.NightShift.BackgroundJobClientExtensions.Delete">BackgroundJobClientExtensions.Delete Overload</seealso>
+/// <seealso cref="IBackgroundJobClient.ChangeState" />
+/// 
+/// <threadsafety static="true" instance="false" />
+public class DeletedState([CanBeNull] ExceptionInfo? exceptionInfo) : IState
 {
+    public static readonly Exception DefaultException = new OperationCanceledException();
+
     /// <summary>
-    /// Defines the <i>final</i> state of a background job when nobody
-    /// is interested whether it was performed or not.
+    /// Represents the name of the <i>Deleted</i> state. This field is read-only.
     /// </summary>
     /// <remarks>
-    /// <para>Deleted state is used when you are not interested in a processing
-    /// of a background job. This state isn't backed by any background process,
-    /// so when you change a state of the job to the <i>Deleted</i>, only
-    /// expiration time will be set on a job without any additional processing.</para>
+    /// The value of this field is <c>"Deleted"</c>.
     /// </remarks>
-    /// 
-    /// <example>
-    /// <para>The following example demonstrates how to cancel an <i>enqueued</i> background
-    /// job. Please note that this job may be processed before you change its state.</para>
-    /// <para>This example shows how to create an instance of the <see cref="DeletedState"/>
-    /// class and use the <see cref="IBackgroundJobClient.ChangeState"/> method. Please see
-    /// <see cref="O:Masterly.NightShift.BackgroundJob.Delete">BackgroundJob.Delete</see>
-    /// and <see cref="O:Masterly.NightShift.BackgroundJobClientExtensions.Delete">BackgroundJobClientExtensions.Delete</see>
-    /// method overloads for simpler API.</para> 
-    /// 
-    /// <code lang="cs" source="..\Samples\States.cs" region="DeletedState" />
-    /// 
-    /// </example>
-    /// 
-    /// <seealso cref="O:Masterly.NightShift.BackgroundJob.Delete">BackgroundJob.Delete Overload</seealso>
-    /// <seealso cref="O:Masterly.NightShift.BackgroundJobClientExtensions.Delete">BackgroundJobClientExtensions.Delete Overload</seealso>
-    /// <seealso cref="IBackgroundJobClient.ChangeState" />
-    /// 
-    /// <threadsafety static="true" instance="false" />
-    public class DeletedState : IState
+    public static readonly string StateName = "Deleted";
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeletedState"/> class.
+    /// </summary>
+    public DeletedState() : this(null)
     {
-        public static readonly Exception DefaultException = new OperationCanceledException();
+    }
 
-        /// <summary>
-        /// Represents the name of the <i>Deleted</i> state. This field is read-only.
-        /// </summary>
-        /// <remarks>
-        /// The value of this field is <c>"Deleted"</c>.
-        /// </remarks>
-        public static readonly string StateName = "Deleted";
+    [JsonInclude, JsonPropertyName("Ex"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExceptionInfo? ExceptionInfo { get; } = exceptionInfo;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DeletedState"/> class.
-        /// </summary>
-        public DeletedState() : this(null)
+    /// <inheritdoc />
+    /// <remarks>
+    /// Always equals to <see cref="StateName"/> for the <see cref="DeletedState"/>.
+    /// Please see the remarks section of the <see cref="IState.Name">IState.Name</see>
+    /// article for the details.
+    /// </remarks>
+    [JsonIgnore]
+    public string Name => StateName;
+
+    /// <inheritdoc />
+    public string? Reason { get; set; }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Always returns <see langword="true"/> for the <see cref="DeletedState"/>.
+    /// Please refer to the <see cref="IState.IsFinal">IState.IsFinal</see> documentation
+    /// for the details.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsFinal => true;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Always returns <see langword="true" /> for the <see cref="DeletedState"/>.
+    /// Please see the description of this property in the
+    /// <see cref="IState.IgnoreJobLoadException">IState.IgnoreJobLoadException</see>
+    /// article.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IgnoreJobLoadException => true;
+
+    /// <summary>
+    /// Gets a date/time when the current state instance was created.
+    /// </summary>
+    [JsonIgnore]
+    public DateTime DeletedAt { get; } = DateTime.UtcNow;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <para>Returning dictionary contains the following keys. You can obtain 
+    /// the state data by using the <see cref="IStorageConnection.GetStateData"/>
+    /// method.</para>
+    /// <list type="table">
+    ///     <listheader>
+    ///         <term>Key</term>
+    ///         <term>Type</term>
+    ///         <term>Deserialize Method</term>
+    ///         <description>Notes</description>
+    ///     </listheader>
+    ///     <item>
+    ///         <term><c>DeletedAt</c></term>
+    ///         <term><see cref="DateTime"/></term>
+    ///         <term><see cref="JobHelper.DeserializeDateTime"/></term>
+    ///         <description>Please see the <see cref="DeletedAt"/> property.</description>
+    ///     </item>
+    ///     <item>
+    ///         <term><c>Exception</c></term>
+    ///         <term><see cref="ExceptionInfo"/></term>
+    ///         <term><see cref="SerializationHelper.Deserialize{T}(string, SerializationOption)"/> with <see cref="SerializationOption.Internal"/> option.</term>
+    ///         <description>Can be absent or null. Please see the <see cref="Exception"/> property.</description>
+    ///     </item>
+    /// </list>
+    /// </remarks>
+    public Dictionary<string, string> SerializeData()
+    {
+        var result = new Dictionary<string, string>
         {
+            { "DeletedAt", JobHelper.SerializeDateTime(DeletedAt) },
+        };
+
+        if (ExceptionInfo != null)
+        {
+            result.Add("Exception", SerializationHelper.Serialize(ExceptionInfo, SerializationOption.User));
         }
 
-        public DeletedState([CanBeNull] ExceptionInfo? exceptionInfo)
+        return result;
+    }
+
+    internal sealed class Handler : IStateHandler
+    {
+        public void Apply(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            ExceptionInfo = exceptionInfo;
-            DeletedAt = DateTime.UtcNow;
+            transaction.IncrementCounter("stats:deleted");
         }
 
-        [JsonInclude, JsonPropertyName("Ex"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public ExceptionInfo? ExceptionInfo { get; }
-
-        /// <inheritdoc />
-        /// <remarks>
-        /// Always equals to <see cref="StateName"/> for the <see cref="DeletedState"/>.
-        /// Please see the remarks section of the <see cref="IState.Name">IState.Name</see>
-        /// article for the details.
-        /// </remarks>
-        [JsonIgnore]
-        public string Name => StateName;
-
-        /// <inheritdoc />
-        public string? Reason { get; set; }
-
-        /// <inheritdoc />
-        /// <remarks>
-        /// Always returns <see langword="true"/> for the <see cref="DeletedState"/>.
-        /// Please refer to the <see cref="IState.IsFinal">IState.IsFinal</see> documentation
-        /// for the details.
-        /// </remarks>
-        [JsonIgnore]
-        public bool IsFinal => true;
-
-        /// <inheritdoc />
-        /// <remarks>
-        /// Always returns <see langword="true" /> for the <see cref="DeletedState"/>.
-        /// Please see the description of this property in the
-        /// <see cref="IState.IgnoreJobLoadException">IState.IgnoreJobLoadException</see>
-        /// article.
-        /// </remarks>
-        [JsonIgnore]
-        public bool IgnoreJobLoadException => true;
-
-        /// <summary>
-        /// Gets a date/time when the current state instance was created.
-        /// </summary>
-        [JsonIgnore]
-        public DateTime DeletedAt { get; }
-
-        /// <inheritdoc />
-        /// <remarks>
-        /// <para>Returning dictionary contains the following keys. You can obtain 
-        /// the state data by using the <see cref="IStorageConnection.GetStateData"/>
-        /// method.</para>
-        /// <list type="table">
-        ///     <listheader>
-        ///         <term>Key</term>
-        ///         <term>Type</term>
-        ///         <term>Deserialize Method</term>
-        ///         <description>Notes</description>
-        ///     </listheader>
-        ///     <item>
-        ///         <term><c>DeletedAt</c></term>
-        ///         <term><see cref="DateTime"/></term>
-        ///         <term><see cref="JobHelper.DeserializeDateTime"/></term>
-        ///         <description>Please see the <see cref="DeletedAt"/> property.</description>
-        ///     </item>
-        ///     <item>
-        ///         <term><c>Exception</c></term>
-        ///         <term><see cref="ExceptionInfo"/></term>
-        ///         <term><see cref="SerializationHelper.Deserialize{T}(string, SerializationOption)"/> with <see cref="SerializationOption.Internal"/> option.</term>
-        ///         <description>Can be absent or null. Please see the <see cref="Exception"/> property.</description>
-        ///     </item>
-        /// </list>
-        /// </remarks>
-        public Dictionary<string, string> SerializeData()
+        public void Unapply(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            var result = new Dictionary<string, string>
-            {
-                { "DeletedAt", JobHelper.SerializeDateTime(DeletedAt) },
-            };
-
-            if (ExceptionInfo != null)
-            {
-                result.Add("Exception", SerializationHelper.Serialize(ExceptionInfo, SerializationOption.User));
-            }
-
-            return result;
+            transaction.DecrementCounter("stats:deleted");
         }
 
-        internal sealed class Handler : IStateHandler
-        {
-            public void Apply(ApplyStateContext context, IWriteOnlyTransaction transaction)
-            {
-                transaction.IncrementCounter("stats:deleted");
-            }
-
-            public void Unapply(ApplyStateContext context, IWriteOnlyTransaction transaction)
-            {
-                transaction.DecrementCounter("stats:deleted");
-            }
-
-            // ReSharper disable once MemberHidesStaticFromOuterClass
-            public string StateName => DeletedState.StateName;
-        }
+        // ReSharper disable once MemberHidesStaticFromOuterClass
+        public string StateName => DeletedState.StateName;
     }
 }

@@ -15,24 +15,23 @@
 
 using System.ComponentModel;
 
-namespace Masterly.NightShift
-{
-    /// <summary>
-    /// The configuration, holding the entry (the storage, activator or other object) the last <c>Use*</c> call set, so
-    /// later calls can configure it.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface IGlobalConfiguration<out T> : IGlobalConfiguration
-    {
-        [EditorBrowsable(EditorBrowsableState.Advanced)]
-        T Entry { get; }
-    }
+namespace Masterly.NightShift;
 
-    /// <summary>
-    /// The configuration the <c>Use*</c> extension methods act on; see <see cref="GlobalConfiguration.Configuration"/>.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface IGlobalConfiguration
-    {
-    }
+/// <summary>
+/// The configuration, holding the entry (the storage, activator or other object) the last <c>Use*</c> call set, so
+/// later calls can configure it.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGlobalConfiguration<out T> : IGlobalConfiguration
+{
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    T Entry { get; }
+}
+
+/// <summary>
+/// The configuration the <c>Use*</c> extension methods act on; see <see cref="GlobalConfiguration.Configuration"/>.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IGlobalConfiguration
+{
 }

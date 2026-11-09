@@ -13,75 +13,69 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDispatcherBuilder
 {
-    internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDispatcherBuilder
+    private readonly IBackgroundProcess _process;
+    private readonly Func<ThreadStart, IEnumerable<Thread>> _threadFactory;
+
+    public BackgroundProcessDispatcherBuilder(
+        [NotNull] IBackgroundProcess process,
+        [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
     {
-        private readonly IBackgroundProcess _process;
-        private readonly Func<ThreadStart, IEnumerable<Thread>> _threadFactory;
+        ArgumentNullException.ThrowIfNull(process);
+        ArgumentNullException.ThrowIfNull(threadFactory);
 
-        public BackgroundProcessDispatcherBuilder(
-            [NotNull] IBackgroundProcess process,
-            [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
-        {
-            ArgumentNullException.ThrowIfNull(process);
-            ArgumentNullException.ThrowIfNull(threadFactory);
+        _process = process;
+        _threadFactory = threadFactory;
+    }
 
-            _process = process;
-            _threadFactory = threadFactory;
-        }
+    public IBackgroundDispatcher Create(BackgroundServerContext context, BackgroundProcessingServerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(options);
 
-        public IBackgroundDispatcher Create(BackgroundServerContext context, BackgroundProcessingServerOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-            ArgumentNullException.ThrowIfNull(options);
-
-            var execution = new BackgroundExecution(
-                new BackgroundExecutionOptions
-                {
-                    Name = _process.GetType().Name,
-                    RetryDelay = options.RetryDelay
-                },
-                context.StoppingToken);
-
-            return new BackgroundDispatcher(
-                execution,
-                ExecuteProcess,
-                Tuple.Create(_process, context, execution),
-                _threadFactory);
-        }
-
-        public override string ToString()
-        {
-            return _process.GetType().Name;
-        }
-
-        private static void ExecuteProcess(Guid executionId, object state)
-        {
-            var tuple = (Tuple<IBackgroundProcess, BackgroundServerContext, BackgroundExecution>)state;
-            var serverContext = tuple.Item2;
-
-            var context = new BackgroundProcessContext(
-                serverContext.ServerId,
-                serverContext.Storage,
-                serverContext.Properties.ToDictionary(static x => x.Key, static x => x.Value),
-                executionId,
-                serverContext.StoppingToken,
-                serverContext.StoppedToken,
-                serverContext.ShutdownToken);
-
-            while (!context.IsStopping)
+        var execution = new BackgroundExecution(
+            new BackgroundExecutionOptions
             {
-                tuple.Item1.Execute(context);
-                tuple.Item3.NotifySucceeded();
-            }
+                Name = _process.GetType().Name,
+                RetryDelay = options.RetryDelay
+            },
+            context.StoppingToken);
+
+        return new BackgroundDispatcher(
+            execution,
+            ExecuteProcess,
+            Tuple.Create(_process, context, execution),
+            _threadFactory);
+    }
+
+    public override string ToString()
+    {
+        return _process.GetType().Name;
+    }
+
+    private static void ExecuteProcess(Guid executionId, object state)
+    {
+        var tuple = (Tuple<IBackgroundProcess, BackgroundServerContext, BackgroundExecution>)state;
+        var serverContext = tuple.Item2;
+
+        var context = new BackgroundProcessContext(
+            serverContext.ServerId,
+            serverContext.Storage,
+            serverContext.Properties.ToDictionary(static x => x.Key, static x => x.Value),
+            executionId,
+            serverContext.StoppingToken,
+            serverContext.StoppedToken,
+            serverContext.ShutdownToken);
+
+        while (!context.IsStopping)
+        {
+            tuple.Item1.Execute(context);
+            tuple.Item3.NotifySucceeded();
         }
     }
 }

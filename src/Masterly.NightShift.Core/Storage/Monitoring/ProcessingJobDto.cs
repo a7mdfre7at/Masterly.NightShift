@@ -15,28 +15,23 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job in the Processing state, as listed by the dashboard.
+/// </summary>
+public class ProcessingJobDto
 {
-    /// <summary>
-    /// A job in the Processing state, as listed by the dashboard.
-    /// </summary>
-    public class ProcessingJobDto
+    public ProcessingJobDto()
     {
-        public ProcessingJobDto()
-        {
-            InProcessingState = true;
-        }
-
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public bool InProcessingState { get; set; }
-        public string? ServerId { get; set; }
-        public DateTime? StartedAt { get; set; }
-        public IDictionary<string, string>? StateData { get; set; }
+        InProcessingState = true;
     }
+
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public bool InProcessingState { get; set; }
+    public string? ServerId { get; set; }
+    public DateTime? StartedAt { get; set; }
+    public IDictionary<string, string>? StateData { get; set; }
 }

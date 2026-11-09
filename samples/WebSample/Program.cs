@@ -94,14 +94,9 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 
 app.Run();
 
-public sealed class ReportJobs
+public sealed class ReportJobs(ILogger<ReportJobs> logger)
 {
-    private readonly ILogger<ReportJobs> _logger;
-
-    public ReportJobs(ILogger<ReportJobs> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<ReportJobs> _logger = logger;
 
     public void SendDailyReport()
     {

@@ -13,19 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading;
 using Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal interface IBackgroundServerProcess
 {
-    internal interface IBackgroundServerProcess
-    {
-        void Execute(
-            Guid executionId, 
-            BackgroundExecution execution, 
-            CancellationToken stoppingToken, 
-            CancellationToken stoppedToken,
-            CancellationToken shutdownToken);
-    }
+    void Execute(
+        Guid executionId,
+        BackgroundExecution execution,
+        CancellationToken stoppingToken,
+        CancellationToken stoppedToken,
+        CancellationToken shutdownToken);
 }

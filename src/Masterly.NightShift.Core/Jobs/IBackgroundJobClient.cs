@@ -15,115 +15,109 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Client;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Provides extended methods for creating background jobs and changing
+/// their states.
+/// </summary>
+public interface IBackgroundJobClientV2 : IBackgroundJobClient
 {
     /// <summary>
-    /// Provides extended methods for creating background jobs and changing
-    /// their states.
+    /// Gets a storage associated with the current background job client.
     /// </summary>
-    public interface IBackgroundJobClientV2 : IBackgroundJobClient
-    {
-        /// <summary>
-        /// Gets a storage associated with the current background job client.
-        /// </summary>
-        [NotNull]
-        JobStorage Storage { get; }
-
-        /// <summary>
-        /// Creates a background job within the specified state and given job parameters.
-        /// </summary>
-        /// 
-        /// <param name="job">Job that should be processed in background.</param>
-        /// <param name="state">Initial state for a background job.</param>
-        /// <param name="parameters">Job parameters to create.</param>
-        /// <returns>Unique identifier of a created background job <i>-or-</i> 
-        ///  <see langword="null"/>, if it was not created.</returns>
-        /// 
-        /// <exception cref="ArgumentNullException"><paramref name="job"/> is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
-        /// <exception cref="BackgroundJobClientException">Creation failed due to an exception.</exception>
-        [CanBeNull]
-        string? Create([NotNull] Job job, [NotNull] IState state, [CanBeNull] IDictionary<string, object>? parameters);
-    }
+    [NotNull]
+    JobStorage Storage { get; }
 
     /// <summary>
-    /// Provides methods for creating background jobs and changing their states.
+    /// Creates a background job within the specified state and given job parameters.
     /// </summary>
     /// 
-    /// <remarks>
-    /// <para>Please see the <see cref="BackgroundJobClient"/> class for
-    /// details regarding the implementation.</para>
-    /// </remarks>
-    public interface IBackgroundJobClient
-    {
-        /// <summary>
-        /// Creates a new background job in a specified state.
-        /// </summary>
-        /// 
-        /// <param name="job">Job that should be processed in background.</param>
-        /// <param name="state">Initial state for a background job.</param>
-        /// <returns>Unique identifier of a created background job <i>-or-</i> 
-        ///  <see langword="null"/>, if it was not created.</returns>
-        /// 
-        /// <exception cref="ArgumentNullException"><paramref name="job"/> is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
-        /// <exception cref="BackgroundJobClientException">Creation failed due to an exception.</exception>
-        /// 
-        /// <remarks>
-        /// <para>The interface allows implementations to return <see langword="null"/> 
-        /// value for this method when background job creation has been canceled
-        /// by an implementation under the normal circumstances (not due to an
-        /// exception). For example, the <see cref="CreatingContext"/> class
-        /// contains the <see cref="CreatingContext.Canceled"/> property that
-        /// may be used by a client filter to cancel a background job creation.
-        /// </para>
-        /// 
-        /// <para>The interface allows implementations to create a background 
-        /// job in a state other than specified. The given state instance also 
-        /// may be modified. For example, <see cref="ElectStateContext"/> class
-        /// contains public setter for the <see cref="ElectStateContext.CandidateState"/>
-        /// property allowing to choose completely different state by state
-        /// election filters.</para>
-        /// </remarks>
-        [CanBeNull]
-        string? Create([NotNull] Job job, [NotNull] IState state);
+    /// <param name="job">Job that should be processed in background.</param>
+    /// <param name="state">Initial state for a background job.</param>
+    /// <param name="parameters">Job parameters to create.</param>
+    /// <returns>Unique identifier of a created background job <i>-or-</i> 
+    ///  <see langword="null"/>, if it was not created.</returns>
+    /// 
+    /// <exception cref="ArgumentNullException"><paramref name="job"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
+    /// <exception cref="BackgroundJobClientException">Creation failed due to an exception.</exception>
+    [CanBeNull]
+    string? Create([NotNull] Job job, [NotNull] IState state, [CanBeNull] IDictionary<string, object>? parameters);
+}
 
-        /// <summary>
-        /// Attempts to change a state of a background job with a given
-        /// identifier to a specified one.
-        /// </summary>
-        /// 
-        /// <param name="jobId">Identifier of background job, whose state should be changed.</param>
-        /// <param name="state">New state for a background job.</param>
-        /// <param name="expectedState">Expected state assertion, or <see langword="null"/> if unneeded.</param>
-        /// 
-        /// <returns><see langword="true"/>, if a <b>given</b> state was applied
-        /// successfully otherwise <see langword="false"/>.</returns>
-        /// 
-        /// <exception cref="ArgumentNullException"><paramref name="jobId"/> is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
-        /// <exception cref="BackgroundJobClientException">State change failed due to an exception.</exception>
-        /// 
-        /// <remarks>
-        /// <para>If <paramref name="expectedState"/> value is not null, state 
-        /// change will be performed only if the current state name of a job 
-        /// equal to the given value.</para>
-        /// 
-        /// <para>The interface allows implementations to change a state of a 
-        /// background job to other than specified. The given state instance also
-        /// may be modified. For example, <see cref="ElectStateContext"/> class
-        /// contains public setter for the <see cref="ElectStateContext.CandidateState"/>
-        /// property allowing to choose completely different state by state
-        /// election filters. If a state was changed, <see langword="false"/> 
-        /// value will be returned.</para>
-        /// </remarks>
-        bool ChangeState([NotNull] string jobId, [NotNull] IState state, [CanBeNull] string? expectedState);
-    }
+/// <summary>
+/// Provides methods for creating background jobs and changing their states.
+/// </summary>
+/// 
+/// <remarks>
+/// <para>Please see the <see cref="BackgroundJobClient"/> class for
+/// details regarding the implementation.</para>
+/// </remarks>
+public interface IBackgroundJobClient
+{
+    /// <summary>
+    /// Creates a new background job in a specified state.
+    /// </summary>
+    /// 
+    /// <param name="job">Job that should be processed in background.</param>
+    /// <param name="state">Initial state for a background job.</param>
+    /// <returns>Unique identifier of a created background job <i>-or-</i> 
+    ///  <see langword="null"/>, if it was not created.</returns>
+    /// 
+    /// <exception cref="ArgumentNullException"><paramref name="job"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
+    /// <exception cref="BackgroundJobClientException">Creation failed due to an exception.</exception>
+    /// 
+    /// <remarks>
+    /// <para>The interface allows implementations to return <see langword="null"/> 
+    /// value for this method when background job creation has been canceled
+    /// by an implementation under the normal circumstances (not due to an
+    /// exception). For example, the <see cref="CreatingContext"/> class
+    /// contains the <see cref="CreatingContext.Canceled"/> property that
+    /// may be used by a client filter to cancel a background job creation.
+    /// </para>
+    /// 
+    /// <para>The interface allows implementations to create a background 
+    /// job in a state other than specified. The given state instance also 
+    /// may be modified. For example, <see cref="ElectStateContext"/> class
+    /// contains public setter for the <see cref="ElectStateContext.CandidateState"/>
+    /// property allowing to choose completely different state by state
+    /// election filters.</para>
+    /// </remarks>
+    [CanBeNull]
+    string? Create([NotNull] Job job, [NotNull] IState state);
+
+    /// <summary>
+    /// Attempts to change a state of a background job with a given
+    /// identifier to a specified one.
+    /// </summary>
+    /// 
+    /// <param name="jobId">Identifier of background job, whose state should be changed.</param>
+    /// <param name="state">New state for a background job.</param>
+    /// <param name="expectedState">Expected state assertion, or <see langword="null"/> if unneeded.</param>
+    /// 
+    /// <returns><see langword="true"/>, if a <b>given</b> state was applied
+    /// successfully otherwise <see langword="false"/>.</returns>
+    /// 
+    /// <exception cref="ArgumentNullException"><paramref name="jobId"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
+    /// <exception cref="BackgroundJobClientException">State change failed due to an exception.</exception>
+    /// 
+    /// <remarks>
+    /// <para>If <paramref name="expectedState"/> value is not null, state 
+    /// change will be performed only if the current state name of a job 
+    /// equal to the given value.</para>
+    /// 
+    /// <para>The interface allows implementations to change a state of a 
+    /// background job to other than specified. The given state instance also
+    /// may be modified. For example, <see cref="ElectStateContext"/> class
+    /// contains public setter for the <see cref="ElectStateContext.CandidateState"/>
+    /// property allowing to choose completely different state by state
+    /// election filters. If a state was changed, <see langword="false"/> 
+    /// value will be returned.</para>
+    /// </remarks>
+    bool ChangeState([NotNull] string jobId, [NotNull] IState state, [CanBeNull] string? expectedState);
 }

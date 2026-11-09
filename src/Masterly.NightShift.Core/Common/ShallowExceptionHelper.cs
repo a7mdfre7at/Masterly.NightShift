@@ -13,82 +13,76 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.IO;
 using System.Text;
-using Masterly.NightShift.Annotations;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+internal static class ShallowExceptionHelper
 {
-    internal static class ShallowExceptionHelper
+    private static readonly object DataKey = "OriginalStackTrace";
+
+    public static void PreserveOriginalStackTrace(this Exception exception)
     {
-        private static readonly object DataKey = "OriginalStackTrace";
-
-        public static void PreserveOriginalStackTrace(this Exception exception)
+        if (exception != null && !exception.Data.Contains(DataKey))
         {
-            if (exception != null && !exception.Data.Contains(DataKey))
-            {
-                exception.Data.Add(DataKey, GetStackTrace(exception, includeFileInfo: false));
-            }
+            exception.Data.Add(DataKey, GetStackTrace(exception, includeFileInfo: false));
+        }
+    }
+
+    public static string ToStringWithOriginalStackTrace([NotNull] this Exception exception, int? numLines, bool includeFileInfo)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
+    }
+
+    private static string ToStringHelper(Exception exception, bool isInner, bool includeFileInfo)
+    {
+        var sb = new StringBuilder();
+        sb.Append(exception.GetType().FullName);
+        sb.Append(": ");
+        sb.Append(exception.Message);
+
+        if (exception.InnerException != null)
+        {
+            sb.Append(" ---> ");
+            sb.Append(ToStringHelper(exception.InnerException, true, includeFileInfo));
+        }
+        else sb.Append('\n');
+
+        var stackTrace = exception.Data.Contains(DataKey) ? (string)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
+        if (!string.IsNullOrWhiteSpace(stackTrace))
+        {
+            sb.Append(stackTrace);
+            sb.Append('\n');
         }
 
-        public static string ToStringWithOriginalStackTrace([NotNull] this Exception exception, int? numLines, bool includeFileInfo)
+        if (isInner) sb.Append("   --- End of inner exception stack trace ---\n");
+
+        return sb.ToString();
+    }
+
+    private static string GetFirstLines(string text, int? numLines)
+    {
+        if (text == null) return null;
+        if (!numLines.HasValue || numLines.Value < 0) return text;
+
+        using var reader = new StringReader(text);
+        var builder = new StringBuilder();
+
+        while (numLines-- > 0)
         {
-            ArgumentNullException.ThrowIfNull(exception);
-            return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
+            var line = reader.ReadLine();
+            if (line == null) break;
+
+            if (builder.Length > 0) builder.AppendLine();
+            builder.Append(line);
         }
 
-        private static string ToStringHelper(Exception exception, bool isInner, bool includeFileInfo)
-        {
-            var sb = new StringBuilder();
-            sb.Append(exception.GetType().FullName);
-            sb.Append(": ");
-            sb.Append(exception.Message);
+        return builder.ToString();
+    }
 
-            if (exception.InnerException != null)
-            {
-                sb.Append(" ---> ");
-                sb.Append(ToStringHelper(exception.InnerException, true, includeFileInfo));
-            }
-            else sb.Append('\n');
-
-            var stackTrace = exception.Data.Contains(DataKey) ? (string)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
-            if (!String.IsNullOrWhiteSpace(stackTrace))
-            {
-                sb.Append(stackTrace);
-                sb.Append('\n');
-            }
-
-            if (isInner) sb.Append("   --- End of inner exception stack trace ---\n");
-
-            return sb.ToString();
-        }
-
-        private static string GetFirstLines(string text, int? numLines)
-        {
-            if (text == null) return null;
-            if (!numLines.HasValue || numLines.Value < 0) return text;
-
-            using (var reader = new StringReader(text))
-            {
-                var builder = new StringBuilder();
-
-                while (numLines-- > 0)
-                {
-                    var line = reader.ReadLine();
-                    if (line == null) break;
-
-                    if (builder.Length > 0) builder.AppendLine();
-                    builder.Append(line);
-                }
-
-                return builder.ToString();
-            }
-        }
-
-        private static string GetStackTrace(Exception ex, bool includeFileInfo)
-        {
-            return new System.Diagnostics.StackTrace(ex, includeFileInfo).ToString();
-        }
+    private static string GetStackTrace(Exception ex, bool includeFileInfo)
+    {
+        return new System.Diagnostics.StackTrace(ex, includeFileInfo).ToString();
     }
 }

@@ -13,60 +13,56 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Profiling;
 
-namespace Masterly.NightShift.Profiling
+internal static class ProfilerExtensions
 {
-    internal static class ProfilerExtensions
+    public static void InvokeMeasured<TInstance>(
+        [NotNull] this IProfiler profiler,
+        [CanBeNull] TInstance instance,
+        [NotNull] Action<TInstance> action,
+        [CanBeNull] Func<TInstance, string> messageFunc = null)
     {
-        public static void InvokeMeasured<TInstance>(
-            [NotNull] this IProfiler profiler,
-            [CanBeNull] TInstance instance, 
-            [NotNull] Action<TInstance> action,
-            [CanBeNull] Func<TInstance, string> messageFunc = null)
+        ArgumentNullException.ThrowIfNull(profiler);
+        ArgumentNullException.ThrowIfNull(action);
+
+        profiler.InvokeMeasured(new InstanceAction<TInstance>(instance, action, messageFunc), InvokeAction, MessageCallback);
+    }
+
+    private static bool InvokeAction<TInstance>(InstanceAction<TInstance> tuple)
+    {
+        tuple.Action(tuple.Instance);
+        return true;
+    }
+
+    private static string MessageCallback<TInstance>(InstanceAction<TInstance> action)
+    {
+        return action.MessageFunc?.Invoke(action.Instance);
+    }
+
+    internal readonly struct InstanceAction<TInstance>
+    {
+        public InstanceAction([CanBeNull] TInstance instance, [NotNull] Action<TInstance> action, [CanBeNull] Func<TInstance, string> messageFunc)
         {
-            ArgumentNullException.ThrowIfNull(profiler);
             ArgumentNullException.ThrowIfNull(action);
 
-            profiler.InvokeMeasured(new InstanceAction<TInstance>(instance, action, messageFunc), InvokeAction, MessageCallback);
+            Instance = instance;
+            Action = action;
+            MessageFunc = messageFunc;
         }
 
-        private static bool InvokeAction<TInstance>(InstanceAction<TInstance> tuple)
+        [CanBeNull]
+        public TInstance Instance { get; }
+
+        [NotNull]
+        public Action<TInstance> Action { get; }
+
+        [CanBeNull]
+        public Func<TInstance, string> MessageFunc { get; }
+
+        public override string ToString()
         {
-            tuple.Action(tuple.Instance);
-            return true;
-        }
-
-        private static string MessageCallback<TInstance>(InstanceAction<TInstance> action)
-        {
-            return action.MessageFunc?.Invoke(action.Instance);
-        }
-
-        internal struct InstanceAction<TInstance>
-        {
-            public InstanceAction([CanBeNull] TInstance instance, [NotNull] Action<TInstance> action, [CanBeNull] Func<TInstance, string> messageFunc)
-            {
-                ArgumentNullException.ThrowIfNull(action);
-
-                Instance = instance;
-                Action = action;
-                MessageFunc = messageFunc;
-            }
-
-            [CanBeNull]
-            public TInstance Instance { get; }
-
-            [NotNull]
-            public Action<TInstance> Action { get; }
-            
-            [CanBeNull]
-            public Func<TInstance, string> MessageFunc { get; }
-
-            public override string ToString()
-            {
-                return Instance?.ToString() ?? typeof(TInstance).ToString();
-            }
+            return Instance?.ToString() ?? typeof(TInstance).ToString();
         }
     }
 }

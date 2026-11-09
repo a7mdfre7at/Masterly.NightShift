@@ -15,26 +15,25 @@
 
 using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+internal static class JobCancellationTokenExtensions
 {
-    internal static class JobCancellationTokenExtensions
+    public static bool IsAborted(this IJobCancellationToken jobCancellationToken)
     {
-        public static bool IsAborted(this IJobCancellationToken jobCancellationToken)
+        if (jobCancellationToken is ServerJobCancellationToken serverJobCancellationToken)
         {
-            if (jobCancellationToken is ServerJobCancellationToken serverJobCancellationToken)
-            {
-                // for ServerJobCancellationToken we may simply check IsAborted property
-                // to prevent unnecessary creation of the linked CancellationTokenSource
-                return serverJobCancellationToken.IsAborted;
-            }
-
-            if (jobCancellationToken is JobTimeoutAttribute.LinkedJobCancellationToken linkedToken)
-            {
-                // A token wrapped by JobTimeout (once per nested timeout) is aborted when the server's token inside is
-                return linkedToken.Inner.IsAborted();
-            }
-
-            return false;
+            // for ServerJobCancellationToken we may simply check IsAborted property
+            // to prevent unnecessary creation of the linked CancellationTokenSource
+            return serverJobCancellationToken.IsAborted;
         }
+
+        if (jobCancellationToken is JobTimeoutAttribute.LinkedJobCancellationToken linkedToken)
+        {
+            // A token wrapped by JobTimeout (once per nested timeout) is aborted when the server's token inside is
+            return linkedToken.Inner.IsAborted();
+        }
+
+        return false;
     }
 }

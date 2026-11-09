@@ -15,21 +15,17 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A registered server, as listed by the dashboard.
+/// </summary>
+public class ServerDto
 {
-    /// <summary>
-    /// A registered server, as listed by the dashboard.
-    /// </summary>
-    public class ServerDto
-    {
-        // Storages must set the non-nullable members, the dashboard relies on them
-        public string Name { get; set; } = null!;
-        public int WorkersCount { get; set; }
-        public DateTime StartedAt { get; set; }
-        public IList<string> Queues { get; set; } = null!;
-        public DateTime? Heartbeat { get; set; }
-    }
+    // Storages must set the non-nullable members, the dashboard relies on them
+    public string Name { get; set; } = null!;
+    public int WorkersCount { get; set; }
+    public DateTime StartedAt { get; set; }
+    public IList<string> Queues { get; set; } = null!;
+    public DateTime? Heartbeat { get; set; }
 }

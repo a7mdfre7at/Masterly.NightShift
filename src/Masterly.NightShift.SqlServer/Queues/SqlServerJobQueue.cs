@@ -13,233 +13,224 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
-using System.Globalization;
-using System.Linq;
-using System.Threading;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Common;
-using Masterly.NightShift.Storage;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal sealed class SqlServerJobQueue : IPersistentJobQueue
 {
-    internal sealed class SqlServerJobQueue : IPersistentJobQueue
+    // This is an optimization that helps to overcome the polling delay, when
+    // both client and server reside in the same process. Everything is working
+    // without these events, but it helps to reduce the delays in processing.
+    internal static readonly ConcurrentDictionary<Tuple<SqlServerStorage, string>, AutoResetEvent> NewItemInQueueEvents = new();
+
+    private static readonly Func<Tuple<SqlServerStorage, string>, SemaphoreSlim> CreateSemaphoreFunc = CreateSemaphore;
+    private static readonly TimeSpan LongPollingThreshold = TimeSpan.FromSeconds(1);
+    private static readonly int PollingQuantumMs = 1000;
+    private static readonly int DefaultPollingDelayMs = 200;
+    private static readonly int MinPollingDelayMs = 100;
+    private static readonly ConcurrentDictionary<Tuple<SqlServerStorage, string>, SemaphoreSlim> Semaphores =
+        new();
+
+    private readonly SqlServerStorage _storage;
+    private readonly SqlServerStorageOptions _options;
+
+    public SqlServerJobQueue([NotNull] SqlServerStorage storage, SqlServerStorageOptions options)
     {
-        // This is an optimization that helps to overcome the polling delay, when
-        // both client and server reside in the same process. Everything is working
-        // without these events, but it helps to reduce the delays in processing.
-        internal static readonly ConcurrentDictionary<Tuple<SqlServerStorage, string>, AutoResetEvent> NewItemInQueueEvents = new();
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(options);
 
-        private static readonly Func<Tuple<SqlServerStorage, string>, SemaphoreSlim> CreateSemaphoreFunc = CreateSemaphore;
-        private static readonly TimeSpan LongPollingThreshold = TimeSpan.FromSeconds(1);
-        private static readonly int PollingQuantumMs = 1000;
-        private static readonly int DefaultPollingDelayMs = 200;
-        private static readonly int MinPollingDelayMs = 100;
-        private static readonly ConcurrentDictionary<Tuple<SqlServerStorage, string>, SemaphoreSlim> Semaphores =
-            new ConcurrentDictionary<Tuple<SqlServerStorage, string>, SemaphoreSlim>();
+        _storage = storage;
+        _options = options;
+    }
 
-        private readonly SqlServerStorage _storage;
-        private readonly SqlServerStorageOptions _options;
+    [NotNull]
+    public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(queues);
+        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
-        public SqlServerJobQueue([NotNull] SqlServerStorage storage, SqlServerStorageOptions options)
+        if (_options.SlidingInvisibilityTimeout.HasValue)
         {
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(options);
-
-            _storage = storage;
-            _options = options;
+            return DequeueUsingSlidingInvisibilityTimeout(queues, cancellationToken);
         }
 
-        [NotNull]
-        public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
-        {
-            ArgumentNullException.ThrowIfNull(queues);
-            if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        return DequeueUsingTransaction(queues, cancellationToken);
+    }
 
-            if (_options.SlidingInvisibilityTimeout.HasValue)
-            {
-                return DequeueUsingSlidingInvisibilityTimeout(queues, cancellationToken);
-            }
+    public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
+    {
+        SqlServerLimits.EnsureQueueNameFits(queue);
+        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
 
-            return DequeueUsingTransaction(queues, cancellationToken);
-        }
-
-        public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
-        {
-            SqlServerLimits.EnsureQueueNameFits(queue);
-            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
-
-            var query = _storage.GetQueryFromTemplate(static schemaName =>
+        var query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
-            using var command = connection.Create(query, timeout: _storage.CommandTimeout);
-            command.AddParameter("@jobId", longId, DbType.Int64);
-            command.AddParameter("@queue", queue, DbType.String);
+        using var command = connection.Create(query, timeout: _storage.CommandTimeout);
+        command.AddParameter("@jobId", longId, DbType.Int64);
+        command.AddParameter("@queue", queue, DbType.String);
 
-            command.Transaction = transaction;
+        command.Transaction = transaction;
 
-            command.ExecuteNonQuery();
-        }
+        command.ExecuteNonQuery();
+    }
 
-        private SqlServerTimeoutJob DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
+    private SqlServerTimeoutJob DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(queues);
+        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // First we will check if our queues has any background jobs in it and
+        // return if any. In this case we don't need any additional logic like
+        // semaphores or waiting.
+        var fetchedJob = FetchJob(queues);
+        if (fetchedJob != null) return fetchedJob;
+
+        // Then we determine whether we should use the long polling feature,
+        // where only a single worker acquires a semaphore for each queue set
+        // to avoid excessive load on a database.
+        var configuredPollInterval = _options.QueuePollInterval;
+        var useLongPolling = configuredPollInterval < LongPollingThreshold;
+
+        // Then we determine a delay between attempts. For long-polling we use constrained
+        // sub-second intervals within the [MinPollingDelayMs, PollingQuantumMs] interval.
+        // For regular polling we just use the interval defined in the QueuePollInterval
+        // option.
+        var pollingDelayMs = useLongPolling
+            ? TimeSpan.FromMilliseconds(
+                Math.Min(
+                    Math.Max(
+                        configuredPollInterval == TimeSpan.Zero ? DefaultPollingDelayMs : (int)configuredPollInterval.TotalMilliseconds,
+                        MinPollingDelayMs),
+                    PollingQuantumMs))
+            : configuredPollInterval;
+
+        var queuesString = string.Join("_", queues.OrderBy(static x => x));
+        var resource = Tuple.Create(_storage, queuesString);
+
+        using var cancellationEvent = cancellationToken.GetCancellationEvent();
+        var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
+
+        SemaphoreSlim semaphore = null;
+
+        try
         {
-            ArgumentNullException.ThrowIfNull(queues);
-            if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
-            
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // First we will check if our queues has any background jobs in it and
-            // return if any. In this case we don't need any additional logic like
-            // semaphores or waiting.
-            var fetchedJob = FetchJob(queues);
-            if (fetchedJob != null) return fetchedJob;
-
-            // Then we determine whether we should use the long polling feature,
-            // where only a single worker acquires a semaphore for each queue set
-            // to avoid excessive load on a database.
-            var configuredPollInterval = _options.QueuePollInterval;
-            var useLongPolling = configuredPollInterval < LongPollingThreshold;
-
-            // Then we determine a delay between attempts. For long-polling we use constrained
-            // sub-second intervals within the [MinPollingDelayMs, PollingQuantumMs] interval.
-            // For regular polling we just use the interval defined in the QueuePollInterval
-            // option.
-            var pollingDelayMs = useLongPolling
-                ? TimeSpan.FromMilliseconds(
-                    Math.Min(
-                        Math.Max(
-                            configuredPollInterval == TimeSpan.Zero ? DefaultPollingDelayMs : (int)configuredPollInterval.TotalMilliseconds,
-                            MinPollingDelayMs),
-                        PollingQuantumMs))
-                : configuredPollInterval;
-
-            var queuesString = String.Join("_", queues.OrderBy(static x => x));
-            var resource = Tuple.Create(_storage, queuesString);
-
-            using var cancellationEvent = cancellationToken.GetCancellationEvent();
-            var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
-
-            SemaphoreSlim semaphore = null;
-
-            try
+            if (!_options.DisableFetchSemaphores)
             {
-                if (!_options.DisableFetchSemaphores)
-                {
-                    semaphore = Semaphores.GetOrAdd(resource, CreateSemaphoreFunc);
-                    semaphore.Wait(cancellationToken);
-                }
-
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    // For non-first attempts we just trying again and again with
-                    // the determined delay between attempts, until shutdown
-                    // request is received.
-                    fetchedJob = FetchJob(queues);
-                    if (fetchedJob != null) return fetchedJob;
-
-                    WaitHandle.WaitAny(waitArray, pollingDelayMs);
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-            }
-            finally
-            {
-                if (semaphore != null && semaphore.CurrentCount == 0)
-                {
-                    semaphore.Release();
-                }
+                semaphore = Semaphores.GetOrAdd(resource, CreateSemaphoreFunc);
+                semaphore.Wait(cancellationToken);
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            return null;
-        }
-
-        private static SemaphoreSlim CreateSemaphore(Tuple<SqlServerStorage, string> _)
-        {
-            return new SemaphoreSlim(initialCount: 1);
-        }
-
-        private SqlServerTimeoutJob FetchJob(string[] queues)
-        {
-            return _storage.UseConnection(null, static (storage, connection, queues) =>
+            while (!cancellationToken.IsCancellationRequested)
             {
-                if (!storage.Options.SlidingInvisibilityTimeout.HasValue)
-                {
-                    throw new InvalidOperationException("This method should be called only when SlidingInvisibilityTimeout is set.");
-                }
+                // For non-first attempts we just trying again and again with
+                // the determined delay between attempts, until shutdown
+                // request is received.
+                fetchedJob = FetchJob(queues);
+                if (fetchedJob != null) return fetchedJob;
 
-                var invisibilityTimeout = (int)storage.Options.SlidingInvisibilityTimeout.Value.Negate().TotalSeconds;
-
-                using var command = CreateNonBlockingFetchCommand(storage, connection, queues, invisibilityTimeout);
-
-                // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
-                using var reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
-
-                return ReadTimeoutJob(storage, reader);
-            }, queues);
+                WaitHandle.WaitAny(waitArray, pollingDelayMs);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
         }
-
-        internal static SqlServerTimeoutJob ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
+        finally
         {
-            var row = ReadSingleRow(reader, static current => Tuple.Create(
-                Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
-                Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
-                current.GetString(current.GetOrdinal("Queue")),
-                current.GetDateTime(current.GetOrdinal("FetchedAt"))));
-
-            // Created only once the reader is consumed: the job starts its heartbeat in the constructor, and a
-            // connection that broke while the rest of the reader was read would leave it tracked forever, its
-            // FetchedAt refreshed, so that no worker could fetch the job until the process restarts
-            return row == null
-                ? null
-                : new SqlServerTimeoutJob(storage, row.Item1, row.Item2.ToString(CultureInfo.InvariantCulture), row.Item3, row.Item4);
-        }
-
-        internal static SqlServerTransactionJob ReadTransactionJob(
-            SqlServerStorage storage,
-            DbConnection connection,
-            DbTransaction transaction,
-            DbDataReader reader)
-        {
-            var row = ReadSingleRow(reader, static current => Tuple.Create(
-                Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
-                current.GetString(current.GetOrdinal("Queue"))));
-
-            // Created only once the reader is consumed, so a broken connection can't leave its keep-alive timer running
-            return row == null
-                ? null
-                : new SqlServerTransactionJob(storage, connection, transaction, row.Item1.ToString(CultureInfo.InvariantCulture), row.Item2);
-        }
-
-        private static T ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class
-        {
-            T result = null;
-
-            do
+            if (semaphore != null && semaphore.CurrentCount == 0)
             {
-                while (reader.Read())
-                {
-                    result = result == null
-                        ? readRow(reader)
-                        : throw new InvalidOperationException("Multiple rows returned from SQL Server, while expecting single or none.");
-                }
-            } while (reader.NextResult());
-
-            return result;
+                semaphore.Release();
+            }
         }
 
-        private static DbCommand CreateNonBlockingFetchCommand(
-            SqlServerStorage storage,
-            DbConnection connection,
-            string[] queues,
-            int invisibilityTimeout)
+        cancellationToken.ThrowIfCancellationRequested();
+        return null;
+    }
+
+    private static SemaphoreSlim CreateSemaphore(Tuple<SqlServerStorage, string> _)
+    {
+        return new SemaphoreSlim(initialCount: 1);
+    }
+
+    private SqlServerTimeoutJob FetchJob(string[] queues)
+    {
+        return _storage.UseConnection(null, static (storage, connection, queues) =>
         {
-            var template = storage.GetQueryFromTemplate(static schemaName => $@"
+            if (!storage.Options.SlidingInvisibilityTimeout.HasValue)
+            {
+                throw new InvalidOperationException("This method should be called only when SlidingInvisibilityTimeout is set.");
+            }
+
+            var invisibilityTimeout = (int)storage.Options.SlidingInvisibilityTimeout.Value.Negate().TotalSeconds;
+
+            using var command = CreateNonBlockingFetchCommand(storage, connection, queues, invisibilityTimeout);
+
+            // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
+            using var reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
+
+            return ReadTimeoutJob(storage, reader);
+        }, queues);
+    }
+
+    internal static SqlServerTimeoutJob ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
+    {
+        var row = ReadSingleRow(reader, static current => Tuple.Create(
+            Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+            Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+            current.GetString(current.GetOrdinal("Queue")),
+            current.GetDateTime(current.GetOrdinal("FetchedAt"))));
+
+        // Created only once the reader is consumed: the job starts its heartbeat in the constructor, and a
+        // connection that broke while the rest of the reader was read would leave it tracked forever, its
+        // FetchedAt refreshed, so that no worker could fetch the job until the process restarts
+        return row == null
+            ? null
+            : new SqlServerTimeoutJob(storage, row.Item1, row.Item2.ToString(CultureInfo.InvariantCulture), row.Item3, row.Item4);
+    }
+
+    internal static SqlServerTransactionJob ReadTransactionJob(
+        SqlServerStorage storage,
+        DbConnection connection,
+        DbTransaction transaction,
+        DbDataReader reader)
+    {
+        var row = ReadSingleRow(reader, static current => Tuple.Create(
+            Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
+            current.GetString(current.GetOrdinal("Queue"))));
+
+        // Created only once the reader is consumed, so a broken connection can't leave its keep-alive timer running
+        return row == null
+            ? null
+            : new SqlServerTransactionJob(storage, connection, transaction, row.Item1.ToString(CultureInfo.InvariantCulture), row.Item2);
+    }
+
+    private static T ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class
+    {
+        T result = null;
+
+        do
+        {
+            while (reader.Read())
+            {
+                result = result == null
+                    ? readRow(reader)
+                    : throw new InvalidOperationException("Multiple rows returned from SQL Server, while expecting single or none.");
+            }
+        } while (reader.NextResult());
+
+        return result;
+    }
+
+    private static DbCommand CreateNonBlockingFetchCommand(
+        SqlServerStorage storage,
+        DbConnection connection,
+        string[] queues,
+        int invisibilityTimeout)
+    {
+        var template = storage.GetQueryFromTemplate(static schemaName => $@"
 set nocount on;set xact_abort on;set tran isolation level read committed;
 
 update top (1) JQ
@@ -249,118 +240,117 @@ from [{schemaName}].JobQueue JQ with (forceseek, readpast, updlock, rowlock)
 where Queue in @queues and
 (FetchedAt is null or FetchedAt < DATEADD(second, @timeoutSs, GETUTCDATE()));");
 
-            return connection.Create(template, timeout: storage.CommandTimeout)
-                .AddParameter("@timeoutSs", invisibilityTimeout, DbType.Int32)
-                .AddExpandedParameter("@queues", queues, DbType.String);
-        }
+        return connection.Create(template, timeout: storage.CommandTimeout)
+            .AddParameter("@timeoutSs", invisibilityTimeout, DbType.Int32)
+            .AddExpandedParameter("@queues", queues, DbType.String);
+    }
 
-        private SqlServerTransactionJob DequeueUsingTransaction(string[] queues, CancellationToken cancellationToken)
+    private SqlServerTransactionJob DequeueUsingTransaction(string[] queues, CancellationToken cancellationToken)
+    {
+        DbTransaction transaction = null;
+
+        var pollInterval = _options.QueuePollInterval > TimeSpan.Zero
+            ? _options.QueuePollInterval
+            : TimeSpan.FromSeconds(1);
+
+        using var cancellationEvent = cancellationToken.GetCancellationEvent();
+        var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
+
+        while (!cancellationToken.IsCancellationRequested)
         {
-            DbTransaction transaction = null;
+            var connection = _storage.CreateAndOpenConnection();
 
-            var pollInterval = _options.QueuePollInterval > TimeSpan.Zero
-                ? _options.QueuePollInterval
-                : TimeSpan.FromSeconds(1);
-
-            using var cancellationEvent = cancellationToken.GetCancellationEvent();
-            var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
-
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                var connection = _storage.CreateAndOpenConnection();
+                transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
 
-                try
+                using var command = CreateTransactionalFetchCommand(_storage, connection, queues, (int)_options.InvisibilityTimeout.Negate().TotalSeconds);
+                command.Transaction = transaction;
+
+                // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
+                using (var reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
                 {
-                    transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
+                    var result = ReadTransactionJob(_storage, connection, transaction, reader);
 
-                    using var command = CreateTransactionalFetchCommand(_storage, connection, queues, (int)_options.InvisibilityTimeout.Negate().TotalSeconds);
-                    command.Transaction = transaction;
-
-                    // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
-                    using (var reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
+                    if (result != null)
                     {
-                        var result = ReadTransactionJob(_storage, connection, transaction, reader);
-
-                        if (result != null)
-                        {
-                            // We shouldn't dispose them, because their ownership is now related
-                            // to the SqlServerTransactionJob instance.
-                            connection = null;
-                            transaction = null;
-                            return result;
-                        }
+                        // We shouldn't dispose them, because their ownership is now related
+                        // to the SqlServerTransactionJob instance.
+                        connection = null;
+                        transaction = null;
+                        return result;
                     }
-
-                    // Nothing updated, just commit the empty transaction.
-                    transaction.Commit();
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    // Check connection isn't broken first, so rolling back doesn't throw InvalidOperationException
-                    // https://github.com/HangfireIO/Hangfire/issues/1494
-                    // https://github.com/dotnet/efcore/issues/12864
-                    if (transaction?.Connection != null) transaction.Rollback();
-                    throw;
-                }
-                finally
-                {
-                    transaction?.Dispose();
-                    transaction = null;
-                    _storage.ReleaseConnection(connection);
                 }
 
-                WaitHandle.WaitAny(waitArray, pollInterval);
+                // Nothing updated, just commit the empty transaction.
+                transaction.Commit();
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Check connection isn't broken first, so rolling back doesn't throw InvalidOperationException
+                // https://github.com/HangfireIO/Hangfire/issues/1494
+                // https://github.com/dotnet/efcore/issues/12864
+                if (transaction?.Connection != null) transaction.Rollback();
+                throw;
+            }
+            finally
+            {
+                transaction?.Dispose();
+                transaction = null;
+                _storage.ReleaseConnection(connection);
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            return null;
+            WaitHandle.WaitAny(waitArray, pollInterval);
         }
 
-        private static DbCommand CreateTransactionalFetchCommand(
-            SqlServerStorage storage,
-            DbConnection connection,
-            string[] queues,
-            int invisibilityTimeout)
-        {
-            var template = storage.GetQueryFromTemplate(static schemaName => 
-                $@"delete top (1) JQ
+        cancellationToken.ThrowIfCancellationRequested();
+        return null;
+    }
+
+    private static DbCommand CreateTransactionalFetchCommand(
+        SqlServerStorage storage,
+        DbConnection connection,
+        string[] queues,
+        int invisibilityTimeout)
+    {
+        var template = storage.GetQueryFromTemplate(static schemaName =>
+            $@"delete top (1) JQ
 output DELETED.Id, DELETED.JobId, DELETED.Queue
 from [{schemaName}].JobQueue JQ with (readpast, updlock, rowlock, forceseek)
 where Queue in @queues and (FetchedAt is null or FetchedAt < DATEADD(second, @timeout, GETUTCDATE()))");
-            
-            return connection
-                .Create(template, timeout: storage.CommandTimeout)
-                .AddParameter("@timeout", invisibilityTimeout, DbType.Int32)
-                .AddExpandedParameter("@queues", queues, DbType.String);
-        }
 
-        // WaitHandle.WaitAny takes at most 64 handles, and one of them is the cancellation event. A worker listening
-        // to more queues is woken at once only for the first ones; it finds jobs in the others on its next poll.
-        private const int MaxQueueSignals = 63;
+        return connection
+            .Create(template, timeout: storage.CommandTimeout)
+            .AddParameter("@timeout", invisibilityTimeout, DbType.Int32)
+            .AddExpandedParameter("@queues", queues, DbType.String);
+    }
 
-        private static WaitHandle[] GetWaitArrayForQueueSignals(SqlServerStorage storage, string[] queues, CancellationTokenExtensions.CancellationEvent cancellationEvent)
+    // WaitHandle.WaitAny takes at most 64 handles, and one of them is the cancellation event. A worker listening
+    // to more queues is woken at once only for the first ones; it finds jobs in the others on its next poll.
+    private const int MaxQueueSignals = 63;
+
+    private static WaitHandle[] GetWaitArrayForQueueSignals(SqlServerStorage storage, string[] queues, CancellationTokenExtensions.CancellationEvent cancellationEvent)
+    {
+        var signalledQueues = Math.Min(queues.Length, MaxQueueSignals);
+        var waitList = new List<WaitHandle>(capacity: signalledQueues + 1)
         {
-            var signalledQueues = Math.Min(queues.Length, MaxQueueSignals);
-            var waitList = new List<WaitHandle>(capacity: signalledQueues + 1)
-            {
-                cancellationEvent.WaitHandle
-            };
+            cancellationEvent.WaitHandle
+        };
 
-            for (var i = 0; i < signalledQueues; i++)
-            {
-                waitList.Add(NewItemInQueueEvents.GetOrAdd(Tuple.Create(storage, queues[i]), static _ => new AutoResetEvent(initialState: false)));
-            }
-
-            return waitList.ToArray();
-        }
-
-        [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-        private sealed class FetchedJob
+        for (var i = 0; i < signalledQueues; i++)
         {
-            public long Id { get; set; }
-            public long JobId { get; set; }
-            public string Queue { get; set; }
-            public DateTime? FetchedAt { get; set; }
+            waitList.Add(NewItemInQueueEvents.GetOrAdd(Tuple.Create(storage, queues[i]), static _ => new AutoResetEvent(initialState: false)));
         }
+
+        return [.. waitList];
+    }
+
+    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+    private sealed class FetchedJob
+    {
+        public long Id { get; set; }
+        public long JobId { get; set; }
+        public string Queue { get; set; }
+        public DateTime? FetchedAt { get; set; }
     }
 }

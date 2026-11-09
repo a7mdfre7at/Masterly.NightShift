@@ -13,13 +13,12 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+/// <summary>
+/// Performs a job and returns the result of its method.
+/// </summary>
+public interface IBackgroundJobPerformer
 {
-    /// <summary>
-    /// Performs a job and returns the result of its method.
-    /// </summary>
-    public interface IBackgroundJobPerformer
-    {
-        object Perform(PerformContext context);
-    }
+    object Perform(PerformContext context);
 }

@@ -3,8 +3,6 @@
     <Description>Masterly.NightShift for ASP.NET Core: the dashboard as an endpoint or middleware, health checks, and /health and Prometheus /metrics endpoints.</Description>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <PackageReadmeSource>README.md</PackageReadmeSource>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
     <RootNamespace>Masterly.NightShift</RootNamespace>
   </PropertyGroup>
 
@@ -15,4 +13,10 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-</Project>
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+</Project>

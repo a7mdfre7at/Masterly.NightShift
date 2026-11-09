@@ -1,12 +1,6 @@
-﻿namespace Masterly.NightShift.Dashboard.Pages
-{
-    partial class PerPageSelector
-    {
-        private readonly Pager _pager;
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-        public PerPageSelector(Pager pager)
-        {
-            _pager = pager;
-        }
-    }
+internal partial class PerPageSelector(Pager pager)
+{
+    private readonly Pager _pager = pager;
 }

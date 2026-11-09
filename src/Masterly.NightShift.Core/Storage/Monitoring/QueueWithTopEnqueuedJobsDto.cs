@@ -15,17 +15,16 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.Storage.Monitoring
+namespace Masterly.NightShift.Storage.Monitoring;
+
+/// <summary>
+/// A queue with its length, its fetched count and its first jobs, as shown on the dashboard's Queues page.
+/// </summary>
+public class QueueWithTopEnqueuedJobsDto
 {
-    /// <summary>
-    /// A queue with its length, its fetched count and its first jobs, as shown on the dashboard's Queues page.
-    /// </summary>
-    public class QueueWithTopEnqueuedJobsDto
-    {
-        // Storages must set the non-nullable members, the dashboard relies on them
-        public string Name { get; set; } = null!;
-        public long Length { get; set; }
-        public long? Fetched { get; set; }
-        public JobList<EnqueuedJobDto?> FirstJobs { get; set; } = null!;
-    }
+    // Storages must set the non-nullable members, the dashboard relies on them
+    public string Name { get; set; } = null!;
+    public long Length { get; set; }
+    public long? Fetched { get; set; }
+    public JobList<EnqueuedJobDto?> FirstJobs { get; set; } = null!;
 }

@@ -15,33 +15,25 @@
 
 #nullable enable
 
-using System;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// Provides the context for the <see cref="IServerExceptionFilter.OnServerException"/>
+/// method of the <see cref="IServerExceptionFilter"/> interface.
+/// </summary>
+public class ServerExceptionContext(
+    PerformContext context,
+    Exception exception) : PerformContext(context)
 {
+
     /// <summary>
-    /// Provides the context for the <see cref="IServerExceptionFilter.OnServerException"/>
-    /// method of the <see cref="IServerExceptionFilter"/> interface.
+    /// Gets an exception that occurred during the performance of the job.
     /// </summary>
-    public class ServerExceptionContext : PerformContext
-    {
-        public ServerExceptionContext(
-            PerformContext context, 
-            Exception exception)
-            : base(context)
-        {
-            Exception = exception;
-        }
+    public Exception Exception { get; } = exception;
 
-        /// <summary>
-        /// Gets an exception that occurred during the performance of the job.
-        /// </summary>
-        public Exception Exception { get; }
-
-        /// <summary>
-        /// Gets or sets a value that indicates that this <see cref="ServerExceptionContext"/>
-        /// object handles an exception occurred during the performance of the job.
-        /// </summary>
-        public bool ExceptionHandled { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets a value that indicates that this <see cref="ServerExceptionContext"/>
+    /// object handles an exception occurred during the performance of the job.
+    /// </summary>
+    public bool ExceptionHandled { get; set; }
 }

@@ -13,17 +13,13 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// A background process whose work is asynchronous. The server calls <see cref="ExecuteAsync"/> in a loop until it
+/// stops.
+/// </summary>
+public interface IBackgroundProcessAsync
 {
-    /// <summary>
-    /// A background process whose work is asynchronous. The server calls <see cref="ExecuteAsync"/> in a loop until it
-    /// stops.
-    /// </summary>
-    public interface IBackgroundProcessAsync
-    {
-        Task ExecuteAsync([NotNull] BackgroundProcessContext context);
-    }
+    Task ExecuteAsync([NotNull] BackgroundProcessContext context);
 }

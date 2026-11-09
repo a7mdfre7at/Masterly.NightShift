@@ -13,119 +13,104 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.States;
 
-namespace Masterly.NightShift.States
+internal sealed class CoreStateMachine : IStateMachine
 {
-    internal sealed class CoreStateMachine : IStateMachine
+    private readonly Func<JobStorage, string, StateHandlersCollection> _stateHandlersThunk;
+
+    public CoreStateMachine()
+        : this(GetStateHandlers)
     {
-        private readonly Func<JobStorage, string, StateHandlersCollection> _stateHandlersThunk;
+    }
 
-        public CoreStateMachine()
-            : this(GetStateHandlers)
+    internal CoreStateMachine([NotNull] Func<JobStorage, string, StateHandlersCollection> stateHandlersThunk)
+    {
+        ArgumentNullException.ThrowIfNull(stateHandlersThunk);
+        _stateHandlersThunk = stateHandlersThunk;
+    }
+
+    public IState ApplyState(ApplyStateContext context)
+    {
+        foreach (var handler in _stateHandlersThunk(context.Storage, context.OldStateName))
         {
+            handler.Unapply(context, context.Transaction);
         }
 
-        internal CoreStateMachine([NotNull] Func<JobStorage, string, StateHandlersCollection> stateHandlersThunk)
+        context.Transaction.SetJobState(context.BackgroundJob.Id, context.NewState);
+
+        foreach (var handler in _stateHandlersThunk(context.Storage, context.NewState.Name))
         {
-            ArgumentNullException.ThrowIfNull(stateHandlersThunk);
-            _stateHandlersThunk = stateHandlersThunk;
+            handler.Apply(context, context.Transaction);
         }
 
-        public IState ApplyState(ApplyStateContext context)
+        // A state change made without filters (the worker's last resort, when every attempt to store a job's
+        // final state failed) would leave the job counted in its old state in its batch
+        BatchSupportAttribute.ApplyWithoutFilter(context, context.Transaction);
+
+        // A filter may also expire a job in a non-final state (failed job retention)
+        if (context.JobExpires)
         {
-            foreach (var handler in _stateHandlersThunk(context.Storage, context.OldStateName))
-            {
-                handler.Unapply(context, context.Transaction);
-            }
-
-            context.Transaction.SetJobState(context.BackgroundJob.Id, context.NewState);
-
-            foreach (var handler in _stateHandlersThunk(context.Storage, context.NewState.Name))
-            {
-                handler.Apply(context, context.Transaction);
-            }
-
-            // A state change made without filters (the worker's last resort, when every attempt to store a job's
-            // final state failed) would leave the job counted in its old state in its batch
-            BatchSupportAttribute.ApplyWithoutFilter(context, context.Transaction);
-
-            // A filter may also expire a job in a non-final state (failed job retention)
-            if (context.JobExpires)
-            {
-                context.Transaction.ExpireJob(context.BackgroundJob.Id, context.JobExpirationTimeout);
-            }
-            else
-            {
-                context.Transaction.PersistJob(context.BackgroundJob.Id);
-            }
-
-            return context.NewState;
+            context.Transaction.ExpireJob(context.BackgroundJob.Id, context.JobExpirationTimeout);
+        }
+        else
+        {
+            context.Transaction.PersistJob(context.BackgroundJob.Id);
         }
 
-        private static StateHandlersCollection GetStateHandlers(JobStorage storage, string stateName)
+        return context.NewState;
+    }
+
+    private static StateHandlersCollection GetStateHandlers(JobStorage storage, string stateName)
+    {
+        var globalHandlers = GlobalStateHandlers.Handlers;
+
+        return new StateHandlersCollection(
+            globalHandlers as List<IStateHandler> ?? [.. globalHandlers],
+            storage.GetStateHandlers(),
+            stateName);
+    }
+
+    internal readonly struct StateHandlersCollection(
+        List<IStateHandler> globalHandlers,
+        IEnumerable<IStateHandler> storageHandlers,
+        string stateName)
+    {
+        public Enumerator GetEnumerator() => new(globalHandlers, storageHandlers, stateName);
+
+        public ref struct Enumerator(List<IStateHandler> globalHandlers, IEnumerable<IStateHandler> storageHandlers, string stateName)
         {
-            var globalHandlers = GlobalStateHandlers.Handlers;
+            private List<IStateHandler>.Enumerator _globalEnumerator = globalHandlers.GetEnumerator();
+            private readonly IEnumerator<IStateHandler> _storageEnumerator = storageHandlers.GetEnumerator();
+            private readonly string _stateName = stateName;
 
-            return new StateHandlersCollection(
-                globalHandlers as List<IStateHandler> ?? globalHandlers.ToList(),
-                storage.GetStateHandlers(),
-                stateName);
-        }
-
-        internal readonly struct StateHandlersCollection(
-            List<IStateHandler> globalHandlers,
-            IEnumerable<IStateHandler> storageHandlers,
-            string stateName)
-        {
-            public Enumerator GetEnumerator() => new Enumerator(globalHandlers, storageHandlers, stateName);
-
-            public ref struct Enumerator
+            public bool MoveNext()
             {
-                private List<IStateHandler>.Enumerator _globalEnumerator;
-                private readonly IEnumerator<IStateHandler> _storageEnumerator;
-                private readonly string _stateName;
-                private IStateHandler _current;
-
-                public Enumerator(List<IStateHandler> globalHandlers, IEnumerable<IStateHandler> storageHandlers, string stateName)
+                while (_globalEnumerator.MoveNext())
                 {
-                    _globalEnumerator = globalHandlers.GetEnumerator();
-                    _storageEnumerator = storageHandlers.GetEnumerator();
-                    _stateName = stateName;
-                    _current = default;
+                    var current = _globalEnumerator.Current;
+                    if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Current = current;
+                        return true;
+                    }
                 }
 
-                public bool MoveNext()
+                while (_storageEnumerator.MoveNext())
                 {
-                    while (_globalEnumerator.MoveNext())
+                    var current = _storageEnumerator.Current;
+                    if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
                     {
-                        var current = _globalEnumerator.Current!;
-                        if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            _current = current;
-                            return true;
-                        }
+                        Current = current;
+                        return true;
                     }
-
-                    while (_storageEnumerator.MoveNext())
-                    {
-                        var current = _storageEnumerator.Current!;
-                        if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            _current = current;
-                            return true;
-                        }
-                    }
-
-                    _current = default;
-                    return false;
                 }
 
-                public IStateHandler Current => _current;
+                Current = default;
+                return false;
             }
+
+            public IStateHandler Current { get; private set; } = default;
         }
     }
 }

@@ -13,39 +13,36 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Represents the global filter collection.
+/// </summary>
+public static class GlobalJobFilters
 {
-    /// <summary>
-    /// Represents the global filter collection.
-    /// </summary>
-    public static class GlobalJobFilters
+    static GlobalJobFilters()
     {
-        static GlobalJobFilters()
-        {
-            // ReSharper disable once UseObjectOrCollectionInitializer
-            Filters = new JobFilterCollection();
-
-            // Filters should be added with the `Add` method call: some 
-            // of them indirectly use `GlobalJobFilters.Filters` property, 
-            // and it is null, when we are using collection initializer.
-            Filters.Add(new CaptureCultureAttribute());
-            Filters.Add(new AutomaticRetryAttribute());
-            Filters.Add(new StatisticsHistoryAttribute());
-            Filters.Add(new ContinuationsSupportAttribute());
-            Filters.Add(new FanInContinuationsSupportAttribute());
-            Filters.Add(new JobConsoleStateFilter());
-            Filters.Add(new DrainModeFilter());
-            // Does nothing until the feed is turned on (UseActivityFeed or ActivityFeed.Enabled)
-            Filters.Add(new ActivityFeedFilter());
-            Filters.Add(new BatchSupportAttribute());
-        }
-
-        /// <summary>
-        /// Gets the global filter collection.
-        /// </summary>
-        public static JobFilterCollection Filters { get; }
+#pragma warning disable IDE0028 // Simplify collection initialization: not here, see below
+        // Filters are added one by one with `Add`: some of them read `GlobalJobFilters.Filters`, which
+        // a collection initializer or collection expression would only set after adding them all.
+        Filters = new JobFilterCollection();
+        Filters.Add(new CaptureCultureAttribute());
+        Filters.Add(new AutomaticRetryAttribute());
+        Filters.Add(new StatisticsHistoryAttribute());
+        Filters.Add(new ContinuationsSupportAttribute());
+        Filters.Add(new FanInContinuationsSupportAttribute());
+        Filters.Add(new JobConsoleStateFilter());
+        Filters.Add(new DrainModeFilter());
+        // Does nothing until the feed is turned on (UseActivityFeed or ActivityFeed.Enabled)
+        Filters.Add(new ActivityFeedFilter());
+        Filters.Add(new BatchSupportAttribute());
+#pragma warning restore IDE0028
     }
+
+    /// <summary>
+    /// Gets the global filter collection.
+    /// </summary>
+    public static JobFilterCollection Filters { get; }
 }

@@ -13,42 +13,37 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
-using Microsoft.Extensions.DependencyInjection;
+namespace Masterly.NightShift.AspNetCore;
 
-namespace Masterly.NightShift.AspNetCore
+internal sealed class AspNetCoreJobActivatorScope : JobActivatorScope
 {
-    internal sealed class AspNetCoreJobActivatorScope : JobActivatorScope
+    private readonly IServiceScope _serviceScope;
+
+    public AspNetCoreJobActivatorScope([NotNull] IServiceScope serviceScope)
     {
-        private readonly IServiceScope _serviceScope;
+        ArgumentNullException.ThrowIfNull(serviceScope);
+        _serviceScope = serviceScope;
+    }
 
-        public AspNetCoreJobActivatorScope([NotNull] IServiceScope serviceScope)
-        {
-            ArgumentNullException.ThrowIfNull(serviceScope);
-            _serviceScope = serviceScope;
-        }
+    public override object Resolve(Type type)
+    {
+        return ActivatorUtilities.GetServiceOrCreateInstance(_serviceScope.ServiceProvider, type);
+    }
 
-        public override object Resolve(Type type)
+    public override void DisposeScope()
+    {
+        // The container's scope throws from Dispose when a scoped service only implements IAsyncDisposable
+        if (_serviceScope is IAsyncDisposable asyncDisposable)
         {
-            return ActivatorUtilities.GetServiceOrCreateInstance(_serviceScope.ServiceProvider, type);
-        }
-
-        public override void DisposeScope()
-        {
-            // The container's scope throws from Dispose when a scoped service only implements IAsyncDisposable
-            if (_serviceScope is IAsyncDisposable asyncDisposable)
-            {
-                // Service scope disposal is triggered inside a dedicated background thread,
-                // while Task result is being set in CLR's Thread Pool, so no deadlocks on
-                // wait should happen.
+            // Service scope disposal is triggered inside a dedicated background thread,
+            // while Task result is being set in CLR's Thread Pool, so no deadlocks on
+            // wait should happen.
 #pragma warning disable CA2012
-                asyncDisposable.DisposeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            asyncDisposable.DisposeAsync().ConfigureAwait(false).GetAwaiter().GetResult();
 #pragma warning restore CA2012
-                return;
-            }
-
-            _serviceScope.Dispose();
+            return;
         }
+
+        _serviceScope.Dispose();
     }
 }

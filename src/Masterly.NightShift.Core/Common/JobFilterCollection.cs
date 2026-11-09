@@ -13,135 +13,130 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Represents a class that contains the job filters.
+/// </summary>
+/// <remarks>
+/// Job filters run for every create, perform and state change
+/// of every job. All the instances in the filters collection
+/// should be thread-safe.
+/// 
+/// You can register a filter using the 
+/// <see cref="GlobalJobFilters.Filters"/> registration endpoint.
+/// </remarks>
+public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
 {
+    private readonly List<JobFilter> _filters = [];
+
     /// <summary>
-    /// Represents a class that contains the job filters.
+    /// Gets the number of filters in the global job filter collection.
     /// </summary>
-    /// <remarks>
-    /// Job filters run for every create, perform and state change
-    /// of every job. All the instances in the filters collection
-    /// should be thread-safe.
-    /// 
-    /// You can register a filter using the 
-    /// <see cref="GlobalJobFilters.Filters"/> registration endpoint.
-    /// </remarks>
-    public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
+    public int Count => _filters.Count;
+
+    /// <summary>
+    /// Adds the specified filter to the global filter collection.
+    /// </summary>
+    /// <param name="filter">The filter instance.</param>
+    public void Add(object filter)
     {
-        private readonly List<JobFilter> _filters = new List<JobFilter>();
+        AddInternal(filter, order: null);
+    }
 
-        /// <summary>
-        /// Gets the number of filters in the global job filter collection.
-        /// </summary>
-        public int Count => _filters.Count;
+    /// <summary>
+    /// Adds the specified filter to the global filter collection 
+    /// using the specified filter run order.
+    /// </summary>
+    /// <param name="filter">The filter instance.</param>
+    /// <param name="order">The run order.</param>
+    public void Add(object filter, int order)
+    {
+        AddInternal(filter, order);
+    }
 
-        /// <summary>
-        /// Adds the specified filter to the global filter collection.
-        /// </summary>
-        /// <param name="filter">The filter instance.</param>
-        public void Add(object filter)
+    private void AddInternal(object filter, int? order)
+    {
+        ValidateFilterInstance(filter);
+        _filters.Add(new JobFilter(filter, JobFilterScope.Global, order));
+    }
+
+    /// <summary>
+    /// Removes all filters from the global filter collection.
+    /// </summary>
+    public void Clear()
+    {
+        _filters.Clear();
+    }
+
+    /// <summary>
+    /// Determines whether a filter is in the global filter collection.
+    /// </summary>
+    /// <param name="filter">The filter instance.</param>
+    /// <returns>True if the global filter collection contains the filter, otherwise false.</returns>
+    public bool Contains(object filter)
+    {
+        return _filters.Any(x => x.Instance == filter);
+    }
+
+    /// <summary>
+    /// Removes all filters that match the specified filter.
+    /// </summary>
+    /// <param name="filter">The filter instance.</param>
+    public void Remove(object filter)
+    {
+        _filters.RemoveAll(x => x.Instance == filter);
+    }
+
+    /// <summary>
+    /// Remove all filters of the specified type with strict type matching.
+    /// </summary>
+    /// <typeparam name="T">Type of filters to remove.</typeparam>
+    public void Remove<T>()
+    {
+        Remove(typeof(T));
+    }
+
+    /// <summary>
+    /// Remove all filters of the specified type with strict type matching.
+    /// </summary>
+    /// <param name="type">Type of filters to remove.</param>
+    public void Remove(Type type)
+    {
+        _filters.RemoveAll(x => type == x.Instance.GetType());
+    }
+
+    public IEnumerator<JobFilter> GetEnumerator()
+    {
+        return _filters.GetEnumerator();
+    }
+
+    IEnumerable<JobFilter> IJobFilterProvider.GetFilters(Job job)
+    {
+        return _filters;
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    // ReSharper disable once UnusedParameter.Local
+    private static void ValidateFilterInstance(object instance)
+    {
+        if (instance is not null and
+            not (IClientFilter
+            or IServerFilter
+            or IClientExceptionFilter
+            or IServerExceptionFilter
+            or IApplyStateFilter
+            or IElectStateFilter))
         {
-            AddInternal(filter, order: null);
-        }
-
-        /// <summary>
-        /// Adds the specified filter to the global filter collection 
-        /// using the specified filter run order.
-        /// </summary>
-        /// <param name="filter">The filter instance.</param>
-        /// <param name="order">The run order.</param>
-        public void Add(object filter, int order)
-        {
-            AddInternal(filter, order);
-        }
-
-        private void AddInternal(object filter, int? order)
-        {
-            ValidateFilterInstance(filter);
-            _filters.Add(new JobFilter(filter, JobFilterScope.Global, order));
-        }
-
-        /// <summary>
-        /// Removes all filters from the global filter collection.
-        /// </summary>
-        public void Clear()
-        {
-            _filters.Clear();
-        }
-
-        /// <summary>
-        /// Determines whether a filter is in the global filter collection.
-        /// </summary>
-        /// <param name="filter">The filter instance.</param>
-        /// <returns>True if the global filter collection contains the filter, otherwise false.</returns>
-        public bool Contains(object filter)
-        {
-            return _filters.Any(x => x.Instance == filter);
-        }
-
-        /// <summary>
-        /// Removes all filters that match the specified filter.
-        /// </summary>
-        /// <param name="filter">The filter instance.</param>
-        public void Remove(object filter)
-        {
-            _filters.RemoveAll(x => x.Instance == filter);
-        }
-
-        /// <summary>
-        /// Remove all filters of the specified type with strict type matching.
-        /// </summary>
-        /// <typeparam name="T">Type of filters to remove.</typeparam>
-        public void Remove<T>()
-        {
-            Remove(typeof(T));
-        }
-
-        /// <summary>
-        /// Remove all filters of the specified type with strict type matching.
-        /// </summary>
-        /// <param name="type">Type of filters to remove.</param>
-        public void Remove(Type type)
-        {
-            _filters.RemoveAll(x => type == x.Instance.GetType());
-        }
-
-        public IEnumerator<JobFilter> GetEnumerator()
-        {
-            return _filters.GetEnumerator();
-        }
-
-        IEnumerable<JobFilter> IJobFilterProvider.GetFilters(Job job)
-        {
-            return _filters;
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        // ReSharper disable once UnusedParameter.Local
-        private static void ValidateFilterInstance(object instance)
-        {
-            if (instance != null &&
-                !(instance is IClientFilter 
-                || instance is IServerFilter 
-                || instance is IClientExceptionFilter 
-                || instance is IServerExceptionFilter
-                || instance is IApplyStateFilter
-                || instance is IElectStateFilter))
-            {
-                throw new InvalidOperationException("Unsupported filter instance");
-            }
+            throw new InvalidOperationException("Unsupported filter instance");
         }
     }
 }

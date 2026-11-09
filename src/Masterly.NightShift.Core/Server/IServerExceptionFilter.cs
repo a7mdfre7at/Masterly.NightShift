@@ -15,17 +15,16 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+/// <summary>
+/// Defines methods that are required for the server exception filter.
+/// </summary>
+public interface IServerExceptionFilter
 {
     /// <summary>
-    /// Defines methods that are required for the server exception filter.
+    /// Called when an exception occurred during the performance of the job.
     /// </summary>
-    public interface IServerExceptionFilter
-    {
-        /// <summary>
-        /// Called when an exception occurred during the performance of the job.
-        /// </summary>
-        /// <param name="filterContext">The filter context.</param>
-        void OnServerException(ServerExceptionContext filterContext);
-    }
+    /// <param name="filterContext">The filter context.</param>
+    void OnServerException(ServerExceptionContext filterContext);
 }

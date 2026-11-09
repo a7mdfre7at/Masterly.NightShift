@@ -15,17 +15,16 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.Client
+namespace Masterly.NightShift.Client;
+
+/// <summary>
+/// Defines methods that are required for the client exception filter.
+/// </summary>
+public interface IClientExceptionFilter
 {
     /// <summary>
-    /// Defines methods that are required for the client exception filter.
+    /// Called when an exception occurred during the creation of the job.
     /// </summary>
-    public interface IClientExceptionFilter
-    {
-        /// <summary>
-        /// Called when an exception occurred during the creation of the job.
-        /// </summary>
-        /// <param name="filterContext">The filter context.</param>
-        void OnClientException(ClientExceptionContext filterContext);
-    }
+    /// <param name="filterContext">The filter context.</param>
+    void OnClientException(ClientExceptionContext filterContext);
 }

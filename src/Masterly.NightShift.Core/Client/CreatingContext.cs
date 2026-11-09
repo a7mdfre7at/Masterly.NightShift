@@ -15,70 +15,63 @@
 
 #nullable enable
 
-using System;
+namespace Masterly.NightShift.Client;
 
-namespace Masterly.NightShift.Client
+/// <summary>
+/// Provides the context for the <see cref="IClientFilter.OnCreating"/>
+/// method of the <see cref="IClientFilter"/> interface.
+/// </summary>
+public class CreatingContext(CreateContext context) : CreateContext(context)
 {
+
     /// <summary>
-    /// Provides the context for the <see cref="IClientFilter.OnCreating"/>
-    /// method of the <see cref="IClientFilter"/> interface.
+    /// Gets or sets a value that indicates that this <see cref="CreatingContext"/>
+    /// object was canceled.
     /// </summary>
-    public class CreatingContext : CreateContext
+    public bool Canceled { get; set; }
+
+    /// <summary>
+    /// Sets the job parameter of the specified <paramref name="name"/>
+    /// to the corresponding <paramref name="value"/>. The value of the
+    /// parameter is serialized to a JSON string.
+    /// </summary>
+    /// 
+    /// <param name="name">The name of the parameter.</param>
+    /// <param name="value">The value of the parameter.</param>
+    /// 
+    /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
+    public void SetJobParameter(string name, object value)
     {
-        public CreatingContext(CreateContext context)
-            : base(context)
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+        Parameters[name] = value;
+    }
+
+    /// <summary>
+    /// Gets the job parameter of the specified <paramref name="name"/>
+    /// if it exists. The parameter is deserialized from a JSON 
+    /// string value to the given type <typeparamref name="T"/>.
+    /// </summary>
+    /// 
+    /// <typeparam name="T">The type of the parameter.</typeparam>
+    /// <param name="name">The name of the parameter.</param>
+    /// <returns>The value of the given parameter if it exists or null otherwise.</returns>
+    /// 
+    /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
+    /// <exception cref="InvalidOperationException">Could not deserialize the parameter value to the type <typeparamref name="T"/>.</exception>
+    public T? GetJobParameter<T>(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
+
+        try
         {
+            return Parameters.TryGetValue(name, out var parameter)
+                ? (T)parameter
+                : default;
         }
-
-        /// <summary>
-        /// Gets or sets a value that indicates that this <see cref="CreatingContext"/>
-        /// object was canceled.
-        /// </summary>
-        public bool Canceled { get; set; }
-
-        /// <summary>
-        /// Sets the job parameter of the specified <paramref name="name"/>
-        /// to the corresponding <paramref name="value"/>. The value of the
-        /// parameter is serialized to a JSON string.
-        /// </summary>
-        /// 
-        /// <param name="name">The name of the parameter.</param>
-        /// <param name="value">The value of the parameter.</param>
-        /// 
-        /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
-        public void SetJobParameter(string name, object value)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            if (String.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-            Parameters[name] = value;
-        }
-
-        /// <summary>
-        /// Gets the job parameter of the specified <paramref name="name"/>
-        /// if it exists. The parameter is deserialized from a JSON 
-        /// string value to the given type <typeparamref name="T"/>.
-        /// </summary>
-        /// 
-        /// <typeparam name="T">The type of the parameter.</typeparam>
-        /// <param name="name">The name of the parameter.</param>
-        /// <returns>The value of the given parameter if it exists or null otherwise.</returns>
-        /// 
-        /// <exception cref="ArgumentNullException">The <paramref name="name"/> is null or empty.</exception>
-        /// <exception cref="InvalidOperationException">Could not deserialize the parameter value to the type <typeparamref name="T"/>.</exception>
-        public T? GetJobParameter<T>(string name)
-        {
-            if (String.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-
-            try
-            {
-                return Parameters.TryGetValue(name, out var parameter)
-                    ? (T)parameter
-                    : default(T);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                throw new InvalidOperationException(
-                    $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);
-            }
+            throw new InvalidOperationException(
+                $"Could not get a value of the job parameter `{name}`. See inner exception for details.", ex);
         }
     }
 }

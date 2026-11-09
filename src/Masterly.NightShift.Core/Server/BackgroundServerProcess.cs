@@ -13,316 +13,307 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 {
-    internal sealed class BackgroundServerProcess : IBackgroundServerProcess
+    private static readonly char[] ColonSeparator = [':'];
+
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundServerProcess));
+    private readonly JobStorage _storage;
+    private readonly BackgroundProcessingServerOptions _options;
+    private readonly IDictionary<string, object> _properties;
+    private readonly IBackgroundProcessDispatcherBuilder[] _dispatcherBuilders;
+
+    public BackgroundServerProcess(
+        [NotNull] JobStorage storage,
+        [NotNull] IEnumerable<IBackgroundProcessDispatcherBuilder> dispatcherBuilders,
+        [NotNull] BackgroundProcessingServerOptions options,
+        [NotNull] IDictionary<string, object> properties)
     {
-        private static readonly char[] ColonSeparator = new [] { ':' };
+        ArgumentNullException.ThrowIfNull(dispatcherBuilders);
 
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundServerProcess));
-        private readonly JobStorage _storage;
-        private readonly BackgroundProcessingServerOptions _options;
-        private readonly IDictionary<string, object> _properties;
-        private readonly IBackgroundProcessDispatcherBuilder[] _dispatcherBuilders;
+        _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _properties = properties ?? throw new ArgumentNullException(nameof(properties));
 
-        public BackgroundServerProcess(
-            [NotNull] JobStorage storage,
-            [NotNull] IEnumerable<IBackgroundProcessDispatcherBuilder> dispatcherBuilders,
-            [NotNull] BackgroundProcessingServerOptions options,
-            [NotNull] IDictionary<string, object> properties)
+        var builders = new List<IBackgroundProcessDispatcherBuilder>();
+        builders.AddRange(GetRequiredProcesses());
+        if (!options.ExcludeStorageProcesses)
         {
-            ArgumentNullException.ThrowIfNull(dispatcherBuilders);
-
-            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _properties = properties ?? throw new ArgumentNullException(nameof(properties));
-
-            var builders = new List<IBackgroundProcessDispatcherBuilder>();
-            builders.AddRange(GetRequiredProcesses());
-            if (!options.ExcludeStorageProcesses)
-            {
-                builders.AddRange(GetStorageComponents());
-            }
-            builders.AddRange(dispatcherBuilders);
-
-            _dispatcherBuilders = builders.ToArray();
+            builders.AddRange(GetStorageComponents());
         }
+        builders.AddRange(dispatcherBuilders);
 
-        public void Execute(Guid executionId, BackgroundExecution execution, CancellationToken stoppingToken,
-            CancellationToken stoppedToken, CancellationToken shutdownToken)
+        _dispatcherBuilders = [.. builders];
+    }
+
+    public void Execute(Guid executionId, BackgroundExecution execution, CancellationToken stoppingToken,
+        CancellationToken stoppedToken, CancellationToken shutdownToken)
+    {
+        var serverId = GetServerId();
+        Stopwatch stoppedAt = null;
+
+        void HandleStopRestartSignal() => Interlocked.CompareExchange(ref stoppedAt, Stopwatch.StartNew(), null);
+        void HandleStoppingSignal() => _logger.Info($"{GetServerTemplate(serverId)} caught stopping signal...");
+        void HandleStoppedSignal() => _logger.Info($"{GetServerTemplate(serverId)} caught stopped signal...");
+        void HandleShutdownSignal() => _logger.Warn($"{GetServerTemplate(serverId)} caught shutdown signal...");
+
+        void HandleRestartSignal()
         {
-            var serverId = GetServerId();
-            Stopwatch stoppedAt = null;
-
-            void HandleStopRestartSignal() => Interlocked.CompareExchange(ref stoppedAt, Stopwatch.StartNew(), null);
-            void HandleStoppingSignal() => _logger.Info($"{GetServerTemplate(serverId)} caught stopping signal...");
-            void HandleStoppedSignal() => _logger.Info($"{GetServerTemplate(serverId)} caught stopped signal...");
-            void HandleShutdownSignal() => _logger.Warn($"{GetServerTemplate(serverId)} caught shutdown signal...");
-
-            void HandleRestartSignal()
+            if (!stoppingToken.IsCancellationRequested)
             {
-                if (!stoppingToken.IsCancellationRequested)
-                {
-                    _logger.Info($"{GetServerTemplate(serverId)} caught restart signal...");
-                }
-            }
-
-            //using (LogProvider.OpenMappedContext("ServerId", serverId.ToString()))
-            using (var restartCts = new CancellationTokenSource())
-            using (var restartStoppingCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, restartCts.Token))
-            using (var restartStoppedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppedToken, restartCts.Token))
-            using (var restartShutdownCts = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken, restartCts.Token))
-            using (restartStoppingCts.Token.Register(HandleStopRestartSignal))
-            using (stoppingToken.Register(HandleStoppingSignal))
-            using (stoppedToken.Register(HandleStoppedSignal))
-            using (shutdownToken.Register(HandleShutdownSignal))
-            using (restartCts.Token.Register(HandleRestartSignal))
-            {
-                var context = new BackgroundServerContext(
-                    serverId,
-                    _storage,
-                    _properties,
-                    restartStoppingCts.Token,
-                    restartStoppedCts.Token,
-                    restartShutdownCts.Token);
-
-                var dispatchers = new List<IBackgroundDispatcher>();
-
-                CreateServer(context);
-
-                try
-                {
-                    // ReSharper disable once AccessToDisposedClosure
-                    using (var heartbeat = CreateHeartbeatProcess(context, () => restartCts.Cancel()))
-                    {
-                        StartDispatchers(context, dispatchers);
-                        execution.NotifySucceeded();
-
-                        WaitForDispatchers(context, dispatchers);
-
-                        restartCts.Cancel();
-
-                        // TODO Either modify the IBackgroundDispatcher.Wait method to handle CancellationToken
-                        // or expose the WaitHandle property to not to perform sync-over-async and vice versa
-                        // in 2.0.
-                        heartbeat.WaitAsync(Timeout.InfiniteTimeSpan, shutdownToken).GetAwaiter().GetResult();
-                    }
-                }
-                finally
-                {
-                    DisposeDispatchers(dispatchers);
-                    ServerDelete(context, stoppedAt);
-                }
+                _logger.Info($"{GetServerTemplate(serverId)} caught restart signal...");
             }
         }
 
-        private IBackgroundDispatcher CreateHeartbeatProcess(BackgroundServerContext context, Action requestRestart)
+        //using (LogProvider.OpenMappedContext("ServerId", serverId.ToString()))
+        using (var restartCts = new CancellationTokenSource())
+        using (var restartStoppingCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, restartCts.Token))
+        using (var restartStoppedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppedToken, restartCts.Token))
+        using (var restartShutdownCts = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken, restartCts.Token))
+        using (restartStoppingCts.Token.Register(HandleStopRestartSignal))
+        using (stoppingToken.Register(HandleStoppingSignal))
+        using (stoppedToken.Register(HandleStoppedSignal))
+        using (shutdownToken.Register(HandleShutdownSignal))
+        using (restartCts.Token.Register(HandleRestartSignal))
         {
-            // We need to ensure that heartbeats are sent until server shutdown. Otherwise our server
-            // can be considered as dead before completing all the background jobs on a graceful
-            // shutdown.
-            var heartbeatContext = new BackgroundServerContext(
-                context.ServerId,
-                context.Storage,
-                context.Properties,
-                context.ShutdownToken,
-                context.ShutdownToken,
-                context.ShutdownToken);
+            var context = new BackgroundServerContext(
+                serverId,
+                _storage,
+                _properties,
+                restartStoppingCts.Token,
+                restartStoppedCts.Token,
+                restartShutdownCts.Token);
 
-            return new ServerHeartbeatProcess(_options.HeartbeatInterval, _options.ServerTimeout, requestRestart)
-                .UseBackgroundPool(threadCount: 1
-                    , static thread => { thread.Priority = ThreadPriority.AboveNormal; }
-                )
-                .Create(heartbeatContext, _options);
-        }
+            var dispatchers = new List<IBackgroundDispatcher>();
 
-        private IEnumerable<IBackgroundProcessDispatcherBuilder> GetRequiredProcesses()
-        {
-            yield return new ServerWatchdog(_options.ServerCheckInterval, _options.ServerTimeout).UseBackgroundPool(threadCount: 1);
-            yield return new ServerJobCancellationWatcher(_options.CancellationCheckInterval).UseBackgroundPool(threadCount: 1);
+            CreateServer(context);
 
-            foreach (var serverProcess in _storage.GetServerRequiredProcesses())
+            try
             {
-                yield return serverProcess.UseBackgroundPool(threadCount: 1);
+                // ReSharper disable once AccessToDisposedClosure
+                using var heartbeat = CreateHeartbeatProcess(context, restartCts.Cancel);
+                StartDispatchers(context, dispatchers);
+                execution.NotifySucceeded();
+
+                WaitForDispatchers(context, dispatchers);
+
+                restartCts.Cancel();
+
+                // TODO Either modify the IBackgroundDispatcher.Wait method to handle CancellationToken
+                // or expose the WaitHandle property to not to perform sync-over-async and vice versa
+                // in 2.0.
+                heartbeat.WaitAsync(Timeout.InfiniteTimeSpan, shutdownToken).GetAwaiter().GetResult();
+            }
+            finally
+            {
+                DisposeDispatchers(dispatchers);
+                ServerDelete(context, stoppedAt);
             }
         }
+    }
 
-        private IEnumerable<IBackgroundProcessDispatcherBuilder> GetStorageComponents()
+    private IBackgroundDispatcher CreateHeartbeatProcess(BackgroundServerContext context, Action requestRestart)
+    {
+        // We need to ensure that heartbeats are sent until server shutdown. Otherwise our server
+        // can be considered as dead before completing all the background jobs on a graceful
+        // shutdown.
+        var heartbeatContext = new BackgroundServerContext(
+            context.ServerId,
+            context.Storage,
+            context.Properties,
+            context.ShutdownToken,
+            context.ShutdownToken,
+            context.ShutdownToken);
+
+        return new ServerHeartbeatProcess(_options.HeartbeatInterval, _options.ServerTimeout, requestRestart)
+            .UseBackgroundPool(threadCount: 1
+                , static thread => { thread.Priority = ThreadPriority.AboveNormal; }
+            )
+            .Create(heartbeatContext, _options);
+    }
+
+    private IEnumerable<IBackgroundProcessDispatcherBuilder> GetRequiredProcesses()
+    {
+        yield return new ServerWatchdog(_options.ServerCheckInterval, _options.ServerTimeout).UseBackgroundPool(threadCount: 1);
+        yield return new ServerJobCancellationWatcher(_options.CancellationCheckInterval).UseBackgroundPool(threadCount: 1);
+
+        foreach (var serverProcess in _storage.GetServerRequiredProcesses())
         {
-            return _storage.GetStorageWideProcesses().Select(static process => process.UseBackgroundPool(threadCount: 1));
+            yield return serverProcess.UseBackgroundPool(threadCount: 1);
+        }
+    }
+
+    private IEnumerable<IBackgroundProcessDispatcherBuilder> GetStorageComponents()
+    {
+        return _storage.GetStorageWideProcesses().Select(static process => process.UseBackgroundPool(threadCount: 1));
+    }
+
+    private string GetServerId()
+    {
+        var serverName = _options.ServerName
+             ?? Environment.GetEnvironmentVariable("COMPUTERNAME")
+             ?? Environment.GetEnvironmentVariable("HOSTNAME")
+             ?? Environment.MachineName
+            ;
+
+        var guid = Guid.NewGuid().ToString();
+
+        if (!string.IsNullOrWhiteSpace(serverName))
+        {
+            serverName += ":" + Environment.ProcessId;
         }
 
-        private string GetServerId()
+        return !string.IsNullOrWhiteSpace(serverName) ? $"{serverName.ToLowerInvariant()}:{guid}" : guid;
+    }
+
+    private void CreateServer(BackgroundServerContext context)
+    {
+        _logger.Trace($"{GetServerTemplate(context.ServerId)} is announcing itself...");
+
+        var stopwatch = Stopwatch.StartNew();
+
+        using (var connection = _storage.GetConnection())
         {
-            var serverName = _options.ServerName
-                 ?? Environment.GetEnvironmentVariable("COMPUTERNAME")
-                 ?? Environment.GetEnvironmentVariable("HOSTNAME")
-                 ?? Environment.MachineName
-                ;
-
-            var guid = Guid.NewGuid().ToString();
-
-            if (!String.IsNullOrWhiteSpace(serverName))
-            {
-                serverName += ":" + Environment.ProcessId;
-            }
-
-            return !String.IsNullOrWhiteSpace(serverName) ? $"{serverName.ToLowerInvariant()}:{guid}" : guid;
+            connection.AnnounceServer(context.ServerId, GetServerContext(_properties));
         }
 
-        private void CreateServer(BackgroundServerContext context)
+        stopwatch.Stop();
+
+        ServerJobCancellationToken.AddServer(context.ServerId);
+        _logger.Info($"{GetServerTemplate(context.ServerId)} successfully announced in {stopwatch.Elapsed.TotalMilliseconds} ms");
+    }
+
+    private void ServerDelete(BackgroundServerContext context, Stopwatch stoppedAt)
+    {
+        try
         {
-            _logger.Trace($"{GetServerTemplate(context.ServerId)} is announcing itself...");
+            _logger.Trace($"{GetServerTemplate(context.ServerId)} is reporting itself as stopped...");
+            ServerJobCancellationToken.RemoveServer(context.ServerId);
 
             var stopwatch = Stopwatch.StartNew();
 
             using (var connection = _storage.GetConnection())
             {
-                connection.AnnounceServer(context.ServerId, GetServerContext(_properties));
+                connection.RemoveServer(context.ServerId);
             }
 
             stopwatch.Stop();
 
-            ServerJobCancellationToken.AddServer(context.ServerId);
-            _logger.Info($"{GetServerTemplate(context.ServerId)} successfully announced in {stopwatch.Elapsed.TotalMilliseconds} ms");
+            _logger.Info($"{GetServerTemplate(context.ServerId)} successfully reported itself as stopped in {stopwatch.Elapsed.TotalMilliseconds} ms");
+            _logger.Info($"{GetServerTemplate(context.ServerId)} has been stopped in total {stoppedAt?.Elapsed.TotalMilliseconds ?? 0} ms");
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException($"{GetServerTemplate(context.ServerId)} there was an exception, server may not be removed", ex);
+        }
+    }
+
+    private void StartDispatchers(BackgroundServerContext context, ICollection<IBackgroundDispatcher> dispatchers)
+    {
+        if (_dispatcherBuilders.Length == 0)
+        {
+            throw new InvalidOperationException("No dispatchers registered for the processing server.");
         }
 
-        private void ServerDelete(BackgroundServerContext context, Stopwatch stoppedAt)
+        _logger.Info($"{GetServerTemplate(context.ServerId)} is starting the registered dispatchers: {string.Join(", ", _dispatcherBuilders.Select(static builder => $"{builder}"))}...");
+
+        foreach (var dispatcherBuilder in _dispatcherBuilders)
         {
-            try
-            {
-                _logger.Trace($"{GetServerTemplate(context.ServerId)} is reporting itself as stopped...");
-                ServerJobCancellationToken.RemoveServer(context.ServerId);
-
-                var stopwatch = Stopwatch.StartNew();
-
-                using (var connection = _storage.GetConnection())
-                {
-                    connection.RemoveServer(context.ServerId);
-                }
-
-                stopwatch.Stop();
-
-                _logger.Info($"{GetServerTemplate(context.ServerId)} successfully reported itself as stopped in {stopwatch.Elapsed.TotalMilliseconds} ms");
-                _logger.Info($"{GetServerTemplate(context.ServerId)} has been stopped in total {stoppedAt?.Elapsed.TotalMilliseconds ?? 0} ms");
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                _logger.WarnException($"{GetServerTemplate(context.ServerId)} there was an exception, server may not be removed", ex);
-            }
+            dispatchers.Add(dispatcherBuilder.Create(context, _options));
         }
 
-        private void StartDispatchers(BackgroundServerContext context, ICollection<IBackgroundDispatcher> dispatchers)
+        _logger.Info($"{GetServerTemplate(context.ServerId)} all the dispatchers started");
+    }
+
+    private void WaitForDispatchers(
+        BackgroundServerContext context,
+        IReadOnlyList<IBackgroundDispatcher> dispatchers)
+    {
+        if (dispatchers.Count == 0) return;
+
+        var waitTasks = new Task[dispatchers.Count];
+
+        for (var i = 0; i < dispatchers.Count; i++)
         {
-            if (_dispatcherBuilders.Length == 0)
-            {
-                throw new InvalidOperationException("No dispatchers registered for the processing server.");
-            }
-
-            _logger.Info($"{GetServerTemplate(context.ServerId)} is starting the registered dispatchers: {String.Join(", ", _dispatcherBuilders.Select(static builder => $"{builder}"))}...");
-
-            foreach (var dispatcherBuilder in _dispatcherBuilders)
-            {
-                dispatchers.Add(dispatcherBuilder.Create(context, _options));
-            }
-
-            _logger.Info($"{GetServerTemplate(context.ServerId)} all the dispatchers started");
+            waitTasks[i] = dispatchers[i].WaitAsync(Timeout.InfiniteTimeSpan, CancellationToken.None);
         }
 
-        private void WaitForDispatchers(
-            BackgroundServerContext context,
-            IReadOnlyList<IBackgroundDispatcher> dispatchers)
+        var nonStopped = new List<IBackgroundDispatcher>();
+
+        try
         {
-            if (dispatchers.Count == 0) return;
-
-            var waitTasks = new Task[dispatchers.Count];
-
+            Task.WaitAll(waitTasks, context.ShutdownToken);
+        }
+        catch (OperationCanceledException)
+        {
             for (var i = 0; i < dispatchers.Count; i++)
             {
-                waitTasks[i] = dispatchers[i].WaitAsync(Timeout.InfiniteTimeSpan, CancellationToken.None);
-            }
-
-            var nonStopped = new List<IBackgroundDispatcher>();
-
-            try
-            {
-                Task.WaitAll(waitTasks, context.ShutdownToken);
-            }
-            catch (OperationCanceledException)
-            {
-                for (var i = 0; i < dispatchers.Count; i++)
+                if (waitTasks[i].Status != TaskStatus.RanToCompletion)
                 {
-                    if (waitTasks[i].Status != TaskStatus.RanToCompletion)
-                    {
-                        nonStopped.Add(dispatchers[i]);
-                    }
+                    nonStopped.Add(dispatchers[i]);
                 }
             }
-
-            if (nonStopped.Count > 0)
-            {
-                var nonStoppedNames = nonStopped.Select(static dispatcher => $"{dispatcher}").ToArray();
-                _logger.Warn($"{GetServerTemplate(context.ServerId)} stopped non-gracefully due to {String.Join(", ", nonStoppedNames)}. Outstanding work on those dispatchers could be aborted, and there can be delays in background processing. This server instance will be incorrectly shown as active for a while. To avoid non-graceful shutdowns, investigate what prevents from stopping gracefully and add CancellationToken support for those methods.");
-            }
-            else
-            {
-                _logger.Info($"{GetServerTemplate(context.ServerId)} All dispatchers stopped");
-            }
         }
 
-        private static void DisposeDispatchers(IEnumerable<IBackgroundDispatcher> dispatchers)
+        if (nonStopped.Count > 0)
         {
-            foreach (var dispatcher in dispatchers)
-            {
-                dispatcher.Dispose();
-            }
+            var nonStoppedNames = nonStopped.Select(static dispatcher => $"{dispatcher}").ToArray();
+            _logger.Warn($"{GetServerTemplate(context.ServerId)} stopped non-gracefully due to {string.Join(", ", nonStoppedNames)}. Outstanding work on those dispatchers could be aborted, and there can be delays in background processing. This server instance will be incorrectly shown as active for a while. To avoid non-graceful shutdowns, investigate what prevents from stopping gracefully and add CancellationToken support for those methods.");
         }
-
-        private static ServerContext GetServerContext(IDictionary<string, object> properties)
+        else
         {
-            var serverContext = new ServerContext();
-
-            if (properties.TryGetValue("Queues", out var queues) && queues is string[] array)
-            {
-                serverContext.Queues = array;
-            }
-
-            if (properties.TryGetValue("WorkerCount", out var workerCount))
-            {
-                serverContext.WorkerCount = (int)workerCount;
-            }
-
-            return serverContext;
+            _logger.Info($"{GetServerTemplate(context.ServerId)} All dispatchers stopped");
         }
+    }
 
-        internal static string GetServerTemplate(string serverId)
+    private static void DisposeDispatchers(IEnumerable<IBackgroundDispatcher> dispatchers)
+    {
+        foreach (var dispatcher in dispatchers)
         {
-            string name = serverId;
-
-            try
-            {
-                var split = serverId.Split(ColonSeparator, StringSplitOptions.RemoveEmptyEntries);
-                if (split.Length == 3 && split[2].Length > 8)
-                {
-                    name = $"{split[0]}:{split[1]}:{split[2].Substring(0, 8)}";
-                }
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                // ignored
-            }
-
-            return $"Server {name}";
+            dispatcher.Dispose();
         }
+    }
+
+    private static ServerContext GetServerContext(IDictionary<string, object> properties)
+    {
+        var serverContext = new ServerContext();
+
+        if (properties.TryGetValue("Queues", out var queues) && queues is string[] array)
+        {
+            serverContext.Queues = array;
+        }
+
+        if (properties.TryGetValue("WorkerCount", out var workerCount))
+        {
+            serverContext.WorkerCount = (int)workerCount;
+        }
+
+        return serverContext;
+    }
+
+    internal static string GetServerTemplate(string serverId)
+    {
+        string name = serverId;
+
+        try
+        {
+            var split = serverId.Split(ColonSeparator, StringSplitOptions.RemoveEmptyEntries);
+            if (split.Length == 3 && split[2].Length > 8)
+            {
+                name = $"{split[0]}:{split[1]}:{split[2][..8]}";
+            }
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // ignored
+        }
+
+        return $"Server {name}";
     }
 }

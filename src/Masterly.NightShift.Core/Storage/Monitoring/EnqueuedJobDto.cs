@@ -15,28 +15,23 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job waiting in a queue, as listed by the dashboard.
+/// </summary>
+public class EnqueuedJobDto
 {
-    /// <summary>
-    /// A job waiting in a queue, as listed by the dashboard.
-    /// </summary>
-    public class EnqueuedJobDto
+    public EnqueuedJobDto()
     {
-        public EnqueuedJobDto()
-        {
-            InEnqueuedState = true;
-        }
-
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public string? State { get; set; }
-        public DateTime? EnqueuedAt { get; set; }
-        public bool InEnqueuedState { get; set; }
-        public IDictionary<string, string>? StateData { get; set; }
+        InEnqueuedState = true;
     }
+
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public string? State { get; set; }
+    public DateTime? EnqueuedAt { get; set; }
+    public bool InEnqueuedState { get; set; }
+    public IDictionary<string, string>? StateData { get; set; }
 }

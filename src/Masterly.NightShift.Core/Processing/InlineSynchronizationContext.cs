@@ -13,41 +13,38 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
-using System.Threading;
 
-namespace Masterly.NightShift.Processing
+namespace Masterly.NightShift.Processing;
+
+internal sealed class InlineSynchronizationContext : SynchronizationContext, IDisposable
 {
-    internal sealed class InlineSynchronizationContext : SynchronizationContext, IDisposable
+    private readonly ConcurrentQueue<Tuple<SendOrPostCallback, object>> _queue = new();
+    private readonly Semaphore _semaphore = new(0, int.MaxValue);
+
+    public WaitHandle WaitHandle => _semaphore;
+
+    public Tuple<SendOrPostCallback, object> Dequeue()
     {
-        private readonly ConcurrentQueue<Tuple<SendOrPostCallback, object>> _queue = new ConcurrentQueue<Tuple<SendOrPostCallback, object>>();
-        private readonly Semaphore _semaphore = new Semaphore(0, Int32.MaxValue);
+        _queue.TryDequeue(out var tuple);
+        return tuple;
+    }
 
-        public WaitHandle WaitHandle => _semaphore;
+    public void Dispose()
+    {
+        _semaphore.Dispose();
+    }
 
-        public Tuple<SendOrPostCallback, object> Dequeue()
+    public override void Post(SendOrPostCallback callback, object state)
+    {
+        try
         {
-            _queue.TryDequeue(out var tuple);
-            return tuple;
+            _queue.Enqueue(Tuple.Create(callback, state));
+            _semaphore.Release();
         }
-
-        public void Dispose()
+        catch (ObjectDisposedException)
         {
-            _semaphore.Dispose();
-        }
-
-        public override void Post(SendOrPostCallback callback, object state)
-        {
-            try
-            {
-                _queue.Enqueue(Tuple.Create(callback, state));
-                _semaphore.Release();
-            }
-            catch (ObjectDisposedException)
-            {
-                base.Post(callback, state);
-            }
+            base.Post(callback, state);
         }
     }
 }

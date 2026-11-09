@@ -13,19 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// Thrown when a running job is aborted because it was deleted or moved to another state while it ran. The job
+/// isn't requeued.
+/// </summary>
+[Serializable]
+public class JobAbortedException : OperationCanceledException
 {
-    /// <summary>
-    /// Thrown when a running job is aborted because it was deleted or moved to another state while it ran. The job
-    /// isn't requeued.
-    /// </summary>
-    [Serializable]
-    public class JobAbortedException : OperationCanceledException
+    public JobAbortedException()
     {
-        public JobAbortedException()
-        {
-        }
     }
 }

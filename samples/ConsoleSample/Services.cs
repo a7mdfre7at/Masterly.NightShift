@@ -1,150 +1,144 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 using Masterly.NightShift;
 using Masterly.NightShift.States;
 
-namespace ConsoleSample
+namespace ConsoleSample;
+
+public class Services
 {
-    public class Services
+    private static readonly Random Rand = new();
+
+    public async Task<int> WriteIndex([FromResult] int? index)
     {
-        private static readonly Random Rand = new Random();
+        if (index == null) throw new ArgumentNullException(nameof(index));
 
-        public async Task<int> WriteIndex([FromResult] int? index)
+        Console.Write("Hello, world!\r\n"[index.Value]);
+        await Task.Yield();
+        return index.Value + 1;
+    }
+
+    public async Task EmptyDefault()
+    {
+        await Task.Yield();
+    }
+
+    public async Task Async(CancellationToken cancellationToken)
+    {
+        await Task.Yield();
+        await Task.Delay(TimeSpan.FromSeconds(20), cancellationToken);
+    }
+
+    [Obsolete("Please use EmptyDefault method instead with `critical` queue directly")]
+    [Queue("critical")]
+    public async Task EmptyCritical()
+    {
+        await Task.Yield();
+    }
+
+    [AutomaticRetry(Attempts = 0), LatencyTimeout(30)]
+    public async Task Error()
+    {
+        await Task.Yield();
+        Console.WriteLine("Beginning error task...");
+        throw new InvalidOperationException(null, new FileLoadException());
+    }
+
+    [Queue("critical")]
+    public async Task<int> Random([FromResult] int? number)
+    {
+        int time;
+        lock (Rand)
         {
-            if (index == null) throw new ArgumentNullException(nameof(index));
-
-            Console.Write("Hello, world!\r\n"[index.Value]);
-            await Task.Yield();
-            return index.Value + 1;
+            time = Rand.Next(10);
         }
 
-        public async Task EmptyDefault()
+        if (time < 5)
         {
-            await Task.Yield();
+            throw new Exception();
         }
 
-        public async Task Async(CancellationToken cancellationToken)
-        {
-            await Task.Yield();
-            await Task.Delay(TimeSpan.FromSeconds(20), cancellationToken);
-        }
+        await Task.Delay(TimeSpan.FromSeconds(5 + time));
+        Console.WriteLine("Finished task: " + number);
+        return time;
+    }
 
-        [Obsolete("Please use EmptyDefault method instead with `critical` queue directly")]
-        [Queue("critical")]
-        public async Task EmptyCritical()
+    public async Task Cancelable(int iterationCount, IJobCancellationToken token)
+    {
+        try
         {
-            await Task.Yield();
-        }
-
-        [AutomaticRetry(Attempts = 0), LatencyTimeout(30)]
-        public async Task Error()
-        {
-            await Task.Yield();
-            Console.WriteLine("Beginning error task...");
-            throw new InvalidOperationException(null, new FileLoadException());
-        }
-
-        [Queue("critical")]
-        public async Task<int> Random([FromResult] int? number)
-        {
-            int time;
-            lock (Rand)
+            for (var i = 1; i <= iterationCount; i++)
             {
-                time = Rand.Next(10);
-            }
+                await Task.Delay(1000);
+                Console.WriteLine("Performing step {0} of {1}...", i, iterationCount);
 
-            if (time < 5)
-            {
-                throw new Exception();
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(5 + time));
-            Console.WriteLine("Finished task: " + number);
-            return time;
-        }
-
-        public async Task Cancelable(int iterationCount, IJobCancellationToken token)
-        {
-            try
-            {
-                for (var i = 1; i <= iterationCount; i++)
-                {
-                    await Task.Delay(1000);
-                    Console.WriteLine("Performing step {0} of {1}...", i, iterationCount);
-
-                    token.ThrowIfCancellationRequested();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("Cancellation requested, exiting...");
-                throw;
+                token.ThrowIfCancellationRequested();
             }
         }
-
-        [DisplayName("Name: {0}")]
-        public async Task Args(string name, int authorId, DateTime createdAt)
+        catch (OperationCanceledException)
         {
-            await Task.Yield();
-            Console.WriteLine($"{name}, {authorId}, {createdAt}");
+            Console.WriteLine("Cancellation requested, exiting...");
+            throw;
         }
+    }
 
-        public async Task Custom(int id, string[] values, CustomObject objects, DayOfWeek dayOfWeek)
-        {
-            await Task.Yield();
-        }
+    [DisplayName("Name: {0}")]
+    public async Task Args(string name, int authorId, DateTime createdAt)
+    {
+        await Task.Yield();
+        Console.WriteLine($"{name}, {authorId}, {createdAt}");
+    }
 
-        public async Task FullArgs(
-            bool b,
-            int i,
-            char c,
-            DayOfWeek e,
-            string s,
-            TimeSpan t,
-            DateTime d,
-            CustomObject o,
-            string[] sa,
-            int[] ia,
-            long[] ea,
-            object[] na,
-            List<string> sl)
-        {
-            await Task.Yield();
-        }
+    public async Task Custom(int id, string[] values, CustomObject objects, DayOfWeek dayOfWeek)
+    {
+        await Task.Yield();
+    }
 
-        public async Task LongRunning(IJobCancellationToken token)
-        {
-            await Task.Delay(TimeSpan.FromMinutes(30), token.ShutdownToken);
-        }
+    public async Task FullArgs(
+        bool b,
+        int i,
+        char c,
+        DayOfWeek e,
+        string s,
+        TimeSpan t,
+        DateTime d,
+        CustomObject o,
+        string[] sa,
+        int[] ia,
+        long[] ea,
+        object[] na,
+        List<string> sl)
+    {
+        await Task.Yield();
+    }
 
-        public class CustomObject
-        {
-            public int Id { get; set; }
-            public CustomObject[] Children { get; set; }
-        }
+    public async Task LongRunning(IJobCancellationToken token)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(30), token.ShutdownToken);
+    }
 
-        public async Task Write(char character)
-        {
-            await Task.Yield();
-            Console.Write(character);
-        }
+    public class CustomObject
+    {
+        public int Id { get; set; }
+        public CustomObject[] Children { get; set; }
+    }
 
-        public async Task WriteBlankLine()
-        {
-            await Task.Yield();
-            Console.WriteLine();
-        }
+    public async Task Write(char character)
+    {
+        await Task.Yield();
+        Console.Write(character);
+    }
 
-        [IdempotentCompletion]
-        public static async Task <IState> WriteLine(string value)
-        {
-            await Task.Yield();
-            Console.WriteLine(value);
-            return new AwaitingState("asfafs", new EnqueuedState("criticalll"));
-        }
+    public async Task WriteBlankLine()
+    {
+        await Task.Yield();
+        Console.WriteLine();
+    }
+
+    [IdempotentCompletion]
+    public static async Task<IState> WriteLine(string value)
+    {
+        await Task.Yield();
+        Console.WriteLine(value);
+        return new AwaitingState("asfafs", new EnqueuedState("criticalll"));
     }
 }

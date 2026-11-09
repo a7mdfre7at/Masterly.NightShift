@@ -13,54 +13,45 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading;
 using Masterly.NightShift.Logging;
 
-namespace Masterly.NightShift.Profiling
+namespace Masterly.NightShift.Profiling;
+
+internal sealed class SlowLogProfiler(ILog logger, TimeSpan threshold) : IProfiler
 {
-    internal sealed class SlowLogProfiler : IProfiler
+    private static readonly TimeSpan DefaultThreshold = TimeSpan.FromMinutes(1);
+
+    private readonly TimeSpan _threshold = threshold;
+    private readonly ILog _logger = logger;
+
+    public SlowLogProfiler(ILog logger)
+        : this(logger, DefaultThreshold)
     {
-        private static readonly TimeSpan DefaultThreshold = TimeSpan.FromMinutes(1);
+    }
 
-        private readonly TimeSpan _threshold;
-        private readonly ILog _logger;
+    public TResult InvokeMeasured<TInstance, TResult>(
+        TInstance instance,
+        Func<TInstance, TResult> action,
+        Func<TInstance, string> messageFunc = null)
+    {
+        ArgumentNullException.ThrowIfNull(action);
 
-        public SlowLogProfiler(ILog logger)
-            : this(logger, DefaultThreshold)
+        var startedAt = Environment.TickCount;
+
+        // TODO: Change implementation to thread-based, once it is possible to query custom services everywhere
+        using (new Timer(LogWarningMessage, null, _threshold, _threshold))
         {
+            return action(instance);
         }
 
-        public SlowLogProfiler(ILog logger, TimeSpan threshold)
+        void LogWarningMessage(object state)
         {
-            _threshold = threshold;
-            _logger = logger;
-        }
+            var elapsedSec = unchecked(Environment.TickCount - startedAt) / 1_000;
 
-        public TResult InvokeMeasured<TInstance, TResult>(
-            TInstance instance,
-            Func<TInstance, TResult> action,
-            Func<TInstance, string> messageFunc = null)
-        {
-            ArgumentNullException.ThrowIfNull(action);
+            var type = instance?.ToString() ?? typeof(TInstance).ToString();
+            var message = messageFunc?.Invoke(instance) ?? "(null)";
 
-            var startedAt = Environment.TickCount;
-
-            // TODO: Change implementation to thread-based, once it is possible to query custom services everywhere
-            using (new Timer(LogWarningMessage, null, _threshold, _threshold))
-            {
-                return action(instance);
-            }
-
-            void LogWarningMessage(object state)
-            {
-                var elapsedSec = unchecked(Environment.TickCount - startedAt) / 1_000;
-
-                var type = instance?.ToString() ?? typeof(TInstance).ToString();
-                var message = messageFunc?.Invoke(instance) ?? "(null)";
-
-                _logger.Warn($"Slow log: {type} is still performing \"{message}\" after {elapsedSec} sec");
-            }
+            _logger.Warn($"Slow log: {type} is still performing \"{message}\" after {elapsedSec} sec");
         }
     }
 }

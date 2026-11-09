@@ -13,28 +13,24 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.States;
+namespace Masterly.NightShift.Client;
 
-namespace Masterly.NightShift.Client
+/// <summary>
+/// This interface acts as extensibility point for the process
+/// of job creation. See the default implementation in the
+/// <see cref="BackgroundJobFactory"/> class.
+/// </summary>
+public interface IBackgroundJobFactory
 {
     /// <summary>
-    /// This interface acts as extensibility point for the process
-    /// of job creation. See the default implementation in the
-    /// <see cref="BackgroundJobFactory"/> class.
+    /// Gets a state machine that's responsible for initial state change.
     /// </summary>
-    public interface IBackgroundJobFactory
-    {
-        /// <summary>
-        /// Gets a state machine that's responsible for initial state change.
-        /// </summary>
-        [NotNull]
-        IStateMachine StateMachine { get; }
+    [NotNull]
+    IStateMachine StateMachine { get; }
 
-        /// <summary>
-        /// Runs the process of job creation with the specified context.
-        /// </summary>
-        [CanBeNull]
-        BackgroundJob Create([NotNull] CreateContext context);
-    }
+    /// <summary>
+    /// Runs the process of job creation with the specified context.
+    /// </summary>
+    [CanBeNull]
+    BackgroundJob Create([NotNull] CreateContext context);
 }

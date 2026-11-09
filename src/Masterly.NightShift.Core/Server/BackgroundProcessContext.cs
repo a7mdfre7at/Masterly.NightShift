@@ -13,64 +13,57 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// What a background process gets each time it runs: the server, the storage, and the tokens that signal the
+/// server's stop and shutdown.
+/// </summary>
+public class BackgroundProcessContext
 {
-    /// <summary>
-    /// What a background process gets each time it runs: the server, the storage, and the tokens that signal the
-    /// server's stop and shutdown.
-    /// </summary>
-    public class BackgroundProcessContext
+
+    public BackgroundProcessContext(
+        [NotNull] string serverId,
+        [NotNull] JobStorage storage,
+        [NotNull] IDictionary<string, object> properties,
+        Guid executionId,
+        CancellationToken stoppingToken,
+        CancellationToken stoppedToken,
+        CancellationToken shutdownToken)
     {
+        ArgumentNullException.ThrowIfNull(serverId);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(properties);
 
-        public BackgroundProcessContext(
-            [NotNull] string serverId,
-            [NotNull] JobStorage storage, 
-            [NotNull] IDictionary<string, object> properties, 
-            Guid executionId,
-            CancellationToken stoppingToken,
-            CancellationToken stoppedToken,
-            CancellationToken shutdownToken)
-        {
-            ArgumentNullException.ThrowIfNull(serverId);
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(properties);
+        ServerId = serverId;
+        Storage = storage;
+        ExecutionId = executionId;
+        Properties = new Dictionary<string, object>(properties, StringComparer.OrdinalIgnoreCase);
+        StoppingToken = stoppingToken;
+        StoppedToken = stoppedToken;
+        ShutdownToken = shutdownToken;
+    }
 
-            ServerId = serverId;
-            Storage = storage;
-            ExecutionId = executionId;
-            Properties = new Dictionary<string, object>(properties, StringComparer.OrdinalIgnoreCase);
-            StoppingToken = stoppingToken;
-            StoppedToken = stoppedToken;
-            ShutdownToken = shutdownToken;
-        }
-        
-        [NotNull]
-        public string ServerId { get; }
+    [NotNull]
+    public string ServerId { get; }
 
-        [NotNull]
-        public IReadOnlyDictionary<string, object> Properties { get; }
+    [NotNull]
+    public IReadOnlyDictionary<string, object> Properties { get; }
 
-        [NotNull]
-        public JobStorage Storage { get; }
+    [NotNull]
+    public JobStorage Storage { get; }
 
-        public Guid ExecutionId { get; }
+    public Guid ExecutionId { get; }
 
-        public CancellationToken StoppingToken { get; }
-        public CancellationToken StoppedToken { get; }
-        public CancellationToken ShutdownToken { get; }
+    public CancellationToken StoppingToken { get; }
+    public CancellationToken StoppedToken { get; }
+    public CancellationToken ShutdownToken { get; }
 
-        public bool IsStopping => StoppingToken.IsCancellationRequested || StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
-        public bool IsStopped => StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
+    public bool IsStopping => StoppingToken.IsCancellationRequested || StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
+    public bool IsStopped => StoppedToken.IsCancellationRequested || ShutdownToken.IsCancellationRequested;
 
-        public void Wait(TimeSpan timeout)
-        {
-            StoppingToken.WaitOrThrow(timeout);
-        }
+    public void Wait(TimeSpan timeout)
+    {
+        StoppingToken.WaitOrThrow(timeout);
     }
 }

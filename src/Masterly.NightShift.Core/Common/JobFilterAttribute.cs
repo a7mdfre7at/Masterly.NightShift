@@ -13,53 +13,49 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Represents the base class for job filter attributes.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Method)]
+public abstract class JobFilterAttribute : Attribute, IJobFilter
 {
-    /// <summary>
-    /// Represents the base class for job filter attributes.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Method)]
-    public abstract class JobFilterAttribute : Attribute, IJobFilter
+    private static readonly ConcurrentDictionary<Type, bool> MultiuseAttributeCache = new();
+
+    [JsonIgnore]
+    public bool AllowMultiple => AllowsMultiple(GetType());
+
+    [JsonInclude]
+    [DefaultValue(JobFilter.DefaultOrder)]
+    public int Order
     {
-        private static readonly ConcurrentDictionary<Type, bool> MultiuseAttributeCache = new ConcurrentDictionary<Type, bool>();
-        private int _order = JobFilter.DefaultOrder;
-
-        [JsonIgnore]
-        public bool AllowMultiple => AllowsMultiple(GetType());
-
-        [JsonInclude]
-        [DefaultValue(JobFilter.DefaultOrder)]
-        public int Order
+        get;
+        set
         {
-            get { return _order; }
-            set
+            if (value < JobFilter.DefaultOrder)
             {
-                if (value < JobFilter.DefaultOrder)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(value), "The Order value should be greater or equal to '-1'");
-                }
-                _order = value;
+                throw new ArgumentOutOfRangeException(nameof(value), "The Order value should be greater or equal to '-1'");
             }
+            field = value;
         }
+    } = JobFilter.DefaultOrder;
 
-        [JsonIgnore]
-        public override object TypeId => base.TypeId;
+    [JsonIgnore]
+    public override object TypeId => base.TypeId;
 
-        private static bool AllowsMultiple(Type attributeType)
-        {
-            return MultiuseAttributeCache.GetOrAdd(
-                attributeType,
-                static type => type.GetTypeInfo()
-                            .GetCustomAttributes<AttributeUsageAttribute>(inherit: true)
-                            .First()
-                            .AllowMultiple);
-        }
+    private static bool AllowsMultiple(Type attributeType)
+    {
+        return MultiuseAttributeCache.GetOrAdd(
+            attributeType,
+            static type => type.GetTypeInfo()
+                        .GetCustomAttributes<AttributeUsageAttribute>(inherit: true)
+                        .First()
+                        .AllowMultiple);
     }
 }

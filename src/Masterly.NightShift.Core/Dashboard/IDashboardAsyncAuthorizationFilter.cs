@@ -13,17 +13,13 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>
+/// Decides asynchronously whether a request may open the dashboard. Add it to <see
+/// cref="DashboardOptions.AsyncAuthorization"/>.
+/// </summary>
+public interface IDashboardAsyncAuthorizationFilter
 {
-    /// <summary>
-    /// Decides asynchronously whether a request may open the dashboard. Add it to <see
-    /// cref="DashboardOptions.AsyncAuthorization"/>.
-    /// </summary>
-    public interface IDashboardAsyncAuthorizationFilter
-    {
-        Task<bool> AuthorizeAsync([NotNull] DashboardContext context);
-    }
+    Task<bool> AuthorizeAsync([NotNull] DashboardContext context);
 }

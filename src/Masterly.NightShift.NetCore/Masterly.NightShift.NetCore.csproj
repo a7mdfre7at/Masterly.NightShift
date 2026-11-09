@@ -3,7 +3,6 @@
     <Description>Masterly.NightShift for the generic host: dependency injection, ILogger logging and the job server as a hosted service, for Worker Services and console apps.</Description>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <PackageReadmeSource>README.md</PackageReadmeSource>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Masterly.NightShift</RootNamespace>
   </PropertyGroup>
 
@@ -16,5 +15,10 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 </Project>

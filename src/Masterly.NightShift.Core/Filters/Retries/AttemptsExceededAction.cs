@@ -13,23 +13,22 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Specifies a candidate state for a background job that will be chosen
+/// by the <see cref="AutomaticRetryAttribute"/> filter after exceeding
+/// the number of retry attempts.
+/// </summary>
+public enum AttemptsExceededAction
 {
     /// <summary>
-    /// Specifies a candidate state for a background job that will be chosen
-    /// by the <see cref="AutomaticRetryAttribute"/> filter after exceeding
-    /// the number of retry attempts.
+    /// Background job will be moved to the <see cref="States.FailedState"/>.
     /// </summary>
-    public enum AttemptsExceededAction
-    {
-        /// <summary>
-        /// Background job will be moved to the <see cref="States.FailedState"/>.
-        /// </summary>
-        Fail = 0,
+    Fail = 0,
 
-        /// <summary>
-        /// Background job will be moved to the <see cref="States.DeletedState"/>.
-        /// </summary>
-        Delete
-    }
+    /// <summary>
+    /// Background job will be moved to the <see cref="States.DeletedState"/>.
+    /// </summary>
+    Delete
 }

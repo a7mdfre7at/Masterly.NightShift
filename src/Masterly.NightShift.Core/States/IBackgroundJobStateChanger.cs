@@ -13,18 +13,17 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.States
+namespace Masterly.NightShift.States;
+
+/// <summary>
+/// Changes the state of a job, running the job filters and state handlers.
+/// </summary>
+public interface IBackgroundJobStateChanger
 {
     /// <summary>
-    /// Changes the state of a job, running the job filters and state handlers.
+    /// Attempts to change the state of a job, respecting any applicable job filters and state handlers.
     /// </summary>
-    public interface IBackgroundJobStateChanger
-    {
-        /// <summary>
-        /// Attempts to change the state of a job, respecting any applicable job filters and state handlers.
-        /// </summary>
-        /// <returns><c>Null</c> if a constraint has failed, otherwise the final applied state</returns>
-        /// <remarks>Also ensures that the job data can be loaded for this job</remarks>
-        IState ChangeState(StateChangeContext context);
-    }
+    /// <returns><c>Null</c> if a constraint has failed, otherwise the final applied state</returns>
+    /// <remarks>Also ensures that the job data can be loaded for this job</remarks>
+    IState ChangeState(StateChangeContext context);
 }

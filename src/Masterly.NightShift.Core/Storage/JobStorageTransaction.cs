@@ -15,103 +15,96 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
+namespace Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Storage
+/// <summary>
+/// The base class for storage transactions. It implements <see cref="IWriteOnlyTransaction"/> and adds optional
+/// members whose default implementations throw <see cref="NotSupportedException"/>; check <see
+/// cref="JobStorage.HasFeature"/> before calling them.
+/// </summary>
+public abstract class JobStorageTransaction : IWriteOnlyTransaction
 {
-    /// <summary>
-    /// The base class for storage transactions. It implements <see cref="IWriteOnlyTransaction"/> and adds optional
-    /// members whose default implementations throw <see cref="NotSupportedException"/>; check <see
-    /// cref="JobStorage.HasFeature"/> before calling them.
-    /// </summary>
-    public abstract class JobStorageTransaction : IWriteOnlyTransaction
+    public virtual void Dispose()
     {
-        public virtual void Dispose()
-        {
-            GC.SuppressFinalize(this);
-        }
+        GC.SuppressFinalize(this);
+    }
 
-        public abstract void ExpireJob(string jobId, TimeSpan expireIn);
-        public abstract void PersistJob(string jobId);
-        public abstract void SetJobState(string jobId, IState state);
-        public abstract void AddJobState(string jobId, IState state);
-        public abstract void AddToQueue(string queue, string jobId);
-        public abstract void IncrementCounter(string key);
-        public abstract void IncrementCounter(string key, TimeSpan expireIn);
-        public abstract void DecrementCounter(string key);
-        public abstract void DecrementCounter(string key, TimeSpan expireIn);
-        public abstract void AddToSet(string key, string value);
-        public abstract void AddToSet(string key, string value, double score);
-        public abstract void RemoveFromSet(string key, string value);
-        public abstract void InsertToList(string key, string value);
-        public abstract void RemoveFromList(string key, string value);
-        public abstract void TrimList(string key, int keepStartingFrom, int keepEndingAt);
-        public abstract void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs);
-        public abstract void RemoveHash(string key);
-        public abstract void Commit();
+    public abstract void ExpireJob(string jobId, TimeSpan expireIn);
+    public abstract void PersistJob(string jobId);
+    public abstract void SetJobState(string jobId, IState state);
+    public abstract void AddJobState(string jobId, IState state);
+    public abstract void AddToQueue(string queue, string jobId);
+    public abstract void IncrementCounter(string key);
+    public abstract void IncrementCounter(string key, TimeSpan expireIn);
+    public abstract void DecrementCounter(string key);
+    public abstract void DecrementCounter(string key, TimeSpan expireIn);
+    public abstract void AddToSet(string key, string value);
+    public abstract void AddToSet(string key, string value, double score);
+    public abstract void RemoveFromSet(string key, string value);
+    public abstract void InsertToList(string key, string value);
+    public abstract void RemoveFromList(string key, string value);
+    public abstract void TrimList(string key, int keepStartingFrom, int keepEndingAt);
+    public abstract void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs);
+    public abstract void RemoveHash(string key);
+    public abstract void Commit();
 
-        public virtual void ExpireSet([NotNull] string key, TimeSpan expireIn)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void ExpireSet([NotNull] string key, TimeSpan expireIn)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void ExpireList([NotNull] string key, TimeSpan expireIn)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void ExpireList([NotNull] string key, TimeSpan expireIn)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void ExpireHash([NotNull] string key, TimeSpan expireIn)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void ExpireHash([NotNull] string key, TimeSpan expireIn)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void PersistSet([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void PersistSet([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void PersistList([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void PersistList([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void PersistHash([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void PersistHash([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void AddRangeToSet([NotNull] string key, [NotNull] IList<string> items)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void AddRangeToSet([NotNull] string key, [NotNull] IList<string> items)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void RemoveSet([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual void RemoveSet([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual void AcquireDistributedLock([NotNull] string resource, TimeSpan timeout)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.AcquireDistributedLock);
-        }
+    public virtual void AcquireDistributedLock([NotNull] string resource, TimeSpan timeout)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.AcquireDistributedLock);
+    }
 
-        public virtual void RemoveFromQueue([NotNull] IFetchedJob fetchedJob)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
-        }
-        
-        public virtual void SetJobParameter([NotNull] string jobId, [NotNull] string name, [CanBeNull] string? value)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.SetJobParameter);
-        }
+    public virtual void RemoveFromQueue([NotNull] IFetchedJob fetchedJob)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
+    }
 
-        public virtual string? CreateJob([NotNull] Job job, [NotNull] IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.CreateJob);
-        }
+    public virtual void SetJobParameter([NotNull] string jobId, [NotNull] string name, [CanBeNull] string? value)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.SetJobParameter);
+    }
+
+    public virtual string? CreateJob([NotNull] Job job, [NotNull] IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Transaction.CreateJob);
     }
 }

@@ -1,22 +1,18 @@
-﻿using System;
-using Masterly.NightShift.States;
+﻿namespace Masterly.NightShift.Core.Tests;
 
-namespace Masterly.NightShift.Core.Tests
+public class ElectStateContextMock
 {
-    public class ElectStateContextMock
+    private readonly Lazy<ElectStateContext> _context;
+
+    public ElectStateContextMock()
     {
-        private readonly Lazy<ElectStateContext> _context;
+        ApplyContext = new ApplyStateContextMock();
 
-        public ElectStateContextMock()
-        {
-            ApplyContext = new ApplyStateContextMock();
-
-            _context = new Lazy<ElectStateContext>(
-                () => new ElectStateContext(ApplyContext.Object));
-        }
-
-        public ApplyStateContextMock ApplyContext { get; set; }
-
-        public ElectStateContext Object => _context.Value;
+        _context = new Lazy<ElectStateContext>(
+            () => new ElectStateContext(ApplyContext.Object));
     }
+
+    public ApplyStateContextMock ApplyContext { get; set; }
+
+    public ElectStateContext Object => _context.Value;
 }

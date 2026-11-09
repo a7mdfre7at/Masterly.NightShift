@@ -15,503 +15,488 @@
 
 #nullable enable
 
-using System;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Client;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
-using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Represents a recurring job manager that allows to create, update
+/// or delete recurring jobs.
+/// </summary>
+public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2, IRecurringJobManagerV3
 {
-    /// <summary>
-    /// Represents a recurring job manager that allows to create, update
-    /// or delete recurring jobs.
-    /// </summary>
-    public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2, IRecurringJobManagerV3
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(15);
+
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(RecurringJobManager));
+    private readonly IBackgroundJobFactory _factory;
+    private readonly Func<DateTime> _nowFactory;
+
+    public RecurringJobManager()
+        : this(JobStorage.Current)
     {
-        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(15);
+    }
 
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(RecurringJobManager));
+    public RecurringJobManager([NotNull] JobStorage storage)
+        : this(storage, JobFilterProviders.Providers)
+    {
+    }
 
-        private readonly JobStorage _storage;
-        private readonly IBackgroundJobFactory _factory;
-        private readonly Func<DateTime> _nowFactory;
-        private readonly ITimeZoneResolver _timeZoneResolver;
+    public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IJobFilterProvider filterProvider)
+        : this(storage, filterProvider, GlobalTimeZoneResolver.Current)
+    {
+    }
 
-        public RecurringJobManager()
-            : this(JobStorage.Current)
+    public RecurringJobManager(
+        [NotNull] JobStorage storage,
+        [NotNull] IJobFilterProvider filterProvider,
+        [NotNull] ITimeZoneResolver timeZoneResolver)
+        : this(storage, filterProvider, timeZoneResolver, static () => DateTime.UtcNow)
+    {
+    }
+
+    public RecurringJobManager(
+        [NotNull] JobStorage storage,
+        [NotNull] IJobFilterProvider filterProvider,
+        [NotNull] ITimeZoneResolver timeZoneResolver,
+        [NotNull] Func<DateTime> nowFactory)
+        : this(storage, new BackgroundJobFactory(filterProvider), timeZoneResolver, nowFactory)
+    {
+    }
+
+    public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IBackgroundJobFactory factory)
+        : this(storage, factory, GlobalTimeZoneResolver.Current)
+    {
+    }
+
+    public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IBackgroundJobFactory factory, [NotNull] ITimeZoneResolver timeZoneResolver)
+        : this(storage, factory, timeZoneResolver, static () => DateTime.UtcNow)
+    {
+    }
+
+    internal RecurringJobManager(
+        [NotNull] JobStorage storage,
+        [NotNull] IBackgroundJobFactory factory,
+        [NotNull] ITimeZoneResolver timeZoneResolver,
+        [NotNull] Func<DateTime> nowFactory)
+    {
+        Storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        TimeZoneResolver = timeZoneResolver ?? throw new ArgumentNullException(nameof(timeZoneResolver));
+        _nowFactory = nowFactory ?? throw new ArgumentNullException(nameof(nowFactory));
+    }
+
+    public JobStorage Storage { get; }
+
+    internal ITimeZoneResolver TimeZoneResolver { get; }
+
+    public void AddOrUpdate(string recurringJobId, Job job, string cronExpression, RecurringJobOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+        ArgumentNullException.ThrowIfNull(job);
+        ArgumentNullException.ThrowIfNull(cronExpression);
+        ArgumentNullException.ThrowIfNull(options);
+
+        ValidateCronExpression(cronExpression);
+        ValidateMisfireHandling(options.MisfireHandling, nameof(options));
+        ValidateWindow(options.StartAt, options.EndAt, nameof(options));
+
+        if (job.Queue != null && !Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
         {
+            throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
         }
 
-        public RecurringJobManager([NotNull] JobStorage storage)
-            : this(storage, JobFilterProviders.Providers)
+        using (var connection = Storage.GetConnection())
+        using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
         {
-        }
+            var now = _nowFactory();
+            var recurringJob = connection.GetOrCreateRecurringJob(recurringJobId);
+            var scheduleChanged = false;
 
-        public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IJobFilterProvider filterProvider)
-            : this(storage, filterProvider, GlobalTimeZoneResolver.Current)
-        {
-        }
+            recurringJob.Job = InvocationData.SerializeJob(job).SerializePayload();
 
-        public RecurringJobManager(
-            [NotNull] JobStorage storage, 
-            [NotNull] IJobFilterProvider filterProvider,
-            [NotNull] ITimeZoneResolver timeZoneResolver)
-            : this(storage, filterProvider, timeZoneResolver, static () => DateTime.UtcNow)
-        {
-        }
+            var meaningChanged = false;
 
-        public RecurringJobManager(
-            [NotNull] JobStorage storage, 
-            [NotNull] IJobFilterProvider filterProvider, 
-            [NotNull] ITimeZoneResolver timeZoneResolver,
-            [NotNull] Func<DateTime> nowFactory)
-            : this(storage, new BackgroundJobFactory(filterProvider), timeZoneResolver, nowFactory)
-        {
-        }
-
-        public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IBackgroundJobFactory factory)
-            : this(storage, factory, GlobalTimeZoneResolver.Current)
-        {
-        }
-
-        public RecurringJobManager([NotNull] JobStorage storage, [NotNull] IBackgroundJobFactory factory, [NotNull] ITimeZoneResolver timeZoneResolver)
-            : this(storage, factory, timeZoneResolver, static () => DateTime.UtcNow)
-        {
-        }
-
-        internal RecurringJobManager(
-            [NotNull] JobStorage storage, 
-            [NotNull] IBackgroundJobFactory factory,
-            [NotNull] ITimeZoneResolver timeZoneResolver,
-            [NotNull] Func<DateTime> nowFactory)
-        {
-            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-            _timeZoneResolver = timeZoneResolver ?? throw new ArgumentNullException(nameof(timeZoneResolver));
-            _nowFactory = nowFactory ?? throw new ArgumentNullException(nameof(nowFactory));
-        }
-
-        public JobStorage Storage => _storage;
-
-        internal ITimeZoneResolver TimeZoneResolver => _timeZoneResolver;
-
-        public void AddOrUpdate(string recurringJobId, Job job, string cronExpression, RecurringJobOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-            ArgumentNullException.ThrowIfNull(job);
-            ArgumentNullException.ThrowIfNull(cronExpression);
-            ArgumentNullException.ThrowIfNull(options);
-
-            ValidateCronExpression(cronExpression);
-            ValidateMisfireHandling(options.MisfireHandling, nameof(options));
-            ValidateWindow(options.StartAt, options.EndAt, nameof(options));
-
-            if (job.Queue != null && !Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
+            if (!cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
+                meaningChanged |= !IsSameCron(recurringJob.Cron, cronExpression);
+                recurringJob.Cron = cronExpression;
+                scheduleChanged = true;
             }
 
-            using (var connection = _storage.GetConnection())
-            using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+            if (!options.TimeZone.Id.Equals(recurringJob.TimeZoneId, StringComparison.OrdinalIgnoreCase))
             {
-                var now = _nowFactory();
-                var recurringJob = connection.GetOrCreateRecurringJob(recurringJobId);
-                var scheduleChanged = false;
+                meaningChanged |= !IsSameTimeZone(recurringJob.TimeZoneId, options.TimeZone);
+                recurringJob.TimeZoneId = options.TimeZone.Id;
+                scheduleChanged = true;
+            }
 
-                recurringJob.Job = InvocationData.SerializeJob(job).SerializePayload();
+            // A new window is a new schedule: Strict doesn't create the runs it would have had before it was set
+            if (recurringJob.SetWindow(options.StartAt?.UtcDateTime, options.EndAt?.UtcDateTime))
+            {
+                meaningChanged = true;
+                scheduleChanged = true;
+            }
 
-                var meaningChanged = false;
+            if (meaningChanged)
+            {
+                recurringJob.RecordScheduleChange(now);
+            }
 
-                if (!cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
-                {
-                    meaningChanged |= !IsSameCron(recurringJob.Cron, cronExpression);
-                    recurringJob.Cron = cronExpression;
-                    scheduleChanged = true;
-                }
+            recurringJob.Queue = options.QueueName;
+            recurringJob.MisfireHandling = options.MisfireHandling;
+            recurringJob.RetryAttempt = 0;
 
-                if (!options.TimeZone.Id.Equals(recurringJob.TimeZoneId, StringComparison.OrdinalIgnoreCase))
-                {
-                    meaningChanged |= !IsSameTimeZone(recurringJob.TimeZoneId, options.TimeZone);
-                    recurringJob.TimeZoneId = options.TimeZone.Id;
-                    scheduleChanged = true;
-                }
+            // A paused job stays paused when the application re-registers it on start-up
+            if ((scheduleChanged || recurringJob.Error != null) && !recurringJob.Paused)
+            {
+                recurringJob.ScheduleNext(TimeZoneResolver, now.AddSeconds(-1));
+            }
 
-                // A new window is a new schedule: Strict doesn't create the runs it would have had before it was set
-                if (recurringJob.SetWindow(options.StartAt?.UtcDateTime, options.EndAt?.UtcDateTime))
-                {
-                    meaningChanged = true;
-                    scheduleChanged = true;
-                }
-
-                if (meaningChanged)
-                {
-                    recurringJob.RecordScheduleChange(now);
-                }
-
-                recurringJob.Queue = options.QueueName;
-                recurringJob.MisfireHandling = options.MisfireHandling;
-                recurringJob.RetryAttempt = 0;
-
-                // A paused job stays paused when the application re-registers it on start-up
-                if ((scheduleChanged || recurringJob.Error != null) && !recurringJob.Paused)
-                {
-                    recurringJob.ScheduleNext(_timeZoneResolver, now.AddSeconds(-1));
-                }
-
-                if (recurringJob.IsChanged(now, out var changedFields))
-                {
-                    using (var transaction = connection.CreateWriteTransaction())
-                    {
-                        transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
-                        transaction.Commit();
-                    }
-                }
+            if (recurringJob.IsChanged(now, out var changedFields))
+            {
+                using var transaction = connection.CreateWriteTransaction();
+                transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+                transaction.Commit();
             }
         }
- 
-        // A rewrite that keeps the meaning ("0 0 * * *" and "@daily") isn't a schedule change, so Strict keeps
-        // catching up on the runs missed before it
-        private static bool IsSameCron([CanBeNull] string? stored, [NotNull] string cronExpression)
+    }
+
+    // A rewrite that keeps the meaning ("0 0 * * *" and "@daily") isn't a schedule change, so Strict keeps
+    // catching up on the runs missed before it
+    private static bool IsSameCron([CanBeNull] string? stored, [NotNull] string cronExpression)
+    {
+        if (stored == null) return false;
+
+        try
         {
-            if (stored == null) return false;
+            return RecurringJobEntity.ParseCronExpression(stored).Equals(RecurringJobEntity.ParseCronExpression(cronExpression));
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return false;
+        }
+    }
+
+    // The same zone under another id, for example servers on Windows and Linux registering TimeZoneInfo.Local
+    // as "W. Europe Standard Time" and "Europe/Berlin", isn't a schedule change either
+    private bool IsSameTimeZone([CanBeNull] string? storedId, [NotNull] TimeZoneInfo timeZone)
+    {
+        if (storedId == null) return false;
+
+        if (string.Equals(ToIanaId(storedId), ToIanaId(timeZone.Id), StringComparison.OrdinalIgnoreCase)) return true;
+
+        try
+        {
+            var stored = TimeZoneResolver.GetTimeZoneById(storedId);
+            return stored != null && stored.HasSameRules(timeZone);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            return false;
+        }
+    }
+
+    private static string ToIanaId(string id)
+    {
+        return TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var ianaId) ? ianaId : id;
+    }
+
+    private static void ValidateCronExpression(string cronExpression)
+    {
+        try
+        {
+            RecurringJobEntity.ParseCronExpression(cronExpression);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            throw new ArgumentException(
+                "CRON expression is invalid. Please see the inner exception for details.",
+                nameof(cronExpression),
+                ex);
+        }
+    }
+
+    // A value outside the enum would be stored, and no server could read the recurring job afterwards
+    internal static void ValidateMisfireHandling(MisfireHandlingMode misfireHandling, [InvokerParameterName] string parameterName)
+    {
+        if (!Enum.IsDefined(misfireHandling))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                misfireHandling,
+                $"Misfire handling mode {(int)misfireHandling} is not defined. Use Relaxed, Strict or Ignorable.");
+        }
+    }
+
+    private static readonly DateTimeOffset UnixEpoch = new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    // Schedules and run times are kept as Unix timestamps, so a window can't start or end before 1970
+    internal static void ValidateWindow(DateTimeOffset? startAt, DateTimeOffset? endAt, [InvokerParameterName] string parameterName)
+    {
+        if (startAt.HasValue && startAt.Value < UnixEpoch)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                startAt.Value,
+                "StartAt can't be earlier than 1970-01-01T00:00:00Z.");
+        }
+
+        if (endAt.HasValue && endAt.Value < UnixEpoch)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                endAt.Value,
+                "EndAt can't be earlier than 1970-01-01T00:00:00Z.");
+        }
+
+        if (startAt.HasValue && endAt.HasValue && endAt.Value <= startAt.Value)
+        {
+            throw new ArgumentException(
+                $"EndAt ({endAt.Value:o}) must be later than StartAt ({startAt.Value:o}).",
+                parameterName);
+        }
+    }
+
+    public void Trigger(string recurringJobId) => TriggerJob(recurringJobId);
+
+    public string? TriggerJob(string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        using (var connection = Storage.GetConnection())
+        using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+        {
+            var now = _nowFactory();
+
+            var recurringJob = connection.GetRecurringJob(recurringJobId);
+            if (recurringJob == null) return null;
+
+            BackgroundJob? backgroundJob;
 
             try
             {
-                return RecurringJobEntity.ParseCronExpression(stored).Equals(RecurringJobEntity.ParseCronExpression(cronExpression));
+                backgroundJob = _factory.TriggerRecurringJob(Storage, connection, EmptyProfiler.Instance, recurringJob, now);
+                recurringJob.ScheduleNext(TimeZoneResolver, now);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                return false;
-            }
-        }
-
-        // The same zone under another id, for example servers on Windows and Linux registering TimeZoneInfo.Local
-        // as "W. Europe Standard Time" and "Europe/Berlin", isn't a schedule change either
-        private bool IsSameTimeZone([CanBeNull] string? storedId, [NotNull] TimeZoneInfo timeZone)
-        {
-            if (storedId == null) return false;
-
-            if (String.Equals(ToIanaId(storedId), ToIanaId(timeZone.Id), StringComparison.OrdinalIgnoreCase)) return true;
-
-            try
-            {
-                var stored = _timeZoneResolver.GetTimeZoneById(storedId);
-                return stored != null && stored.HasSameRules(timeZone);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                return false;
-            }
-        }
-
-        private static string ToIanaId(string id)
-        {
-            return TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var ianaId) ? ianaId : id;
-        }
-
-        private static void ValidateCronExpression(string cronExpression)
-        {
-            try
-            {
-                RecurringJobEntity.ParseCronExpression(cronExpression);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                throw new ArgumentException(
-                    "CRON expression is invalid. Please see the inner exception for details.",
-                    nameof(cronExpression),
-                    ex);
-            }
-        }
-
-        // A value outside the enum would be stored, and no server could read the recurring job afterwards
-        internal static void ValidateMisfireHandling(MisfireHandlingMode misfireHandling, [InvokerParameterName] string parameterName)
-        {
-            if (!Enum.IsDefined(misfireHandling))
-            {
-                throw new ArgumentOutOfRangeException(
-                    parameterName,
-                    misfireHandling,
-                    $"Misfire handling mode {(int)misfireHandling} is not defined. Use Relaxed, Strict or Ignorable.");
-            }
-        }
-
-        private static readonly DateTimeOffset UnixEpoch = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        // Schedules and run times are kept as Unix timestamps, so a window can't start or end before 1970
-        internal static void ValidateWindow(DateTimeOffset? startAt, DateTimeOffset? endAt, [InvokerParameterName] string parameterName)
-        {
-            if (startAt.HasValue && startAt.Value < UnixEpoch)
-            {
-                throw new ArgumentOutOfRangeException(
-                    parameterName,
-                    startAt.Value,
-                    "StartAt can't be earlier than 1970-01-01T00:00:00Z.");
+                // TODO: Preserving backward compatibility, should be removed in 2.0.0.
+                throw new AggregateException(ex);
             }
 
-            if (endAt.HasValue && endAt.Value < UnixEpoch)
+            if (recurringJob.IsChanged(now, out var changedFields))
             {
-                throw new ArgumentOutOfRangeException(
-                    parameterName,
-                    endAt.Value,
-                    "EndAt can't be earlier than 1970-01-01T00:00:00Z.");
-            }
-
-            if (startAt.HasValue && endAt.HasValue && endAt.Value <= startAt.Value)
-            {
-                throw new ArgumentException(
-                    $"EndAt ({endAt.Value:o}) must be later than StartAt ({startAt.Value:o}).",
-                    parameterName);
-            }
-        }
-
-        public void Trigger(string recurringJobId) => TriggerJob(recurringJobId);
-
-        public string? TriggerJob(string recurringJobId)
-        {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            using (var connection = _storage.GetConnection())
-            using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
-            {
-                var now = _nowFactory();
-
-                var recurringJob = connection.GetRecurringJob(recurringJobId);
-                if (recurringJob == null) return null;
-
-                BackgroundJob? backgroundJob;
+                // Work that waits for the commit, such as the activity feed entry, runs only once the run is stored
+                var afterCommit = new PostCommitActions();
 
                 try
                 {
-                    backgroundJob = _factory.TriggerRecurringJob(_storage, connection, EmptyProfiler.Instance, recurringJob, now);
-                    recurringJob.ScheduleNext(_timeZoneResolver, now);
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    // TODO: Preserving backward compatibility, should be removed in 2.0.0.
-                    throw new AggregateException(ex);
-                }
-
-                if (recurringJob.IsChanged(now, out var changedFields))
-                {
-                    // Work that waits for the commit, such as the activity feed entry, runs only once the run is stored
-                    var afterCommit = new PostCommitActions();
-
-                    try
+                    using var transaction = connection.CreateWriteTransaction();
+                    if (backgroundJob != null)
                     {
-                        using (var transaction = connection.CreateWriteTransaction())
-                        {
-                            if (backgroundJob != null)
-                            {
-                                _factory.StateMachine.EnqueueBackgroundJob(
-                                    _storage,
-                                    connection,
-                                    transaction,
-                                    recurringJob,
-                                    backgroundJob,
-                                    "Triggered using recurring job manager",
-                                    EmptyProfiler.Instance,
-                                    afterCommit);
-                            }
-
-                            transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
-                            transaction.Commit();
-                        }
-                    }
-                    catch
-                    {
-                        // Work about something already stored on its own still runs, a retry wouldn't do it again
-                        afterCommit.RunAfterFailure();
-                        throw;
+                        _factory.StateMachine.EnqueueBackgroundJob(
+                            Storage,
+                            connection,
+                            transaction,
+                            recurringJob,
+                            backgroundJob,
+                            "Triggered using recurring job manager",
+                            EmptyProfiler.Instance,
+                            afterCommit);
                     }
 
-                    afterCommit.Run();
-                    return backgroundJob?.Id;
+                    transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+                    transaction.Commit();
+                }
+                catch
+                {
+                    // Work about something already stored on its own still runs, a retry wouldn't do it again
+                    afterCommit.RunAfterFailure();
+                    throw;
                 }
 
-                return null;
+                afterCommit.Run();
+                return backgroundJob?.Id;
             }
+
+            return null;
         }
+    }
 
-        /// <inheritdoc />
-        public bool Pause(string recurringJobId)
+    /// <inheritdoc />
+    public bool Pause(string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        return UpdateExisting(recurringJobId, static (recurringJob, _) => recurringJob.Pause());
+    }
+
+    /// <inheritdoc />
+    public bool Resume(string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        return UpdateExisting(recurringJobId, (recurringJob, now) =>
         {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            return UpdateExisting(recurringJobId, static (recurringJob, _) => recurringJob.Pause());
-        }
-
-        /// <inheritdoc />
-        public bool Resume(string recurringJobId)
-        {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            return UpdateExisting(recurringJobId, (recurringJob, now) =>
+            if (recurringJob.Paused)
             {
-                if (recurringJob.Paused)
-                {
-                    recurringJob.Resume(_timeZoneResolver, now);
-                }
-            });
+                recurringJob.Resume(TimeZoneResolver, now);
+            }
+        });
+    }
+
+    /// <inheritdoc />
+    public bool UpdateSchedule(
+        string recurringJobId,
+        string? cronExpression,
+        TimeZoneInfo? timeZone = null,
+        string? queue = null,
+        MisfireHandlingMode? misfireHandling = null)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        if (cronExpression != null)
+        {
+            ValidateCronExpression(cronExpression);
         }
 
-        /// <inheritdoc />
-        public bool UpdateSchedule(
-            string recurringJobId,
-            string? cronExpression,
-            TimeZoneInfo? timeZone = null,
-            string? queue = null,
-            MisfireHandlingMode? misfireHandling = null)
+        if (queue != null)
         {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
+            EnqueuedState.ValidateQueueName(nameof(queue), queue);
+        }
 
-            if (cronExpression != null)
+        if (misfireHandling.HasValue)
+        {
+            ValidateMisfireHandling(misfireHandling.Value, nameof(misfireHandling));
+        }
+
+        var jobQueues = queue != null && Storage.HasFeature(JobStorageFeatures.JobQueueProperty);
+
+        return UpdateExisting(recurringJobId, (recurringJob, now) =>
+        {
+            var scheduleChanged = false;
+
+            var meaningChanged = false;
+
+            if (cronExpression != null && !cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
             {
-                ValidateCronExpression(cronExpression);
+                meaningChanged |= !IsSameCron(recurringJob.Cron, cronExpression);
+                recurringJob.Cron = cronExpression;
+                scheduleChanged = true;
+            }
+
+            if (timeZone != null && !timeZone.Id.Equals(recurringJob.TimeZoneId, StringComparison.OrdinalIgnoreCase))
+            {
+                meaningChanged |= !IsSameTimeZone(recurringJob.TimeZoneId, timeZone);
+                recurringJob.TimeZoneId = timeZone.Id;
+                scheduleChanged = true;
             }
 
             if (queue != null)
             {
-                EnqueuedState.ValidateQueueName(nameof(queue), queue);
+                if (jobQueues)
+                {
+                    UpdateJobQueue(recurringJob, queue);
+                }
+
+                recurringJob.Queue = queue;
             }
 
             if (misfireHandling.HasValue)
             {
-                ValidateMisfireHandling(misfireHandling.Value, nameof(misfireHandling));
+                recurringJob.MisfireHandling = misfireHandling.Value;
             }
 
-            var jobQueues = queue != null && _storage.HasFeature(JobStorageFeatures.JobQueueProperty);
-
-            return UpdateExisting(recurringJobId, (recurringJob, now) =>
+            if (meaningChanged)
             {
-                var scheduleChanged = false;
-
-                var meaningChanged = false;
-
-                if (cronExpression != null && !cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
-                {
-                    meaningChanged |= !IsSameCron(recurringJob.Cron, cronExpression);
-                    recurringJob.Cron = cronExpression;
-                    scheduleChanged = true;
-                }
-
-                if (timeZone != null && !timeZone.Id.Equals(recurringJob.TimeZoneId, StringComparison.OrdinalIgnoreCase))
-                {
-                    meaningChanged |= !IsSameTimeZone(recurringJob.TimeZoneId, timeZone);
-                    recurringJob.TimeZoneId = timeZone.Id;
-                    scheduleChanged = true;
-                }
-
-                if (queue != null)
-                {
-                    if (jobQueues)
-                    {
-                        UpdateJobQueue(recurringJob, queue);
-                    }
-
-                    recurringJob.Queue = queue;
-                }
-
-                if (misfireHandling.HasValue)
-                {
-                    recurringJob.MisfireHandling = misfireHandling.Value;
-                }
-
-                if (meaningChanged)
-                {
-                    recurringJob.RecordScheduleChange(now);
-                }
-
-                if (scheduleChanged || recurringJob.Error != null)
-                {
-                    recurringJob.RetryAttempt = 0;
-                    recurringJob.ScheduleNext(_timeZoneResolver, now.AddSeconds(-1));
-                }
-            });
-        }
-
-        // A run's later enqueues, such as AutomaticRetry's retries, use the job's own queue and not the recurring
-        // job's, so on storages that keep it the job carries the new queue too, as AddOrUpdate(id, queue, ...) and
-        // the manifest store it. Moving back to the default queue clears the job's queue only when it follows the
-        // recurring job's queue: a queue the job was registered with stays, so the dashboard's Edit dialog, which
-        // sends the recurring job's queue ("default") with every change, doesn't move such a job.
-        private void UpdateJobQueue(RecurringJobEntity recurringJob, string queue)
-        {
-            if (recurringJob.Job == null) return;
-
-            try
-            {
-                var invocationData = InvocationData.DeserializePayload(recurringJob.Job);
-                var current = GetExplicitQueue(invocationData.Queue);
-                var target = GetExplicitQueue(queue);
-
-                if (String.Equals(current, target, StringComparison.Ordinal)) return;
-                if (target == null && !String.Equals(current, GetExplicitQueue(recurringJob.Queue), StringComparison.Ordinal)) return;
-
-                recurringJob.Job = new InvocationData(
-                    invocationData.Type,
-                    invocationData.Method,
-                    invocationData.ParameterTypes,
-                    invocationData.Arguments,
-                    target).SerializePayload();
+                recurringJob.RecordScheduleChange(now);
             }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
+
+            if (scheduleChanged || recurringJob.Error != null)
             {
-                _logger.WarnException(
-                    $"The job of recurring job '{recurringJob.RecurringJobId}' can't be read, so its queue is changed for new runs only: their retries keep the job's previous queue.",
-                    ex);
+                recurringJob.RetryAttempt = 0;
+                recurringJob.ScheduleNext(TimeZoneResolver, now.AddSeconds(-1));
             }
-        }
+        });
+    }
 
-        /// <summary>The queue name, or <c>null</c> when it is empty or the default queue.</summary>
-        private static string? GetExplicitQueue(string? queue)
-        {
-            return String.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase)
-                ? null
-                : queue;
-        }
+    // A run's later enqueues, such as AutomaticRetry's retries, use the job's own queue and not the recurring
+    // job's, so on storages that keep it the job carries the new queue too, as AddOrUpdate(id, queue, ...) and
+    // the manifest store it. Moving back to the default queue clears the job's queue only when it follows the
+    // recurring job's queue: a queue the job was registered with stays, so the dashboard's Edit dialog, which
+    // sends the recurring job's queue ("default") with every change, doesn't move such a job.
+    private void UpdateJobQueue(RecurringJobEntity recurringJob, string queue)
+    {
+        if (recurringJob.Job == null) return;
 
-        private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update)
+        try
         {
-            using (var connection = _storage.GetConnection())
-            using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+            var invocationData = InvocationData.DeserializePayload(recurringJob.Job);
+            var current = GetExplicitQueue(invocationData.Queue);
+            var target = GetExplicitQueue(queue);
+
+            if (string.Equals(current, target, StringComparison.Ordinal)) return;
+            if (target == null && !string.Equals(current, GetExplicitQueue(recurringJob.Queue), StringComparison.Ordinal)) return;
+
+            recurringJob.Job = new InvocationData(
+                invocationData.Type,
+                invocationData.Method,
+                invocationData.ParameterTypes,
+                invocationData.Arguments,
+                target).SerializePayload();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException(
+                $"The job of recurring job '{recurringJob.RecurringJobId}' can't be read, so its queue is changed for new runs only: their retries keep the job's previous queue.",
+                ex);
+        }
+    }
+
+    /// <summary>The queue name, or <c>null</c> when it is empty or the default queue.</summary>
+    private static string? GetExplicitQueue(string? queue)
+    {
+        return string.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : queue;
+    }
+
+    private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update)
+    {
+        using (var connection = Storage.GetConnection())
+        using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+        {
+            var now = _nowFactory();
+            var recurringJob = connection.GetRecurringJob(recurringJobId);
+            if (recurringJob == null) return false;
+
+            update(recurringJob, now);
+
+            if (recurringJob.IsChanged(now, out var changedFields))
             {
-                var now = _nowFactory();
-                var recurringJob = connection.GetRecurringJob(recurringJobId);
-                if (recurringJob == null) return false;
-
-                update(recurringJob, now);
-
-                if (recurringJob.IsChanged(now, out var changedFields))
-                {
-                    using (var transaction = connection.CreateWriteTransaction())
-                    {
-                        transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
-                        transaction.Commit();
-                    }
-                }
-
-                return true;
-            }
-        }
-
-        public void RemoveIfExists(string recurringJobId)
-        {
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            using (var connection = _storage.GetConnection())
-            using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
-            using (var transaction = connection.CreateWriteTransaction())
-            {
-                transaction.RemoveHash($"recurring-job:{recurringJobId}");
-                transaction.RemoveFromSet("recurring-jobs", recurringJobId);
-
+                using var transaction = connection.CreateWriteTransaction();
+                transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
                 transaction.Commit();
             }
+
+            return true;
+        }
+    }
+
+    public void RemoveIfExists(string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        using (var connection = Storage.GetConnection())
+        using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
+        using (var transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveHash($"recurring-job:{recurringJobId}");
+            transaction.RemoveFromSet("recurring-jobs", recurringJobId);
+
+            transaction.Commit();
         }
     }
 }

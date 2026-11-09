@@ -1,12 +1,9 @@
-﻿using System;
+﻿namespace Masterly.NightShift.Core.Tests;
 
-namespace Masterly.NightShift.Core.Tests
+internal static class PlatformHelper
 {
-    internal static class PlatformHelper
+    public static bool IsRunningOnWindows()
     {
-        public static bool IsRunningOnWindows()
-        {
-            return Environment.OSVersion.Platform == PlatformID.Win32NT;
-        }
+        return Environment.OSVersion.Platform == PlatformID.Win32NT;
     }
 }

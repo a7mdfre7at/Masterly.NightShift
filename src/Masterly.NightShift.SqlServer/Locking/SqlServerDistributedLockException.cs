@@ -13,23 +13,13 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.SqlServer;
 
-namespace Masterly.NightShift.SqlServer
+/// <summary>
+/// Thrown when SQL Server refuses or fails a distributed lock request.
+/// </summary>
+/// <param name="message">The message.</param>
+[Serializable]
+public class SqlServerDistributedLockException(string message) : Exception(message)
 {
-    /// <summary>
-    /// Thrown when SQL Server refuses or fails a distributed lock request.
-    /// </summary>
-    [Serializable]
-    public class SqlServerDistributedLockException : Exception
-    {
-        /// <summary>
-        /// Initializes the exception with a message.
-        /// </summary>
-        /// <param name="message">The message.</param>
-        public SqlServerDistributedLockException(string message)
-            : base(message)
-        {
-        }
-    }
 }

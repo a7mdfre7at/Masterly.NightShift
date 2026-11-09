@@ -1,64 +1,55 @@
-using System;
-using System.Linq;
 using System.Net;
-using System.Threading.Tasks;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// <c>POST /servers/pause/{serverId}</c> (form field <c>reason</c>, optional) makes one server hold every job
+/// it fetches: the job goes to Scheduled for the hold interval and is enqueued again, when any server may take
+/// it. A soft drain of one machine before a deploy or while debugging it. <c>POST /servers/resume/{serverId}</c> undoes it. Answers <c>204</c>.
+/// </summary>
+internal sealed class ServerPauseDispatcher(bool pause) : IDashboardDispatcher
 {
-    /// <summary>
-    /// <c>POST /servers/pause/{serverId}</c> (form field <c>reason</c>, optional) makes one server hold every job
-    /// it fetches: the job goes to Scheduled for the hold interval and is enqueued again, when any server may take
-    /// it. A soft drain of one machine before a deploy or while debugging it. <c>POST /servers/resume/{serverId}</c> undoes it. Answers <c>204</c>.
-    /// </summary>
-    internal sealed class ServerPauseDispatcher : IDashboardDispatcher
+    private const int MaxReasonLength = 200;
+    private readonly bool _pause = pause;
+
+    public async Task Dispatch(DashboardContext context)
     {
-        private const int MaxReasonLength = 200;
-        private readonly bool _pause;
-
-        public ServerPauseDispatcher(bool pause)
+        if (context.IsReadOnly)
         {
-            _pause = pause;
+            context.Response.StatusCode = 401;
+            return;
         }
 
-        public async Task Dispatch(DashboardContext context)
+        if (!"POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
         {
-            if (context.IsReadOnly)
-            {
-                context.Response.StatusCode = 401;
-                return;
-            }
-
-            if (!"POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                return;
-            }
-
-            var serverId = RouteValues.Get(context, "Id").Trim();
-            if (serverId.Length == 0)
-            {
-                context.Response.StatusCode = 422;
-                return;
-            }
-
-            string reason = null;
-            using (var connection = context.Storage.GetConnection())
-            {
-                if (_pause)
-                {
-                    reason = (await context.Request.GetFormValuesAsync("reason").ConfigureAwait(false))?.FirstOrDefault()?.Trim();
-                    if (!String.IsNullOrEmpty(reason) && reason.Length > MaxReasonLength) reason = reason.Substring(0, MaxReasonLength);
-
-                    DrainMode.PauseServer(connection, serverId, String.IsNullOrEmpty(reason) ? null : reason);
-                }
-                else
-                {
-                    DrainMode.ResumeServer(connection, serverId);
-                }
-            }
-
-            AuditLog.Record(context, new[] { serverId }, reason);
-            context.Response.StatusCode = (int)HttpStatusCode.NoContent;
+            context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+            return;
         }
+
+        var serverId = RouteValues.Get(context, "Id").Trim();
+        if (serverId.Length == 0)
+        {
+            context.Response.StatusCode = 422;
+            return;
+        }
+
+        string reason = null;
+        using (var connection = context.Storage.GetConnection())
+        {
+            if (_pause)
+            {
+                reason = (await context.Request.GetFormValuesAsync("reason").ConfigureAwait(false))?.FirstOrDefault()?.Trim();
+                if (!string.IsNullOrEmpty(reason) && reason.Length > MaxReasonLength) reason = reason[..MaxReasonLength];
+
+                DrainMode.PauseServer(connection, serverId, string.IsNullOrEmpty(reason) ? null : reason);
+            }
+            else
+            {
+                DrainMode.ResumeServer(connection, serverId);
+            }
+        }
+
+        AuditLog.Record(context, [serverId], reason);
+        context.Response.StatusCode = (int)HttpStatusCode.NoContent;
     }
 }

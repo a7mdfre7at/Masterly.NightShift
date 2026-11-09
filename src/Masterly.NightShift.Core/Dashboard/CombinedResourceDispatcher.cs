@@ -13,44 +13,38 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
 {
-    internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
-    {
-        private readonly IEnumerable<Tuple<Assembly, string>> _resources;
+    private readonly IEnumerable<Tuple<Assembly, string>> _resources;
 
-        public CombinedResourceDispatcher(
-            [NotNull] string contentType, 
-            [NotNull] IEnumerable<Tuple<Assembly, string>> resources)
-            : base(contentType, null, null)
+    public CombinedResourceDispatcher(
+        [NotNull] string contentType,
+        [NotNull] IEnumerable<Tuple<Assembly, string>> resources)
+        : base(contentType, null, null)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        _resources = resources;
+    }
+
+    protected override async Task WriteResponse(DashboardResponse response)
+    {
+        IEnumerable<Tuple<Assembly, string>> copy;
+
+        lock (_resources)
         {
-            ArgumentNullException.ThrowIfNull(resources);
-            _resources = resources;
+            copy = [.. _resources];
         }
 
-        protected override async Task WriteResponse(DashboardResponse response)
+        foreach (var resource in copy)
         {
-            IEnumerable<Tuple<Assembly, string>> copy;
-
-            lock (_resources)
-            {
-                copy = _resources.ToArray();
-            }
-
-            foreach (var resource in copy)
-            {
-                await WriteResource(
-                    response,
-                    resource.Item1,
-                    resource.Item2).ConfigureAwait(false);
-            }
+            await WriteResource(
+                response,
+                resource.Item1,
+                resource.Item2).ConfigureAwait(false);
         }
     }
 }

@@ -15,31 +15,26 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job in the Failed state, as listed by the dashboard.
+/// </summary>
+public class FailedJobDto
 {
-    /// <summary>
-    /// A job in the Failed state, as listed by the dashboard.
-    /// </summary>
-    public class FailedJobDto
+    public FailedJobDto()
     {
-        public FailedJobDto()
-        {
-            InFailedState = true;
-        }
-
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public string? Reason { get; set; }
-        public DateTime? FailedAt { get; set; }
-        public string? ExceptionType { get; set; }
-        public string? ExceptionMessage { get; set; }
-        public string? ExceptionDetails { get; set; }
-        public bool InFailedState { get; set; }
-        public IDictionary<string, string>? StateData { get; set; }
+        InFailedState = true;
     }
+
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public string? Reason { get; set; }
+    public DateTime? FailedAt { get; set; }
+    public string? ExceptionType { get; set; }
+    public string? ExceptionMessage { get; set; }
+    public string? ExceptionDetails { get; set; }
+    public bool InFailedState { get; set; }
+    public IDictionary<string, string>? StateData { get; set; }
 }

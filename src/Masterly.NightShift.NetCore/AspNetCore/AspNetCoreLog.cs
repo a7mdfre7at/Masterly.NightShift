@@ -13,71 +13,61 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
 using Microsoft.Extensions.Logging;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
-namespace Masterly.NightShift.AspNetCore
+namespace Masterly.NightShift.AspNetCore;
+
+internal sealed class AspNetCoreLog : ILog
 {
-    internal sealed class AspNetCoreLog : ILog
+    private static readonly Func<object, Exception, string> MessageFormatterFunc = MessageFormatter;
+
+    private readonly ILogger _targetLogger;
+
+    public AspNetCoreLog([NotNull] ILogger targetLogger)
     {
-        private static readonly Func<object, Exception, string> MessageFormatterFunc = MessageFormatter;
+        ArgumentNullException.ThrowIfNull(targetLogger);
+        _targetLogger = targetLogger;
+    }
 
-        private readonly ILogger _targetLogger;
+    public bool Log(Logging.LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
+    {
+        var targetLogLevel = ToTargetLogLevel(logLevel);
 
-        public AspNetCoreLog([NotNull] ILogger targetLogger)
+        // When messageFunc is null, Masterly.NightShift.Logging
+        // just determines is logging enabled.
+        if (messageFunc == null)
         {
-            ArgumentNullException.ThrowIfNull(targetLogger);
-            _targetLogger = targetLogger;
+            return _targetLogger.IsEnabled(targetLogLevel);
         }
 
-        public bool Log(Logging.LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
+        // Only build the message when it will be written
+        if (!_targetLogger.IsEnabled(targetLogLevel))
         {
-            var targetLogLevel = ToTargetLogLevel(logLevel);
-
-            // When messageFunc is null, Masterly.NightShift.Logging
-            // just determines is logging enabled.
-            if (messageFunc == null)
-            {
-                return _targetLogger.IsEnabled(targetLogLevel);
-            }
-
-            // Only build the message when it will be written
-            if (!_targetLogger.IsEnabled(targetLogLevel))
-            {
-                return false;
-            }
-
-            _targetLogger.Log(targetLogLevel, 0, messageFunc(), exception, MessageFormatterFunc);
-            return true;
+            return false;
         }
 
-        private static LogLevel ToTargetLogLevel(Logging.LogLevel logLevel)
-        {
-            switch (logLevel)
-            {
-                case Logging.LogLevel.Trace:
-                    return LogLevel.Trace;
-                case Logging.LogLevel.Debug:
-                    return LogLevel.Debug;
-                case Logging.LogLevel.Info:
-                    return LogLevel.Information;
-                case Logging.LogLevel.Warn:
-                    return LogLevel.Warning;
-                case Logging.LogLevel.Error:
-                    return LogLevel.Error;
-                case Logging.LogLevel.Fatal:
-                    return LogLevel.Critical;
-            }
+        _targetLogger.Log(targetLogLevel, 0, messageFunc(), exception, MessageFormatterFunc);
+        return true;
+    }
 
-            return LogLevel.None;
-        }
-
-        private static string MessageFormatter(object state, Exception exception)
+    private static LogLevel ToTargetLogLevel(Logging.LogLevel logLevel)
+    {
+        return logLevel switch
         {
-            return state.ToString();
-        }
+            Logging.LogLevel.Trace => LogLevel.Trace,
+            Logging.LogLevel.Debug => LogLevel.Debug,
+            Logging.LogLevel.Info => LogLevel.Information,
+            Logging.LogLevel.Warn => LogLevel.Warning,
+            Logging.LogLevel.Error => LogLevel.Error,
+            Logging.LogLevel.Fatal => LogLevel.Critical,
+            _ => LogLevel.None,
+        };
+    }
+
+    private static string MessageFormatter(object state, Exception exception)
+    {
+        return state.ToString();
     }
 }

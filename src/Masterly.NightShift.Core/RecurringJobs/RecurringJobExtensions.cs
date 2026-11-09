@@ -15,171 +15,163 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Client;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
-using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+internal static class RecurringJobExtensions
 {
-    internal static class RecurringJobExtensions
+    public static IDisposable AcquireDistributedRecurringJobLock(
+        [NotNull] this IStorageConnection connection,
+        [NotNull] string recurringJobId,
+        TimeSpan timeout)
     {
-        public static IDisposable AcquireDistributedRecurringJobLock(
-            [NotNull] this IStorageConnection connection,
-            [NotNull] string recurringJobId,
-            TimeSpan timeout)
-        {
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(recurringJobId);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(recurringJobId);
 
-            return connection.AcquireDistributedLock($"lock:recurring-job:{recurringJobId}", timeout);
+        return connection.AcquireDistributedLock($"lock:recurring-job:{recurringJobId}", timeout);
+    }
+
+    public static RecurringJobEntity? GetRecurringJob(
+        [NotNull] this IStorageConnection connection,
+        [NotNull] string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+        if (recurringJob == null || recurringJob.Count == 0) return null;
+
+        return new RecurringJobEntity(recurringJobId, recurringJob);
+    }
+
+    public static RecurringJobEntity GetOrCreateRecurringJob(
+        [NotNull] this IStorageConnection connection,
+        [NotNull] string recurringJobId)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(recurringJobId);
+
+        var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+        if (recurringJob == null || recurringJob.Count == 0) recurringJob = [];
+
+        return new RecurringJobEntity(recurringJobId, recurringJob);
+    }
+
+    public static void UpdateRecurringJob(
+        [NotNull] this IWriteOnlyTransaction transaction,
+        [NotNull] RecurringJobEntity recurringJob,
+        [NotNull] IReadOnlyDictionary<string, string> changedFields,
+        [CanBeNull] ILog? logger)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(recurringJob);
+        ArgumentNullException.ThrowIfNull(changedFields);
+
+        if (changedFields.Count > 0)
+        {
+            transaction.SetRangeInHash($"recurring-job:{recurringJob.RecurringJobId}", changedFields);
         }
 
-        public static RecurringJobEntity? GetRecurringJob(
-            [NotNull] this IStorageConnection connection,
-            [NotNull] string recurringJobId)
+        var score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
+
+        if (logger != null && logger.IsTraceEnabled())
         {
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (recurringJob == null || recurringJob.Count == 0) return null;
-
-            return new RecurringJobEntity(recurringJobId, recurringJob);
+            logger.Trace($"Recurring job '{recurringJob.RecurringJobId}' is being updated. RecurringJob: ({recurringJob}), Changes: ({string.Join(";", changedFields.Select(static x => $"{x.Key}:{x.Value}"))})");
         }
 
-        public static RecurringJobEntity GetOrCreateRecurringJob(
-            [NotNull] this IStorageConnection connection,
-            [NotNull] string recurringJobId)
+        transaction.AddToSet(
+            "recurring-jobs",
+            recurringJob.RecurringJobId,
+            score);
+    }
+
+    public static BackgroundJob? TriggerRecurringJob(
+        [NotNull] this IBackgroundJobFactory factory,
+        [NotNull] JobStorage storage,
+        [NotNull] IStorageConnection connection,
+        [NotNull] IProfiler profiler,
+        [NotNull] RecurringJobEntity recurringJob,
+        DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(profiler);
+        ArgumentNullException.ThrowIfNull(recurringJob);
+
+        if (recurringJob.Job == null)
         {
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(recurringJobId);
-
-            var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (recurringJob == null || recurringJob.Count == 0) recurringJob = new Dictionary<string, string>();
-
-            return new RecurringJobEntity(recurringJobId, recurringJob);
+            throw new InvalidOperationException("The 'Job' field has a null or empty value");
         }
 
-        public static void UpdateRecurringJob(
-            [NotNull] this IWriteOnlyTransaction transaction,
-            [NotNull] RecurringJobEntity recurringJob,
-            [NotNull] IReadOnlyDictionary<string, string> changedFields,
-            [CanBeNull] ILog? logger)
+        var job = InvocationData.DeserializePayload(recurringJob.Job).DeserializeJob();
+
+        var context = new CreateContext(storage, connection, job, null, null, profiler, null);
+        context.Parameters["RecurringJobId"] = recurringJob.RecurringJobId;
+        context.Parameters["Time"] = JobHelper.ToTimestamp(now);
+
+        var backgroundJob = factory.Create(context);
+
+        recurringJob.LastExecution = now;
+        recurringJob.LastJobId = backgroundJob?.Id;
+
+        return backgroundJob;
+    }
+
+    public static void EnqueueBackgroundJob(
+        [NotNull] this IStateMachine stateMachine,
+        [NotNull] JobStorage storage,
+        [NotNull] IStorageConnection connection,
+        [NotNull] IWriteOnlyTransaction transaction,
+        [NotNull] RecurringJobEntity recurringJob,
+        [NotNull] BackgroundJob backgroundJob,
+        [CanBeNull] string? reason,
+        [NotNull] IProfiler profiler)
+    {
+        EnqueueBackgroundJob(stateMachine, storage, connection, transaction, recurringJob, backgroundJob, reason, profiler, afterCommit: null);
+    }
+
+    // With afterCommit, work that must wait for the caller's commit is collected there for the caller to run
+    internal static void EnqueueBackgroundJob(
+        [NotNull] this IStateMachine stateMachine,
+        [NotNull] JobStorage storage,
+        [NotNull] IStorageConnection connection,
+        [NotNull] IWriteOnlyTransaction transaction,
+        [NotNull] RecurringJobEntity recurringJob,
+        [NotNull] BackgroundJob backgroundJob,
+        [CanBeNull] string? reason,
+        [NotNull] IProfiler profiler,
+        [CanBeNull] PostCommitActions? afterCommit)
+    {
+        ArgumentNullException.ThrowIfNull(stateMachine);
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(recurringJob);
+        ArgumentNullException.ThrowIfNull(backgroundJob);
+        ArgumentNullException.ThrowIfNull(profiler);
+
+        var state = new EnqueuedState { Reason = reason };
+
+        if (recurringJob.Queue != null)
         {
-            ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(recurringJob);
-            ArgumentNullException.ThrowIfNull(changedFields);
-
-            if (changedFields.Count > 0)
-            {
-                transaction.SetRangeInHash($"recurring-job:{recurringJob.RecurringJobId}", changedFields);
-            }
-
-            var score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
-
-            if (logger != null && logger.IsTraceEnabled())
-            {
-                logger.Trace($"Recurring job '{recurringJob.RecurringJobId}' is being updated. RecurringJob: ({recurringJob}), Changes: ({String.Join(";", changedFields.Select(static x => $"{x.Key}:{x.Value}"))})");
-            }
-
-            transaction.AddToSet(
-                "recurring-jobs",
-                recurringJob.RecurringJobId,
-                score);
+            state.Queue = recurringJob.Queue;
         }
 
-        public static BackgroundJob? TriggerRecurringJob(
-            [NotNull] this IBackgroundJobFactory factory,
-            [NotNull] JobStorage storage,
-            [NotNull] IStorageConnection connection,
-            [NotNull] IProfiler profiler,
-            [NotNull] RecurringJobEntity recurringJob,
-            DateTime now)
+        stateMachine.ApplyState(new ApplyStateContext(
+            storage,
+            connection,
+            transaction,
+            backgroundJob,
+            state,
+            null,
+            profiler,
+            stateMachine)
         {
-            ArgumentNullException.ThrowIfNull(factory);
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(profiler);
-            ArgumentNullException.ThrowIfNull(recurringJob);
-
-            if (recurringJob.Job == null)
-            {
-                throw new InvalidOperationException("The 'Job' field has a null or empty value");
-            }
-
-            var job = InvocationData.DeserializePayload(recurringJob.Job).DeserializeJob();
-
-            var context = new CreateContext(storage, connection, job, null, null, profiler, null);
-            context.Parameters["RecurringJobId"] = recurringJob.RecurringJobId;
-            context.Parameters["Time"] = JobHelper.ToTimestamp(now);
-
-            var backgroundJob = factory.Create(context);
-
-            recurringJob.LastExecution = now;
-            recurringJob.LastJobId = backgroundJob?.Id;
-
-            return backgroundJob;
-        }
-
-        public static void EnqueueBackgroundJob(
-            [NotNull] this IStateMachine stateMachine,
-            [NotNull] JobStorage storage,
-            [NotNull] IStorageConnection connection,
-            [NotNull] IWriteOnlyTransaction transaction,
-            [NotNull] RecurringJobEntity recurringJob,
-            [NotNull] BackgroundJob backgroundJob,
-            [CanBeNull] string? reason,
-            [NotNull] IProfiler profiler)
-        {
-            EnqueueBackgroundJob(stateMachine, storage, connection, transaction, recurringJob, backgroundJob, reason, profiler, afterCommit: null);
-        }
-
-        // With afterCommit, work that must wait for the caller's commit is collected there for the caller to run
-        internal static void EnqueueBackgroundJob(
-            [NotNull] this IStateMachine stateMachine,
-            [NotNull] JobStorage storage,
-            [NotNull] IStorageConnection connection,
-            [NotNull] IWriteOnlyTransaction transaction,
-            [NotNull] RecurringJobEntity recurringJob,
-            [NotNull] BackgroundJob backgroundJob,
-            [CanBeNull] string? reason,
-            [NotNull] IProfiler profiler,
-            [CanBeNull] PostCommitActions? afterCommit)
-        {
-            ArgumentNullException.ThrowIfNull(stateMachine);
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(connection);
-            ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(recurringJob);
-            ArgumentNullException.ThrowIfNull(backgroundJob);
-            ArgumentNullException.ThrowIfNull(profiler);
-
-            var state = new EnqueuedState { Reason = reason };
-
-            if (recurringJob.Queue != null)
-            {
-                state.Queue = recurringJob.Queue;
-            }
-
-            stateMachine.ApplyState(new ApplyStateContext(
-                storage,
-                connection,
-                transaction,
-                backgroundJob,
-                state,
-                null,
-                profiler,
-                stateMachine)
-            {
-                AfterCommit = afterCommit
-            });
-        }
+            AfterCommit = afterCommit
+        });
     }
 }

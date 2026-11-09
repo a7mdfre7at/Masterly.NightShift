@@ -13,63 +13,54 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Common;
-using Microsoft.Extensions.DependencyInjection;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+internal sealed class DefaultClientManagerFactory([NotNull] IServiceProvider serviceProvider) : IBackgroundJobClientFactoryV2, IRecurringJobManagerFactoryV3
 {
-    internal sealed class DefaultClientManagerFactory : IBackgroundJobClientFactoryV2, IRecurringJobManagerFactoryV3
+    private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+
+    public IBackgroundJobClientV2 GetClientV2(JobStorage storage)
     {
-        private readonly IServiceProvider _serviceProvider;
-
-        public DefaultClientManagerFactory([NotNull] IServiceProvider serviceProvider)
+        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out var stateChanger, out _))
         {
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            return new BackgroundJobClient(storage, factory, stateChanger);
         }
 
-        public IBackgroundJobClientV2 GetClientV2(JobStorage storage)
+        return new BackgroundJobClient(
+            storage,
+            _serviceProvider.GetRequiredService<IJobFilterProvider>());
+    }
+
+    public IBackgroundJobClient GetClient(JobStorage storage)
+    {
+        return GetClientV2(storage);
+    }
+
+    public IRecurringJobManagerV3 GetManagerV3(JobStorage storage)
+    {
+        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out _, out _))
         {
-            if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out var stateChanger, out _))
-            {
-                return new BackgroundJobClient(storage, factory, stateChanger);
-            }
-
-            return new BackgroundJobClient(
-                storage,
-                _serviceProvider.GetRequiredService<IJobFilterProvider>());
-        }
-
-        public IBackgroundJobClient GetClient(JobStorage storage)
-        {
-            return GetClientV2(storage);
-        }
-
-        public IRecurringJobManagerV3 GetManagerV3(JobStorage storage)
-        {
-            if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out _, out _))
-            {
-                return new RecurringJobManager(
-                    storage,
-                    factory,
-                    _serviceProvider.GetRequiredService<ITimeZoneResolver>());
-            }
-
             return new RecurringJobManager(
                 storage,
-                _serviceProvider.GetRequiredService<IJobFilterProvider>(),
+                factory,
                 _serviceProvider.GetRequiredService<ITimeZoneResolver>());
         }
 
-        public IRecurringJobManagerV2 GetManagerV2(JobStorage storage)
-        {
-            return GetManagerV3(storage);
-        }
+        return new RecurringJobManager(
+            storage,
+            _serviceProvider.GetRequiredService<IJobFilterProvider>(),
+            _serviceProvider.GetRequiredService<ITimeZoneResolver>());
+    }
 
-        public IRecurringJobManager GetManager(JobStorage storage)
-        {
-            return GetManagerV3(storage);
-        }
+    public IRecurringJobManagerV2 GetManagerV2(JobStorage storage)
+    {
+        return GetManagerV3(storage);
+    }
+
+    public IRecurringJobManager GetManager(JobStorage storage)
+    {
+        return GetManagerV3(storage);
     }
 }

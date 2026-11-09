@@ -13,61 +13,53 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Net;
-using System.Threading.Tasks;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+internal sealed class CommandDispatcher(Func<DashboardContext, bool> command) : IDashboardCommandDispatcher
 {
-    internal sealed class CommandDispatcher : IDashboardCommandDispatcher
+    private readonly Func<DashboardContext, bool> _command = command;
+
+    public Task Dispatch(DashboardContext context)
     {
-        private readonly Func<DashboardContext, bool> _command;
-
-        public CommandDispatcher(Func<DashboardContext, bool> command)
+        if (context.IsReadOnly)
         {
-            _command = command;
+            context.Response.StatusCode = 401;
+            return Task.FromResult(false);
         }
 
-        public Task Dispatch(DashboardContext context)
+        var request = context.Request;
+        var response = context.Response;
+
+        if (!"POST".Equals(request.Method, StringComparison.OrdinalIgnoreCase))
         {
-            if (context.IsReadOnly)
-            {
-                context.Response.StatusCode = 401;
-                return Task.FromResult(false);
-            }
-
-            var request = context.Request;
-            var response = context.Response;
-
-            if (!"POST".Equals(request.Method, StringComparison.OrdinalIgnoreCase))
-            {
-                response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                return Task.FromResult(false);
-            }
-
-            if (_command(context))
-            {
-                response.StatusCode = (int)HttpStatusCode.NoContent;
-            }
-            else
-            {
-                response.StatusCode = 422;
-            }
-
-            // The route's named groups (a job id, a resource, a tag) are what the action was about
-            var targets = new System.Collections.Generic.List<string>();
-            if (context.UriMatch != null)
-            {
-                for (var i = 1; i < context.UriMatch.Groups.Count; i++)
-                {
-                    var value = context.UriMatch.Groups[i].Value;
-                    if (!String.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
-                }
-            }
-
-            AuditLog.Record(context, targets, null, response.StatusCode);
-
-            return Task.FromResult(true);
+            response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+            return Task.FromResult(false);
         }
+
+        if (_command(context))
+        {
+            response.StatusCode = (int)HttpStatusCode.NoContent;
+        }
+        else
+        {
+            response.StatusCode = 422;
+        }
+
+        // The route's named groups (a job id, a resource, a tag) are what the action was about
+        var targets = new System.Collections.Generic.List<string>();
+        if (context.UriMatch != null)
+        {
+            for (var i = 1; i < context.UriMatch.Groups.Count; i++)
+            {
+                var value = context.UriMatch.Groups[i].Value;
+                if (!string.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
+            }
+        }
+
+        AuditLog.Record(context, targets, null, response.StatusCode);
+
+        return Task.FromResult(true);
     }
 }

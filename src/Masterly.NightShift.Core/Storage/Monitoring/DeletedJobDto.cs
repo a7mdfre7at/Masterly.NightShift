@@ -15,27 +15,22 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job in the Deleted state, as listed by the dashboard.
+/// </summary>
+public class DeletedJobDto
 {
-    /// <summary>
-    /// A job in the Deleted state, as listed by the dashboard.
-    /// </summary>
-    public class DeletedJobDto
+    public DeletedJobDto()
     {
-        public DeletedJobDto()
-        {
-            InDeletedState = true;
-        }
-
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public DateTime? DeletedAt { get; set; }
-        public bool InDeletedState { get; set; }
-        public IDictionary<string, string>? StateData { get; set; }
+        InDeletedState = true;
     }
+
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public bool InDeletedState { get; set; }
+    public IDictionary<string, string>? StateData { get; set; }
 }

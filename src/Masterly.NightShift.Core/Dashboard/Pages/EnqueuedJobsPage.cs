@@ -1,12 +1,6 @@
-﻿namespace Masterly.NightShift.Dashboard.Pages
-{
-    partial class EnqueuedJobsPage
-    {
-        public EnqueuedJobsPage(string queue)
-        {
-            Queue = queue;
-        }
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-        public string Queue { get; }
-    }
+internal partial class EnqueuedJobsPage(string queue)
+{
+    public string Queue { get; } = queue;
 }

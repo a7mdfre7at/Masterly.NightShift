@@ -13,15 +13,12 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>
+/// Decides whether a request may open the dashboard. Add it to <see cref="DashboardOptions.Authorization"/>.
+/// </summary>
+public interface IDashboardAuthorizationFilter
 {
-    /// <summary>
-    /// Decides whether a request may open the dashboard. Add it to <see cref="DashboardOptions.Authorization"/>.
-    /// </summary>
-    public interface IDashboardAuthorizationFilter
-    {
-        bool Authorize([NotNull] DashboardContext context);
-    }
+    bool Authorize([NotNull] DashboardContext context);
 }

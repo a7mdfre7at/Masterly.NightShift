@@ -13,67 +13,54 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Collections.Generic;
-using System.Linq;
+namespace Masterly.NightShift.Common;
 
-namespace Masterly.NightShift.Common
+/// <summary>
+/// Defines a filter provider for filter attributes.
+/// </summary>
+/// <param name="cacheAttributeInstances">Whether the attribute instances read from a job type and method are cached.</param>
+public class JobFilterAttributeFilterProvider(bool cacheAttributeInstances) : IJobFilterProvider
 {
+    private readonly bool _cacheAttributeInstances = cacheAttributeInstances;
+
     /// <summary>
-    /// Defines a filter provider for filter attributes.
+    /// Initializes a new instance of the  <see cref="JobFilterAttributeFilterProvider"/>
+    /// class with the attribute instance caching enabled.
     /// </summary>
-    public class JobFilterAttributeFilterProvider : IJobFilterProvider
+    public JobFilterAttributeFilterProvider()
+        : this(true)
     {
-        private readonly bool _cacheAttributeInstances;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the  <see cref="JobFilterAttributeFilterProvider"/>
-        /// class with the attribute instance caching enabled.
-        /// </summary>
-        public JobFilterAttributeFilterProvider()
-            : this(true)
+    protected virtual IEnumerable<JobFilterAttribute> GetTypeAttributes(Job job)
+    {
+        return job.GetTypeFilterAttributes(_cacheAttributeInstances);
+    }
+
+    protected virtual IEnumerable<JobFilterAttribute> GetMethodAttributes(Job job)
+    {
+        return job.GetMethodFilterAttributes(_cacheAttributeInstances);
+    }
+
+    public virtual IEnumerable<JobFilter> GetFilters(Job job)
+    {
+        if (job == null) return [];
+
+        var typeAttributes = GetTypeAttributes(job);
+        var methodAttributes = GetMethodAttributes(job);
+
+        List<JobFilter> combined = null;
+
+        foreach (var typeAttribute in typeAttributes)
         {
+            (combined ??= []).Add(new JobFilter(typeAttribute, JobFilterScope.Type, null));
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JobFilterAttributeFilterProvider"/> 
-        /// class and optionally caches attribute instances.
-        /// </summary>
-        /// <param name="cacheAttributeInstances"></param>
-        public JobFilterAttributeFilterProvider(bool cacheAttributeInstances)
+        foreach (var methodAttribute in methodAttributes)
         {
-            _cacheAttributeInstances = cacheAttributeInstances;
+            (combined ??= []).Add(new JobFilter(methodAttribute, JobFilterScope.Method, null));
         }
 
-        protected virtual IEnumerable<JobFilterAttribute> GetTypeAttributes(Job job)
-        {
-            return job.GetTypeFilterAttributes(_cacheAttributeInstances);
-        }
-
-        protected virtual IEnumerable<JobFilterAttribute> GetMethodAttributes(Job job)
-        {
-            return job.GetMethodFilterAttributes(_cacheAttributeInstances);
-        }
-
-        public virtual IEnumerable<JobFilter> GetFilters(Job job)
-        {
-            if (job == null) return Enumerable.Empty<JobFilter>();
-
-            var typeAttributes = GetTypeAttributes(job);
-            var methodAttributes = GetMethodAttributes(job);
-
-            List<JobFilter> combined = null;
-
-            foreach (var typeAttribute in typeAttributes)
-            {
-                (combined ??= []).Add(new JobFilter(typeAttribute, JobFilterScope.Type, null));
-            }
-            
-            foreach (var methodAttribute in methodAttributes)
-            {
-                (combined ??= []).Add(new JobFilter(methodAttribute, JobFilterScope.Method, null));
-            }
-
-            return combined ?? Enumerable.Empty<JobFilter>();
-        }
+        return combined ?? Enumerable.Empty<JobFilter>();
     }
 }

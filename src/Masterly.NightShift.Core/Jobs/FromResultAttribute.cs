@@ -13,31 +13,28 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// Fills a continuation's parameter with the result of its parent job (<c>AntecedentResult</c>), when continuation
+/// results are on.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+public sealed class FromResultAttribute : FromParameterAttribute
 {
-    /// <summary>
-    /// Fills a continuation's parameter with the result of its parent job (<c>AntecedentResult</c>), when continuation
-    /// results are on.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Parameter)]
-    public sealed class FromResultAttribute : FromParameterAttribute
+    public FromResultAttribute() : base("AntecedentResult")
     {
-        public FromResultAttribute() : base("AntecedentResult")
-        {
-        }
     }
+}
 
-    /// <summary>
-    /// Fills a continuation's parameter with the exception that deleted its parent job (<c>AntecedentException</c>),
-    /// when continuation results are on.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Parameter)]
-    public sealed class FromExceptionAttribute : FromParameterAttribute
+/// <summary>
+/// Fills a continuation's parameter with the exception that deleted its parent job (<c>AntecedentException</c>),
+/// when continuation results are on.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+public sealed class FromExceptionAttribute : FromParameterAttribute
+{
+    public FromExceptionAttribute() : base("AntecedentException")
     {
-        public FromExceptionAttribute() : base("AntecedentException")
-        {
-        }
     }
 }

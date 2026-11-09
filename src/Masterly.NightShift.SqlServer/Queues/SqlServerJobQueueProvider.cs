@@ -13,33 +13,29 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.SqlServer;
 
-namespace Masterly.NightShift.SqlServer
+internal sealed class SqlServerJobQueueProvider : IPersistentJobQueueProvider
 {
-    internal sealed class SqlServerJobQueueProvider : IPersistentJobQueueProvider
+    private readonly IPersistentJobQueue _jobQueue;
+    private readonly IPersistentJobQueueMonitoringApi _monitoringApi;
+
+    public SqlServerJobQueueProvider([NotNull] SqlServerStorage storage, [NotNull] SqlServerStorageOptions options)
     {
-        private readonly IPersistentJobQueue _jobQueue;
-        private readonly IPersistentJobQueueMonitoringApi _monitoringApi;
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(options);
 
-        public SqlServerJobQueueProvider([NotNull] SqlServerStorage storage, [NotNull] SqlServerStorageOptions options)
-        {
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(options);
+        _jobQueue = new SqlServerJobQueue(storage, options);
+        _monitoringApi = new SqlServerJobQueueMonitoringApi(storage);
+    }
 
-            _jobQueue = new SqlServerJobQueue(storage, options);
-            _monitoringApi = new SqlServerJobQueueMonitoringApi(storage);
-        }
+    public IPersistentJobQueue GetJobQueue()
+    {
+        return _jobQueue;
+    }
 
-        public IPersistentJobQueue GetJobQueue()
-        {
-            return _jobQueue;
-        }
-
-        public IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi()
-        {
-            return _monitoringApi;
-        }
+    public IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi()
+    {
+        return _monitoringApi;
     }
 }

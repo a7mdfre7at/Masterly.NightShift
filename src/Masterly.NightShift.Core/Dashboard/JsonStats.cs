@@ -13,53 +13,48 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text.Json;
-using System.Threading.Tasks;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+internal sealed class JsonStats : IDashboardDispatcher
 {
-    internal sealed class JsonStats : IDashboardDispatcher
+    public async Task Dispatch(DashboardContext context)
     {
-        public async Task Dispatch(DashboardContext context)
+        // The pages post the names of the metrics they show; a GET has no form to read them from
+        if (!"POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
         {
-            // The pages post the names of the metrics they show; a GET has no form to read them from
-            if (!"POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                return;
-            }
-
-            var requestedMetrics = await context.Request.GetFormValuesAsync("metrics[]").ConfigureAwait(false);
-            var page = new StubPage();
-            page.Assign(context);
-
-            var metrics = DashboardMetrics.GetMetrics().Where(x => requestedMetrics.Contains(x.Name));
-            var result = new Dictionary<string, Metric>();
-
-            foreach (var metric in metrics)
-            {
-                var value = metric.Func(page);
-                result.Add(metric.Name, value);
-            }
-
-            var serialized = JsonSerializer.Serialize(result, Options);
-
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(serialized).ConfigureAwait(false);
+            context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+            return;
         }
 
-        private static readonly JsonSerializerOptions Options =
-            DashboardJson.Create(camelCaseDictionaryKeys: true, ignoreNulls: false, utcDates: false, indented: false);
+        var requestedMetrics = await context.Request.GetFormValuesAsync("metrics[]").ConfigureAwait(false);
+        var page = new StubPage();
+        page.Assign(context);
 
-        private sealed class StubPage : RazorPage
+        var metrics = DashboardMetrics.GetMetrics().Where(x => requestedMetrics.Contains(x.Name));
+        var result = new Dictionary<string, Metric>();
+
+        foreach (var metric in metrics)
         {
-            public override void Execute()
-            {
-            }
+            var value = metric.Func(page);
+            result.Add(metric.Name, value);
+        }
+
+        var serialized = JsonSerializer.Serialize(result, Options);
+
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(serialized).ConfigureAwait(false);
+    }
+
+    private static readonly JsonSerializerOptions Options =
+        DashboardJson.Create(camelCaseDictionaryKeys: true, ignoreNulls: false, utcDates: false, indented: false);
+
+    private sealed class StubPage : RazorPage
+    {
+        public override void Execute()
+        {
         }
     }
 }

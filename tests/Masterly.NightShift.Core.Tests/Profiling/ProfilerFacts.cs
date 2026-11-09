@@ -1,165 +1,153 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-using Masterly.NightShift.Logging;
+﻿using Masterly.NightShift.Logging;
 using Masterly.NightShift.Profiling;
-using Moq;
-using Xunit;
 // ReSharper disable AssignNullToNotNullAttribute
 
-namespace Masterly.NightShift.Core.Tests.Profiling
+namespace Masterly.NightShift.Core.Tests.Profiling;
+
+public class ProfilerFacts
 {
-    public class ProfilerFacts
+    private readonly Mock<ILog> _logger = new();
+    private readonly object _instance = new();
+
+    public ProfilerFacts()
     {
-        private readonly Mock<ILog> _logger = new Mock<ILog>();
-        private readonly object _instance = new object();
+        _logger.Setup(x => x.Log(It.IsAny<LogLevel>(), null, null)).Returns(true);
+    }
 
-        public ProfilerFacts()
+    [Theory]
+    [MemberData(nameof(GetProfilers))]
+    internal void InvokeMeasured_ThrowsAnException_WhenActionIsNull(IProfiler profiler)
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => profiler.InvokeMeasured(
+            _instance,
+            null));
+
+        Assert.Equal("action", exception.ParamName);
+    }
+
+    [Theory]
+    [MemberData(nameof(GetProfilers))]
+    internal void InvokeMeasured_ReturnsResult_ForFunctions(IProfiler profiler)
+    {
+        var result = profiler.InvokeMeasured(_instance, x =>
         {
-            _logger.Setup(x => x.Log(It.IsAny<LogLevel>(), null, null)).Returns(true);
-        }
+            Assert.Same(_instance, x);
+            return x.ToString();
+        });
 
-        [Theory]
-        [MemberData(nameof(GetProfilers))]
-        internal void InvokeMeasured_ThrowsAnException_WhenActionIsNull(IProfiler profiler)
+        Assert.Equal(_instance.ToString(), result);
+    }
+
+    [Theory]
+    [MemberData(nameof(GetProfilers))]
+    internal void InvokeMeasured_DoesNotThrowAnException_WhenInstanceIsNull(IProfiler profiler)
+    {
+        var result = profiler.InvokeMeasured((object)null, x =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(() => profiler.InvokeMeasured(
-                _instance,
-                null));
+            Assert.Null(x);
+            return true;
+        });
 
-            Assert.Equal("action", exception.ParamName);
-        }
+        Assert.True(result);
+    }
 
-        [Theory]
-        [MemberData(nameof(GetProfilers))]
-        internal void InvokeMeasured_ReturnsResult_ForFunctions(IProfiler profiler)
+    [Theory]
+    [MemberData(nameof(GetProfilers))]
+    internal void InvokeMeasured_WithAction_InvokesIt(IProfiler profiler)
+    {
+        var invoked = false;
+
+        profiler.InvokeMeasured(_instance, x =>
         {
-            var result = profiler.InvokeMeasured(_instance, x =>
-            {
-                Assert.Same(_instance, x);
-                return x.ToString();
-            });
+            Assert.Same(_instance, x);
+            invoked = true;
+        });
 
-            Assert.Equal(_instance.ToString(), result);
-        }
+        Assert.True(invoked);
+    }
 
-        [Theory]
-        [MemberData(nameof(GetProfilers))]
-        internal void InvokeMeasured_DoesNotThrowAnException_WhenInstanceIsNull(IProfiler profiler)
+    [Theory]
+    [MemberData(nameof(GetProfilers))]
+    internal void InvokeMeasured_WithActionAndNullInstance_InvokesIt(IProfiler profiler)
+    {
+        var invoked = false;
+
+        profiler.InvokeMeasured((object)null, x =>
         {
-            var result = profiler.InvokeMeasured((object)null, x =>
-            {
-                Assert.Null(x);
-                return true;
-            });
+            Assert.Null(x);
+            invoked = true;
+        });
 
-            Assert.True(result);
-        }
+        Assert.True(invoked);
+    }
 
-        [Theory]
-        [MemberData(nameof(GetProfilers))]
-        internal void InvokeMeasured_WithAction_InvokesIt(IProfiler profiler)
+    [Fact]
+    internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullMessage()
+    {
+        using var mre = new ManualResetEventSlim(initialState: false);
+        _logger
+            .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
+            .Callback(mre.Set);
+
+        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        profiler.InvokeMeasured(_instance, x =>
         {
-            var invoked = false;
+            mre.Wait(TimeSpan.FromSeconds(15));
+            return x.ToString();
+        });
 
-            profiler.InvokeMeasured(_instance, x =>
-            {
-                Assert.Same(_instance, x);
-                invoked = true;
-            });
+        _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
+    }
 
-            Assert.True(invoked);
-        }
+    [Fact]
+    internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullInstance()
+    {
+        using var mre = new ManualResetEventSlim(initialState: false);
+        _logger
+            .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
+            .Callback(mre.Set);
 
-        [Theory]
-        [MemberData(nameof(GetProfilers))]
-        internal void InvokeMeasured_WithActionAndNullInstance_InvokesIt(IProfiler profiler)
+        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        profiler.InvokeMeasured((object)null, x => mre.Wait(TimeSpan.FromSeconds(15)));
+
+        _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNonNullMessage()
+    {
+        using var mre = new ManualResetEventSlim(initialState: false);
+        _logger
+            .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
+            .Callback(mre.Set);
+
+        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        profiler.InvokeMeasured(_instance, x =>
         {
-            var invoked = false;
+            mre.Wait(TimeSpan.FromSeconds(15));
+            return x.ToString();
+        }, _ => "message");
 
-            profiler.InvokeMeasured((object)null, x =>
-            {
-                Assert.Null(x);
-                invoked = true;
-            });
+        _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
+    }
 
-            Assert.True(invoked);
-        }
+    [Fact]
+    internal void SlowLog_DoesNotGenerateLogMessage_WhenThresholdIsNotReached()
+    {
+        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.FromSeconds(600));
+        profiler.InvokeMeasured(_instance, x => x.ToString(), _ => "message");
 
-        [Fact]
-        internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullMessage()
-        {
-            using (var mre = new ManualResetEventSlim(initialState: false))
-            {
-                _logger
-                    .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
-                    .Callback(mre.Set);
+        _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.Never);
+    }
 
-                var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
-                profiler.InvokeMeasured(_instance, x =>
-                {
-                    mre.Wait(TimeSpan.FromSeconds(15));
-                    return x.ToString();
-                });
+    public static IEnumerable<object[]> GetProfilers()
+    {
+        yield return new object[] { EmptyProfiler.Instance };
+        yield return new object[] { CreateSlowLogProfiler(new Mock<ILog>(), TimeSpan.Zero) };
+    }
 
-                _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
-            }
-        }
-
-        [Fact]
-        internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullInstance()
-        {
-            using (var mre = new ManualResetEventSlim(initialState: false))
-            {
-                _logger
-                    .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
-                    .Callback(mre.Set);
-
-                var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
-                profiler.InvokeMeasured((object)null, x => mre.Wait(TimeSpan.FromSeconds(15)));
-
-                _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
-            }
-        }
-
-        [Fact]
-        internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNonNullMessage()
-        {
-            using (var mre = new ManualResetEventSlim(initialState: false))
-            {
-                _logger
-                    .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
-                    .Callback(mre.Set);
-
-                var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
-                profiler.InvokeMeasured(_instance, x =>
-                {
-                    mre.Wait(TimeSpan.FromSeconds(15));
-                    return x.ToString();
-                }, _ => "message");
-
-                _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
-            }
-        }
-
-        [Fact]
-        internal void SlowLog_DoesNotGenerateLogMessage_WhenThresholdIsNotReached()
-        {
-            var profiler = CreateSlowLogProfiler(_logger, TimeSpan.FromSeconds(600));
-            profiler.InvokeMeasured(_instance, x => x.ToString(), _ => "message");
-
-            _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.Never);
-        }
-
-        public static IEnumerable<object[]> GetProfilers()
-        {
-            yield return new object[] { EmptyProfiler.Instance };
-            yield return new object[] { CreateSlowLogProfiler(new Mock<ILog>(), TimeSpan.Zero) };
-        }
-
-        private static SlowLogProfiler CreateSlowLogProfiler(Mock<ILog> logger, TimeSpan threshold)
-        {
-            return new SlowLogProfiler(logger.Object, threshold);
-        }
+    private static SlowLogProfiler CreateSlowLogProfiler(Mock<ILog> logger, TimeSpan threshold)
+    {
+        return new SlowLogProfiler(logger.Object, threshold);
     }
 }

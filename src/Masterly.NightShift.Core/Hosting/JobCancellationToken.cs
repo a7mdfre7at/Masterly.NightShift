@@ -13,31 +13,20 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Threading;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// An <see cref="IJobCancellationToken"/> for calling a job method yourself, for example in a unit test.
+/// </summary>
+public class JobCancellationToken(bool canceled) : IJobCancellationToken
 {
-    /// <summary>
-    /// An <see cref="IJobCancellationToken"/> for calling a job method yourself, for example in a unit test.
-    /// </summary>
-    public class JobCancellationToken : IJobCancellationToken
+    public CancellationToken ShutdownToken { get; } = new(canceled);
+
+    public static IJobCancellationToken Null => null;
+
+    /// <inheritdoc cref="IJobCancellationToken.ThrowIfCancellationRequested" />
+    public void ThrowIfCancellationRequested()
     {
-        private readonly bool _canceled;
-
-        public JobCancellationToken(bool canceled)
-        {
-            _canceled = canceled;
-            ShutdownToken = new CancellationToken(canceled);
-        }
-
-        public CancellationToken ShutdownToken { get; }
-
-        public static IJobCancellationToken Null => null;
-
-        /// <inheritdoc cref="IJobCancellationToken.ThrowIfCancellationRequested" />
-        public void ThrowIfCancellationRequested()
-        {
-            ShutdownToken.ThrowIfCancellationRequested();
-        }
+        ShutdownToken.ThrowIfCancellationRequested();
     }
 }

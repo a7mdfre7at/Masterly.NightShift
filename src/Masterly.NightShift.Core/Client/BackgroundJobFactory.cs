@@ -13,229 +13,222 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Profiling;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift.Client
+namespace Masterly.NightShift.Client;
+
+/// <summary>
+/// Creates background jobs in the storage, running the client filters around the creation and applying the initial
+/// state with the state machine.
+/// </summary>
+public class BackgroundJobFactory : IBackgroundJobFactory
 {
-    /// <summary>
-    /// Creates background jobs in the storage, running the client filters around the creation and applying the initial
-    /// state with the state machine.
-    /// </summary>
-    public class BackgroundJobFactory : IBackgroundJobFactory
+    private readonly IJobFilterProvider _filterProvider;
+    private readonly IBackgroundJobFactory _innerFactory;
+
+    public BackgroundJobFactory()
+        : this(JobFilterProviders.Providers)
     {
-        private readonly IJobFilterProvider _filterProvider;
-        private readonly IBackgroundJobFactory _innerFactory;
+    }
 
-        public BackgroundJobFactory()
-            : this(JobFilterProviders.Providers)
-        {
-        }
+    public BackgroundJobFactory([NotNull] IJobFilterProvider filterProvider)
+        : this(filterProvider, new CoreBackgroundJobFactory(new StateMachine(filterProvider)))
+    {
+    }
 
-        public BackgroundJobFactory([NotNull] IJobFilterProvider filterProvider)
-            : this(filterProvider, new CoreBackgroundJobFactory(new StateMachine(filterProvider)))
+    public int RetryAttempts
+    {
+        get
         {
-        }
-
-        public int RetryAttempts
-        {
-            get
+            if (_innerFactory is CoreBackgroundJobFactory factory)
             {
-                if (_innerFactory is CoreBackgroundJobFactory factory)
-                {
-                    return factory.RetryAttempts;
-                }
-
-                return 0;
+                return factory.RetryAttempts;
             }
-            set
+
+            return 0;
+        }
+        set
+        {
+            if (_innerFactory is CoreBackgroundJobFactory factory)
             {
-                if (_innerFactory is CoreBackgroundJobFactory factory)
-                {
-                    factory.RetryAttempts = value;
-                }
+                factory.RetryAttempts = value;
             }
         }
+    }
 
-        internal BackgroundJobFactory(
-            [NotNull] IJobFilterProvider filterProvider, 
-            [NotNull] IBackgroundJobFactory innerFactory)
+    internal BackgroundJobFactory(
+        [NotNull] IJobFilterProvider filterProvider,
+        [NotNull] IBackgroundJobFactory innerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(filterProvider);
+        ArgumentNullException.ThrowIfNull(innerFactory);
+
+        _filterProvider = filterProvider;
+        _innerFactory = innerFactory;
+    }
+
+    public IStateMachine StateMachine => _innerFactory.StateMachine;
+
+    public BackgroundJob Create(CreateContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var filterInfo = GetFilters(context.Job);
+
+        try
         {
-            ArgumentNullException.ThrowIfNull(filterProvider);
-            ArgumentNullException.ThrowIfNull(innerFactory);
+            context.Factory = this;
 
-            _filterProvider = filterProvider;
-            _innerFactory = innerFactory;
+            var createdContext = CreateWithFilters(context, filterInfo.ClientFilters);
+            return createdContext.BackgroundJob;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            var exceptionContext = new ClientExceptionContext(context, ex);
+
+            InvokeExceptionFilters(exceptionContext, filterInfo.ClientExceptionFiltersReversed);
+            if (!exceptionContext.ExceptionHandled)
+            {
+                throw;
+            }
+
+            return null;
+        }
+        finally
+        {
+            context.Factory = null;
+        }
+    }
+
+    private JobFilterInfo GetFilters(Job job)
+    {
+        return new JobFilterInfo(_filterProvider.GetFilters(job));
+    }
+
+    private CreatedContext CreateWithFilters(
+        CreateContext context,
+        JobFilterInfo.FilterCollection<IClientFilter> filters)
+    {
+        var preContext = new CreatingContext(context);
+        var enumerator = filters.GetEnumerator();
+
+        return InvokeNextClientFilter(ref enumerator, _innerFactory, context, preContext);
+    }
+
+    private static CreatedContext InvokeNextClientFilter(
+        ref JobFilterInfo.FilterCollection<IClientFilter>.Enumerator enumerator,
+        IBackgroundJobFactory innerFactory,
+        CreateContext context,
+        CreatingContext preContext)
+    {
+        if (enumerator.MoveNext())
+        {
+            return InvokeClientFilter(ref enumerator, innerFactory, context, preContext);
         }
 
-        public IStateMachine StateMachine => _innerFactory.StateMachine;
+        var backgroundJob = innerFactory.Create(context);
+        return new CreatedContext(context, backgroundJob, false, null);
+    }
 
-        public BackgroundJob Create(CreateContext context)
+    private static CreatedContext InvokeClientFilter(
+        ref JobFilterInfo.FilterCollection<IClientFilter>.Enumerator enumerator,
+        IBackgroundJobFactory innerFactory,
+        CreateContext context,
+        CreatingContext preContext)
+    {
+        var filter = enumerator.Current;
+
+        preContext.Profiler.InvokeMeasured(
+            new KeyValuePair<IClientFilter, CreatingContext>(filter, preContext),
+            InvokeOnCreating,
+            static ctx => $"OnCreating for {ctx.Value.Job.Type.FullName}.{ctx.Value.Job.Method.Name}");
+
+        if (preContext.Canceled)
         {
-            ArgumentNullException.ThrowIfNull(context);
-
-            var filterInfo = GetFilters(context.Job);
-
-            try
-            {
-                context.Factory = this;
-
-                var createdContext = CreateWithFilters(context, filterInfo.ClientFilters);
-                return createdContext.BackgroundJob;
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                var exceptionContext = new ClientExceptionContext(context, ex);
-
-                InvokeExceptionFilters(exceptionContext, filterInfo.ClientExceptionFiltersReversed);
-                if (!exceptionContext.ExceptionHandled)
-                {
-                    throw;
-                }
-
-                return null;
-            }
-            finally
-            {
-                context.Factory = null;
-            }
+            return new CreatedContext(preContext, null, true, null);
         }
 
-        private JobFilterInfo GetFilters(Job job)
+        var wasError = false;
+        CreatedContext postContext;
+        try
         {
-            return new JobFilterInfo(_filterProvider.GetFilters(job));
+            postContext = InvokeNextClientFilter(ref enumerator, innerFactory, context, preContext);
         }
-
-        private CreatedContext CreateWithFilters(
-            CreateContext context, 
-            JobFilterInfo.FilterCollection<IClientFilter> filters)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            var preContext = new CreatingContext(context);
-            var enumerator = filters.GetEnumerator();
+            wasError = true;
+            postContext = new CreatedContext(preContext, null, false, ex);
 
-            return InvokeNextClientFilter(ref enumerator, _innerFactory, context, preContext);
-        }
-        
-        private static CreatedContext InvokeNextClientFilter(
-            ref JobFilterInfo.FilterCollection<IClientFilter>.Enumerator enumerator,
-            IBackgroundJobFactory innerFactory,
-            CreateContext context,
-            CreatingContext preContext)
-        {
-            if (enumerator.MoveNext())
+            postContext.Profiler.InvokeMeasured(
+                new KeyValuePair<IClientFilter, CreatedContext>(filter, postContext),
+                InvokeOnCreated,
+                static ctx => $"OnCreated for job {ctx.Value.BackgroundJob?.Id ?? "(null)"}");
+
+            if (!postContext.ExceptionHandled)
             {
-                return InvokeClientFilter(ref enumerator, innerFactory, context, preContext);
-            }
-
-            var backgroundJob = innerFactory.Create(context);
-            return new CreatedContext(context, backgroundJob, false, null);
-        }
-
-        private static CreatedContext InvokeClientFilter(
-            ref JobFilterInfo.FilterCollection<IClientFilter>.Enumerator enumerator,
-            IBackgroundJobFactory innerFactory,
-            CreateContext context,
-            CreatingContext preContext)
-        {
-            var filter = enumerator.Current!;
-
-            preContext.Profiler.InvokeMeasured(
-                new KeyValuePair<IClientFilter, CreatingContext>(filter, preContext),
-                InvokeOnCreating,
-                static ctx => $"OnCreating for {ctx.Value.Job.Type.FullName}.{ctx.Value.Job.Method.Name}");
-
-            if (preContext.Canceled)
-            {
-                return new CreatedContext(preContext, null, true, null);
-            }
-
-            var wasError = false;
-            CreatedContext postContext;
-            try
-            {
-                postContext = InvokeNextClientFilter(ref enumerator, innerFactory, context, preContext);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                wasError = true;
-                postContext = new CreatedContext(preContext, null, false, ex);
-
-                postContext.Profiler.InvokeMeasured(
-                    new KeyValuePair<IClientFilter, CreatedContext>(filter, postContext),
-                    InvokeOnCreated,
-                    static ctx => $"OnCreated for job {ctx.Value.BackgroundJob?.Id ?? "(null)"}");
-
-                if (!postContext.ExceptionHandled)
-                {
-                    throw;
-                }
-            }
-
-            if (!wasError)
-            {
-                postContext.Profiler.InvokeMeasured(
-                    new KeyValuePair<IClientFilter, CreatedContext>(filter, postContext),
-                    InvokeOnCreated,
-                    static ctx => $"OnCreated for job {ctx.Value.BackgroundJob?.Id ?? "(null)"}");
-            }
-
-            return postContext;
-        }
-
-        private static void InvokeOnCreating(KeyValuePair<IClientFilter, CreatingContext> x)
-        {
-            try
-            {
-                x.Key.OnCreating(x.Value);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                ex.PreserveOriginalStackTrace();
                 throw;
             }
         }
 
-        private static void InvokeOnCreated(KeyValuePair<IClientFilter, CreatedContext> x)
+        if (!wasError)
         {
-            try
-            {
-                x.Key.OnCreated(x.Value);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                ex.PreserveOriginalStackTrace();
-                throw;
-            }
+            postContext.Profiler.InvokeMeasured(
+                new KeyValuePair<IClientFilter, CreatedContext>(filter, postContext),
+                InvokeOnCreated,
+                static ctx => $"OnCreated for job {ctx.Value.BackgroundJob?.Id ?? "(null)"}");
         }
 
-        private static void InvokeExceptionFilters(
-            ClientExceptionContext context, JobFilterInfo.ReversedFilterCollection<IClientExceptionFilter> filters)
-        {
-            foreach (var filter in filters)
-            {
-                context.Profiler.InvokeMeasured(
-                    new KeyValuePair<IClientExceptionFilter, ClientExceptionContext>(filter, context),
-                    InvokeOnClientException,
-                    static ctx => $"OnClientException for {ctx.Value.Job.Type.FullName}.{ctx.Value.Job.Method.Name}");
-            }
-        }
+        return postContext;
+    }
 
-        private static void InvokeOnClientException(KeyValuePair<IClientExceptionFilter, ClientExceptionContext> x)
+    private static void InvokeOnCreating(KeyValuePair<IClientFilter, CreatingContext> x)
+    {
+        try
         {
-            try
-            {
-                x.Key.OnClientException(x.Value);
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                ex.PreserveOriginalStackTrace();
-                throw;
-            }
+            x.Key.OnCreating(x.Value);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            ex.PreserveOriginalStackTrace();
+            throw;
+        }
+    }
+
+    private static void InvokeOnCreated(KeyValuePair<IClientFilter, CreatedContext> x)
+    {
+        try
+        {
+            x.Key.OnCreated(x.Value);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            ex.PreserveOriginalStackTrace();
+            throw;
+        }
+    }
+
+    private static void InvokeExceptionFilters(
+        ClientExceptionContext context, JobFilterInfo.ReversedFilterCollection<IClientExceptionFilter> filters)
+    {
+        foreach (var filter in filters)
+        {
+            context.Profiler.InvokeMeasured(
+                new KeyValuePair<IClientExceptionFilter, ClientExceptionContext>(filter, context),
+                InvokeOnClientException,
+                static ctx => $"OnClientException for {ctx.Value.Job.Type.FullName}.{ctx.Value.Job.Method.Name}");
+        }
+    }
+
+    private static void InvokeOnClientException(KeyValuePair<IClientExceptionFilter, ClientExceptionContext> x)
+    {
+        try
+        {
+            x.Key.OnClientException(x.Value);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            ex.PreserveOriginalStackTrace();
+            throw;
         }
     }
 }

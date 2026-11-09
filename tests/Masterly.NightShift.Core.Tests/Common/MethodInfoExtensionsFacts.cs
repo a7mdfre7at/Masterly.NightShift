@@ -1,47 +1,43 @@
-﻿using System.Linq;
-using System.Reflection;
-using Masterly.NightShift.Common;
-using Xunit;
+﻿using System.Reflection;
 
-namespace Masterly.NightShift.Core.Tests.Common
+namespace Masterly.NightShift.Core.Tests.Common;
+
+public class MethodInfoExtensionsFacts
 {
-    public class MethodInfoExtensionsFacts
+    [Fact]
+    public void GetNormalizedName_ReturnsNormalizedName_ForRegularMethod()
     {
-        [Fact]
-        public void GetNormalizedName_ReturnsNormalizedName_ForRegularMethod()
-        {
-            var service = new RegularInterfaceImplementation();
-            var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
+        var service = new RegularInterfaceImplementation();
+        var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
 
-            Assert.Equal("Method", normalizedName);
+        Assert.Equal("Method", normalizedName);
+    }
+
+    [Fact]
+    public void GetNormalizedName_ReturnsNormalizedName_ForExplicitlyImplementedMethod()
+    {
+        var service = new ExplicitInterfaceImplementation();
+        var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
+
+        Assert.Equal("Method", normalizedName);
+    }
+
+    private interface IService
+    {
+        void Method();
+    }
+
+    private sealed class RegularInterfaceImplementation : IService
+    {
+        public void Method()
+        {
         }
+    }
 
-        [Fact]
-        public void GetNormalizedName_ReturnsNormalizedName_ForExplicitlyImplementedMethod()
+    private sealed class ExplicitInterfaceImplementation : IService
+    {
+        void IService.Method()
         {
-            var service = new ExplicitInterfaceImplementation();
-            var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
-
-            Assert.Equal("Method", normalizedName);
-        }
-
-        private interface IService
-        {
-            void Method();
-        }
-
-        private class RegularInterfaceImplementation : IService
-        {
-            public void Method()
-            {
-            }
-        }
-
-        private class ExplicitInterfaceImplementation : IService
-        {
-            void IService.Method()
-            {
-            }
         }
     }
 }

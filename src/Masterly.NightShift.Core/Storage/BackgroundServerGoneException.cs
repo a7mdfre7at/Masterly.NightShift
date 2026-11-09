@@ -13,19 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Storage
+/// <summary>
+/// Thrown by a storage when a server sends a heartbeat but isn't registered any more, so the server restarts and
+/// announces itself again.
+/// </summary>
+[Serializable]
+public class BackgroundServerGoneException : Exception
 {
-    /// <summary>
-    /// Thrown by a storage when a server sends a heartbeat but isn't registered any more, so the server restarts and
-    /// announces itself again.
-    /// </summary>
-    [Serializable]
-    public class BackgroundServerGoneException : Exception
+    public BackgroundServerGoneException()
     {
-        public BackgroundServerGoneException()
-        {
-        }
     }
 }

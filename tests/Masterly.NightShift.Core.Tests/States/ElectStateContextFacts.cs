@@ -1,142 +1,134 @@
-﻿using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
-using Moq;
-using Xunit;
+﻿// ReSharper disable AssignNullToNotNullAttribute
 
-// ReSharper disable AssignNullToNotNullAttribute
+namespace Masterly.NightShift.Core.Tests.States;
 
-namespace Masterly.NightShift.Core.Tests.States
+public class ElectStateContextFacts
 {
-    public class ElectStateContextFacts
+    private readonly ApplyStateContextMock _applyContext;
+
+    public ElectStateContextFacts()
     {
-        private readonly ApplyStateContextMock _applyContext;
+        _applyContext = new ApplyStateContextMock { OldStateName = "State" };
+    }
 
-        public ElectStateContextFacts()
+    [Fact]
+    public void Ctor_ThrowsAnException_WhenApplyContextIsNull()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => new ElectStateContext(null));
+
+        Assert.Equal("applyContext", exception.ParamName);
+    }
+
+    [Fact]
+    public void Ctor_CorrectlySetAllProperties()
+    {
+        var context = CreateContext();
+
+        Assert.Same(_applyContext.Connection.Object, context.Connection);
+        Assert.Same(_applyContext.Transaction.Object, context.Transaction);
+        Assert.Same(_applyContext.BackgroundJob.Object, context.BackgroundJob);
+        Assert.Same(_applyContext.NewState.Object, context.CandidateState);
+        Assert.Equal("State", context.CurrentState);
+        Assert.Empty(context.TraversedStates);
+        Assert.Null(context.CustomData);
+    }
+
+    [Fact]
+    public void Ctor_CopiesTheCustomDataDictionary_ToAnotherInstance()
+    {
+        // Arrange
+        _applyContext.CustomData = new Dictionary<string, object>
         {
-            _applyContext = new ApplyStateContextMock { OldStateName = "State" };
-        }
+            { "lalala", new object() }
+        };
 
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenApplyContextIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new ElectStateContext(null));
+        // Act
+        var context = CreateContext();
 
-            Assert.Equal("applyContext", exception.ParamName);
-        }
+        // Assert
+        Assert.Equal(_applyContext.CustomData, context.CustomData);
+        Assert.NotSame(_applyContext.CustomData, context.CustomData);
+    }
 
-        [Fact]
-        public void Ctor_CorrectlySetAllProperties()
-        {
-            var context = CreateContext();
-            
-            Assert.Same(_applyContext.Connection.Object, context.Connection);
-            Assert.Same(_applyContext.Transaction.Object, context.Transaction);
-            Assert.Same(_applyContext.BackgroundJob.Object, context.BackgroundJob);
-            Assert.Same(_applyContext.NewState.Object, context.CandidateState);
-            Assert.Equal("State", context.CurrentState);
-            Assert.Empty(context.TraversedStates);
-            Assert.Null(context.CustomData);
-        }
+    [Fact]
+    public void SetCandidateState_ThrowsAnException_WhenValueIsNull()
+    {
+        var context = CreateContext();
 
-        [Fact]
-        public void Ctor_CopiesTheCustomDataDictionary_ToAnotherInstance()
-        {
-            // Arrange
-            _applyContext.CustomData = new Dictionary<string, object>
-            {
-                { "lalala", new object() }
-            };
+        Assert.Throws<ArgumentNullException>(() => context.CandidateState = null);
+    }
 
-            // Act
-            var context = CreateContext();
+    [Fact]
+    public void SetCandidateState_SetsTheGivenValue()
+    {
+        var context = CreateContext();
+        var newState = new Mock<IState>();
 
-            // Assert
-            Assert.Equal(_applyContext.CustomData, context.CustomData);
-            Assert.NotSame(_applyContext.CustomData, context.CustomData);
-        }
+        context.CandidateState = newState.Object;
 
-        [Fact]
-        public void SetCandidateState_ThrowsAnException_WhenValueIsNull()
-        {
-            var context = CreateContext();
+        Assert.Same(newState.Object, context.CandidateState);
+    }
 
-            Assert.Throws<ArgumentNullException>(() => context.CandidateState = null);
-        }
+    [Fact]
+    public void SetCandidateState_AddsPreviousCandidateState_ToTraversedStatesList()
+    {
+        var context = CreateContext();
+        var state = new Mock<IState>();
 
-        [Fact]
-        public void SetCandidateState_SetsTheGivenValue()
-        {
-            var context = CreateContext();
-            var newState = new Mock<IState>();
+        context.CandidateState = state.Object;
 
-            context.CandidateState = newState.Object;
+        Assert.Contains(_applyContext.NewState.Object, context.TraversedStates);
+    }
 
-            Assert.Same(newState.Object, context.CandidateState);
-        }
+    [Fact]
+    public void SetJobParameter_CallsTheCorrespondingMethod_WithJsonEncodedValue()
+    {
+        var context = CreateContext();
 
-        [Fact]
-        public void SetCandidateState_AddsPreviousCandidateState_ToTraversedStatesList()
-        {
-            var context = CreateContext();
-            var state = new Mock<IState>();
+        context.SetJobParameter("Name", "Value");
 
-            context.CandidateState = state.Object;
+        _applyContext.Connection.Verify(x => x.SetJobParameter(
+            _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson("Value")));
+    }
 
-            Assert.Contains(_applyContext.NewState.Object, context.TraversedStates);
-        }
+    [Fact]
+    public void SetJobParameter_CanReceiveNullValue()
+    {
+        var context = CreateContext();
 
-        [Fact]
-        public void SetJobParameter_CallsTheCorrespondingMethod_WithJsonEncodedValue()
-        {
-            var context = CreateContext();
+        context.SetJobParameter("Name", (string)null);
 
-            context.SetJobParameter("Name", "Value");
+        _applyContext.Connection.Verify(x => x.SetJobParameter(
+            _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson(null)));
+    }
 
-            _applyContext.Connection.Verify(x => x.SetJobParameter(
-                _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson("Value")));
-        }
+    [Fact]
+    public void GetJobParameter_CallsTheCorrespondingMethod_WithJsonDecodedValue()
+    {
+        var context = CreateContext();
+        _applyContext.Connection.Setup(x => x.GetJobParameter(_applyContext.BackgroundJob.Id, "Name"))
+            .Returns(TestJson.ToJson("Value"));
 
-        [Fact]
-        public void SetJobParameter_CanReceiveNullValue()
-        {
-            var context = CreateContext();
+        var value = context.GetJobParameter<string>("Name");
 
-            context.SetJobParameter("Name", (string)null);
+        Assert.Equal("Value", value);
+    }
 
-            _applyContext.Connection.Verify(x => x.SetJobParameter(
-                _applyContext.BackgroundJob.Id, "Name", TestJson.ToJson(null)));
-        }
+    [Fact]
+    public void GetJobParameter_ReturnsDefaultValue_WhenNoValueProvided()
+    {
+        var context = CreateContext();
+        _applyContext.Connection.Setup(x => x.GetJobParameter("1", "Value"))
+            .Returns(TestJson.ToJson(null));
 
-        [Fact]
-        public void GetJobParameter_CallsTheCorrespondingMethod_WithJsonDecodedValue()
-        {
-            var context = CreateContext();
-            _applyContext.Connection.Setup(x => x.GetJobParameter(_applyContext.BackgroundJob.Id, "Name"))
-                .Returns(TestJson.ToJson("Value"));
+        var value = context.GetJobParameter<int>("Name");
 
-            var value = context.GetJobParameter<string>("Name");
+        Assert.Equal(default, value);
+    }
 
-            Assert.Equal("Value", value);
-        }
-
-        [Fact]
-        public void GetJobParameter_ReturnsDefaultValue_WhenNoValueProvided()
-        {
-            var context = CreateContext();
-            _applyContext.Connection.Setup(x => x.GetJobParameter("1", "Value"))
-                .Returns(TestJson.ToJson(null));
-
-            var value = context.GetJobParameter<int>("Name");
-
-            Assert.Equal(default(int), value);
-        }
-
-        private ElectStateContext CreateContext()
-        {
-            return new ElectStateContext(_applyContext.Object);
-        }
+    private ElectStateContext CreateContext()
+    {
+        return new ElectStateContext(_applyContext.Object);
     }
 }

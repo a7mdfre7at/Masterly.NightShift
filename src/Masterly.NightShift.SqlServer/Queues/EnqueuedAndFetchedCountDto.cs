@@ -13,17 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.SqlServer
-{
-    /// <summary>
-    /// The numbers of waiting and fetched jobs of a queue.
-    /// </summary>
-    public class EnqueuedAndFetchedCountDto
-    {
-        /// <summary>Gets or sets the number of jobs waiting in the queue.</summary>
-        public int? EnqueuedCount { get; set; }
+namespace Masterly.NightShift.SqlServer;
 
-        /// <summary>Gets or sets the number of jobs of the queue that workers have fetched.</summary>
-        public int? FetchedCount { get; set; }
-    }
+/// <summary>
+/// The numbers of waiting and fetched jobs of a queue.
+/// </summary>
+public class EnqueuedAndFetchedCountDto
+{
+    /// <summary>Gets or sets the number of jobs waiting in the queue.</summary>
+    public int? EnqueuedCount { get; set; }
+
+    /// <summary>Gets or sets the number of jobs of the queue that workers have fetched.</summary>
+    public int? FetchedCount { get; set; }
 }

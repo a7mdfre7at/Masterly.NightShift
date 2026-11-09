@@ -15,24 +15,19 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job with its parameters and state history, as shown on the dashboard's job details page.
+/// </summary>
+public class JobDetailsDto
 {
-    /// <summary>
-    /// A job with its parameters and state history, as shown on the dashboard's job details page.
-    /// </summary>
-    public class JobDetailsDto
-    {
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public DateTime? CreatedAt { get; set; }
-        // Storages must set the non-nullable members, the dashboard relies on them
-        public IDictionary<string, string> Properties { get; set; } = null!;
-        public IList<StateHistoryDto> History { get; set; } = null!;
-        public DateTime? ExpireAt { get; set; }
-    }
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    // Storages must set the non-nullable members, the dashboard relies on them
+    public IDictionary<string, string> Properties { get; set; } = null!;
+    public IList<StateHistoryDto> History { get; set; } = null!;
+    public DateTime? ExpireAt { get; set; }
 }

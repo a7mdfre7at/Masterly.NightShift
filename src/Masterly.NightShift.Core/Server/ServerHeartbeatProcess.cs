@@ -13,75 +13,64 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Diagnostics;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Logging;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverTimeout, Action requestRestart) : IBackgroundProcess
 {
-    internal sealed class ServerHeartbeatProcess : IBackgroundProcess
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(ServerHeartbeatProcess));
+
+    private readonly TimeSpan _interval = interval;
+    private readonly TimeSpan _serverTimeout = serverTimeout;
+    private readonly Action _requestRestart = requestRestart;
+    private Stopwatch _faultedSince;
+
+    public void Execute(BackgroundProcessContext context)
     {
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(ServerHeartbeatProcess));
+        _logger.Trace($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} waiting for {_interval} delay before sending a heartbeat");
 
-        private readonly TimeSpan _interval;
-        private readonly TimeSpan _serverTimeout;
-        private readonly Action _requestRestart;
-        private Stopwatch _faultedSince;
+        context.ShutdownToken.WaitOrThrow(_interval);
 
-        public ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverTimeout, Action requestRestart)
+        try
         {
-            _interval = interval;
-            _serverTimeout = serverTimeout;
-            _requestRestart = requestRestart;
+            using (var connection = context.Storage.GetConnection())
+            {
+                connection.Heartbeat(context.ServerId);
+            }
+
+            if (_faultedSince == null)
+            {
+                _logger.Debug($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} heartbeat successfully sent");
+            }
+            else
+            {
+                _logger.Info($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} is now able to continue sending heartbeats");
+                _faultedSince = null;
+            }
         }
-
-        public void Execute(BackgroundProcessContext context)
+        catch (BackgroundServerGoneException)
         {
-            _logger.Trace($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} waiting for {_interval} delay before sending a heartbeat");
-
-            context.ShutdownToken.WaitOrThrow(_interval);
-
-            try
+            if (!context.ShutdownToken.IsCancellationRequested)
             {
-                using (var connection = context.Storage.GetConnection())
-                {
-                    connection.Heartbeat(context.ServerId);
-                }
-
-                if (_faultedSince == null)
-                {
-                    _logger.Debug($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} heartbeat successfully sent");
-                }
-                else
-                {
-                    _logger.Info($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} is now able to continue sending heartbeats");
-                    _faultedSince = null;
-                }
+                _logger.Warn($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} was considered dead by other servers, restarting...");
+                _requestRestart();
             }
-            catch (BackgroundServerGoneException)
-            {
-                if (!context.ShutdownToken.IsCancellationRequested)
-                {
-                    _logger.Warn($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} was considered dead by other servers, restarting...");
-                    _requestRestart();
-                }
 
+            return;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} encountered an exception while sending heartbeat", ex);
+
+            _faultedSince ??= Stopwatch.StartNew();
+            if (_faultedSince.Elapsed >= _serverTimeout)
+            {
+                _logger.Error($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} will be restarted due to server time out");
+
+                _requestRestart();
                 return;
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                _logger.WarnException($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} encountered an exception while sending heartbeat", ex);
-
-                if (_faultedSince == null) _faultedSince = Stopwatch.StartNew();
-                if (_faultedSince.Elapsed >= _serverTimeout)
-                {
-                    _logger.Error($"{BackgroundServerProcess.GetServerTemplate(context.ServerId)} will be restarted due to server time out");
-
-                    _requestRestart();
-                    return;
-                }
             }
         }
     }

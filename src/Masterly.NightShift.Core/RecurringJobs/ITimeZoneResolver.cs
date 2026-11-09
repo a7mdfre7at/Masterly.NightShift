@@ -13,29 +13,25 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// Resolves time zone IDs with <see cref="TimeZoneInfo.FindSystemTimeZoneById"/>.
+/// </summary>
+public sealed class DefaultTimeZoneResolver : ITimeZoneResolver
 {
-    /// <summary>
-    /// Resolves time zone IDs with <see cref="TimeZoneInfo.FindSystemTimeZoneById"/>.
-    /// </summary>
-    public sealed class DefaultTimeZoneResolver : ITimeZoneResolver
+    public TimeZoneInfo GetTimeZoneById(string timeZoneId)
     {
-        public TimeZoneInfo GetTimeZoneById(string timeZoneId)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-        }
+        return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
     }
+}
 
-    /// <summary>
-    /// Turns the time zone IDs stored with recurring jobs into <see cref="TimeZoneInfo"/> objects. Set it with
-    /// <c>UseTimeZoneResolver</c>.
-    /// </summary>
-    public interface ITimeZoneResolver
-    {
-        [NotNull]
-        TimeZoneInfo GetTimeZoneById([NotNull] string timeZoneId);
-    }
+/// <summary>
+/// Turns the time zone IDs stored with recurring jobs into <see cref="TimeZoneInfo"/> objects. Set it with
+/// <c>UseTimeZoneResolver</c>.
+/// </summary>
+public interface ITimeZoneResolver
+{
+    [NotNull]
+    TimeZoneInfo GetTimeZoneById([NotNull] string timeZoneId);
 }

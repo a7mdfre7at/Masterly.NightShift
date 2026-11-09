@@ -14,68 +14,64 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Text.Json.Serialization;
 using System.Text;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
+using System.Text.Json.Serialization;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// The type, message and inner exception of an exception, as passed to a continuation with <see
+/// cref="FromExceptionAttribute"/>.
+/// </summary>
+public sealed class ExceptionInfo
 {
-    /// <summary>
-    /// The type, message and inner exception of an exception, as passed to a continuation with <see
-    /// cref="FromExceptionAttribute"/>.
-    /// </summary>
-    public sealed class ExceptionInfo
+    public ExceptionInfo([NotNull] Exception exception)
     {
-        public ExceptionInfo([NotNull] Exception exception)
+        ArgumentNullException.ThrowIfNull(exception);
+
+        Message = exception.Message;
+        Type = TypeHelper.CurrentTypeSerializer(exception.GetType());
+
+        if (exception.InnerException != null)
         {
-            ArgumentNullException.ThrowIfNull(exception);
+            InnerException = new ExceptionInfo(exception.InnerException);
+        }
+    }
 
-            Message = exception.Message;
-            Type = TypeHelper.CurrentTypeSerializer(exception.GetType());
+    [JsonConstructor]
+    public ExceptionInfo([NotNull] string type, [CanBeNull] string message, [CanBeNull] ExceptionInfo innerException)
+    {
+        Type = type ?? throw new ArgumentNullException(nameof(type));
+        Message = message;
+        InnerException = innerException;
+    }
 
-            if (exception.InnerException != null)
-            {
-                InnerException = new ExceptionInfo(exception.InnerException);
-            }
+    [NotNull]
+    [JsonInclude, JsonPropertyName("e")]
+    public string Type { get; }
+
+    [CanBeNull]
+    [JsonInclude, JsonPropertyName("m"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string Message { get; }
+
+    [CanBeNull]
+    [JsonInclude, JsonPropertyName("i"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExceptionInfo InnerException { get; }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        var commaIndex = Type.IndexOf(',');
+        sb.Append(commaIndex >= 0 ? Type[..commaIndex] : Type);
+        sb.Append(": ");
+        sb.Append(Message);
+
+        if (InnerException != null)
+        {
+            sb.Append(" ---> ");
+            sb.AppendLine(InnerException.ToString());
         }
 
-        [JsonConstructor]
-        public ExceptionInfo([NotNull] string type, [CanBeNull] string message, [CanBeNull] ExceptionInfo innerException)
-        {
-            Type = type ?? throw new ArgumentNullException(nameof(type));
-            Message = message;
-            InnerException = innerException;
-        }
-
-        [NotNull]
-        [JsonInclude, JsonPropertyName("e")]
-        public string Type { get; }
-
-        [CanBeNull]
-        [JsonInclude, JsonPropertyName("m"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string Message { get; }
-
-        [CanBeNull]
-        [JsonInclude, JsonPropertyName("i"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public ExceptionInfo InnerException { get; }
-
-        public override string ToString()
-        {
-            var sb = new StringBuilder();
-            var commaIndex = Type.IndexOf(',');
-            sb.Append(commaIndex >= 0 ? Type.Substring(0, commaIndex) : Type);
-            sb.Append(": ");
-            sb.Append(Message);
-
-            if (InnerException != null)
-            {
-                sb.Append(" ---> ");
-                sb.AppendLine(InnerException.ToString());
-            }
-
-            return sb.ToString();
-        }
+        return sb.ToString();
     }
 }

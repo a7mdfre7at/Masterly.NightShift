@@ -13,15 +13,12 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.SqlServer.Entities;
 
-namespace Masterly.NightShift.SqlServer.Entities
+internal sealed class SqlHash
 {
-    internal sealed class SqlHash
-    {
-        public string Key { get; set; }
-        public string Field { get; set; }
-        public string Value { get; set; }
-        public DateTime? ExpireAt { get; set; }
-    }
+    public string Key { get; set; }
+    public string Field { get; set; }
+    public string Value { get; set; }
+    public DateTime? ExpireAt { get; set; }
 }

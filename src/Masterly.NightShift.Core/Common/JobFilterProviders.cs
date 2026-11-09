@@ -13,24 +13,25 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Provides a registration point for filters.
+/// </summary>
+public static class JobFilterProviders
 {
+    static JobFilterProviders()
+    {
+        // Added one by one, like GlobalJobFilters.Filters: Providers is set before any provider is added
+#pragma warning disable IDE0028 // Simplify collection initialization
+        Providers = new JobFilterProviderCollection();
+        Providers.Add(GlobalJobFilters.Filters);
+        Providers.Add(new JobFilterAttributeFilterProvider());
+#pragma warning restore IDE0028
+    }
+
     /// <summary>
     /// Provides a registration point for filters.
     /// </summary>
-    public static class JobFilterProviders
-    {
-        static JobFilterProviders()
-        {
-            // ReSharper disable once UseObjectOrCollectionInitializer
-            Providers = new JobFilterProviderCollection();
-            Providers.Add(GlobalJobFilters.Filters);
-            Providers.Add(new JobFilterAttributeFilterProvider());
-        }
-
-        /// <summary>
-        /// Provides a registration point for filters.
-        /// </summary>
-        public static JobFilterProviderCollection Providers { get; }
-    }
+    public static JobFilterProviderCollection Providers { get; }
 }

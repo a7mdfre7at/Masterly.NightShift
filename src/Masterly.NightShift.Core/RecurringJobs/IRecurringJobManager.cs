@@ -15,37 +15,33 @@
 
 #nullable enable
 
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// A recurring job manager that also exposes its storage and can trigger a recurring job and return the identifier
+/// of the job it created.
+/// </summary>
+public interface IRecurringJobManagerV2 : IRecurringJobManager
 {
-    /// <summary>
-    /// A recurring job manager that also exposes its storage and can trigger a recurring job and return the identifier
-    /// of the job it created.
-    /// </summary>
-    public interface IRecurringJobManagerV2 : IRecurringJobManager
-    {
-        [NotNull]
-        JobStorage Storage { get; }
+    [NotNull]
+    JobStorage Storage { get; }
 
-        [CanBeNull]
-        string? TriggerJob([NotNull] string recurringJobId);
-    }
+    [CanBeNull]
+    string? TriggerJob([NotNull] string recurringJobId);
+}
 
-    /// <summary>
-    /// Creates, updates, triggers and removes recurring jobs in a storage. <see cref="RecurringJobManager"/> implements
-    /// it.
-    /// </summary>
-    public interface IRecurringJobManager
-    {
-        void AddOrUpdate(
-            [NotNull] string recurringJobId, 
-            [NotNull] Job job, 
-            [NotNull] string cronExpression, 
-            [NotNull] RecurringJobOptions options);
+/// <summary>
+/// Creates, updates, triggers and removes recurring jobs in a storage. <see cref="RecurringJobManager"/> implements
+/// it.
+/// </summary>
+public interface IRecurringJobManager
+{
+    void AddOrUpdate(
+        [NotNull] string recurringJobId,
+        [NotNull] Job job,
+        [NotNull] string cronExpression,
+        [NotNull] RecurringJobOptions options);
 
-        void Trigger([NotNull] string recurringJobId);
-        void RemoveIfExists([NotNull] string recurringJobId);
-    }
+    void Trigger([NotNull] string recurringJobId);
+    void RemoveIfExists([NotNull] string recurringJobId);
 }

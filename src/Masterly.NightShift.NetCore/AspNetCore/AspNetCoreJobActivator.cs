@@ -13,38 +13,33 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
-using Microsoft.Extensions.DependencyInjection;
+namespace Masterly.NightShift.AspNetCore;
 
-namespace Masterly.NightShift.AspNetCore
+/// <summary>
+/// A <see cref="JobActivator"/> backed by the service container: every job runs in its own service scope,
+/// and its instance is resolved from that scope, or created with its constructor's services when the type
+/// isn't registered. <c>AddNightShift</c> installs it.
+/// </summary>
+public class AspNetCoreJobActivator : JobActivator
 {
+    private readonly IServiceScopeFactory _serviceScopeFactory;
+
     /// <summary>
-    /// A <see cref="JobActivator"/> backed by the service container: every job runs in its own service scope,
-    /// and its instance is resolved from that scope, or created with its constructor's services when the type
-    /// isn't registered. <c>AddNightShift</c> installs it.
+    /// Initializes the activator.
     /// </summary>
-    public class AspNetCoreJobActivator : JobActivator
+    /// <param name="serviceScopeFactory">Creates the scope of each job.</param>
+    public AspNetCoreJobActivator([NotNull] IServiceScopeFactory serviceScopeFactory)
     {
-        private readonly IServiceScopeFactory _serviceScopeFactory;
+        ArgumentNullException.ThrowIfNull(serviceScopeFactory);
+        _serviceScopeFactory = serviceScopeFactory;
+    }
 
-        /// <summary>
-        /// Initializes the activator.
-        /// </summary>
-        /// <param name="serviceScopeFactory">Creates the scope of each job.</param>
-        public AspNetCoreJobActivator([NotNull] IServiceScopeFactory serviceScopeFactory)
-        {
-            ArgumentNullException.ThrowIfNull(serviceScopeFactory);
-            _serviceScopeFactory = serviceScopeFactory;
-        }
-
-        /// <summary>
-        /// Creates a service scope for the job; it is disposed, with the services it created, after the job.
-        /// </summary>
-        /// <param name="context">The job about to run.</param>
-        public override JobActivatorScope BeginScope(JobActivatorContext context)
-        {
-            return new AspNetCoreJobActivatorScope(_serviceScopeFactory.CreateScope());
-        }
+    /// <summary>
+    /// Creates a service scope for the job; it is disposed, with the services it created, after the job.
+    /// </summary>
+    /// <param name="context">The job about to run.</param>
+    public override JobActivatorScope BeginScope(JobActivatorContext context)
+    {
+        return new AspNetCoreJobActivatorScope(_serviceScopeFactory.CreateScope());
     }
 }

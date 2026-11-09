@@ -15,56 +15,55 @@
 
 using System.Globalization;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// The value a <see cref="DashboardMetric"/> shows, with its style, highlighting and title.
+/// </summary>
+public class Metric
 {
-    /// <summary>
-    /// The value a <see cref="DashboardMetric"/> shows, with its style, highlighting and title.
-    /// </summary>
-    public class Metric
+    public Metric(string value)
     {
-        public Metric(string value)
-        {
-            Value = value;
-        }
-
-        public Metric(long value)
-        {
-            Value = value.ToString("N0", CultureInfo.CurrentCulture);
-            IntValue = value;
-        }
-
-        public string Value { get; }
-        public long IntValue { get; set; }
-        public MetricStyle Style { get; set; }
-        public bool Highlighted { get; set; }
-        public string Title { get; set; }
+        Value = value;
     }
 
-    /// <summary>
-    /// The color of a dashboard metric.
-    /// </summary>
-    public enum MetricStyle
+    public Metric(long value)
     {
-        Default,
-        Info,
-        Success,
-        Warning,
-        Danger,
+        Value = value.ToString("N0", CultureInfo.CurrentCulture);
+        IntValue = value;
     }
 
-    internal static class MetricStyleExtensions
+    public string Value { get; }
+    public long IntValue { get; set; }
+    public MetricStyle Style { get; set; }
+    public bool Highlighted { get; set; }
+    public string Title { get; set; }
+}
+
+/// <summary>
+/// The color of a dashboard metric.
+/// </summary>
+public enum MetricStyle
+{
+    Default,
+    Info,
+    Success,
+    Warning,
+    Danger,
+}
+
+internal static class MetricStyleExtensions
+{
+    public static string ToClassName(this MetricStyle style)
     {
-        public static string ToClassName(this MetricStyle style)
+        return style switch
         {
-            switch (style)
-            {
-                case MetricStyle.Default: return "metric-default";
-                case MetricStyle.Info:    return "metric-info";
-                case MetricStyle.Success: return "metric-success";
-                case MetricStyle.Warning: return "metric-warning";
-                case MetricStyle.Danger:  return "metric-danger";
-                default:                  return "metric-null";
-            }
-        }
+            MetricStyle.Default => "metric-default",
+            MetricStyle.Info => "metric-info",
+            MetricStyle.Success => "metric-success",
+            MetricStyle.Warning => "metric-warning",
+            MetricStyle.Danger => "metric-danger",
+            _ => "metric-null",
+        };
     }
 }

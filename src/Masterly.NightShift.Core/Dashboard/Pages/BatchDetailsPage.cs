@@ -1,14 +1,6 @@
-using System;
+namespace Masterly.NightShift.Dashboard.Pages;
 
-namespace Masterly.NightShift.Dashboard.Pages
+internal partial class BatchDetailsPage(string id)
 {
-    partial class BatchDetailsPage
-    {
-        public BatchDetailsPage(string id)
-        {
-            Id = RouteValues.Decode(id);
-        }
-
-        public string Id { get; }
-    }
+    public string Id { get; } = RouteValues.Decode(id);
 }

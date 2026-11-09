@@ -13,28 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Client;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// The exception that is thrown when an instance of the class that 
+/// implements the <see cref="IBackgroundJobClient"/> interface is unable
+/// to perform an operation due to an error.
+/// </summary>
+/// <param name="message">The error message that explains the reason for the exception.</param>
+/// <param name="inner">The exception that is the cause of this exception, not null.</param>
+[Serializable]
+public class BackgroundJobClientException(string message, Exception inner) : Exception(message, inner)
 {
-    /// <summary>
-    /// The exception that is thrown when an instance of the class that 
-    /// implements the <see cref="IBackgroundJobClient"/> interface is unable
-    /// to perform an operation due to an error.
-    /// </summary>
-    [Serializable]
-    public class BackgroundJobClientException : Exception
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="BackgroundJobClientException"/>
-        /// class with a specified error message and a reference to the inner exception
-        /// that is the cause of this exception.
-        /// </summary>
-        /// <param name="message">The error message that explains the reason for the exception.</param>
-        /// <param name="inner">The exception that is the cause of this exception, not null.</param>
-        public BackgroundJobClientException(string message, Exception inner) : base(message, inner)
-        {
-        }
-    }
 }

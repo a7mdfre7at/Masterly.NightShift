@@ -13,59 +13,55 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Globalization;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Counts succeeded, failed and deleted jobs per day and per hour for the dashboard's graphs. Added to the global
+/// filters by default.
+/// </summary>
+public sealed class StatisticsHistoryAttribute : JobFilterAttribute, IElectStateFilter
 {
-    /// <summary>
-    /// Counts succeeded, failed and deleted jobs per day and per hour for the dashboard's graphs. Added to the global
-    /// filters by default.
-    /// </summary>
-    public sealed class StatisticsHistoryAttribute : JobFilterAttribute, IElectStateFilter
+    public StatisticsHistoryAttribute()
     {
-        public StatisticsHistoryAttribute()
+        Order = 30;
+    }
+
+    /// <summary>How long the hourly counters live: eight days, so the Insights heatmap can show a week.</summary>
+    public static readonly TimeSpan HourlyCounterLifetime = TimeSpan.FromDays(8);
+
+    public void OnStateElection(ElectStateContext context)
+    {
+        if (context.CandidateState.Name == SucceededState.StateName)
         {
-            Order = 30;
+            context.Transaction.IncrementCounter(
+                $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+
+            context.Transaction.IncrementCounter(
+                $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                HourlyCounterLifetime);
         }
-
-        /// <summary>How long the hourly counters live: eight days, so the Insights heatmap can show a week.</summary>
-        public static readonly TimeSpan HourlyCounterLifetime = TimeSpan.FromDays(8);
-
-        public void OnStateElection(ElectStateContext context)
+        else if (context.CandidateState.Name == FailedState.StateName)
         {
-            if (context.CandidateState.Name == SucceededState.StateName)
-            {
-                context.Transaction.IncrementCounter(
-                    $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                    DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+            context.Transaction.IncrementCounter(
+                $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
 
-                context.Transaction.IncrementCounter(
-                    $"stats:succeeded:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
-                    HourlyCounterLifetime);
-            }
-            else if (context.CandidateState.Name == FailedState.StateName)
-            {
-                context.Transaction.IncrementCounter(
-                    $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                    DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
+            context.Transaction.IncrementCounter(
+                $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                HourlyCounterLifetime);
+        }
+        else if (context.CandidateState is DeletedState)
+        {
+            context.Transaction.IncrementCounter(
+                $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
 
-                context.Transaction.IncrementCounter(
-                    $"stats:failed:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
-                    HourlyCounterLifetime);
-            }
-            else if (context.CandidateState is DeletedState)
-            {
-                context.Transaction.IncrementCounter(
-                    $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-                    DateTime.UtcNow.AddMonths(1) - DateTime.UtcNow);
-
-                context.Transaction.IncrementCounter(
-                    $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
-                    HourlyCounterLifetime);
-            }
+            context.Transaction.IncrementCounter(
+                $"stats:deleted:{DateTime.UtcNow.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}",
+                HourlyCounterLifetime);
         }
     }
 }

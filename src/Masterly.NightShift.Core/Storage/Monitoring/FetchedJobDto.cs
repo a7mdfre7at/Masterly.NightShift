@@ -15,20 +15,16 @@
 
 #nullable enable
 
-using System;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A job a worker has fetched from a queue, as listed by the dashboard.
+/// </summary>
+public class FetchedJobDto
 {
-    /// <summary>
-    /// A job a worker has fetched from a queue, as listed by the dashboard.
-    /// </summary>
-    public class FetchedJobDto
-    {
-        public Job? Job { get; set; }
-        public JobLoadException? LoadException { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public string? State { get; set; }
-        public DateTime? FetchedAt { get; set; }
-    }
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public string? State { get; set; }
+    public DateTime? FetchedAt { get; set; }
 }

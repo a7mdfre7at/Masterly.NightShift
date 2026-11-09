@@ -3,7 +3,6 @@
     <Description>SQL Server storage for Masterly.NightShift background jobs, on Microsoft.Data.SqlClient. Creates and upgrades its own tables; Hangfire databases keep working.</Description>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <PackageReadmeSource>README.md</PackageReadmeSource>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Masterly.NightShift.SqlServer</RootNamespace>
   </PropertyGroup>
   
@@ -37,4 +36,13 @@
       <LastGenOutput>DefaultInstall.sql</LastGenOutput>
     </None>
   </ItemGroup>
-</Project>
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="System.Data" />
+    <Using Include="System.Data.Common" />
+    <Using Include="System.Globalization" />
+    <Using Include="Dapper" />
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

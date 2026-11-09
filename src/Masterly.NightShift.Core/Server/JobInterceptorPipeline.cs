@@ -1,60 +1,55 @@
 #nullable enable
 
-using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Reflection;
-using Masterly.NightShift.Common;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+/// <summary>
+/// Finds the interceptors for a job: the global ones, then the attributes on its type and method,
+/// ordered by <see cref="JobInterceptorAttribute.Order"/>. Attribute lookups are cached per method.
+/// </summary>
+internal static class JobInterceptorPipeline
 {
-    /// <summary>
-    /// Finds the interceptors for a job: the global ones, then the attributes on its type and method,
-    /// ordered by <see cref="JobInterceptorAttribute.Order"/>. Attribute lookups are cached per method.
-    /// </summary>
-    internal static class JobInterceptorPipeline
+    private static readonly IJobInterceptor[] Empty = [];
+
+    private static readonly ConcurrentDictionary<(Type Type, MethodInfo Method), IJobInterceptor[]> AttributeCache = new();
+
+    public static IReadOnlyList<IJobInterceptor> GetInterceptors(Job job)
     {
-        private static readonly IJobInterceptor[] Empty = [];
+        ArgumentNullException.ThrowIfNull(job);
 
-        private static readonly ConcurrentDictionary<(Type Type, MethodInfo Method), IJobInterceptor[]> AttributeCache = new();
+        var declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
+        var global = GlobalJobInterceptors.Interceptors;
 
-        public static IReadOnlyList<IJobInterceptor> GetInterceptors(Job job)
+        if (global.Count == 0) return declared;
+        if (declared.Length == 0) return global;
+
+        var combined = new IJobInterceptor[global.Count + declared.Length];
+
+        for (var i = 0; i < global.Count; i++)
         {
-            ArgumentNullException.ThrowIfNull(job);
-
-            var declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
-            var global = GlobalJobInterceptors.Interceptors;
-
-            if (global.Count == 0) return declared;
-            if (declared.Length == 0) return global;
-
-            var combined = new IJobInterceptor[global.Count + declared.Length];
-
-            for (var i = 0; i < global.Count; i++)
-            {
-                combined[i] = global[i];
-            }
-
-            Array.Copy(declared, 0, combined, global.Count, declared.Length);
-            return combined;
+            combined[i] = global[i];
         }
 
-        private static IJobInterceptor[] GetDeclaredInterceptors(Type type, MethodInfo method)
-        {
-            var typeAttributes = type.GetTypeInfo().GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
-            var methodAttributes = method.GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
+        Array.Copy(declared, 0, combined, global.Count, declared.Length);
+        return combined;
+    }
 
-            var all = typeAttributes
-                .Select(static (attribute, index) => (Attribute: attribute, Scope: 0, Index: index))
-                .Concat(methodAttributes.Select(static (attribute, index) => (Attribute: attribute, Scope: 1, Index: index)))
-                .OrderBy(static x => x.Attribute.Order)
-                .ThenBy(static x => x.Scope)
-                .ThenBy(static x => x.Index)
-                .Select(static x => (IJobInterceptor)x.Attribute)
-                .ToArray();
+    private static IJobInterceptor[] GetDeclaredInterceptors(Type type, MethodInfo method)
+    {
+        var typeAttributes = type.GetTypeInfo().GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
+        var methodAttributes = method.GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
 
-            return all.Length == 0 ? Empty : all;
-        }
+        var all = typeAttributes
+            .Select(static (attribute, index) => (Attribute: attribute, Scope: 0, Index: index))
+            .Concat(methodAttributes.Select(static (attribute, index) => (Attribute: attribute, Scope: 1, Index: index)))
+            .OrderBy(static x => x.Attribute.Order)
+            .ThenBy(static x => x.Scope)
+            .ThenBy(static x => x.Index)
+            .Select(static x => (IJobInterceptor)x.Attribute)
+            .ToArray();
+
+        return all.Length == 0 ? Empty : all;
     }
 }

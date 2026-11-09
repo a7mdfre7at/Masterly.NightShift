@@ -13,39 +13,23 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// The server a background process dispatcher is created for: its identifier, storage, properties and stop tokens.
+/// </summary>
+public class BackgroundServerContext(
+    [NotNull] string serverId,
+    [NotNull] JobStorage storage,
+    [NotNull] IDictionary<string, object> properties,
+    CancellationToken stoppingToken,
+    CancellationToken stoppedToken,
+    CancellationToken shutdownToken)
 {
-    /// <summary>
-    /// The server a background process dispatcher is created for: its identifier, storage, properties and stop tokens.
-    /// </summary>
-    public class BackgroundServerContext
-    {
-        public BackgroundServerContext(
-            [NotNull] string serverId,
-            [NotNull] JobStorage storage,
-            [NotNull] IDictionary<string, object> properties, 
-            CancellationToken stoppingToken, 
-            CancellationToken stoppedToken,
-            CancellationToken shutdownToken)
-        {
-            ServerId = serverId ?? throw new ArgumentNullException(nameof(serverId));
-            Storage = storage ?? throw new ArgumentNullException(nameof(storage));
-            Properties = properties ?? throw new ArgumentNullException(nameof(properties));
-            StoppingToken = stoppingToken;
-            StoppedToken = stoppedToken;
-            ShutdownToken = shutdownToken;
-        }
-
-        public string ServerId { get; }
-        public JobStorage Storage { get; }
-        public IDictionary<string, object> Properties { get; }
-        public CancellationToken StoppingToken { get; }
-        public CancellationToken StoppedToken { get; }
-        public CancellationToken ShutdownToken { get; }
-    }
+    public string ServerId { get; } = serverId ?? throw new ArgumentNullException(nameof(serverId));
+    public JobStorage Storage { get; } = storage ?? throw new ArgumentNullException(nameof(storage));
+    public IDictionary<string, object> Properties { get; } = properties ?? throw new ArgumentNullException(nameof(properties));
+    public CancellationToken StoppingToken { get; } = stoppingToken;
+    public CancellationToken StoppedToken { get; } = stoppedToken;
+    public CancellationToken ShutdownToken { get; } = shutdownToken;
 }

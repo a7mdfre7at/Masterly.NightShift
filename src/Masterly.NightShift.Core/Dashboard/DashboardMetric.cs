@@ -13,31 +13,21 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>
+/// A named value the dashboard's home page can show, computed for each page by a function.
+/// </summary>
+public class DashboardMetric(string name, string title, Func<RazorPage, Metric> func)
 {
-    /// <summary>
-    /// A named value the dashboard's home page can show, computed for each page by a function.
-    /// </summary>
-    public class DashboardMetric
+    public DashboardMetric(string name, Func<RazorPage, Metric> func)
+        : this(name, name, func)
     {
-        public DashboardMetric(string name, Func<RazorPage, Metric> func) 
-            : this(name, name, func)
-        {
-        }
-
-        public DashboardMetric(string name, string title, Func<RazorPage, Metric> func)
-        {
-            Name = name;
-            Title = title;
-            Func = func;
-        }
-
-        public string Name { get; }
-        public Func<RazorPage, Metric> Func { get; }
-
-        public string Title { get; set; }
-        public string Url { get; set; }
     }
+
+    public string Name { get; } = name;
+    public Func<RazorPage, Metric> Func { get; } = func;
+
+    public string Title { get; set; } = title;
+    public string Url { get; set; }
 }

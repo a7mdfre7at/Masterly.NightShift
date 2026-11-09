@@ -13,23 +13,17 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// A string the dashboard pages write as raw HTML, without encoding it.
+/// </summary>
+public class NonEscapedString(string value)
 {
-    /// <summary>
-    /// A string the dashboard pages write as raw HTML, without encoding it.
-    /// </summary>
-    public class NonEscapedString
+    private readonly string _value = value;
+
+    public override string ToString()
     {
-        private readonly string _value;
-
-        public NonEscapedString(string value)
-        {
-            _value = value;
-        }
-
-        public override string ToString()
-        {
-            return _value;
-        }
+        return _value;
     }
 }

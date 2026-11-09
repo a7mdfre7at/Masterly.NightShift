@@ -14,52 +14,41 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// What a job details renderer, added with <c>UseJobDetailsRenderer</c>, gets: the page, the job identifier and the
+/// job's details.
+/// </summary>
+public sealed class JobDetailsRendererDto([NotNull] RazorPage page, [NotNull] string jobId, [NotNull] JobDetailsDto jobDetails)
 {
-    /// <summary>
-    /// What a job details renderer, added with <c>UseJobDetailsRenderer</c>, gets: the page, the job identifier and the
-    /// job's details.
-    /// </summary>
-    public sealed class JobDetailsRendererDto
+    public RazorPage Page { get; } = page ?? throw new ArgumentNullException(nameof(page));
+    public string JobId { get; } = jobId ?? throw new ArgumentNullException(nameof(jobId));
+    public JobDetailsDto JobDetails { get; } = jobDetails ?? throw new ArgumentNullException(nameof(jobDetails));
+}
+
+internal static class JobDetailsRenderer
+{
+    private static readonly object SyncRoot = new();
+    private static readonly List<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>> Renderers =
+        [];
+
+    public static IEnumerable<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>> GetRenderers()
     {
-        public JobDetailsRendererDto([NotNull] RazorPage page, [NotNull] string jobId, [NotNull] JobDetailsDto jobDetails)
+        lock (SyncRoot)
         {
-            Page = page ?? throw new ArgumentNullException(nameof(page));
-            JobId = jobId ?? throw new ArgumentNullException(nameof(jobId));
-            JobDetails = jobDetails ?? throw new ArgumentNullException(nameof(jobDetails));
+            return Renderers.AsReadOnly();
         }
-        
-        public RazorPage Page { get; }
-        public string JobId { get; }
-        public JobDetailsDto JobDetails { get; }
     }
 
-    internal static class JobDetailsRenderer
+    public static void AddRenderer(int order, Func<JobDetailsRendererDto, NonEscapedString> renderer)
     {
-        private static readonly object SyncRoot = new object();
-        private static readonly List<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>> Renderers = 
-            new List<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>>();
-
-        public static IEnumerable<Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>>> GetRenderers()
+        lock (SyncRoot)
         {
-            lock (SyncRoot)
-            {
-                return Renderers.AsReadOnly();
-            }
-        }
-
-        public static void AddRenderer(int order, Func<JobDetailsRendererDto, NonEscapedString> renderer)
-        {
-            lock (SyncRoot)
-            {
-                Renderers.Add(Tuple.Create(order, renderer));
-                Renderers.Sort(static (x, y) => x.Item1.CompareTo(y.Item1));
-            }
+            Renderers.Add(Tuple.Create(order, renderer));
+            Renderers.Sort(static (x, y) => x.Item1.CompareTo(y.Item1));
         }
     }
 }

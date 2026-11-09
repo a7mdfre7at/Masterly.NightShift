@@ -15,33 +15,30 @@
 
 #nullable enable
 
-using System;
+namespace Masterly.NightShift.Client;
 
-namespace Masterly.NightShift.Client
+/// <summary>
+/// Provides the context for the <see cref="IClientExceptionFilter.OnClientException"/>
+/// method of the <see cref="IClientExceptionFilter"/> interface.
+/// </summary>
+public class ClientExceptionContext : CreateContext
 {
-    /// <summary>
-    /// Provides the context for the <see cref="IClientExceptionFilter.OnClientException"/>
-    /// method of the <see cref="IClientExceptionFilter"/> interface.
-    /// </summary>
-    public class ClientExceptionContext : CreateContext
+    public ClientExceptionContext(CreateContext createContext, Exception exception)
+        : base(createContext)
     {
-        public ClientExceptionContext(CreateContext createContext, Exception exception)
-            : base(createContext)
-        {
-            ArgumentNullException.ThrowIfNull(exception);
+        ArgumentNullException.ThrowIfNull(exception);
 
-            Exception = exception;
-        }
-
-        /// <summary>
-        /// Gets an exception that occurred during the creation of the job.
-        /// </summary>
-        public Exception Exception { get; }
-
-        /// <summary>
-        /// Gets or sets a value that indicates that this <see cref="ClientExceptionContext"/>
-        /// object handles an exception occurred during the creation of the job.
-        /// </summary>
-        public bool ExceptionHandled { get; set; }
+        Exception = exception;
     }
+
+    /// <summary>
+    /// Gets an exception that occurred during the creation of the job.
+    /// </summary>
+    public Exception Exception { get; }
+
+    /// <summary>
+    /// Gets or sets a value that indicates that this <see cref="ClientExceptionContext"/>
+    /// object handles an exception occurred during the creation of the job.
+    /// </summary>
+    public bool ExceptionHandled { get; set; }
 }

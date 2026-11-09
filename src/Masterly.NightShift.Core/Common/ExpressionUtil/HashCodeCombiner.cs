@@ -3,55 +3,54 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Masterly.NightShift.Common.ExpressionUtil
+namespace Masterly.NightShift.Common.ExpressionUtil;
+
+// based on System.Web.Util.HashCodeCombiner
+[ExcludeFromCodeCoverage]
+internal sealed class HashCodeCombiner
 {
-    // based on System.Web.Util.HashCodeCombiner
-    [ExcludeFromCodeCoverage]
-    internal sealed class HashCodeCombiner
+    private long _combinedHash64 = 0x1505L;
+
+    public int CombinedHash => _combinedHash64.GetHashCode();
+
+    public void AddFingerprint(ExpressionFingerprint fingerprint)
     {
-        private long _combinedHash64 = 0x1505L;
-
-        public int CombinedHash => _combinedHash64.GetHashCode();
-
-        public void AddFingerprint(ExpressionFingerprint fingerprint)
+        if (fingerprint != null)
         {
-            if (fingerprint != null)
-            {
-                fingerprint.AddToHashCodeCombiner(this);
-            }
-            else
-            {
-                AddInt32(0);
-            }
+            fingerprint.AddToHashCodeCombiner(this);
         }
-
-        public void AddEnumerable(IEnumerable e)
+        else
         {
-            if (e == null)
-            {
-                AddInt32(0);
-            }
-            else
-            {
-                int count = 0;
-                foreach (object o in e)
-                {
-                    AddObject(o);
-                    count++;
-                }
-                AddInt32(count);
-            }
+            AddInt32(0);
         }
+    }
 
-        public void AddInt32(int i)
+    public void AddEnumerable(IEnumerable e)
+    {
+        if (e == null)
         {
-            _combinedHash64 = ((_combinedHash64 << 5) + _combinedHash64) ^ i;
+            AddInt32(0);
         }
+        else
+        {
+            int count = 0;
+            foreach (object o in e)
+            {
+                AddObject(o);
+                count++;
+            }
+            AddInt32(count);
+        }
+    }
 
-        public void AddObject(object o)
-        {
-            int hashCode = o?.GetHashCode() ?? 0;
-            AddInt32(hashCode);
-        }
+    public void AddInt32(int i)
+    {
+        _combinedHash64 = ((_combinedHash64 << 5) + _combinedHash64) ^ i;
+    }
+
+    public void AddObject(object o)
+    {
+        int hashCode = o?.GetHashCode() ?? 0;
+        AddInt32(hashCode);
     }
 }

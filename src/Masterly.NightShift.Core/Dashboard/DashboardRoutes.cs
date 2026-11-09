@@ -13,485 +13,474 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using System.Reflection;
-using Masterly.NightShift.Annotations;
-using System.Linq;
 using Masterly.NightShift.Dashboard.Pages;
-using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// Provides the routing mechanisms for the Dashboard UI. This class is used to register custom
+/// request dispatchers, allowing developers to write extensions for the Dashboard UI, such as
+/// custom pages, API endpoints or adding custom JavaScript or CSS files.
+/// </summary>
+/// <remarks>
+/// The <see cref="DashboardRoutes"/> class contains a collection of routes that the Dashboard UI uses to dispatch requests to handlers.
+/// Developers can use this class to add custom scripts, stylesheets, and register custom routes for extending the dashboard functionality.
+/// 
+/// To add a custom route, use the <see cref="DashboardRoutes.Routes"/> property which is an instance of <see cref="RouteCollection"/>.
+/// </remarks>
+/// <seealso cref="RouteCollection"/>
+/// <seealso cref="IDashboardDispatcher"/>
+public static class DashboardRoutes
 {
-    /// <summary>
-    /// Provides the routing mechanisms for the Dashboard UI. This class is used to register custom
-    /// request dispatchers, allowing developers to write extensions for the Dashboard UI, such as
-    /// custom pages, API endpoints or adding custom JavaScript or CSS files.
-    /// </summary>
-    /// <remarks>
-    /// The <see cref="DashboardRoutes"/> class contains a collection of routes that the Dashboard UI uses to dispatch requests to handlers.
-    /// Developers can use this class to add custom scripts, stylesheets, and register custom routes for extending the dashboard functionality.
-    /// 
-    /// To add a custom route, use the <see cref="DashboardRoutes.Routes"/> property which is an instance of <see cref="RouteCollection"/>.
-    /// </remarks>
-    /// <seealso cref="RouteCollection"/>
-    /// <seealso cref="IDashboardDispatcher"/>
-    public static class DashboardRoutes
+    private static readonly List<Tuple<Assembly, string>> JavaScripts = [];
+    private static readonly List<Tuple<Assembly, string>> Stylesheets = [];
+    private static readonly List<Tuple<Assembly, string>> StylesheetsDarkMode = [];
+
+    // The numbers in the bundle URLs, so browsers fetch a bundle again when its content may have changed
+    internal static volatile int JavaScriptsHashCode = InitialResourceHash;
+    internal static volatile int StylesheetsHashCode = InitialResourceHash;
+    internal static volatile int StylesheetsDarkModeHashCode = InitialResourceHash;
+
+    // FNV-1a, kept non-negative because the layout page uses Math.Abs on the result
+    private const uint FnvOffsetBasis = 2166136261;
+    private const uint FnvPrime = 16777619;
+    internal const int InitialResourceHash = (int)(FnvOffsetBasis & 0x7FFFFFFF);
+
+    static DashboardRoutes()
     {
-        private static readonly List<Tuple<Assembly, string>> JavaScripts = new List<Tuple<Assembly, string>>();
-        private static readonly List<Tuple<Assembly, string>> Stylesheets = new List<Tuple<Assembly, string>>();
-        private static readonly List<Tuple<Assembly, string>> StylesheetsDarkMode = new List<Tuple<Assembly, string>>();
+        Routes = new RouteCollection();
+        Routes.AddRazorPage("/", static _ => new HomePage());
+        Routes.Add("/stats", new JsonStats());
+        Routes.Add("/ping", new PingDispatcher());
+        Routes.Add("/health", new HealthDispatcher());
+        Routes.Add("/metrics", new PrometheusDispatcher());
 
-        // The numbers in the bundle URLs, so browsers fetch a bundle again when its content may have changed
-        internal static volatile int JavaScriptsHashCode = InitialResourceHash;
-        internal static volatile int StylesheetsHashCode = InitialResourceHash;
-        internal static volatile int StylesheetsDarkModeHashCode = InitialResourceHash;
+        var executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
 
-        // FNV-1a, kept non-negative because the layout page uses Math.Abs on the result
-        private const uint FnvOffsetBasis = 2166136261;
-        private const uint FnvPrime = 16777619;
-        internal const int InitialResourceHash = (int)(FnvOffsetBasis & 0x7FFFFFFF);
+        AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
+        AddStylesheet(executingAssembly, GetContentResourceName("css", "Chart.min.css"));
+        AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift.css"));
+        AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift-ui.css"));
 
-        static DashboardRoutes()
+        AddStylesheetDarkMode(executingAssembly, GetContentResourceName("css", "nightshift-dark.css"));
+
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-3.7.1.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "Chart.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift-intl.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "chartjs-plugin-streaming.min.js"));
+        AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift.js"));
+
+        #region Embedded static content
+
+        Routes.Add("/js[0-9]+", new CombinedResourceDispatcher("application/javascript", JavaScripts));
+        // Only the date formatting, for the wallboard, which loads no other script
+        Routes.Add("/js-intl[0-9]+", new EmbeddedResourceDispatcher("application/javascript", executingAssembly, GetContentResourceName("js", "nightshift-intl.js")));
+        Routes.Add("/css[0-9]+", new CombinedResourceDispatcher("text/css", Stylesheets));
+        Routes.Add("/css-dark[0-9]+", new CombinedResourceDispatcher("text/css", StylesheetsDarkMode));
+
+        Routes.Add("/fonts/glyphicons-halflings-regular/eot", new EmbeddedResourceDispatcher(
+            "application/vnd.ms-fontobject",
+            executingAssembly,
+            GetContentResourceName("fonts", "glyphicons-halflings-regular.eot")));
+
+        Routes.Add("/fonts/glyphicons-halflings-regular/svg", new EmbeddedResourceDispatcher(
+            "image/svg+xml",
+            executingAssembly,
+            GetContentResourceName("fonts", "glyphicons-halflings-regular.svg")));
+
+        Routes.Add("/fonts/glyphicons-halflings-regular/ttf", new EmbeddedResourceDispatcher(
+            "application/octet-stream",
+            executingAssembly,
+            GetContentResourceName("fonts", "glyphicons-halflings-regular.ttf")));
+
+        Routes.Add("/fonts/glyphicons-halflings-regular/woff", new EmbeddedResourceDispatcher(
+            "font/woff",
+            executingAssembly,
+            GetContentResourceName("fonts", "glyphicons-halflings-regular.woff")));
+
+        Routes.Add("/fonts/glyphicons-halflings-regular/woff2", new EmbeddedResourceDispatcher(
+            "font/woff2",
+            executingAssembly,
+            GetContentResourceName("fonts", "glyphicons-halflings-regular.woff2")));
+
+        // The documentation site's fonts, referenced by the @font-face rules of nightshift-ui.css
+        foreach (var font in Fonts)
         {
-            Routes = new RouteCollection();
-            Routes.AddRazorPage("/", static _ => new HomePage());
-            Routes.Add("/stats", new JsonStats());
-            Routes.Add("/ping", new PingDispatcher());
-            Routes.Add("/health", new HealthDispatcher());
-            Routes.Add("/metrics", new PrometheusDispatcher());
-
-            var executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
-
-            AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
-            AddStylesheet(executingAssembly, GetContentResourceName("css", "Chart.min.css"));
-            AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift.css"));
-            AddStylesheet(executingAssembly, GetContentResourceName("css", "nightshift-ui.css"));
-
-            AddStylesheetDarkMode(executingAssembly, GetContentResourceName("css", "nightshift-dark.css"));
-
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "jquery-3.7.1.min.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "bootstrap.min.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "Chart.min.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift-intl.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "chartjs-plugin-streaming.min.js"));
-            AddJavaScript(executingAssembly, GetContentResourceName("js", "nightshift.js"));
-
-            #region Embedded static content
-
-            Routes.Add("/js[0-9]+", new CombinedResourceDispatcher("application/javascript", JavaScripts));
-            // Only the date formatting, for the wallboard, which loads no other script
-            Routes.Add("/js-intl[0-9]+", new EmbeddedResourceDispatcher("application/javascript", executingAssembly, GetContentResourceName("js", "nightshift-intl.js")));
-            Routes.Add("/css[0-9]+", new CombinedResourceDispatcher("text/css", Stylesheets));
-            Routes.Add("/css-dark[0-9]+", new CombinedResourceDispatcher("text/css", StylesheetsDarkMode));
-
-            Routes.Add("/fonts/glyphicons-halflings-regular/eot", new EmbeddedResourceDispatcher(
-                "application/vnd.ms-fontobject",
-                executingAssembly,
-                GetContentResourceName("fonts", "glyphicons-halflings-regular.eot")));
-
-            Routes.Add("/fonts/glyphicons-halflings-regular/svg", new EmbeddedResourceDispatcher(
-                "image/svg+xml",
-                executingAssembly,
-                GetContentResourceName("fonts", "glyphicons-halflings-regular.svg")));
-
-            Routes.Add("/fonts/glyphicons-halflings-regular/ttf", new EmbeddedResourceDispatcher(
-                "application/octet-stream",
-                executingAssembly,
-                GetContentResourceName("fonts", "glyphicons-halflings-regular.ttf")));
-
-            Routes.Add("/fonts/glyphicons-halflings-regular/woff", new EmbeddedResourceDispatcher(
-                "font/woff",
-                executingAssembly,
-                GetContentResourceName("fonts", "glyphicons-halflings-regular.woff")));
-
-            Routes.Add("/fonts/glyphicons-halflings-regular/woff2", new EmbeddedResourceDispatcher(
+            Routes.Add($"/fonts/{font}/woff2", new EmbeddedResourceDispatcher(
                 "font/woff2",
                 executingAssembly,
-                GetContentResourceName("fonts", "glyphicons-halflings-regular.woff2")));
+                GetContentResourceName("fonts", $"{font}.woff2")));
+        }
 
-            // The documentation site's fonts, referenced by the @font-face rules of nightshift-ui.css
-            foreach (var font in Fonts)
+        #endregion
+
+        #region Razor pages and commands
+
+        Routes.AddRazorPage("/jobs/enqueued", static _ => new QueuesPage());
+        Routes.AddRazorPage(
+            "/jobs/enqueued/fetched/(?<Queue>.+)",
+            static x => new FetchedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
+
+        Routes.AddClientBatchCommand("/jobs/enqueued/delete", static (client, jobId) => client.ChangeState(jobId, CreateDeletedState()));
+        Routes.AddClientBatchCommand("/jobs/enqueued/requeue", static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState()));
+
+        // "Delete all" for every list, and "Requeue all" for failed jobs; registered before the pages whose
+        // patterns would also match these paths. Each answers { processed, remaining, complete }.
+        Routes.Add("/jobs/enqueued/delete-all/(?<Queue>.+)", new JobListCommandDispatcher(static context =>
+        {
+            var queue = RouteValues.Get(context, "Queue");
+            return JobListCommands.DeleteAll(
+                context,
+                (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => ListItem(x.Key, x.Value?.InEnqueuedState)),
+                monitor => monitor.EnqueuedCount(queue),
+                EnqueuedState.StateName);
+        }));
+        Routes.Add("/jobs/scheduled/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+            context,
+            static (monitor, from, count) => monitor.ScheduledJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InScheduledState)),
+            static monitor => monitor.ScheduledCount(),
+            ScheduledState.StateName)));
+        Routes.Add("/jobs/processing/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+            context,
+            static (monitor, from, count) => monitor.ProcessingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InProcessingState)),
+            static monitor => monitor.ProcessingCount(),
+            ProcessingState.StateName)));
+        Routes.Add("/jobs/succeeded/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+            context,
+            static (monitor, from, count) => monitor.SucceededJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InSucceededState)),
+            static monitor => monitor.SucceededListCount(),
+            SucceededState.StateName)));
+        Routes.Add("/jobs/failed/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
+            context,
+            static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
+            static monitor => monitor.FailedCount(),
+            FailedState.StateName)));
+        Routes.Add("/jobs/failed/requeue-all", new JobListCommandDispatcher(static context => JobListCommands.RequeueAll(
+            context,
+            static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
+            static monitor => monitor.FailedCount(),
+            FailedState.StateName)));
+        Routes.Add("/jobs/awaiting/delete-all", new JobListCommandDispatcher(static context =>
+        {
+            if (context.Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs) && context.Storage.GetMonitoringApi() is JobStorageMonitor)
             {
-                Routes.Add($"/fonts/{font}/woff2", new EmbeddedResourceDispatcher(
-                    "font/woff2",
-                    executingAssembly,
-                    GetContentResourceName("fonts", $"{font}.woff2")));
-            }
-
-            #endregion
-
-            #region Razor pages and commands
-
-            Routes.AddRazorPage("/jobs/enqueued", static _ => new QueuesPage());
-            Routes.AddRazorPage(
-                "/jobs/enqueued/fetched/(?<Queue>.+)",
-                static x => new FetchedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
-
-            Routes.AddClientBatchCommand("/jobs/enqueued/delete", static (client, jobId) => client.ChangeState(jobId, CreateDeletedState()));
-            Routes.AddClientBatchCommand("/jobs/enqueued/requeue", static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState()));
-
-            // "Delete all" for every list, and "Requeue all" for failed jobs; registered before the pages whose
-            // patterns would also match these paths. Each answers { processed, remaining, complete }.
-            Routes.Add("/jobs/enqueued/delete-all/(?<Queue>.+)", new JobListCommandDispatcher(static context =>
-            {
-                var queue = RouteValues.Get(context, "Queue");
                 return JobListCommands.DeleteAll(
                     context,
-                    (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => ListItem(x.Key, x.Value?.InEnqueuedState)),
-                    monitor => monitor.EnqueuedCount(queue),
-                    EnqueuedState.StateName);
-            }));
-            Routes.Add("/jobs/scheduled/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
-                context,
-                static (monitor, from, count) => monitor.ScheduledJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InScheduledState)),
-                static monitor => monitor.ScheduledCount(),
-                ScheduledState.StateName)));
-            Routes.Add("/jobs/processing/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
-                context,
-                static (monitor, from, count) => monitor.ProcessingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InProcessingState)),
-                static monitor => monitor.ProcessingCount(),
-                ProcessingState.StateName)));
-            Routes.Add("/jobs/succeeded/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
-                context,
-                static (monitor, from, count) => monitor.SucceededJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InSucceededState)),
-                static monitor => monitor.SucceededListCount(),
-                SucceededState.StateName)));
-            Routes.Add("/jobs/failed/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAll(
-                context,
-                static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
-                static monitor => monitor.FailedCount(),
-                FailedState.StateName)));
-            Routes.Add("/jobs/failed/requeue-all", new JobListCommandDispatcher(static context => JobListCommands.RequeueAll(
-                context,
-                static (monitor, from, count) => monitor.FailedJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InFailedState)),
-                static monitor => monitor.FailedCount(),
-                FailedState.StateName)));
-            Routes.Add("/jobs/awaiting/delete-all", new JobListCommandDispatcher(static context =>
+                    static (monitor, from, count) => ((JobStorageMonitor)monitor).AwaitingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InAwaitingState)),
+                    static monitor => ((JobStorageMonitor)monitor).AwaitingCount(),
+                    AwaitingState.StateName);
+            }
+
+            // Like the Awaiting page: without the feature, awaiting jobs are listed in the "awaiting" set
+            return JobListCommands.DeleteAllFromSet(context, "awaiting", AwaitingState.StateName);
+        }));
+        Routes.Add("/retries/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName)));
+        Routes.Add("/recurring/remove-all", new JobListCommandDispatcher(static context => JobListCommands.RemoveAllRecurringJobs(context)));
+
+        Routes.Add("/maintenance/clear-jobs", new MaintenanceDispatcher(keepRecurringJobsAndServers: true));
+        Routes.Add("/maintenance/reset", new MaintenanceDispatcher(keepRecurringJobsAndServers: false));
+
+        // CSV exports, before the list pages whose patterns would also match these paths
+        Routes.Add("/jobs/enqueued/export/(?<Queue>.+)", new JobListExportDispatcher("enqueued"));
+        Routes.Add("/jobs/failed/export", new JobListExportDispatcher("failed"));
+        Routes.Add("/jobs/succeeded/export", new JobListExportDispatcher("succeeded"));
+        Routes.Add("/jobs/scheduled/export", new JobListExportDispatcher("scheduled"));
+        Routes.Add("/jobs/processing/export", new JobListExportDispatcher("processing"));
+        Routes.Add("/jobs/deleted/export", new JobListExportDispatcher("deleted"));
+        Routes.Add("/jobs/export/(?<JobId>.+)", new JobExportDispatcher());
+        Routes.Add("/jobs/notes/add/(?<JobId>.+)", new JobNotesDispatcher());
+
+        Routes.Add("/servers/pause/(?<Id>.+)", new ServerPauseDispatcher(pause: true));
+        Routes.Add("/servers/resume/(?<Id>.+)", new ServerPauseDispatcher(pause: false));
+        Routes.AddRazorPage("/timeline", static _ => new TimelinePage());
+        Routes.AddRazorPage("/wallboard", static _ => new WallboardPage());
+
+        Routes.Add("/queues/pause/(?<Queue>.+)", new QueuePauseDispatcher(pause: true));
+        Routes.Add("/queues/resume/(?<Queue>.+)", new QueuePauseDispatcher(pause: false));
+
+        Routes.AddRazorPage(
+            "/jobs/enqueued/(?<Queue>.+)",
+            static x => new EnqueuedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
+
+        Routes.AddRazorPage("/jobs/processing", static _ => new ProcessingJobsPage());
+        Routes.AddClientBatchCommand(
+            "/jobs/processing/delete",
+            static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), ProcessingState.StateName));
+
+        Routes.AddClientBatchCommand(
+            "/jobs/processing/requeue",
+            static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), ProcessingState.StateName));
+
+        Routes.AddRazorPage("/jobs/scheduled", static _ => new ScheduledJobsPage());
+
+        Routes.AddClientBatchCommand(
+            "/jobs/scheduled/enqueue",
+            static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), ScheduledState.StateName));
+
+        Routes.AddClientBatchCommand(
+            "/jobs/scheduled/delete",
+            static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), ScheduledState.StateName));
+
+        Routes.AddRazorPage("/jobs/succeeded", static _ => new SucceededJobs());
+        Routes.AddClientBatchCommand(
+            "/jobs/succeeded/requeue",
+            static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), SucceededState.StateName));
+
+        Routes.AddRazorPage("/jobs/failed", static _ => new FailedJobsPage());
+
+        Routes.AddClientBatchCommand(
+            "/jobs/failed/requeue",
+            static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), FailedState.StateName));
+
+        Routes.AddClientBatchCommand(
+            "/jobs/failed/delete",
+            static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), FailedState.StateName));
+
+        Routes.AddRazorPage("/jobs/deleted", static _ => new DeletedJobsPage());
+
+        Routes.AddClientBatchCommand(
+            "/jobs/deleted/requeue",
+            static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), DeletedState.StateName));
+
+        Routes.AddRazorPage("/jobs/awaiting", static _ => new AwaitingJobsPage());
+        Routes.AddClientBatchCommand("/jobs/awaiting/enqueue", static (client, jobId) => client.ChangeState(
+            jobId, CreateEnqueuedState(), AwaitingState.StateName));
+        Routes.AddClientBatchCommand("/jobs/awaiting/delete", static (client, jobId) => client.ChangeState(
+            jobId, CreateDeletedState(), AwaitingState.StateName));
+
+        Routes.AddCommand(
+            "/jobs/actions/requeue/(?<JobId>.+)",
+            static context =>
             {
-                if (context.Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs) && context.Storage.GetMonitoringApi() is JobStorageMonitor)
-                {
-                    return JobListCommands.DeleteAll(
-                        context,
-                        static (monitor, from, count) => ((JobStorageMonitor)monitor).AwaitingJobs(from, count).Select(static x => ListItem(x.Key, x.Value?.InAwaitingState)),
-                        static monitor => ((JobStorageMonitor)monitor).AwaitingCount(),
-                        AwaitingState.StateName);
-                }
+                var client = context.GetBackgroundJobClient();
+                return client.ChangeState(RouteValues.Get(context, "JobId"), CreateEnqueuedState());
+            });
 
-                // Like the Awaiting page: without the feature, awaiting jobs are listed in the "awaiting" set
-                return JobListCommands.DeleteAllFromSet(context, "awaiting", AwaitingState.StateName);
-            }));
-            Routes.Add("/retries/delete-all", new JobListCommandDispatcher(static context => JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName)));
-            Routes.Add("/recurring/remove-all", new JobListCommandDispatcher(static context => JobListCommands.RemoveAllRecurringJobs(context)));
-
-            Routes.Add("/maintenance/clear-jobs", new MaintenanceDispatcher(keepRecurringJobsAndServers: true));
-            Routes.Add("/maintenance/reset", new MaintenanceDispatcher(keepRecurringJobsAndServers: false));
-
-            // CSV exports, before the list pages whose patterns would also match these paths
-            Routes.Add("/jobs/enqueued/export/(?<Queue>.+)", new JobListExportDispatcher("enqueued"));
-            Routes.Add("/jobs/failed/export", new JobListExportDispatcher("failed"));
-            Routes.Add("/jobs/succeeded/export", new JobListExportDispatcher("succeeded"));
-            Routes.Add("/jobs/scheduled/export", new JobListExportDispatcher("scheduled"));
-            Routes.Add("/jobs/processing/export", new JobListExportDispatcher("processing"));
-            Routes.Add("/jobs/deleted/export", new JobListExportDispatcher("deleted"));
-            Routes.Add("/jobs/export/(?<JobId>.+)", new JobExportDispatcher());
-            Routes.Add("/jobs/notes/add/(?<JobId>.+)", new JobNotesDispatcher());
-
-            Routes.Add("/servers/pause/(?<Id>.+)", new ServerPauseDispatcher(pause: true));
-            Routes.Add("/servers/resume/(?<Id>.+)", new ServerPauseDispatcher(pause: false));
-            Routes.AddRazorPage("/timeline", static _ => new TimelinePage());
-            Routes.AddRazorPage("/wallboard", static _ => new WallboardPage());
-
-            Routes.Add("/queues/pause/(?<Queue>.+)", new QueuePauseDispatcher(pause: true));
-            Routes.Add("/queues/resume/(?<Queue>.+)", new QueuePauseDispatcher(pause: false));
-
-            Routes.AddRazorPage(
-                "/jobs/enqueued/(?<Queue>.+)",
-                static x => new EnqueuedJobsPage(RouteValues.Decode(x.Groups["Queue"].Value)));
-
-            Routes.AddRazorPage("/jobs/processing", static _ => new ProcessingJobsPage());
-            Routes.AddClientBatchCommand(
-                "/jobs/processing/delete", 
-                static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), ProcessingState.StateName));
-
-            Routes.AddClientBatchCommand(
-                "/jobs/processing/requeue",
-                static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), ProcessingState.StateName));
-
-            Routes.AddRazorPage("/jobs/scheduled", static _ => new ScheduledJobsPage());
-
-            Routes.AddClientBatchCommand(
-                "/jobs/scheduled/enqueue", 
-                static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), ScheduledState.StateName));
-
-            Routes.AddClientBatchCommand(
-                "/jobs/scheduled/delete",
-                static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), ScheduledState.StateName));
-
-            Routes.AddRazorPage("/jobs/succeeded", static _ => new SucceededJobs());
-            Routes.AddClientBatchCommand(
-                "/jobs/succeeded/requeue",
-                static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), SucceededState.StateName));
-
-            Routes.AddRazorPage("/jobs/failed", static _ => new FailedJobsPage());
-
-            Routes.AddClientBatchCommand(
-                "/jobs/failed/requeue",
-                static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), FailedState.StateName));
-
-            Routes.AddClientBatchCommand(
-                "/jobs/failed/delete",
-                static (client, jobId) => client.ChangeState(jobId, CreateDeletedState(), FailedState.StateName));
-
-            Routes.AddRazorPage("/jobs/deleted", static _ => new DeletedJobsPage());
-
-            Routes.AddClientBatchCommand(
-                "/jobs/deleted/requeue",
-                static (client, jobId) => client.ChangeState(jobId, CreateEnqueuedState(), DeletedState.StateName));
-
-            Routes.AddRazorPage("/jobs/awaiting", static _ => new AwaitingJobsPage());
-            Routes.AddClientBatchCommand("/jobs/awaiting/enqueue", static (client, jobId) => client.ChangeState(
-                jobId, CreateEnqueuedState(), AwaitingState.StateName));
-            Routes.AddClientBatchCommand("/jobs/awaiting/delete", static (client, jobId) => client.ChangeState(
-                jobId, CreateDeletedState(), AwaitingState.StateName));
-
-            Routes.AddCommand(
-                "/jobs/actions/requeue/(?<JobId>.+)",
-                static context =>
-                {
-                    var client = context.GetBackgroundJobClient();
-                    return client.ChangeState(RouteValues.Get(context, "JobId"), CreateEnqueuedState());
-                });
-
-            Routes.AddCommand(
-                "/jobs/actions/delete/(?<JobId>.+)",
-                static context =>
-                {
-                    var client = context.GetBackgroundJobClient();
-                    return client.ChangeState(RouteValues.Get(context, "JobId"), CreateDeletedState());
-                });
-
-            Routes.Add("/jobs/live", new LiveJobsDispatcher());
-            Routes.AddRazorPage("/jobs/details/(?<JobId>.+)", static x => new JobDetailsPage(RouteValues.Decode(x.Groups["JobId"].Value)));
-
-            Routes.AddRazorPage("/recurring", x => new RecurringJobsPage());
-            Routes.AddRecurringBatchCommand(
-                "/recurring/remove", 
-                static (manager, jobId) => manager.RemoveIfExists(jobId));
-
-            Routes.AddRecurringBatchCommand(
-                "/recurring/trigger",
-                static (manager, jobId) => manager.Trigger(jobId));
-
-            Routes.AddRecurringBatchCommand(
-                "/recurring/pause",
-                static (manager, jobId) => manager.Pause(jobId));
-
-            Routes.AddRecurringBatchCommand(
-                "/recurring/resume",
-                static (manager, jobId) => manager.Resume(jobId));
-
-            Routes.Add("/recurring/preview", new CronPreviewDispatcher());
-            Routes.Add("/recurring/update/(?<JobId>.+)", new RecurringJobUpdateDispatcher());
-            Routes.AddRazorPage("/recurring/forecast", static _ => new ForecastPage());
-            Routes.Add("/recurring/export", new RecurringJobManifestDispatcher(import: false));
-            Routes.Add("/recurring/import", new RecurringJobManifestDispatcher(import: true));
-
-            Routes.AddRazorPage("/batches", static _ => new BatchesPage());
-            // Each answers { processed, remaining, complete } like "Delete all", or 422 for an unknown batch
-            Routes.Add("/batches/requeue-failed/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.RequeueFailed(context, context.UriMatch.Groups["Id"].Value)));
-            Routes.Add("/batches/delete/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.DeletePending(context, context.UriMatch.Groups["Id"].Value)));
-            Routes.AddRazorPage("/batches/(?<Id>.+)", static x => new BatchDetailsPage(x.Groups["Id"].Value));
-
-            Routes.AddRazorPage("/audit", static _ => new AuditPage());
-
-            Routes.AddRazorPage("/tags", static _ => new TagsPage());
-            Routes.AddCommand("/tags/forget/(?<Tag>.+)", static context =>
+        Routes.AddCommand(
+            "/jobs/actions/delete/(?<JobId>.+)",
+            static context =>
             {
-                using (var connection = context.Storage.GetConnection())
-                {
-                    JobTags.Delete(connection, RouteValues.Get(context, "Tag"));
-                }
+                var client = context.GetBackgroundJobClient();
+                return client.ChangeState(RouteValues.Get(context, "JobId"), CreateDeletedState());
+            });
+
+        Routes.Add("/jobs/live", new LiveJobsDispatcher());
+        Routes.AddRazorPage("/jobs/details/(?<JobId>.+)", static x => new JobDetailsPage(RouteValues.Decode(x.Groups["JobId"].Value)));
+
+        Routes.AddRazorPage("/recurring", x => new RecurringJobsPage());
+        Routes.AddRecurringBatchCommand(
+            "/recurring/remove",
+            static (manager, jobId) => manager.RemoveIfExists(jobId));
+
+        Routes.AddRecurringBatchCommand(
+            "/recurring/trigger",
+            static (manager, jobId) => manager.Trigger(jobId));
+
+        Routes.AddRecurringBatchCommand(
+            "/recurring/pause",
+            static (manager, jobId) => manager.Pause(jobId));
+
+        Routes.AddRecurringBatchCommand(
+            "/recurring/resume",
+            static (manager, jobId) => manager.Resume(jobId));
+
+        Routes.Add("/recurring/preview", new CronPreviewDispatcher());
+        Routes.Add("/recurring/update/(?<JobId>.+)", new RecurringJobUpdateDispatcher());
+        Routes.AddRazorPage("/recurring/forecast", static _ => new ForecastPage());
+        Routes.Add("/recurring/export", new RecurringJobManifestDispatcher(import: false));
+        Routes.Add("/recurring/import", new RecurringJobManifestDispatcher(import: true));
+
+        Routes.AddRazorPage("/batches", static _ => new BatchesPage());
+        // Each answers { processed, remaining, complete } like "Delete all", or 422 for an unknown batch
+        Routes.Add("/batches/requeue-failed/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.RequeueFailed(context, context.UriMatch.Groups["Id"].Value)));
+        Routes.Add("/batches/delete/(?<Id>.+)", new JobListCommandDispatcher(static context => BatchCommands.DeletePending(context, context.UriMatch.Groups["Id"].Value)));
+        Routes.AddRazorPage("/batches/(?<Id>.+)", static x => new BatchDetailsPage(x.Groups["Id"].Value));
+
+        Routes.AddRazorPage("/audit", static _ => new AuditPage());
+
+        Routes.AddRazorPage("/tags", static _ => new TagsPage());
+        Routes.AddCommand("/tags/forget/(?<Tag>.+)", static context =>
+        {
+            using var connection = context.Storage.GetConnection();
+            JobTags.Delete(connection, RouteValues.Get(context, "Tag"));
+
+            return true;
+        });
+        Routes.AddCommand("/tags/forget-expired/(?<Tag>.+)", TaggedJobsPage.ForgetExpired);
+        Routes.AddRazorPage("/tags/(?<Tag>.+)", static x => new TaggedJobsPage(RouteValues.Decode(x.Groups["Tag"].Value)));
+
+        Routes.AddRazorPage("/catalog", static _ => new JobCatalogPage());
+        Routes.Add("/catalog/run", new JobCatalogRunDispatcher());
+
+        Routes.Add("/activity", new ActivityDispatcher());
+        Routes.Add("/maintenance/pause", new DrainModeDispatcher(enable: true));
+        Routes.Add("/maintenance/resume", new DrainModeDispatcher(enable: false));
+
+        Routes.AddRazorPage("/servers", static _ => new ServersPage());
+        Routes.AddRazorPage("/retries", static _ => new RetriesPage());
+
+        Routes.AddRazorPage("/insights", static _ => new InsightsPage());
+        Routes.AddCommand(
+            "/insights/circuits/reset/(?<Resource>.+)",
+            static context =>
+            {
+                using var connection = context.Storage.GetConnection();
+                CircuitBreakerAttribute.Reset(connection, RouteValues.Get(context, "Resource"));
 
                 return true;
             });
-            Routes.AddCommand("/tags/forget-expired/(?<Tag>.+)", TaggedJobsPage.ForgetExpired);
-            Routes.AddRazorPage("/tags/(?<Tag>.+)", static x => new TaggedJobsPage(RouteValues.Decode(x.Groups["Tag"].Value)));
 
-            Routes.AddRazorPage("/catalog", static _ => new JobCatalogPage());
-            Routes.Add("/catalog/run", new JobCatalogRunDispatcher());
+        Routes.Add("/search", new SearchDispatcher());
 
-            Routes.Add("/activity", new ActivityDispatcher());
-            Routes.Add("/maintenance/pause", new DrainModeDispatcher(enable: true));
-            Routes.Add("/maintenance/resume", new DrainModeDispatcher(enable: false));
+        #endregion
+    }
 
-            Routes.AddRazorPage("/servers", static _ => new ServersPage());
-            Routes.AddRazorPage("/retries", static _ => new RetriesPage());
+    /// <summary>
+    /// Gets the collection of routes for the Dashboard UI. Use this property to register
+    /// custom request dispatchers.
+    /// </summary>
+    public static RouteCollection Routes { get; }
 
-            Routes.AddRazorPage("/insights", static _ => new InsightsPage());
-            Routes.AddCommand(
-                "/insights/circuits/reset/(?<Resource>.+)",
-                static context =>
-                {
-                    using (var connection = context.Storage.GetConnection())
-                    {
-                        CircuitBreakerAttribute.Reset(connection, RouteValues.Get(context, "Resource"));
-                    }
+    /// <summary>
+    /// Adds a stylesheet resource embedded into the given assembly to be included in the dashboard.
+    /// </summary>
+    /// <remarks>
+    /// The specified resource should be an embedded resource file within the referenced assembly.
+    /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
+    /// </remarks>
+    /// <param name="assembly">The assembly containing the embedded stylesheet resource.</param>
+    /// <param name="resource">The name of the stylesheet embedded resource.</param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
+    public static void AddStylesheet([NotNull] Assembly assembly, [NotNull] string resource)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        ArgumentNullException.ThrowIfNull(resource);
 
-                    return true;
-                });
-
-            Routes.Add("/search", new SearchDispatcher());
-
-            #endregion
-        }
-
-        /// <summary>
-        /// Gets the collection of routes for the Dashboard UI. Use this property to register
-        /// custom request dispatchers.
-        /// </summary>
-        public static RouteCollection Routes { get; }
-
-        /// <summary>
-        /// Adds a stylesheet resource embedded into the given assembly to be included in the dashboard.
-        /// </summary>
-        /// <remarks>
-        /// The specified resource should be an embedded resource file within the referenced assembly.
-        /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
-        /// </remarks>
-        /// <param name="assembly">The assembly containing the embedded stylesheet resource.</param>
-        /// <param name="resource">The name of the stylesheet embedded resource.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
-        public static void AddStylesheet([NotNull] Assembly assembly, [NotNull] string resource)
+        lock (Stylesheets)
         {
-            ArgumentNullException.ThrowIfNull(assembly);
-            ArgumentNullException.ThrowIfNull(resource);
+            Stylesheets.Add(Tuple.Create(assembly, resource));
+            StylesheetsHashCode = CombineResourceHash(StylesheetsHashCode, GetModuleVersionId(assembly), resource);
+        }
+    }
 
-            lock (Stylesheets)
+    /// <summary>
+    /// Adds a resource embedded into the given assembly that will only be included in the dashboard
+    /// when the <see cref="DashboardOptions.DarkModeEnabled"/> is set to <c>true</c>.
+    /// </summary>
+    /// <remarks>
+    /// The specified resource should be an embedded resource file within the referenced assembly.
+    /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
+    /// </remarks>
+    /// <param name="assembly">The assembly containing the dark-mode stylesheet embedded resource.</param>
+    /// <param name="resource">The name of the dark-mode stylesheet embedded resource.</param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
+    public static void AddStylesheetDarkMode([NotNull] Assembly assembly, [NotNull] string resource)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        ArgumentNullException.ThrowIfNull(resource);
+
+        lock (StylesheetsDarkMode)
+        {
+            StylesheetsDarkMode.Add(Tuple.Create(assembly, resource));
+            StylesheetsDarkModeHashCode = CombineResourceHash(StylesheetsDarkModeHashCode, GetModuleVersionId(assembly), resource);
+        }
+    }
+
+    /// <summary>
+    /// Adds a JavaScript resource embedded into the given assembly to be included in the dashboard.
+    /// </summary>
+    /// <remarks>
+    /// The specified resource should be an embedded resource file within the referenced assembly.
+    /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
+    /// </remarks>
+    /// <param name="assembly">The assembly containing the JavaScript embedded resource.</param>
+    /// <param name="resource">The name of the JavaScript embedded resource.</param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
+    public static void AddJavaScript([NotNull] Assembly assembly, [NotNull] string resource)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        ArgumentNullException.ThrowIfNull(resource);
+
+        lock (JavaScripts)
+        {
+            JavaScripts.Add(Tuple.Create(assembly, resource));
+            JavaScriptsHashCode = CombineResourceHash(JavaScriptsHashCode, GetModuleVersionId(assembly), resource);
+        }
+    }
+
+    /// <summary>
+    /// Adds a resource to the number in a bundle URL. Unlike <see cref="string.GetHashCode()"/>, which .NET
+    /// randomizes per process, the result is the same in every process and on every server running the same
+    /// binaries. It includes the build (module version id) of the resource's assembly, so the number changes
+    /// when a new build can change the resource's content. It depends on the order resources are added in,
+    /// like the bundle itself, and is never negative.
+    /// </summary>
+    internal static int CombineResourceHash(int current, Guid moduleVersionId, string resource)
+    {
+        unchecked
+        {
+            var hash = (uint)current;
+
+            foreach (var ch in $"{moduleVersionId:N}/{resource}")
             {
-                Stylesheets.Add(Tuple.Create(assembly, resource));
-                StylesheetsHashCode = CombineResourceHash(StylesheetsHashCode, GetModuleVersionId(assembly), resource);
+                hash ^= ch;
+                hash *= FnvPrime;
             }
+
+            return (int)(hash & 0x7FFFFFFF);
         }
+    }
 
-        /// <summary>
-        /// Adds a resource embedded into the given assembly that will only be included in the dashboard
-        /// when the <see cref="DashboardOptions.DarkModeEnabled"/> is set to <c>true</c>.
-        /// </summary>
-        /// <remarks>
-        /// The specified resource should be an embedded resource file within the referenced assembly.
-        /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
-        /// </remarks>
-        /// <param name="assembly">The assembly containing the dark-mode stylesheet embedded resource.</param>
-        /// <param name="resource">The name of the dark-mode stylesheet embedded resource.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
-        public static void AddStylesheetDarkMode([NotNull] Assembly assembly, [NotNull] string resource)
-        {
-            ArgumentNullException.ThrowIfNull(assembly);
-            ArgumentNullException.ThrowIfNull(resource);
+    private static Guid GetModuleVersionId(Assembly assembly)
+    {
+        // Dynamic assemblies have no stable build identity
+        return assembly.IsDynamic ? Guid.Empty : assembly.ManifestModule.ModuleVersionId;
+    }
 
-            lock (StylesheetsDarkMode)
-            {
-                StylesheetsDarkMode.Add(Tuple.Create(assembly, resource));
-                StylesheetsDarkModeHashCode = CombineResourceHash(StylesheetsDarkModeHashCode, GetModuleVersionId(assembly), resource);
-            }
-        }
+    internal static string GetContentFolderNamespace(string contentFolder)
+    {
+        return $"{typeof(DashboardRoutes).Namespace}.Content.{contentFolder}";
+    }
 
-        /// <summary>
-        /// Adds a JavaScript resource embedded into the given assembly to be included in the dashboard.
-        /// </summary>
-        /// <remarks>
-        /// The specified resource should be an embedded resource file within the referenced assembly.
-        /// You can discover embedded resource names by calling the <c>assembly.GetManifestResourceNames()</c> method.
-        /// </remarks>
-        /// <param name="assembly">The assembly containing the JavaScript embedded resource.</param>
-        /// <param name="resource">The name of the JavaScript embedded resource.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="assembly"/> or <paramref name="resource"/> is <c>null</c>.</exception>
-        public static void AddJavaScript([NotNull] Assembly assembly, [NotNull] string resource)
-        {
-            ArgumentNullException.ThrowIfNull(assembly);
-            ArgumentNullException.ThrowIfNull(resource);
+    // IBM Plex Sans and JetBrains Mono, one file per subset, weight and style
+    private static readonly string[] Fonts =
+    [
+        "ibm-plex-sans-latin-400-normal",
+        "ibm-plex-sans-latin-500-normal",
+        "ibm-plex-sans-latin-600-normal",
+        "ibm-plex-sans-latin-700-normal",
+        "ibm-plex-sans-latin-ext-400-normal",
+        "ibm-plex-sans-latin-ext-500-normal",
+        "ibm-plex-sans-latin-ext-600-normal",
+        "ibm-plex-sans-latin-ext-700-normal",
+        "ibm-plex-sans-cyrillic-400-normal",
+        "ibm-plex-sans-cyrillic-500-normal",
+        "ibm-plex-sans-cyrillic-600-normal",
+        "ibm-plex-sans-cyrillic-700-normal",
+        "ibm-plex-sans-latin-400-italic",
+        "jetbrains-mono-latin-400-normal",
+        "jetbrains-mono-latin-600-normal"
+    ];
 
-            lock (JavaScripts)
-            {
-                JavaScripts.Add(Tuple.Create(assembly, resource));
-                JavaScriptsHashCode = CombineResourceHash(JavaScriptsHashCode, GetModuleVersionId(assembly), resource);
-            }
-        }
+    internal static string GetContentResourceName(string contentFolder, string resourceName)
+    {
+        return $"{GetContentFolderNamespace(contentFolder)}.{resourceName}";
+    }
 
-        /// <summary>
-        /// Adds a resource to the number in a bundle URL. Unlike <see cref="String.GetHashCode()"/>, which .NET
-        /// randomizes per process, the result is the same in every process and on every server running the same
-        /// binaries. It includes the build (module version id) of the resource's assembly, so the number changes
-        /// when a new build can change the resource's content. It depends on the order resources are added in,
-        /// like the bundle itself, and is never negative.
-        /// </summary>
-        internal static int CombineResourceHash(int current, Guid moduleVersionId, string resource)
-        {
-            unchecked
-            {
-                var hash = (uint)current;
+    private static KeyValuePair<string, bool> ListItem(string jobId, bool? inListState)
+    {
+        return new KeyValuePair<string, bool>(jobId, inListState == true);
+    }
 
-                foreach (var ch in $"{moduleVersionId:N}/{resource}")
-                {
-                    hash ^= ch;
-                    hash *= FnvPrime;
-                }
+    private static DeletedState CreateDeletedState()
+    {
+        return new DeletedState { Reason = "Triggered via Dashboard UI" };
+    }
 
-                return (int)(hash & 0x7FFFFFFF);
-            }
-        }
-
-        private static Guid GetModuleVersionId(Assembly assembly)
-        {
-            // Dynamic assemblies have no stable build identity
-            return assembly.IsDynamic ? Guid.Empty : assembly.ManifestModule.ModuleVersionId;
-        }
-
-        internal static string GetContentFolderNamespace(string contentFolder)
-        {
-            return $"{typeof (DashboardRoutes).Namespace}.Content.{contentFolder}";
-        }
-
-        // IBM Plex Sans and JetBrains Mono, one file per subset, weight and style
-        private static readonly string[] Fonts =
-        [
-            "ibm-plex-sans-latin-400-normal",
-            "ibm-plex-sans-latin-500-normal",
-            "ibm-plex-sans-latin-600-normal",
-            "ibm-plex-sans-latin-700-normal",
-            "ibm-plex-sans-latin-ext-400-normal",
-            "ibm-plex-sans-latin-ext-500-normal",
-            "ibm-plex-sans-latin-ext-600-normal",
-            "ibm-plex-sans-latin-ext-700-normal",
-            "ibm-plex-sans-cyrillic-400-normal",
-            "ibm-plex-sans-cyrillic-500-normal",
-            "ibm-plex-sans-cyrillic-600-normal",
-            "ibm-plex-sans-cyrillic-700-normal",
-            "ibm-plex-sans-latin-400-italic",
-            "jetbrains-mono-latin-400-normal",
-            "jetbrains-mono-latin-600-normal"
-        ];
-
-        internal static string GetContentResourceName(string contentFolder, string resourceName)
-        {
-            return $"{GetContentFolderNamespace(contentFolder)}.{resourceName}";
-        }
-
-        private static KeyValuePair<string, bool> ListItem(string jobId, bool? inListState)
-        {
-            return new KeyValuePair<string, bool>(jobId, inListState == true);
-        }
-
-        private static DeletedState CreateDeletedState()
-        {
-            return new DeletedState { Reason = "Triggered via Dashboard UI" };
-        }
-
-        private static EnqueuedState CreateEnqueuedState()
-        {
-            return new EnqueuedState { Reason = "Triggered via Dashboard UI" };
-        }
+    private static EnqueuedState CreateEnqueuedState()
+    {
+        return new EnqueuedState { Reason = "Triggered via Dashboard UI" };
     }
 }

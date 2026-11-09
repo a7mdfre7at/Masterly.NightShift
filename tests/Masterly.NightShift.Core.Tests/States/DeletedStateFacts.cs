@@ -1,96 +1,90 @@
-﻿using System;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
-using Xunit;
+﻿namespace Masterly.NightShift.Core.Tests.States;
 
-namespace Masterly.NightShift.Core.Tests.States
+public class DeletedStateFacts
 {
-    public class DeletedStateFacts
+    [Fact]
+    public void StateName_ReturnsDeleted()
     {
-        [Fact]
-        public void StateName_ReturnsDeleted()
-        {
-            var result = DeletedState.StateName;
-            Assert.Equal("Deleted", result);
-        }
+        var result = DeletedState.StateName;
+        Assert.Equal("Deleted", result);
+    }
 
-        [Fact]
-        public void NameProperty_ReturnsStateName()
-        {
-            var state = CreateState();
+    [Fact]
+    public void NameProperty_ReturnsStateName()
+    {
+        var state = CreateState();
 
-            var result = state.Name;
+        var result = state.Name;
 
-            Assert.Equal(DeletedState.StateName, result);
-        }
+        Assert.Equal(DeletedState.StateName, result);
+    }
 
-        [Fact]
-        public void IsFinalProperty_ReturnsTrue()
-        {
-            var state = CreateState();
+    [Fact]
+    public void IsFinalProperty_ReturnsTrue()
+    {
+        var state = CreateState();
 
-            var result = state.IsFinal;
+        var result = state.IsFinal;
 
-            Assert.True(result);
-        }
+        Assert.True(result);
+    }
 
-        [Fact]
-        public void IgnoreExceptions_ReturnsTrue()
-        {
-            var state = CreateState();
+    [Fact]
+    public void IgnoreExceptions_ReturnsTrue()
+    {
+        var state = CreateState();
 
-            var result = state.IgnoreJobLoadException;
+        var result = state.IgnoreJobLoadException;
 
-            Assert.True(result);
-        }
+        Assert.True(result);
+    }
 
-        [Fact]
-        public void DeletedAtProperty_ReturnsCurrentUtcDate()
-        {
-            var state = CreateState();
+    [Fact]
+    public void DeletedAtProperty_ReturnsCurrentUtcDate()
+    {
+        var state = CreateState();
 
-            Assert.True(DateTime.UtcNow.AddMinutes(-1) < state.DeletedAt);
-            Assert.True(state.DeletedAt < DateTime.UtcNow.AddMinutes(1));
-        }
+        Assert.True(DateTime.UtcNow.AddMinutes(-1) < state.DeletedAt);
+        Assert.True(state.DeletedAt < DateTime.UtcNow.AddMinutes(1));
+    }
 
-        [Fact]
-        public void SerializeData_ReturnsSerializedStateData()
-        {
-            var state = CreateState();
+    [Fact]
+    public void SerializeData_ReturnsSerializedStateData()
+    {
+        var state = CreateState();
 
-            var data = state.SerializeData();
+        var data = state.SerializeData();
 
-            Assert.Single(data);
-            Assert.True(JobHelper.DeserializeDateTime(data["DeletedAt"]) != default(DateTime));
-        }
+        Assert.Single(data);
+        Assert.True(JobHelper.DeserializeDateTime(data["DeletedAt"]) != default);
+    }
 
-        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
-        public void JsonSerialize_ReturnsCorrectString_Before170()
-        {
-            var state = new DeletedState();
+    [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
+    public void JsonSerialize_ReturnsCorrectString_Before170()
+    {
+        var state = new DeletedState();
 
-            var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
-            Assert.Equal(
-                "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",
-                serialized);
-        }
+        Assert.Equal(
+            "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",
+            serialized);
+    }
 
-        [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
-        public void JsonSerialize_ReturnsCorrectString_After170()
-        {
-            var state = new DeletedState();
+    [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
+    public void JsonSerialize_ReturnsCorrectString_After170()
+    {
+        var state = new DeletedState();
 
-            var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
-            Assert.Equal(
-                "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",
-                serialized);
-        }
+        Assert.Equal(
+            "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",
+            serialized);
+    }
 
-        private static DeletedState CreateState()
-        {
-            return new DeletedState();
-        }
+    private static DeletedState CreateState()
+    {
+        return new DeletedState();
     }
 }

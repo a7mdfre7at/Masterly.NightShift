@@ -15,20 +15,16 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
+namespace Masterly.NightShift.Storage.Monitoring;
 
-namespace Masterly.NightShift.Storage.Monitoring
+/// <summary>
+/// A state from a job's history: its name, reason, data and when it was applied.
+/// </summary>
+public class StateHistoryDto
 {
-    /// <summary>
-    /// A state from a job's history: its name, reason, data and when it was applied.
-    /// </summary>
-    public class StateHistoryDto
-    {
-        // Storages must set the non-nullable members, the dashboard relies on them
-        public string StateName { get; set; } = null!;
-        public string? Reason { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public IDictionary<string, string> Data { get; set; } = null!; 
-    }
+    // Storages must set the non-nullable members, the dashboard relies on them
+    public string StateName { get; set; } = null!;
+    public string? Reason { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public IDictionary<string, string> Data { get; set; } = null!;
 }

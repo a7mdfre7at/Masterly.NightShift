@@ -13,47 +13,43 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>
+/// Builds links to dashboard pages, relative to the dashboard's path.
+/// </summary>
+public class UrlHelper
 {
-    /// <summary>
-    /// Builds links to dashboard pages, relative to the dashboard's path.
-    /// </summary>
-    public class UrlHelper
+    private readonly DashboardContext _context;
+
+    public UrlHelper([NotNull] DashboardContext context)
     {
-        private readonly DashboardContext _context;
+        ArgumentNullException.ThrowIfNull(context);
+        _context = context;
+    }
 
-        public UrlHelper([NotNull] DashboardContext context)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-            _context = context;
-        }
+    public string To(string relativePath)
+    {
+        return _context.Options.PrefixPath + _context.Request.PathBase + relativePath;
+    }
 
-        public string To(string relativePath)
-        {
-            return _context.Options.PrefixPath + _context.Request.PathBase + relativePath;
-        }
+    public string Home()
+    {
+        return To("/");
+    }
 
-        public string Home()
-        {
-            return To("/");
-        }
+    public string JobDetails(string jobId)
+    {
+        return To("/jobs/details/" + jobId);
+    }
 
-        public string JobDetails(string jobId)
-        {
-            return To("/jobs/details/" + jobId);
-        }
+    public string LinkToQueues()
+    {
+        return To("/jobs/enqueued");
+    }
 
-        public string LinkToQueues()
-        {
-            return To("/jobs/enqueued");
-        }
-
-        public string Queue(string queue)
-        {
-            return To("/jobs/enqueued/" + queue);
-        }
+    public string Queue(string queue)
+    {
+        return To("/jobs/enqueued/" + queue);
     }
 }

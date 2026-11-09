@@ -13,20 +13,19 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.Server
-{
-    /// <summary>
-    /// What a server announces to the storage: its worker count and queues.
-    /// </summary>
-    public class ServerContext
-    {
-        public ServerContext()
-        {
-            Queues = [];
-            WorkerCount = -1;
-        }
+namespace Masterly.NightShift.Server;
 
-        public int WorkerCount { get; set; }
-        public string[] Queues { get; set; }
+/// <summary>
+/// What a server announces to the storage: its worker count and queues.
+/// </summary>
+public class ServerContext
+{
+    public ServerContext()
+    {
+        Queues = [];
+        WorkerCount = -1;
     }
+
+    public int WorkerCount { get; set; }
+    public string[] Queues { get; set; }
 }

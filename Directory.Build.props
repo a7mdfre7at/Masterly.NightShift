@@ -5,6 +5,16 @@
         <!-- net8.0 stays a target after .NET 8 leaves support (2026-11-10): no NETSDK1138 warning, which warnings as
              errors would turn into a build break -->
         <CheckEolTargetFramework>false</CheckEolTargetFramework>
+        <!-- System, System.Collections.Generic, System.IO, System.Linq, System.Net.Http, System.Threading and
+             System.Threading.Tasks are imported everywhere; each project adds its most-used namespaces as <Using> items -->
+        <!-- The newest C# the SDK supports, on every target framework (C# 14 with the .NET 10 SDK) -->
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <!-- The build enforces the code style in .editorconfig. Reporting unused usings (IDE0005) needs the
+             documentation file; missing XML comments (CS1591) are not reported. -->
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(APPVEYOR)' == 'True' or '$(GITHUB_ACTIONS)' == 'true'">

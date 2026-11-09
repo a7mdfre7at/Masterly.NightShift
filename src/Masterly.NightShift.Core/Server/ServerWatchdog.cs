@@ -13,47 +13,39 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using Masterly.NightShift.Logging;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal sealed class ServerWatchdog(TimeSpan checkInterval, TimeSpan serverTimeout) : IBackgroundProcess
 {
-    internal sealed class ServerWatchdog : IBackgroundProcess
+    public static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan DefaultServerTimeout = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan MaxServerTimeout = TimeSpan.FromHours(24);
+    public static readonly TimeSpan MaxServerCheckInterval = TimeSpan.FromHours(24);
+    public static readonly TimeSpan MaxHeartbeatInterval = TimeSpan.FromHours(24);
+
+    private readonly ILog _logger = LogProvider.For<ServerWatchdog>();
+
+    private readonly TimeSpan _checkInterval = checkInterval;
+    private readonly TimeSpan _serverTimeout = serverTimeout;
+
+    public void Execute(BackgroundProcessContext context)
     {
-        public static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromMinutes(5);
-        public static readonly TimeSpan DefaultServerTimeout = TimeSpan.FromMinutes(5);
-        public static readonly TimeSpan MaxServerTimeout = TimeSpan.FromHours(24);
-        public static readonly TimeSpan MaxServerCheckInterval = TimeSpan.FromHours(24);
-        public static readonly TimeSpan MaxHeartbeatInterval = TimeSpan.FromHours(24);
-
-        private readonly ILog _logger = LogProvider.For<ServerWatchdog>();
-
-        private readonly TimeSpan _checkInterval;
-        private readonly TimeSpan _serverTimeout;
-
-        public ServerWatchdog(TimeSpan checkInterval, TimeSpan serverTimeout)
+        using (var connection = context.Storage.GetConnection())
         {
-            _checkInterval = checkInterval;
-            _serverTimeout = serverTimeout;
-        }
-
-        public void Execute(BackgroundProcessContext context)
-        {
-            using (var connection = context.Storage.GetConnection())
+            var serversRemoved = connection.RemoveTimedOutServers(_serverTimeout);
+            if (serversRemoved != 0)
             {
-                var serversRemoved = connection.RemoveTimedOutServers(_serverTimeout);
-                if (serversRemoved != 0)
-                {
-                    _logger.Info($"{serversRemoved} servers were removed due to timeout");
-                }
+                _logger.Info($"{serversRemoved} servers were removed due to timeout");
             }
-
-            context.Wait(_checkInterval);
         }
 
-        public override string ToString()
-        {
-            return GetType().Name;
-        }
+        context.Wait(_checkInterval);
+    }
+
+    public override string ToString()
+    {
+        return GetType().Name;
     }
 }

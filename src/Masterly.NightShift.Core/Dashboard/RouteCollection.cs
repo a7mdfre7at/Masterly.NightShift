@@ -13,91 +13,87 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using Masterly.NightShift.Annotations;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+/// <summary>
+/// Maps dashboard paths, matched as regular expressions, to the dispatchers that answer them.
+/// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "Public API, can not change in minor versions.")]
+public class RouteCollection
 {
-    /// <summary>
-    /// Maps dashboard paths, matched as regular expressions, to the dispatchers that answer them.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "Public API, can not change in minor versions.")]
-    public class RouteCollection
+    private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
+
+    // Each pattern is parsed once: the static Regex cache only holds 15 patterns, fewer than the routes
+    private readonly List<Tuple<Regex, IDashboardDispatcher>> _dispatchers
+        = [];
+
+    public void Add([NotNull] string pathTemplate, [NotNull] IDashboardDispatcher dispatcher)
     {
-        private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
+        ArgumentNullException.ThrowIfNull(pathTemplate);
+        ArgumentNullException.ThrowIfNull(dispatcher);
 
-        // Each pattern is parsed once: the static Regex cache only holds 15 patterns, fewer than the routes
-        private readonly List<Tuple<Regex, IDashboardDispatcher>> _dispatchers
-            = new List<Tuple<Regex, IDashboardDispatcher>>();
+        var pattern = pathTemplate;
 
-        public void Add([NotNull] string pathTemplate, [NotNull] IDashboardDispatcher dispatcher)
+        if (!pattern.StartsWith("^", StringComparison.OrdinalIgnoreCase))
+            pattern = "^" + pattern;
+        if (!pattern.EndsWith("$", StringComparison.OrdinalIgnoreCase))
+            pattern += "$";
+
+        var regex = new Regex(
+            pattern,
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline,
+            MatchTimeout);
+
+        _dispatchers.Add(new Tuple<Regex, IDashboardDispatcher>(regex, dispatcher));
+    }
+
+    public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path)
+    {
+        return FindDispatcher(path, null);
+    }
+
+    /// <summary>
+    /// Finds the first route that matches the path. For a <c>GET</c> or <c>HEAD</c> request, a route that only
+    /// accepts <c>POST</c> (a command) is skipped when a later route matches too, so a page whose path looks like
+    /// a command (the "delete" queue's <c>/jobs/enqueued/delete</c>) stays reachable.
+    /// </summary>
+    /// <param name="path">The request path relative to the dashboard, like <c>"/jobs/failed"</c>.</param>
+    /// <param name="method">The HTTP method, or <c>null</c> to take the first match whatever it is.</param>
+    /// <returns>The dispatcher and the match, or <c>null</c> when no route matches.</returns>
+    public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path, [CanBeNull] string method)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        if (path.Length == 0) path = "/";
+        else if (path.Length > 1) path = path.TrimEnd('/');
+
+        var skipCommands = "GET".Equals(method, StringComparison.OrdinalIgnoreCase)
+            || "HEAD".Equals(method, StringComparison.OrdinalIgnoreCase);
+
+        Tuple<IDashboardDispatcher, Match> command = null;
+
+        foreach (var dispatcher in _dispatchers)
         {
-            ArgumentNullException.ThrowIfNull(pathTemplate);
-            ArgumentNullException.ThrowIfNull(dispatcher);
+            var match = dispatcher.Item1.Match(path);
+            if (!match.Success) continue;
 
-            var pattern = pathTemplate;
-
-            if (!pattern.StartsWith("^", StringComparison.OrdinalIgnoreCase))
-                pattern = "^" + pattern;
-            if (!pattern.EndsWith("$", StringComparison.OrdinalIgnoreCase))
-                pattern += "$";
-
-            var regex = new Regex(
-                pattern,
-                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline,
-                MatchTimeout);
-
-            _dispatchers.Add(new Tuple<Regex, IDashboardDispatcher>(regex, dispatcher));
-        }
-
-        public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path)
-        {
-            return FindDispatcher(path, null);
-        }
-
-        /// <summary>
-        /// Finds the first route that matches the path. For a <c>GET</c> or <c>HEAD</c> request, a route that only
-        /// accepts <c>POST</c> (a command) is skipped when a later route matches too, so a page whose path looks like
-        /// a command (the "delete" queue's <c>/jobs/enqueued/delete</c>) stays reachable.
-        /// </summary>
-        /// <param name="path">The request path relative to the dashboard, like <c>"/jobs/failed"</c>.</param>
-        /// <param name="method">The HTTP method, or <c>null</c> to take the first match whatever it is.</param>
-        /// <returns>The dispatcher and the match, or <c>null</c> when no route matches.</returns>
-        public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path, [CanBeNull] string method)
-        {
-            ArgumentNullException.ThrowIfNull(path);
-
-            if (path.Length == 0) path = "/";
-            else if (path.Length > 1) path = path.TrimEnd('/');
-
-            var skipCommands = "GET".Equals(method, StringComparison.OrdinalIgnoreCase)
-                || "HEAD".Equals(method, StringComparison.OrdinalIgnoreCase);
-
-            Tuple<IDashboardDispatcher, Match> command = null;
-
-            foreach (var dispatcher in _dispatchers)
+            if (skipCommands && dispatcher.Item2 is IDashboardCommandDispatcher)
             {
-                var match = dispatcher.Item1.Match(path);
-                if (!match.Success) continue;
-
-                if (skipCommands && dispatcher.Item2 is IDashboardCommandDispatcher)
-                {
-                    // Answers 405 if nothing else matches
-                    command ??= new Tuple<IDashboardDispatcher, Match>(dispatcher.Item2, match);
-                    continue;
-                }
-
-                return new Tuple<IDashboardDispatcher, Match>(dispatcher.Item2, match);
+                // Answers 405 if nothing else matches
+                command ??= new Tuple<IDashboardDispatcher, Match>(dispatcher.Item2, match);
+                continue;
             }
 
-            return command;
+            return new Tuple<IDashboardDispatcher, Match>(dispatcher.Item2, match);
         }
-    }
 
-    /// <summary>A dispatcher that only accepts <c>POST</c>, so <c>GET</c> requests may go to a later route.</summary>
-    internal interface IDashboardCommandDispatcher : IDashboardDispatcher
-    {
+        return command;
     }
+}
+
+/// <summary>A dispatcher that only accepts <c>POST</c>, so <c>GET</c> requests may go to a later route.</summary>
+internal interface IDashboardCommandDispatcher : IDashboardDispatcher
+{
 }

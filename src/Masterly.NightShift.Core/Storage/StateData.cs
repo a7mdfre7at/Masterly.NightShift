@@ -15,26 +15,22 @@
 
 #nullable enable
 
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
-
 // ReSharper disable NotNullMemberIsNotInitialized - Let's trust them!
 
-namespace Masterly.NightShift.Storage
+namespace Masterly.NightShift.Storage;
+
+/// <summary>
+/// A job's current state as read from the storage: its name, reason and data.
+/// </summary>
+public class StateData
 {
-    /// <summary>
-    /// A job's current state as read from the storage: its name, reason and data.
-    /// </summary>
-    public class StateData
-    {
-        // Storage implementations always set Name and Data when they create an instance
-        [NotNull]
-        public string Name { get; set; } = null!;
+    // Storage implementations always set Name and Data when they create an instance
+    [NotNull]
+    public string Name { get; set; } = null!;
 
-        [CanBeNull]
-        public string? Reason { get; set; }
+    [CanBeNull]
+    public string? Reason { get; set; }
 
-        [NotNull]
-        public IDictionary<string, string> Data { get; set; } = null!;
-    }
+    [NotNull]
+    public IDictionary<string, string> Data { get; set; } = null!;
 }

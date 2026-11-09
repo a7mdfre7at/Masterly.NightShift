@@ -13,19 +13,14 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+namespace Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Processing
+// TODO Replace these methods with WaitHandle property in 2.0.
+/// <summary>
+/// Runs a background process on its threads until the server stops, and lets the server wait for it to finish.
+/// </summary>
+public interface IBackgroundDispatcher : IDisposable
 {
-    // TODO Replace these methods with WaitHandle property in 2.0.
-    /// <summary>
-    /// Runs a background process on its threads until the server stops, and lets the server wait for it to finish.
-    /// </summary>
-    public interface IBackgroundDispatcher : IDisposable
-    {
-        bool Wait(TimeSpan timeout);
-        Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken);
-    }
+    bool Wait(TimeSpan timeout);
+    Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken);
 }

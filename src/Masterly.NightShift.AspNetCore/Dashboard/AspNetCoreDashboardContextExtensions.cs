@@ -13,33 +13,23 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
-using Microsoft.AspNetCore.Http;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>
+/// Gives dashboard authorization filters and extensions access to the ASP.NET Core request.
+/// </summary>
+public static class AspNetCoreDashboardContextExtensions
 {
     /// <summary>
-    /// Gives dashboard authorization filters and extensions access to the ASP.NET Core request.
+    /// Gets the <see cref="HttpContext"/> of a dashboard request served by ASP.NET Core.
     /// </summary>
-    public static class AspNetCoreDashboardContextExtensions
+    /// <param name="context">The dashboard context.</param>
+    /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
+    public static HttpContext GetHttpContext([NotNull] this DashboardContext context)
     {
-        /// <summary>
-        /// Gets the <see cref="HttpContext"/> of a dashboard request served by ASP.NET Core.
-        /// </summary>
-        /// <param name="context">The dashboard context.</param>
-        /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
-        public static HttpContext GetHttpContext([NotNull] this DashboardContext context)
-        {
-            ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(context);
 
-            var aspNetCoreContext = context as AspNetCoreDashboardContext;
-            if (aspNetCoreContext == null)
-            {
-                throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
-            }
-
-            return aspNetCoreContext.HttpContext;
-        }
+        var aspNetCoreContext = context as AspNetCoreDashboardContext ?? throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
+        return aspNetCoreContext.HttpContext;
     }
 }

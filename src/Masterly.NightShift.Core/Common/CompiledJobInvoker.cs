@@ -1,114 +1,111 @@
 #nullable enable
 
-using System;
 using System.Linq.Expressions;
 using System.Reflection;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// A <see cref="JobInvoker"/> whose call is a delegate compiled once from an expression tree:
+/// <c>(instance, arguments) => ((T)instance).Method((P0)arguments[0], ...)</c>.
+/// </summary>
+internal sealed class CompiledJobInvoker : JobInvoker
 {
-    /// <summary>
-    /// A <see cref="JobInvoker"/> whose call is a delegate compiled once from an expression tree:
-    /// <c>(instance, arguments) => ((T)instance).Method((P0)arguments[0], ...)</c>.
-    /// </summary>
-    internal sealed class CompiledJobInvoker : JobInvoker
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(CompiledJobInvoker));
+
+    private readonly Func<object?, object?[], object?> _call;
+
+    private CompiledJobInvoker(MethodInfo method, Func<object?, object?[], object?> call)
+        : base(method, JobInvokerKind.Compiled)
     {
-        private static readonly ILog Logger = LogProvider.GetLogger(typeof(CompiledJobInvoker));
+        _call = call;
+    }
 
-        private readonly Func<object?, object?[], object?> _call;
-
-        private CompiledJobInvoker(MethodInfo method, Func<object?, object?[], object?> call)
-            : base(method, JobInvokerKind.Compiled)
+    /// <summary>
+    /// Gets whether this runtime can compile expression trees to delegates. Without it the interpreter
+    /// would be slower than reflection, so the registry skips this tier.
+    /// </summary>
+    public static bool IsSupported
+    {
+        get
         {
-            _call = call;
+            return System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled;
         }
+    }
 
-        /// <summary>
-        /// Gets whether this runtime can compile expression trees to delegates. Without it the interpreter
-        /// would be slower than reflection, so the registry skips this tier.
-        /// </summary>
-        public static bool IsSupported
+    /// <summary>
+    /// Compiles an invoker for the method, or returns <c>null</c> when the method can't be compiled, for
+    /// example because a type involved is not visible to dynamic code.
+    /// </summary>
+    [CanBeNull]
+    public static CompiledJobInvoker? TryCreate([NotNull] MethodInfo method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+
+        try
         {
-            get
-            {
-                return System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled;
-            }
+            return new CompiledJobInvoker(method, Compile(method));
         }
-
-        /// <summary>
-        /// Compiles an invoker for the method, or returns <c>null</c> when the method can't be compiled, for
-        /// example because a type involved is not visible to dynamic code.
-        /// </summary>
-        [CanBeNull]
-        public static CompiledJobInvoker? TryCreate([NotNull] MethodInfo method)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            ArgumentNullException.ThrowIfNull(method);
-
-            try
-            {
-                return new CompiledJobInvoker(method, Compile(method));
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                Logger.DebugException($"Unable to compile an invoker for `{method.DeclaringType}.{method.Name}`, reflection will be used instead.", ex);
-                return null;
-            }
+            Logger.DebugException($"Unable to compile an invoker for `{method.DeclaringType}.{method.Name}`, reflection will be used instead.", ex);
+            return null;
         }
+    }
 
-        public override object? Invoke(object? instance, object?[] arguments)
+    public override object? Invoke(object? instance, object?[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return _call(instance, arguments);
+    }
+
+    private static Func<object?, object?[], object?> Compile(MethodInfo method)
+    {
+        if (method.DeclaringType == null) throw new NotSupportedException("Global methods are not supported.");
+        if (method.ContainsGenericParameters) throw new NotSupportedException("Open generic methods are not supported.");
+
+        var instance = Expression.Parameter(typeof(object), "instance");
+        var arguments = Expression.Parameter(typeof(object[]), "arguments");
+
+        var parameters = method.GetParameters();
+        var callArguments = new Expression[parameters.Length];
+
+        for (var i = 0; i < parameters.Length; i++)
         {
-            ArgumentNullException.ThrowIfNull(arguments);
-            return _call(instance, arguments);
-        }
+            var parameterType = parameters[i].ParameterType;
 
-        private static Func<object?, object?[], object?> Compile(MethodInfo method)
-        {
-            if (method.DeclaringType == null) throw new NotSupportedException("Global methods are not supported.");
-            if (method.ContainsGenericParameters) throw new NotSupportedException("Open generic methods are not supported.");
-
-            var instance = Expression.Parameter(typeof(object), "instance");
-            var arguments = Expression.Parameter(typeof(object[]), "arguments");
-
-            var parameters = method.GetParameters();
-            var callArguments = new Expression[parameters.Length];
-
-            for (var i = 0; i < parameters.Length; i++)
+            if (parameterType.IsByRef || parameterType.IsPointer)
             {
-                var parameterType = parameters[i].ParameterType;
-
-                if (parameterType.IsByRef || parameterType.IsPointer)
-                {
-                    throw new NotSupportedException("Parameters passed by reference or pointers are not supported.");
-                }
-
-                Expression argument = Expression.ArrayIndex(arguments, Expression.Constant(i));
-
-                if (parameterType.GetTypeInfo().IsValueType && Nullable.GetUnderlyingType(parameterType) == null)
-                {
-                    // A null argument for a non-nullable value type is passed as the default value, like MethodInfo.Invoke does.
-                    argument = Expression.Condition(
-                        Expression.ReferenceEqual(argument, Expression.Constant(null, typeof(object))),
-                        Expression.Default(parameterType),
-                        Expression.Convert(argument, parameterType));
-                }
-                else
-                {
-                    argument = Expression.Convert(argument, parameterType);
-                }
-
-                callArguments[i] = argument;
+                throw new NotSupportedException("Parameters passed by reference or pointers are not supported.");
             }
 
-            Expression call = method.IsStatic
-                ? Expression.Call(method, callArguments)
-                : Expression.Call(Expression.Convert(instance, method.DeclaringType), method, callArguments);
+            Expression argument = Expression.ArrayIndex(arguments, Expression.Constant(i));
 
-            Expression body = method.ReturnType == typeof(void)
-                ? Expression.Block(call, Expression.Constant(null, typeof(object)))
-                : Expression.Convert(call, typeof(object));
+            if (parameterType.GetTypeInfo().IsValueType && Nullable.GetUnderlyingType(parameterType) == null)
+            {
+                // A null argument for a non-nullable value type is passed as the default value, like MethodInfo.Invoke does.
+                argument = Expression.Condition(
+                    Expression.ReferenceEqual(argument, Expression.Constant(null, typeof(object))),
+                    Expression.Default(parameterType),
+                    Expression.Convert(argument, parameterType));
+            }
+            else
+            {
+                argument = Expression.Convert(argument, parameterType);
+            }
 
-            return Expression.Lambda<Func<object?, object?[], object?>>(body, instance, arguments).Compile();
+            callArguments[i] = argument;
         }
+
+        Expression call = method.IsStatic
+            ? Expression.Call(method, callArguments)
+            : Expression.Call(Expression.Convert(instance, method.DeclaringType), method, callArguments);
+
+        Expression body = method.ReturnType == typeof(void)
+            ? Expression.Block(call, Expression.Constant(null, typeof(object)))
+            : Expression.Convert(call, typeof(object));
+
+        return Expression.Lambda<Func<object?, object?[], object?>>(body, instance, arguments).Compile();
     }
 }

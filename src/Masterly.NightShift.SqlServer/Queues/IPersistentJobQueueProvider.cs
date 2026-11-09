@@ -13,18 +13,17 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.SqlServer
-{
-    /// <summary>
-    /// Provides a queue implementation to the SQL Server storage, through
-    /// <see cref="SqlServerStorageOptions.DefaultQueueProvider"/> or <see cref="SqlServerStorage.QueueProviders"/>.
-    /// </summary>
-    public interface IPersistentJobQueueProvider
-    {
-        /// <summary>Gets the queue.</summary>
-        IPersistentJobQueue GetJobQueue();
+namespace Masterly.NightShift.SqlServer;
 
-        /// <summary>Gets the queue's monitoring queries.</summary>
-        IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi();
-    }
+/// <summary>
+/// Provides a queue implementation to the SQL Server storage, through
+/// <see cref="SqlServerStorageOptions.DefaultQueueProvider"/> or <see cref="SqlServerStorage.QueueProviders"/>.
+/// </summary>
+public interface IPersistentJobQueueProvider
+{
+    /// <summary>Gets the queue.</summary>
+    IPersistentJobQueue GetJobQueue();
+
+    /// <summary>Gets the queue's monitoring queries.</summary>
+    IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi();
 }

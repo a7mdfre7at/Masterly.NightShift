@@ -1,203 +1,195 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
+﻿using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Client;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
-using Moq;
-using Xunit;
 
 // ReSharper disable AssignNullToNotNullAttribute
 
-namespace Masterly.NightShift.Core.Tests
+namespace Masterly.NightShift.Core.Tests;
+
+public class BackgroundJobClientFacts
 {
-    public class BackgroundJobClientFacts
+    private readonly Mock<JobStorage> _storage;
+    private readonly Mock<IBackgroundJobFactory> _factory;
+    private readonly Mock<IState> _state;
+    private readonly Job _job;
+    private readonly Mock<IBackgroundJobStateChanger> _stateChanger;
+
+    public BackgroundJobClientFacts()
     {
-        private readonly Mock<JobStorage> _storage;
-        private readonly Mock<IBackgroundJobFactory> _factory;
-        private readonly Mock<IState> _state;
-        private readonly Job _job;
-        private readonly Mock<IBackgroundJobStateChanger> _stateChanger;
+        var connection = new Mock<IStorageConnection>();
+        _storage = new Mock<JobStorage>();
+        _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
 
-        public BackgroundJobClientFacts()
-        {
-            var connection = new Mock<IStorageConnection>();
-            _storage = new Mock<JobStorage>();
-            _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
+        _stateChanger = new Mock<IBackgroundJobStateChanger>();
 
-            _stateChanger = new Mock<IBackgroundJobStateChanger>();
-            
-            _state = new Mock<IState>();
-            _state.Setup(x => x.Name).Returns("Mock");
-            _job = Job.FromExpression(() => Method());
+        _state = new Mock<IState>();
+        _state.Setup(x => x.Name).Returns("Mock");
+        _job = Job.FromExpression(() => Method());
 
-            _factory = new Mock<IBackgroundJobFactory>();
-            _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
-                .Returns(new BackgroundJob("some-job", _job, DateTime.UtcNow));
-        }
+        _factory = new Mock<IBackgroundJobFactory>();
+        _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
+            .Returns(new BackgroundJob("some-job", _job, DateTime.UtcNow));
+    }
 
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenStorageIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new BackgroundJobClient(null, _factory.Object, _stateChanger.Object));
+    [Fact]
+    public void Ctor_ThrowsAnException_WhenStorageIsNull()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => new BackgroundJobClient(null, _factory.Object, _stateChanger.Object));
 
-            Assert.Equal("storage", exception.ParamName);
-        }
+        Assert.Equal("storage", exception.ParamName);
+    }
 
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenFactoryIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new BackgroundJobClient(_storage.Object, null, _stateChanger.Object));
+    [Fact]
+    public void Ctor_ThrowsAnException_WhenFactoryIsNull()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => new BackgroundJobClient(_storage.Object, null, _stateChanger.Object));
 
-            Assert.Equal("factory", exception.ParamName);
-        }
+        Assert.Equal("factory", exception.ParamName);
+    }
 
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenStateChangerIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new BackgroundJobClient(_storage.Object, _factory.Object, null));
+    [Fact]
+    public void Ctor_ThrowsAnException_WhenStateChangerIsNull()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => new BackgroundJobClient(_storage.Object, _factory.Object, null));
 
-            Assert.Equal("stateChanger", exception.ParamName);
-        }
+        Assert.Equal("stateChanger", exception.ParamName);
+    }
 
-        [Fact, GlobalLock(Reason = "Needs JobStorage.Current instance")]
-        public void Ctor_UsesCurrent_JobStorageInstance_ByDefault()
-        {
-            JobStorage.Current = new Mock<JobStorage>().Object;
-            // ReSharper disable once ObjectCreationAsStatement
-            // Does not throw
-            new BackgroundJobClient();
-        }
+    [Fact, GlobalLock(Reason = "Needs JobStorage.Current instance")]
+    public void Ctor_UsesCurrent_JobStorageInstance_ByDefault()
+    {
+        JobStorage.Current = new Mock<JobStorage>().Object;
+        // ReSharper disable once ObjectCreationAsStatement
+        // Does not throw
+        new BackgroundJobClient();
+    }
 
-        [Fact]
-        public void CreateJob_ThrowsAnException_WhenJobIsNull()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void CreateJob_ThrowsAnException_WhenJobIsNull()
+    {
+        var client = CreateClient();
 
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => client.Create(null, _state.Object));
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => client.Create(null, _state.Object));
 
-            Assert.Equal("job", exception.ParamName);
-        }
+        Assert.Equal("job", exception.ParamName);
+    }
 
-        [Fact]
-        public void CreateJob_ThrowsAnException_WhenStateIsNull()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void CreateJob_ThrowsAnException_WhenStateIsNull()
+    {
+        var client = CreateClient();
 
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => client.Create(_job, null));
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => client.Create(_job, null));
 
-            Assert.Equal("state", exception.ParamName);
-        }
+        Assert.Equal("state", exception.ParamName);
+    }
 
-        [Fact]
-        public void CreateJob_DelegatesBackgroundJobCreation_ToFactory()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void CreateJob_DelegatesBackgroundJobCreation_ToFactory()
+    {
+        var client = CreateClient();
 
-            client.Create(_job, _state.Object);
+        client.Create(_job, _state.Object);
 
-            _factory.Verify(x => x.Create(It.IsNotNull<CreateContext>()));
-        }
+        _factory.Verify(x => x.Create(It.IsNotNull<CreateContext>()));
+    }
 
-        [Fact]
-        public void CreateJob_ReturnsJobIdentifier()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void CreateJob_ReturnsJobIdentifier()
+    {
+        var client = CreateClient();
 
-            var id = client.Create(_job, _state.Object);
+        var id = client.Create(_job, _state.Object);
 
-            Assert.Equal("some-job", id);
-        }
+        Assert.Equal("some-job", id);
+    }
 
-        [Fact]
-        public void CreateJob_WrapsOccurringExceptions_IntoItsOwnException()
-        {
-            var client = CreateClient();
-            _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
-                .Throws<InvalidOperationException>();
+    [Fact]
+    public void CreateJob_WrapsOccurringExceptions_IntoItsOwnException()
+    {
+        var client = CreateClient();
+        _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
+            .Throws<InvalidOperationException>();
 
-            var exception = Assert.Throws<BackgroundJobClientException>(
-                () => client.Create(_job, _state.Object));
+        var exception = Assert.Throws<BackgroundJobClientException>(
+            () => client.Create(_job, _state.Object));
 
-            Assert.NotNull(exception.InnerException);
-            Assert.IsType<InvalidOperationException>(exception.InnerException);
-        }
+        Assert.NotNull(exception.InnerException);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
 
-        [Fact]
-        public void ChangeState_ThrowsAnException_WhenJobIdIsNull()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void ChangeState_ThrowsAnException_WhenJobIdIsNull()
+    {
+        var client = CreateClient();
 
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => client.ChangeState(null, _state.Object, null));
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => client.ChangeState(null, _state.Object, null));
 
-            Assert.Equal("jobId", exception.ParamName);
-        }
+        Assert.Equal("jobId", exception.ParamName);
+    }
 
-        [Fact]
-        public void ChangeState_ThrowsAnException_WhenStateIsNull()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void ChangeState_ThrowsAnException_WhenStateIsNull()
+    {
+        var client = CreateClient();
 
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => client.ChangeState("jobId", null, null));
+        var exception = Assert.Throws<ArgumentNullException>(
+            () => client.ChangeState("jobId", null, null));
 
-            Assert.Equal("state", exception.ParamName);
-        }
+        Assert.Equal("state", exception.ParamName);
+    }
 
-        [Fact]
-        public void ChangeState_ChangesTheStateOfAJob_ToTheGivenOne()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void ChangeState_ChangesTheStateOfAJob_ToTheGivenOne()
+    {
+        var client = CreateClient();
 
-            client.ChangeState("job-id", _state.Object, null);
+        client.ChangeState("job-id", _state.Object, null);
 
-            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
-                ctx.BackgroundJobId == "job-id" &&
-                ctx.NewState == _state.Object &&
-                ctx.ExpectedStates == null)));
-        }
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+            ctx.BackgroundJobId == "job-id" &&
+            ctx.NewState == _state.Object &&
+            ctx.ExpectedStates == null)));
+    }
 
-        [Fact]
-        public void ChangeState_WithFromState_ChangesTheStateOfAJob_WithFromStateValue()
-        {
-            var client = CreateClient();
+    [Fact]
+    public void ChangeState_WithFromState_ChangesTheStateOfAJob_WithFromStateValue()
+    {
+        var client = CreateClient();
 
-            client.ChangeState("job-id", _state.Object, "State");
+        client.ChangeState("job-id", _state.Object, "State");
 
-            _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
-                ctx.BackgroundJobId == "job-id" &&
-                ctx.NewState == _state.Object &&
-                ctx.ExpectedStates.SequenceEqual(new[] { "State" }))));
-        }
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+            ctx.BackgroundJobId == "job-id" &&
+            ctx.NewState == _state.Object &&
+            ctx.ExpectedStates.SequenceEqual(new[] { "State" }))));
+    }
 
-        [Fact]
-        public void ChangeState_ReturnsTheResult_OfStateChangerInvocation()
-        {
-            _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
-                .Returns(_state.Object);
-            var client = CreateClient();
+    [Fact]
+    public void ChangeState_ReturnsTheResult_OfStateChangerInvocation()
+    {
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns(_state.Object);
+        var client = CreateClient();
 
-            var result = client.ChangeState("job-id", _state.Object, null);
+        var result = client.ChangeState("job-id", _state.Object, null);
 
-            Assert.True(result);
-        }
+        Assert.True(result);
+    }
 
-        [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
-        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
-        public static void Method()
-        {
-        }
+    [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+    public static void Method()
+    {
+    }
 
-        private BackgroundJobClient CreateClient()
-        {
-            return new BackgroundJobClient(_storage.Object, _factory.Object, _stateChanger.Object);
-        }
+    private BackgroundJobClient CreateClient()
+    {
+        return new BackgroundJobClient(_storage.Object, _factory.Object, _stateChanger.Object);
     }
 }

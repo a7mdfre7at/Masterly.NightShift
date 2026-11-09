@@ -1,18 +1,14 @@
-﻿using System;
-using Masterly.NightShift.Storage;
+﻿namespace Masterly.NightShift.Core.Tests.Stubs;
 
-namespace Masterly.NightShift.Core.Tests.Stubs
+internal sealed class JobStorageStub : JobStorage
 {
-    class JobStorageStub : JobStorage
+    public override IMonitoringApi GetMonitoringApi()
     {
-        public override IMonitoringApi GetMonitoringApi()
-        {
-            throw new NotImplementedException();
-        }
+        throw new NotImplementedException();
+    }
 
-        public override IStorageConnection GetConnection()
-        {
-            throw new NotImplementedException();
-        }
+    public override IStorageConnection GetConnection()
+    {
+        throw new NotImplementedException();
     }
 }

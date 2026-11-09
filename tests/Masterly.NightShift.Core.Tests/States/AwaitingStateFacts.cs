@@ -1,134 +1,128 @@
-﻿using System;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.States;
-using Xunit;
+﻿namespace Masterly.NightShift.Core.Tests.States;
 
-namespace Masterly.NightShift.Core.Tests.States
+public class AwaitingStateFacts
 {
-    public class AwaitingStateFacts
+    [Fact]
+    public void StateName_IsEqualToAwaiting()
     {
-        [Fact]
-        public void StateName_IsEqualToAwaiting()
-        {
-            Assert.Equal("Awaiting", AwaitingState.StateName);
-        }
+        Assert.Equal("Awaiting", AwaitingState.StateName);
+    }
 
-        [Fact]
-        public void NameProperty_ReturnsStateName()
-        {
-            var state = CreateState();
-            Assert.Equal(AwaitingState.StateName, state.Name);
-        }
+    [Fact]
+    public void NameProperty_ReturnsStateName()
+    {
+        var state = CreateState();
+        Assert.Equal(AwaitingState.StateName, state.Name);
+    }
 
-        [Fact]
-        public void Ctor_WithoutOptions_DefaultsToOnAnyFinishedState()
-        {
-            // Unlike ContinueJobWith (OnlyOnSucceededState), as it always was; the docs say so
-            Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1").Options);
-            Assert.IsType<EnqueuedState>(new AwaitingState("1").NextState);
-            Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1", new ScheduledState(TimeSpan.FromMinutes(1))).Options);
-        }
+    [Fact]
+    public void Ctor_WithoutOptions_DefaultsToOnAnyFinishedState()
+    {
+        // Unlike ContinueJobWith (OnlyOnSucceededState), as it always was; the docs say so
+        Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1").Options);
+        Assert.IsType<EnqueuedState>(new AwaitingState("1").NextState);
+        Assert.Equal(JobContinuationOptions.OnAnyFinishedState, new AwaitingState("1", new ScheduledState(TimeSpan.FromMinutes(1))).Options);
+    }
 
-        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
-        public void SerializeData_ReturnsCorrectData_Before170()
-        {
-            var state = CreateState();
+    [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
+    public void SerializeData_ReturnsCorrectData_Before170()
+    {
+        var state = CreateState();
 
-            var data = state.SerializeData();
+        var data = state.SerializeData();
 
-            Assert.Equal(state.ParentId, data["ParentId"]);
-            Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
-            Assert.Equal(state.Options.ToString("G"), data["Options"]);
-            Assert.Equal(state.Expiration.ToString(), data["Expiration"]);
-        }
+        Assert.Equal(state.ParentId, data["ParentId"]);
+        Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
+        Assert.Equal(state.Options.ToString("G"), data["Options"]);
+        Assert.Equal(state.Expiration.ToString(), data["Expiration"]);
+    }
 
-        [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
-        public void SerializeData_ReturnsCorrectData_After170()
-        {
-            var state = CreateState();
+    [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
+    public void SerializeData_ReturnsCorrectData_After170()
+    {
+        var state = CreateState();
 
-            var data = state.SerializeData();
+        var data = state.SerializeData();
 
-            Assert.Equal(state.ParentId, data["ParentId"]);
-            Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
-            Assert.Equal(state.Options.ToString("D"), data["Options"]);
-            Assert.False(data.ContainsKey("Expiration"));
-        }
+        Assert.Equal(state.ParentId, data["ParentId"]);
+        Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
+        Assert.Equal(state.Options.ToString("D"), data["Options"]);
+        Assert.False(data.ContainsKey("Expiration"));
+    }
 
-        [Fact]
-        public void IsFinal_ReturnsFalse()
-        {
-            var state = CreateState();
-            Assert.False(state.IsFinal);
-        }
+    [Fact]
+    public void IsFinal_ReturnsFalse()
+    {
+        var state = CreateState();
+        Assert.False(state.IsFinal);
+    }
 
-        [Fact]
-        public void IgnoreExceptions_ReturnsFalse()
-        {
-            var state = CreateState();
-            Assert.False(state.IgnoreJobLoadException);
-        }
+    [Fact]
+    public void IgnoreExceptions_ReturnsFalse()
+    {
+        var state = CreateState();
+        Assert.False(state.IgnoreJobLoadException);
+    }
 
-        [Fact, CleanSerializerSettings]
-        public void SerializeData_HandlesChangingProcessOfInternalDataSerialization()
-        {
-            SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
+    [Fact, CleanSerializerSettings]
+    public void SerializeData_HandlesChangingProcessOfInternalDataSerialization()
+    {
+        SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-            var nextStateSerialized = SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.User);
+        var nextStateSerialized = SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.User);
 
-            var nextState = SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal) as EnqueuedState;
-            Assert.NotNull(nextState);
-            Assert.NotEqual(default(DateTime), nextState.EnqueuedAt);
-        }
+        var nextState = SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal) as EnqueuedState;
+        Assert.NotNull(nextState);
+        Assert.NotEqual(default, nextState.EnqueuedAt);
+    }
 
-        [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
-        public void JsonSerialize_ReturnsCorrectString_Before170()
-        {
-            var state = new AwaitingState("parent");
+    [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
+    public void JsonSerialize_ReturnsCorrectString_Before170()
+    {
+        var state = new AwaitingState("parent");
 
-            var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
-            Assert.Equal(
-                "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
-                serialized);
-        }
+        Assert.Equal(
+            "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
+            serialized);
+    }
 
-        [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
-        public void JsonSerialize_ReturnsCorrectString_After170()
-        {
-            var state = new AwaitingState("parent");
+    [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
+    public void JsonSerialize_ReturnsCorrectString_After170()
+    {
+        var state = new AwaitingState("parent");
 
-            var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
-            Assert.Equal(
-                "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
-                serialized);
-        }
+        Assert.Equal(
+            "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
+            serialized);
+    }
 
-        [DataCompatibilityRangeFact]
-        public void JsonDeserialize_CanHandlePreviousFormat()
-        {
-            var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":1,\"Name\":\"Awaiting\"}";
-            var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
+    [DataCompatibilityRangeFact]
+    public void JsonDeserialize_CanHandlePreviousFormat()
+    {
+        var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":1,\"Name\":\"Awaiting\"}";
+        var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
 
-            Assert.Equal("parent", state.ParentId);
-            Assert.Equal("Enqueued", state.NextState.Name);
-        }
+        Assert.Equal("parent", state.ParentId);
+        Assert.Equal("Enqueued", state.NextState.Name);
+    }
 
-        [DataCompatibilityRangeFact]
-        public void JsonDeserialize_CanHandleNewFormat()
-        {
-            var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}}";
-            var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
+    [DataCompatibilityRangeFact]
+    public void JsonDeserialize_CanHandleNewFormat()
+    {
+        var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}}";
+        var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
 
-            Assert.Equal("parent", state.ParentId);
-            Assert.Null(state.Reason);
-            Assert.Equal("Enqueued", state.NextState.Name);
-        }
+        Assert.Equal("parent", state.ParentId);
+        Assert.Null(state.Reason);
+        Assert.Equal("Enqueued", state.NextState.Name);
+    }
 
-        private static AwaitingState CreateState()
-        {
-            return new AwaitingState("1", new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, TimeSpan.FromDays(1));
-        }
+    private static AwaitingState CreateState()
+    {
+        return new AwaitingState("1", new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, TimeSpan.FromDays(1));
     }
 }

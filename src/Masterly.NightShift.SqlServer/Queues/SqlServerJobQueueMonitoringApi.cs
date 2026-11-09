@@ -13,60 +13,55 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using Dapper;
-using Masterly.NightShift.Annotations;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
 {
-    internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
+    private static readonly TimeSpan QueuesCacheTimeout = TimeSpan.FromSeconds(5);
+
+    private readonly SqlServerStorage _storage;
+    private readonly object _cacheLock = new();
+
+    private List<string> _queuesCache = [];
+    private Stopwatch _cacheUpdated;
+
+    public SqlServerJobQueueMonitoringApi([NotNull] SqlServerStorage storage)
     {
-        private static readonly TimeSpan QueuesCacheTimeout = TimeSpan.FromSeconds(5);
+        ArgumentNullException.ThrowIfNull(storage);
+        _storage = storage;
+    }
 
-        private readonly SqlServerStorage _storage;
-        private readonly object _cacheLock = new object();
-
-        private List<string> _queuesCache = new List<string>();
-        private Stopwatch _cacheUpdated;
-
-        public SqlServerJobQueueMonitoringApi([NotNull] SqlServerStorage storage)
+    public IEnumerable<string> GetQueues()
+    {
+        lock (_cacheLock)
         {
-            ArgumentNullException.ThrowIfNull(storage);
-            _storage = storage;
-        }
-
-        public IEnumerable<string> GetQueues()
-        {
-            lock (_cacheLock)
+            if (_queuesCache.Count == 0 || _cacheUpdated.Elapsed > QueuesCacheTimeout)
             {
-                if (_queuesCache.Count == 0 || _cacheUpdated.Elapsed > QueuesCacheTimeout)
+                var result = _storage.UseConnection(null, static (storage, connection) =>
                 {
-                    var result = _storage.UseConnection(null, static (storage, connection) =>
-                    {
-                        var query = storage.GetQueryFromTemplate(static schemaName =>
+                    var query = storage.GetQueryFromTemplate(static schemaName =>
 $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
 
-                        return connection.Query(query, commandTimeout: storage.CommandTimeout).Select(static x => (string) x.Queue).ToList();
-                    });
+                    return connection.Query(query, commandTimeout: storage.CommandTimeout).Select(static x => (string)x.Queue).ToList();
+                });
 
-                    _queuesCache = result;
-                    _cacheUpdated = Stopwatch.StartNew();
-                }
+                _queuesCache = result;
+                _cacheUpdated = Stopwatch.StartNew();
+            }
 
-                return _queuesCache.ToList();
-            }  
+            return [.. _queuesCache];
         }
+    }
 
-        public IEnumerable<long> GetEnqueuedJobIds(string queue, int from, int perPage)
+    public IEnumerable<long> GetEnqueuedJobIds(string queue, int from, int perPage)
+    {
+        return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
-            return _storage.UseConnection(null, static (storage, connection, ctx) =>
-            {
-                var query = storage.GetQueryFromTemplate(static schemaName =>
+            var query = storage.GetQueryFromTemplate(static schemaName =>
 $@"select r.JobId from (
   select jq.JobId, row_number() over (order by jq.Id) as row_num 
   from [{schemaName}].JobQueue jq with (nolock, forceseek)
@@ -74,21 +69,21 @@ $@"select r.JobId from (
 ) as r
 where r.row_num between @start and @end");
 
-                return connection.Query<JobIdDto>(
-                    query,
-                    new { queue = ctx.Queue, start = ctx.From + 1, end = ctx.From + ctx.PerPage },
-                    commandTimeout: storage.CommandTimeout)
-                    .ToList()
-                    .Select(static x => x.JobId)
-                    .ToList();
-            }, new QueuePageQueryContext(queue, from, perPage));
-        }
+            return connection.Query<JobIdDto>(
+                query,
+                new { queue = ctx.Queue, start = ctx.From + 1, end = ctx.From + ctx.PerPage },
+                commandTimeout: storage.CommandTimeout)
+                .ToList()
+                .Select(static x => x.JobId)
+                .ToList();
+        }, new QueuePageQueryContext(queue, from, perPage));
+    }
 
-        public IEnumerable<long> GetFetchedJobIds(string queue, int from, int perPage)
+    public IEnumerable<long> GetFetchedJobIds(string queue, int from, int perPage)
+    {
+        return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
-            return _storage.UseConnection(null, static (storage, connection, ctx) =>
-            {
-                var query = storage.GetQueryFromTemplate(static schemaName => $@"
+            var query = storage.GetQueryFromTemplate(static schemaName => $@"
 select r.JobId from (
   select jq.JobId, jq.FetchedAt, row_number() over (order by jq.Id) as row_num 
   from [{schemaName}].JobQueue jq with (nolock, forceseek)
@@ -96,27 +91,27 @@ select r.JobId from (
 ) as r
 where r.row_num between @start and @end");
 
-                return connection.Query<JobIdDto>(
-                        query,
-                        new { queue = ctx.Queue, start = ctx.From + 1, end = ctx.From + ctx.PerPage })
-                    .ToList()
-                    .Select(static x => x.JobId)
-                    .ToList();
-            }, new QueuePageQueryContext(queue, from, perPage));
-        }
+            return connection.Query<JobIdDto>(
+                    query,
+                    new { queue = ctx.Queue, start = ctx.From + 1, end = ctx.From + ctx.PerPage })
+                .ToList()
+                .Select(static x => x.JobId)
+                .ToList();
+        }, new QueuePageQueryContext(queue, from, perPage));
+    }
 
-        private readonly struct QueuePageQueryContext(string queue, int from, int perPage)
-        {
-            public string Queue { get; } = queue;
-            public int From { get; } = from;
-            public int PerPage { get; } = perPage;
-        }
+    private readonly struct QueuePageQueryContext(string queue, int from, int perPage)
+    {
+        public string Queue { get; } = queue;
+        public int From { get; } = from;
+        public int PerPage { get; } = perPage;
+    }
 
-        public EnqueuedAndFetchedCountDto GetEnqueuedAndFetchedCount(string queue)
+    public EnqueuedAndFetchedCountDto GetEnqueuedAndFetchedCount(string queue)
+    {
+        return _storage.UseConnection(null, static (storage, connection, q) =>
         {
-            return _storage.UseConnection(null, static (storage, connection, q) =>
-            {
-                var query = storage.GetQueryFromTemplate(static schemaName => $@"
+            var query = storage.GetQueryFromTemplate(static schemaName => $@"
 select sum(Enqueued) as EnqueuedCount, sum(Fetched) as FetchedCount 
 from (
     select 
@@ -126,20 +121,19 @@ from (
     where Queue = @queue
 ) q");
 
-                var result = connection.QuerySingle(query, new { queue = q });
+            var result = connection.QuerySingle(query, new { queue = q });
 
-                return new EnqueuedAndFetchedCountDto
-                {
-                    EnqueuedCount = result.EnqueuedCount,
-                    FetchedCount = result.FetchedCount
-                };
-            }, queue);
-        }
+            return new EnqueuedAndFetchedCountDto
+            {
+                EnqueuedCount = result.EnqueuedCount,
+                FetchedCount = result.FetchedCount
+            };
+        }, queue);
+    }
 
-        private sealed class JobIdDto
-        {
-            [UsedImplicitly]
-            public long JobId { get; set; }
-        }
+    private sealed class JobIdDto
+    {
+        [UsedImplicitly]
+        public long JobId { get; set; }
     }
 }

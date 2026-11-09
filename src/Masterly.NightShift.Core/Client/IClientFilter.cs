@@ -15,23 +15,22 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.Client
+namespace Masterly.NightShift.Client;
+
+/// <summary>
+/// Defines methods that are required for a client filter.
+/// </summary>
+public interface IClientFilter
 {
     /// <summary>
-    /// Defines methods that are required for a client filter.
+    /// Called before the creation of the job. 
     /// </summary>
-    public interface IClientFilter
-    {
-        /// <summary>
-        /// Called before the creation of the job. 
-        /// </summary>
-        /// <param name="context">The filter context.</param>
-        void OnCreating(CreatingContext context);
+    /// <param name="context">The filter context.</param>
+    void OnCreating(CreatingContext context);
 
-        /// <summary>
-        /// Called after the creation of the job.
-        /// </summary>
-        /// <param name="context">The filter context.</param>
-        void OnCreated(CreatedContext context);
-    }
+    /// <summary>
+    /// Called after the creation of the job.
+    /// </summary>
+    /// <param name="context">The filter context.</param>
+    void OnCreated(CreatedContext context);
 }

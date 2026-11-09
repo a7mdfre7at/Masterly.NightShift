@@ -13,54 +13,47 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using Masterly.NightShift.Logging;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+internal sealed class ServerJobCancellationWatcher(TimeSpan checkInterval) : IBackgroundProcess
 {
-    internal sealed class ServerJobCancellationWatcher : IBackgroundProcess
+    public static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromSeconds(5);
+
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(ServerJobCancellationWatcher));
+    private readonly TimeSpan _checkInterval = checkInterval;
+
+    public void Execute(BackgroundProcessContext context)
     {
-        public static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromSeconds(5);
-        
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(ServerJobCancellationWatcher));
-        private readonly TimeSpan _checkInterval;
+        _logger.Trace("Checking for aborted jobs...");
 
-        public ServerJobCancellationWatcher(TimeSpan checkInterval)
+        using (var connection = context.Storage.GetConnection())
         {
-            _checkInterval = checkInterval;
-        }
+            var abortedJobIds = ServerJobCancellationToken.CheckAllCancellationTokens(
+                context.ServerId,
+                connection,
+                context.StoppedToken);
 
-        public void Execute(BackgroundProcessContext context)
-        {
-            _logger.Trace("Checking for aborted jobs...");
+            var aborted = false;
 
-            using (var connection = context.Storage.GetConnection())
+            foreach (var abortedJobId in abortedJobIds)
             {
-                var abortedJobIds = ServerJobCancellationToken.CheckAllCancellationTokens(
-                    context.ServerId,
-                    connection,
-                    context.StoppedToken);
-
-                var aborted = false;
-
-                foreach (var abortedJobId in abortedJobIds)
-                {
-                    _logger.Debug($"Job {abortedJobId.Item1} was aborted on worker {abortedJobId.Item2}.");
-                    aborted = true;
-                }
-
-                if (!aborted)
-                {
-                    _logger.Trace("No newly aborted jobs found.");
-                }
+                _logger.Debug($"Job {abortedJobId.Item1} was aborted on worker {abortedJobId.Item2}.");
+                aborted = true;
             }
 
-            context.Wait(_checkInterval);
+            if (!aborted)
+            {
+                _logger.Trace("No newly aborted jobs found.");
+            }
         }
 
-        public override string ToString()
-        {
-            return GetType().Name;
-        }
+        context.Wait(_checkInterval);
+    }
+
+    public override string ToString()
+    {
+        return GetType().Name;
     }
 }

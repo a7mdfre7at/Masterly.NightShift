@@ -3,7 +3,6 @@
     <Description>The core of Masterly.NightShift: background jobs, the job server, retries and other filters, and the dashboard. Add a storage package such as Masterly.NightShift.SqlServer.</Description>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <PackageReadmeSource>README.md</PackageReadmeSource>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>Masterly.NightShift</RootNamespace>
   </PropertyGroup>
 
@@ -101,4 +100,11 @@
       <DependentUpon>LayoutPage.cshtml</DependentUpon>
     </Compile>
   </ItemGroup>
-</Project>
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Common" />
+    <Using Include="Masterly.NightShift.States" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

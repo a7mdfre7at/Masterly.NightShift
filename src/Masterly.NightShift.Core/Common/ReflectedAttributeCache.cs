@@ -13,44 +13,40 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+internal static class ReflectedAttributeCache
 {
-    internal static class ReflectedAttributeCache
+    private static readonly ConcurrentDictionary<TypeInfo, ReadOnlyCollection<JobFilterAttribute>> TypeFilterAttributeCache
+        = new();
+
+    private static readonly ConcurrentDictionary<MethodInfo, ReadOnlyCollection<JobFilterAttribute>> MethodFilterAttributeCache
+        = new();
+
+    public static ICollection<JobFilterAttribute> GetTypeFilterAttributes(Type type)
     {
-        private static readonly ConcurrentDictionary<TypeInfo, ReadOnlyCollection<JobFilterAttribute>> TypeFilterAttributeCache 
-            = new ConcurrentDictionary<TypeInfo, ReadOnlyCollection<JobFilterAttribute>>();
+        return GetAttributes(TypeFilterAttributeCache, type.GetTypeInfo());
+    }
 
-        private static readonly ConcurrentDictionary<MethodInfo, ReadOnlyCollection<JobFilterAttribute>> MethodFilterAttributeCache
-            = new ConcurrentDictionary<MethodInfo, ReadOnlyCollection<JobFilterAttribute>>();
+    public static ICollection<JobFilterAttribute> GetMethodFilterAttributes(MethodInfo methodInfo)
+    {
+        return GetAttributes(MethodFilterAttributeCache, methodInfo);
+    }
 
-        public static ICollection<JobFilterAttribute> GetTypeFilterAttributes(Type type)
-        {
-            return GetAttributes(TypeFilterAttributeCache, type.GetTypeInfo());
-        }
+    private static ReadOnlyCollection<TAttribute> GetAttributes<TMemberInfo, TAttribute>(
+        ConcurrentDictionary<TMemberInfo, ReadOnlyCollection<TAttribute>> lookup,
+        TMemberInfo memberInfo)
+        where TAttribute : Attribute
+        where TMemberInfo : MemberInfo
+    {
+        Debug.Assert(memberInfo != null);
+        Debug.Assert(lookup != null);
 
-        public static ICollection<JobFilterAttribute> GetMethodFilterAttributes(MethodInfo methodInfo)
-        {
-            return GetAttributes(MethodFilterAttributeCache, methodInfo);
-        }
-
-        private static ReadOnlyCollection<TAttribute> GetAttributes<TMemberInfo, TAttribute>(
-            ConcurrentDictionary<TMemberInfo, ReadOnlyCollection<TAttribute>> lookup, 
-            TMemberInfo memberInfo)
-            where TAttribute : Attribute
-            where TMemberInfo : MemberInfo
-        {
-            Debug.Assert(memberInfo != null);
-            Debug.Assert(lookup != null);
-
-            return lookup.GetOrAdd(memberInfo, static mi => new ReadOnlyCollection<TAttribute>(mi.GetCustomAttributes<TAttribute>(inherit: true).ToArray()));
-        }
+        return lookup.GetOrAdd(memberInfo, static mi => new ReadOnlyCollection<TAttribute>([.. mi.GetCustomAttributes<TAttribute>(inherit: true)]));
     }
 }

@@ -15,23 +15,22 @@
 
 #nullable enable
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+/// <summary>
+/// Defines methods that are required for a server filter.
+/// </summary>
+public interface IServerFilter
 {
     /// <summary>
-    /// Defines methods that are required for a server filter.
+    /// Called before the performance of the job.
     /// </summary>
-    public interface IServerFilter
-    {
-        /// <summary>
-        /// Called before the performance of the job.
-        /// </summary>
-        /// <param name="context">The filter context.</param>
-        void OnPerforming(PerformingContext context);
+    /// <param name="context">The filter context.</param>
+    void OnPerforming(PerformingContext context);
 
-        /// <summary>
-        /// Called after the performance of the job.
-        /// </summary>
-        /// <param name="context">The filter context.</param>
-        void OnPerformed(PerformedContext context);
-    }
+    /// <summary>
+    /// Called after the performance of the job.
+    /// </summary>
+    /// <param name="context">The filter context.</param>
+    void OnPerformed(PerformedContext context);
 }

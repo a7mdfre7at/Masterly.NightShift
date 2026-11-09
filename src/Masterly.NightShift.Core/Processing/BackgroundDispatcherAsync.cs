@@ -13,108 +13,103 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
 
-namespace Masterly.NightShift.Processing
+namespace Masterly.NightShift.Processing;
+
+internal sealed class BackgroundDispatcherAsync : IBackgroundDispatcher
 {
-    internal sealed class BackgroundDispatcherAsync : IBackgroundDispatcher
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundDispatcherAsync));
+    private readonly CountdownEvent _stopped;
+
+    private readonly IBackgroundExecution _execution;
+    private readonly Func<Guid, object, Task> _action;
+    private readonly object _state;
+
+    private readonly TaskScheduler _taskScheduler;
+    private readonly bool _ownsScheduler;
+
+    public BackgroundDispatcherAsync(
+        [NotNull] IBackgroundExecution execution,
+        [NotNull] Func<Guid, object, Task> action,
+        [CanBeNull] object state,
+        [NotNull] TaskScheduler taskScheduler,
+        int maxConcurrency,
+        bool ownsScheduler)
     {
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundDispatcherAsync));
-        private readonly CountdownEvent _stopped;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 
-        private readonly IBackgroundExecution _execution;
-        private readonly Func<Guid, object, Task> _action;
-        private readonly object _state;
+        _execution = execution ?? throw new ArgumentNullException(nameof(execution));
+        _action = action ?? throw new ArgumentNullException(nameof(action));
+        _state = state;
+        _taskScheduler = taskScheduler ?? throw new ArgumentNullException(nameof(taskScheduler));
+        _ownsScheduler = ownsScheduler;
 
-        private readonly TaskScheduler _taskScheduler;
-        private readonly bool _ownsScheduler;
+        _stopped = new CountdownEvent(maxConcurrency);
 
-        public BackgroundDispatcherAsync(
-            [NotNull] IBackgroundExecution execution,
-            [NotNull] Func<Guid, object, Task> action,
-            [CanBeNull] object state,
-            [NotNull] TaskScheduler taskScheduler,
-            int maxConcurrency,
-            bool ownsScheduler)
+        for (var i = 0; i < maxConcurrency; i++)
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-
-            _execution = execution ?? throw new ArgumentNullException(nameof(execution));
-            _action = action ?? throw new ArgumentNullException(nameof(action));
-            _state = state;
-            _taskScheduler = taskScheduler ?? throw new ArgumentNullException(nameof(taskScheduler));
-            _ownsScheduler = ownsScheduler;
-
-            _stopped = new CountdownEvent(maxConcurrency);
-
-            for (var i = 0; i < maxConcurrency; i++)
-            {
-                Task.Factory.StartNew(
-                    DispatchLoop,
-                    CancellationToken.None,
-                    TaskCreationOptions.None,
-                    _taskScheduler).Unwrap();
-            }
+            Task.Factory.StartNew(
+                DispatchLoop,
+                CancellationToken.None,
+                TaskCreationOptions.None,
+                _taskScheduler).Unwrap();
         }
+    }
 
-        public bool Wait(TimeSpan timeout)
+    public bool Wait(TimeSpan timeout)
+    {
+        return _stopped.WaitHandle.WaitOne(timeout);
+    }
+
+    public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        await _stopped.WaitHandle.WaitOneAsync(timeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        _execution.Dispose();
+        _stopped.Dispose();
+
+        if (_ownsScheduler && _taskScheduler is IDisposable disposableScheduler)
         {
-            return _stopped.WaitHandle.WaitOne(timeout);
+            disposableScheduler.Dispose();
         }
+    }
 
-        public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    public override string ToString()
+    {
+        return _execution.ToString();
+    }
+
+    private async Task DispatchLoop()
+    {
+        try
         {
-            await _stopped.WaitHandle.WaitOneAsync(timeout, cancellationToken).ConfigureAwait(false);
+            await _execution.RunAsync(_action, _state).ConfigureAwait(true);
         }
-
-        public void Dispose()
-        {
-            _execution.Dispose();
-            _stopped.Dispose();
-
-            if (_ownsScheduler && _taskScheduler is IDisposable disposableScheduler)
-            {
-                disposableScheduler.Dispose();
-            }
-        }
-
-        public override string ToString()
-        {
-            return _execution.ToString();
-        }
-
-        private async Task DispatchLoop()
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             try
             {
-                await _execution.RunAsync(_action, _state).ConfigureAwait(true);
+                _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
             }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            catch (Exception inner) when (inner.IsCatchableExceptionType())
             {
-                try
-                {
-                    _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
-                }
-                catch (Exception inner) when (inner.IsCatchableExceptionType())
-                {
-                    Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
-                }
+                Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
             }
-            finally
+        }
+        finally
+        {
+            try
             {
-                try
-                {
-                    _stopped.Signal();
-                }
-                catch (ObjectDisposedException)
-                {
-                    Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
-                }
+                _stopped.Signal();
+            }
+            catch (ObjectDisposedException)
+            {
+                Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
             }
         }
     }

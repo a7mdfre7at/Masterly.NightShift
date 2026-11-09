@@ -13,30 +13,21 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// Wraps an exception thrown while a job was performed, with the job's identifier.
+/// </summary>
+[Serializable]
+public class JobPerformanceException(string message, Exception innerException, string jobId) : Exception(message, innerException)
 {
-    /// <summary>
-    /// Wraps an exception thrown while a job was performed, with the job's identifier.
-    /// </summary>
-    [Serializable]
-    public class JobPerformanceException : Exception
+    public JobPerformanceException(string message, Exception innerException)
+        : this(message, innerException, null)
     {
-        public JobPerformanceException(string message, Exception innerException)
-            : this(message, innerException, null)
-        {
-        }
-    
-        public JobPerformanceException(string message, Exception innerException, string jobId)
-            : base(message, innerException)
-        {
-            JobId = jobId;
-        }
-
-        /// <summary>
-        /// The Background Job Id of the Job instance this exception has been raised for
-        /// </summary>
-        public string JobId { get; private set; }
     }
+
+    /// <summary>
+    /// The Background Job Id of the Job instance this exception has been raised for
+    /// </summary>
+    public string JobId { get; private set; } = jobId;
 }

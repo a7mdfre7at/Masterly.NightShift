@@ -1,20 +1,11 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Threading;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
-using Masterly.NightShift.States;
-using Masterly.NightShift.Storage;
-using Moq;
-using Xunit;
 
 namespace Masterly.NightShift.Core.Tests.Server
 {
     public class ConcurrencyControlFacts
     {
-        private readonly PerformContextMock _context = new PerformContextMock();
+        private readonly PerformContextMock _context = new();
 
         [Fact]
         public void FormatResource_ThrowsAnException_WhenJobIsNull()
@@ -119,7 +110,7 @@ namespace Masterly.NightShift.Core.Tests.Server
 
             // The window is part of the rate limit key; the longest window has ten digits
             var longestRateLimit = ConcurrencyControl.ShortenResource(new string('x', 500), RateLimitAttribute.MaxResourceLength);
-            Assert.Equal(100, $"ratelimit:{longestRateLimit}:{Int32.MaxValue}".Length);
+            Assert.Equal(100, $"ratelimit:{longestRateLimit}:{int.MaxValue}".Length);
         }
 
         [Theory]
@@ -148,11 +139,11 @@ namespace Masterly.NightShift.Core.Tests.Server
         public void ShortenResource_DoesNotCutASurrogatePairInTwo()
         {
             // Every character is half of a surrogate pair, so the cut must move to keep pairs whole
-            var resource = String.Concat(Enumerable.Repeat("\U0001F600", 100));
+            var resource = string.Concat(Enumerable.Repeat("\U0001F600", 100));
 
             var shortened = ConcurrencyControl.ShortenResource(resource, 64);
 
-            Assert.False(Char.IsHighSurrogate(shortened[shortened.IndexOf('~') - 1]));
+            Assert.False(char.IsHighSurrogate(shortened[shortened.IndexOf('~') - 1]));
             Assert.True(shortened.Length <= 64);
         }
 

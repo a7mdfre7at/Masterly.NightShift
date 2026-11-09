@@ -13,62 +13,57 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Reflection;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Fills the parameters marked with a <see cref="FromParameterAttribute"/> from the job's parameters before the job
+/// runs.
+/// </summary>
+public class JobParameterInjectionFilter : IServerFilter
 {
-    /// <summary>
-    /// Fills the parameters marked with a <see cref="FromParameterAttribute"/> from the job's parameters before the job
-    /// runs.
-    /// </summary>
-    public class JobParameterInjectionFilter : IServerFilter
+    internal static readonly string DefaultException = "OCE";
+
+    public void OnPerforming(PerformingContext context)
     {
-        internal static readonly string DefaultException = "OCE";
+        ArgumentNullException.ThrowIfNull(context);
 
-        public void OnPerforming(PerformingContext context)
+        if (context.BackgroundJob.Job?.Args is not object[] argumentsArray) return;
+
+        var parameters = context.BackgroundJob.Job.Method.GetParameters();
+
+        for (var index = 0; index < parameters.Length; index++)
         {
-            ArgumentNullException.ThrowIfNull(context);
+            var attribute = parameters[index].GetCustomAttribute<FromParameterAttribute>();
+            if (attribute == null) continue;
 
-            var argumentsArray = context.BackgroundJob.Job?.Args as object[];
-            if (argumentsArray == null) return;
+            var parameterType = parameters[index].ParameterType;
+            var parameterName = attribute.ParameterName;
 
-            var parameters = context.BackgroundJob.Job.Method.GetParameters();
+            if (string.IsNullOrEmpty(parameterName)) continue;
 
-            for (var index = 0; index < parameters.Length; index++)
+            var serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, parameterName);
+            if (serialized != null)
             {
-                var attribute = parameters[index].GetCustomAttribute<FromParameterAttribute>();
-                if (attribute == null) continue;
+                object deserialized;
 
-                var parameterType = parameters[index].ParameterType;
-                var parameterName = attribute.ParameterName;
-
-                if (String.IsNullOrEmpty(parameterName)) continue;
-
-                var serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, parameterName);
-                if (serialized != null)
+                if (parameterType == typeof(ExceptionInfo) && DefaultException.Equals(serialized, StringComparison.Ordinal))
                 {
-                    object deserialized;
-
-                    if (parameterType == typeof(ExceptionInfo) && DefaultException.Equals(serialized, StringComparison.Ordinal))
-                    {
-                        deserialized = new ExceptionInfo(DeletedState.DefaultException);
-                    }
-                    else
-                    {
-                        deserialized = SerializationHelper.Deserialize(serialized, parameterType, SerializationOption.User);
-                    }
-
-                    argumentsArray[index] = deserialized;
+                    deserialized = new ExceptionInfo(DeletedState.DefaultException);
                 }
+                else
+                {
+                    deserialized = SerializationHelper.Deserialize(serialized, parameterType, SerializationOption.User);
+                }
+
+                argumentsArray[index] = deserialized;
             }
         }
+    }
 
-        public void OnPerformed(PerformedContext context)
-        {
-        }
+    public void OnPerformed(PerformedContext context)
+    {
     }
 }

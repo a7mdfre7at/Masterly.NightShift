@@ -1,65 +1,59 @@
-﻿using System;
-using Masterly.NightShift.Server;
-using Xunit;
+﻿using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Core.Tests
+namespace Masterly.NightShift.Core.Tests;
+
+public class JobActivatorFacts
 {
-    public class JobActivatorFacts
+    [Fact, GlobalLock]
+    public void SetCurrent_ThrowsAnException_WhenValueIsNull()
     {
-        [Fact, GlobalLock]
-        public void SetCurrent_ThrowsAnException_WhenValueIsNull()
-        {
-            Assert.Throws<ArgumentNullException>(() => JobActivator.Current = null);
-        }
+        Assert.Throws<ArgumentNullException>(() => JobActivator.Current = null);
+    }
 
-        [Fact, GlobalLock]
-        public void GetCurrent_ReturnsPreviouslySetValue()
-        {
-            var activator = new JobActivator();
-            JobActivator.Current = activator;
+    [Fact, GlobalLock]
+    public void GetCurrent_ReturnsPreviouslySetValue()
+    {
+        var activator = new JobActivator();
+        JobActivator.Current = activator;
 
-            Assert.Same(activator, JobActivator.Current);
-        }
+        Assert.Same(activator, JobActivator.Current);
+    }
 
-        [Fact]
-        public void BeginScope_ThrowsArgumentNullException_WhenPerformContextIsNull()
-        {
-            var activator = new JobActivator();
+    [Fact]
+    public void BeginScope_ThrowsArgumentNullException_WhenPerformContextIsNull()
+    {
+        var activator = new JobActivator();
 
-            var exception = Assert.Throws<ArgumentNullException>(() => activator.BeginScope((PerformContext)null));
+        var exception = Assert.Throws<ArgumentNullException>(() => activator.BeginScope((PerformContext)null));
 
-            Assert.Equal("context", exception.ParamName);
-        }
+        Assert.Equal("context", exception.ParamName);
+    }
 
-        [Fact]
-        public void DefaultActivator_CanCreateInstanceOfClassWithDefaultConstructor()
-        {
-            var activator = new JobActivator();
+    [Fact]
+    public void DefaultActivator_CanCreateInstanceOfClassWithDefaultConstructor()
+    {
+        var activator = new JobActivator();
 
-            var instance = activator.ActivateJob(typeof (DefaultConstructor));
+        var instance = activator.ActivateJob(typeof(DefaultConstructor));
 
-            Assert.NotNull(instance);
-        }
+        Assert.NotNull(instance);
+    }
 
-        [Fact]
-        public void DefaultActivator_ThrowAnException_IfThereIsNoDefaultConstructor()
-        {
-            var activator = new JobActivator();
+    [Fact]
+    public void DefaultActivator_ThrowAnException_IfThereIsNoDefaultConstructor()
+    {
+        var activator = new JobActivator();
 
-            Assert.Throws<MissingMethodException>(
-                () => activator.ActivateJob(typeof (CustomConstructor)));
-        }
+        Assert.Throws<MissingMethodException>(
+            () => activator.ActivateJob(typeof(CustomConstructor)));
+    }
 
-        public class DefaultConstructor
-        {
-        }
+    public class DefaultConstructor
+    {
+    }
 
-        public class CustomConstructor
-        {
-// ReSharper disable once UnusedParameter.Local
-            public CustomConstructor(string arg)
-            {
-            }
-        }
+    public class CustomConstructor(string arg)
+    {
+        public string Arg { get; } = arg;
     }
 }

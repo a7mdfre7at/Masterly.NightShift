@@ -15,27 +15,24 @@
 
 #nullable enable
 
-using Masterly.NightShift.Storage;
+namespace Masterly.NightShift.States;
 
-namespace Masterly.NightShift.States
+/// <summary>
+/// Provides methods that are required for a state changed filter.
+/// </summary>
+public interface IApplyStateFilter
 {
     /// <summary>
-    /// Provides methods that are required for a state changed filter.
+    /// Called after the specified state was applied
+    /// to the job within the given transaction.
     /// </summary>
-    public interface IApplyStateFilter
-    {
-        /// <summary>
-        /// Called after the specified state was applied
-        /// to the job within the given transaction.
-        /// </summary>
-        void OnStateApplied(
-            ApplyStateContext context, IWriteOnlyTransaction transaction);
+    void OnStateApplied(
+        ApplyStateContext context, IWriteOnlyTransaction transaction);
 
-        /// <summary>
-        /// Called when the state with specified state was 
-        /// unapplied from the job within the given transaction.
-        /// </summary>
-        void OnStateUnapplied(
-            ApplyStateContext context, IWriteOnlyTransaction transaction);
-    }
+    /// <summary>
+    /// Called when the state with specified state was 
+    /// unapplied from the job within the given transaction.
+    /// </summary>
+    void OnStateUnapplied(
+        ApplyStateContext context, IWriteOnlyTransaction transaction);
 }

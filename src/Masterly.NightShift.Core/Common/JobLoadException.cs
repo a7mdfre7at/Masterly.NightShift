@@ -13,42 +13,32 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Common;
 
-namespace Masterly.NightShift.Common
+/// <summary>
+/// The exception that is thrown when a job could not
+/// be loaded from the storage due to missing or incorrect 
+/// information about its type or method.
+/// </summary>
+[Serializable]
+public class JobLoadException(string message, Exception inner) : Exception(message, inner)
 {
+
     /// <summary>
-    /// The exception that is thrown when a job could not
-    /// be loaded from the storage due to missing or incorrect 
-    /// information about its type or method.
+    /// What couldn't be loaded, when <see cref="Storage.InvocationData.DeserializeJob"/> threw the exception;
+    /// used to explain why the job failed.
     /// </summary>
-    [Serializable]
-    public class JobLoadException : Exception
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JobLoadException"/>
-        /// class with a given message and information about inner exception.
-        /// </summary>
-        public JobLoadException(string message, Exception inner) : base(message, inner)
-        {
-        }
+    internal JobLoadFailure Failure { get; init; }
+}
 
-        /// <summary>
-        /// What couldn't be loaded, when <see cref="Storage.InvocationData.DeserializeJob"/> threw the exception;
-        /// used to explain why the job failed.
-        /// </summary>
-        internal JobLoadFailure Failure { get; init; }
-    }
+internal enum JobLoadFailure
+{
+    /// <summary>Not known, for example when a storage created the exception itself.</summary>
+    Unknown,
 
-    internal enum JobLoadFailure
-    {
-        /// <summary>Not known, for example when a storage created the exception itself.</summary>
-        Unknown,
+    /// <summary>The job's type, or its method with the stored parameter types, wasn't found.</summary>
+    TypeOrMethod,
 
-        /// <summary>The job's type, or its method with the stored parameter types, wasn't found.</summary>
-        TypeOrMethod,
-
-        /// <summary>The type and method were found, but an argument couldn't be deserialized.</summary>
-        Arguments
-    }
+    /// <summary>The type and method were found, but an argument couldn't be deserialized.</summary>
+    Arguments
 }

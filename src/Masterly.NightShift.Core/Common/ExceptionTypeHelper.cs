@@ -13,21 +13,18 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+internal static class ExceptionTypeHelper
 {
-    internal static class ExceptionTypeHelper
+    private static readonly Type StackOverflowType = typeof(StackOverflowException);
+    private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
+
+    internal static bool IsCatchableExceptionType(this Exception e)
     {
-        private static readonly Type StackOverflowType = typeof(StackOverflowException);
-        private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
- 
-        internal static bool IsCatchableExceptionType(this Exception e)
-        {
-            var type = e.GetType();
-            return
-                type != StackOverflowType &&
-                type != OutOfMemoryType;
-        }
+        var type = e.GetType();
+        return
+            type != StackOverflowType &&
+            type != OutOfMemoryType;
     }
 }

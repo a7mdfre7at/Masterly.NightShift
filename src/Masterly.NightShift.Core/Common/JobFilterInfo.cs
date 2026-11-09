@@ -13,159 +13,153 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Collections.Generic;
-using System.Linq;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
-using Masterly.NightShift.States;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Encapsulates information about the available job filters.
+/// </summary>
+internal readonly struct JobFilterInfo
 {
     /// <summary>
-    /// Encapsulates information about the available job filters.
+    /// Initializes a new instance of the <see cref="JobFilterInfo"/> class using the specified filters collection.
     /// </summary>
-    internal readonly struct JobFilterInfo
+    /// <param name="filters">The filters collection.</param>
+    public JobFilterInfo(IEnumerable<JobFilter> filters)
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JobFilterInfo"/> class using the specified filters collection.
-        /// </summary>
-        /// <param name="filters">The filters collection.</param>
-        public JobFilterInfo(IEnumerable<JobFilter> filters)
+        var filtersList = filters as List<JobFilter> ?? [.. filters];
+        ClientFilters = new FilterCollection<IClientFilter>(filtersList);
+        ServerFilters = new FilterCollection<IServerFilter>(filtersList);
+        ElectStateFilters = new FilterCollection<IElectStateFilter>(filtersList);
+        ApplyStateFilters = new FilterCollection<IApplyStateFilter>(filtersList);
+        ClientExceptionFiltersReversed = new ReversedFilterCollection<IClientExceptionFilter>(filtersList);
+        ServerExceptionFiltersReversed = new ReversedFilterCollection<IServerExceptionFilter>(filtersList);
+    }
+
+    /// <summary>
+    /// Gets all the client filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The client filters.
+    /// </returns>
+    public FilterCollection<IClientFilter> ClientFilters { get; }
+
+    /// <summary>
+    /// Gets all the server filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The server filters.
+    /// </returns>
+    public FilterCollection<IServerFilter> ServerFilters { get; }
+
+    /// <summary>
+    /// Gets all the stat changing filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The state changing filters.
+    /// </returns>
+    public FilterCollection<IElectStateFilter> ElectStateFilters { get; }
+
+    /// <summary>
+    /// Gets all the state changed filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The state changed filters.
+    /// </returns>
+    public FilterCollection<IApplyStateFilter> ApplyStateFilters { get; }
+
+    /// <summary>
+    /// Gets all the client exception filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The client exception filters.
+    /// </returns>
+    public ReversedFilterCollection<IClientExceptionFilter> ClientExceptionFiltersReversed { get; }
+
+    /// <summary>
+    /// Gets all the server exception filters in the application.
+    /// </summary>
+    /// 
+    /// <returns>
+    /// The server exception filters.
+    /// </returns>
+    public ReversedFilterCollection<IServerExceptionFilter> ServerExceptionFiltersReversed { get; }
+
+    public readonly struct FilterCollection<T>(List<JobFilter> filters)
+    {
+        public Enumerator GetEnumerator() => new(filters);
+
+        public ref struct Enumerator(List<JobFilter> filters)
         {
-            var filtersList = filters as List<JobFilter> ?? filters.ToList();
-            ClientFilters = new FilterCollection<IClientFilter>(filtersList);
-            ServerFilters = new FilterCollection<IServerFilter>(filtersList);
-            ElectStateFilters = new FilterCollection<IElectStateFilter>(filtersList);
-            ApplyStateFilters = new FilterCollection<IApplyStateFilter>(filtersList);
-            ClientExceptionFiltersReversed = new ReversedFilterCollection<IClientExceptionFilter>(filtersList);
-            ServerExceptionFiltersReversed = new ReversedFilterCollection<IServerExceptionFilter>(filtersList);
-        }
+            private readonly List<JobFilter> _filters = filters;
+            private int _index = 0;
 
-        /// <summary>
-        /// Gets all the client filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The client filters.
-        /// </returns>
-        public FilterCollection<IClientFilter> ClientFilters { get; }
-
-        /// <summary>
-        /// Gets all the server filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The server filters.
-        /// </returns>
-        public FilterCollection<IServerFilter> ServerFilters { get; }
-
-        /// <summary>
-        /// Gets all the stat changing filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The state changing filters.
-        /// </returns>
-        public FilterCollection<IElectStateFilter> ElectStateFilters { get; }
-
-        /// <summary>
-        /// Gets all the state changed filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The state changed filters.
-        /// </returns>
-        public FilterCollection<IApplyStateFilter> ApplyStateFilters { get; }
-
-        /// <summary>
-        /// Gets all the client exception filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The client exception filters.
-        /// </returns>
-        public ReversedFilterCollection<IClientExceptionFilter> ClientExceptionFiltersReversed { get; }
-
-        /// <summary>
-        /// Gets all the server exception filters in the application.
-        /// </summary>
-        /// 
-        /// <returns>
-        /// The server exception filters.
-        /// </returns>
-        public ReversedFilterCollection<IServerExceptionFilter> ServerExceptionFiltersReversed { get; }
-
-        public readonly struct FilterCollection<T>(List<JobFilter> filters)
-        {
-            public Enumerator GetEnumerator() => new Enumerator(filters);
-
-            public ref struct Enumerator(List<JobFilter> filters)
+            public bool MoveNext()
             {
-                private readonly List<JobFilter> _filters = filters;
-                private int _index = 0;
-                private T _current = default;
+                List<JobFilter> localFilters = _filters;
 
-                public bool MoveNext()
+                while (_index < localFilters.Count)
                 {
-                    List<JobFilter> localFilters = _filters;
-
-                    while (_index < localFilters.Count)
+                    if (localFilters[_index++].Instance is T instance)
                     {
-                        if (localFilters[_index++].Instance is T instance)
-                        {
-                            _current = instance;
-                            return true;
-                        }
+                        Current = instance;
+                        return true;
                     }
-
-                    return MoveNextRare();
                 }
 
-                public T Current => _current;
+                return MoveNextRare();
+            }
 
-                private bool MoveNextRare()
-                {
-                    _index = _filters.Count + 1;
-                    _current = default;
-                    return false;
-                }
+            public T Current { get; private set; } = default;
+
+            private bool MoveNextRare()
+            {
+                _index = _filters.Count + 1;
+                Current = default;
+                return false;
             }
         }
+    }
 
-        public readonly struct ReversedFilterCollection<T>(List<JobFilter> filters)
+    public readonly struct ReversedFilterCollection<T>(List<JobFilter> filters)
+    {
+        public ReversedEnumerator GetEnumerator() => new(filters);
+
+        public ref struct ReversedEnumerator(List<JobFilter> filters)
         {
-            public ReversedEnumerator GetEnumerator() => new ReversedEnumerator(filters);
+            private readonly List<JobFilter> _filters = filters;
+            private int _index = filters.Count - 1;
 
-            public ref struct ReversedEnumerator(List<JobFilter> filters)
+            public bool MoveNext()
             {
-                private readonly List<JobFilter> _filters = filters;
-                private int _index = filters.Count - 1;
-                private T _current = default;
+                List<JobFilter> localFilters = _filters;
 
-                public bool MoveNext()
+                while (_index >= 0)
                 {
-                    List<JobFilter> localFilters = _filters;
-
-                    while (_index >= 0)
+                    if (localFilters[_index--].Instance is T instance)
                     {
-                        if (localFilters[_index--].Instance is T instance)
-                        {
-                            _current = instance;
-                            return true;
-                        }
+                        Current = instance;
+                        return true;
                     }
-
-                    return MoveNextRare();
                 }
 
-                public T Current => _current;
+                return MoveNextRare();
+            }
 
-                private bool MoveNextRare()
-                {
-                    _index = -1;
-                    _current = default;
-                    return false;
-                }
+            public T Current { get; private set; } = default;
+
+            private bool MoveNextRare()
+            {
+                _index = -1;
+                Current = default;
+                return false;
             }
         }
     }

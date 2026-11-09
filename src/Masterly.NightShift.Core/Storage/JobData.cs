@@ -15,31 +15,26 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Storage
+/// <summary>
+/// A job as read from the storage: its method call, current state name, parameters and creation time.
+/// </summary>
+public class JobData
 {
-    /// <summary>
-    /// A job as read from the storage: its method call, current state name, parameters and creation time.
-    /// </summary>
-    public class JobData
+    public string? State { get; set; }
+    public Job? Job { get; set; }
+    public InvocationData? InvocationData { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; set; }
+
+    public JobLoadException? LoadException { get; set; }
+
+    public void EnsureLoaded()
     {
-        public string? State { get; set; }
-        public Job? Job { get; set; }
-        public InvocationData? InvocationData { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; set; }
-
-        public JobLoadException? LoadException { get; set; }
-
-        public void EnsureLoaded()
+        if (LoadException != null)
         {
-            if (LoadException != null)
-            {
-                throw LoadException;
-            }
+            throw LoadException;
         }
     }
 }

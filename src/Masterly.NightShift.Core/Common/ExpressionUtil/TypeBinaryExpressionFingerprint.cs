@@ -1,42 +1,34 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 
 #pragma warning disable 659 // overrides AddToHashCodeCombiner instead
 
-namespace Masterly.NightShift.Common.ExpressionUtil
+namespace Masterly.NightShift.Common.ExpressionUtil;
+
+// TypeBinary fingerprint class
+// Expression of form "obj is T"
+
+[SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
+[SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
+[ExcludeFromCodeCoverage]
+internal sealed class TypeBinaryExpressionFingerprint(ExpressionType nodeType, Type type, Type typeOperand) : ExpressionFingerprint(nodeType, type)
 {
-    // TypeBinary fingerprint class
-    // Expression of form "obj is T"
 
-    [SuppressMessage("Microsoft.Usage", "CA2218:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-    [SuppressMessage("SonarLint", "S1206:OverrideGetHashCodeOnOverridingEquals", Justification = "Overrides AddToHashCodeCombiner() instead.")]
-    [ExcludeFromCodeCoverage]
-    internal sealed class TypeBinaryExpressionFingerprint : ExpressionFingerprint
+    // http://msdn.microsoft.com/en-us/library/system.linq.expressions.typebinaryexpression.typeoperand.aspx
+    public Type TypeOperand { get; } = typeOperand;
+
+    public override bool Equals(object obj)
     {
-        public TypeBinaryExpressionFingerprint(ExpressionType nodeType, Type type, Type typeOperand)
-            : base(nodeType, type)
-        {
-            TypeOperand = typeOperand;
-        }
+        return (obj is TypeBinaryExpressionFingerprint other)
+               && TypeOperand == other.TypeOperand
+               && Equals(other);
+    }
 
-        // http://msdn.microsoft.com/en-us/library/system.linq.expressions.typebinaryexpression.typeoperand.aspx
-        public Type TypeOperand { get; }
-
-        public override bool Equals(object obj)
-        {
-            TypeBinaryExpressionFingerprint other = obj as TypeBinaryExpressionFingerprint;
-            return (other != null)
-                   && TypeOperand == other.TypeOperand
-                   && Equals(other);
-        }
-
-        internal override void AddToHashCodeCombiner(HashCodeCombiner combiner)
-        {
-            combiner.AddObject(TypeOperand);
-            base.AddToHashCodeCombiner(combiner);
-        }
+    internal override void AddToHashCodeCombiner(HashCodeCombiner combiner)
+    {
+        combiner.AddObject(TypeOperand);
+        base.AddToHashCodeCombiner(combiner);
     }
 }

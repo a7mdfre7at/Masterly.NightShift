@@ -13,18 +13,13 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Processing
+/// <summary>
+/// Runs a background process's work in a loop, retrying with a delay after a failure, until the server stops.
+/// </summary>
+public interface IBackgroundExecution : IDisposable
 {
-    /// <summary>
-    /// Runs a background process's work in a loop, retrying with a delay after a failure, until the server stops.
-    /// </summary>
-    public interface IBackgroundExecution : IDisposable
-    {
-        void Run([NotNull] Action<Guid, object> callback, [CanBeNull] object state);
-        Task RunAsync([NotNull] Func<Guid, object, Task> callback, [CanBeNull] object state);
-    }
+    void Run([NotNull] Action<Guid, object> callback, [CanBeNull] object state);
+    Task RunAsync([NotNull] Func<Guid, object, Task> callback, [CanBeNull] object state);
 }

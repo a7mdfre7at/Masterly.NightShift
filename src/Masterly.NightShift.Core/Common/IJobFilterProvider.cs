@@ -13,22 +13,19 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Collections.Generic;
+namespace Masterly.NightShift.Common;
 
-namespace Masterly.NightShift.Common
+/// <summary>
+/// Provides an interface for finding filters.
+/// </summary>
+public interface IJobFilterProvider
 {
     /// <summary>
-    /// Provides an interface for finding filters.
+    /// Returns an enumerator that contains all the <see cref="IJobFilterProvider"/>.
     /// </summary>
-    public interface IJobFilterProvider
-    {
-        /// <summary>
-        /// Returns an enumerator that contains all the <see cref="IJobFilterProvider"/>.
-        /// </summary>
-        ///  
-        /// <returns>
-        /// The enumerator that contains all the <see cref="IJobFilterProvider"/>.
-        /// </returns>
-        IEnumerable<JobFilter> GetFilters(Job job);
-    }
+    ///  
+    /// <returns>
+    /// The enumerator that contains all the <see cref="IJobFilterProvider"/>.
+    /// </returns>
+    IEnumerable<JobFilter> GetFilters(Job job);
 }

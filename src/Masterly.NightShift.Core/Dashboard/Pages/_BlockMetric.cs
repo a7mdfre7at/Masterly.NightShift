@@ -1,12 +1,6 @@
-﻿namespace Masterly.NightShift.Dashboard.Pages
-{
-    partial class BlockMetric
-    {
-        public BlockMetric(DashboardMetric dashboardMetric)
-        {
-            DashboardMetric = dashboardMetric;
-        }
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-        public DashboardMetric DashboardMetric { get; }
-    }
+internal partial class BlockMetric(DashboardMetric dashboardMetric)
+{
+    public DashboardMetric DashboardMetric { get; } = dashboardMetric;
 }

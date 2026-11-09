@@ -4,6 +4,143 @@ root = true
 indent_style = space
 indent_size = 4
 
+# Code style. The build enforces every rule set to warning (EnforceCodeStyleInBuild in Directory.Build.props), and
+# TreatWarningsAsErrors turns them into errors for the libraries. `dotnet format style` applies most of them.
+[*.cs]
+# Namespaces and usings
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0065.severity = warning
+dotnet_diagnostic.IDE0161.severity = warning
+# Namespaces don't follow folders: public types keep the namespace the API needs wherever the file lives
+dotnet_style_namespace_match_folder = false
+dotnet_diagnostic.IDE0130.severity = none
+
+# Types and members
+csharp_style_prefer_primary_constructors = true:warning
+dotnet_diagnostic.IDE0290.severity = warning
+csharp_style_prefer_readonly_struct = true:warning
+csharp_style_prefer_readonly_struct_member = true:warning
+dotnet_diagnostic.IDE0250.severity = warning
+dotnet_diagnostic.IDE0251.severity = warning
+dotnet_style_readonly_field = true:warning
+dotnet_diagnostic.IDE0044.severity = warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_diagnostic.IDE0040.severity = warning
+dotnet_style_prefer_auto_properties = true:warning
+dotnet_diagnostic.IDE0032.severity = warning
+csharp_style_prefer_simple_property_accessors = true:warning
+dotnet_diagnostic.IDE0360.severity = warning
+csharp_prefer_static_local_function = true:warning
+dotnet_diagnostic.IDE0062.severity = warning
+csharp_prefer_static_anonymous_function = true:warning
+dotnet_diagnostic.IDE0320.severity = warning
+# Internal types nothing derives from are sealed
+dotnet_diagnostic.CA1852.severity = warning
+
+# Object creation and collections
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+dotnet_diagnostic.IDE0090.severity = warning
+dotnet_style_prefer_collection_expression = when_types_loosely_match:warning
+dotnet_style_collection_initializer = true:warning
+dotnet_style_object_initializer = true:warning
+dotnet_diagnostic.IDE0017.severity = warning
+dotnet_diagnostic.IDE0028.severity = warning
+dotnet_diagnostic.IDE0300.severity = warning
+dotnet_diagnostic.IDE0301.severity = warning
+dotnet_diagnostic.IDE0302.severity = warning
+dotnet_diagnostic.IDE0303.severity = warning
+dotnet_diagnostic.IDE0304.severity = warning
+dotnet_diagnostic.IDE0305.severity = warning
+dotnet_diagnostic.IDE0306.severity = warning
+csharp_prefer_simple_default_expression = true:warning
+dotnet_diagnostic.IDE0034.severity = warning
+csharp_style_prefer_utf8_string_literals = true:warning
+dotnet_diagnostic.IDE0230.severity = warning
+
+# Statements
+csharp_prefer_simple_using_statement = true:warning
+dotnet_diagnostic.IDE0063.severity = warning
+csharp_style_prefer_switch_expression = true:warning
+dotnet_diagnostic.IDE0066.severity = warning
+csharp_style_prefer_tuple_swap = true:warning
+dotnet_diagnostic.IDE0180.severity = warning
+csharp_style_inlined_variable_declaration = true:warning
+dotnet_diagnostic.IDE0018.severity = warning
+csharp_style_throw_expression = true:warning
+dotnet_diagnostic.IDE0016.severity = warning
+csharp_style_prefer_top_level_statements = true:warning
+dotnet_diagnostic.IDE0210.severity = warning
+
+# Patterns
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_prefer_pattern_matching = true:warning
+csharp_style_prefer_not_pattern = true:warning
+csharp_style_prefer_null_check_over_type_check = true:warning
+csharp_style_prefer_extended_property_pattern = true:warning
+dotnet_diagnostic.IDE0019.severity = warning
+dotnet_diagnostic.IDE0020.severity = warning
+dotnet_diagnostic.IDE0038.severity = warning
+dotnet_diagnostic.IDE0078.severity = warning
+dotnet_diagnostic.IDE0083.severity = warning
+dotnet_diagnostic.IDE0150.severity = warning
+dotnet_diagnostic.IDE0170.severity = warning
+dotnet_diagnostic.IDE0260.severity = warning
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+dotnet_diagnostic.IDE0041.severity = warning
+
+# Expressions
+dotnet_style_coalesce_expression = true:warning
+dotnet_style_null_propagation = true:warning
+dotnet_diagnostic.IDE0029.severity = warning
+dotnet_diagnostic.IDE0030.severity = warning
+dotnet_diagnostic.IDE0031.severity = warning
+dotnet_diagnostic.IDE0270.severity = warning
+csharp_style_conditional_delegate_call = true:warning
+dotnet_diagnostic.IDE1005.severity = warning
+dotnet_style_prefer_compound_assignment = true:warning
+dotnet_diagnostic.IDE0054.severity = warning
+dotnet_diagnostic.IDE0074.severity = warning
+csharp_style_prefer_index_operator = true:warning
+csharp_style_prefer_range_operator = true:warning
+dotnet_diagnostic.IDE0056.severity = warning
+dotnet_diagnostic.IDE0057.severity = warning
+dotnet_style_prefer_simplified_interpolation = true:warning
+dotnet_diagnostic.IDE0071.severity = warning
+dotnet_style_prefer_simplified_boolean_expressions = true:warning
+dotnet_diagnostic.IDE0075.severity = warning
+dotnet_diagnostic.IDE0082.severity = warning
+dotnet_diagnostic.IDE0100.severity = warning
+dotnet_diagnostic.IDE0120.severity = warning
+csharp_style_prefer_method_group_conversion = true:warning
+dotnet_diagnostic.IDE0200.severity = warning
+dotnet_style_prefer_inferred_tuple_names = true:warning
+dotnet_style_prefer_inferred_anonymous_type_member_names = true:warning
+dotnet_diagnostic.IDE0037.severity = warning
+csharp_style_deconstructed_variable_declaration = true:warning
+dotnet_diagnostic.IDE0042.severity = warning
+dotnet_diagnostic.IDE0070.severity = warning
+csharp_style_prefer_unbound_generic_type_in_nameof = true:warning
+dotnet_diagnostic.IDE0340.severity = warning
+csharp_style_prefer_implicitly_typed_lambda_expression = true:warning
+dotnet_diagnostic.IDE0350.severity = warning
+dotnet_diagnostic.IDE0280.severity = warning
+dotnet_diagnostic.IDE0121.severity = warning
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+dotnet_style_predefined_type_for_member_access = true:warning
+dotnet_diagnostic.IDE0049.severity = warning
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+dotnet_diagnostic.IDE0035.severity = warning
+dotnet_diagnostic.IDE0370.severity = warning
+dotnet_diagnostic.IDE0240.severity = warning
+dotnet_diagnostic.IDE0241.severity = warning
+# System.Threading.Lock exists only on .NET 9 and later; the libraries use it through the NightShiftLock alias instead
+dotnet_diagnostic.IDE0330.severity = none
+
 # Vendored source-only packages: kept as published (apart from their namespaces), so the analyzers skip them
 [src/Masterly.NightShift.Core/App_Packages/**.cs]
 generated_code = true

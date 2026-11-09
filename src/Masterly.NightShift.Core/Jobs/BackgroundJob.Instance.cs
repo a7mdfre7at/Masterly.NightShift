@@ -15,45 +15,39 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+public partial class BackgroundJob
 {
-    partial class BackgroundJob
+    /// <exclude />
+    public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt)
+        : this(id, job, createdAt, null)
     {
-        /// <exclude />
-        public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt)
-            : this(id, job, createdAt, null)
-        {
-        }
-
-        /// <exclude />
-        public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string>? parametersSnapshot)
-        {
-            ArgumentNullException.ThrowIfNull(id);
-
-            Id = id;
-            Job = job;
-            CreatedAt = createdAt;
-            ParametersSnapshot = parametersSnapshot;
-        }
-
-        /// <exclude />
-        [NotNull]
-        public string Id { get; }
-
-        /// <exclude />
-        [CanBeNull]
-        public Job? Job { get; }
-
-        /// <exclude />
-        public DateTime CreatedAt { get; }
-
-        /// <exclude />
-        [CanBeNull]
-        public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; }
     }
+
+    /// <exclude />
+    public BackgroundJob([NotNull] string id, [CanBeNull] Job? job, DateTime createdAt, [CanBeNull] IReadOnlyDictionary<string, string>? parametersSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+
+        Id = id;
+        Job = job;
+        CreatedAt = createdAt;
+        ParametersSnapshot = parametersSnapshot;
+    }
+
+    /// <exclude />
+    [NotNull]
+    public string Id { get; }
+
+    /// <exclude />
+    [CanBeNull]
+    public Job? Job { get; }
+
+    /// <exclude />
+    public DateTime CreatedAt { get; }
+
+    /// <exclude />
+    [CanBeNull]
+    public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; }
 }

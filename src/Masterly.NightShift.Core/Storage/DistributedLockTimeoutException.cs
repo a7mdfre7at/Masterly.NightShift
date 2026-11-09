@@ -13,24 +13,15 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.Storage
+/// <summary>
+/// Thrown when a distributed lock couldn't be acquired within its timeout.
+/// </summary>
+[Serializable]
+public class DistributedLockTimeoutException(string resource) : TimeoutException(
+        $"Timeout expired. The timeout elapsed prior to obtaining a distributed lock on the '{resource}' resource."
+            )
 {
-    /// <summary>
-    /// Thrown when a distributed lock couldn't be acquired within its timeout.
-    /// </summary>
-    [Serializable]
-    public class DistributedLockTimeoutException : TimeoutException
-    {
-        public DistributedLockTimeoutException(string resource)
-            : base(
-                $"Timeout expired. The timeout elapsed prior to obtaining a distributed lock on the '{resource}' resource."
-                )
-        {
-            Resource = resource;
-        }
-
-        public string Resource { get; }
-    }
+    public string Resource { get; } = resource;
 }

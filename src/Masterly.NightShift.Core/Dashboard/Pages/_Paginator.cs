@@ -1,12 +1,6 @@
-﻿namespace Masterly.NightShift.Dashboard.Pages
-{
-    partial class Paginator
-    {
-        private readonly Pager _pager;
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-        public Paginator(Pager pager)
-        {
-            _pager = pager;
-        }
-    }
+internal partial class Paginator(Pager pager)
+{
+    private readonly Pager _pager = pager;
 }

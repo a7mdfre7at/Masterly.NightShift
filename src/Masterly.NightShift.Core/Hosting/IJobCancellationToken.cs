@@ -13,31 +13,28 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Threading;
+namespace Masterly.NightShift;
 
-namespace Masterly.NightShift
+/// <summary>
+/// Lets a job notice that it should stop, because its server is shutting down or the job was deleted or moved to
+/// another state. Declare a parameter of this type (or a <see cref="CancellationToken"/>) and pass <c>null</c> when
+/// creating the job; the server supplies it.
+/// </summary>
+public interface IJobCancellationToken
 {
-    /// <summary>
-    /// Lets a job notice that it should stop, because its server is shutting down or the job was deleted or moved to
-    /// another state. Declare a parameter of this type (or a <see cref="CancellationToken"/>) and pass <c>null</c> when
-    /// creating the job; the server supplies it.
-    /// </summary>
-    public interface IJobCancellationToken
-    {
-        CancellationToken ShutdownToken { get; }
+    CancellationToken ShutdownToken { get; }
 
-        /// <summary>
-        /// Throws a <see cref="System.OperationCanceledException">OperationCanceledException</see> if
-        /// this token has had cancellation requested.
-        /// </summary>
-        /// <remarks>
-        /// This method provides functionality equivalent to:
-        /// <code>
-        /// if (token.ShutdownToken.IsCancellationRequested)
-        ///    throw new OperationCanceledException(token);
-        /// </code>
-        /// </remarks>
-        /// <exception cref="System.OperationCanceledException">The token has had cancellation requested.</exception>
-        void ThrowIfCancellationRequested();
-    }
+    /// <summary>
+    /// Throws a <see cref="System.OperationCanceledException">OperationCanceledException</see> if
+    /// this token has had cancellation requested.
+    /// </summary>
+    /// <remarks>
+    /// This method provides functionality equivalent to:
+    /// <code>
+    /// if (token.ShutdownToken.IsCancellationRequested)
+    ///    throw new OperationCanceledException(token);
+    /// </code>
+    /// </remarks>
+    /// <exception cref="System.OperationCanceledException">The token has had cancellation requested.</exception>
+    void ThrowIfCancellationRequested();
 }

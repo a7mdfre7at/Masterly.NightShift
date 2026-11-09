@@ -1,12 +1,9 @@
-﻿using System;
+﻿namespace ConsoleSample;
 
-namespace ConsoleSample
+public class GenericServices<TType>
 {
-    public class GenericServices<TType>
+    public void Method<TMethod>(TType arg1, TMethod arg2)
     {
-        public void Method<TMethod>(TType arg1, TMethod arg2)
-        {
-            Console.WriteLine($"Arg1: {arg1}, Arg2: {arg2}");
-        }
+        Console.WriteLine($"Arg1: {arg1}, Arg2: {arg2}");
     }
 }

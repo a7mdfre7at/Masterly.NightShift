@@ -1,76 +1,71 @@
 #nullable enable
 
-using System;
-using System.Linq;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Server;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 
-namespace Masterly.NightShift
+namespace Masterly.NightShift;
+
+/// <summary>
+/// Registers <see cref="KeepAliveProcess"/> as an additional background process of the Masterly.NightShift server.
+/// </summary>
+public static class NightShiftKeepAliveServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="KeepAliveProcess"/> as an additional background process of the Masterly.NightShift server.
+    /// Keeps the web host from idling by requesting one of its own URLs at a fixed interval (5 minutes by
+    /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, the first address the
+    /// server listens on is used with the given path. The request has to reach the host that applies the idle timeout, so behind IIS give the
+    /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
+    /// answers without touching the storage.
     /// </summary>
-    public static class NightShiftKeepAliveServiceCollectionExtensions
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Changes to the defaults: URL, interval, timeout.</param>
+    /// <param name="path">Path requested when the URL is resolved from the server's address. Default is <c>/nightshift/ping</c>, a route that answers without touching the storage.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddNightShiftKeepAlive(
+        [NotNull] this IServiceCollection services,
+        [CanBeNull] Action<KeepAliveOptions>? configure = null,
+        [NotNull] string path = "/nightshift/ping")
     {
-        /// <summary>
-        /// Keeps the web host from idling by requesting one of its own URLs at a fixed interval (5 minutes by
-        /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, the first address the
-        /// server listens on is used with the given path. The request has to reach the host that applies the idle timeout, so behind IIS give the
-        /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
-        /// answers without touching the storage.
-        /// </summary>
-        /// <param name="services">The service collection.</param>
-        /// <param name="configure">Changes to the defaults: URL, interval, timeout.</param>
-        /// <param name="path">Path requested when the URL is resolved from the server's address. Default is <c>/nightshift/ping</c>, a route that answers without touching the storage.</param>
-        /// <returns>The same collection, for chaining.</returns>
-        public static IServiceCollection AddNightShiftKeepAlive(
-            [NotNull] this IServiceCollection services,
-            [CanBeNull] Action<KeepAliveOptions>? configure = null,
-            [NotNull] string path = "/nightshift/ping")
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(path);
+
+        services.AddSingleton<IBackgroundProcess>(provider =>
         {
-            ArgumentNullException.ThrowIfNull(services);
-            ArgumentNullException.ThrowIfNull(path);
+            var options = new KeepAliveOptions();
+            configure?.Invoke(options);
 
-            services.AddSingleton<IBackgroundProcess>(provider =>
+            if (options.Url == null && options.UrlFactory == null)
             {
-                var options = new KeepAliveOptions();
-                configure?.Invoke(options);
-
-                if (options.Url == null && options.UrlFactory == null)
-                {
-                    options.UrlFactory = () => ResolveFromServer(provider, path);
-                }
-
-                return new KeepAliveProcess(options);
-            });
-
-            return services;
-        }
-
-        private static string? ResolveFromServer(IServiceProvider provider, string path)
-        {
-            var server = provider.GetService<IServer>();
-            var address = server?.Features.Get<IServerAddressesFeature>()?.Addresses
-                .OrderBy(static x => x.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-                .FirstOrDefault();
-
-            if (String.IsNullOrEmpty(address))
-            {
-                return null;
+                options.UrlFactory = () => ResolveFromServer(provider, path);
             }
 
-            // "http://*:80", "http://+:80" and "http://0.0.0.0:80" mean "any address": use the loopback for the request
-            var normalized = address
-                .Replace("://*", "://localhost")
-                .Replace("://+", "://localhost")
-                .Replace("://0.0.0.0", "://localhost")
-                .Replace("://[::]", "://localhost")
-                .TrimEnd('/');
+            return new KeepAliveProcess(options);
+        });
 
-            return normalized + (path.StartsWith('/') ? path : "/" + path);
+        return services;
+    }
+
+    private static string? ResolveFromServer(IServiceProvider provider, string path)
+    {
+        var server = provider.GetService<IServer>();
+        var address = server?.Features.Get<IServerAddressesFeature>()?.Addresses
+            .OrderBy(static x => x.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .FirstOrDefault();
+
+        if (string.IsNullOrEmpty(address))
+        {
+            return null;
         }
+
+        // "http://*:80", "http://+:80" and "http://0.0.0.0:80" mean "any address": use the loopback for the request
+        var normalized = address
+            .Replace("://*", "://localhost")
+            .Replace("://+", "://localhost")
+            .Replace("://0.0.0.0", "://localhost")
+            .Replace("://[::]", "://localhost")
+            .TrimEnd('/');
+
+        return normalized + (path.StartsWith('/') ? path : "/" + path);
     }
 }

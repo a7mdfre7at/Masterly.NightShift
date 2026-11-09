@@ -13,55 +13,51 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using Masterly.NightShift.Processing;
 
-namespace Masterly.NightShift.Server
+namespace Masterly.NightShift.Server;
+
+/// <summary>
+/// Options of a <see cref="BackgroundProcessingServer"/>: its name, its heartbeat and watchdog intervals, its stop
+/// and shutdown timeouts, and the delay between retries of a failed process.
+/// </summary>
+public sealed class BackgroundProcessingServerOptions
 {
-    /// <summary>
-    /// Options of a <see cref="BackgroundProcessingServer"/>: its name, its heartbeat and watchdog intervals, its stop
-    /// and shutdown timeouts, and the delay between retries of a failed process.
-    /// </summary>
-    public sealed class BackgroundProcessingServerOptions
+    internal static TimeSpan DefaultStopTimeout = TimeSpan.FromMilliseconds(500);
+    internal static TimeSpan DefaultLastChanceTimeout = TimeSpan.FromSeconds(1);
+    internal static TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
+
+    public BackgroundProcessingServerOptions()
     {
-        internal static TimeSpan DefaultStopTimeout = TimeSpan.FromMilliseconds(500);
-        internal static TimeSpan DefaultLastChanceTimeout = TimeSpan.FromSeconds(1);
-        internal static TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
+        HeartbeatInterval = DefaultHeartbeatInterval;
+        ServerCheckInterval = ServerWatchdog.DefaultCheckInterval;
+        ServerTimeout = ServerWatchdog.DefaultServerTimeout;
 
-        private Func<int, TimeSpan> _retryDelay;
+        CancellationCheckInterval = ServerJobCancellationWatcher.DefaultCheckInterval;
 
-        public BackgroundProcessingServerOptions()
-        {
-            HeartbeatInterval = DefaultHeartbeatInterval;
-            ServerCheckInterval = ServerWatchdog.DefaultCheckInterval;
-            ServerTimeout = ServerWatchdog.DefaultServerTimeout;
+        RetryDelay = BackgroundExecutionOptions.GetBackOffMultiplier;
+        RestartDelay = TimeSpan.FromSeconds(15);
 
-            CancellationCheckInterval = ServerJobCancellationWatcher.DefaultCheckInterval;
-
-            RetryDelay = BackgroundExecutionOptions.GetBackOffMultiplier;
-            RestartDelay = TimeSpan.FromSeconds(15);
-
-            StopTimeout = DefaultStopTimeout;
-            ShutdownTimeout = BackgroundProcessingServer.DefaultShutdownTimeout;
-            LastChanceTimeout = DefaultLastChanceTimeout;
-        }
-
-        public TimeSpan HeartbeatInterval { get; set; }
-        public TimeSpan ServerCheckInterval { get; set; }
-        public TimeSpan ServerTimeout { get; set; }
-        public TimeSpan CancellationCheckInterval { get; set; }
-        public string ServerName { get; set; }
-        public bool ExcludeStorageProcesses { get; set; }
-
-        public Func<int, TimeSpan> RetryDelay
-        {
-            get => _retryDelay;
-            set => _retryDelay = value ?? throw new ArgumentNullException(nameof(value));
-        }
-
-        public TimeSpan StopTimeout { get; set; }
-        public TimeSpan ShutdownTimeout { get; set; }
-        public TimeSpan LastChanceTimeout { get; set; }
-        public TimeSpan RestartDelay { get; set; }
+        StopTimeout = DefaultStopTimeout;
+        ShutdownTimeout = BackgroundProcessingServer.DefaultShutdownTimeout;
+        LastChanceTimeout = DefaultLastChanceTimeout;
     }
+
+    public TimeSpan HeartbeatInterval { get; set; }
+    public TimeSpan ServerCheckInterval { get; set; }
+    public TimeSpan ServerTimeout { get; set; }
+    public TimeSpan CancellationCheckInterval { get; set; }
+    public string ServerName { get; set; }
+    public bool ExcludeStorageProcesses { get; set; }
+
+    public Func<int, TimeSpan> RetryDelay
+    {
+        get;
+        set => field = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    public TimeSpan StopTimeout { get; set; }
+    public TimeSpan ShutdownTimeout { get; set; }
+    public TimeSpan LastChanceTimeout { get; set; }
+    public TimeSpan RestartDelay { get; set; }
 }

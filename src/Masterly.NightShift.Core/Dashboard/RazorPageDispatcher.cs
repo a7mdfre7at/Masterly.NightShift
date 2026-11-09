@@ -13,29 +13,21 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
-namespace Masterly.NightShift.Dashboard
+namespace Masterly.NightShift.Dashboard;
+
+internal sealed class RazorPageDispatcher(Func<Match, RazorPage> pageFunc) : IDashboardDispatcher
 {
-    internal sealed class RazorPageDispatcher : IDashboardDispatcher
+    private readonly Func<Match, RazorPage> _pageFunc = pageFunc;
+
+    public Task Dispatch(DashboardContext context)
     {
-        private readonly Func<Match, RazorPage> _pageFunc;
+        context.Response.ContentType = "text/html";
 
-        public RazorPageDispatcher(Func<Match, RazorPage> pageFunc)
-        {
-            _pageFunc = pageFunc;
-        }
+        var page = _pageFunc(context.UriMatch);
+        page.Assign(context);
 
-        public Task Dispatch(DashboardContext context)
-        {
-            context.Response.ContentType = "text/html";
-
-            var page = _pageFunc(context.UriMatch);
-            page.Assign(context);
-
-            return context.Response.WriteAsync(page.ToString());
-        }
+        return context.Response.WriteAsync(page.ToString());
     }
 }

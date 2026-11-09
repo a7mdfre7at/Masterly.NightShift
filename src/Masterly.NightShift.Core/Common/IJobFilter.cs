@@ -13,23 +13,22 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Defines members that specify the order of filters and 
+/// whether multiple filters are allowed.
+/// </summary>
+public interface IJobFilter
 {
     /// <summary>
-    /// Defines members that specify the order of filters and 
-    /// whether multiple filters are allowed.
+    /// When implemented in a class, gets or sets a value 
+    /// that indicates whether multiple filters are allowed.
     /// </summary>
-    public interface IJobFilter
-    {
-        /// <summary>
-        /// When implemented in a class, gets or sets a value 
-        /// that indicates whether multiple filters are allowed.
-        /// </summary>
-        bool AllowMultiple { get; }
+    bool AllowMultiple { get; }
 
-        /// <summary>
-        /// When implemented in a class, gets the filter order.
-        /// </summary>
-        int Order { get; }
-    }
+    /// <summary>
+    /// When implemented in a class, gets the filter order.
+    /// </summary>
+    int Order { get; }
 }

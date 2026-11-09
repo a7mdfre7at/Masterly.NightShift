@@ -13,170 +13,164 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading;
-using Dapper;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal sealed class SqlServerTimeoutJob : IFetchedJob
 {
-    internal sealed class SqlServerTimeoutJob : IFetchedJob
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(SqlServerTimeoutJob));
+
+    private readonly object _syncRoot = new();
+    private readonly SqlServerStorage _storage;
+    private bool _disposed;
+    private bool _removedFromQueue;
+    private bool _requeued;
+    private SqlServerWriteOnlyTransaction _transaction;
+
+    private long _lastHeartbeat;
+    private readonly TimeSpan _interval;
+
+    public SqlServerTimeoutJob(
+        [NotNull] SqlServerStorage storage,
+        long id,
+        [NotNull] string jobId,
+        [NotNull] string queue,
+        [NotNull] DateTime? fetchedAt)
     {
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(SqlServerTimeoutJob));
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(jobId);
+        ArgumentNullException.ThrowIfNull(queue);
+        if (fetchedAt == null) throw new ArgumentNullException(nameof(fetchedAt));
 
-        private readonly object _syncRoot = new object();
-        private readonly SqlServerStorage _storage;
-        private bool _disposed;
-        private bool _removedFromQueue;
-        private bool _requeued;
-        private SqlServerWriteOnlyTransaction _transaction;
+        _storage = storage;
 
-        private long _lastHeartbeat;
-        private TimeSpan _interval;
+        Id = id;
+        JobId = jobId;
+        Queue = queue;
+        FetchedAt = fetchedAt.Value;
 
-        public SqlServerTimeoutJob(
-            [NotNull] SqlServerStorage storage,
-            long id,
-            [NotNull] string jobId,
-            [NotNull] string queue,
-            [NotNull] DateTime? fetchedAt)
+        if (storage.SlidingInvisibilityTimeout.HasValue)
         {
-            ArgumentNullException.ThrowIfNull(storage);
-            ArgumentNullException.ThrowIfNull(jobId);
-            ArgumentNullException.ThrowIfNull(queue);
-            if (fetchedAt == null) throw new ArgumentNullException(nameof(fetchedAt));
+            _lastHeartbeat = TimestampHelper.GetTimestamp();
+            _interval = TimeSpan.FromSeconds(storage.SlidingInvisibilityTimeout.Value.TotalSeconds / 5);
+            storage.HeartbeatProcess.Track(this);
+        }
+    }
 
-            _storage = storage;
+    public long Id { get; }
+    public string JobId { get; }
+    public string Queue { get; }
 
-            Id = id;
-            JobId = jobId;
-            Queue = queue;
-            FetchedAt = fetchedAt.Value;
+    internal DateTime? FetchedAt { get; private set; }
 
-            if (storage.SlidingInvisibilityTimeout.HasValue)
+    public void RemoveFromQueue()
+    {
+        lock (_syncRoot)
+        {
+            if (_transaction != null && _transaction.Committed) return;
+            if (!FetchedAt.HasValue) return;
+
+            _storage.UseConnection(
+                null,
+                static (storage, connection, ctx) => connection.Execute(
+                    storage.GetQueryFromTemplate(static schemaName =>
+                        $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
+                    new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
+                    commandTimeout: storage.CommandTimeout),
+                this);
+
+            _removedFromQueue = true;
+        }
+    }
+
+    public void Requeue()
+    {
+        lock (_syncRoot)
+        {
+            if (_transaction != null && _transaction.Committed) return;
+
+            if (!FetchedAt.HasValue) return;
+
+            _storage.UseConnection(
+                null,
+                static (storage, connection, ctx) => connection.Execute(
+                    storage.GetQueryFromTemplate(static schemaName =>
+                        $@"update JQ set FetchedAt = null from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
+                     new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
+                     commandTimeout: storage.CommandTimeout),
+                this);
+
+            FetchedAt = null;
+            _requeued = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        DisposeTimer();
+
+        lock (_syncRoot)
+        {
+            if (!_removedFromQueue && !_requeued && (_transaction == null || !_transaction.Committed))
             {
-                _lastHeartbeat = TimestampHelper.GetTimestamp();
-                _interval = TimeSpan.FromSeconds(storage.SlidingInvisibilityTimeout.Value.TotalSeconds / 5);
-                storage.HeartbeatProcess.Track(this);
+                Requeue();
             }
         }
+    }
 
-        public long Id { get; }
-        public string JobId { get; }
-        public string Queue { get; }
+    internal void SetTransaction(SqlServerWriteOnlyTransaction transaction)
+    {
+        lock (_syncRoot)
+        {
+            _transaction = transaction;
+        }
+    }
 
-        internal DateTime? FetchedAt { get; private set; }
+    internal void DisposeTimer()
+    {
+        _storage.HeartbeatProcess.Untrack(this);
+    }
 
-        public void RemoveFromQueue()
+    internal void ExecuteKeepAliveQueryIfRequired()
+    {
+        var now = TimestampHelper.GetTimestamp();
+
+        if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) >= _interval)
         {
             lock (_syncRoot)
             {
-                if (_transaction != null && _transaction.Committed) return;
                 if (!FetchedAt.HasValue) return;
 
-                _storage.UseConnection(
-                    null,
-                    static (storage, connection, ctx) => connection.Execute(
-                        storage.GetQueryFromTemplate(static schemaName =>
-                            $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
-                        new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
-                        commandTimeout: storage.CommandTimeout),
-                    this);
-
-                _removedFromQueue = true;
-            }
-        }
-
-        public void Requeue()
-        {
-            lock (_syncRoot)
-            {
+                if (_requeued || _removedFromQueue) return;
                 if (_transaction != null && _transaction.Committed) return;
 
-                if (!FetchedAt.HasValue) return;
-
-                _storage.UseConnection(
-                    null,
-                    static (storage, connection, ctx) => connection.Execute(
-                        storage.GetQueryFromTemplate(static schemaName =>
-                            $@"update JQ set FetchedAt = null from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
-                         new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
-                         commandTimeout: storage.CommandTimeout),
-                    this);
-
-                FetchedAt = null;
-                _requeued = true;
-            }
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-
-            DisposeTimer();
-
-            lock (_syncRoot)
-            {
-                if (!_removedFromQueue && !_requeued && (_transaction == null || !_transaction.Committed))
+                try
                 {
-                    Requeue();
+                    FetchedAt = _storage.UseConnection(
+                        null,
+                        static (storage, connection, ctx) => connection.ExecuteScalar<DateTime?>(
+                            storage.GetQueryFromTemplate(static schemaName =>
+                                $@"update JQ set FetchedAt = getutcdate() output INSERTED.FetchedAt from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
+                            new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
+                            commandTimeout: storage.CommandTimeout),
+                        this);
+
+                    if (!FetchedAt.HasValue)
+                    {
+                        _logger.Warn(
+                            $"Background job identifier '{JobId}' was fetched by another worker, will not execute keep alive.");
+                    }
+
+                    _logger.Trace($"Keep-alive query for message {Id} sent");
+                    Interlocked.Exchange(ref _lastHeartbeat, now);
                 }
-            }
-        }
-
-        internal void SetTransaction(SqlServerWriteOnlyTransaction transaction)
-        {
-            lock (_syncRoot)
-            {
-                _transaction = transaction;
-            }
-        }
-
-        internal void DisposeTimer()
-        {
-            _storage.HeartbeatProcess.Untrack(this);
-        }
-
-        internal void ExecuteKeepAliveQueryIfRequired()
-        {
-            var now = TimestampHelper.GetTimestamp();
-
-            if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) >= _interval)
-            {
-                lock (_syncRoot)
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
-                    if (!FetchedAt.HasValue) return;
-
-                    if (_requeued || _removedFromQueue) return;
-                    if (_transaction != null && _transaction.Committed) return;
-
-                    try
-                    {
-                        FetchedAt = _storage.UseConnection(
-                            null,
-                            static (storage, connection, ctx) => connection.ExecuteScalar<DateTime?>(
-                                storage.GetQueryFromTemplate(static schemaName =>
-                                    $@"update JQ set FetchedAt = getutcdate() output INSERTED.FetchedAt from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt"),
-                                new { queue = ctx.Queue, id = ctx.Id, fetchedAt = ctx.FetchedAt },
-                                commandTimeout: storage.CommandTimeout),
-                            this);
-
-                        if (!FetchedAt.HasValue)
-                        {
-                            _logger.Warn(
-                                $"Background job identifier '{JobId}' was fetched by another worker, will not execute keep alive.");
-                        }
-
-                        _logger.Trace($"Keep-alive query for message {Id} sent");
-                        Interlocked.Exchange(ref _lastHeartbeat, now);
-                    }
-                    catch (Exception ex) when (ex.IsCatchableExceptionType())
-                    {
-                        _logger.DebugException($"Unable to execute keep-alive query for message {Id}", ex);
-                    }
+                    _logger.DebugException($"Unable to execute keep-alive query for message {Id}", ex);
                 }
             }
         }

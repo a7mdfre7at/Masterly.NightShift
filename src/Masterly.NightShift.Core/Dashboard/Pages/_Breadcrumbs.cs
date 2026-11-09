@@ -1,16 +1,7 @@
-﻿using System.Collections.Generic;
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-namespace Masterly.NightShift.Dashboard.Pages
+internal partial class Breadcrumbs(string title, IDictionary<string, string> items)
 {
-    partial class Breadcrumbs
-    {
-        public Breadcrumbs(string title, IDictionary<string, string> items)
-        {
-            Title = title;
-            Items = items;
-        }
-
-        public string Title { get; }
-        public IDictionary<string, string> Items { get; }
-    }
+    public string Title { get; } = title;
+    public IDictionary<string, string> Items { get; } = items;
 }

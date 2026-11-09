@@ -14,35 +14,32 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Threading;
-using Masterly.NightShift.Storage;
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+/// <summary>
+/// A queue implementation of the SQL Server storage, provided by an <see cref="IPersistentJobQueueProvider"/>.
+/// </summary>
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "This interface represents a persistent queue by design.")]
+public interface IPersistentJobQueue
 {
     /// <summary>
-    /// A queue implementation of the SQL Server storage, provided by an <see cref="IPersistentJobQueueProvider"/>.
+    /// Waits for a job in one of <paramref name="queues"/> and takes it.
     /// </summary>
-    [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "This interface represents a persistent queue by design.")]
-    public interface IPersistentJobQueue
-    {
-        /// <summary>
-        /// Waits for a job in one of <paramref name="queues"/> and takes it.
-        /// </summary>
-        /// <param name="queues">The queues to fetch from.</param>
-        /// <param name="cancellationToken">Stops the wait.</param>
-        IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken);
+    /// <param name="queues">The queues to fetch from.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken);
 
-        /// <summary>
-        /// Adds a job to a queue as part of a storage transaction.
-        /// </summary>
-        /// <param name="connection">The transaction's connection.</param>
-        /// <param name="transaction">The transaction.</param>
-        /// <param name="queue">The queue name.</param>
-        /// <param name="jobId">The job identifier.</param>
-        void Enqueue(
-            System.Data.Common.DbConnection connection, 
-            System.Data.Common.DbTransaction transaction, 
-            string queue, 
-            string jobId);
-    }
+    /// <summary>
+    /// Adds a job to a queue as part of a storage transaction.
+    /// </summary>
+    /// <param name="connection">The transaction's connection.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="queue">The queue name.</param>
+    /// <param name="jobId">The job identifier.</param>
+    void Enqueue(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        string queue,
+        string jobId);
 }

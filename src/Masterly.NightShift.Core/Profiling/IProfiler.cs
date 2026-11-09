@@ -13,18 +13,14 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using Masterly.NightShift.Annotations;
+namespace Masterly.NightShift.Profiling;
 
-namespace Masterly.NightShift.Profiling
+// TODO: Merge this with logging
+internal interface IProfiler
 {
-    // TODO: Merge this with logging
-    internal interface IProfiler
-    {
-        // TODO: Replace method with some eventId
-        TResult InvokeMeasured<TInstance, TResult>(
-            [CanBeNull] TInstance instance, 
-            [NotNull, InstantHandle] Func<TInstance, TResult> action,
-            [CanBeNull] Func<TInstance, string> messageFunc = null);
-    }
+    // TODO: Replace method with some eventId
+    TResult InvokeMeasured<TInstance, TResult>(
+        [CanBeNull] TInstance instance,
+        [NotNull, InstantHandle] Func<TInstance, TResult> action,
+        [CanBeNull] Func<TInstance, string> messageFunc = null);
 }

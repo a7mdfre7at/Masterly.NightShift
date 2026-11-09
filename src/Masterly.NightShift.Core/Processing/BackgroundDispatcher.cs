@@ -13,107 +13,100 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Logging;
 using ThreadState = System.Threading.ThreadState;
 
-namespace Masterly.NightShift.Processing
+namespace Masterly.NightShift.Processing;
+
+internal sealed class BackgroundDispatcher : IBackgroundDispatcher
 {
-    internal sealed class BackgroundDispatcher : IBackgroundDispatcher
+    private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundDispatcher));
+    private readonly CountdownEvent _stopped;
+
+    private readonly IBackgroundExecution _execution;
+    private readonly Action<Guid, object> _action;
+    private readonly object _state;
+
+    public BackgroundDispatcher(
+        [NotNull] IBackgroundExecution execution,
+        [NotNull] Action<Guid, object> action,
+        [CanBeNull] object state,
+        [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
     {
-        private readonly ILog _logger = LogProvider.GetLogger(typeof(BackgroundDispatcher));
-        private readonly CountdownEvent _stopped;
+        ArgumentNullException.ThrowIfNull(threadFactory);
 
-        private readonly IBackgroundExecution _execution;
-        private readonly Action<Guid, object> _action;
-        private readonly object _state;
+        _execution = execution ?? throw new ArgumentNullException(nameof(execution));
+        _action = action ?? throw new ArgumentNullException(nameof(action));
+        _state = state;
 
-        public BackgroundDispatcher(
-            [NotNull] IBackgroundExecution execution,
-            [NotNull] Action<Guid, object> action,
-            [CanBeNull] object state,
-            [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
+        var threads = threadFactory(DispatchLoop)?.ToArray();
+
+        if (threads == null || threads.Length == 0)
         {
-            ArgumentNullException.ThrowIfNull(threadFactory);
-
-            _execution = execution ?? throw new ArgumentNullException(nameof(execution));
-            _action = action ?? throw new ArgumentNullException(nameof(action));
-            _state = state;
-
-            var threads = threadFactory(DispatchLoop)?.ToArray();
-
-            if (threads == null || threads.Length == 0)
-            {
-                throw new ArgumentException("At least one unstarted thread should be created.", nameof(threadFactory));
-            }
-
-            if (threads.Any(static thread => thread == null || (thread.ThreadState & ThreadState.Unstarted) == 0))
-            {
-                throw new ArgumentException("All the threads should be non-null and in the ThreadState.Unstarted state.", nameof(threadFactory));
-            }
-
-            _stopped = new CountdownEvent(threads.Length);
-
-            foreach (var thread in threads)
-            {
-                thread.Start();
-            }
+            throw new ArgumentException("At least one unstarted thread should be created.", nameof(threadFactory));
         }
 
-        public bool Wait(TimeSpan timeout)
+        if (threads.Any(static thread => thread == null || (thread.ThreadState & ThreadState.Unstarted) == 0))
         {
-            return _stopped.WaitHandle.WaitOne(timeout);
+            throw new ArgumentException("All the threads should be non-null and in the ThreadState.Unstarted state.", nameof(threadFactory));
         }
 
-        public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
-        {
-            await _stopped.WaitHandle.WaitOneAsync(timeout, cancellationToken).ConfigureAwait(false);
-        }
+        _stopped = new CountdownEvent(threads.Length);
 
-        public void Dispose()
+        foreach (var thread in threads)
         {
-            _execution.Dispose();
-            _stopped.Dispose();
+            thread.Start();
         }
+    }
 
-        public override string ToString()
+    public bool Wait(TimeSpan timeout)
+    {
+        return _stopped.WaitHandle.WaitOne(timeout);
+    }
+
+    public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        await _stopped.WaitHandle.WaitOneAsync(timeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        _execution.Dispose();
+        _stopped.Dispose();
+    }
+
+    public override string ToString()
+    {
+        return _execution.ToString();
+    }
+
+    private void DispatchLoop()
+    {
+        try
         {
-            return _execution.ToString();
+            _execution.Run(_action, _state);
         }
-
-        private void DispatchLoop()
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             try
             {
-                _execution.Run(_action, _state);
+                _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
             }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            catch (Exception inner) when (inner.IsCatchableExceptionType())
             {
-                try
-                {
-                    _logger.FatalException("Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers.", ex);
-                }
-                catch (Exception inner) when (inner.IsCatchableExceptionType())
-                {
-                    Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
-                }
+                Debug.WriteLine($"Dispatcher is stopped due to an exception, you need to restart the server manually. Please report it to Masterly.NightShift developers: {ex}");
             }
-            finally
+        }
+        finally
+        {
+            try
             {
-                try
-                {
-                    _stopped.Signal();
-                }
-                catch (ObjectDisposedException)
-                {
-                    Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
-                }
+                _stopped.Signal();
+            }
+            catch (ObjectDisposedException)
+            {
+                Debug.WriteLine("Unable to signal the stopped event for BackgroundDispatcher: it was already disposed");
             }
         }
     }

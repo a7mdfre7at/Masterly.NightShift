@@ -13,25 +13,23 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Reflection;
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal static class ExceptionTypeHelper
 {
-    internal static class ExceptionTypeHelper
+    private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
+    private static readonly Type StackOverflowType = typeof(StackOverflowException);
+    private static readonly Type AccessViolationType = typeof(AccessViolationException);
+    private static readonly Type SecurityType = typeof(System.Security.SecurityException);
+
+    internal static bool IsCatchableExceptionType(this Exception e)
     {
-        private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
-        private static readonly Type StackOverflowType = typeof(StackOverflowException);
-        private static readonly Type AccessViolationType = typeof(AccessViolationException);
-        private static readonly Type SecurityType = typeof(System.Security.SecurityException);
- 
-        internal static bool IsCatchableExceptionType(this Exception e)
-        {
-            var type = e.GetType();
-            return type != OutOfMemoryType &&
-                   type != StackOverflowType &&
-                   type != AccessViolationType &&
-                   !SecurityType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo());
-        }
+        var type = e.GetType();
+        return type != OutOfMemoryType &&
+               type != StackOverflowType &&
+               type != AccessViolationType &&
+               !SecurityType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo());
     }
 }

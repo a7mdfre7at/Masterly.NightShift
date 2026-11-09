@@ -13,20 +13,15 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+namespace Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Server
+/// <summary>
+/// A server that runs background processes, can be told to stop, and can be waited for until it has shut down.
+/// </summary>
+public interface IBackgroundProcessingServer : IDisposable
 {
-    /// <summary>
-    /// A server that runs background processes, can be told to stop, and can be waited for until it has shut down.
-    /// </summary>
-    public interface IBackgroundProcessingServer : IDisposable
-    {
-        void SendStop();
+    void SendStop();
 
-        bool WaitForShutdown(TimeSpan timeout);
-        Task WaitForShutdownAsync(CancellationToken cancellationToken);
-    }
+    bool WaitForShutdown(TimeSpan timeout);
+    Task WaitForShutdownAsync(CancellationToken cancellationToken);
 }

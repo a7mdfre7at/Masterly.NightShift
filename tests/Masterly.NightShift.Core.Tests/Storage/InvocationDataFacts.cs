@@ -1,15 +1,8 @@
-﻿using System.Text.Json;
-using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using Masterly.NightShift.Common;
-using Masterly.NightShift.Storage;
-using Xunit;
 using System.Globalization;
-using System.Linq;
-using System.Threading;
+using System.Reflection;
+using System.Text.Json;
 using Masterly.NightShift.Annotations;
 
 
@@ -51,8 +44,8 @@ namespace Masterly.NightShift.Core.Tests.Storage
                 type.AssemblyQualifiedName,
                 // ReSharper disable once PossibleNullReferenceException
                 methodInfo.Name,
-                TestJson.ToJson(new [] { typeof(string) }),
-                TestJson.ToJson(new [] { TestJson.ToJson("Hello") }));
+                TestJson.ToJson(new[] { typeof(string) }),
+                TestJson.ToJson(new[] { TestJson.ToJson("Hello") }));
 
             var job = serializedData.DeserializeJob();
 
@@ -68,7 +61,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var serializedData = new InvocationData(
                 "Masterly.NightShift.JobStorage, Masterly.NightShift.Core",
                 "GetConnection",
-                String.Empty,
+                string.Empty,
                 null,
                 "critical");
 
@@ -83,7 +76,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var serializedData = new InvocationData(
                 "Masterly.NightShift.JobStorage, Masterly.NightShift.Core",
                 "GetConnection",
-                String.Empty,
+                string.Empty,
                 null);
 
             var job = serializedData.DeserializeJob();
@@ -226,7 +219,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var serializedData = new InvocationData(null, null, null, null);
 
             Assert.Throws<JobLoadException>(
-                () => serializedData.DeserializeJob());
+                serializedData.DeserializeJob);
         }
 
         [DataCompatibilityRangeFact]
@@ -239,7 +232,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
                 "");
 
             Assert.Throws<JobLoadException>(
-                () => serializedData.DeserializeJob());
+                serializedData.DeserializeJob);
         }
 
         [DataCompatibilityRangeFact]
@@ -248,11 +241,11 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var serializedData = new InvocationData(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "NonExistingMethod",
-                TestJson.ToJson(new [] { typeof(string) }),
+                TestJson.ToJson(new[] { typeof(string) }),
                 "");
 
             Assert.Throws<JobLoadException>(
-                () => serializedData.DeserializeJob());
+                serializedData.DeserializeJob);
         }
 
         [DataCompatibilityRangeFact]
@@ -264,7 +257,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
                 TestJson.ToJson(new[] { typeof(string) }),
                 "");
 
-            var exception = Assert.Throws<JobLoadException>(() => serializedData.DeserializeJob());
+            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
 
             Assert.Equal(JobLoadFailure.TypeOrMethod, exception.Failure);
             Assert.Contains("type or method was not found", exception.Message);
@@ -280,7 +273,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
                 TestJson.ToJson(new[] { typeof(IList<string>) }),
                 TestJson.ToJson(new[] { "asdfasdf" }));
 
-            var exception = Assert.Throws<JobLoadException>(() => serializedData.DeserializeJob());
+            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
 
             Assert.Equal(JobLoadFailure.Arguments, exception.Failure);
             Assert.Contains("arguments could not be deserialized", exception.Message);
@@ -468,7 +461,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
 
             var job = data.DeserializeJob();
             Assert.Equal("GenericMethod", job.Method.Name);
-            Assert.Equal(new object[] { typeof(object) }, job.Method.GetParameters().Select(x => x.ParameterType).ToArray());
+            Assert.Equal(new object[] { typeof(object) }, [.. job.Method.GetParameters().Select(x => x.ParameterType)]);
             Assert.IsType<SomeClass>(job.Args[0]);
         }
 
@@ -548,7 +541,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
 
             Assert.Contains("\"ParameterTypes\":", payload);
             Assert.Equal(nameof(TwoArguments), job.Method.Name);
-            Assert.Equal(new object[] { 42, "hello" }, job.Args);
+            Assert.Equal([42, "hello"], job.Args);
         }
 
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170), CleanSerializerSettings]
@@ -560,7 +553,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
             Assert.Equal(nameof(TwoArguments), job.Method.Name);
-            Assert.Equal(new object[] { 42, "hello" }, job.Args);
+            Assert.Equal([42, "hello"], job.Args);
         }
 
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170), CleanSerializerSettings]
@@ -761,10 +754,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var serializedData = new InvocationData(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "ListMethod",
-                TestJson.ToJson(new [] { typeof(IList<string>) }),
-                TestJson.ToJson(new [] { "asdfasdf" }));
+                TestJson.ToJson(new[] { typeof(IList<string>) }),
+                TestJson.ToJson(new[] { "asdfasdf" }));
 
-            var exception = Assert.Throws<JobLoadException>(() => serializedData.DeserializeJob());
+            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
             Assert.IsAssignableFrom<JsonException>(exception.InnerException);
         }
 
@@ -794,41 +787,41 @@ namespace Masterly.NightShift.Core.Tests.Storage
         {
             get
             {
-                return new []
-                {
-                    new object[] { Job.FromExpression(() => Thread.Sleep(TimeSpan.FromSeconds(5))), "System.Threading.Thread, mscorlib", "Sleep", "[\"System.TimeSpan, mscorlib\"]", "[\"\\\"00:00:05\\\"\"]" },
-                    new object[] { Job.FromExpression(() => Console.WriteLine("4567")), "System.Console, mscorlib", "WriteLine", "[\"System.String\"]", "[\"\\\"4567\\\"\"]" },
-                    new object[] { Job.FromExpression(() => Sample("str1")), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "Sample", "[\"System.String\"]", "[\"\\\"str1\\\"\"]" },
-                    new object[] { Job.FromExpression(() => ListMethod(new string[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ListMethod", "[\"System.Collections.Generic.IList`1[[System.String]], mscorlib\"]", "[\"[]\"]" },
+                return
+                [
+                    [Job.FromExpression(() => Thread.Sleep(TimeSpan.FromSeconds(5))), "System.Threading.Thread, mscorlib", "Sleep", "[\"System.TimeSpan, mscorlib\"]", "[\"\\\"00:00:05\\\"\"]"],
+                    [Job.FromExpression(() => Console.WriteLine("4567")), "System.Console, mscorlib", "WriteLine", "[\"System.String\"]", "[\"\\\"4567\\\"\"]"],
+                    [Job.FromExpression(() => Sample("str1")), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "Sample", "[\"System.String\"]", "[\"\\\"str1\\\"\"]"],
+                    [Job.FromExpression(() => ListMethod(new string[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ListMethod", "[\"System.Collections.Generic.IList`1[[System.String]], mscorlib\"]", "[\"[]\"]"],
 
-                    new object[] { Job.FromExpression(() => GenericMethod(1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]" },
-                    new object[] { Job.FromExpression(() => GenericMethod((StringDictionary)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Collections.Specialized.StringDictionary, System\"]", "[null]" },
-                    new object[] { Job.FromExpression(() => GenericMethod((InvocationDataFacts)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\"]", "[null]" },
-                    new object[] { Job.FromExpression(() => GenericMethod((GlobalType)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"GlobalType, Masterly.NightShift.Core.Tests\"]", "[null]" },
-                    new object[] { Job.FromExpression(() => OtherGenericMethod(1, new List<int>())), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "OtherGenericMethod", "[\"System.Int32\",\"System.Collections.Generic.List`1[[System.Int32]], mscorlib\"]", "[\"1\",\"[]\"]" },
+                    [Job.FromExpression(() => GenericMethod(1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]"],
+                    [Job.FromExpression(() => GenericMethod((StringDictionary)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Collections.Specialized.StringDictionary, System\"]", "[null]"],
+                    [Job.FromExpression(() => GenericMethod((InvocationDataFacts)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\"]", "[null]"],
+                    [Job.FromExpression(() => GenericMethod((GlobalType)null)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"GlobalType, Masterly.NightShift.Core.Tests\"]", "[null]"],
+                    [Job.FromExpression(() => OtherGenericMethod(1, new List<int>())), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "OtherGenericMethod", "[\"System.Int32\",\"System.Collections.Generic.List`1[[System.Int32]], mscorlib\"]", "[\"1\",\"[]\"]"],
 
-                    new object[] { Job.FromExpression<NestedType>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType, Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<NestedType>(x => x.NestedGenericMethod(1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType, Masterly.NightShift.Core.Tests", "NestedGenericMethod", "[\"System.Int32\"]", "[\"1\"]" },
+                    [Job.FromExpression<NestedType>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType, Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<NestedType>(x => x.NestedGenericMethod(1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType, Masterly.NightShift.Core.Tests", "NestedGenericMethod", "[\"System.Int32\"]", "[\"1\"]"],
 
-                    new object[] { Job.FromExpression(() => ArrayOfNested(new NestedType[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ArrayOfNested", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType[], Masterly.NightShift.Core.Tests\"]", "[\"[]\"]" },
-                    new object[] { Job.FromExpression(() => ArrayOfNestedGeneric(new NestedGenericType<int>[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ArrayOfNestedGeneric", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedGenericType`1[[System.Int32]][], Masterly.NightShift.Core.Tests\"]", "[\"[]\"]" },
+                    [Job.FromExpression(() => ArrayOfNested(new NestedType[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ArrayOfNested", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedType[], Masterly.NightShift.Core.Tests\"]", "[\"[]\"]"],
+                    [Job.FromExpression(() => ArrayOfNestedGeneric(new NestedGenericType<int>[0])), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests", "ArrayOfNestedGeneric", "[\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+NestedGenericType`1[[System.Int32]][], Masterly.NightShift.Core.Tests\"]", "[\"[]\"]"],
 
-                    new object[] { Job.FromExpression<GenericType<int>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GenericType<GlobalType>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[GlobalType, Masterly.NightShift.Core.Tests]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GenericType<InvocationDataFacts>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GenericType<int>>(x => x.Method(1, 1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int32\",\"System.Int32\"]", "[\"1\",\"1\"]" },
-                    new object[] { Job.FromExpression<GenericType<int>.NestedGenericType<string>>(x => x.Method(1, "1")), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1+NestedGenericType`1[[System.Int32],[System.String]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int32\",\"System.String\"]", "[\"1\",\"\\\"1\\\"\"]" },
+                    [Job.FromExpression<GenericType<int>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GenericType<GlobalType>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[GlobalType, Masterly.NightShift.Core.Tests]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GenericType<InvocationDataFacts>>(x => x.Method()), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GenericType<int>>(x => x.Method(1, 1)), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int32\",\"System.Int32\"]", "[\"1\",\"1\"]"],
+                    [Job.FromExpression<GenericType<int>.NestedGenericType<string>>(x => x.Method(1, "1")), "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1+NestedGenericType`1[[System.Int32],[System.String]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int32\",\"System.String\"]", "[\"1\",\"\\\"1\\\"\"]"],
 
-                    new object[] { Job.FromExpression<GlobalType>(x => x.Method()), "GlobalType, Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GlobalType>(x => x.GenericMethod(1)), "GlobalType, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]" },
-                    new object[] { Job.FromExpression<GlobalType.NestedType>(x => x.NestedMethod()), "GlobalType+NestedType, Masterly.NightShift.Core.Tests", "NestedMethod", "[]", "[]" },
-                    new object[] { Job.FromExpression<GlobalType.NestedGenericType<long>>(x => x.NestedGenericMethod(1, 1)), "GlobalType+NestedGenericType`1[[System.Int64]], Masterly.NightShift.Core.Tests", "NestedGenericMethod", "[\"System.Int64\",\"System.Int32\"]", "[\"1\",\"1\"]" },
+                    [Job.FromExpression<GlobalType>(x => x.Method()), "GlobalType, Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GlobalType>(x => x.GenericMethod(1)), "GlobalType, Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]"],
+                    [Job.FromExpression<GlobalType.NestedType>(x => x.NestedMethod()), "GlobalType+NestedType, Masterly.NightShift.Core.Tests", "NestedMethod", "[]", "[]"],
+                    [Job.FromExpression<GlobalType.NestedGenericType<long>>(x => x.NestedGenericMethod(1, 1)), "GlobalType+NestedGenericType`1[[System.Int64]], Masterly.NightShift.Core.Tests", "NestedGenericMethod", "[\"System.Int64\",\"System.Int32\"]", "[\"1\",\"1\"]"],
 
-                    new object[] { Job.FromExpression<GlobalGenericType<int>>(x => x.Method()), "GlobalGenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GlobalGenericType<object>>(x => x.GenericMethod(1)), "GlobalGenericType`1[[System.Object]], Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]" },
-                    new object[] { Job.FromExpression<GlobalGenericType<int>.NestedType>(x => x.Method()), "GlobalGenericType`1+NestedType[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]" },
-                    new object[] { Job.FromExpression<GlobalGenericType<long>.NestedGenericType<int>>(x => x.Method(1, 1)), "GlobalGenericType`1+NestedGenericType`1[[System.Int64],[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int64\",\"System.Int32\"]", "[\"1\",\"1\"]" },
-                };
+                    [Job.FromExpression<GlobalGenericType<int>>(x => x.Method()), "GlobalGenericType`1[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GlobalGenericType<object>>(x => x.GenericMethod(1)), "GlobalGenericType`1[[System.Object]], Masterly.NightShift.Core.Tests", "GenericMethod", "[\"System.Int32\"]", "[\"1\"]"],
+                    [Job.FromExpression<GlobalGenericType<int>.NestedType>(x => x.Method()), "GlobalGenericType`1+NestedType[[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[]", "[]"],
+                    [Job.FromExpression<GlobalGenericType<long>.NestedGenericType<int>>(x => x.Method(1, 1)), "GlobalGenericType`1+NestedGenericType`1[[System.Int64],[System.Int32]], Masterly.NightShift.Core.Tests", "Method", "[\"System.Int64\",\"System.Int32\"]", "[\"1\",\"1\"]"],
+                ];
             }
         }
 
@@ -1011,7 +1004,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             var dateTimeJob = new InvocationData(
                 GetType().AssemblyQualifiedName,
                 "DateTimeMethod",
-                TestJson.ToJson(new [] { typeof(DateTime) }),
+                TestJson.ToJson(new[] { typeof(DateTime) }),
                 "[\"\\\"2019-03-05T13:20:04.593215Z\\\"\"]").DeserializeJob();
 
             var nullableJob = new InvocationData(
@@ -1147,7 +1140,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
 
         [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
         [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
-        public static void OtherGenericMethod<T1,T2>(T1 arg1, T2 arg2)
+        public static void OtherGenericMethod<T1, T2>(T1 arg1, T2 arg2)
         {
         }
 
@@ -1309,11 +1302,11 @@ public class GlobalType
 {
     [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global")]
     [SuppressMessage("Performance", "CA1822:Mark members as static")]
-    public void Method() {}
+    public void Method() { }
 
     [SuppressMessage("Performance", "CA1822:Mark members as static")]
     [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global")]
-    public void GenericMethod<T>(T arg) {}
+    public void GenericMethod<T>(T arg) { }
 
     [UsedImplicitly]
     public class NestedType

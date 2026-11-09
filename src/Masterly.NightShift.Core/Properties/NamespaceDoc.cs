@@ -10,7 +10,7 @@ namespace Masterly.NightShift
     /// <see cref="BackgroundJob"/> and <see cref="BackgroundJobServer"/>.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Annotations
     /// and add the <see cref="Masterly.NightShift.Annotations"/> namespace to the corresponding list.
     /// </remarks>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -42,7 +42,7 @@ namespace Masterly.NightShift.Client
     /// interface.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -54,7 +54,7 @@ namespace Masterly.NightShift.Common
     /// job filters, such as <see cref="JobFilterAttribute"/>, and some helper classes.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -67,7 +67,7 @@ namespace Masterly.NightShift.Dashboard
     /// interface, as well as customize it by adding new pages, menu items, metrics, routes.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -79,7 +79,7 @@ namespace Masterly.NightShift.Dashboard.Pages
     /// class, layout for all the Dashboard UI pages.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -92,7 +92,7 @@ namespace Masterly.NightShift.Logging
     /// to log custom messages.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceGroupDoc
+    internal class NamespaceGroupDoc
     {
     }
 
@@ -102,7 +102,7 @@ namespace Masterly.NightShift.Logging
     /// to log custom messages.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -115,7 +115,7 @@ namespace Masterly.NightShift.Logging.LogProviders
     /// with your projects.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -130,7 +130,7 @@ namespace Masterly.NightShift.Server
     /// as well as create completely custom instances of <see cref="BackgroundProcessingServer"/>.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -145,7 +145,7 @@ namespace Masterly.NightShift.States
     /// implementing the  <see cref="IState"/> interface.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -159,7 +159,7 @@ namespace Masterly.NightShift.Storage
     /// These types are also used to implement support for other persistent storages.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceGroupDoc
+    internal class NamespaceGroupDoc
     {
     }
 
@@ -170,7 +170,7 @@ namespace Masterly.NightShift.Storage
     /// These types are also used to implement support for other persistent storages.
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }
@@ -182,7 +182,7 @@ namespace Masterly.NightShift.Storage.Monitoring
     /// for the <see cref="IMonitoringApi"/> interface. 
     /// </summary>
     [CompilerGenerated]
-    class NamespaceDoc
+    internal class NamespaceDoc
     {
     }
 }

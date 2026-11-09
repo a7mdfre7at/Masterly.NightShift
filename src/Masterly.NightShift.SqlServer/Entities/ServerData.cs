@@ -13,14 +13,11 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
+namespace Masterly.NightShift.SqlServer.Entities;
 
-namespace Masterly.NightShift.SqlServer.Entities
+internal sealed class ServerData
 {
-    internal sealed class ServerData
-    {
-        public int WorkerCount { get; set; }
-        public string[] Queues { get; set; }
-        public DateTime? StartedAt { get; set; }
-    }
+    public int WorkerCount { get; set; }
+    public string[] Queues { get; set; }
+    public DateTime? StartedAt { get; set; }
 }

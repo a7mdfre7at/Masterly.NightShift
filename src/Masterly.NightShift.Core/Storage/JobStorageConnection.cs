@@ -15,129 +15,122 @@
 
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using Masterly.NightShift.Annotations;
-using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.Storage
+namespace Masterly.NightShift.Storage;
+
+/// <summary>
+/// The base class for storage connections. It implements <see cref="IStorageConnection"/> and adds optional members
+/// whose default implementations throw <see cref="NotSupportedException"/>; check <see
+/// cref="JobStorage.HasFeature"/> before calling them.
+/// </summary>
+public abstract class JobStorageConnection : IStorageConnection
 {
-    /// <summary>
-    /// The base class for storage connections. It implements <see cref="IStorageConnection"/> and adds optional members
-    /// whose default implementations throw <see cref="NotSupportedException"/>; check <see
-    /// cref="JobStorage.HasFeature"/> before calling them.
-    /// </summary>
-    public abstract class JobStorageConnection : IStorageConnection
+    public virtual void Dispose()
     {
-        public virtual void Dispose()
-        {
-            GC.SuppressFinalize(this);
-        }
+        GC.SuppressFinalize(this);
+    }
 
-        // Common
-        public abstract IWriteOnlyTransaction CreateWriteTransaction();
-        public abstract IDisposable AcquireDistributedLock(string resource, TimeSpan timeout);
+    // Common
+    public abstract IWriteOnlyTransaction CreateWriteTransaction();
+    public abstract IDisposable AcquireDistributedLock(string resource, TimeSpan timeout);
 
-        // Background jobs
-        public abstract string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn);
-        public abstract IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken);
-        public abstract void SetJobParameter(string id, string name, string? value);
-        public abstract string? GetJobParameter(string id, string name);
-        public abstract JobData? GetJobData(string jobId);
-        public abstract StateData? GetStateData(string jobId);
+    // Background jobs
+    public abstract string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn);
+    public abstract IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken);
+    public abstract void SetJobParameter(string id, string name, string? value);
+    public abstract string? GetJobParameter(string id, string name);
+    public abstract JobData? GetJobData(string jobId);
+    public abstract StateData? GetStateData(string jobId);
 
-        // Servers
-        public abstract void AnnounceServer(string serverId, ServerContext context);
-        public abstract void RemoveServer(string serverId);
-        public abstract void Heartbeat(string serverId);
-        public abstract int RemoveTimedOutServers(TimeSpan timeOut);
+    // Servers
+    public abstract void AnnounceServer(string serverId, ServerContext context);
+    public abstract void RemoveServer(string serverId);
+    public abstract void Heartbeat(string serverId);
+    public abstract int RemoveTimedOutServers(TimeSpan timeOut);
 
-        // Sets
-        public abstract HashSet<string> GetAllItemsFromSet(string key);
-        public abstract string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore);
+    // Sets
+    public abstract HashSet<string> GetAllItemsFromSet(string key);
+    public abstract string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore);
 
-        public virtual List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.BatchedGetFirstByLowest);
-        }
+    public virtual List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.BatchedGetFirstByLowest);
+    }
 
-        public virtual long GetSetCount([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual long GetSetCount([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual long GetSetCount([NotNull] IEnumerable<string> keys, int limit)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.LimitedGetSetCount);
-        }
+    public virtual long GetSetCount([NotNull] IEnumerable<string> keys, int limit)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.LimitedGetSetCount);
+    }
 
-        public virtual bool GetSetContains([NotNull] string key, [NotNull] string value)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetSetContains);
-        }
+    public virtual bool GetSetContains([NotNull] string key, [NotNull] string value)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetSetContains);
+    }
 
-        public virtual List<string> GetRangeFromSet([NotNull] string key, int startingFrom, int endingAt)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual List<string> GetRangeFromSet([NotNull] string key, int startingFrom, int endingAt)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual TimeSpan GetSetTtl([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual TimeSpan GetSetTtl([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        // Hashes
-        public abstract void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs);
-        public abstract Dictionary<string, string>? GetAllEntriesFromHash(string key);
+    // Hashes
+    public abstract void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs);
+    public abstract Dictionary<string, string>? GetAllEntriesFromHash(string key);
 
-        public virtual string? GetValueFromHash([NotNull] string key, [NotNull] string name)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual string? GetValueFromHash([NotNull] string key, [NotNull] string name)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual long GetHashCount([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual long GetHashCount([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual TimeSpan GetHashTtl([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual TimeSpan GetHashTtl([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        // Lists
-        public virtual long GetListCount([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    // Lists
+    public virtual long GetListCount([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual List<string> GetAllItemsFromList([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual List<string> GetAllItemsFromList([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual List<string> GetRangeFromList([NotNull] string key, int startingFrom, int endingAt)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual List<string> GetRangeFromList([NotNull] string key, int startingFrom, int endingAt)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual TimeSpan GetListTtl([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    public virtual TimeSpan GetListTtl([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        // Counters
-        public virtual long GetCounter([NotNull] string key)
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
-        }
+    // Counters
+    public virtual long GetCounter([NotNull] string key)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.ExtendedApi);
+    }
 
-        public virtual DateTime GetUtcDateTime()
-        {
-            throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetUtcDateTime);
-        } 
+    public virtual DateTime GetUtcDateTime()
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetUtcDateTime);
     }
 }

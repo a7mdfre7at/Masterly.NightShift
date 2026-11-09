@@ -1,9 +1,6 @@
-﻿using System.Collections.Generic;
+﻿namespace Masterly.NightShift.Dashboard.Pages;
 
-namespace Masterly.NightShift.Dashboard.Pages
+internal partial class HomePage
 {
-    partial class HomePage
-    {
-        public static readonly List<DashboardMetric> Metrics = new List<DashboardMetric>(); 
-    }
+    public static readonly List<DashboardMetric> Metrics = [];
 }

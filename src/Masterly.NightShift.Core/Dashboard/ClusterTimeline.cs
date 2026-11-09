@@ -1,146 +1,124 @@
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Masterly.NightShift.States;
+namespace Masterly.NightShift.Dashboard;
 
-namespace Masterly.NightShift.Dashboard
+/// <summary>One run of a job on one worker.</summary>
+internal sealed class TimelineSpan(string jobId, string? method, long startMs, long endMs, string? outcome)
 {
-    /// <summary>One run of a job on one worker.</summary>
-    internal sealed class TimelineSpan
+    public string JobId { get; } = jobId;
+    public string? Method { get; } = method;
+
+    /// <summary>Unix milliseconds.</summary>
+    public long StartMs { get; } = startMs;
+
+    /// <summary>Unix milliseconds; "now" for a run still going.</summary>
+    public long EndMs { get; } = endMs;
+
+    /// <summary>The state the run ended in, or <c>null</c> while it is running.</summary>
+    public string? Outcome { get; } = outcome;
+
+    public bool IsRunning => Outcome == null;
+    public long DurationMs => Math.Max(0, EndMs - StartMs);
+}
+
+/// <summary>A worker's row on the timeline.</summary>
+internal sealed class TimelineLane(string serverId, string workerId)
+{
+    public string ServerId { get; } = serverId;
+    public string WorkerId { get; } = workerId;
+    public List<TimelineSpan> Spans { get; } = [];
+
+    /// <summary>The first eight characters of the worker id, enough to tell workers apart.</summary>
+    public string ShortWorkerId => WorkerId.Length > 8 ? WorkerId[..8] : WorkerId;
+}
+
+/// <summary>
+/// What every worker in the cluster did recently, reconstructed from the activity feed: each Processing
+/// transition opens a span on the worker's lane, the job's next transition closes it with its outcome.
+/// The Timeline page draws the lanes as a Gantt chart.
+/// </summary>
+internal sealed class ClusterTimeline
+{
+    private ClusterTimeline(IReadOnlyList<TimelineLane> lanes, long fromMs, long toMs, int runs)
     {
-        public TimelineSpan(string jobId, string? method, long startMs, long endMs, string? outcome)
-        {
-            JobId = jobId;
-            Method = method;
-            StartMs = startMs;
-            EndMs = endMs;
-            Outcome = outcome;
-        }
-
-        public string JobId { get; }
-        public string? Method { get; }
-
-        /// <summary>Unix milliseconds.</summary>
-        public long StartMs { get; }
-
-        /// <summary>Unix milliseconds; "now" for a run still going.</summary>
-        public long EndMs { get; }
-
-        /// <summary>The state the run ended in, or <c>null</c> while it is running.</summary>
-        public string? Outcome { get; }
-
-        public bool IsRunning => Outcome == null;
-        public long DurationMs => Math.Max(0, EndMs - StartMs);
+        Lanes = lanes;
+        FromMs = fromMs;
+        ToMs = toMs;
+        Runs = runs;
     }
 
-    /// <summary>A worker's row on the timeline.</summary>
-    internal sealed class TimelineLane
+    public IReadOnlyList<TimelineLane> Lanes { get; }
+
+    /// <summary>The start of the drawn window, Unix milliseconds.</summary>
+    public long FromMs { get; }
+
+    /// <summary>The end of the drawn window ("now"), Unix milliseconds.</summary>
+    public long ToMs { get; }
+
+    public int Runs { get; }
+
+    public TimeSpan Window => TimeSpan.FromMilliseconds(Math.Max(0, ToMs - FromMs));
+
+    public bool IsEmpty => Lanes.Count == 0;
+
+    public int Servers => Lanes.Select(static l => l.ServerId).Distinct(StringComparer.Ordinal).Count();
+
+    /// <summary>Builds the timeline from feed entries (any order) up to <paramref name="nowMs"/>.</summary>
+    public static ClusterTimeline Build(IEnumerable<ActivityEntry> entries, long nowMs, TimeSpan? maxWindow = null)
     {
-        public TimelineLane(string serverId, string workerId)
+        ArgumentNullException.ThrowIfNull(entries);
+
+        var ordered = entries.Where(static e => e.JobId != null).OrderBy(static e => e.Timestamp).ToList();
+        var open = new Dictionary<string, (ActivityEntry Entry, TimelineLane Lane)>(StringComparer.Ordinal);
+        var lanes = new Dictionary<string, TimelineLane>(StringComparer.Ordinal);
+        var runs = 0;
+
+        foreach (var entry in ordered)
         {
-            ServerId = serverId;
-            WorkerId = workerId;
-            Spans = new List<TimelineSpan>();
-        }
-
-        public string ServerId { get; }
-        public string WorkerId { get; }
-        public List<TimelineSpan> Spans { get; }
-
-        /// <summary>The first eight characters of the worker id, enough to tell workers apart.</summary>
-        public string ShortWorkerId => WorkerId.Length > 8 ? WorkerId.Substring(0, 8) : WorkerId;
-    }
-
-    /// <summary>
-    /// What every worker in the cluster did recently, reconstructed from the activity feed: each Processing
-    /// transition opens a span on the worker's lane, the job's next transition closes it with its outcome.
-    /// The Timeline page draws the lanes as a Gantt chart.
-    /// </summary>
-    internal sealed class ClusterTimeline
-    {
-        private ClusterTimeline(IReadOnlyList<TimelineLane> lanes, long fromMs, long toMs, int runs)
-        {
-            Lanes = lanes;
-            FromMs = fromMs;
-            ToMs = toMs;
-            Runs = runs;
-        }
-
-        public IReadOnlyList<TimelineLane> Lanes { get; }
-
-        /// <summary>The start of the drawn window, Unix milliseconds.</summary>
-        public long FromMs { get; }
-
-        /// <summary>The end of the drawn window ("now"), Unix milliseconds.</summary>
-        public long ToMs { get; }
-
-        public int Runs { get; }
-
-        public TimeSpan Window => TimeSpan.FromMilliseconds(Math.Max(0, ToMs - FromMs));
-
-        public bool IsEmpty => Lanes.Count == 0;
-
-        public int Servers => Lanes.Select(static l => l.ServerId).Distinct(StringComparer.Ordinal).Count();
-
-        /// <summary>Builds the timeline from feed entries (any order) up to <paramref name="nowMs"/>.</summary>
-        public static ClusterTimeline Build(IEnumerable<ActivityEntry> entries, long nowMs, TimeSpan? maxWindow = null)
-        {
-            ArgumentNullException.ThrowIfNull(entries);
-
-            var ordered = entries.Where(static e => e.JobId != null).OrderBy(static e => e.Timestamp).ToList();
-            var open = new Dictionary<string, (ActivityEntry Entry, TimelineLane Lane)>(StringComparer.Ordinal);
-            var lanes = new Dictionary<string, TimelineLane>(StringComparer.Ordinal);
-            var runs = 0;
-
-            foreach (var entry in ordered)
+            if (entry.State == ProcessingState.StateName)
             {
-                if (entry.State == ProcessingState.StateName)
+                var serverId = entry.ServerId ?? "?";
+                var workerId = entry.WorkerId ?? "?";
+                var key = serverId + "\u0001" + workerId;
+                if (!lanes.TryGetValue(key, out var lane)) lanes[key] = lane = new TimelineLane(serverId, workerId);
+
+                // A job fetched twice (retry) ends its previous span where the new one starts
+                if (open.TryGetValue(entry.JobId!, out var previous))
                 {
-                    var serverId = entry.ServerId ?? "?";
-                    var workerId = entry.WorkerId ?? "?";
-                    var key = serverId + "\u0001" + workerId;
-                    if (!lanes.TryGetValue(key, out var lane)) lanes[key] = lane = new TimelineLane(serverId, workerId);
-
-                    // A job fetched twice (retry) ends its previous span where the new one starts
-                    if (open.TryGetValue(entry.JobId!, out var previous))
-                    {
-                        previous.Lane.Spans.Add(new TimelineSpan(entry.JobId!, previous.Entry.Method, previous.Entry.Timestamp, entry.Timestamp, ProcessingState.StateName));
-                    }
-
-                    open[entry.JobId!] = (entry, lane);
-                    runs++;
-                    continue;
+                    previous.Lane.Spans.Add(new TimelineSpan(entry.JobId!, previous.Entry.Method, previous.Entry.Timestamp, entry.Timestamp, ProcessingState.StateName));
                 }
 
-                if (open.TryGetValue(entry.JobId!, out var started))
-                {
-                    started.Lane.Spans.Add(new TimelineSpan(entry.JobId!, started.Entry.Method ?? entry.Method, started.Entry.Timestamp, Math.Max(entry.Timestamp, started.Entry.Timestamp), entry.State));
-                    open.Remove(entry.JobId!);
-                }
+                open[entry.JobId!] = (entry, lane);
+                runs++;
+                continue;
             }
 
-            foreach (var pair in open.Values)
+            if (open.TryGetValue(entry.JobId!, out var started))
             {
-                pair.Lane.Spans.Add(new TimelineSpan(pair.Entry.JobId!, pair.Entry.Method, pair.Entry.Timestamp, nowMs, null));
+                started.Lane.Spans.Add(new TimelineSpan(entry.JobId!, started.Entry.Method ?? entry.Method, started.Entry.Timestamp, Math.Max(entry.Timestamp, started.Entry.Timestamp), entry.State));
+                open.Remove(entry.JobId!);
             }
-
-            var result = lanes.Values
-                .Where(static l => l.Spans.Count > 0)
-                .OrderBy(static l => l.ServerId, StringComparer.Ordinal)
-                .ThenBy(static l => l.WorkerId, StringComparer.Ordinal)
-                .ToList();
-
-            var fromMs = result.Count == 0 ? nowMs : result.SelectMany(static l => l.Spans).Min(static s => s.StartMs);
-            if (maxWindow.HasValue && nowMs - fromMs > maxWindow.Value.TotalMilliseconds)
-            {
-                fromMs = nowMs - (long)maxWindow.Value.TotalMilliseconds;
-                foreach (var lane in result) lane.Spans.RemoveAll(s => s.EndMs < fromMs);
-                result = result.Where(static l => l.Spans.Count > 0).ToList();
-            }
-
-            return new ClusterTimeline(result, fromMs, nowMs, runs);
         }
+
+        foreach (var (Entry, Lane) in open.Values)
+        {
+            Lane.Spans.Add(new TimelineSpan(Entry.JobId!, Entry.Method, Entry.Timestamp, nowMs, null));
+        }
+
+        var result = lanes.Values
+            .Where(static l => l.Spans.Count > 0)
+            .OrderBy(static l => l.ServerId, StringComparer.Ordinal)
+            .ThenBy(static l => l.WorkerId, StringComparer.Ordinal)
+            .ToList();
+
+        var fromMs = result.Count == 0 ? nowMs : result.SelectMany(static l => l.Spans).Min(static s => s.StartMs);
+        if (maxWindow.HasValue && nowMs - fromMs > maxWindow.Value.TotalMilliseconds)
+        {
+            fromMs = nowMs - (long)maxWindow.Value.TotalMilliseconds;
+            foreach (var lane in result) lane.Spans.RemoveAll(s => s.EndMs < fromMs);
+            result = [.. result.Where(static l => l.Spans.Count > 0)];
+        }
+
+        return new ClusterTimeline(result, fromMs, nowMs, runs);
     }
 }

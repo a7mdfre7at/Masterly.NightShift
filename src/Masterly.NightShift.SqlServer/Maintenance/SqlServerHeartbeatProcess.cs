@@ -13,44 +13,41 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
-using System.Threading;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 
-namespace Masterly.NightShift.SqlServer
+namespace Masterly.NightShift.SqlServer;
+
+internal sealed class SqlServerHeartbeatProcess : IBackgroundProcess
 {
-    internal sealed class SqlServerHeartbeatProcess : IBackgroundProcess
+    private readonly ConcurrentDictionary<SqlServerTimeoutJob, object> _items =
+        new();
+
+    internal int TrackedCount => _items.Count;
+
+    public void Track(SqlServerTimeoutJob item)
     {
-        private readonly ConcurrentDictionary<SqlServerTimeoutJob, object> _items =
-            new ConcurrentDictionary<SqlServerTimeoutJob, object>();
+        _items.TryAdd(item, null);
+    }
 
-        internal int TrackedCount => _items.Count;
+    public void Untrack(SqlServerTimeoutJob item)
+    {
+        _items.TryRemove(item, out _);
+    }
 
-        public void Track(SqlServerTimeoutJob item)
+    public void Execute(BackgroundProcessContext context)
+    {
+        Execute(context.ShutdownToken);
+    }
+
+    public void Execute(CancellationToken cancellationToken)
+    {
+        foreach (var item in _items)
         {
-            _items.TryAdd(item, null);
+            item.Key.ExecuteKeepAliveQueryIfRequired();
         }
 
-        public void Untrack(SqlServerTimeoutJob item)
-        {
-            _items.TryRemove(item, out _);
-        }
-
-        public void Execute(BackgroundProcessContext context)
-        {
-            Execute(context.ShutdownToken);
-        }
-
-        public void Execute(CancellationToken cancellationToken)
-        {
-            foreach (var item in _items)
-            {
-                item.Key.ExecuteKeepAliveQueryIfRequired();
-            }
-
-            cancellationToken.Wait(TimeSpan.FromSeconds(1));
-        }
+        cancellationToken.Wait(TimeSpan.FromSeconds(1));
     }
 }

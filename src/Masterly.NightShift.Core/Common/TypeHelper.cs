@@ -13,290 +13,283 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+/// <summary>
+/// Turns types into the names stored with jobs and back, and maps the type names stored by earlier versions to the
+/// current types. The resolver and serializer can be replaced.
+/// </summary>
+public class TypeHelper
 {
-    /// <summary>
-    /// Turns types into the names stored with jobs and back, and maps the type names stored by earlier versions to the
-    /// current types. The resolver and serializer can be replaced.
-    /// </summary>
-    public class TypeHelper
+    private static readonly ConcurrentDictionary<Type, string> DefaultTypeSerializerCache = new();
+    private static readonly ConcurrentDictionary<Type, string> SimpleAssemblyTypeSerializerCache = new();
+
+    private static readonly ConcurrentDictionary<string, Type> DefaultTypeResolverCache = new();
+    private static readonly ConcurrentDictionary<string, Type> IgnoredAssemblyVersionTypeResolverCache = new();
+
+    private static readonly Assembly CoreLibrary = typeof(int).GetTypeInfo().Assembly;
+    private static readonly AssemblyName MscorlibAssemblyName = new("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
+    private static readonly ConcurrentDictionary<string, Assembly> AssemblyCache = new();
+
+    private static readonly Regex VersionRegex = new(@", Version=\d+.\d+.\d+.\d+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
+    private static readonly Regex CultureRegex = new(@", Culture=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
+    private static readonly Regex PublicKeyTokenRegex = new(@", PublicKeyToken=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
+
+    public static Func<string, Type> CurrentTypeResolver
     {
-        private static readonly ConcurrentDictionary<Type, string> DefaultTypeSerializerCache = new ConcurrentDictionary<Type, string>();
-        private static readonly ConcurrentDictionary<Type, string> SimpleAssemblyTypeSerializerCache = new ConcurrentDictionary<Type, string>();
+        get => Volatile.Read(ref field) ?? DefaultTypeResolver;
+        set => Volatile.Write(ref field, value);
+    }
 
-        private static readonly ConcurrentDictionary<string, Type> DefaultTypeResolverCache = new ConcurrentDictionary<string, Type>();
-        private static readonly ConcurrentDictionary<string, Type> IgnoredAssemblyVersionTypeResolverCache = new ConcurrentDictionary<string, Type>();
+    public static Func<Type, string> CurrentTypeSerializer
+    {
+        get => Volatile.Read(ref field) ?? DefaultTypeSerializer;
+        set => Volatile.Write(ref field, value);
+    }
 
-        private static readonly Assembly CoreLibrary = typeof(int).GetTypeInfo().Assembly;
-        private static readonly AssemblyName MscorlibAssemblyName = new AssemblyName("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
-        private static readonly ConcurrentDictionary<string, Assembly> AssemblyCache = new ConcurrentDictionary<string, Assembly>();
+    public static string DefaultTypeSerializer(Type type)
+    {
+        return DefaultTypeSerializerCache.GetOrAdd(type, static t => t.AssemblyQualifiedName);
+    }
 
-        private static readonly Regex VersionRegex = new Regex(@", Version=\d+.\d+.\d+.\d+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
-        private static readonly Regex CultureRegex = new Regex(@", Culture=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
-        private static readonly Regex PublicKeyTokenRegex = new Regex(@", PublicKeyToken=\w+", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
-
-        private static Func<string, Type> _currentTypeResolver;
-        private static Func<Type, string> _currentTypeSerializer;
-
-        public static Func<string, Type> CurrentTypeResolver
+    public static string SimpleAssemblyTypeSerializer(Type type)
+    {
+        return SimpleAssemblyTypeSerializerCache.GetOrAdd(type, static value =>
         {
-            get => Volatile.Read(ref _currentTypeResolver) ?? DefaultTypeResolver;
-            set => Volatile.Write(ref _currentTypeResolver, value);
+            var builder = new StringBuilder();
+            SerializeType(value, true, builder);
+
+            return builder.ToString();
+        });
+    }
+
+    public static Type DefaultTypeResolver(string typeName)
+    {
+        return DefaultTypeResolverCache.GetOrAdd(typeName, static name =>
+        {
+            return Type.GetType(
+                name,
+                typeResolver: TypeResolver,
+                assemblyResolver: CachedAssemblyResolver,
+                throwOnError: true);
+        });
+    }
+
+    public static Type IgnoredAssemblyVersionTypeResolver(string typeName)
+    {
+        return IgnoredAssemblyVersionTypeResolverCache.GetOrAdd(typeName, static value =>
+        {
+            value = VersionRegex.Replace(value, string.Empty);
+            value = CultureRegex.Replace(value, string.Empty);
+            value = PublicKeyTokenRegex.Replace(value, string.Empty);
+
+            return DefaultTypeResolver(value);
+        });
+    }
+
+    private static void SerializeType(Type type, bool withAssemblyName, StringBuilder typeNameBuilder)
+    {
+        if (type == typeof(System.Console))
+        {
+            typeNameBuilder.Append("System.Console, mscorlib");
+            return;
         }
 
-        public static Func<Type, string> CurrentTypeSerializer
+        if (type == typeof(System.Threading.Thread))
         {
-            get => Volatile.Read(ref _currentTypeSerializer) ?? DefaultTypeSerializer;
-            set => Volatile.Write(ref _currentTypeSerializer, value);
+            typeNameBuilder.Append("System.Threading.Thread, mscorlib");
+            return;
         }
 
-        public static string DefaultTypeSerializer(Type type)
+        if (type.IsArray && type.HasElementType)
         {
-            return DefaultTypeSerializerCache.GetOrAdd(type, static t => t.AssemblyQualifiedName);
+            var elementType = type.GetElementType();
+            SerializeType(elementType, false, typeNameBuilder);
+            typeNameBuilder.Append("[]");
         }
-
-        public static string SimpleAssemblyTypeSerializer(Type type)
+        else
         {
-            return SimpleAssemblyTypeSerializerCache.GetOrAdd(type, static value =>
+            if (type.DeclaringType != null)
             {
-                var builder = new StringBuilder();
-                SerializeType(value, true, builder);
-
-                return builder.ToString();
-            });
-        }
-
-        public static Type DefaultTypeResolver(string typeName)
-        {
-            return DefaultTypeResolverCache.GetOrAdd(typeName, static name =>
+                SerializeType(type.DeclaringType, false, typeNameBuilder);
+                typeNameBuilder.Append('+');
+            }
+            else if (type.Namespace != null)
             {
-                return Type.GetType(
-                    name,
-                    typeResolver: TypeResolver,
-                    assemblyResolver: CachedAssemblyResolver,
-                    throwOnError: true);
-            });
-        }
-
-        public static Type IgnoredAssemblyVersionTypeResolver(string typeName)
-        {
-            return IgnoredAssemblyVersionTypeResolverCache.GetOrAdd(typeName, static value =>
-            {
-                value = VersionRegex.Replace(value, String.Empty);
-                value = CultureRegex.Replace(value, String.Empty);
-                value = PublicKeyTokenRegex.Replace(value, String.Empty);
-
-                return DefaultTypeResolver(value);
-            });
-        }
-
-        private static void SerializeType(Type type, bool withAssemblyName, StringBuilder typeNameBuilder)
-        {
-            if (type == typeof(System.Console))
-            {
-                typeNameBuilder.Append("System.Console, mscorlib");
-                return;
+                typeNameBuilder.Append(type.Namespace).Append('.');
             }
 
-            if (type == typeof(System.Threading.Thread))
-            {
-                typeNameBuilder.Append("System.Threading.Thread, mscorlib");
-                return;
-            }
+            typeNameBuilder.Append(type.Name);
+        }
 
-            if (type.IsArray && type.HasElementType)
+        if (type.GenericTypeArguments.Length > 0)
+        {
+            SerializeTypes(type.GenericTypeArguments, typeNameBuilder);
+        }
+
+        if (!withAssemblyName) return;
+
+        var typeInfo = type.GetTypeInfo();
+
+        if (type != typeof(object) && type != typeof(string) && !typeInfo.IsPrimitive)
+        {
+            string assemblyName;
+
+            var typeForwardedFrom = typeInfo.GetCustomAttribute<TypeForwardedFromAttribute>();
+            if (typeForwardedFrom != null)
             {
-                var elementType = type.GetElementType()!;
-                SerializeType(elementType, false, typeNameBuilder);
-                typeNameBuilder.Append("[]");
+                assemblyName = typeForwardedFrom.AssemblyFullName;
+
+                var delimiterIndex = assemblyName.IndexOf(",", StringComparison.OrdinalIgnoreCase);
+
+                assemblyName = delimiterIndex >= 0 ? assemblyName[..delimiterIndex] : assemblyName;
             }
             else
             {
-                if (type.DeclaringType != null)
-                {
-                    SerializeType(type.DeclaringType, false, typeNameBuilder);
-                    typeNameBuilder.Append('+');
-                }
-                else if (type.Namespace != null)
-                {
-                    typeNameBuilder.Append(type.Namespace).Append('.');
-                }
-
-                typeNameBuilder.Append(type.Name);
+                assemblyName = typeInfo.Assembly.GetName().Name;
             }
 
-            if (type.GenericTypeArguments.Length > 0)
+            if (assemblyName.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase))
             {
-                SerializeTypes(type.GenericTypeArguments, typeNameBuilder);
+                assemblyName = "mscorlib";
             }
 
-            if (!withAssemblyName) return;
-
-            var typeInfo = type.GetTypeInfo();
-
-            if (type != typeof(object) && type != typeof(string) && !typeInfo.IsPrimitive)
-            {
-                string assemblyName;
-
-                var typeForwardedFrom = typeInfo.GetCustomAttribute<TypeForwardedFromAttribute>();
-                if (typeForwardedFrom != null)
-                {
-                    assemblyName = typeForwardedFrom.AssemblyFullName;
-
-                    var delimiterIndex = assemblyName.IndexOf(",", StringComparison.OrdinalIgnoreCase);
-
-                    assemblyName = delimiterIndex >= 0 ? assemblyName.Substring(0, delimiterIndex) : assemblyName;
-                }
-                else
-                {
-                    assemblyName = typeInfo.Assembly.GetName().Name;
-                }
-
-                if (assemblyName.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase))
-                {
-                    assemblyName = "mscorlib";
-                }
-
-                typeNameBuilder.Append(", ").Append(assemblyName);
-            }
+            typeNameBuilder.Append(", ").Append(assemblyName);
         }
+    }
 
-        private static void SerializeTypes(Type[] types, StringBuilder typeNamesBuilder)
+    private static void SerializeTypes(Type[] types, StringBuilder typeNamesBuilder)
+    {
+        if (types == null) return;
+
+        typeNamesBuilder.Append('[');
+
+        for (var i = 0; i < types.Length; i++)
         {
-            if (types == null) return;
-
             typeNamesBuilder.Append('[');
-
-            for (var i = 0; i < types.Length; i++)
-            {
-                typeNamesBuilder.Append('[');
-                SerializeType(types[i], true, typeNamesBuilder);
-                typeNamesBuilder.Append(']');
-
-                if (i != types.Length - 1) typeNamesBuilder.Append(',');
-            }
-
+            SerializeType(types[i], true, typeNamesBuilder);
             typeNamesBuilder.Append(']');
+
+            if (i != types.Length - 1) typeNamesBuilder.Append(',');
         }
 
-        private static Assembly CachedAssemblyResolver(AssemblyName assemblyName)
+        typeNamesBuilder.Append(']');
+    }
+
+    private static Assembly CachedAssemblyResolver(AssemblyName assemblyName)
+    {
+        return AssemblyCache.GetOrAdd(assemblyName.FullName, AssemblyResolver);
+    }
+
+    // Jobs stored before the rename refer to types such as "Hangfire.Server.PerformContext, Hangfire.Core".
+    // Only these assemblies are mapped, so a user's own assembly with a similar name is left alone.
+    private const string LegacyPrefix = "Hangfire.";
+    private const string CurrentPrefix = "Masterly.NightShift.";
+    private static readonly string[] LegacyAssemblies =
+    [
+        "Hangfire.Core", "Hangfire.SqlServer", "Hangfire.NetCore", "Hangfire.AspNetCore"
+    ];
+
+    private static bool IsLegacyAssembly(string name)
+    {
+        return Array.Exists(LegacyAssemblies, x => x.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsCurrentAssembly(Assembly assembly)
+    {
+        return assembly.GetName().Name?.StartsWith(CurrentPrefix, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static string ToCurrentName(string name)
+    {
+        return name.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? string.Concat(CurrentPrefix, name.AsSpan(LegacyPrefix.Length))
+            : name;
+    }
+
+    private static Assembly AssemblyResolver(string assemblyString)
+    {
+        var assemblyName = new AssemblyName(assemblyString);
+
+        if (IsLegacyAssembly(assemblyName.Name))
         {
-            return AssemblyCache.GetOrAdd(assemblyName.FullName, AssemblyResolver);
+            // Its version and public key belong to the old package, so only the name is kept
+            assemblyName = new AssemblyName(ToCurrentName(assemblyName.Name));
         }
 
-        // Jobs stored before the rename refer to types such as "Hangfire.Server.PerformContext, Hangfire.Core".
-        // Only these assemblies are mapped, so a user's own assembly with a similar name is left alone.
-        private const string LegacyPrefix = "Hangfire.";
-        private const string CurrentPrefix = "Masterly.NightShift.";
-        private static readonly string[] LegacyAssemblies =
+        if (assemblyName.Name.Equals("System.Console", StringComparison.OrdinalIgnoreCase) ||
+            assemblyName.Name.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase) ||
+            assemblyName.Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
         {
-            "Hangfire.Core", "Hangfire.SqlServer", "Hangfire.NetCore", "Hangfire.AspNetCore"
-        };
-
-        private static bool IsLegacyAssembly(string name)
+            assemblyName = MscorlibAssemblyName;
+        }
+        else if (assemblyName.Name.Equals("System.Private.Xml.Linq", StringComparison.OrdinalIgnoreCase))
         {
-            return Array.Exists(LegacyAssemblies, x => x.Equals(name, StringComparison.OrdinalIgnoreCase));
+            assemblyName = new AssemblyName("System.Xml.Linq, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
         }
 
-        private static bool IsCurrentAssembly(Assembly assembly)
+        var publicKeyToken = assemblyName.GetPublicKeyToken();
+
+        if (assemblyName.Version == null && assemblyName.CultureInfo == null && publicKeyToken == null)
         {
-            return assembly.GetName().Name?.StartsWith(CurrentPrefix, StringComparison.OrdinalIgnoreCase) == true;
-        }
-
-        private static string ToCurrentName(string name)
-        {
-            return name.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase)
-                ? string.Concat(CurrentPrefix, name.AsSpan(LegacyPrefix.Length))
-                : name;
-        }
-
-        private static Assembly AssemblyResolver(string assemblyString)
-        {
-            var assemblyName = new AssemblyName(assemblyString);
-
-            if (IsLegacyAssembly(assemblyName.Name))
-            {
-                // Its version and public key belong to the old package, so only the name is kept
-                assemblyName = new AssemblyName(ToCurrentName(assemblyName.Name));
-            }
-
-            if (assemblyName.Name.Equals("System.Console", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Name.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
-            {
-                assemblyName = MscorlibAssemblyName;
-            }
-            else if (assemblyName.Name.Equals("System.Private.Xml.Linq", StringComparison.OrdinalIgnoreCase))
-            {
-                assemblyName = new AssemblyName("System.Xml.Linq, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
-            }
-
-            var publicKeyToken = assemblyName.GetPublicKeyToken();
-
-            if (assemblyName.Version == null && assemblyName.CultureInfo == null && publicKeyToken == null)
-            {
-                // A partial name, as Assembly.LoadWithPartialName (obsolete) loads it on .NET
-                try
-                {
-                    return Assembly.Load(new AssemblyName(assemblyName.Name));
-                }
-                catch (FileNotFoundException)
-                {
-                    return null;
-                }
-            }
-
+            // A partial name, as Assembly.LoadWithPartialName (obsolete) loads it on .NET
             try
             {
-                return Assembly.Load(assemblyName);
+                return Assembly.Load(new AssemblyName(assemblyName.Name));
             }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            catch (FileNotFoundException)
             {
-                var shortName = new AssemblyName(assemblyName.Name);
-                if (publicKeyToken != null)
-                {
-                    shortName.SetPublicKeyToken(publicKeyToken);
-                }
-
-                return Assembly.Load(shortName);
+                return null;
             }
         }
 
-        private static Type TypeResolver(Assembly assembly, string typeName, bool ignoreCase)
+        try
         {
-            if (typeName.Equals("System.Diagnostics.Debug", StringComparison.Ordinal))
-            {
-                return typeof(System.Diagnostics.Debug);
-            }
-
-            assembly = assembly ?? CoreLibrary;
-
-            if (IsCurrentAssembly(assembly))
-            {
-                typeName = ToCurrentName(typeName);
-            }
-
-            if (assembly != CoreLibrary &&
-                assembly.GetName().Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
-            {
-                // Everything defaults to `mscorlib` for interoperability reasons between
-                // .NET Framework and .NET Core. Most of the types have the proper forwarding,
-                // but newer types like DateOnly or TimeOnly don't. So for types from `mscorlib`
-                // we perform the first search in the current core library.
-                var type = CoreLibrary.GetType(typeName, false, ignoreCase);
-                if (type != null) return type;
-            }
-
-            return assembly.GetType(typeName, true, ignoreCase);
+            return Assembly.Load(assemblyName);
         }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            var shortName = new AssemblyName(assemblyName.Name);
+            if (publicKeyToken != null)
+            {
+                shortName.SetPublicKeyToken(publicKeyToken);
+            }
+
+            return Assembly.Load(shortName);
+        }
+    }
+
+    private static Type TypeResolver(Assembly assembly, string typeName, bool ignoreCase)
+    {
+        if (typeName.Equals("System.Diagnostics.Debug", StringComparison.Ordinal))
+        {
+            return typeof(System.Diagnostics.Debug);
+        }
+
+        assembly ??= CoreLibrary;
+
+        if (IsCurrentAssembly(assembly))
+        {
+            typeName = ToCurrentName(typeName);
+        }
+
+        if (assembly != CoreLibrary &&
+            assembly.GetName().Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
+        {
+            // Everything defaults to `mscorlib` for interoperability reasons between
+            // .NET Framework and .NET Core. Most of the types have the proper forwarding,
+            // but newer types like DateOnly or TimeOnly don't. So for types from `mscorlib`
+            // we perform the first search in the current core library.
+            var type = CoreLibrary.GetType(typeName, false, ignoreCase);
+            if (type != null) return type;
+        }
+
+        return assembly.GetType(typeName, true, ignoreCase);
     }
 }

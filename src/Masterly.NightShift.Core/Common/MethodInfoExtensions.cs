@@ -13,20 +13,18 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-using System.Linq;
 using System.Reflection;
 
-namespace Masterly.NightShift.Common
+namespace Masterly.NightShift.Common;
+
+internal static class MethodInfoExtensions
 {
-    internal static class MethodInfoExtensions
+    public static string GetNormalizedName(this MethodInfo methodInfo)
     {
-        public static string GetNormalizedName(this MethodInfo methodInfo)
-        {
-            // Method names containing '.' are considered explicitly implemented interface methods
-            // https://stackoverflow.com/a/17854048/1398672
-            return methodInfo.Name.Contains('.') && methodInfo.IsFinal && methodInfo.IsPrivate
-                ? methodInfo.Name.Split('.').Last()
-                : methodInfo.Name;
-        }
+        // Method names containing '.' are considered explicitly implemented interface methods
+        // https://stackoverflow.com/a/17854048/1398672
+        return methodInfo.Name.Contains('.') && methodInfo.IsFinal && methodInfo.IsPrivate
+            ? methodInfo.Name.Split('.').Last()
+            : methodInfo.Name;
     }
 }
