@@ -1,47 +1,186 @@
 name: Publish to NuGet
 
-# Runs after a successful Build on main. Packages whose version is already on nuget.org are skipped,
-# so raise <Version> in src/Directory.Build.props to publish a new release.
+# Runs after a successful Build of a push to master. The release act is <Version> in src/Directory.Build.props plus a
+# dated '## [x.y.z] - yyyy-mm-dd' section in CHANGELOG.md: while the section says 'Unreleased', nothing is published.
+# Packages whose version is already on nuget.org are skipped, and the GitHub Release is created once per version.
 on:
   workflow_run:
-    workflows: ["Build"]
-    branches: [ main ]
+    workflows: [ "Build" ]
+    branches: [ master ]
     types: [ completed ]
+
+# Two publish runs never overlap, so package pushes and the GitHub Release can't race. A run that has started is never
+# cancelled: a half-finished push is repaired only by a later complete run (or a re-run of this one). GitHub replaces a
+# run that is still queued when a newer one arrives, which is safe because the newer run publishes the newer commit.
+concurrency:
+  group: publish-nuget
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_SOURCE: https://api.nuget.org/v3/index.json
+  # The nuget.org profile that owns the packages and the Trusted Publishing policy (a profile name, never an email)
+  NUGET_USER: a7mdfre7at
+  PACKAGE_OUTPUT: artifacts
+
 jobs:
   publish:
     name: Publish packages
-    runs-on: windows-2022
-    # The nuget environment holds NUGET_API_KEY; its protection rules (required reviewers, branches) are set in
-    # the repository's Settings > Environments
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Only a successful Build of a push to master publishes: a pull_request Build (including one from a fork's own
+    # 'master' branch) never gets to exchange an OIDC token for a NuGet API key
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' }}
+    # Optional protection rules (required reviewers, deployment branches) are set on this environment in the
+    # repository's Settings > Environments
     environment: nuget
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+    permissions:
+      # Creating the GitHub Release
+      contents: write
+      # Downloading the packages from the triggering Build run
+      actions: read
+      # Trusted Publishing: the job presents a GitHub OIDC token to nuget.org, which exchanges it for a one-hour API key
+      # under the nuget.org policy (owner a7mdfre7at, repository Masterly.NightShift, workflow publish.yml). No
+      # long-lived NuGet API key is stored in the repository.
+      id-token: write
+    env:
+      # The commit the triggering Build tested
+      PUBLISH_SHA: ${{ github.event.workflow_run.head_sha }}
+    defaults:
+      run:
+        shell: bash
 
-      - uses: actions/setup-dotnet@v4
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.PUBLISH_SHA }}
+
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
-      - name: Restore and build
+      # Every package ships with the same version, from src/Directory.Build.props
+      - name: Read the version
+        id: version
         run: |
-          dotnet restore Masterly.NightShift.slnx
-          dotnet build Masterly.NightShift.slnx -c Release --no-restore
+          set -euo pipefail
+          VERSION="$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' src/Directory.Build.props | head -n 1 | tr -d '[:space:]')"
+          if [ -z "$VERSION" ]; then
+            echo "::error::No <Version> element found in src/Directory.Build.props."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
 
-      - name: Pack
+      # The release gate, checked before anything is pushed. A version is released only once its CHANGELOG section
+      # has a date: while the heading reads '## [x.y.z] - Unreleased', the run stops here and publishes nothing, so
+      # merging work to master never ships a version by accident. The release body is only this version's section,
+      # without its heading (the release title already names the version).
+      - name: Check the release notes
+        id: notes
         run: |
-          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore') {
-            dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          HEADING="$(tr -d '\r' < CHANGELOG.md | grep -m 1 -F "## [$VERSION]" || true)"
+          if [ -z "$HEADING" ]; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section."
+            exit 1
+          fi
+          if printf '%s' "$HEADING" | grep -qi 'unreleased'; then
+            echo "::notice::$VERSION is marked Unreleased in CHANGELOG.md, so nothing is published. Put the release date in its heading to publish it."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tr -d '\r' < CHANGELOG.md \
+            | awk -v version="$VERSION" '/^## \[/{ if (f) exit; if (index($0, "## [" version "]") == 1) { f=1; next } } f' \
+            | sed '/./,$!d' > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::The '## [$VERSION]' section of CHANGELOG.md is empty."
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
-      - name: Push to nuget.org
+      # The packages the Build workflow packed and its consumer job installed, not a rebuild
+      - name: Download the tested packages
+        if: steps.notes.outputs.ready == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: ${{ env.PACKAGE_OUTPUT }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Requested right before the push: the temporary key lives one hour and each OIDC token buys exactly one key
+      - name: Get a temporary NuGet API key (Trusted Publishing)
+        if: steps.notes.outputs.ready == 'true'
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ env.NUGET_USER }}
+
+      # In dependency order: a package never reaches nuget.org before one it depends on, and the meta-package, which
+      # depends on all the others, goes last. --skip-duplicate makes a re-run after a partial failure push only what is
+      # missing.
+      - name: Push packages to nuget.org
+        if: steps.notes.outputs.ready == 'true'
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$env:NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          for id in Masterly.NightShift.Core Masterly.NightShift.SqlServer Masterly.NightShift.NetCore Masterly.NightShift.AspNetCore Masterly.NightShift; do
+            package="$PACKAGE_OUTPUT/$id.$VERSION.nupkg"
+            if [ ! -f "$package" ]; then
+              echo "::error::$package is missing from the Build's packages."
+              exit 1
+            fi
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source "$NUGET_SOURCE" --skip-duplicate
+          done
+
+      # Idempotent: creates the release when it doesn't exist, otherwise uploads only the assets it is missing (an
+      # earlier run that failed mid-upload). Existing assets are never replaced, so a later commit at the same version
+      # can't swap the released packages for different builds.
+      - name: Create or complete the GitHub Release
+        if: steps.notes.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.version.outputs.version }}"
+          ASSETS=("$PACKAGE_OUTPUT"/*.nupkg)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            EXISTING="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+            MISSING=()
+            for asset in "${ASSETS[@]}"; do
+              if ! grep -Fxq -- "$(basename "$asset")" <<< "$EXISTING"; then
+                MISSING+=("$asset")
+              fi
+            done
+            if [ "${#MISSING[@]}" -eq 0 ]; then
+              echo "Release $TAG already has every asset; nothing to do."
+            else
+              echo "Release $TAG exists; uploading ${#MISSING[@]} missing asset(s)."
+              gh release upload "$TAG" "${MISSING[@]}"
+            fi
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --title "Masterly.NightShift $TAG" \
+              --notes-file release-notes.md \
+              --target "$PUBLISH_SHA"
+          fi
+
+  on-failure:
+    name: Build failed
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' }}
+    steps:
+      - name: Report failure
+        run: |
+          echo "::error::The Build workflow failed, so nothing was published."
+          exit 1

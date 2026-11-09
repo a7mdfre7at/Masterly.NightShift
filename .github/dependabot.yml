@@ -12,11 +12,16 @@ updates:
     ignore:
       # Kept at the oldest Roslyn the source generators need, see Directory.Packages.props
       - dependency-name: Microsoft.CodeAnalysis.CSharp
-      # The netstandard2.0 build of Masterly.NightShift.AspNetCore targets ASP.NET Core 2.x; later majors need net8.0+
-      - dependency-name: Microsoft.AspNetCore.Antiforgery
+      # Masterly.NightShift.NetCore asks for the oldest serviced Microsoft.Extensions version of each target framework
+      # (8.0.x on net8.0, 10.0.x on net10.0), so apps keep their runtime's stack: patches only, never a new major
+      - dependency-name: Microsoft.Extensions.DependencyInjection.Abstractions
         update-types: [ "version-update:semver-major" ]
-      - dependency-name: Microsoft.AspNetCore.Http.Abstractions
+      - dependency-name: Microsoft.Extensions.Hosting.Abstractions
         update-types: [ "version-update:semver-major" ]
+      - dependency-name: Microsoft.Extensions.Logging.Abstractions
+        update-types: [ "version-update:semver-major" ]
+      # The dashboard page generator must reproduce RazorGenerator's output byte for byte; move it on purpose only
+      - dependency-name: Microsoft.AspNetCore.Razor.Language
     groups:
       microsoft-extensions:
         patterns:
@@ -32,3 +37,20 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # The documentation site. The Docusaurus packages move together, so they come as one pull request; docs.yml builds
+  # the site on it, which fails on any broken link.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      docusaurus:
+        patterns:
+          - "@docusaurus/*"
+          - "@easyops-cn/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"

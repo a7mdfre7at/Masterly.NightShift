@@ -2,14 +2,25 @@ name: Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
+    # The docs site has its own workflow (docs.yml); a docs-only change neither builds nor publishes packages
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      - '.github/workflows/docs.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# One Build per ref at a time. A newer push to a pull request cancels the older run. A master run that has started is
+# never cancelled, because a successful master Build is what triggers publish.yml.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -27,9 +38,9 @@ jobs:
     env:
       NightShift_SqlServer_ConnectionStringTemplate: Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
@@ -43,10 +54,9 @@ jobs:
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release --no-restore
 
-      # net48 runs the libraries' netstandard2.0 build on .NET Framework, which only Windows has
       - name: Test
         run: |
-          foreach ($framework in 'net48', 'net8.0', 'net10.0') {
+          foreach ($framework in 'net8.0', 'net10.0') {
             foreach ($project in 'Core', 'SqlServer', 'AspNetCore') {
               dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -61,7 +71,7 @@ jobs:
           }
           dotnet pack src/Masterly.NightShift -c Release --no-build -o artifacts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/*.nupkg
@@ -69,26 +79,30 @@ jobs:
 
   # Installs the packages just built into new apps, as a user would, so a broken package (a missing dependency or
   # file, an API that doesn't compile on a target, a generator that doesn't load in an older compiler) fails the
-  # build instead of the first consumer
+  # build instead of the first consumer: ASP.NET Core apps on .NET 8 and .NET 10, a console app that runs a job, and
+  # a Worker Service built with the .NET 8 SDK
   consumer:
     name: Consumer (install the packages)
     needs: windows
     runs-on: windows-2022
     timeout-minutes: 25
+    env:
+      # MSBuild reads it as a property: the net8.0 apps keep building with -warnaserror after .NET 8 leaves support
+      CheckEolTargetFramework: false
     steps:
       # The .NET 8 SDK builds the Worker8 app, the .NET 10 SDK everything else
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: feed
 
-      # The .NET Framework console app runs a job against it
+      # The console app runs a job against it
       - name: Start SQL Server LocalDB
         run: sqllocaldb start MSSQLLocalDB
 
@@ -155,145 +169,86 @@ jobs:
             Invoke-Dotnet build $name -c Release -warnaserror
           }
 
-          # An ASP.NET Core 2.3 app on .NET Framework 4.8 with the meta-package, which gets its netstandard2.0 builds
-          New-Item -ItemType Directory -Force FxWeb | Out-Null
-          @"
-          <Project Sdk="Microsoft.NET.Sdk.Web">
-            <PropertyGroup>
-              <TargetFramework>net48</TargetFramework>
-              <LangVersion>latest</LangVersion>
-            </PropertyGroup>
-            <ItemGroup>
-              <PackageReference Include="Microsoft.AspNetCore" Version="2.3.13" />
-              <PackageReference Include="Masterly.NightShift" Version="$version" />
-            </ItemGroup>
-          </Project>
-          "@ | Set-Content FxWeb/FxWeb.csproj
-          @'
-          using Masterly.NightShift;
-          using Microsoft.AspNetCore;
-          using Microsoft.AspNetCore.Builder;
-          using Microsoft.AspNetCore.Hosting;
-          using Microsoft.Extensions.DependencyInjection;
-
-          public static class Program
-          {
-              public static void Main(string[] args)
-              {
-                  WebHost.CreateDefaultBuilder(args).UseStartup<Startup>().Build().Run();
-              }
-          }
-
-          public class Startup
-          {
-              public void ConfigureServices(IServiceCollection services)
-              {
-                  services.AddNightShift(config => config
-                      .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                      .UseSimpleAssemblyNameTypeSerializer()
-                      .UseRecommendedSerializerSettings()
-                      .UseSqlServerStorage(@"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;"));
-                  services.AddNightShiftServer();
-                  services.AddHealthChecks().AddNightShift();
-              }
-
-              public void Configure(IApplicationBuilder app)
-              {
-                  app.UseNightShiftDashboard();
-              }
-          }
-          '@ | Set-Content FxWeb/Program.cs
-          Invoke-Dotnet build FxWeb -c Release -warnaserror
-
-          # A .NET Framework 4.8 console app with Core and SqlServer (and the SQL client built into System.Data). It runs a
-          # job against LocalDB, so the netstandard2.0 builds are exercised on .NET Framework, not only compiled.
+          # A .NET 8 console app with only Core and SqlServer, without a host or a container. It runs a job against
+          # LocalDB, so the packages are exercised end to end, not only compiled.
           $database = if ($env:NightShift_Consumer_Database) { $env:NightShift_Consumer_Database } else { 'NightShiftConsumer' }
-          New-Item -ItemType Directory -Force FxConsole | Out-Null
+          New-Item -ItemType Directory -Force Console8 | Out-Null
           @"
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
               <OutputType>Exe</OutputType>
-              <TargetFramework>net48</TargetFramework>
-              <LangVersion>latest</LangVersion>
+              <TargetFramework>net8.0</TargetFramework>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
             </PropertyGroup>
             <ItemGroup>
               <PackageReference Include="Masterly.NightShift.Core" Version="$version" />
               <PackageReference Include="Masterly.NightShift.SqlServer" Version="$version" />
             </ItemGroup>
           </Project>
-          "@ | Set-Content FxConsole/FxConsole.csproj
+          "@ | Set-Content Console8/Console8.csproj
           @'
-          using System;
-          using System.Data.SqlClient;
           using System.Diagnostics;
-          using System.Threading;
           using Masterly.NightShift;
           using Masterly.NightShift.States;
+          using Microsoft.Data.SqlClient;
 
-          public static class Program
+          var connectionString = args[0];
+          CreateDatabase(connectionString);
+
+          GlobalConfiguration.Configuration
+              .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+              .UseSimpleAssemblyNameTypeSerializer()
+              .UseRecommendedSerializerSettings()
+              .UseColouredConsoleLogProvider()
+              .UseSqlServerStorage(connectionString);
+
+          var jobId = BackgroundJob.Enqueue<ReportService>(x => x.BuildDaily())
+              ?? throw new InvalidOperationException("The job was not created.");
+
+          using (new BackgroundJobServer())
+          using (var connection = JobStorage.Current.GetConnection())
           {
-              public static int Main(string[] args)
+              var stopwatch = Stopwatch.StartNew();
+              while (stopwatch.Elapsed < TimeSpan.FromMinutes(1))
               {
-                  var connectionString = args[0];
-                  CreateDatabase(connectionString);
-
-                  GlobalConfiguration.Configuration
-                      .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                      .UseSimpleAssemblyNameTypeSerializer()
-                      .UseRecommendedSerializerSettings()
-                      .UseColouredConsoleLogProvider()
-                      .UseSqlServerStorage(connectionString);
-
-                  var jobId = BackgroundJob.Enqueue<ReportService>(x => x.BuildDaily());
-
-                  using (new BackgroundJobServer())
-                  using (var connection = JobStorage.Current.GetConnection())
+                  if (connection.GetStateData(jobId)?.Name == SucceededState.StateName)
                   {
-                      var stopwatch = Stopwatch.StartNew();
-                      while (stopwatch.Elapsed < TimeSpan.FromMinutes(1))
-                      {
-                          if (connection.GetStateData(jobId)?.Name == SucceededState.StateName)
-                          {
-                              Console.WriteLine($"Job {jobId} succeeded");
-                              return 0;
-                          }
-
-                          Thread.Sleep(500);
-                      }
-
-                      var state = connection.GetStateData(jobId);
-                      Console.Error.WriteLine($"Job {jobId} didn't succeed within a minute: {state?.Name} {state?.Reason}");
-                      return 1;
+                      Console.WriteLine($"Job {jobId} succeeded");
+                      return 0;
                   }
+
+                  Thread.Sleep(500);
               }
 
-              // The storage creates its tables, not the database
-              private static void CreateDatabase(string connectionString)
-              {
-                  var builder = new SqlConnectionStringBuilder(connectionString);
-                  var database = builder.InitialCatalog;
-                  builder.InitialCatalog = "master";
+              var state = connection.GetStateData(jobId);
+              Console.Error.WriteLine($"Job {jobId} didn't succeed within a minute: {state?.Name} {state?.Reason}");
+              return 1;
+          }
 
-                  using (var connection = new SqlConnection(builder.ConnectionString))
-                  using (var command = new SqlCommand(
-                      "IF DB_ID(@name) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@name); EXEC(@sql); END",
-                      connection))
-                  {
-                      command.Parameters.AddWithValue("@name", database);
-                      connection.Open();
-                      command.ExecuteNonQuery();
-                  }
-              }
+          // The storage creates its tables, not the database
+          static void CreateDatabase(string connectionString)
+          {
+              var builder = new SqlConnectionStringBuilder(connectionString);
+              var database = builder.InitialCatalog;
+              builder.InitialCatalog = "master";
+
+              using var connection = new SqlConnection(builder.ConnectionString);
+              using var command = new SqlCommand(
+                  "IF DB_ID(@name) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@name); EXEC(@sql); END",
+                  connection);
+              command.Parameters.AddWithValue("@name", database);
+              connection.Open();
+              command.ExecuteNonQuery();
           }
 
           public class ReportService
           {
               public void BuildDaily() => Console.WriteLine("Daily report");
           }
-          '@ | Set-Content FxConsole/Program.cs
-          Invoke-Dotnet build FxConsole -c Release -warnaserror
-          & FxConsole/bin/Release/net48/FxConsole.exe "Server=(localdb)\MSSQLLocalDB;Database=$database;Integrated Security=True;"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          '@ | Set-Content Console8/Program.cs
+          Invoke-Dotnet build Console8 -c Release -warnaserror
+          Invoke-Dotnet Console8/bin/Release/net8.0/Console8.dll "Server=(localdb)\MSSQLLocalDB;Database=$database;Integrated Security=True;TrustServerCertificate=True;"
 
           # A Worker Service on .NET 8 with only NetCore and SqlServer, built with the .NET 8 SDK. The source generator ships
           # inside Masterly.NightShift.Core and must still load in that SDK's older compiler; a generator that doesn't load is
@@ -392,14 +347,13 @@ jobs:
     env:
       NightShift_SqlServer_ConnectionStringTemplate: Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;PoolBlockingPeriod=NeverBlock
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
 
-      # Also compiles the net48 test targets (with reference assemblies from NuGet); only the Windows job runs them
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release
 
@@ -412,7 +366,7 @@ jobs:
       - name: Test Masterly.NightShift.NetCore and Masterly.NightShift.AspNetCore
         run: dotnet test tests/Masterly.NightShift.AspNetCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-results-linux-${{ matrix.framework }}

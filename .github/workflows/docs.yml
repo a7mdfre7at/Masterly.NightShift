@@ -1,0 +1,80 @@
+name: Docs
+
+# Builds the documentation site (website/, which publishes the pages in docs/) and deploys it to GitHub Pages:
+# https://a7mdfre7at.github.io/Masterly.NightShift/
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'docs/**'
+      - 'website/**'
+      # The site shows the package version from <Version>
+      - 'src/Directory.Build.props'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'docs/**'
+      - 'website/**'
+      - 'src/Directory.Build.props'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels the older check. A master deployment that has started is never cancelled.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history, so each page can show when it was last updated
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails on any broken link or anchor, so a pull request can't merge a dead link
+      - name: Build
+        run: npm run build
+
+      - name: Upload site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: website/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5
