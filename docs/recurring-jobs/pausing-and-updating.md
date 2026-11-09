@@ -43,8 +43,8 @@ On storages that support per-job queues (SQL Server does), a new queue other tha
 
 | Member | Returns | Meaning |
 |--------|---------|---------|
-| `Pause(string recurringJobId)` | `bool` | Takes the job out of the schedule. `false` when the job doesn't exist. |
-| `Resume(string recurringJobId)` | `bool` | Puts a paused job back on the schedule from now, without catching up. `false` when the job doesn't exist (also `true`, with no change, when it exists but isn't paused). |
+| `Pause(string recurringJobId)` | `bool` | Takes the job out of the schedule. `false` when the job doesn't exist; `true` for a job that is already paused. |
+| `Resume(string recurringJobId)` | `bool` | Puts a paused job back on the schedule from now, without catching up. `false` when the job doesn't exist. A job that exists but isn't paused is left as it is, and the result is `true`. |
 | `UpdateSchedule(string recurringJobId, string? cronExpression, TimeZoneInfo? timeZone = null, string? queue = null, MisfireHandlingMode? misfireHandling = null)` | `bool` | Changes when and where the job runs. `false` when the job doesn't exist. |
 
 They exist as instance methods on `RecurringJobManager` (`IRecurringJobManagerV3`), as extension methods on `IRecurringJobManager`, and as static methods on `RecurringJob`. A `null` `recurringJobId` throws `ArgumentNullException`.
@@ -139,7 +139,7 @@ public static void ResumeAll(IRecurringJobManager recurringJobs, IEnumerable<str
 }
 ```
 
-Keeping the list of IDs you paused means jobs that were already paused before the window stay paused afterwards. `RecurringJobDto.Paused` tells you whether a stored job is paused. To stop all processing (workers and schedulers) rather than only recurring jobs, see [Drain mode](../server/drain-mode.md).
+Keeping the list of IDs you paused means jobs that were already paused before the window stay paused afterwards. `RecurringJobDto.Paused` tells you whether a stored job is paused; `GetRecurringJobs()` comes from `Masterly.NightShift.Storage` (see [Listing recurring jobs](creating-recurring-jobs.md#listing-recurring-jobs)). To stop all processing (workers and schedulers) rather than only recurring jobs, see [Drain mode](../server/drain-mode.md).
 
 ### From the dashboard
 

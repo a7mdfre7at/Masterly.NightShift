@@ -21,6 +21,31 @@ jobs.Enqueue<EmailService>(x => x.SendWelcome(42));
 
 If `SendWelcome` throws, the job is scheduled again up to three times. After the third retry fails, it stays in the Failed state, where you can see the exception and requeue it from the dashboard.
 
+## Which one should I use?
+
+| Situation | Use |
+|-----------|-----|
+| Any failure might be temporary; try again later | `AutomaticRetry` (on by default) |
+| The job knows when it may run again (`Retry-After`, a maintenance window) | Throw `RetryLaterException` |
+| Short glitches that usually clear in a second (deadlocks, connection resets) | `RetryInProcess`, with `AutomaticRetry` behind it |
+| A shared dependency is down and every job against it would fail | `CircuitBreaker` |
+| Failures that retrying can't fix (bad input) | `AutomaticRetry` with `ExceptOn`, or `Attempts = 0` |
+
+They combine. This job retries database glitches in place, stops when the ERP system keeps failing, and otherwise retries five times with back-off:
+
+```csharp
+using System.Data.Common;
+using Masterly.NightShift;
+
+public class ImportService
+{
+    [RetryInProcess(2, ExceptionTypes = new[] { typeof(DbException) })]
+    [CircuitBreaker("erp", 5, 60, 300)]
+    [AutomaticRetry(Attempts = 5)]
+    public Task ImportOrders(string erpBatch) => Task.CompletedTask;
+}
+```
+
 ## The default retry policy
 
 `AutomaticRetryAttribute` is in `GlobalJobFilters.Filters` from the start, so every job has it:
@@ -105,14 +130,14 @@ using Masterly.NightShift;
 
 builder.Services.AddNightShift(config =>
 {
-    config.UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs"));
+    config.UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!);
 
     GlobalJobFilters.Filters.Remove<AutomaticRetryAttribute>();
     config.UseFilter(new AutomaticRetryAttribute { Attempts = 5 });
 });
 ```
 
-Without the `Remove` call this still works, because of two global filters of the same type the one added last wins, but removing the default keeps `GlobalJobFilters.Filters` easy to read. Without DI, call the same two lines on `GlobalConfiguration.Configuration` at startup.
+Without the `Remove` call this still works, because of two global filters of the same type the one added last wins, but removing the default keeps `GlobalJobFilters.Filters` clear. Without DI, call the same two lines on `GlobalConfiguration.Configuration` at startup.
 
 ### Fixed delays
 
@@ -235,7 +260,9 @@ public class ReportService
 | `RetryAt` | `DateTime?` | The requested moment (UTC), when one was given. |
 | `Reason` | `string?` | The reason, also used as the exception message. |
 
-How it is handled: the filter adds one to the `RetryLaterCount` job parameter and schedules the job with the reason `Retry later (3 of 100): <reason>`. A moment in the past enqueues the job at once. Once the job has asked more than `MaxRetryLaterRequests` times (100 by default), the exception counts as an ordinary failure and the usual retry rules apply, so a job that keeps asking still ends eventually. Without `AutomaticRetryAttribute` (for example after you removed it globally), the exception is just a failure.
+`GetRetryAt(utcNow)` returns the moment the job will run again: `RetryAt` when a moment was given, otherwise `utcNow` plus `Delay`.
+
+How it is handled: the filter adds one to the `RetryLaterCount` job parameter and schedules the job with the reason `Retry later (3 of 100): <reason>`. A moment in the past enqueues the job at once. Once the job has asked more than `MaxRetryLaterRequests` times (100 by default), the exception counts as an ordinary failure and the usual retry rules apply, so a job that keeps asking still ends eventually. Without `AutomaticRetryAttribute` (for example after you removed it globally), the exception is a failure like any other.
 
 ## RetryInProcessAttribute
 
@@ -261,7 +288,7 @@ public class OrderRepository
 | Parameter / property | Type | Default | Meaning |
 |----------------------|------|---------|---------|
 | `attempts` (constructor) | `int` | required | Additional attempts after the first failure. `0` means no retries; negative values throw. |
-| `DelayMilliseconds` | `int` | `200` | Base delay. Retry `n` waits `n * DelayMilliseconds`, so the delays grow linearly, up to about 24.8 days (`Int32.MaxValue` milliseconds, the longest wait on every framework). From 0 (no delay) to `RetryInProcessAttribute.MaxDelayMilliseconds` (3,600,000, one hour); other values throw `ArgumentOutOfRangeException` when the attribute is read. |
+| `DelayMilliseconds` | `int` | `200` | Base delay. Retry `n` waits `n * DelayMilliseconds`, so the delays grow linearly, up to about 24.8 days (`Int32.MaxValue` milliseconds, the longest wait a wait handle accepts). From 0 (no delay) to `RetryInProcessAttribute.MaxDelayMilliseconds` (3,600,000, one hour); other values throw `ArgumentOutOfRangeException` when the attribute is read. |
 | `ExceptionTypes` | `Type[]` | empty | Exception types (and subtypes) worth retrying. Empty means every exception except `RetryLaterException` and `ConcurrencyLimitException`. |
 | `Order` | `int` | `0` | Position among interceptors; lower runs outermost. |
 
@@ -295,54 +322,12 @@ public class PaymentService
 | `openSeconds` (constructor) | `int` | required | How long the circuit stays open. Must be greater than zero. |
 | `OnlyOn` | `Type[]` | empty | Exception types (and subtypes) whose failures count, such as `new[] { typeof(HttpRequestException), typeof(TimeoutException) }`. Empty means every exception that `ExceptOn` doesn't exclude. |
 | `ExceptOn` | `Type[]` | `ConcurrencyLimitException`, `DistributedLockTimeoutException`, `RetryLaterException` | Exception types (and subtypes) whose failures never count, for any job and for the probe. The defaults are failures in which the dependency was never called. Set it to an empty array to count them too. |
+| `Resource`, `FailureThreshold`, `WindowSeconds`, `OpenSeconds` | | | The constructor values (`Resource` is the template as given). |
 | `Order` | `int` | `-1` | Filter order. |
 
-There are two constructors: `CircuitBreaker(failureThreshold, windowSeconds, openSeconds)` and `CircuitBreaker(resource, failureThreshold, windowSeconds, openSeconds)`.
+There are two constructors: `CircuitBreaker(failureThreshold, windowSeconds, openSeconds)` and `CircuitBreaker(resource, failureThreshold, windowSeconds, openSeconds)`. A value of zero or less for any of the three numbers throws `ArgumentOutOfRangeException` when the attribute is read.
 
-How it works: the attribute is a server filter and an election filter.
-
-- Only failures that count open the circuit. By default every exception counts except three, in which the dependency was never called: `ConcurrencyLimitException` (a `Throttle` or `RateLimit` wait that timed out), `DistributedLockTimeoutException` (a lock that wasn't granted, such as the one of `DisableConcurrentExecution` or the circuit's own lock) and `RetryLaterException` (the job asked to run later). So six jobs waiting for a `[DisableConcurrentExecution]` lock don't open the circuit of a healthy service. Change the list with `ExceptOn`, or count only some exceptions with `OnlyOn`. A failure that doesn't count isn't recorded, and when the probe fails that way the circuit stays half-open: the next job becomes the probe, or the same job when it runs again.
-- On every **Failed** election that counts (including failures that `AutomaticRetry` then turns into a retry) it records `{unix seconds}:{job id}` in the set `circuit:{resource}:failures`, drops entries older than the window, lists the resource in the set `circuits`, and stores the window in the `WindowSeconds` field of the hash `circuit:{resource}`. When the live count reaches the threshold, it writes `State = Open`, `OpenedAt` and `OpenUntil` (when the open period ends) to the hash. All of this happens under the distributed lock `circuit:{resource}:lock` and is committed at once, before the job's own state change: failures that happen at the same moment on several servers are all counted, and the circuit opens, and alerts, once. A state change that is retried after an error (the worker retries it with the same Failed state) doesn't count the failure again, and finds the circuit already open.
-- In `OnPerforming`, while the circuit is open, it moves the job back to **Scheduled** for the end of the open period plus up to a second of random jitter, with a reason like `Circuit 'payments' is open (5 failures); retry at 14:32:10 UTC`. A rescheduled job keeps its id and does not use up a retry attempt.
-- The first job that starts after the open period becomes the probe. Under the distributed lock `circuit:{resource}:lock` it reads the circuit again, so only one job wins even when several servers pick up jobs at the same moment, and writes `State = HalfOpen` with its job id in the `Probe` field.
-- While the probe is in the Processing state, every other job on the resource is rescheduled for a tenth of `openSeconds` (at least 5 seconds, at most `openSeconds`, plus jitter), so the backlog starts soon after the probe succeeds, with a reason like `Circuit 'payments' is half-open and job '42' is probing it; retry at 14:34:10 UTC`.
-- If the probe stops running without deciding, because it was deleted or another filter rescheduled it, the next job takes its place. If the probe's server crashes, the job comes back with the same id and runs again as the probe.
-- A storage error while recording the probe or rescheduling a job is tried again twice (after 200 ms and 1 s), so a passing error doesn't fail a job that never ran. Both writes are safe to repeat. If all three attempts fail, the run fails with that error and the job's retry policy decides; with `[AutomaticRetry(Attempts = 0)]` the job ends Failed without having run.
-- The probe's **Succeeded** election closes the circuit and clears the failures. Its failure opens the circuit again, including a failure that `AutomaticRetry` turns into a retry, unless the failure doesn't count (see above). Jobs that started before the circuit opened and finish while it is half-open don't change its state; their failures are still recorded.
-- When the circuit opens, a `CircuitOpened` alert is raised if alert sinks are configured ([Alerts and webhooks](../monitoring/alerts-and-webhooks.md)). It is sent once the job's own state change is over and its lock released, so a slow sink doesn't hold up the state change, and it is sent even when that state change fails, because the open circuit is already stored.
-- A closed circuit leaves the `circuits` set, and its hash is removed, at the first successful run that comes when it has had no failure for `windowSeconds` and changed state at least `windowSeconds` and `openSeconds` ago. This is housekeeping: if the storage fails, a warning is logged, the job still succeeds, and a later successful run tries again. So the dashboard lists circuits that are open, half-open, recently closed, or have recent failures, and per-value templates such as `"partner-{0}"` don't fill the storage. When the storage supports `JobStorageFeatures.ExtendedApi` (SQL Server does), the failure set expires a window after the last failure, and the hash of a closed circuit a day after that period; an open or half-open circuit is kept. A resource that never runs again keeps its entry in `circuits` (and, without the extended API, its hash); reset it to remove it.
-
-Open circuits are listed on the dashboard's Insights page, where you can reset them ([Insights](../monitoring/insights.md)). From code:
-
-```csharp
-using Masterly.NightShift;
-
-public static class CircuitAdmin
-{
-    public static string Describe(JobStorage storage)
-    {
-        using (var connection = storage.GetConnection())
-        {
-            var circuit = CircuitBreakerAttribute.ReadCircuit(connection, "payments");
-            return $"{circuit.Resource}: {circuit.State}, {circuit.Failures} failure(s), since {circuit.OpenedAt:u}";
-        }
-    }
-
-    public static void Close(JobStorage storage)
-    {
-        using (var connection = storage.GetConnection())
-        {
-            CircuitBreakerAttribute.Reset(connection, "payments");
-        }
-    }
-}
-```
-
-`CircuitState.State` is one of `CircuitBreakerAttribute.ClosedState` (`"Closed"`), `OpenState` (`"Open"`) or `HalfOpenState` (`"HalfOpen"`). `CircuitState.OpenedAt` is when the circuit last changed state, and `CircuitState.ProbeJobId` is the id of the probe while the circuit is half-open (`null` otherwise). `CircuitState.OpenUntil` is when the open period of an open circuit ends (`null` when it isn't open, or was opened by an earlier version): after that the circuit is still `Open` in storage until the next job comes and becomes the probe. `CircuitState.Failures` counts the failures within the circuit's window.
-
-`Reset` closes the circuit, forgets its failures and removes it from the `circuits` set, so it disappears from the dashboard until it fails again.
-
-While the probe runs, each other job on the resource is rescheduled every tenth of `openSeconds` (5 seconds at least), which adds a Scheduled and an Enqueued state to its history each time. With a slow probe and many waiting jobs, choose an `openSeconds` long enough that this stays small.
+`CircuitBreaker` can appear once per job: a method attribute replaces a class attribute or a global one. To protect a job against two dependencies, give them one shared resource name.
 
 ### Protect one job method
 
@@ -371,27 +356,65 @@ public class PartnerClient
 
 `DistributedLockTimeoutException` derives from `TimeoutException`, and `ExceptOn` is checked after `OnlyOn`, so a lock that times out still doesn't count here.
 
-## Which one should I use?
+### Read and reset a circuit
 
-| Situation | Use |
-|-----------|-----|
-| Any failure might be temporary; try again later | `AutomaticRetry` (on by default) |
-| The job knows when it may run again (`Retry-After`, a maintenance window) | Throw `RetryLaterException` |
-| Short glitches that usually clear in a second (deadlocks, connection resets) | `RetryInProcess`, with `AutomaticRetry` behind it |
-| A shared dependency is down and every job against it would fail | `CircuitBreaker` |
-| Failures that retrying can't fix (bad input) | `AutomaticRetry` with `ExceptOn`, or `Attempts = 0` |
-
-They combine. This job retries database glitches in place, stops when the ERP system keeps failing, and otherwise retries five times with back-off:
+Open circuits are listed on the dashboard's Insights page, where you can reset them ([Insights](../monitoring/insights.md)). From code:
 
 ```csharp
-public class ImportService
+using Masterly.NightShift;
+
+public static class CircuitAdmin
 {
-    [RetryInProcess(2, ExceptionTypes = new[] { typeof(DbException) })]
-    [CircuitBreaker("erp", 5, 60, 300)]
-    [AutomaticRetry(Attempts = 5)]
-    public Task ImportOrders(string erpBatch) => Task.CompletedTask;
+    public static string Describe(JobStorage storage)
+    {
+        using (var connection = storage.GetConnection())
+        {
+            var circuit = CircuitBreakerAttribute.ReadCircuit(connection, "payments");
+            return $"{circuit.Resource}: {circuit.State}, {circuit.Failures} failure(s), since {circuit.OpenedAt:u}";
+        }
+    }
+
+    public static void Close(JobStorage storage)
+    {
+        using (var connection = storage.GetConnection())
+        {
+            CircuitBreakerAttribute.Reset(connection, "payments");
+        }
+    }
 }
 ```
+
+`ReadCircuit(connection, resource)` returns a `CircuitBreakerAttribute.CircuitState`. Pass the resource as it is stored: the template with the job's arguments filled in, lower-cased (or the lower-cased method name for an attribute without a template), and shortened when it is long, exactly as the Insights page lists it. Unlike `ThrottleAttribute.GetSlots`, `ReadCircuit` and `Reset` don't lower-case or shorten it for you.
+
+| `CircuitState` property | Type | Meaning |
+|-------------------------|------|---------|
+| `Resource` | `string` | The resource. |
+| `State` | `string` | `CircuitBreakerAttribute.ClosedState` (`"Closed"`), `OpenState` (`"Open"`) or `HalfOpenState` (`"HalfOpen"`). |
+| `OpenedAt` | `DateTime` | When the circuit last changed state (UTC). |
+| `OpenUntil` | `DateTime?` | When the open period of an open circuit ends; `null` when it isn't open, or was opened by an earlier version. After that moment the circuit is still `Open` in storage until the next job comes and becomes the probe. |
+| `Failures` | `int` | Failures within the circuit's window. |
+| `ProbeJobId` | `string?` | The probe's job id while the circuit is half-open, `null` otherwise. |
+
+`CircuitBreakerAttribute.CircuitsSetKey` (`"circuits"`) is the set that lists every known circuit.
+
+`Reset` closes the circuit, forgets its failures and removes it from the `circuits` set, so it disappears from the dashboard until it fails again.
+
+### How the circuit breaker works
+
+The attribute is a server filter and an election filter.
+
+- Only failures that count open the circuit. By default every exception counts except three, in which the dependency was never called: `ConcurrencyLimitException` (a `Throttle` or `RateLimit` wait that timed out), `DistributedLockTimeoutException` (a lock that wasn't granted, such as the one of `DisableConcurrentExecution` or the circuit's own lock) and `RetryLaterException` (the job asked to run later). So six jobs waiting for a `[DisableConcurrentExecution]` lock don't open the circuit of a healthy service. Change the list with `ExceptOn`, or count only some exceptions with `OnlyOn`. A failure that doesn't count isn't recorded, and when the probe fails that way the circuit stays half-open: the next job becomes the probe, or the same job when it runs again.
+- On every **Failed** election that counts (including failures that `AutomaticRetry` then turns into a retry) it records `{unix seconds}:{job id}` in the set `circuit:{resource}:failures`, drops entries older than the window, lists the resource in the set `circuits`, and stores the window in the `WindowSeconds` field of the hash `circuit:{resource}`. When the live count reaches the threshold, it writes `State = Open`, `OpenedAt` and `OpenUntil` (when the open period ends) to the hash. All of this happens under the distributed lock `circuit:{resource}:lock` and is committed at once, before the job's own state change: failures that happen at the same moment on several servers are all counted, and the circuit opens, and alerts, once. A state change that is retried after an error (the worker retries it with the same Failed state) doesn't count the failure again, and finds the circuit already open.
+- In `OnPerforming`, while the circuit is open, it moves the job back to **Scheduled** for the end of the open period plus up to a second of random jitter, with a reason like `Circuit 'payments' is open (5 failures); retry at 14:32:10 UTC`. A rescheduled job keeps its id and does not use up a retry attempt.
+- The first job that starts after the open period becomes the probe. Under the distributed lock `circuit:{resource}:lock` it reads the circuit again, so only one job wins even when several servers pick up jobs at the same moment, and writes `State = HalfOpen` with its job id in the `Probe` field.
+- While the probe is in the Processing state, every other job on the resource is rescheduled for a tenth of `openSeconds` (at least 5 seconds, at most `openSeconds`, plus jitter), so the backlog starts soon after the probe succeeds, with a reason like `Circuit 'payments' is half-open and job '42' is probing it; retry at 14:34:10 UTC`.
+- If the probe stops running without deciding, because it was deleted or another filter rescheduled it, the next job takes its place. If the probe's server crashes, the job comes back with the same id and runs again as the probe.
+- A storage error while recording the probe or rescheduling a job is tried again twice (after 200 ms and 1 s), so a passing error doesn't fail a job that never ran. Both writes are safe to repeat. If all three attempts fail, the run fails with that error and the job's retry policy decides; with `[AutomaticRetry(Attempts = 0)]` the job ends Failed without having run.
+- The probe's **Succeeded** election closes the circuit and clears the failures. Its failure opens the circuit again, including a failure that `AutomaticRetry` turns into a retry, unless the failure doesn't count (see above). Jobs that started before the circuit opened and finish while it is half-open don't change its state; their failures are still recorded.
+- When the circuit opens, a `CircuitOpened` alert is raised if alert sinks are configured ([Alerts and webhooks](../monitoring/alerts-and-webhooks.md)). It is sent once the job's own state change is over and its lock released, so a slow sink doesn't hold up the state change, and it is sent even when that state change fails, because the open circuit is already stored.
+- A closed circuit leaves the `circuits` set, and its hash is removed, at the first successful run that comes when it has had no failure for `windowSeconds` and changed state at least `windowSeconds` and `openSeconds` ago. This is housekeeping: if the storage fails, a warning is logged, the job still succeeds, and a later successful run tries again. So the dashboard lists circuits that are open, half-open, recently closed, or have recent failures, and per-value templates such as `"partner-{0}"` don't fill the storage. When the storage supports `JobStorageFeatures.ExtendedApi` (SQL Server does), the failure set expires a window after the last failure, and the hash of a closed circuit a day after that period; an open or half-open circuit is kept. A resource that never runs again keeps its entry in `circuits` (and, without the extended API, its hash); reset it to remove it.
+
+While the probe runs, each other job on the resource is rescheduled every tenth of `openSeconds` (5 seconds at least), which adds a Scheduled and an Enqueued state to its history each time. With a slow probe and many waiting jobs, choose an `openSeconds` long enough that this stays small.
 
 ## Things to know
 

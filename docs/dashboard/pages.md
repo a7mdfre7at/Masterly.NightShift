@@ -4,7 +4,7 @@ A tour of every page in the dashboard: what it shows and what you can do there. 
 
 ## Quick example
 
-Every job has its own page at `/nightshift/jobs/details/{jobId}`. Logging that link when you queue work makes it easy to follow a job from your app's logs:
+Every job has its own page at `/nightshift/jobs/details/{jobId}`. Log that link when you queue work, so you can follow a job from your app's logs:
 
 ```csharp
 using Masterly.NightShift;
@@ -229,11 +229,12 @@ These routes are meant for scripts and monitoring. They go through the dashboard
 | `/jobs/export/{jobId}` | `GET` | One job as JSON. Arguments marked `[Redacted]` are masked; when the method can't be loaded, the raw arguments are left out. |
 | `/jobs/{failed,succeeded,scheduled,processing,deleted}/export`, `/jobs/enqueued/export/{queue}` | `GET` | A job list as CSV, up to 10,000 rows, sent 500 rows at a time. Columns: `Id`, `State`, `Job`, `Time` (UTC), `Seconds` (duration for succeeded jobs, time since start for processing and enqueued ones, delay for scheduled ones), `Server` (processing jobs), `ExceptionType` and `ExceptionMessage` (failed jobs, the message cut at 1,000 characters). |
 | `/recurring/export` | `GET` | The recurring job manifest as JSON. |
-| `/maintenance/pause` | `GET` | The current drain mode status as JSON. |
+| `/recurring/preview?cron=...&timezone=...` | `GET` | The next five occurrences of a CRON expression or plain-English schedule, as the schedule editor shows them. Optional `start` and `end` (Unix milliseconds) leave out runs outside a job's start and end dates. Always answers `200`; a problem is reported in the `error` field. |
+| `/maintenance/pause`, `/maintenance/resume` | `GET` | The current drain mode status as JSON. A `POST` turns drain mode on or off, like the buttons on the Servers page. |
 
 ## Things to know
 
-- "Delete all", "Requeue all" and the maintenance buttons work on everything in the list or storage, not just the page you see. They ask for confirmation, but there is no undo.
+- "Delete all", "Requeue all" and the maintenance buttons work on everything in the list or storage, not only the page you see. They ask for confirmation, but there is no undo.
 - One click of "Delete all", "Requeue all", "Remove all" (recurring jobs), "Requeue failed" or "Delete unfinished" (a batch) changes at most 100,000 jobs and works for at most about 20 seconds, so a proxy in front of the dashboard doesn't time out first. Then it says how many jobs it changed and how many may remain; click again to go on. It skips jobs that are no longer in the list's state, such as the deleted jobs that SQL Server still lists in a queue until a worker fetches them. These routes answer `{ processed, remaining, complete }`.
 - Ids that contain `/` work in every page and button: the scripts send them encoded, and the dashboard turns `%2F` back into `/`.
 - Actions you take are applied by your servers: requeued jobs run only when a server listening to their queue is running.

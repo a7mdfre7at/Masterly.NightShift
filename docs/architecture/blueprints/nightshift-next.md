@@ -6,12 +6,12 @@ ordered the way they are implemented; later sections build on earlier ones.
 
 Hard constraints every section respects:
 
-- Every library package still targets `netstandard2.0;net8.0;net10.0`. New BCL usage is gated with
-  `#if NET8_0_OR_GREATER` or polyfilled.
+- Every library package targeted `netstandard2.0;net8.0;net10.0` when this was written. New BCL usage was gated
+  with `#if NET8_0_OR_GREATER` or polyfilled. (Since then the libraries target `net8.0;net10.0` only.)
 - No new members on `IStorageConnection`, `IWriteOnlyTransaction`, `IMonitoringApi`, `IRecurringJobManager`,
   `IBackgroundJobClient`. New capabilities go through base classes, `JobStorageFeatures`, new `V3` interfaces, or
   extension methods, so third-party storages keep compiling.
-- No new runtime package dependencies for `Masterly.NightShift.Core` beyond what it already needs: Cronos, Microsoft.CSharp and, on `netstandard2.0` only, System.Text.Json.
+- No new runtime package dependencies for `Masterly.NightShift.Core` beyond what it already needed: Cronos, Microsoft.CSharp and, on `netstandard2.0` only, System.Text.Json.
 - Public API breaks are caught by package validation; intentional ones go to `CompatibilitySuppressions.xml` and
   `docs/breaking-changes.md`.
 - All new storage data lives in the existing primitives (hash, set, list, counter, job parameters), so every storage

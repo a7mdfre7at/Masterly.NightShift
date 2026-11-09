@@ -10,7 +10,7 @@ using Masterly.NightShift;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 builder.Services.AddNightShiftServer();
 builder.Services.AddAntiforgery();   // tokens for the dashboard's buttons
 
@@ -34,8 +34,10 @@ When you call `MapNightShiftDashboard` or `UseNightShiftDashboard`:
 1. It checks that `AddNightShift(...)` was called, and throws an `InvalidOperationException` that names `AddNightShift` if it wasn't.
 2. It picks the storage: the `storage` argument if you pass one, otherwise the `JobStorage` registered in DI (the one you configured in `AddNightShift`).
 3. It picks the options: the `options` argument, otherwise a `DashboardOptions` registered in DI, otherwise `new DashboardOptions()`. If `options.TimeZoneResolver` is null, it is set to the `ITimeZoneResolver` from DI.
-4. Every request under the path is matched against `DashboardRoutes.Routes`. A request with no matching route gets a 404. A matched request goes through the authorization filters, then the antiforgery check (for `POST`), then the route's dispatcher (a page, a JSON endpoint, a command or a static file). A `GET` skips command routes when a page also matches the path, so a queue named `delete` still has its page.
-5. Every response says that only pages from the dashboard's own origin may show it in a frame (`X-Frame-Options: SAMEORIGIN` and `Content-Security-Policy: frame-ancestors 'self'`), unless your app set those headers already.
+4. Every request under the path is matched against the route table (`DashboardRoutes.Routes`, which `AddNightShift` registers as the `RouteCollection` service). A request with no matching route gets a 404. A matched request goes through the authorization filters, then the antiforgery check (for `POST`), then the route's dispatcher (a page, a JSON endpoint, a command or a static file). A `GET` skips command routes when a page also matches the path, so a queue named `delete` still has its page.
+5. Every response from a route says that only pages from the dashboard's own origin may show it in a frame (`X-Frame-Options: SAMEORIGIN` and `Content-Security-Policy: frame-ancestors 'self'`), unless your app set those headers already.
+
+Both methods add the same middleware, `AspNetCoreDashboardMiddleware` (namespace `Masterly.NightShift.Dashboard`). For each request it creates an `AspNetCoreDashboardContext`, the ASP.NET Core flavour of `DashboardContext`: its `HttpContext` property, or `context.GetHttpContext()` on any `DashboardContext`, gives authorization filters and custom pages the request's user, headers and services. You don't need to create either type yourself.
 
 The dashboard reads the storage directly through the monitoring API. It doesn't need a running server, but jobs only move when a server is running somewhere against the same storage. Buttons that change jobs (requeue, delete, trigger) use the `IBackgroundJobClient` and `IRecurringJobManager` for the dashboard's storage, resolved from DI when available.
 
@@ -46,11 +48,10 @@ A dashboard can run in an app that doesn't reference the job assemblies. Most pa
 | | `MapNightShiftDashboard` | `UseNightShiftDashboard` |
 |---|---|---|
 | Style | Endpoint routing (`app.Map...`) | Middleware branch (`app.Map(path, ...)`) |
-| Target frameworks | `net8.0` and later only | Every target, including `netstandard2.0` (ASP.NET Core on .NET Framework) |
 | Returns | `IEndpointConventionBuilder`, so you can chain `RequireAuthorization(...)`, `RequireHost(...)` and other endpoint conventions | `IApplicationBuilder` |
 | Unknown paths under the prefix | Answer 404 | Answer 404 (the branch has nothing after the dashboard) |
 
-Prefer `MapNightShiftDashboard` on .NET 8 and later: it works with ASP.NET Core authorization policies (see [Authorization](authorization.md#using-aspnet-core-authorization-policies)).
+Prefer `MapNightShiftDashboard`: it works with ASP.NET Core authorization policies (see [Authorization](authorization.md#using-aspnet-core-authorization-policies)).
 
 ## Options / API
 
@@ -65,8 +66,6 @@ All of them are in the `Masterly.NightShift` namespace. `options` and `storage` 
 | `endpoints.MapNightShiftDashboardWithNoAuthorizationFilters(pattern, options, storage)` | `string pattern = "/nightshift"`, `DashboardOptions? options = null`, `JobStorage? storage = null` | Same as `MapNightShiftDashboard`, but without the dashboard's own filters: it uses a copy of the options (the argument, or the `DashboardOptions` from DI, or new ones) with `Authorization` and `AsyncAuthorization` empty. The instance you pass or registered keeps its filters. Use it when you protect the endpoint with `RequireAuthorization(...)`. |
 | `endpoints.MapNightShiftDashboardWithAuthorizationPolicy(authorizationPolicyName, pattern, options, storage)` | `string authorizationPolicyName`, `string pattern = "/nightshift"`, `DashboardOptions? options = null`, `JobStorage? storage = null` | `MapNightShiftDashboardWithNoAuthorizationFilters(...)` followed by `.RequireAuthorization(authorizationPolicyName)`. |
 | `app.UseNightShiftDashboard(pathMatch, options, storage)` | `string pathMatch = "/nightshift"`, `DashboardOptions? options = null`, `JobStorage? storage = null` | Adds the dashboard as a middleware branch at `pathMatch`. |
-
-The four `Map...` methods exist only when your app targets `net8.0` or later.
 
 ### DashboardOptions
 
@@ -108,7 +107,7 @@ app.MapNightShiftDashboard("/admin/jobs", new DashboardOptions
 
 The pattern is a plain path: don't end it with `/` and don't put route parameters in it.
 
-### Middleware style (any target framework)
+### Middleware style
 
 ```csharp
 app.UseNightShiftDashboard("/jobs", new DashboardOptions
@@ -141,8 +140,8 @@ Pass a storage to show something other than the default one. Each dashboard need
 ```csharp
 using Masterly.NightShift.SqlServer;
 
-var euStorage = new SqlServerStorage(configuration.GetConnectionString("JobsEu"));
-var usStorage = new SqlServerStorage(configuration.GetConnectionString("JobsUs"));
+var euStorage = new SqlServerStorage(builder.Configuration.GetConnectionString("JobsEu")!);
+var usStorage = new SqlServerStorage(builder.Configuration.GetConnectionString("JobsUs")!);
 
 app.MapNightShiftDashboard("/jobs/eu", new DashboardOptions { DashboardTitle = "Jobs - EU" }, euStorage);
 app.MapNightShiftDashboard("/jobs/us", new DashboardOptions { DashboardTitle = "Jobs - US" }, usStorage);

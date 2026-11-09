@@ -41,6 +41,22 @@ app.MapPost("/users/{id:int}/welcome", (int id, IBackgroundJobClient jobs) =>
 
 Outside dependency injection, the static facade does the same: `BackgroundJob.Enqueue<EmailService>(x => x.SendWelcome(id));`. Both need storage and a server to be configured first, see [Quick start: ASP.NET Core](../getting-started/quick-start-aspnetcore.md) or [Quick start: console app or Worker Service](../getting-started/quick-start-worker.md).
 
+## Which method do I need?
+
+| I want to | Call | Page |
+|---|---|---|
+| Run a method once, as soon as possible | `Enqueue` | [Fire-and-forget jobs](fire-and-forget.md) |
+| Run it once, later | `Schedule` with a `TimeSpan`, a `DateTimeOffset` or `"tomorrow at 9am"` | [Delayed jobs](delayed-jobs.md) |
+| Run it after another job finished | `ContinueJobWith` | [Continuations](continuations.md) |
+| Run it after several jobs, or the first of them | `ContinueJobWithAll`, `ContinueJobWithAny` | [Fan-in and batches](fan-in-and-batches.md) |
+| Follow a group of jobs and continue after all of them | `BatchJob.StartNew`, `BatchJob.ContinueWith` | [Fan-in and batches](fan-in-and-batches.md) |
+| Run it on a schedule | `RecurringJob.AddOrUpdate` | [Recurring jobs](../recurring-jobs/README.md) |
+| Stop, rerun or move a job | `Delete`, `Requeue`, `Reschedule`, `ChangeState` | [Managing jobs](managing-jobs.md) |
+| Read a job's state or result | `storage.GetJobState`, `storage.TryGetResult` | [Managing jobs](managing-jobs.md#a-jobs-state-and-result) |
+| Retry every failed job | `storage.RequeueFailedJobs` | [Managing jobs](managing-jobs.md#retry-every-failed-job) |
+
+`Enqueue`, `Schedule`, `Create` and the `ContinueJobWith...` methods return the new job's ID as `string?`. It is `null` when a client filter canceled the creation (for example `[PreventDuplicates]` for a duplicate), so check it before you use it.
+
 ## See also
 
 - [Core concepts](../getting-started/core-concepts.md)

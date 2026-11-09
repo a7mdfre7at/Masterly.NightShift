@@ -66,7 +66,7 @@ Extension methods on `IBackgroundJobClient`; all but `ChangeState` also exist as
 |---|---|
 | `Delete(string jobId)` | `Deleted` |
 | `Delete(string jobId, string? fromState)` | `Deleted`, only from `fromState` |
-| `Requeue(string jobId)` | `Enqueued` (on the `default` queue, or the job's own queue) |
+| `Requeue(string jobId)` | `Enqueued`, on the queue its `[Queue]` attribute names, else the job's own queue, else `default` |
 | `Requeue(string jobId, string? fromState)` | `Enqueued`, only from `fromState` |
 | `Reschedule(string jobId, TimeSpan delay)` | `Scheduled`, now plus `delay` |
 | `Reschedule(string jobId, TimeSpan delay, string? fromState)` | The same, only from `fromState` |
@@ -92,7 +92,29 @@ When the storage fails, the methods throw `BackgroundJobClientException`.
 | `ScheduledCount()`, `EnqueuedCount(string queue)`, `FetchedCount(string queue)`, `FailedCount()`, `ProcessingCount()`, `SucceededListCount()`, `DeletedListCount()` | Counts |
 | `SucceededByDatesCount()`, `FailedByDatesCount()`, `HourlySucceededJobs()`, `HourlyFailedJobs()` | Counts per day or hour, for graphs |
 
-Storages that derive from `JobStorageMonitor` (SQL Server does) also have `AwaitingJobs(int from, int count)` and `AwaitingCount()` when `storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)` is `true`, and `DeletedByDatesCount()` / `HourlyDeletedJobs()` for `JobStorageFeatures.Monitoring.DeletedStateGraphs`. `QueueCounts()` returns the same queues as `Queues()` without reading their first jobs; it is cheaper when `storage.HasFeature(JobStorageFeatures.Monitoring.QueueCounts)` is `true`, as on SQL Server.
+`StatisticsDto.Retries` and `StatisticsDto.Awaiting` are `long?`: `null` when the storage doesn't count them.
+
+Some members exist only on `JobStorageMonitor`, the base class that the monitoring API of SQL Server (and other storages) derives from. Cast to it, and check the feature first:
+
+| Member | Feature to check |
+|---|---|
+| `AwaitingJobs(int from, int count)`, `AwaitingCount()` | `JobStorageFeatures.Monitoring.AwaitingJobs` |
+| `DeletedByDatesCount()`, `HourlyDeletedJobs()` | `JobStorageFeatures.Monitoring.DeletedStateGraphs` |
+| `QueueCounts()`: the same queues as `Queues()`, without reading their first jobs | `JobStorageFeatures.Monitoring.QueueCounts` (without it, `QueueCounts()` works but is no cheaper than `Queues()`) |
+
+```csharp
+using Masterly.NightShift.Storage;
+using Masterly.NightShift.Storage.Monitoring;
+
+if (storage.GetMonitoringApi() is JobStorageMonitor monitor
+    && storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs))
+{
+    long waiting = monitor.AwaitingCount();
+    JobList<AwaitingJobDto?> firstPage = monitor.AwaitingJobs(0, 20);
+}
+```
+
+Without the feature, these members throw `NotSupportedException`.
 
 ### A job's state and result
 
@@ -104,7 +126,9 @@ Storages that derive from `JobStorageMonitor` (SQL Server does) also have `Await
 | `storage.TryGetResult<T>(string jobId, out T? result)` | `true` with the value the job returned, read from its `Succeeded` state with your serializer options. `false` when the job doesn't exist, hasn't succeeded, returned nothing (`void`, `Task` or `null`), or returned a value that couldn't be serialized. It throws `JsonException` when the stored value can't be read as `T`. |
 | `storage.RequeueFailedJobs(Func<FailedJobDto, bool>? filter = null, TimeSpan? timeBudget = null)` | Requeues every failed job, or those the filter selects, and returns a `BulkJobResult` (`Processed`, `Remaining`, `Complete`). An overload takes the `IBackgroundJobClient` to use. |
 
-`GetJobState` and `TryGetResult` read through `storage.GetReadOnlyConnection()`. For more, `storage.GetConnection()` returns a connection; dispose it when done. `GetStateData(jobId)` returns the current state, `GetJobData(jobId)` the job itself, and `GetJobParameter(jobId, name)` one parameter.
+`GetJobState` and `TryGetResult` read through `storage.GetReadOnlyConnection()`. For more, `storage.GetConnection()` returns a connection; dispose it when done. `GetStateData(jobId)` returns the current state, `GetJobData(jobId)` the job itself (`Job`, `State`, `CreatedAt`, `ParametersSnapshot`, and `LoadException` when its type or method can't be loaded), and `GetJobParameter(jobId, name)` one parameter, as stored JSON.
+
+To read a job's state and act on it without a state change slipping in between, hold the job's state lock, the one every state change takes: `connection.AcquireDistributedJobLock(jobId, timeout)` (`StorageConnectionExtensions`, namespace `Masterly.NightShift.Storage`) returns an `IDisposable`, and throws `DistributedLockTimeoutException` when it can't get the lock in time. Hold it briefly: every state change of that job waits for it.
 
 ## More examples
 
@@ -190,7 +214,7 @@ app.MapGet("/jobs/{id}", (string id, JobStorage storage) =>
 
 Only expose job IDs and states this way to callers that are allowed to see them; job IDs are sequential numbers in SQL Server.
 
-### Just the current state
+### Only the current state
 
 ```csharp
 JobStateInfo? state = storage.GetJobState(id);

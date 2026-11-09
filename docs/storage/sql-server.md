@@ -4,14 +4,11 @@
 
 ## Quick example
 
-Install the packages. The storage works with both SQL Server client libraries but references neither, so add the one you want:
+Install the meta-package. It brings the storage and its SQL Server driver, `Microsoft.Data.SqlClient`:
 
 ```
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
-
-If the build warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](../getting-started/installation.md#the-sql-server-driver).
 
 Add a connection string to `appsettings.json`:
 
@@ -32,7 +29,7 @@ using Masterly.NightShift.SqlServer;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();
@@ -51,7 +48,8 @@ On the first start the storage creates its tables in the `[HangFire]` schema of 
 - **Fetching.** Each worker runs an `UPDATE TOP (1) ... WITH (READPAST)` that marks one queue row as fetched by setting `FetchedAt`. While the job runs, the server refreshes `FetchedAt` every fifth of `SlidingInvisibilityTimeout` (once a minute with the default 5 minutes). If the server dies, the row is picked up by another worker once `FetchedAt` is older than the timeout. When the job finishes, the queue row is deleted. Workers in the process that enqueued a job are woken up at once; others find it on their next poll (see `QueuePollInterval` in [SQL Server options](sql-server-options.md)).
 - **Everything else** (recurring jobs, the schedule, retries, statistics, tags, batches, audit log) is stored in the generic `[Hash]`, `[Set]`, `[List]`, `[Counter]` and `[AggregatedCounter]` tables.
 - **Distributed locks** are SQL Server application locks (`sp_getapplock`), held by a dedicated connection for as long as the lock is held.
-- **Maintenance.** Every server (except a lightweight one, see [Server options](../server/server-options.md)) runs two storage processes: the expiration manager, which deletes expired jobs, lists, sets, hashes and aggregated counters every 30 minutes under a distributed lock so only one server does the work at a time, and the counters aggregator, which merges `[Counter]` rows into `[AggregatedCounter]` every 5 minutes.
+- **Keep-alive of running jobs.** Every server, lightweight ones included, runs the storage's heartbeat process, which refreshes `FetchedAt` for the jobs it is running.
+- **Maintenance.** Every server (except a lightweight one, see [Server options](../server/server-options.md)) also runs two storage processes: the expiration manager, which deletes expired jobs, lists, sets, hashes and aggregated counters every 30 minutes under a distributed lock so only one server does the work at a time, and the counters aggregator, which merges `[Counter]` rows into `[AggregatedCounter]` every 5 minutes.
 
 There is no broker or extra service: every client and server talks to the database directly.
 
@@ -59,26 +57,16 @@ There is no broker or extra service: every client and server talks to the databa
 
 ### `UseSqlServerStorage` overloads
 
-All four are extension methods on `IGlobalConfiguration` in the `Masterly.NightShift` namespace. They create a `SqlServerStorage`, make it the current storage, add the SQL Server metrics to the dashboard, and return `IGlobalConfiguration<SqlServerStorage>`, so you can chain `.WithJobExpirationTimeout(...)`.
+All four are extension methods on `IGlobalConfiguration`, in the `SqlServerStorageExtensions` class of the `Masterly.NightShift` namespace. They create a `SqlServerStorage`, make it the current storage, add the SQL Server metrics to the dashboard, and return `IGlobalConfiguration<SqlServerStorage>`, so you can chain `.WithJobExpirationTimeout(...)`.
 
 | Overload | Use it when |
 |---|---|
-| `UseSqlServerStorage(string nameOrConnectionString)` | You have a connection string and the default options suit you. |
-| `UseSqlServerStorage(string nameOrConnectionString, SqlServerStorageOptions options)` | You have a connection string and want to change options. |
+| `UseSqlServerStorage(string connectionString)` | You have a connection string and the default options suit you. |
+| `UseSqlServerStorage(string connectionString, SqlServerStorageOptions options)` | You have a connection string and want to change options. |
 | `UseSqlServerStorage(Func<DbConnection> connectionFactory)` | You need to build each connection yourself, for example to set an access token. |
 | `UseSqlServerStorage(Func<DbConnection> connectionFactory, SqlServerStorageOptions options)` | The same, with options. |
 
-`nameOrConnectionString` is a connection string or the name of one. Every connection string has `key=value` pairs, so a text without `=` is taken for a name and looked up in the `connectionStrings` section of `app.config`/`web.config`. That works on .NET Framework, and on .NET when the app has the `System.Configuration.ConfigurationManager` package (and a configuration file). When no connection string with that name is found, the constructor throws `ArgumentException` at once. On .NET, read the connection string with `IConfiguration.GetConnectionString` and pass it. Passing `null` throws `ArgumentNullException`, so a missing `GetConnectionString("NightShift")` fails at startup.
-
-```xml
-<connectionStrings>
-  <add name="NightShift" connectionString="Server=.\sqlexpress;Database=NightShift;Integrated Security=True;" />
-</connectionStrings>
-```
-
-```csharp
-GlobalConfiguration.Configuration.UseSqlServerStorage("NightShift");
-```
+`connectionString` must be a connection string. Read it from configuration with `IConfiguration.GetConnectionString` and pass the value. A text without any `key=value` pair, such as a connection string name passed by mistake, throws `ArgumentException` at once. Passing `null` throws `ArgumentNullException`, so a missing `GetConnectionString("NightShift")` fails at startup. `GetConnectionString` returns `string?`, so the samples add `!` (or `?? throw`) to keep a nullable-enabled project free of warnings.
 
 ### `SqlServerStorage` constructors
 
@@ -86,8 +74,8 @@ Use these when you need the storage object itself, for example for a second stor
 
 | Constructor | Notes |
 |---|---|
-| `SqlServerStorage(string nameOrConnectionString)` | Default options. |
-| `SqlServerStorage(string nameOrConnectionString, SqlServerStorageOptions options)` | |
+| `SqlServerStorage(string connectionString)` | Default options. |
+| `SqlServerStorage(string connectionString, SqlServerStorageOptions options)` | |
 | `SqlServerStorage(Func<DbConnection> connectionFactory)` | Default options. |
 | `SqlServerStorage(Func<DbConnection> connectionFactory, SqlServerStorageOptions options)` | |
 | `SqlServerStorage(DbConnection existingConnection)` | Every operation uses this one connection, which the storage never disposes. For tests and single-threaded tools only: a server runs many threads at once. |
@@ -103,30 +91,14 @@ With the default options every constructor connects to the database (to install 
 | `JobExpirationTimeout` | `TimeSpan` | Inherited from `JobStorage`. How long finished jobs are kept, 1 day by default. Set it with `.WithJobExpirationTimeout(...)`. |
 | `Purge(StoragePurgeOptions)` | method | Deletes job data in batches, keeping what the options say. See [Schema and upgrades](schema-and-upgrades.md#purging-data). |
 | `HasFeature(string)` | method | Reports which optional storage features are supported. See [Custom storage](custom-storage.md#feature-flags). |
-| `ToString()` | method | `SQL Server: server@database`, as shown in logs and on the dashboard. The password is never included. |
+| `LinearizableReads` | `bool` | Inherited from `JobStorage`; `true` for SQL Server, because every read sees the writes committed before it. |
+| `ToString()` | method | `SQL Server: server@database`, as shown in logs and on the dashboard, or `SQL Server (custom)` when the storage was created with a connection factory or an existing connection. The password is never included. |
 | `SchemaVersion`, `ActiveConnections`, `TotalConnections`, `ActiveTransactions`, `DataFilesSize`, `LogFilesSize` | `DashboardMetric` (static) | The metrics `UseSqlServerStorage` adds to the dashboard home page. See [Dashboard metrics](#dashboard-metrics). |
 | `PerformanceCounterDatabaseMetric` | `Func<string, string, string, DashboardMetric>` (static) | Builds a metric from `sys.dm_os_performance_counters` (object name, counter name, instance name or `null` for the current database). |
 
-## Choosing the SQL client
+## The SQL client
 
-The storage creates connections through `SqlServerStorageOptions.SqlClientFactory`. When you don't set it, it takes the first of these it can load:
-
-1. `Microsoft.Data.SqlClient` (the `Microsoft.Data.SqlClient` package)
-2. `System.Data.SqlClient` from the .NET Framework's `System.Data` assembly (always present on .NET Framework)
-3. `System.Data.SqlClient` (the `System.Data.SqlClient` package)
-
-So on .NET 8 or 10 you must reference one of the two packages; on .NET Framework it works without either, and uses `Microsoft.Data.SqlClient` if you add it. With neither available, the storage throws `InvalidOperationException` ("Please add a NuGet package reference to either 'Microsoft.Data.SqlClient' or 'System.Data.SqlClient'...") when it first connects, which is at startup.
-
-Prefer `Microsoft.Data.SqlClient`: `System.Data.SqlClient` is no longer developed. To choose explicitly, for example when both packages are referenced and you want the old one:
-
-```csharp
-using Masterly.NightShift.SqlServer;
-
-var options = new SqlServerStorageOptions
-{
-    SqlClientFactory = System.Data.SqlClient.SqlClientFactory.Instance,
-};
-```
+The storage uses `Microsoft.Data.SqlClient`, which the package brings with it. It creates connections through `SqlServerStorageOptions.SqlClientFactory`, `Microsoft.Data.SqlClient.SqlClientFactory.Instance` by default. Set another factory to wrap the connections, for example for profiling; the connections must be `Microsoft.Data.SqlClient` connections or wrap them. Command batching uses the client's internal `SqlCommandSet` type, so with connections of another type, wrappers included, the commands of a transaction are sent one by one.
 
 `Microsoft.Data.SqlClient` encrypts connections by default and checks the server certificate, so a local SQL Server with a self-signed certificate needs `TrustServerCertificate=True` (or `Encrypt=False`) in the connection string.
 
@@ -208,7 +180,7 @@ Each option is explained in [SQL Server options](sql-server-options.md).
 
 ### Without dependency injection
 
-Console apps, Windows services and .NET Framework apps configure the static `GlobalConfiguration` and start a `BackgroundJobServer`:
+Console apps and Windows services without the generic host configure the static `GlobalConfiguration` and start a `BackgroundJobServer`:
 
 ```csharp
 using Masterly.NightShift;
@@ -293,8 +265,9 @@ If you only need to separate kinds of work inside one app, queues are simpler th
 
 ## Things to know
 
-- **Startup doesn't stop on install errors.** If the install script fails, with a database error or an exception from your connection factory, the storage waits 1 second and tries again, waits 3 seconds and tries a last time, then logs a warning and carries on. After a failed open it clears the SQL client's connection pool, so that the next attempt contacts the server instead of failing at once with the same error. Only a missing SQL client stops it: with a connection string and neither `Microsoft.Data.SqlClient` nor `System.Data.SqlClient` available, the constructor throws `InvalidOperationException`. If it can't read the schema version, it logs an error and uses the option defaults until it can: it reads the version again the first time the storage needs it, and then at most every 30 seconds, until that works. If the tables are still missing, the first real query fails. When jobs don't appear, check the log from startup.
+- **Startup doesn't stop on install errors.** If the install script fails, with a database error or an exception from your connection factory, the storage waits 1 second and tries again, waits 3 seconds and tries a last time, then logs a warning and carries on. After a failed open it clears the SQL client's connection pool, so that the next attempt contacts the server instead of failing at once with the same error. If it can't read the schema version, it logs an error and uses the option defaults until it can: it reads the version again the first time the storage needs it, and then at most every 30 seconds, until that works. If the tables are still missing, the first real query fails. When jobs don't appear, check the log from startup.
 - **Column sizes limit some names.** Keys of counters, sets, lists and hashes are at most 100 characters, hash field names 100, set values 256, job parameter names 40, state names 20, queue names 50 and server ids 200. Writing a longer one throws `ArgumentException` that names the limit; nothing is cut short, so a value is never stored under a different name than the one you read it back with. Removing, expiring or reading a key that is too long does nothing or finds nothing, because such a key can't exist. State reasons are cut to 99 characters. Distributed lock names (the schema name, a colon and the resource) go to `sp_getapplock`, which takes at most 255 characters: a longer name keeps its first 238 characters followed by `~` and 16 hexadecimal digits of a hash of the whole name, so two long names that start alike are still two locks. Names that fit are used as they are. A server id is the server's `ServerName` followed by the process id and a GUID (up to 48 characters), so keep `ServerName` to 150 characters or fewer: a server with a longer id can't announce itself, and logs the `ArgumentException` and tries again without processing jobs.
+- **Lock errors.** When a distributed lock isn't acquired in time, the storage throws `DistributedLockTimeoutException` (namespace `Masterly.NightShift.Storage`), like every storage. When SQL Server refuses the lock request or fails to release a lock, it throws `SqlServerDistributedLockException` (namespace `Masterly.NightShift.SqlServer`). Take locks through `IStorageConnection.AcquireDistributedLock`.
 - **Apps sharing a storage share its queues and its schedulers.** Any server listening to a queue may pick up any job in it, so it must be able to load the job's type. Separate queues aren't enough on their own: any server moves due scheduled and retried jobs to their queue, which loads the job's type unless the job was created with the queue passed as an argument, and any server triggers recurring jobs and starts continuations, which always loads it. If two different apps use the same database, give each its own schema with `SchemaName` (see [Troubleshooting](../troubleshooting.md#a-job-fails-because-it-cant-be-loaded)).
 - **Clocks.** Fetching, keeping fetched jobs invisible, server heartbeats and the removal of timed-out servers use the database server's clock (`SYSUTCDATETIME`, `GETUTCDATE`), and the delayed and recurring job schedulers ask the database for the current time. Other times come from the clock of the application server that writes them: when data expires (`ExpireAt`, set as "now plus the expiration timeout") and the "now" the expiration manager deletes against, when a state was entered (the state's `CreatedAt`) and when a job was created, and when a delayed job is due (`EnqueueAt`, set as "now plus the delay" when it is scheduled). So keep the application servers' clocks in sync, for example with NTP: a server whose clock is ahead schedules delayed jobs late, and if it runs the expiration manager, it deletes finished jobs and other expiring data early.
 

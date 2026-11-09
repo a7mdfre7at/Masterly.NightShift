@@ -51,7 +51,7 @@ Every extension point is a static registry in `Masterly.NightShift.Core`:
 | `JobHistoryRenderer` | How each state is drawn in a job's history. |
 | `DashboardRoutes.AddStylesheet` / `AddStylesheetDarkMode` / `AddJavaScript` | Embedded CSS and JS bundled into the dashboard's single stylesheet and script. |
 
-They are shared by every dashboard in the process (all paths, all storages). Register everything at startup: the lists are not meant to be changed while requests are being served.
+They are shared by every dashboard in the process (all paths, all storages). Register everything at startup: the lists are not meant to be changed while requests are being served. In ASP.NET Core the dashboard methods take the route table from DI: `AddNightShift` registers `DashboardRoutes.Routes` as the `RouteCollection` service unless one is registered already.
 
 **Routes.** A route's path is a regular expression matched against the request path relative to the dashboard (for example `/reports/42` for `/nightshift/reports/42`). The pattern is anchored at both ends, matched case-insensitively with a one-second timeout, and a trailing `/` on the request is ignored. Named groups such as `(?<ReportId>[^/]+)` are available to the dispatcher through `context.UriMatch`. Routes are tried in the order they were added and **the first match wins**; the built-in routes are added first, so give your routes their own prefix (such as `/reports`) rather than one under `/jobs/enqueued/`, `/jobs/details/`, `/batches/` or `/tags/`, whose patterns catch everything below them.
 
@@ -72,7 +72,7 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `AddBatchCommand` | `AddBatchCommand(string pathTemplate, Action<DashboardContext, string> command)` | `POST` only (otherwise 405); 401 when read-only. Reads the `jobs[]` form values and calls `command` for each (422 when there are none); answers 204. Recorded in the audit log. |
 | `AddClientBatchCommand` | `AddClientBatchCommand(string pathTemplate, Action<IBackgroundJobClient, string> command)` | `AddBatchCommand` with the dashboard's `IBackgroundJobClient`. |
 | `AddRecurringBatchCommand` | `AddRecurringBatchCommand(string pathTemplate, Action<IRecurringJobManager, string> command)` | `AddBatchCommand` with the dashboard's `IRecurringJobManager`; the values are recurring job ids. |
-| `RouteCollection.FindDispatcher` | `FindDispatcher(string path)` | Returns the dispatcher and match for a path, or `null`. Handy in tests. |
+| `RouteCollection.FindDispatcher` | `FindDispatcher(string path)`, `FindDispatcher(string path, string? method)` | Returns the dispatcher and match for a path, or `null`. With `GET` or `HEAD` as the method, command routes are skipped when a later route matches too, as the dashboard does for real requests. Handy in tests. |
 
 ### Dispatchers and context
 
@@ -96,11 +96,12 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `WriteLiteral(string)` | Writes text as is (HTML). |
 | `Write(object)` | Writes a value HTML-encoded, unless it is a `NonEscapedString` (what `Html.*` helpers return). |
 | `Layout` | Set to `new LayoutPage(title)` (namespace `Masterly.NightShift.Dashboard.Pages`) to get the dashboard chrome. |
-| `Url.To(path)`, `Url.JobDetails(id)`, `Url.Queue(name)`, `Url.Home()` | Links that include the dashboard path and `PrefixPath`. |
-| `Html` | Helpers: `HtmlEncode`, `Raw`, `JobIdLink`, `JobNameLink`, `JobName`, `StateLabel`, `QueueLabel`, `ServerId`, `RelativeTime`, `LocalTime`, `ToHumanDuration`, `Breadcrumbs`, `Paginator`, `PerPageSelector`, `BlockMetric`, `InlineMetric`, `RenderPartial`. |
+| `Url.To(path)`, `Url.JobDetails(id)`, `Url.Queue(name)`, `Url.LinkToQueues()`, `Url.Home()` | Links that include the dashboard path and `PrefixPath`. |
+| `Html` | Helpers: `HtmlEncode`, `Raw`, `JobId` (a short id), `JobIdLink`, `JobNameLink`, `JobName`, `StateLabel`, `QueueLabel`, `ServerId`, `StackTrace`, `RelativeTime`, `LocalTime`, `ToHumanDuration`, `Breadcrumbs`, `Paginator`, `PerPageSelector`, `BlockMetric`, `InlineMetric`, `RenderPartial`. |
 | `Statistics` | The storage's `StatisticsDto` (counts by state, servers, queues, recurring jobs), read once per request. |
 | `Storage`, `Context`, `DashboardOptions`, `IsReadOnly`, `RequestPath`, `Query(key)` | The request's context. |
 | `StorageUtcNow`, `ApplicationUtcNow`, `TimeDifference` | The storage's clock (when supported), your app's clock, and the difference. |
+| `Pager` | Paging state for a list page: `new Pager(from, perPage, defaultPerPage, total)`. `FromRecord` and `RecordsPerPage` are what to ask the storage for; `Html.Paginator(pager)` and `Html.PerPageSelector(pager)` draw the page links and the per-page buttons. A page never has more than `Pager.MaxRecordsPerPage` (1000) rows. See [A page with paging](#a-page-with-paging). |
 
 ### Menu items
 
@@ -120,11 +121,11 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 | `new DashboardMetric(name, title, func)` | `name` is a unique key (such as `"reports:pending"`), `title` the label, `func` computes a `Metric` from the page (return `null` to show nothing). `new DashboardMetric(name, func)` uses the name as the title. |
 | `DashboardMetric.Url` | Makes the home page tile a link. |
 | `DashboardMetric.Title` | If it is the name of a dashboard resource string (such as `"Metrics_Servers"`), the translated text is shown; otherwise the text itself. |
-| `new Metric(long value)` / `new Metric(string value)` | The value. The `long` form formats with thousands separators. |
+| `new Metric(long value)` / `new Metric(string value)` | The value. The `long` form formats with thousands separators and keeps the number in `IntValue`; `Value` is the text shown. |
 | `Metric.Style` | `MetricStyle.Default`, `Info`, `Success`, `Warning` or `Danger`. |
 | `Metric.Highlighted` | Draws attention to the value. |
 | `Metric.Title` | Tooltip. |
-| `DashboardMetrics.AddMetric(metric)` | Lets `/stats` refresh the metric live in the browser. |
+| `DashboardMetrics.AddMetric(metric)` / `GetMetrics()` | Lets `/stats` refresh the metric live in the browser; `GetMetrics()` lists the registered ones. |
 | `DashboardMetrics.ServerCount`, `RecurringJobCount`, `RetriesCount`, `EnqueuedCountOrNull`, `FailedCountOrNull`, `EnqueuedAndQueueCount`, `ScheduledCount`, `ProcessingCount`, `SucceededCount`, `FailedCount`, `DeletedCount`, `AwaitingCount` | The built-in metrics, ready to reuse. |
 | `configuration.UseDashboardMetric(metric)` / `UseDashboardMetrics(params metrics)` | `IGlobalConfiguration` extensions: add to the home page and to `DashboardMetrics`. |
 
@@ -134,9 +135,9 @@ They are shared by every dashboard in the process (all paths, all storages). Reg
 |---|---|
 | `configuration.UseJobDetailsRenderer(int order, Func<JobDetailsRendererDto, NonEscapedString> renderer)` | Adds a section to every job page, after the built-in sections and before the state history. Lower `order` comes first. The DTO has `Page`, `JobId` and `JobDetails` (with `Job`, `Properties`, `History`). If the renderer throws, the exception is shown in its place. |
 | `JobHistoryRenderer.Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString> renderer)` | Draws a state's data in the history. Replaces the renderer if one exists. States without one get a key/value list. |
-| `JobHistoryRenderer.AddStateCssSuffix(string stateName, string cssSuffix)` | Gives the state's labels the CSS class `label-state-{cssSuffix}` and its current-state card the class `state-card-state-{cssSuffix}`. The built-in suffixes are `active`, `success`, `danger`, `warning`, `info` and `inactive`. Calling it again for the same state replaces the suffix. |
-| `JobHistoryRenderer.AddForegroundStateColor(string stateName, string color)` / `AddBackgroundStateColor(string stateName, string color)` | Obsolete, but still applied to a state that has no CSS suffix: the foreground color goes to its labels and to the border and title of its current-state card, the background color to the card's body. Calling them again replaces the color. A CSS suffix wins over colors. |
-| `JobHistoryRenderer.GetStateCssSuffix(string stateName)` | The state's CSS suffix, or `null` when it has none. A state with neither a suffix nor colors gets the neutral label and card look. |
+| `JobHistoryRenderer.AddStateCssSuffix(string stateName, string cssSuffix)` | Gives the state's labels the CSS class `label-state-{cssSuffix}` and its current-state card the class `state-card-state-{cssSuffix}`. The built-in suffixes are `active`, `success`, `danger`, `warning`, `info` and `inactive`; with one of them the state also gets that suffix's colors in the job lineage diagram and the time-in-state bar. Calling it again for the same state replaces the suffix. |
+| `JobHistoryRenderer.GetStateCssSuffix(string stateName)` | The state's CSS suffix, or `null` when it has none. A state without a suffix gets the neutral label and card look. |
+| `JobHistoryRenderer.Exists(string state)` | Whether a renderer is registered for the state. |
 
 ### Static resources
 
@@ -215,6 +216,41 @@ public sealed class LatestFailuresPage : RazorPage
 ```
 
 `Html.RelativeTime` and `Html.LocalTime` output dates the browser reformats, like the built-in pages (see [Dates and times](#dates-and-times)).
+
+### A page with paging
+
+List pages read `from` and `count` from the query string and let `Pager` work out the rest. The paginator's links keep the page's path and set those two values.
+
+```csharp
+public sealed class ReportFailuresPage : RazorPage
+{
+    public override void Execute()
+    {
+        Layout = new LayoutPage("Report failures");
+
+        int.TryParse(Query("from"), out var from);
+        int.TryParse(Query("count"), out var perPage);
+
+        var monitor = Storage.GetMonitoringApi();
+        var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FailedCount());
+        var failed = monitor.FailedJobs(pager.FromRecord, pager.RecordsPerPage);
+
+        WriteLiteral("<h1 class=\"page-header\">Report failures</h1>");
+        Write(Html.PerPageSelector(pager));
+        WriteLiteral("<table class=\"table\"><tbody>");
+        foreach (var job in failed)
+        {
+            WriteLiteral("<tr><td>");
+            Write(Html.JobIdLink(job.Key));
+            WriteLiteral("</td><td>");
+            Write(job.Value?.ExceptionMessage);
+            WriteLiteral("</td></tr>");
+        }
+        WriteLiteral("</tbody></table>");
+        Write(Html.Paginator(pager));
+    }
+}
+```
 
 ### Adding a menu item or a Jobs sub-item
 

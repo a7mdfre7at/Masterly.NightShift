@@ -66,7 +66,7 @@ Static methods on `BackgroundJob`:
 | `ContinueJobWith(parentId, methodCall, JobContinuationOptions options = OnlyOnSucceededState)` | `Func<Task>`, `Func<T, Task>` |
 | `ContinueJobWith(parentId, string queue, methodCall, JobContinuationOptions options = OnlyOnSucceededState)` | all four |
 
-The static facade has no `nextState` overloads; use `IBackgroundJobClient` for those. The older `ContinueWith` methods still exist with the same arguments but are obsolete.
+The static facade has no `nextState` overloads; use `IBackgroundJobClient` for those. Hangfire's older `ContinueWith` methods are gone: call `ContinueJobWith` with the same arguments.
 
 ### JobContinuationOptions
 
@@ -106,13 +106,17 @@ services.AddNightShift(config => config
 
 `UseResultsInContinuations()` replaces the default continuation filter with one that copies the parent's outcome into the child's job parameters, and adds `JobParameterInjectionFilter`, which fills marked method parameters from job parameters just before the job runs.
 
+The attributes are in the `Masterly.NightShift` namespace and go on parameters of the continuation's method:
+
 | Attribute | Fills the parameter with | Parameter type |
 |---|---|---|
-| `[FromResult]` | The parent's return value (job parameter `AntecedentResult`), when the parent succeeded | The parent's return type, or a type its JSON can be read as |
-| `[FromException]` | The exception that deleted the parent (job parameter `AntecedentException`). When the parent was deleted without an exception (by `Delete`, from the dashboard), an `OperationCanceledException` | `ExceptionInfo` (has `Type`, `Message`, `InnerException`) |
-| `[FromParameter("name")]` | The value of the child's own job parameter `name`, read with your serializer settings | Any type the value can be read as |
+| `[FromResult]` (`FromResultAttribute`) | The parent's return value (job parameter `AntecedentResult`), when the parent succeeded | The parent's return type, or a type its JSON can be read as |
+| `[FromException]` (`FromExceptionAttribute`) | The exception that deleted the parent (job parameter `AntecedentException`). When the parent was deleted without an exception (by `Delete`, from the dashboard), an `OperationCanceledException` | `ExceptionInfo` (has `Type`, `Message`, `InnerException`) |
+| `[FromParameter("name")]` (`FromParameterAttribute`) | The value of the child's own job parameter `name`, read with your serializer settings | Any type the value can be read as |
 
-When the job parameter is missing, the parameter keeps the value given in the lambda, so pass a placeholder such as `default` or `null` there.
+`FromResultAttribute` and `FromExceptionAttribute` are `FromParameterAttribute` with the names `AntecedentResult` and `AntecedentException`. `[FromParameter]` works on any job, not only continuations, once `UseResultsInContinuations()` has registered the injection filter; see [Job arguments](job-arguments.md#reading-job-parameters).
+
+When the job parameter is missing, the parameter keeps the value given in the lambda, so pass a placeholder such as `default` or `null` there. Without `UseResultsInContinuations()` nothing is filled in and the placeholder is what the method receives.
 
 ## More examples
 

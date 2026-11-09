@@ -1,0 +1,15 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Masterly.NightShift">
+  <defs>
+    <linearGradient id="ns-sky" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#145A6B"/><stop offset="1" stop-color="#0A2530"/></linearGradient>
+    <mask id="ns-moon"><rect width="256" height="256" fill="#000"/><circle cx="122" cy="132" r="58" fill="#fff"/><circle cx="152" cy="112" r="50" fill="#000"/></mask>
+  </defs>
+  <!-- the night sky -->
+  <rect width="256" height="256" rx="58" fill="url(#ns-sky)"/>
+  <!-- the shift: an orbit that keeps going round, like work on a schedule -->
+  <circle cx="128" cy="128" r="86" fill="none" stroke="#5FE0C8" stroke-opacity=".28" stroke-width="10"/>
+  <path d="M128 42A86 86 0 1 1 53.5 171" fill="none" stroke="#5FE0C8" stroke-width="10" stroke-linecap="round"/>
+  <!-- the moon -->
+  <rect width="256" height="256" fill="#F6E9CF" mask="url(#ns-moon)"/>
+  <!-- a job in flight -->
+  <circle cx="53.5" cy="171" r="15" fill="#FF7A45"/>
+</svg>

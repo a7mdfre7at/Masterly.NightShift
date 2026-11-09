@@ -100,6 +100,7 @@ Property names are matched case-insensitively, and the reader allows comments an
 |--------|---------|---------|
 | `RecurringJobManifest.Export()` | `string` | Exports the recurring jobs of `JobStorage.Current`. |
 | `RecurringJobManifest.Export(IStorageConnection connection)` | `string` | Exports the recurring jobs visible through `connection`. |
+| `RecurringJobManifest.Export(IStorageConnection connection, bool maskRedacted)` | `string` | The same; with `maskRedacted: true`, the values of `[Redacted]` parameters are written as `null`, and a job whose method can't be loaded is written without arguments. The dashboard exports this way for read-only users. Such a document is for reading: applying it registers the jobs without those values. |
 | `RecurringJobManifest.Parse(string json)` | `IReadOnlyList<RecurringJobManifestEntry>` | Reads a document without applying it. Throws `FormatException` for invalid JSON, a document without a `recurringJobs` array, or a newer `version`. |
 | `RecurringJobManifest.Apply(string json, bool prune = false)` | `RecurringJobManifestResult` | Applies the document to `JobStorage.Current` through a new `RecurringJobManager`, which uses the time zone resolver set with `UseTimeZoneResolver`. Accepts only [methods the application uses as jobs](#which-methods-a-manifest-may-use). |
 | `RecurringJobManifest.Apply(string json, bool prune, bool allowAnyMethod)` | `RecurringJobManifestResult` | The same, with `allowAnyMethod`. |

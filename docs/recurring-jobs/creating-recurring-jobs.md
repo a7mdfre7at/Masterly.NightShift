@@ -67,7 +67,7 @@ The core method is `IRecurringJobManager.AddOrUpdate(string recurringJobId, Job 
 
 `cronExpression` is a `string`, or a `Func<string>` (so `Cron.Daily` can be passed as a method group). A `CronBuilder` converts to `string` implicitly, so `Cron.Builder()...` can be passed directly.
 
-The overloads without a recurring job ID, and the ones that take `TimeZoneInfo timeZone` and `string queue` as trailing parameters, are obsolete. The ID-less overloads derive the ID from the method, as `{Type}.{Method}` (for example `ReportService.BuildDaily`), so two registrations of the same method with different arguments overwrite each other. Always pass an ID.
+Every overload takes the recurring job ID first. Hangfire's overloads without an ID, and the ones that took `TimeZoneInfo timeZone` and `string queue` as trailing parameters, are gone: pass the time zone in `RecurringJobOptions` and the queue with the `queue` parameter.
 
 ### Parameters
 
@@ -87,7 +87,7 @@ The overloads without a recurring job ID, and the ones that take `TimeZoneInfo t
 | `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | What to do with runs that were missed while no scheduler was running: `Relaxed` (one catch-up run), `Strict` (one run per missed occurrence) or `Ignorable` (skip them). Any other value makes `AddOrUpdate` throw `ArgumentOutOfRangeException`. See [Time zones and misfires](time-zones-and-misfires.md#misfire-handling). |
 | `StartAt` | `DateTimeOffset?` | `null` (no start) | The instant before which the job doesn't run. The first run is the first occurrence at or after it (an occurrence exactly at `StartAt` runs), and no misfire handling mode catches up on occurrences before it. See [Start and end dates](#run-only-between-two-dates). |
 | `EndAt` | `DateTimeOffset?` | `null` (no end) | The instant after which the job doesn't run. An occurrence exactly at `EndAt` runs. Once the next occurrence is later, the job leaves the schedule: its next execution is cleared, but it stays registered, so it is still listed and can be triggered, updated or removed. Must be later than `StartAt`. |
-| `QueueName` | `string` | `"default"` | Obsolete. Use the overloads with the `queue` parameter. |
+| `QueueName` | `string` | `"default"` | The queue the runs go to, kept with the recurring job. Prefer the `queue` parameter, which stores the queue with the job; use `QueueName` with storages that don't report `JobStorageFeatures.JobQueueProperty`, where the `queue` parameter throws. |
 
 `StartAt` and `EndAt` are absolute instants. They are stored in UTC, to the millisecond, and `TimeZone` doesn't change them: it only decides when the CRON occurrences fall. `AddOrUpdate` throws `ArgumentException` when `EndAt` isn't later than `StartAt`, and `ArgumentOutOfRangeException` when either is before 1970-01-01 UTC. A `StartAt` or `EndAt` in the past is accepted: a job whose end has passed is registered without a next execution, so an application that registers its jobs on every start keeps starting after the end date.
 
@@ -97,13 +97,51 @@ The overloads without a recurring job ID, and the ones that take `TimeZoneInfo t
 |--------|---------|---------|
 | `IRecurringJobManager.Trigger(id)` | `void` | Creates and enqueues a run now, outside the schedule. Does nothing when the ID doesn't exist. |
 | `IRecurringJobManagerV2.TriggerJob(id)` | `string?` | The same, returning the created background job's ID, or `null` when the recurring job doesn't exist or a client filter canceled the creation. |
-| `RecurringJob.TriggerJob(id)` | `string?` | Static equivalent of `TriggerJob`. (`RecurringJob.Trigger` is obsolete.) |
+| `RecurringJob.TriggerJob(id)` | `string?` | Static equivalent of `TriggerJob`. |
 | `IRecurringJobManager.RemoveIfExists(id)` / `RecurringJob.RemoveIfExists(id)` | `void` | Deletes the recurring job definition. Jobs it already created are not touched. Does nothing when the ID doesn't exist. |
 | `IRecurringJobManagerV2.Storage` | `JobStorage` | The storage the manager writes to. |
 
-Triggering a run sets the job's `Time` parameter and last execution to now, and computes the next execution from now. A paused job can be triggered; it stays paused. A job can also be triggered outside its start and end dates: the run is created, and the job keeps its schedule (no next execution after `EndAt`, the first occurrence at or after `StartAt` before it).
+Triggering a run sets the job's `Time` parameter and last execution to now, and computes the next execution from now. When the run can't be created (the stored type or method no longer loads, a client filter throws), `Trigger` and `TriggerJob` throw an `AggregateException` that wraps the error, and nothing is written. A paused job can be triggered; it stays paused. A job can also be triggered outside its start and end dates: the run is created, and the job keeps its schedule (no next execution after `EndAt`, the first occurrence at or after `StartAt` before it).
 
-`RecurringJobManager` is the implementation of `IRecurringJobManager`, `IRecurringJobManagerV2` and `IRecurringJobManagerV3`. The container registers `IRecurringJobManager`, `IRecurringJobManagerV2` and `IRecurringJobManagerV3`. Outside a container, create it with `new RecurringJobManager(storage)`, which uses the time zone resolver set by `UseTimeZoneResolver` (`DefaultTimeZoneResolver` unless you set one), or `new RecurringJobManager(storage, filterProvider, timeZoneResolver)` to pass a custom filter provider and time zone resolver.
+`RecurringJobManager` is the implementation of `IRecurringJobManager`, `IRecurringJobManagerV2` and `IRecurringJobManagerV3`. The container registers `IRecurringJobManager`, `IRecurringJobManagerV2` and `IRecurringJobManagerV3`. Outside a container, create one with these constructors. Those without a `timeZoneResolver` use the one set by `UseTimeZoneResolver` (`DefaultTimeZoneResolver` unless you set one); those without a filter provider use the global filters (`JobFilterProviders.Providers`).
+
+| Constructor | Meaning |
+|-------------|---------|
+| `RecurringJobManager()` | On `JobStorage.Current`. |
+| `RecurringJobManager(JobStorage storage)` | On `storage`. |
+| `RecurringJobManager(JobStorage storage, IJobFilterProvider filterProvider)` | With the client filters of `filterProvider`, which run when a run is triggered. |
+| `RecurringJobManager(JobStorage storage, IJobFilterProvider filterProvider, ITimeZoneResolver timeZoneResolver)` | With a time zone resolver too. |
+| `RecurringJobManager(JobStorage storage, IJobFilterProvider filterProvider, ITimeZoneResolver timeZoneResolver, Func<DateTime> nowFactory)` | With a clock, for tests. `nowFactory` returns the current UTC time. |
+| `RecurringJobManager(JobStorage storage, IBackgroundJobFactory factory)` and `(storage, factory, timeZoneResolver)` | With your own job factory, which creates triggered runs. |
+
+### Listing recurring jobs
+
+The stored recurring jobs are read through a storage connection, with extension methods of `StorageConnectionExtensions` (namespace `Masterly.NightShift.Storage`, so add `using Masterly.NightShift.Storage;`). Get the connection from `JobStorage.GetConnection()` (the `JobStorage` is in the container, or `JobStorage.Current`) and dispose it when done.
+
+| Extension | Returns | Meaning |
+|-----------|---------|---------|
+| `IStorageConnection.GetRecurringJobs()` | `List<RecurringJobDto>` | Every recurring job. Reads each one, so it costs one query per job. |
+| `IStorageConnection.GetRecurringJobs(IEnumerable<string> ids)` | `List<RecurringJobDto>` | The jobs with these IDs, in that order. An ID that doesn't exist gives an entry with `Removed = true`. |
+| `JobStorageConnection.GetRecurringJobCount()` | `long` | How many recurring jobs are stored. |
+| `JobStorageConnection.GetRecurringJobIds(int startingFrom, int endingAt)` | `List<string>` | One page of IDs, by position in the `recurring-jobs` set, both ends inclusive and zero-based. On SQL Server the set is sorted by next execution, and jobs without one (paused or ended) come first. |
+| `JobStorageConnection.GetRecurringJobs(int startingFrom, int endingAt)` | `List<RecurringJobDto>` | One page of jobs, by the same positions. |
+
+The `JobStorageConnection` overloads need a storage with the extended API (`JobStorage.HasFeature(JobStorageFeatures.ExtendedApi)`; SQL Server has it): cast the connection, `(JobStorageConnection)storage.GetConnection()`. Other storages throw `NotSupportedException` from them.
+
+`RecurringJobDto` has `Id`, `Cron`, `Queue`, `TimeZoneId`, `Job` (the method call, or `null` when it can't be loaded, with the reason in `LoadException`), `NextExecution`, `LastExecution`, `LastJobId`, `LastJobState`, `CreatedAt`, `Error` and `RetryAttempt` (scheduling failures), `Paused`, `MisfireHandling`, `StartAt`, `EndAt` (UTC) and `Removed`. The monitoring API only counts recurring jobs (`GetStatistics().Recurring`); to list them, use these extensions.
+
+```csharp
+using Masterly.NightShift;
+using Masterly.NightShift.Storage;
+
+using (var connection = storage.GetConnection())
+{
+    foreach (RecurringJobDto recurringJob in connection.GetRecurringJobs())
+    {
+        Console.WriteLine($"{recurringJob.Id}: {recurringJob.Cron}, next {recurringJob.NextExecution:u}, paused: {recurringJob.Paused}");
+    }
+}
+```
 
 ## Recurring job IDs
 
@@ -120,7 +158,7 @@ Triggering a run sets the job's `Time` parameter and last execution to now, and 
 |-------|-----------|
 | Method call and arguments | Replaced. |
 | Queue, misfire handling | Replaced. |
-| CRON expression, time zone | Replaced. If either one changed, the next execution is recomputed from now, so runs the old schedule would have made are not caught up, and `Strict` misfire handling doesn't create the runs the new schedule would have had before the change. If neither changed, the next execution stays as it was. |
+| CRON expression, time zone | Replaced. If either one changed, the next execution is recomputed from now, so runs the old schedule would have made are not caught up, and `Strict` misfire handling doesn't create the runs the new schedule would have had before the change. A rewrite with the same meaning (`@daily` for `0 0 * * *`, or the Windows ID of the same zone, such as `W. Europe Standard Time` for `Europe/Berlin`) still recomputes the next execution, but doesn't count as a change for `Strict`. If neither changed, the next execution stays as it was. |
 | Start and end dates | Replaced. Options without them clear them. If either changed, the next execution is recomputed from now like a CRON change, so `Strict` doesn't create runs from before the change. Clearing an end date that has passed puts the job back on the schedule. |
 | Paused flag | Kept. Re-registering a paused job doesn't resume it. |
 | Error / disabled state | Cleared, and the job is scheduled again (unless paused). |

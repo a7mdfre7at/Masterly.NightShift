@@ -167,6 +167,8 @@ What a unit test of the class doesn't cover: that the arguments survive serializ
 
 ## More examples
 
+The examples in this section use the `using` directives of the quick example's test.
+
 ### Scheduled jobs and queues
 
 ```csharp
@@ -236,8 +238,13 @@ public class ReportScheduleTests
 A filter's methods take context objects with public constructors. Build them with a mocked storage and call the method:
 
 ```csharp
+using Masterly.NightShift;
 using Masterly.NightShift.Client;
+using Masterly.NightShift.Common;
+using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
+using Moq;
+using Xunit;
 
 public sealed class TenantAttribute : JobFilterAttribute, IClientFilter
 {
@@ -278,8 +285,11 @@ There is no in-memory storage: run integration tests against SQL Server. LocalDB
 
 ```csharp
 using System.Diagnostics;
+using Masterly.NightShift;
 using Masterly.NightShift.SqlServer;
+using Masterly.NightShift.States;
 using Masterly.NightShift.Storage;
+using Xunit;
 
 public class EmailSenderIntegrationTests
 {

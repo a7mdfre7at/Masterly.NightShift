@@ -120,7 +120,7 @@ When every given parent ID is `null` or empty, the methods throw `ArgumentExcept
 
 `Cancel` and `RequeueFailed` do what the batch page's "Delete" and "Requeue failed" buttons do. They read the states of the batch's jobs 500 at a time and change each selected job only if it is still in the state that was read, so a job that succeeds meanwhile isn't deleted, and a job someone else requeued isn't requeued twice. `Cancel` deletes enqueued, scheduled, awaiting, processing and failed jobs; a processing job keeps running until it checks its cancellation token. Without a `timeBudget` they go on until every job is reached. With one, they stop when the time is up: the result's `Complete` is `false`, `Remaining` is the number of jobs not reached, and another call goes on with them.
 
-`BulkJobResult` has `Processed` (the jobs whose state was changed), `Remaining` (`0` when complete) and `Complete`.
+`BulkJobResult` has `Processed` (`int`, the jobs whose state was changed), `Remaining` (`long?`: `0` when complete, otherwise at most the number of jobs another call would change, or `null` when the storage can't count them) and `Complete` (`bool`).
 
 ### IBatchBuilder
 
@@ -271,6 +271,9 @@ Once every job is succeeded or deleted, the batch is finished: a continuation cr
 ### Mixing job kinds in a batch
 
 ```csharp
+using Masterly.NightShift.Common;
+using Masterly.NightShift.States;
+
 BatchJob.StartNew(jobs, storage, batch =>
 {
     batch.Enqueue<InvoiceService>(x => x.RenderAsync(invoiceId));

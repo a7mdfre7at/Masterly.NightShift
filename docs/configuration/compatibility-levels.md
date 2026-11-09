@@ -16,7 +16,7 @@ Without DI, call it on `GlobalConfiguration.Configuration`. A new application, w
 
 ## How it works
 
-The level changes only what is **written**. Every Masterly.NightShift version reads every format, whatever its own level: a server at `Version_110` reads data written at `Version_180`, and the other way round. The data already in storage is never converted; new writes simply use the new format.
+The level changes only what is **written**. Every Masterly.NightShift version reads every format, whatever its own level: a server at `Version_110` reads data written at `Version_180`, and the other way round. The data already in storage is never converted; new writes use the new format.
 
 The default is `Version_110`, the oldest format, so that adding a newer Masterly.NightShift version to a storage that servers of an older version still use doesn't change anything they read. That default is kept for safety, not because it is the better choice. Hangfire servers are another matter: they can't share a storage with Masterly.NightShift servers at any level (see [Migrating from Hangfire](../migrating-from-hangfire.md#what-can-break)).
 

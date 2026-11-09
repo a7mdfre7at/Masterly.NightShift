@@ -9,6 +9,7 @@ The background job server is the part of Masterly.NightShift that runs your jobs
 | [Drain mode](drain-mode.md) | Pause processing for the whole cluster, one queue or one server, without stopping anything. |
 | [Keep-alive](keep-alive.md) | Keep IIS from shutting down an idle application, the `/ping` route, and what the host must still do. |
 | [Dependency injection](dependency-injection.md) | `AddNightShift` and `AddNightShiftServer`, the container-backed job activator, a scope per job, factories, and running without a container. |
+| [Background processes](background-processes.md) | Your own code running in a loop on the server (`IBackgroundProcess`, `IBackgroundProcessAsync`), `BackgroundProcessingServer` and its options. |
 
 ## The most common setup
 
@@ -20,7 +21,7 @@ using Masterly.NightShift;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!));
 
 builder.Services.AddNightShiftServer(options =>
 {
@@ -38,7 +39,7 @@ The server starts when the application has started and stops with it. Without a 
 using Masterly.NightShift;
 
 GlobalConfiguration.Configuration
-    .UseSqlServerStorage("Server=.;Database=Jobs;Integrated Security=True;");
+    .UseSqlServerStorage("Server=.;Database=Jobs;Integrated Security=True;TrustServerCertificate=True;");
 
 using (var server = new BackgroundJobServer())
 {

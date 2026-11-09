@@ -117,11 +117,11 @@ For example `Cron.Weekly(DayOfWeek.Friday, 17, 30)` is `30 17 * * 5` and `Cron.Y
 | Member | Returns | Meaning |
 |--------|---------|---------|
 | `Cron.FromText(string text)` | `string` | Turns an English phrase into a CRON expression (see below). A string that already is a CRON expression or a `@` macro is validated and returned unchanged. Throws `FormatException` for text it doesn't understand, `ArgumentNullException` for `null`. |
-| `Cron.TryFromText(string text, out string cronExpression)` | `bool` | Like `FromText`, but returns `false` and sets `cronExpression` to `null` instead of throwing. |
+| `Cron.TryFromText(string? text, out string? cronExpression)` | `bool` | Like `FromText`, but returns `false` and sets `cronExpression` to `null` instead of throwing, also for `null` text. |
 | `Cron.Builder()` | `CronBuilder` | Starts a fluent builder (see below). |
 | `Cron.Describe(string cronExpression)` | `string` | Validates the expression and describes it in English. Throws `FormatException` (or Cronos' `CronFormatException`, which derives from it) for an invalid expression, `ArgumentNullException` for `null`. |
-| `Cron.TryDescribe(string cronExpression)` | `string` | Like `Describe`, but returns `null` for `null` or an invalid expression. |
-| `Cron.GetNextOccurrences(string cronExpression, TimeZoneInfo timeZone, DateTime fromUtc, int count)` | `IReadOnlyList<DateTime>` | The next `count` occurrences strictly after `fromUtc`, evaluated in `timeZone`, as UTC instants. Returns fewer when the expression stops firing (an empty list for `Cron.Never()`). `count` must be greater than 0. |
+| `Cron.TryDescribe(string? cronExpression)` | `string?` | Like `Describe`, but returns `null` for `null` or an invalid expression. |
+| `Cron.GetNextOccurrences(string cronExpression, TimeZoneInfo timeZone, DateTime fromUtc, int count)` | `IReadOnlyList<DateTime>` | The next `count` occurrences strictly after `fromUtc`, evaluated in `timeZone`, as UTC instants. Returns fewer when the expression stops firing (an empty list for `Cron.Never()`). `count` must be greater than 0 (`ArgumentOutOfRangeException`). An invalid expression throws `FormatException`. |
 
 ### CronBuilder
 
@@ -146,7 +146,7 @@ For example `Cron.Weekly(DayOfWeek.Friday, 17, 30)` is `30 17 * * 5` and `Cron.Y
 
 A value outside its range throws `ArgumentOutOfRangeException` when the method is called.
 
-Two calls that would give the same field different values throw `InvalidOperationException` when the second one is called, whatever their order, and the message names both calls. Nothing is overwritten silently. The conflicts are:
+Two calls that would give the same field different values throw `InvalidOperationException` when the second one is called, whatever their order, and the message names both calls (two `At` calls with different minutes get a message about the shared minute instead). Nothing is overwritten silently. The conflicts are:
 
 - `At` and `EveryMinutes`, or `At` and an `AtMinute` with another minute: both set the minute. Use `Between` to keep a minute interval within some hours.
 - `At` and `EveryHours` or `Between`: `At` sets fixed times of day. For "every 2 hours from 9:00" write `EveryHours(2).Between(9, 23)`.
@@ -175,7 +175,7 @@ A phrase is an optional **start**, followed by any number of **modifiers** in an
 | `every [N] month(s)`, `monthly` | the 1st of every (N-th) month, unless a day is given | `every 3 months on the 1st` | `0 0 1 */3 *` |
 | `every year`, `yearly`, `annually` | January 1st, unless a date is given | `every year in march on the 15th at 9` | `0 9 15 3 *` |
 | `hourly`, `daily`, `everyday` | every hour / every day | `daily at 3:30 pm` | `30 15 * * *` |
-| `every DAY [and DAY...]`, or just `DAY [and DAY...]` | those days of week | `every monday and friday at 8am` | `0 8 * * 1,5` |
+| `every DAY [and DAY...]`, or `DAY [and DAY...]` alone | those days of week | `every monday and friday at 8am` | `0 8 * * 1,5` |
 | `every DAY to DAY` | a range of days (wraps around the week) | `every monday to friday at 6` | `0 6 * * 1,2,3,4,5` |
 | `first day of [every / the] month` | the 1st | `first day of every month at 6` | `0 6 1 * *` |
 | `last day of [every / the] month` | the last day of the month | `last day of month at 23:00` | `0 23 L * *` |
@@ -217,7 +217,7 @@ Some combinations worth knowing:
 | `0 */2 * * 1-5` | `0 */2 * * 1-5` (already CRON, returned as is) |
 | `@daily` | `@daily` |
 
-What `FromText` refuses, with a `FormatException` (or a subclass of it). The message names the part it didn't understand, except for values CRON can't hold (the last item), which are reported by the CRON parser with its own, more general message:
+What `FromText` refuses, with a `FormatException` (or a subclass of it). The message names the part it didn't understand, except for steps too large for their field (`every 90 seconds`, `every 25 hours` in the last item), which are reported by the CRON parser with its own, more general message:
 
 - `every 2 weeks`, `every 2 years`: CRON can't express them. Schedule weekly (or yearly) and skip runs inside the job.
 - Several times with different minutes, such as `daily at 9:15 and 17:45`: CRON can only combine times that share the minute. Register two recurring jobs instead.
@@ -225,7 +225,7 @@ What `FromText` refuses, with a `FormatException` (or a subclass of it). The mes
 - A time with a minute or second interval, such as `every 15 minutes at 9`: it could mean "during 09:00-09:59" or "from 09:00 on". Say which hours with `between`: `every 15 minutes between 9 and 9` is `*/15 9 * * *`, `every 15 minutes between 9 and 17` is `*/15 9-17 * * *`.
 - A time together with an hour range on a daily (or weekly, monthly, yearly) schedule, such as `daily at 9 between 8 and 17`.
 - Unknown words: `whenever`, `every 5 fortnights`, `every thursday through saturday`.
-- Values CRON can't hold: `every 90 seconds`, `every 25 hours` (steps must fit the field), `daily at 25:00`, `hourly at 75`.
+- Values out of range: `every 90 seconds`, `every 25 hours` (steps must fit the field), `every 0 minutes`, `daily at 25:00`, `hourly at 75`, `on the 32nd`.
 
 ### Describing expressions: Cron.Describe
 

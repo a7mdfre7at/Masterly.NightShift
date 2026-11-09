@@ -6,19 +6,16 @@ This section takes you from an empty project to background jobs running against 
 |---|---|
 | [Installation](installation.md) | The packages, target frameworks, the SQL Server driver, and which packages to pick for your kind of app |
 | [Quick start: ASP.NET Core](quick-start-aspnetcore.md) | Storage, server and dashboard in an ASP.NET Core app, then your first fire-and-forget, delayed and recurring jobs |
-| [Quick start: console and Worker Service](quick-start-worker.md) | A Worker Service with dependency injection, a console or .NET Framework app without it, and a separate app for the dashboard |
+| [Quick start: console and Worker Service](quick-start-worker.md) | A Worker Service with dependency injection, a console app without it, and a separate app for the dashboard |
 | [Core concepts](core-concepts.md) | Jobs, storage, client and server, workers, states, queues, retries, at-least-once execution and the dashboard |
 
 ## The most common setup
 
 An ASP.NET Core app that stores jobs in SQL Server, processes them in the same process and serves the dashboard at `/nightshift`:
 
-```
+```text
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
-
-If the build then warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](installation.md#the-sql-server-driver).
 
 ```csharp
 using Masterly.NightShift;

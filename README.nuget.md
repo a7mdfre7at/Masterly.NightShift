@@ -2,17 +2,27 @@
 
 Reliable background jobs for .NET: fire-and-forget, delayed, recurring and continuation jobs, persisted to a storage you already run, with a built-in dashboard.
 
-This readme ships with every Masterly.NightShift package:
+[![NuGet](https://img.shields.io/nuget/v/Masterly.NightShift?style=flat-square)](https://www.nuget.org/packages/Masterly.NightShift)
+
+This meta-package installs the core library, SQL Server storage and the ASP.NET Core integration, for ASP.NET Core apps. Worker Services and console apps take only the packages they use:
 
 | Package | What it is |
 |---|---|
-| `Masterly.NightShift` | Meta-package: Core + SqlServer + AspNetCore, for ASP.NET Core apps |
-| `Masterly.NightShift.Core` | Jobs, the server, filters, the dashboard |
-| `Masterly.NightShift.SqlServer` | SQL Server storage |
-| `Masterly.NightShift.NetCore` | `Microsoft.Extensions.*` integration (DI, hosted service) |
-| `Masterly.NightShift.AspNetCore` | Dashboard middleware and endpoint mapping |
+| `Masterly.NightShift` | This meta-package: Core + SqlServer + AspNetCore |
+| [`Masterly.NightShift.Core`](https://www.nuget.org/packages/Masterly.NightShift.Core) | Jobs, the server, filters, the dashboard |
+| [`Masterly.NightShift.SqlServer`](https://www.nuget.org/packages/Masterly.NightShift.SqlServer) | SQL Server storage |
+| [`Masterly.NightShift.NetCore`](https://www.nuget.org/packages/Masterly.NightShift.NetCore) | `Microsoft.Extensions.*` integration (DI, hosted service) |
+| [`Masterly.NightShift.AspNetCore`](https://www.nuget.org/packages/Masterly.NightShift.AspNetCore) | Dashboard middleware, endpoint mapping, health checks |
 
-An ASP.NET Core app with the `Masterly.NightShift` meta-package (with only Core and SqlServer, configure `GlobalConfiguration.Configuration` and start a `BackgroundJobServer` instead, see the documentation):
+Every package targets `net8.0` and `net10.0`, so it runs on .NET 8 and later. The SQL Server storage uses `Microsoft.Data.SqlClient`.
+
+```bash
+dotnet add package Masterly.NightShift
+```
+
+## Example
+
+An ASP.NET Core app:
 
 ```csharp
 using Masterly.NightShift;
@@ -42,4 +52,10 @@ public static class Maintenance
 }
 ```
 
-For more details, please take a look at the [documentation](https://github.com/a7mdfre7at/Masterly.NightShift/tree/main/docs) and the [README](https://github.com/a7mdfre7at/Masterly.NightShift#readme) on GitHub.
+## Documentation
+
+Job types, retries and other filters, the server, the dashboard and monitoring are covered in the full documentation: <https://a7mdfre7at.github.io/Masterly.NightShift/>. Start with [Quick start: ASP.NET Core](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/quick-start-aspnetcore). Coming from Hangfire? See [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire).
+
+## License
+
+`MIT AND LGPL-3.0-or-later`: code written for Masterly.NightShift is MIT, code derived from Hangfire stays under the LGPL. The package contains both license texts.

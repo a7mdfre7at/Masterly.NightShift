@@ -103,7 +103,7 @@ Every job is in exactly one state, and every change of state is recorded in its 
 
 How a job moves between them:
 
-```
+```text
  Enqueue() -----------------------+
                                   |
                                   v
@@ -172,7 +172,7 @@ The main types and where they are covered:
 | `JobStorage`, `SqlServerStorage` | Keep jobs | [Storage](../storage/README.md) |
 | `GlobalConfiguration`, `AddNightShift` | Configure storage, serialization, logging, filters | [Global configuration](../configuration/global-configuration.md) |
 | `JobFilterAttribute`, `GlobalJobFilters` | Change behaviour around creation, execution and state changes | [Custom filters](../filters/custom-filters.md) |
-| `EnqueuedState`, `ScheduledState`, `AwaitingState`, `ProcessingState`, `SucceededState`, `FailedState`, `DeletedState` (namespace `Masterly.NightShift.States`) | The built-in states | [Managing jobs](../jobs/managing-jobs.md) |
+| `EnqueuedState`, `ScheduledState`, `AwaitingState`, `ProcessingState`, `SucceededState`, `FailedState`, `DeletedState` (namespace `Masterly.NightShift.States`) | The built-in states. `AwaitingJobsState` is the Awaiting state of a fan-in continuation, which waits for several parents | [Managing jobs](../jobs/managing-jobs.md), [Continuations](../jobs/continuations.md) |
 | `JobActivator` | Create job class instances | [Dependency injection](../server/dependency-injection.md) |
 
 ## More examples

@@ -52,20 +52,19 @@ The steps below build it up and explain each part.
 
 ## Step 1: create the project and add the packages
 
-```
+```text
 dotnet new web -n Shop.Web
 cd Shop.Web
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
 
-`Masterly.NightShift` brings the core library, the SQL Server storage and the ASP.NET Core integration. `Microsoft.Data.SqlClient` is the SQL Server driver; the storage doesn't pick one for you (see [Installation](installation.md#the-sql-server-driver)). If the build then warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](installation.md#the-sql-server-driver).
+`Masterly.NightShift` brings the core library, the SQL Server storage with its driver (`Microsoft.Data.SqlClient`) and the ASP.NET Core integration.
 
 ## Step 2: create a database and add the connection string
 
 The storage creates its tables by itself, but the database must exist. With SQL Server Express LocalDB, which comes with Visual Studio:
 
-```
+```text
 sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "CREATE DATABASE NightShift"
 ```
 
@@ -118,13 +117,13 @@ What each call does:
 
 Run the app:
 
-```
+```text
 dotnet run
 ```
 
 The console shows `Starting Masterly.NightShift Server using job storage: ...` followed by the server options. Then the app prints the address it listens on, `Now listening on: http://localhost:<port>`. The `dotnet new web` template picks a random port for each new project (it is in `Properties/launchSettings.json`); to choose it yourself, run `dotnet run -- --urls http://localhost:5000`. Open `/nightshift` on that address, for example `http://localhost:5000/nightshift`. The **Servers** page lists one server with its workers.
 
-> **Note:** By default the dashboard only answers requests from the local machine. Anyone else, including a browser outside a Docker container, gets `401`. Set up authorization before you deploy (see [Dashboard authorization](../dashboard/authorization.md)).
+> **Note:** By default the dashboard only answers requests from the local machine. Anyone else, including a browser outside a Docker container, gets `401` (or `403` when signed in). Set up authorization before you deploy (see [Dashboard authorization](../dashboard/authorization.md)).
 
 ## Step 4: write a job class
 
@@ -152,6 +151,8 @@ public class EmailService
 
 When the job runs, the server creates `EmailService` from the service container in a new scope, so constructor injection works. Registering the class is optional: an unregistered class is still created with its constructor dependencies resolved from the container. Register it when you want to control its lifetime or put an interface in front of it.
 
+Everything the job logs through `ILogger` carries the job's `JobId` and `JobName` in its logging scope (and `RecurringJobId` and `RetryCount` when they apply), so you can find a job's log entries. To turn this off, call `builder.Services.ConfigureNightShiftJobLogging(o => o.BeginScope = false)`.
+
 ## Step 5: create jobs
 
 Inject `IBackgroundJobClient` wherever you need it. Add two endpoints before `app.Run()`, and a `using Shop.Web;` line at the top of `Program.cs`:
@@ -174,7 +175,7 @@ app.MapPost("/users/{userId:int}/reminder", (int userId, IBackgroundJobClient jo
 
 Run the app again and call the endpoint, with the address the app prints:
 
-```
+```text
 curl -X POST http://localhost:<port>/users/42/welcome
 ```
 
@@ -216,10 +217,11 @@ The calls used on this page. All are extension methods in the `Masterly.NightShi
 | Method | Parameters | Default | What it does |
 |---|---|---|---|
 | `services.AddNightShift(configuration)` | `Action<IGlobalConfiguration>` or `Action<IServiceProvider, IGlobalConfiguration>` | | Registers the client services and configures storage, serialization and filters. Call it once |
-| `services.AddNightShiftServer()` | none, `Action<BackgroundJobServerOptions>`, `Action<IServiceProvider, BackgroundJobServerOptions>`, or a `JobStorage` | Options from DI if registered, otherwise `new BackgroundJobServerOptions()` | Runs a `BackgroundJobServer` as a hosted service. Each call adds another server |
-| `config.UseSqlServerStorage(connectionString, options)` | `string` connection string (or `Func<DbConnection>`), optional `SqlServerStorageOptions` | `new SqlServerStorageOptions()` | Uses SQL Server for storage. The string must be a connection string, not a connection string name |
-| `endpoints.MapNightShiftDashboard(pattern, options, storage)` | `string pattern`, `DashboardOptions? options`, `JobStorage? storage` | `"/nightshift"`, options from DI or defaults, storage from DI | Maps the dashboard. .NET 8 and later |
-| `app.UseNightShiftDashboard(pathMatch, options, storage)` | Same as above | `"/nightshift"` | Middleware alternative to `MapNightShiftDashboard`, available on every target |
+| `services.AddNightShiftServer()` | none, `Action<BackgroundJobServerOptions>`, `Action<IServiceProvider, BackgroundJobServerOptions>`, an `IConfiguration` section, or a `JobStorage` | Options from DI if registered, otherwise `new BackgroundJobServerOptions()` | Runs a `BackgroundJobServer` as a hosted service. Each call adds another server |
+| `config.UseSqlServerStorage(connectionString, options)` | `string` connection string (or `Func<DbConnection>`), optional `SqlServerStorageOptions` | `new SqlServerStorageOptions()` | Uses SQL Server for storage. Pass the connection string itself: it doesn't look names up in `appsettings.json` (see [Installation](installation.md#things-to-know)) |
+| `endpoints.MapNightShiftDashboard(pattern, options, storage)` | `string pattern`, `DashboardOptions? options`, `JobStorage? storage` | `"/nightshift"`, options from DI or defaults, storage from DI | Maps the dashboard as an endpoint |
+| `app.UseNightShiftDashboard(pathMatch, options, storage)` | Same as above | `"/nightshift"` | Middleware alternative to `MapNightShiftDashboard` |
+| `services.ConfigureNightShiftJobLogging(configure)` | `Action<NightShiftJobLoggingOptions>` | `BeginScope = true` | Whether servers added with `AddNightShiftServer` open an `ILogger` scope with the job's ID and name around each job |
 
 The most common server options, set through `AddNightShiftServer(options => ...)`:
 

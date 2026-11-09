@@ -145,7 +145,7 @@ IReadOnlyList<string?> values = JobCatalog.FormatArguments(job);
 - **The job must still run on a server.** The catalog only creates jobs. A server that can load the type (and listens to the chosen queue) runs them.
 - **Recurring jobs created from the form use UTC.** Change the time zone afterwards with `AddOrUpdate` from code if you need another one.
 - **Arguments given as JSON are read with your serializer options**, like stored job arguments, with one exception: text typed in the form can't name a type for a value of type `object`. With `UseRecommendedSerializerSettings()` a stored `object` argument keeps its type through `"$type"`, but typed text is read as plain JSON and a `"$type"` in it is refused, so the form can't make the server create a type of the operator's choice. **Run again with changes** therefore gives such an argument as a `JsonElement`, not as its original type.
-- **A `Type` parameter takes any type name the server can load.** There is no constraint to check typed text against. A job method that creates an instance of a `Type` argument therefore lets anyone with write access to the dashboard choose what it creates; check the type inside the method.
+- **A `Type` parameter can't be filled from the form.** Typed text that names a type is refused, so an operator can't choose what such a job loads or creates. An empty field gives the declared default or `null`; run the job from code to pass a type.
 
 ## See also
 

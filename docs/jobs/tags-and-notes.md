@@ -81,7 +81,7 @@ A note (`JobNote`) has a text, an author, a time and an `Acknowledges` flag. A j
 | `GetKey(string tag)` | The storage set of a tag, `tags:{tag}` |
 | `ParameterName` (`"Tags"`), `IndexKey` (`"tags"`), `MaxLength` (`95`) | Constants |
 
-Every method normalizes the tags you pass, so `"Customer:Contoso"` and `"customer:contoso"` are the same tag. `Add` rejects tags longer than `MaxLength`; the methods that read or remove tags accept them and simply don't find them.
+Every method normalizes the tags you pass, so `"Customer:Contoso"` and `"customer:contoso"` are the same tag. `Add` rejects tags longer than `MaxLength`; the methods that read or remove tags accept them and don't find them.
 
 On a storage without the extended API (`JobStorageFeatures.ExtendedApi`), counts and job lists read the tag's whole set.
 
@@ -175,7 +175,7 @@ if (ack != null)
 - **Tag values come from arguments.** Avoid templates over arguments that hold personal data; tags are shown on the dashboard. A `[Redacted]` argument is replaced with a hash of its value (16 hexadecimal digits), but a short or guessable value can be guessed back from its hash.
 - **Many distinct tags cost space.** Each tag is a set in storage that lives until it is deleted. Prefer tags with a bounded number of values (customer, region, month) over one tag per job.
 - **Notes need write access.** On a read-only dashboard the Notes section can't add notes.
-- **Writing notes or tags isn't atomic with other writers.** Two writers adding to the same job at the same moment can lose one update; this is rare in practice, since notes are written by people.
+- **Change tags and notes only through `JobTags` and `JobNotes`.** Their methods wait for each other on the job's tags or notes lock, so no update is lost. Code that writes the `Tags` or `Notes` job parameter directly (`SetJobParameter`) skips the lock and can overwrite a change made at the same moment.
 
 ## See also
 

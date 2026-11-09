@@ -1,6 +1,6 @@
 # Logging
 
-Masterly.NightShift writes its own diagnostic messages (server start-up, job retries and failures, storage maintenance, problems in background processes) to a log provider. In an ASP.NET Core or generic-host app they go to `Microsoft.Extensions.Logging` automatically; other apps pick a provider. This page covers where the messages go, how to filter or silence them, how to log from inside your jobs, and `[LogInvocation]`, which writes to the job's dashboard console rather than to the log.
+Masterly.NightShift writes its own diagnostic messages (server start-up, job retries and failures, storage maintenance, problems in background processes) to a log provider. In an ASP.NET Core or generic-host app they go to `Microsoft.Extensions.Logging` automatically; other apps pick a provider. This page covers where the messages go, how to filter or silence them, how to log from inside your jobs, the logging scope that puts the job id on every entry logged while a job runs, and `[LogInvocation]`, which writes to the job's dashboard console rather than to the log.
 
 ## Quick example
 
@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Masterly.NightShift writes to the app's ILoggerFactory automatically
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 
 builder.Services.AddNightShiftServer();
 ```
@@ -31,7 +31,7 @@ Filter the messages like any other category in `appsettings.json`. Every categor
 
 ## How it works
 
-Internally Masterly.NightShift logs through a vendored copy of LibLog (`Masterly.NightShift.Logging`): every class asks `LogProvider` for an `ILog`, and the provider set with a `Use...LogProvider()` method decides where the messages go. An `ILog` looks the provider up when it writes, not when it is created, so setting or changing the provider applies to every logger, including the ones created earlier, for example by the default global filters. The `netstandard2.0` build is an exception, see [Things to know](#things-to-know).
+Internally Masterly.NightShift logs through a vendored copy of LibLog (`Masterly.NightShift.Logging`): every class asks `LogProvider` for an `ILog`, and the provider set with a `Use...LogProvider()` method decides where the messages go. An `ILog` looks the provider up when it writes, not when it is created, so setting or changing the provider applies to every logger, including the ones created earlier, for example by the default global filters.
 
 **With `AddNightShift` (ASP.NET Core, Worker Service, generic host).** When the configuration is first resolved from the container (which happens when the server's hosted service, the dashboard, `IBackgroundJobClient` or `JobStorage` is first used), `AddNightShift` sets an `AspNetCoreLogProvider` built on the container's `ILoggerFactory`, and then runs your configuration callback. So logging needs no code, and a `Use...LogProvider()` call inside the callback replaces the default.
 
@@ -95,6 +95,24 @@ The Serilog, NLog, log4net, Enterprise Library, Loupe and ELMAH providers find t
 
 `LogLevel` has the same name as `Microsoft.Extensions.Logging.LogLevel`. In a file that imports both namespaces, use an alias: `using NightShiftLogLevel = Masterly.NightShift.Logging.LogLevel;`.
 
+### Job logging scope
+
+Servers added with `AddNightShiftServer` open an `ILogger.BeginScope` around every job, so log entries carry the job's id and name. See [Job id and name on every entry](#job-id-and-name-on-every-entry) for what it covers. Both types are in the `Masterly.NightShift` namespace, in the `Masterly.NightShift.NetCore` package.
+
+| Member | Type | Default | Meaning |
+|---|---|---|---|
+| `IServiceCollection.ConfigureNightShiftJobLogging(Action<NightShiftJobLoggingOptions> configure)` | extension method | | Changes the options of the servers added with `AddNightShiftServer` in this service collection. Call it before or after `AddNightShiftServer`; several calls change the same options. |
+| `NightShiftJobLoggingOptions.BeginScope` | `bool` | `true` | Whether the server opens the scope around each job. `false` turns it off. |
+
+The scope holds these values:
+
+| Name | Type | When it is present | Value |
+|---|---|---|---|
+| `JobId` | `string` | always | The background job id. |
+| `JobName` | `string` | when the job's type and method could be loaded | `{Type}.{Method}`, the type's name without its namespace. The same value as the `nightshift.job.name` telemetry tag. |
+| `RecurringJobId` | `string` | when a recurring job created the job | The recurring job's id. |
+| `RetryCount` | `int` | when the job is being retried (the count is 1 or more) | The retry attempt. |
+
 ### `[LogInvocation]`
 
 | Member | Meaning |
@@ -122,11 +140,11 @@ GlobalConfiguration.Configuration
     .UseSqlServerStorage(@"Server=.\sqlexpress;Database=NightShift;Integrated Security=True;TrustServerCertificate=True;");
 ```
 
-On .NET 8 and later the order of the calls doesn't matter. On .NET Framework, set the log provider first, before the storage and anything else (see [Things to know](#things-to-know)).
+The order of the calls doesn't matter: loggers created before `Use...LogProvider()` follow the provider set later.
 
 ### `Microsoft.Extensions.Logging` without the generic host
 
-`AspNetCoreLogProvider` works with any `ILoggerFactory`, for example in a .NET 8 console app that uses `Microsoft.Extensions.Logging.Console` but no host:
+`AspNetCoreLogProvider` works with any `ILoggerFactory`, for example in a console app that uses `Microsoft.Extensions.Logging.Console` but no host:
 
 ```csharp
 using Masterly.NightShift;
@@ -149,7 +167,7 @@ For tests, or when the dashboard is enough:
 ```csharp
 builder.Services.AddNightShift(config => config
     .UseNoOpLogProvider()
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 ```
 
 In an ASP.NET Core app, raising the category level (`"Masterly.NightShift": "None"`) does the same and is easier to change later.
@@ -237,21 +255,53 @@ With `UseTelemetry()` and a listener on the `Masterly.NightShift` source, the jo
 
 ### Job id and name on every entry
 
-A server added with `AddNightShiftServer` runs each job inside an `ILogger.BeginScope`. The scope opens before the server filters run and closes after the worker has moved the job to its next state (Succeeded, Failed, Scheduled for a retry, ...). Every entry logged in between carries these values: the entries of the job's own `ILogger<T>`, after an `await` too, the server filters' entries, and what state filters log about the outcome, such as `AutomaticRetry`'s retry warning and final failure, or the warnings of `[Deadline]` and `[CircuitBreaker]`:
+A server added with `AddNightShiftServer` runs each job inside an `ILogger.BeginScope`. A scope is a set of values that `Microsoft.Extensions.Logging` attaches to every entry logged while it is open, whatever the logger's category. This one is on by default and needs no code.
 
-| Name | Value |
-|---|---|
-| `JobId` | the background job id |
-| `JobName` | `{Type}.{Method}`, the same name as the `nightshift.job.name` telemetry tag |
-| `RecurringJobId` | the recurring job that created the job, when there is one |
-| `RetryCount` | the retry attempt, when the job is being retried |
+The scope opens before the server filters run and closes after the worker has moved the job to its next state (Succeeded, Failed, Scheduled for a retry, ...). Every entry logged in between carries `JobId`, `JobName` and, when they apply, `RecurringJobId` and `RetryCount` (see [the table above](#job-logging-scope)). That includes:
 
-Providers that support scopes show them: the console logger with `IncludeScopes`, the JSON console formatter, Serilog, NLog, OpenTelemetry logging. With the simple console formatter and `IncludeScopes = true`, an entry looks like this:
+- the entries of the job's own `ILogger<T>`, after an `await` too;
+- the entries of server filters;
+- what state filters log about the outcome, such as `AutomaticRetry`'s retry warning and final failure, or the warnings of `[Deadline]` and `[CircuitBreaker]`.
 
+Providers that support scopes show them: the console logger with `IncludeScopes`, the JSON console formatter, Serilog, NLog, OpenTelemetry logging. With the simple console formatter and `IncludeScopes = true`:
+
+```csharp
+builder.Logging.AddSimpleConsole(options => options.IncludeScopes = true);
 ```
+
+an entry looks like this:
+
+```text
 info: EmailService[0]
       => JobId:42 JobName:EmailService.SendWelcome
       Sending the welcome e-mail to user 7
+```
+
+With the JSON console formatter (`builder.Logging.AddJsonConsole(options => options.IncludeScopes = true)`), each value is a field of the entry's `Scopes`, so a log backend can filter on it:
+
+```json
+{
+  "Category": "EmailService",
+  "Message": "Sending the welcome e-mail to user 7",
+  "Scopes": [
+    { "Message": "JobId:42 JobName:EmailService.SendWelcome", "JobId": "42", "JobName": "EmailService.SendWelcome" }
+  ]
+}
+```
+
+With Serilog (the `Serilog.AspNetCore` package), the values become properties of the event when `Enrich.FromLogContext()` is on, so they can go in the output template or be queried in Seq, Elasticsearch and the like:
+
+```csharp
+using Serilog;
+
+builder.Services.AddSerilog(logger => logger
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate:
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {JobId} {JobName}{NewLine}{Exception}"));
+```
+
+```text
+[09:41:27 INF] Sending the welcome e-mail to user 7 42 EmailService.SendWelcome
 ```
 
 The values come from the job the worker already read, never from the storage, and providers that don't print scopes never compute them. To turn the scope off:
@@ -260,7 +310,7 @@ The values come from the job the worker already read, never from the storage, an
 builder.Services.ConfigureNightShiftJobLogging(options => options.BeginScope = false);
 ```
 
-The scope is added to servers created by `AddNightShiftServer`. It is not added to a server you create yourself (`new BackgroundJobServer(...)`, `app.UseNightShiftServer()`, or `AddNightShiftServer` with a factory that returns your own server), nor when you register your own `IBackgroundJobPerformer`, `IBackgroundJobFactory` and `IBackgroundJobStateChanger` in the container.
+The scope is added only to servers created by `AddNightShiftServer`, and only when the container has an `ILoggerFactory` (every generic host has one). It is not added to a server you create yourself (`new BackgroundJobServer(...)`, `app.UseNightShiftServer(() => ...)`, or `AddNightShiftServer` with a factory that returns your own server), nor when you register your own `IBackgroundJobPerformer`, `IBackgroundJobFactory` and `IBackgroundJobStateChanger` in the container.
 
 ### Show start, end and errors on the dashboard
 
@@ -301,7 +351,7 @@ builder.Services.AddNightShift(config =>
     GlobalJobFilters.Filters.Remove<AutomaticRetryAttribute>();
 
     config
-        .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+        .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
         .UseFilter(new AutomaticRetryAttribute { Attempts = 5, LogEvents = false });
 });
 ```
@@ -310,8 +360,7 @@ builder.Services.AddNightShift(config =>
 
 ## Things to know
 
-- **On .NET Framework, set the provider before anything else.** The `netstandard2.0` build, which .NET Framework and .NET versions before 8 use, cannot look the provider up late for loggers created before the first `Use...LogProvider()` call: they keep the provider that was current when they were created. Most classes get their logger when they are constructed, some once per process (for example the default global filters, created the first time `GlobalJobFilters` is used). There, make `Use...LogProvider()` the first configuration call. Loggers created after it follow later changes. On .NET 8 and later the order doesn't matter.
-- **Use `UseLogProvider`, not `LogProvider.SetCurrentLogProvider`.** Calling LibLog's `SetCurrentLogProvider` directly works as in LibLog: only loggers created after the call use the new provider. The `Use...LogProvider()` methods reach every logger (on .NET Framework, with the limit in the previous point).
+- **Use `UseLogProvider`, not `LogProvider.SetCurrentLogProvider`.** Calling LibLog's `SetCurrentLogProvider` directly works as in LibLog: only loggers created after the call use the new provider. The `Use...LogProvider()` methods reach every logger.
 - **Job exceptions are logged by `AutomaticRetryAttribute`**, not by the worker. If you remove the retry filter or set `LogEvents = false`, a failing job writes nothing to the log; the exception is still stored in the job's Failed state and shown on the dashboard.
 - **`[LogInvocation]` is not application logging.** Its lines go to the job's console in storage (the list `job:{id}:console`, at most `JobConsole.DefaultMaxLines` = 500 lines per job) and expire with the job.
 - **Masterly.NightShift's own messages are plain text.** The job id is part of the message text. Entries logged while a job runs and while its state changes afterwards, by Masterly.NightShift or by your code, also carry `JobId` as a scope value (see [Job id and name on every entry](#job-id-and-name-on-every-entry)).

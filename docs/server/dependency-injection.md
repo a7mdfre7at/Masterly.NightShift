@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!));
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();
@@ -55,7 +55,7 @@ Only the method call is stored with the job: the type, the method and the argume
 2. For every job run, the activator creates a new `IServiceScope`.
 3. The job type is resolved from that scope with `ActivatorUtilities.GetServiceOrCreateInstance`: if the type is registered, the registration is used; if not, the type is created and its constructor parameters are resolved from the scope. Job classes do not need to be registered.
 4. The method is called. Scoped services (a `DbContext`, a unit of work) are created once for this job run and shared by everything resolved in it.
-5. When the method returns or throws, the scope is disposed, and with it every scoped and transient disposable service it created. Services that implement only `IAsyncDisposable` are disposed too, on every target framework, whenever the container's scopes support asynchronous disposal, as they do with Microsoft.Extensions.DependencyInjection 3.0 and later (every generic host). An older container, such as the one an ASP.NET Core 2.x `WebHost` on .NET Framework brings, doesn't know `IAsyncDisposable` and leaves such services undisposed.
+5. When the method returns or throws, the scope is disposed, and with it every scoped and transient disposable service it created. Services that implement only `IAsyncDisposable` are disposed too.
 
 Static job methods need no instance, so nothing is resolved for them.
 
@@ -104,30 +104,33 @@ Each call adds one more server to the application, as an `IHostedService`. All o
 
 For every overload but the last, options you leave unset are filled from the container: `Activator` from the `JobActivator` service, `FilterProvider` from `IJobFilterProvider`, `TimeZoneResolver` from `ITimeZoneResolver`. When `IBackgroundJobFactory`, `IBackgroundJobPerformer` and `IBackgroundJobStateChanger` are all registered, the server and the injected clients use them instead of the built-in ones.
 
-The server's lifetime follows the host. When the host registers `IHostApplicationLifetime`, as every generic host does (`Host.CreateDefaultBuilder`, `WebApplication`, Worker Services) on every target framework, the server is created when the application has fully started (`ApplicationStarted`) and gets its stop signal as soon as the application starts stopping (`ApplicationStopping`). Without it, as with the ASP.NET Core 2.x `WebHost` on .NET Framework, the server is created in `StartAsync`. In `StopAsync` the hosted service sends the stop signal and waits for the server to stop, at most until the host's shutdown timeout. See [Graceful shutdown](queues-and-workers.md#graceful-shutdown).
+Each server added this way also runs every job inside an `ILogger` scope with the job's ID, name, recurring job ID and retry count, so log entries written by the job carry them. `services.ConfigureNightShiftJobLogging(o => o.BeginScope = false)` turns that off. See [Logging](../monitoring/logging.md#job-id-and-name-on-every-entry).
+
+The server's lifetime follows the host. When the host registers `IHostApplicationLifetime`, as every generic host does (`Host.CreateDefaultBuilder`, `WebApplication`, Worker Services), the server is created when the application has fully started (`ApplicationStarted`) and gets its stop signal as soon as the application starts stopping (`ApplicationStopping`). Without it, the server is created in `StartAsync`. In `StopAsync` the hosted service sends the stop signal and waits for the server to stop, at most until the host's shutdown timeout. See [Graceful shutdown](queues-and-workers.md#graceful-shutdown).
 
 ### JobActivator
 
 | Member | Meaning |
 | --- | --- |
 | `static JobActivator Current { get; set; }` | The activator used when a server has no `Activator` option. Setting `null` throws `ArgumentNullException`. `UseActivator` sets it. |
-| `virtual object ActivateJob(Type jobType)` | Creates an instance. The default calls `Activator.CreateInstance(jobType)`, which needs a public parameterless constructor. |
+| `virtual object? ActivateJob(Type jobType)` | Creates an instance; the server fails the job when it returns `null`. The default calls `Activator.CreateInstance(jobType)`, which needs a public parameterless constructor. |
 | `virtual JobActivatorScope BeginScope(JobActivatorContext context)` | Starts the scope for one job run. The default returns a scope that calls `ActivateJob` and, when the scope ends, disposes the instances that implement `IDisposable`. |
 | `virtual JobActivatorScope BeginScope(PerformContext context)` | Builds a `JobActivatorContext` and calls the overload above. |
 
 | `JobActivatorScope` member | Meaning |
 | --- | --- |
-| `abstract object Resolve(Type type)` | Returns the instance to call the job method on. |
+| `abstract object? Resolve(Type type)` | Returns the instance to call the job method on. |
 | `virtual void DisposeScope()` | Called when the job run ends. Release what the scope created. |
-| `static JobActivatorScope Current` | The scope most recently started on the current thread and not yet disposed, or `null`. |
+| `static JobActivatorScope? Current` | The scope most recently started on the current thread and not yet disposed, or `null`. |
 
 | `JobActivatorContext` member | Meaning |
 | --- | --- |
 | `BackgroundJob` | The job: ID, `Job` (type, method, arguments), creation time. |
 | `CancellationToken` | The job's `IJobCancellationToken`. |
 | `Connection` | The storage connection the worker uses. |
-| `GetJobParameter<T>(string name)` | Reads a job parameter, for example one set by a client filter. |
-| `SetJobParameter(string name, object value)` | Writes a job parameter. |
+| `GetJobParameter<T>(string name)` | Reads a job parameter, for example one set by a client filter. Returns `default` when the parameter isn't set. |
+| `GetJobParameter<T>(string name, bool allowStale)` | The same; `allowStale: true` may return the value read when the job was fetched instead of reading the storage again. |
+| `SetJobParameter(string name, object? value)` | Writes a job parameter. |
 
 Set the global activator with `GlobalConfiguration.Configuration.UseActivator(activator)` (or in the `AddNightShift` callback), or one server's activator with `BackgroundJobServerOptions.Activator`. `UseDefaultActivator()` goes back to the built-in one.
 
@@ -146,7 +149,7 @@ services.AddSingleton(new SqlServerStorageOptions
 
 services.AddNightShift((provider, config) => config
     .UseSqlServerStorage(
-        provider.GetRequiredService<IConfiguration>().GetConnectionString("Jobs"),
+        provider.GetRequiredService<IConfiguration>().GetConnectionString("Jobs")!,
         provider.GetRequiredService<SqlServerStorageOptions>()));
 ```
 
@@ -303,7 +306,7 @@ public sealed class CacheWarmupProcess : IBackgroundProcess
 }
 ```
 
-Or register it with `services.AddSingleton<IBackgroundProcess, CacheWarmupProcess>()` and use an overload without a process list: every such server runs all registered `IBackgroundProcess` services. The [keep-alive process](keep-alive.md) is registered this way.
+Or register it with `services.AddSingleton<IBackgroundProcess, CacheWarmupProcess>()` and use an overload without a process list: every such server runs all registered `IBackgroundProcess` services. The [keep-alive process](keep-alive.md) is registered this way. [Background processes](background-processes.md) explains the loop, stopping, errors and asynchronous processes.
 
 ### Create the server yourself
 
@@ -315,7 +318,7 @@ services.AddNightShiftServer(provider => new BackgroundJobServer(
     provider.GetRequiredService<JobStorage>()));
 ```
 
-A server created this way does not get its options filled from the container. It uses `JobActivator.Current` (which `AddNightShift` sets to the container-backed activator once the configuration has run) and the global filters, unless you set `Activator` and `FilterProvider` in its options.
+The factory may return any `IBackgroundProcessingServer`, for example a `BackgroundProcessingServer` that runs only your own [background processes](background-processes.md#run-an-asynchronous-process). A server created this way does not get its options filled from the container. It uses `JobActivator.Current` (which `AddNightShift` sets to the container-backed activator once the configuration has run) and the global filters, unless you set `Activator` and `FilterProvider` in its options.
 
 ### A custom activator: a tenant per job
 
@@ -420,7 +423,7 @@ services.AddNightShiftServer((provider, options) =>
 
 ### Without a container
 
-In a console app, a Windows Service or an ASP.NET application on .NET Framework, configure the library once at start-up and create the server yourself. `new BackgroundJobServer()` uses `JobStorage.Current` and `JobActivator.Current`. The default activator needs a public parameterless constructor; for anything else, override `ActivateJob`:
+In a console app or a Windows Service without the generic host, configure the library once at start-up and create the server yourself. `new BackgroundJobServer()` uses `JobStorage.Current` and `JobActivator.Current`. The default activator needs a public parameterless constructor; for anything else, override `ActivateJob`:
 
 ```csharp
 using System;
@@ -447,7 +450,7 @@ public class InvoiceJobActivator : JobActivator
         _connectionString = connectionString;
     }
 
-    public override object ActivateJob(Type jobType)
+    public override object? ActivateJob(Type jobType)
     {
         if (jobType == typeof(InvoiceService))
         {
@@ -487,7 +490,8 @@ When the activator only overrides `ActivateJob`, instances that implement `IDisp
 - **Call `AddNightShift` once.** It configures the process-wide `GlobalConfiguration`, which every server, client and dashboard in the process shares. A second call doesn't throw, but only the configuration callback of the last call runs; the first one is ignored.
 - **The injected managers are separate instances.** `IRecurringJobManager`, `IRecurringJobManagerV2` and `IRecurringJobManagerV3` are each a singleton of their own, all for the same storage, so any of them sees the same recurring jobs. With `IRecurringJobManager` you can also use the `Pause`, `Resume` and `UpdateSchedule` extension methods; see [Pausing and updating](../recurring-jobs/pausing-and-updating.md).
 - **Explicit process lists replace registered processes.** The `AddNightShiftServer` overloads with an `IEnumerable<IBackgroundProcess>` parameter ignore the `IBackgroundProcess` services in the container.
-- **`app.UseNightShiftServer(...)` is obsolete.** Use `services.AddNightShiftServer(...)`. The `UseNightShiftServer(Func<IBackgroundProcessingServer>)` and `IServiceProvider.RegisterNightShiftServer(server)` helpers in `Masterly.NightShift.AspNetCore` still exist for servers created outside the container; they stop and dispose the server with the application.
+- **Start servers with `services.AddNightShiftServer(...)`.** Hangfire's `app.UseHangfireServer(options, ...)` has no counterpart. The `UseNightShiftServer(Func<IBackgroundProcessingServer>)` and `IServiceProvider.RegisterNightShiftServer(server)` helpers in `Masterly.NightShift.AspNetCore` still exist for servers created outside the container; they stop and dispose the server with the application.
+- **The hosted services are public.** `AddNightShiftServer` registers a `BackgroundJobServerHostedService` (or, for the factory overload, a `BackgroundProcessingServerHostedService`) as an `IHostedService`. You don't need to create them; they are public for hosts that wire hosted services by hand. `AspNetCoreJobActivator` and `AspNetCoreLogProvider` (namespace `Masterly.NightShift.AspNetCore`) are public for the same reason. `NightShiftServiceCollectionExtensions.GetInternalServices` and `ThrowIfNotConfigured` are used by `Masterly.NightShift.AspNetCore`; application code doesn't need them.
 - **Arguments are not resolved from the container.** Only the instance the method is called on comes from the activator. Method arguments are the values stored with the job; see [Job arguments](../jobs/job-arguments.md).
 
 ## See also
@@ -495,8 +499,11 @@ When the activator only overrides `ActivateJob`, instances that implement `IDisp
 - [Server options](server-options.md)
 - [Queues and workers](queues-and-workers.md)
 - [Keep-alive](keep-alive.md)
+- [Background processes](background-processes.md)
+- [Logging](../monitoring/logging.md)
 - [Quick start: ASP.NET Core](../getting-started/quick-start-aspnetcore.md)
 - [Quick start: worker](../getting-started/quick-start-worker.md)
 - [Global configuration](../configuration/global-configuration.md)
 - [Custom filters](../filters/custom-filters.md)
 - [Job arguments](../jobs/job-arguments.md)
+- [Troubleshooting: a job fails with a dependency injection error](../troubleshooting.md#a-job-fails-with-a-dependency-injection-error)

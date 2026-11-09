@@ -4,7 +4,7 @@ The dashboard can delete jobs, trigger recurring jobs, pause processing and wipe
 
 ## Quick example
 
-Protect the dashboard with an ASP.NET Core authorization policy (.NET 8 and later):
+Protect the dashboard with an ASP.NET Core authorization policy:
 
 ```csharp
 using Masterly.NightShift;
@@ -18,7 +18,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddAntiforgery();
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();
@@ -71,7 +71,7 @@ In development on your machine this lets you in. In a container, or behind a loa
 | `IDashboardAuthorizationFilter.Authorize(DashboardContext context)` | returns `bool` | | Your synchronous check. |
 | `IDashboardAsyncAuthorizationFilter.AuthorizeAsync(DashboardContext context)` | returns `Task<bool>` | | Your asynchronous check. |
 | `LocalRequestsOnlyAuthorizationFilter` | class | | The default filter described above. |
-| `context.GetHttpContext()` | extension on `DashboardContext`, returns `HttpContext` | | In `Masterly.NightShift.Dashboard` (package `Masterly.NightShift.AspNetCore`). Gives your filter the user, headers and services of the request. |
+| `context.GetHttpContext()` | extension on `DashboardContext`, returns `HttpContext` | | In `AspNetCoreDashboardContextExtensions`, namespace `Masterly.NightShift.Dashboard` (package `Masterly.NightShift.AspNetCore`). Gives your filter the user, headers and services of the request. The context of an ASP.NET Core dashboard is an `AspNetCoreDashboardContext`, whose `HttpContext` property returns the same; on any other `DashboardContext` (a test double, for example) it throws `ArgumentException`. |
 | `MapNightShiftDashboardWithNoAuthorizationFilters(...)` | `IEndpointConventionBuilder` | | Maps the dashboard without the dashboard's own filters, ready for `.RequireAuthorization(...)`. It uses a copy of the options you pass (or the ones registered in DI) with both filter lists empty; the original keeps its filters, and every other option, such as `IsReadOnlyFunc`, applies. |
 | `MapNightShiftDashboardWithAuthorizationPolicy(policyName, ...)` | `IEndpointConventionBuilder` | | The same, plus `.RequireAuthorization(policyName)`. |
 
@@ -98,7 +98,7 @@ app.MapNightShiftDashboardWithNoAuthorizationFilters()
     .RequireAuthorization(policy => policy.RequireRole("Admin", "Support"));
 ```
 
-These methods exist on .NET 8 and later. With `UseNightShiftDashboard`, use a dashboard filter instead.
+`UseNightShiftDashboard` returns an `IApplicationBuilder`, not an endpoint, so with it use a dashboard filter instead.
 
 ### Writing an authorization filter
 
@@ -234,7 +234,7 @@ An endpoint policy added with `RequireAuthorization` applies to the whole dashbo
 
 ### Antiforgery
 
-Every dashboard button that changes data sends a `POST` from the browser. If the dashboard trusts a cookie (your login cookie, or simply "the browser is on localhost"), another website the same user visits could make the browser send that `POST`, for example to `/nightshift/maintenance/reset`. This is cross-site request forgery. The antiforgery token stops it: the forged request can't know the token.
+Every dashboard button that changes data sends a `POST` from the browser. If the dashboard trusts a cookie (your login cookie, or only "the browser is on localhost"), another website the same user visits could make the browser send that `POST`, for example to `/nightshift/maintenance/reset`. This is cross-site request forgery. The antiforgery token stops it: the forged request can't know the token.
 
 How the dashboard uses it when `IAntiforgery` is registered in DI:
 

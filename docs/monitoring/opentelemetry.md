@@ -2,8 +2,6 @@
 
 `UseTelemetry()` makes Masterly.NightShift emit traces and metrics through the standard .NET `ActivitySource` and `Meter` APIs, so OpenTelemetry (or any other listener) can export them. Use it when you want to see a background job in the same trace as the web request that created it, and to chart job counts, durations and concurrency in your metrics backend.
 
-Telemetry is available on `net8.0` and later only. The method does not exist in the `netstandard2.0` build that .NET Framework apps use.
-
 ## Quick example
 
 Turn telemetry on in the Masterly.NightShift configuration, then subscribe to the `Masterly.NightShift` source and meter in the OpenTelemetry SDK.
@@ -17,7 +15,7 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseTelemetry());
 
 builder.Services.AddNightShiftServer();
@@ -79,7 +77,7 @@ Every attempt of a job is its own `process` span. A job that is retried three ti
 
 | Member | Type | Meaning |
 |---|---|---|
-| `IGlobalConfiguration.UseTelemetry()` | extension method (`net8.0`+) | Adds the telemetry filter to `GlobalJobFilters`. Returns the configuration for chaining. |
+| `IGlobalConfiguration.UseTelemetry()` | extension method | Adds the telemetry filter to `GlobalJobFilters`. Returns the configuration for chaining. |
 | `NightShiftTelemetry.ActivitySourceName` | `const string` = `"Masterly.NightShift"` | Name of the `ActivitySource`. Pass it to `AddSource`. |
 | `NightShiftTelemetry.MeterName` | `const string` = `"Masterly.NightShift"` | Name of the `Meter`. Pass it to `AddMeter`. |
 
@@ -278,6 +276,7 @@ public static class RawListeners
 
 ## Things to know
 
+- **Nothing exported?** Check, in this order: `UseTelemetry()` is called in the process that performs the jobs (not only in the web app); the OpenTelemetry setup has `AddSource(NightShiftTelemetry.ActivitySourceName)` for spans and `AddMeter(NightShiftTelemetry.MeterName)` for metrics; your sampler keeps the spans (with a parent-based sampler, a job is traced only when its creator was).
 - **Call it once, early.** `UseTelemetry()` adds a global filter. Put it in the `AddNightShift(...)` callback or next to your other `GlobalConfiguration` calls, in every process that creates or performs jobs.
 - **Jobs created before telemetry was on** (or by a process without `UseTelemetry()`) have no `TraceParent` parameter. Their `process` span starts a new trace. The same happens when there was no `Activity` at creation time, for example for jobs created by the recurring job scheduler, unless the `create` span itself is listened to, in which case the job continues the `create` span's trace.
 - **Only W3C ids are propagated.** An `Activity` using the legacy hierarchical id format is not stored. W3C is the default on modern .NET.

@@ -1,6 +1,8 @@
 # Roadmap
 
-Work that is planned but not in 1.0. Nothing here is scheduled yet. Sizes are rough and relative: **S** is small, **M** medium, **L** large.
+This page lists work that is planned but not in Masterly.NightShift 1.0, so you can tell a missing feature from a bug and plan around it. Each item says what happens today, what the change involves, and what to do until then. Nothing here is scheduled yet. Sizes are rough and relative: **S** is small, **M** medium, **L** large.
+
+What 1.0 already has on top of Hangfire is in [What's new](whats-new-next.md).
 
 ## E1: Planned after 1.0
 
@@ -47,7 +49,7 @@ Work that is planned but not in 1.0. Nothing here is scheduled yet. Sizes are ro
 **What it involves.**
 - An observable gauge for the length of each queue, read from storage when a collector asks. Reads are cached for a few seconds, as the health report is, so several collectors don't multiply the queries.
 - A histogram of queue wait time, from Enqueued to Processing, recorded when a worker starts a job. The telemetry filter already reads the Enqueued state at that point when someone listens.
-- Both follow the existing telemetry rules: no work when nothing listens, and .NET 8 or later only.
+- Both follow the existing telemetry rules: no work when nothing listens.
 - Queue names become metric tags, so their number must stay bounded.
 
 **Until then.** Scrape the dashboard's `/metrics` endpoint, or call `MapNightShiftMetrics` (see [Health checks and probes](monitoring/health-checks.md)).
@@ -80,7 +82,7 @@ Work that is planned but not in 1.0. Nothing here is scheduled yet. Sizes are ro
 
 ### F-1.6: Continuations that react to a final failure
 
-**Today.** A continuation runs when its parent succeeds (`OnlyOnSucceededState`) or reaches any final state (`OnAnyFinishedState`). Failed isn't a final state, so nothing runs when a job has used up its retries and stays Failed, unless it is set to be deleted then (`AttemptsExceededAction.Delete`). In the same way, a batch with one failed job never finishes: its continuation waits, and `JobBatch.IsStuck` is the only signal.
+**Today.** A continuation runs when its parent succeeds (`OnlyOnSucceededState`), is deleted (`OnlyOnDeletedState`) or reaches any final state (`OnAnyFinishedState`). Failed isn't a final state, so nothing runs when a job has used up its retries and stays Failed, unless it is set to be deleted then (`AttemptsExceededAction.Delete`). In the same way, a batch with one failed job never finishes: its continuation waits, and `JobBatch.IsStuck` is the only signal.
 
 **What it involves.**
 - A continuation option that runs only when the parent ends Failed after its last attempt, for compensation or notification steps ("tell the customer the import failed").

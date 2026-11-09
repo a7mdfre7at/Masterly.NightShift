@@ -1,0 +1,246 @@
+.window {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ns-border-strong);
+  border-radius: var(--ns-radius-lg);
+  background: var(--ns-surface-raised);
+  box-shadow: var(--ns-shadow-lg);
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--ns-border);
+  background: var(--ns-surface);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.dots span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--ns-border-strong);
+}
+
+.path {
+  flex: 1;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.78rem;
+  color: var(--ns-ink-muted);
+}
+
+.runButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ns-border-strong);
+  border-radius: 999px;
+  background: var(--ns-surface-raised);
+  color: var(--ns-ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--ns-duration) var(--ns-ease);
+}
+
+.runButton:hover:not(:disabled) {
+  border-color: var(--ifm-color-primary);
+}
+
+.runButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.counters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--ns-border);
+}
+
+.counter {
+  padding: 0.7rem 0.85rem;
+  border-left: 1px solid var(--ns-border);
+  font-size: 0.75rem;
+  color: var(--ns-ink-muted);
+}
+
+.counter:first-child {
+  border-left: none;
+}
+
+.counter b {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter.processing b {
+  color: var(--ns-warn);
+}
+
+.counter.succeeded b {
+  color: var(--ns-pass);
+}
+
+.counter.failed b {
+  color: var(--ns-fail);
+}
+
+.counter.scheduled b {
+  color: var(--ns-sched);
+}
+
+.list {
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    'id method badge'
+    'id detail detail';
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  align-items: center;
+  padding: 0.6rem 0.95rem;
+  border-top: 1px solid var(--ns-border);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+}
+
+.row:first-child {
+  border-top: none;
+}
+
+.jobId {
+  grid-area: id;
+  align-self: start;
+  color: var(--ns-ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.method {
+  grid-area: method;
+  color: var(--ns-ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  grid-area: detail;
+  color: var(--ns-ink-faint);
+  font-size: 0.74rem;
+}
+
+.badge {
+  grid-area: badge;
+  justify-self: end;
+  min-width: 6.4rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  transition: background var(--ns-duration) var(--ns-ease), color var(--ns-duration) var(--ns-ease);
+}
+
+.enqueued {
+  background: var(--ns-accent-soft);
+  color: var(--ifm-color-primary);
+}
+
+.scheduled {
+  background: var(--ns-sched-soft);
+  color: var(--ns-sched);
+}
+
+.awaiting {
+  background: var(--ns-surface-sunken);
+  color: var(--ns-ink-faint);
+}
+
+.processing {
+  background: var(--ns-warn-soft);
+  color: var(--ns-warn);
+}
+
+.badge.processing {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.succeeded {
+  background: var(--ns-pass-soft);
+  color: var(--ns-pass);
+}
+
+.failed {
+  background: var(--ns-fail-soft);
+  color: var(--ns-fail);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.95rem;
+  border-top: 1px solid var(--ns-border);
+  background: var(--ns-surface);
+  font-size: 0.8rem;
+  color: var(--ns-ink-muted);
+}
+
+.live {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--ns-pass-fill);
+  box-shadow: 0 0 0 3px var(--ns-pass-soft);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 640px) {
+  .counters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .counter:nth-child(3) {
+    border-left: none;
+  }
+
+  .counter:nth-child(n + 3) {
+    border-top: 1px solid var(--ns-border);
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id badge'
+      'method method'
+      'detail detail';
+  }
+}

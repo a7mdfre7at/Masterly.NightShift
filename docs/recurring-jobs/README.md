@@ -4,7 +4,7 @@ A recurring job is a method call stored together with a schedule. You register i
 
 | Page | What it covers |
 |------|----------------|
-| [Creating recurring jobs](creating-recurring-jobs.md) | `AddOrUpdate` overloads, recurring job IDs, `RecurringJobOptions` (including start and end dates), triggering a run now, removing jobs, what changes when you register the same ID again |
+| [Creating recurring jobs](creating-recurring-jobs.md) | `AddOrUpdate` overloads, recurring job IDs, `RecurringJobOptions` (including start and end dates), triggering a run now, removing and listing jobs, what changes when you register the same ID again |
 | [CRON and schedules](cron-and-schedules.md) | The CRON format, every `Cron.*` helper, `Cron.Builder()`, plain-English schedules with `Cron.FromText`, `Cron.Describe` and previews |
 | [Pausing and updating](pausing-and-updating.md) | `Pause`, `Resume` and `UpdateSchedule`: change when and where a job runs without redeploying |
 | [Time zones and misfires](time-zones-and-misfires.md) | Running a schedule in a time zone, daylight saving changes, server downtime, `MisfireHandlingMode`, how start and end dates bound the schedule, `ITimeZoneResolver` |

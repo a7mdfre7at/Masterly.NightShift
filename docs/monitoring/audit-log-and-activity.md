@@ -1,6 +1,11 @@
 # Audit log and activity feed
 
-Two rolling logs kept in the job storage. The **audit log** records who did what on the dashboard: requeues, deletes, pauses, imports, jobs run from the Catalog. It is on by default. The **activity feed** records every state transition of every job across the cluster, and drives the live feed on the dashboard's home page and the Timeline page. It is off by default, because it writes to one storage list on every state change; turn it on with `UseActivityFeed()`. Use this page to turn them on or off, size them, and read them from code.
+Two rolling logs kept in the job storage. "Rolling" means each keeps only its newest entries (1000 by default) and drops older ones.
+
+- The **audit log** records who did what on the dashboard: requeues, deletes, pauses, imports, jobs run from the Catalog. It is on by default. Use it to answer "who deleted these jobs?".
+- The **activity feed** records every state transition of every job across the cluster, and drives the live feed on the dashboard's home page and the Timeline page. It is off by default, because it writes to one storage list on every state change; turn it on with `UseActivityFeed()`.
+
+Use this page to turn them on or off, size them, and read them from code.
 
 ## Quick example
 
@@ -51,7 +56,7 @@ Turn the feed on in every process that changes job states: the servers, and the 
 
 ```csharp
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseActivityFeed());
 ```
 
@@ -82,7 +87,7 @@ The dashboard uses it in two places:
 | `MaxTargets` | `const int` | `25` | How many targets of one action are kept by id. |
 | `Record(DashboardContext context, IEnumerable<string>? targets = null, string? detail = null, int status = 204)` | method | | Records an action taken through a dashboard request. Use it from your own dashboard dispatchers. |
 | `Read(IStorageConnection connection, int count)` | method | | The newest `count` entries, newest first. Returns an empty list when `count` is zero or less, when the storage connection is not a `JobStorageConnection`, or when the storage can't read lists. |
-| `Count(IStorageConnection connection)` | method | | How many entries are kept right now; 0 when the storage can't count lists. |
+| `Count(IStorageConnection connection)` | method, returns `long` | | How many entries are kept right now; 0 when the connection is not a `JobStorageConnection` or the storage can't count lists. |
 | `Describe(string action)` | method | | A short English description of an action path, for example `"Requeue failed jobs"`. Returns the path itself when it has no description. |
 
 ### `AuditEntry`
@@ -123,7 +128,7 @@ Stored as JSON with short property names to keep the list small.
 | `queues/pause`, `queues/resume` | Pause a queue / Resume a queue |
 | `catalog/run` | Run a job from the catalog |
 | `insights/circuits/reset` | Close a circuit |
-| `tags/forget` | Forget a tag |
+| `tags/forget-expired`, `tags/forget` | Remove expired jobs from a tag / Forget a tag |
 | `batches/requeue-failed`, `batches/delete` | Requeue a batch's failed jobs / Delete a batch's pending jobs |
 
 ### `ActivityFeed` (static)
@@ -247,12 +252,20 @@ public class AuditExportJob
 ### Print the latest transitions
 
 ```csharp
-using (var connection = storage.GetReadOnlyConnection())
+using Masterly.NightShift;
+
+public static class ActivityReport
 {
-    foreach (ActivityEntry entry in ActivityFeed.Read(connection, 50))
+    public static void PrintLatest(JobStorage storage)
     {
-        var at = DateTimeOffset.FromUnixTimeMilliseconds(entry.Timestamp);
-        Console.WriteLine($"{at:HH:mm:ss.fff} job {entry.JobId} {entry.OldState} -> {entry.State} {entry.Method} {entry.Reason}");
+        using (var connection = storage.GetReadOnlyConnection())
+        {
+            foreach (ActivityEntry entry in ActivityFeed.Read(connection, 50))
+            {
+                var at = DateTimeOffset.FromUnixTimeMilliseconds(entry.Timestamp);
+                Console.WriteLine($"{at:HH:mm:ss.fff} job {entry.JobId} {entry.OldState} -> {entry.State} {entry.Method} {entry.Reason}");
+            }
+        }
     }
 }
 ```

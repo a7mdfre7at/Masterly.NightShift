@@ -10,7 +10,7 @@ using Masterly.NightShift;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!));
 builder.Services.AddNightShiftServer();
 builder.Services.AddNightShiftKeepAlive(options =>
 {
@@ -26,7 +26,7 @@ Every 5 minutes the server requests `https://jobs.example.com/nightshift/ping`, 
 
 ## How it works
 
-`KeepAliveProcess` is an extra background process of the job server. `AddNightShiftKeepAlive` registers it in the container as an `IBackgroundProcess`, and `AddNightShiftServer` picks it up and runs it on a thread of its own next to the workers. The process waits for `Interval`, sends one `GET` request to the URL, and repeats until the server is asked to stop. The first request is sent one interval after the server starts. When the server stops, the process ends its wait (or cancels a request in flight) at once, so it never delays shutdown.
+`KeepAliveProcess` is an extra [background process](background-processes.md) of the job server. `AddNightShiftKeepAlive` registers it in the container as an `IBackgroundProcess`, and `AddNightShiftServer` picks it up and runs it on a thread of its own next to the workers. The process waits for `Interval`, sends one `GET` request to the URL, and repeats until the server is asked to stop. The first request is sent one interval after the server starts. When the server stops, the process ends its wait (or cancels a request in flight) at once, so it never delays shutdown.
 
 Any HTTP response counts: a `401`, `404` or `500` still proves that the host handled a request, which is all the idle timeout looks at. A non-success status code is recorded as a note and, when `LogFailures` is on, logged as a warning, because it usually means the URL is wrong or blocked by the dashboard authorization. Only a missing response (DNS failure, refused connection, timeout) counts as a failure.
 
@@ -55,22 +55,24 @@ For those, configure the host:
 
 ### AddNightShiftKeepAlive
 
-In `Masterly.NightShift.AspNetCore`, namespace `Masterly.NightShift`:
+An extension method of `NightShiftKeepAliveServiceCollectionExtensions`, in the `Masterly.NightShift.AspNetCore` package, namespace `Masterly.NightShift`:
 
 ```csharp
 public static IServiceCollection AddNightShiftKeepAlive(
     this IServiceCollection services,
-    Action<KeepAliveOptions> configure = null,
+    Action<KeepAliveOptions>? configure = null,
     string path = "/nightshift/ping")
 ```
+
+It registers a `KeepAliveProcess` as a singleton `IBackgroundProcess`; the options are built and `configure` runs when the first server is created.
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `services` | `IServiceCollection` | | The service collection. Call it next to `AddNightShiftServer()`. |
 | `configure` | `Action<KeepAliveOptions>` | `null` | Changes to the defaults: URL, interval, timeout, logging. |
-| `path` | `string` | `"/nightshift/ping"` | Used only when neither `Url` nor `UrlFactory` is set: the path appended to the server's own address. Change it if the dashboard is mapped somewhere other than `/nightshift`. |
+| `path` | `string` | `"/nightshift/ping"` | Used only when neither `Url` nor `UrlFactory` is set: the path appended to the server's own address (a missing leading `/` is added). Change it if the dashboard is mapped somewhere other than `/nightshift`. `null` throws `ArgumentNullException`. |
 
-When neither `Url` nor `UrlFactory` is set, on .NET 8 and later the URL is built from the addresses the web server listens on (`IServerAddressesFeature`): the first `http://` address is preferred over `https://`, an "any address" host (`*`, `+`, `0.0.0.0`, `[::]`) is replaced by `localhost`, and `path` is appended. The address is looked up on the first request; if the server has no address yet, it is looked up again on the next one. On the `netstandard2.0` build of the package, the address cannot be looked up and `Url` is required: without it, creating the process throws `InvalidOperationException`.
+When neither `Url` nor `UrlFactory` is set, the URL is built from the addresses the web server listens on (`IServerAddressesFeature`): the first `http://` address is preferred over `https://`, an "any address" host (`*`, `+`, `0.0.0.0`, `[::]`) is replaced by `localhost`, and `path` is appended. The address is looked up on the first request; if the server has no address yet, it is looked up again on the next one.
 
 ### KeepAliveOptions
 
@@ -84,7 +86,7 @@ In `Masterly.NightShift.Core`, namespace `Masterly.NightShift.Server`:
 | `Timeout` | `TimeSpan` | 15 seconds | The request timeout. Must be greater than zero. |
 | `LogFailures` | `bool` | `true` | Whether failed requests and non-success status codes are logged as warnings. |
 
-Either `Url` or `UrlFactory` must be set when the process is created (`AddNightShiftKeepAlive` sets `UrlFactory` for you on .NET 8 and later); otherwise the constructor throws `ArgumentException`. An `Interval` or `Timeout` of zero or less throws `ArgumentOutOfRangeException`.
+Either `Url` or `UrlFactory` must be set when the process is created (`AddNightShiftKeepAlive` sets `UrlFactory` for you); otherwise the constructor throws `ArgumentException`. An `Interval` or `Timeout` of zero or less throws `ArgumentOutOfRangeException`.
 
 ### KeepAliveProcess
 
@@ -113,7 +115,7 @@ In `Masterly.NightShift.Core`, namespace `Masterly.NightShift.Server`. Implement
 
 ### Let the server find its own address
 
-On .NET 8 and later, without a URL, the process requests `/nightshift/ping` on the first address the application listens on:
+Without a URL, the process requests `/nightshift/ping` on the first address the application listens on:
 
 ```csharp
 services.AddNightShiftKeepAlive();
@@ -156,7 +158,7 @@ builder.Services.AddNightShiftKeepAlive(options =>
 
 ### Without dependency injection
 
-Pass the process to the server as an additional process, for example in an ASP.NET application on .NET Framework:
+Pass the process to the server as an additional process, for example when you create the server yourself:
 
 ```csharp
 using System;
@@ -211,6 +213,7 @@ Console.WriteLine($"{status.Url} every {status.Interval}: last attempt {status.L
 
 - [Server options](server-options.md)
 - [Dependency injection](dependency-injection.md)
+- [Background processes](background-processes.md)
 - [Dashboard setup](../dashboard/setup.md)
 - [Dashboard authorization](../dashboard/authorization.md)
 - [Quick start: worker](../getting-started/quick-start-worker.md)

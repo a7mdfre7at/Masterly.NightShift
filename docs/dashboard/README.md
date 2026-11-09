@@ -23,7 +23,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddAntiforgery();
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();

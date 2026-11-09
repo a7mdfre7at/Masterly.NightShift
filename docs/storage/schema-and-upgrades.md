@@ -76,7 +76,6 @@ A static class in `Masterly.NightShift.SqlServer`.
 | `Install(DbConnection connection, string schema, bool enableHeavyMigrations)` | Runs the script on the connection, with no command timeout. |
 | `Install(DbConnection connection, string schema)` | The same with heavy migrations off. |
 | `Install(DbConnection connection)` | The same with the default schema and heavy migrations off. |
-| `RequiredSchemaVersion` | Obsolete and unused. |
 
 The related `SqlServerStorageOptions`: `PrepareSchemaIfNecessary` (run the script at startup, default `true`), `EnableHeavyMigrations` (default `false`), `SchemaName` (default `"HangFire"`), `TryAutoDetectSchemaDependentOptions` (default `true`).
 

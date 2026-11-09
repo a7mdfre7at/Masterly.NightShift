@@ -64,15 +64,15 @@ Everything else (recurring jobs, retries, continuations, batches, tags, statisti
 | `GetMonitoringApi()` | Yes | | The monitoring API. |
 | `GetReadOnlyConnection()` | No | `GetConnection()` | A connection for reads only, used by the dashboard. May point at a replica. |
 | `HasFeature(string featureId)` | No | `false` for everything | Which optional features are supported. See [Feature flags](#feature-flags). |
-| `GetStorageWideProcesses()` | No | none | Processes every server runs for this storage, unless it's a lightweight server. Requires the `ProcessesInsteadOfComponents` feature. |
-| `GetServerRequiredProcesses()` | No | none | Processes every server runs, lightweight ones included, for example a keep-alive for fetched jobs. Requires `ProcessesInsteadOfComponents`. |
-| `GetComponents()` | No | none | Obsolete form of the above, used when `ProcessesInsteadOfComponents` isn't reported. |
+| `GetStorageWideProcesses()` | No | none | Processes every server runs for this storage, unless it's a lightweight server, for example the cleanup of expired data. |
+| `GetServerRequiredProcesses()` | No | none | Processes every server runs, lightweight ones included, for example a keep-alive for fetched jobs. |
 | `GetStateHandlers()` | No | none | Extra `IStateHandler`s applied in every state transition, for storage-specific bookkeeping. |
 | `WriteOptionsToLog(ILog logger)` | No | nothing | Called when a server starts, to log your options. |
 | `LinearizableReads` | No | `false` | Return `true` only if a read always sees every write committed before it (no replicas, no eventual consistency). Lets the state changer skip waiting for a job's first state to appear. |
 | `Purge(StoragePurgeOptions)` | No | throws `NotSupportedException` | Delete job data, keeping what the options ask for: recurring job definitions (`KeepRecurringJobs`), servers (`KeepServers`), the `audit` list (`KeepAuditLog`) and the `hangfire:control` hash (`KeepDrainMode`). Report `JobStorageFeatures.Purge` when you implement it; the dashboard then shows its maintenance buttons. |
 | `JobExpirationTimeout` | (property) | 1 day | How long finished jobs are kept; set by users. |
 | `ToString()` | Recommended | type name | Shown in logs and on the dashboard. Don't include passwords. |
+| `JobStorage.Current` | (static property) | | The storage used by the static APIs and by clients and servers created without one. `UseStorage` and `AddNightShift` set it; your storage doesn't. |
 
 ### Feature flags
 
@@ -82,7 +82,6 @@ Optional capabilities are advertised by `HasFeature`, with the ids in `JobStorag
 |---|---|---|---|
 | `JobStorageFeatures.ExtendedApi` | `Storage.ExtendedApi` | The extended members of `JobStorageConnection` and `JobStorageTransaction` (counts, ranges, TTLs, `ExpireSet`, `RemoveSet` and so on) are implemented. | Extensions that check it avoid those members. Note that much of the library calls them whenever the connection derives from `JobStorageConnection`, without checking (see [Why base classes](#why-base-classes-and-not-new-interface-members)). |
 | `JobStorageFeatures.JobQueueProperty` | `Job.Queue` | The job's own queue (`Job.Queue`, set by `Enqueue("queue", ...)` overloads) is stored with the job. Serializing with `InvocationData.SerializeJob(job)` and `SerializePayload()` includes it. | Creating a job with an explicit queue throws `NotSupportedException`; only `[Queue]` works. |
-| `JobStorageFeatures.ProcessesInsteadOfComponents` | `Storage.ProcessesInsteadOfComponents` | Servers call `GetStorageWideProcesses()` and `GetServerRequiredProcesses()`. | Servers call the obsolete `GetComponents()`. |
 | `JobStorageFeatures.Purge` | `Storage.Purge` | `Purge` is implemented. | The dashboard hides Clear all jobs / Reset storage; calls throw `NotSupportedException`. |
 | `JobStorageFeatures.Connection.GetUtcDateTime` | `Connection.GetUtcDateTime` | `GetUtcDateTime()` returns the database clock. | Schedulers and the dashboard use the application server's clock, so clock skew between servers shows. |
 | `JobStorageFeatures.Connection.GetSetContains` | `Connection.GetSetContains` | `GetSetContains(key, value)` is implemented. | Not used by the library today; for extensions. |
@@ -175,6 +174,25 @@ Keys are strings such as `schedule`, `recurring-job:nightly-report` or `stats:su
 
 Derive from `JobStorageMonitor` and implement every abstract member; add `AwaitingJobs`/`AwaitingCount` and `DeletedByDatesCount`/`HourlyDeletedJobs` with their features, and `QueueCounts` with `Monitoring.QueueCounts` when your storage can count the queues without loading their first jobs. Job lists are `JobList<TDto?>`, a list of id/DTO pairs; an entry's DTO is `null` when the job expired between queries. Some DTO fields must never be `null` because the dashboard uses them without checks: see [For storage implementers](../breaking-changes.md#for-storage-implementers).
 
+The DTOs are in `Masterly.NightShift.Storage.Monitoring`. Every job DTO has `Job` (from `InvocationData.DeserializeJob()`), `LoadException` (set instead of `Job` when that throws) and `InvocationData`; the table lists the other fields. `In{State}State` is `true` when the job is still in the list's state (a job can change state between the list query and the read of its details), and `StateData` is the current state's data.
+
+| Member | Returns | Fields to fill |
+|---|---|---|
+| `Queues()` | `IList<QueueWithTopEnqueuedJobsDto>` | `Name`, `Length` (waiting jobs), `Fetched` (fetched jobs, or `null` if the storage can't tell), `FirstJobs` (the first few waiting jobs, as `JobList<EnqueuedJobDto?>`). `QueueCounts()` returns the same type with an empty `FirstJobs`. |
+| `Servers()` | `IList<ServerDto>` | `Name`, `WorkersCount`, `StartedAt`, `Queues`, `Heartbeat`. |
+| `JobDetails(jobId)` | `JobDetailsDto?` | `CreatedAt`, `ExpireAt`, `Properties` (the job parameters), `History` (`StateHistoryDto`s, newest first: `StateName`, `Reason`, `CreatedAt`, `Data`). `null` for an unknown id. |
+| `GetStatistics()` | `StatisticsDto` | Counts: `Servers`, `Recurring`, `Enqueued`, `Queues`, `Scheduled`, `Processing`, `Succeeded`, `Failed`, `Deleted`, and `Retries` and `Awaiting` (`null` when unknown). |
+| `EnqueuedJobs(queue, from, perPage)` | `EnqueuedJobDto` | `State`, `EnqueuedAt`, `InEnqueuedState`, `StateData`. |
+| `FetchedJobs(queue, from, perPage)` | `FetchedJobDto` | `State`, `FetchedAt`. |
+| `ProcessingJobs(from, count)` | `ProcessingJobDto` | `ServerId`, `StartedAt`, `InProcessingState`, `StateData`. |
+| `ScheduledJobs(from, count)` | `ScheduledJobDto` | `EnqueueAt` (when it is due), `ScheduledAt`, `InScheduledState`, `StateData`. |
+| `SucceededJobs(from, count)` | `SucceededJobDto` | `Result`, `TotalDuration` (milliseconds), `SucceededAt`, `InSucceededState`, `StateData`. |
+| `FailedJobs(from, count)` | `FailedJobDto` | `Reason`, `FailedAt`, `ExceptionType`, `ExceptionMessage`, `ExceptionDetails`, `InFailedState`, `StateData`. |
+| `DeletedJobs(from, count)` | `DeletedJobDto` | `DeletedAt`, `InDeletedState`, `StateData`. |
+| `AwaitingJobs(from, count)` | `AwaitingJobDto` | `AwaitingAt`, `InAwaitingState`, `StateData`, `ParentStateName` (the current state of the job it waits for). |
+
+The `*Count` methods count the same lists. The SQL Server storage returns succeeded, failed and deleted jobs newest first and the other lists oldest first; do the same so the dashboard pages read alike. `SucceededByDatesCount`, `FailedByDatesCount` and `DeletedByDatesCount` return one count per day for the last 7 days, and `HourlySucceededJobs`, `HourlyFailedJobs` and `HourlyDeletedJobs` one count per hour for the last 24 hours, keyed by UTC time; the home page's history graph draws them.
+
 ## Skeleton
 
 A starting point that compiles. Replace each `NotImplementedException` with real code.
@@ -199,7 +217,6 @@ public class MyDbStorage : JobStorage
     {
         JobStorageFeatures.ExtendedApi,
         JobStorageFeatures.JobQueueProperty,
-        JobStorageFeatures.ProcessesInsteadOfComponents,
         JobStorageFeatures.Connection.GetUtcDateTime,
         JobStorageFeatures.Connection.BatchedGetFirstByLowest,
     };
@@ -466,7 +483,19 @@ internal sealed class MyDbMonitoringApi : JobStorageMonitor
 
 ### Replacing only the queue of the SQL Server storage
 
-If you want SQL Server for everything but the queues, implement `IPersistentJobQueueProvider` instead of a whole storage. It returns an `IPersistentJobQueue` (`Dequeue(queues, cancellationToken)` and `Enqueue(connection, transaction, queue, jobId)`) and an `IPersistentJobQueueMonitoringApi` (`GetQueues`, `GetEnqueuedJobIds`, `GetFetchedJobIds`, `GetEnqueuedAndFetchedCount`). Use it for all queues with `SqlServerStorageOptions.DefaultQueueProvider`, or for some with `storage.QueueProviders.Add(provider, new[] { "critical" })`. `Enqueue` is called inside the storage's SQL transaction, with its connection and transaction, so the enqueue commits or rolls back with the job's state change. A server's queues must all use the same provider.
+If you want SQL Server for everything but the queues, implement `IPersistentJobQueueProvider` instead of a whole storage. These types are in `Masterly.NightShift.SqlServer`:
+
+| Type / member | What to implement |
+|---|---|
+| `IPersistentJobQueueProvider.GetJobQueue()` | Returns your `IPersistentJobQueue`. |
+| `IPersistentJobQueueProvider.GetJobQueueMonitoringApi()` | Returns your `IPersistentJobQueueMonitoringApi`. |
+| `IPersistentJobQueue.Dequeue(string[] queues, CancellationToken cancellationToken)` | Same contract as `FetchNextJob` above: block until a job is available, claim it and return an `IFetchedJob`. |
+| `IPersistentJobQueue.Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)` | Add the job to the queue. Called inside the storage's SQL transaction, with its connection and transaction, so the enqueue commits or rolls back with the job's state change. |
+| `IPersistentJobQueueMonitoringApi.GetQueues()` | The names of the queues that hold jobs. |
+| `GetEnqueuedJobIds(queue, from, perPage)` / `GetFetchedJobIds(queue, from, perPage)` | A page of the ids (`long`) of waiting jobs, and of jobs a worker has fetched. |
+| `GetEnqueuedAndFetchedCount(queue)` | An `EnqueuedAndFetchedCountDto` with `EnqueuedCount` and `FetchedCount` (both `int?`). |
+
+Use the provider for all queues with `SqlServerStorageOptions.DefaultQueueProvider`, or for some with `storage.QueueProviders.Add(provider, new[] { "critical" })`; `storage.QueueProviders.GetProvider(queue)` tells which one a queue uses. A server's queues must all use the same provider.
 
 ### Testing a storage
 

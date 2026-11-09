@@ -98,6 +98,18 @@ Parameters of these types are not serialized. Pass a placeholder when you create
 
 `null!` is the way to pass `null` to a non-nullable parameter when nullable reference types are on.
 
+The members of `PerformContext` a job uses most:
+
+| Member | Meaning |
+|---|---|
+| `BackgroundJob` (`BackgroundJob`) | The running job: `Id`, `CreatedAt` (UTC) and `Job`, its type, method, arguments and queue |
+| `GetJobParameter<T>(string name)` | Reads a job parameter with your serializer options; `default` when it isn't set |
+| `SetJobParameter(string name, object value)` | Writes a job parameter right away |
+| `Console` (`IJobConsole`) | The same console an `IJobConsole` parameter receives |
+| `CancellationToken` (`IJobCancellationToken`) | The job's cancellation token, see [Cancellation](cancellation.md) |
+| `Items` (`IDictionary<string, object>`) | Values shared with the server filters of this run |
+| `Connection` (`IStorageConnection`), `Storage` (`JobStorage?`), `ServerId` (`string?`) | The storage connection, the storage and the server running the job |
+
 ### Async methods
 
 Methods that return `Task`, `Task<T>`, `ValueTask` or `ValueTask<T>` are awaited; the job ends when the task completes. Use `Enqueue<T>(x => x.MethodAsync(...))` (the `Expression<Func<T, Task>>` overloads); don't put `async` or `await` in the lambda. `async void` methods are rejected with `NotSupportedException`, because the worker can't tell when they finish.
@@ -179,16 +191,41 @@ Progress, console lines, checkpoints and resumable steps are described in [Progr
 Job parameters are named values stored next to the arguments, set by filters or by `IBackgroundJobClientV2.Create(job, state, parameters)` (see [Fire-and-forget jobs](fire-and-forget.md#job-parameters-at-creation)). Read them through `PerformContext`:
 
 ```csharp
+using Masterly.NightShift.Server;
+
 public class TenantJobs
 {
-    public void Rebuild(PerformContext context)
+    public void Rebuild(int indexId, PerformContext context)
     {
         string? tenantId = context.GetJobParameter<string>("TenantId");
     }
 }
+
+jobs.Enqueue<TenantJobs>(x => x.Rebuild(7, null!));
 ```
 
-Or, after `UseResultsInContinuations()` (which registers the injection filter), mark a parameter with `[FromParameter("TenantId")]` and pass `null` for it.
+`GetJobParameter<T>` returns `default` when the parameter isn't set.
+
+Or let the server fill a method parameter with it. Mark the parameter with `[FromParameter("TenantId")]` (`FromParameterAttribute`) and pass a placeholder in the lambda. This needs `UseResultsInContinuations()` at startup, which registers the filter that fills these parameters (`JobParameterInjectionFilter`):
+
+```csharp
+using Masterly.NightShift;
+using Masterly.NightShift.Common;
+using Masterly.NightShift.States;
+
+public class TenantIndexJobs
+{
+    public void Rebuild(int indexId, [FromParameter("TenantId")] string? tenantId)
+    {
+        // tenantId is "contoso" when the job was created with that parameter
+    }
+}
+
+Job job = Job.FromExpression<TenantIndexJobs>(x => x.Rebuild(7, null));
+jobs.Create(job, new EnqueuedState(), new Dictionary<string, object> { ["TenantId"] = "contoso" });
+```
+
+Here `jobs` is an `IBackgroundJobClientV2`. The value is read with your serializer options as the parameter's type. When the job parameter isn't set, the method receives the placeholder.
 
 ### Evaluated now, run later
 

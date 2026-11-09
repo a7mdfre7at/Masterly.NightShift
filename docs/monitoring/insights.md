@@ -1,6 +1,8 @@
 # Insights
 
-Insights are statistics Masterly.NightShift keeps in the job storage so the dashboard can answer "how is this job doing?": run and failure counts, recent durations and their percentiles, how long jobs wait in each queue and how fast each queue drains, and hourly totals for the last week. Turn them on with `UseJobInsights()` when you want the Insights page, queue health, finish-time estimates for running jobs, and the per-method numbers on the `/metrics` endpoint.
+Insights are statistics Masterly.NightShift keeps in the job storage so the dashboard can answer "how is this job doing?": run and failure counts, recent durations and their percentiles (p95 is the duration 95% of runs stay under), how long jobs wait in each queue and how fast each queue drains, and hourly totals for the last week. Turn them on with `UseJobInsights()` when you want the Insights page, queue health, finish-time estimates for running jobs, and the per-method numbers on the `/metrics` endpoint.
+
+Insights are stored, so they cover the whole cluster and survive restarts. For live metrics from each process, exported to your own monitoring system, use [OpenTelemetry](opentelemetry.md) instead, or as well.
 
 ## Quick example
 
@@ -10,7 +12,7 @@ using Masterly.NightShift;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseJobInsights());
 
 builder.Services.AddNightShiftServer();
@@ -60,7 +62,7 @@ There are three recorders. `UseJobInsights()` adds the first two as global filte
 | **Catalog**, **Recurring jobs > Forecast** | Typical durations, used to size runs on the forecast timeline | per method |
 | `/metrics` | Per-method and per-queue series, see [Prometheus endpoint](#prometheus-endpoint) | per method, per queue |
 
-Without `UseJobInsights()` these pages still work; they just have no statistics to show. The heatmap and history graphs work regardless.
+Without `UseJobInsights()` these pages still work, without the statistics. The heatmap and history graphs work regardless.
 
 ## Options / API
 
@@ -68,7 +70,7 @@ Without `UseJobInsights()` these pages still work; they just have no statistics 
 
 | Member | Meaning |
 |---|---|
-| `IGlobalConfiguration.UseJobInsights()` | Adds `JobInsightsAttribute` and `QueueInsightsFilter` to the global filters. |
+| `IGlobalConfiguration.UseJobInsights()` | Adds `JobInsightsAttribute` and `QueueInsightsFilter` to the global filters. Calling it again adds nothing. Call it in every process that runs jobs: the statistics are recorded where jobs run, not where the dashboard runs. |
 | `[JobInsights]` | Apply to a class or method to record only those jobs. Queue statistics are not recorded this way. |
 
 ### `JobInsightsAttribute`
@@ -92,8 +94,8 @@ Without `UseJobInsights()` these pages still work; they just have no statistics 
 | `FailureRate` | `double` | `Failed / Total`, 0 to 1. |
 | `Durations` | `long[]` | The recent durations in milliseconds (up to 200), oldest first. |
 | `AverageMs`, `MedianMs`, `P95Ms`, `MaxMs` | `long` | Mean, median, 95th percentile and maximum of `Durations`. 0 when there are none. |
-| `RecentMedianMs` | `long` | Median of the last `RecentSampleSize` (10) runs. |
-| `EarlierMedianMs` | `long` | Median of the runs before those 10. |
+| `RecentMedianMs` | `long` | Median of the last `RecentSampleSize` (10) runs. With fewer than 20 samples, the same as `MedianMs`. |
+| `EarlierMedianMs` | `long` | Median of the runs before those 10. With fewer than 20 samples, the same as `MedianMs`. |
 | `LastRunAt` | `DateTime?` | When the method last ran (UTC). |
 | `LastDurationMs` | `long` | How long the last run took. |
 | `LastJobId`, `LastServerId` | `string?` | The last job and the server that performed it. |
@@ -104,6 +106,9 @@ Without `UseJobInsights()` these pages still work; they just have no statistics 
 | `LastRunWasSlow` | `bool` | At least 10 samples, the last run took at least 1 second and more than three times the p95 of the runs before it. |
 | `IsAnomalous` | `bool` | Any of the three above. These are the methods listed under "needs attention" on the Insights page. |
 | `EstimateCompletion(DateTime startedAt)` | `DateTime?` | `startedAt` plus the median duration, or `null` with fewer than 3 samples. |
+| `JobInsight.RecentSampleSize` | `const int` = `10` | How many of the latest runs form the "recent" window of `IsSlowingDown`. |
+
+`JobInsight` objects come from `JobInsightsAttribute.Read` and `ReadAll`; they have no public constructor.
 
 ### `QueueInsights` (static) and `QueueHealth`
 
@@ -114,6 +119,10 @@ Without `UseJobInsights()` these pages still work; they just have no statistics 
 | `QueueInsights.Read(IStorageConnection connection, string queue)` | `QueueHealth?` | One queue's statistics, or `null` when nothing was recorded or the connection is not a `JobStorageConnection`. |
 | `QueueInsights.ReadAll(IStorageConnection connection)` | `IReadOnlyDictionary<string, QueueHealth>` | Every queue with statistics. Keys are case-insensitive. |
 | `QueueInsights.Record(IWriteOnlyTransaction transaction, string queue, TimeSpan latency, DateTime now)` | method | Records one job start. `QueueInsightsFilter` calls it; you rarely need to. |
+| `QueueInsights.GetLatencyKey(string queue)` | `string` | `queue:{queue}:latency`, the list of recent waits. |
+| `QueueInsights.GetHashKey(string queue)` | `string` | `queue:{queue}:insights`, the hash with `LastStartedAt`. |
+| `QueueInsights.GetStartedKey(string queue, DateTime minuteUtc)` | `string` | `queue:{queue}:started:{yyyyMMddHHmm}`, the counter of jobs taken in that minute. |
+| `QueueInsightsFilter` | class | The apply-state filter that records the waits. No options. `UseJobInsights()` adds it; add it yourself with `GlobalJobFilters.Filters.Add(new QueueInsightsFilter())` to record queues without the per-method statistics. |
 
 | `QueueHealth` member | Type | Meaning |
 |---|---|---|
@@ -243,15 +252,19 @@ builder.Services.AddHealthChecks().AddCheck<EmailQueueHealthCheck>("nightshift-e
 ### Estimate when a running job finishes
 
 ```csharp
+using Masterly.NightShift;
 using Masterly.NightShift.Storage;
 
-public static DateTime? ExpectedEnd(JobStorage storage, string key, DateTime startedAtUtc)
+public static class JobEstimates
 {
-    using (var connection = storage.GetReadOnlyConnection())
+    public static DateTime? ExpectedEnd(JobStorage storage, string key, DateTime startedAtUtc)
     {
-        if (connection is not JobStorageConnection storageConnection) return null;
+        using (var connection = storage.GetReadOnlyConnection())
+        {
+            if (connection is not JobStorageConnection storageConnection) return null;
 
-        return JobInsightsAttribute.Read(storageConnection, key)?.EstimateCompletion(startedAtUtc);
+            return JobInsightsAttribute.Read(storageConnection, key)?.EstimateCompletion(startedAtUtc);
+        }
     }
 }
 ```

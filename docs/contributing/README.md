@@ -23,6 +23,8 @@ Any editor works. The solution file is `Masterly.NightShift.slnx` (the XML solut
 dotnet build Masterly.NightShift.slnx -c Release
 ```
 
+The solution builds the libraries, both source generators, the tests and the samples in `samples/`. To try the dashboard, run `dotnet run --project samples/WebSample` (LocalDB by default) and open `http://localhost:5000/nightshift`.
+
 Pack each package into `artifacts`:
 
 ```
@@ -41,7 +43,7 @@ Shared package metadata (authors, license, icon, readme, version) lives in [`src
 
 ## Tests
 
-There are three test projects, each targeting `net48`, `net8.0` and `net10.0`. `net48` runs the libraries' `netstandard2.0` build on .NET Framework, so it runs on Windows only:
+There are three test projects, each targeting `net8.0` and `net10.0`:
 
 | Project | Tests |
 |---|---|
@@ -49,12 +51,15 @@ There are three test projects, each targeting `net48`, `net8.0` and `net10.0`. `
 | `tests/Masterly.NightShift.SqlServer.Tests` | `Masterly.NightShift.SqlServer` (needs SQL Server) |
 | `tests/Masterly.NightShift.AspNetCore.Tests` | `Masterly.NightShift.NetCore` and `Masterly.NightShift.AspNetCore` together: DI registration, hosted services, endpoint mapping, keep-alive |
 
-Pick a framework with `-f`:
+Run each project, picking a framework with `-f`:
 
 ```
 dotnet test tests/Masterly.NightShift.Core.Tests -f net8.0
-dotnet test tests/Masterly.NightShift.Core.Tests -f net10.0
+dotnet test tests/Masterly.NightShift.SqlServer.Tests -f net8.0
+dotnet test tests/Masterly.NightShift.AspNetCore.Tests -f net8.0
 ```
+
+Replace `net8.0` with `net10.0` to run the other target.
 
 Run one class or one test with `--filter`:
 
@@ -63,7 +68,7 @@ dotnet test tests/Masterly.NightShift.Core.Tests -f net8.0 --filter "FullyQualif
 dotnet test tests/Masterly.NightShift.Core.Tests -f net8.0 --filter "FullyQualifiedName~WorkerFacts.Execute_TakesConnectionAndReleasesIt"
 ```
 
-Before you open a pull request, build and run the tests on `net8.0` and `net10.0`, and on Windows on `net48` too.
+Before you open a pull request, build and run the tests on `net8.0` and `net10.0`.
 
 The tests use xUnit v3 through the classic VSTest runner (`xunit.v3.mtp-off`), so `dotnet test` and `--filter` work as usual, and Moq for mocks.
 
@@ -85,7 +90,16 @@ Server=.\sqlexpress;Database={0};Integrated Security=True;TrustServerCertificate
 
 Without the variable, the tests use `Server=.\;Database={0};Trusted_Connection=True;TrustServerCertificate=True;`, the default instance on the local machine.
 
-Each target framework uses its own database (`Masterly.NightShift.SqlServer.Tests.net8_0`, `Masterly.NightShift.SqlServer.Tests.net10_0`), so both can run at once. The databases are created on demand with a case-sensitive collation, which catches queries that only work on a case-insensitive server. Set `NightShift_SqlServer_DatabaseName` to use another name.
+Each target framework uses its own database (`Masterly.NightShift.SqlServer.Tests.net8_0`, `Masterly.NightShift.SqlServer.Tests.net10_0`), so they can run at once. The databases are created on demand with a case-sensitive collation, which catches queries that only work on a case-insensitive server. Set `NightShift_SqlServer_DatabaseName` to use another name; every framework then uses that one database, so run them one at a time.
+
+A SQL Server container works too, for example on Linux or macOS:
+
+```
+docker run -d -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Password12!' mcr.microsoft.com/mssql/server:2022-latest
+export NightShift_SqlServer_ConnectionStringTemplate='Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;'
+```
+
+This is what the Linux CI job does.
 
 ### Writing tests
 
@@ -111,23 +125,18 @@ The test projects reference Cronos under `extern alias ReferencedCronos` (the `C
 
   CI restores in locked mode and fails if a lock file is out of date.
 - **Keeping dependencies current.** Check with `dotnet list Masterly.NightShift.slnx package --outdated`. Raising a library dependency raises the minimum version every consumer gets, so do it on purpose.
-- **Exceptions.** `Microsoft.CodeAnalysis.CSharp` stays at the oldest Roslyn the source generators need; compiling them against a newer one would stop them from loading in older compilers, such as the .NET 8 SDK. LibLog, StackTraceParser/StackTraceFormatter and MoreLinq are source-only packages referenced with `ExcludeAssets="contentFiles"`: the code compiled is the vendored copy in `App_Packages/`, so bumping them changes nothing. System.Text.Json is referenced on `netstandard2.0` only, because `net8.0` and later have it built in.
-- **Cronos and Dapper** are ordinary package dependencies of the shipped packages.
+- **Exceptions.** `Microsoft.CodeAnalysis.CSharp` stays at the oldest Roslyn the source generators need; compiling them against a newer one would stop them from loading in older compilers, such as the .NET 8 SDK. The Microsoft.Extensions packages of `Masterly.NightShift.NetCore` stay at the oldest serviced version for each target framework, 8.0.x on `net8.0` and 10.0.x on `net10.0`, so an app keeps its own runtime's stack; the CI consumer job fails if a .NET 8 app gets a newer one. LibLog, StackTraceParser/StackTraceFormatter and MoreLinq are source-only packages referenced with `ExcludeAssets="contentFiles"`: the code compiled is the vendored copy in `App_Packages/`, so bumping them changes nothing.
+- **Cronos, Dapper and Microsoft.Data.SqlClient** are ordinary package dependencies of the shipped packages. `Masterly.NightShift.SqlServer` also references a patched `System.Security.Cryptography.Pkcs`, so apps don't get the NU1902/NU1903 warnings of the version Microsoft.Data.SqlClient asks for; drop that reference once Microsoft.Data.SqlClient depends on a fixed version.
 
 ## Rules the code follows
 
 ### Warnings are errors
 
-`TreatWarningsAsErrors` is on for every `src/` project, and the .NET analyzers run with `AnalysisMode` `Recommended`. An analyzer warning breaks the build, so build before you push. A few analyzer rules are turned off in `src/Directory.Build.props` because they suggest APIs `netstandard2.0` doesn't have.
+`TreatWarningsAsErrors` is on for every `src/` project, and the .NET analyzers run with `AnalysisMode` `Recommended`. An analyzer warning breaks the build, so build before you push. CA1863 (cache a `CompositeFormat`) is off, because the dashboard formats localized strings that change with the UI culture. The vendored code in `App_Packages/` is marked as generated in `.editorconfig`, so the analyzers skip it.
 
-### Multi-targeting
+### Target frameworks
 
-Every library package targets `netstandard2.0;net8.0;net10.0`. `netstandard2.0` is what .NET Framework 4.6.2+ applications get, so:
-
-- shared code must compile for `netstandard2.0`; check that a BCL API exists there before using it;
-- code that needs a newer API goes behind `#if NET8_0_OR_GREATER`, with a `netstandard2.0` path or a feature that is simply not available there (telemetry is net8.0+ only);
-- small polyfills live in `src/Masterly.NightShift.Core/Common/LanguagePolyfills.cs`;
-- `LangVersion` is `Latest`, so modern syntax is fine as long as it needs no runtime support `netstandard2.0` lacks.
+Every library package targets `net8.0;net10.0`, so any .NET 8 API can be used without conditions. Code that needs a .NET 9 or later API goes behind `#if NET9_0_OR_GREATER` with a `net8.0` path. The two source generators target `netstandard2.0`, the only target Roslyn loads analyzers from; the analyzer rules that suggest newer APIs are off for them. .NET Framework and `netstandard2.0` consumers aren't supported.
 
 ### Binary and API compatibility
 
@@ -139,7 +148,7 @@ The library is consumed by many old and new runtimes, and other repositories imp
 
 ### Nullable annotations
 
-Nullable reference types are being turned on file by file with `#nullable enable`. Done so far: the client API (`BackgroundJob*`, `IBackgroundJobClient`, `RecurringJob*`, `IRecurringJobManager`), `BackgroundJobServer*`, the client/server/state filter interfaces and their contexts, `IState` and the built-in states, the storage contract (`JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData`, `StateData`), and the monitoring API with its DTOs. That is the whole public API that users, filter authors and storage authors use; internal and dashboard code is not converted yet.
+Nullable reference types are being turned on file by file with `#nullable enable`. Done so far: the client API (`BackgroundJob*`, `IBackgroundJobClient`, `RecurringJob*`, `IRecurringJobManager`), `BackgroundJobServer*`, the client/server/state filter interfaces and their contexts, `IState` and the built-in states, the storage contract (`JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData`, `StateData`), and the monitoring API with its DTOs. The most-used entry points are annotated too: `AddNightShift`/`AddNightShiftServer`, the ASP.NET Core dashboard and server extensions, `UseSqlServerStorage` with `SqlServerStorageOptions`, `Cron`, `AutomaticRetryAttribute` and `JobActivator`/`JobActivatorScope`/`JobActivatorContext`. Other public types are not annotated yet (for example `GlobalConfigurationExtensions`, `GlobalConfiguration`, `Job`, the other filter attributes, `DashboardOptions`, `SqlServerStorage` and the dashboard extension API), nor is internal code.
 
 When you convert a file:
 
@@ -165,13 +174,36 @@ Masterly.NightShift started from the source of an earlier LGPL-licensed project 
 
 The rename also left a few names that must not change, because existing data depends on them: the SQL Server schema is still `HangFire`, the drain-mode storage key is still `hangfire:control`, and `TypeHelper` maps type names stored by the earlier library (`Hangfire.*, Hangfire.Core`) to the new types.
 
+## Documentation site
+
+The pages in `docs/` are published as the site at <https://a7mdfre7at.github.io/Masterly.NightShift/>, built with [Docusaurus](https://docusaurus.io/) from the [`website/`](../../website/) folder. The same files read well on GitHub, so write them as plain Markdown with relative links between pages. Links to files outside the published pages (source files, `CONTRIBUTING.md`, the design notes in `docs/architecture/`) are rewritten to GitHub links when the site is built.
+
+- A new page goes in the folder of its section and in `website/sidebars.js`, and in the table of its section's `README.md`.
+- The landing page (`website/src/pages/index.js`) copies its code samples from the pages it links to; keep them in sync.
+- The site reads the package version from `src/Directory.Build.props`.
+
+To preview and check the site, you need Node.js 20 or later (CI uses 24):
+
+```
+cd website
+npm ci
+npm start        # live preview; search only works in a build
+npm run build    # fails on any broken link or anchor
+```
+
 ## Releasing
 
-1. Raise `<Version>` in [`src/Directory.Build.props`](../../src/Directory.Build.props). The assembly versions are derived from it.
-2. Add the release notes to [`CHANGELOG.md`](../../CHANGELOG.md).
-3. Merge to `main`. The Publish workflow pushes the new packages to nuget.org after the Build workflow succeeds.
+Pushing a raised version to `master` is the release. Every package ships with the same version.
 
-Versions already on nuget.org are skipped, so a merge that doesn't raise the version publishes nothing.
+1. Raise `<Version>` in [`src/Directory.Build.props`](../../src/Directory.Build.props). The assembly versions and the version the documentation site shows are derived from it.
+2. Add a `## [x.y.z] - yyyy-mm-dd` section to [`CHANGELOG.md`](../../CHANGELOG.md) that opens with a one-line summary. If the section was kept as `## [x.y.z] - Unreleased` while work went on, replace `Unreleased` with the date. The section, without its heading, becomes the GitHub Release's description, and the Publish workflow stops before pushing anything when no `## [x.y.z]` section exists for the version.
+3. Record consumer-visible changes in [Breaking changes](../breaking-changes.md) if there are any.
+4. Merge to `master`. After the Build workflow succeeds for that push, the Publish workflow builds and packs the tested commit, pushes the packages to nuget.org (Core, SqlServer, NetCore, AspNetCore, then the meta-package, so no package arrives before one it depends on) and creates the GitHub Release `vx.y.z` from that commit, with the packages attached.
+5. After the first release, set `PackageValidationBaselineVersion` in `src/Directory.Build.props` to it (see [Build and pack](#build-and-pack)).
+
+Versions already on nuget.org are skipped and an existing release only gets the assets it is missing, so a merge that doesn't raise the version publishes nothing, and re-running a failed Publish run finishes the job.
+
+The Publish workflow signs in to nuget.org with [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing): no API key is stored in the repository. It needs a trusted publishing policy on nuget.org for the owner `a7mdfre7at`, the repository `Masterly.NightShift` and the workflow file `publish.yml`. The job runs in the `nuget` GitHub environment, where required reviewers or other protection rules can be set in the repository's **Settings > Environments**.
 
 ## CI
 
@@ -179,9 +211,10 @@ The workflows are in `.github/workflows/`:
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `build.yml` (Build) | Every push and pull request to `main`, and on demand | On Windows: restores in locked mode, builds, runs all three test projects on `net48`, `net8.0` and `net10.0` against LocalDB, packs, and uploads the packages as an artifact. On Linux: builds and runs the tests on `net8.0` and `net10.0` against a SQL Server 2022 container. Then a consumer job installs the packages just built into new apps outside the repository, as a user would: ASP.NET Core apps on `net8.0` and `net10.0` with the meta-package, an ASP.NET Core 2.3 app on .NET Framework 4.8 (dashboard and health checks), a .NET Framework 4.8 console app that runs a job against LocalDB, and a Worker Service on `net8.0` with only `Masterly.NightShift.NetCore` and `Masterly.NightShift.SqlServer`, built with the .NET 8 SDK (so the source generator still loads in the oldest supported compiler) and checked to use the 8.0 `Microsoft.Extensions` packages. |
-| `codeql-analysis.yml` (CodeQL Analysis) | Every push and pull request to `main`, and monthly | Builds and runs CodeQL's `security-and-quality` queries for C#. |
-| `publish.yml` (Publish to NuGet) | After a successful Build of a push to `main` | Builds, packs and pushes the packages to nuget.org with `--skip-duplicate`. Needs the `NUGET_API_KEY` secret. |
+| `build.yml` (Build) | Every push and pull request to `master` that changes anything outside `docs/`, `website/` and `docs.yml`, and on demand | On Windows: restores (in locked mode, as every CI job does), builds, runs all three test projects on `net8.0` and `net10.0` against LocalDB, packs, and uploads the packages as an artifact. On Linux: builds and runs the tests on `net8.0` and `net10.0` against a SQL Server 2022 container. Then a consumer job installs the packages just built into new apps outside the repository, as a user would: ASP.NET Core apps on `net8.0` and `net10.0` with the meta-package, a `net8.0` console app with only `Masterly.NightShift.Core` and `Masterly.NightShift.SqlServer` that runs a job against LocalDB, and a Worker Service on `net8.0` with only `Masterly.NightShift.NetCore` and `Masterly.NightShift.SqlServer`, built with the .NET 8 SDK (so the source generator still loads in the oldest supported compiler) and checked to use the 8.0 `Microsoft.Extensions` packages. |
+| `codeql-analysis.yml` (CodeQL Analysis) | Every push and pull request to `master`, and monthly | Builds and runs CodeQL's `security-and-quality` queries for C#. |
+| `publish.yml` (Publish to NuGet) | After a Build of a push to `master` completes | When the Build succeeded: builds and packs the tested commit, pushes the packages to nuget.org in dependency order with `--skip-duplicate` (Trusted Publishing, see [Releasing](#releasing)), and creates or completes the GitHub Release from the version's `CHANGELOG.md` section. When it failed: reports that nothing was published. |
+| `docs.yml` (Docs) | Every push and pull request to `master` that changes `docs/`, `website/` or `src/Directory.Build.props`, and on demand | Builds the documentation site with Docusaurus, which fails on any broken link or anchor, and on `master` deploys it to GitHub Pages. |
 
 ## See also
 

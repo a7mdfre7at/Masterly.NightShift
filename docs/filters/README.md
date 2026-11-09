@@ -31,6 +31,30 @@ jobs.Enqueue<EmailService>(x => x.SendPasswordReset(42));
 
 The job goes to the `critical` queue and is retried at most three times instead of the default ten.
 
+## Which one should I use?
+
+| I want to... | Use | Page |
+|--------------|-----|------|
+| Change how often and how long a failed job is retried | `[AutomaticRetry]` | [Retries](retries.md#automaticretryattribute) |
+| Let the job say "run me again at this time" | throw `RetryLaterException` | [Retries](retries.md#retrylaterexception) |
+| Retry a short glitch (deadlock, dropped connection) at once, in the same worker | `[RetryInProcess]` | [Retries](retries.md#retryinprocessattribute) |
+| Stop running jobs against a dependency that keeps failing | `[CircuitBreaker]` | [Retries](retries.md#circuitbreakerattribute) |
+| Run at most N copies at a time | `[Throttle]` (or `[DisableConcurrentExecution]` for a blocking lock) | [Concurrency](concurrency.md#throttleattribute) |
+| Start at most N jobs per minute (an API quota) | `[RateLimit]` | [Concurrency](concurrency.md#ratelimitattribute) |
+| Not queue the same job twice | `[PreventDuplicates]` | [Concurrency](concurrency.md#preventduplicatesattribute) |
+| Not redo a job whose success was already recorded | `[IdempotentCompletion]` | [Concurrency](concurrency.md#idempotentcompletionattribute) |
+| Stop a run that takes too long | `[JobTimeout]` | [Timing](timing.md#jobtimeoutattribute) |
+| See jobs that finish later than expected, without stopping them | `[Deadline]` | [Timing](timing.md#deadlineattribute) |
+| Drop a job that waited too long to start | `[LatencyTimeout]` | [Timing](timing.md#latencytimeoutattribute) |
+| Run only at night, or never during a maintenance window | `[RunWindow]`, `[Blackout]` | [Timing](timing.md#runwindowattribute-and-blackoutattribute) |
+| Keep a job's data longer or shorter after it finishes | `[ExpireAfter]` | [Timing](timing.md#expireafterattribute) |
+| Send a job to a specific queue | `[Queue]` | [Behavior](behavior.md#queueattribute) |
+| Give a job a readable name in the dashboard | `[JobDisplayName]` | [Behavior](behavior.md#jobdisplaynameattribute) |
+| Run a job with the culture of the request that created it | `CaptureCulture` (on by default) | [Behavior](behavior.md#capturecultureattribute) |
+| See the start, end and errors of a job in its console | `[LogInvocation]` | [Behavior](behavior.md#loginvocationattribute) |
+| Hide an argument (a password, a token) in the dashboard | `[Redacted]` | [Behavior](behavior.md#redactedattribute) |
+| Something none of these do | your own filter | [Custom filters](custom-filters.md) |
+
 ## How it works
 
 A filter is an object that implements one or more filter interfaces. NightShift calls them at fixed points of the [job lifecycle](../getting-started/core-concepts.md):
@@ -78,7 +102,21 @@ Within one kind of filter, filters run sorted by their `Order` property (lower f
 | `ActivityFeedFilter` | Feeds the dashboard activity feed once it is turned on with `UseActivityFeed()` ([Audit log and activity](../monitoring/audit-log-and-activity.md)) |
 | `BatchSupportAttribute` | Tracks batch jobs ([Fan-in and batches](../jobs/fan-in-and-batches.md)) |
 
-Removing one of these, for example `GlobalJobFilters.Filters.Remove<AutomaticRetryAttribute>()`, turns that feature off for every job. Removing `DrainModeFilter` turns off drain mode only: `RunWindow`, `Throttle`, `RateLimit` and `CircuitBreaker` still put the jobs they hold back in their queue on their own.
+Removing one of these, for example `GlobalJobFilters.Filters.Remove<AutomaticRetryAttribute>()`, turns that feature off for every job. Removing `DrainModeFilter` turns off drain mode only: `RunWindow`, `Throttle`, `RateLimit` and `CircuitBreaker` still put the jobs they hold back in their queue on their own. `GlobalJobFilters.Filters` is a `JobFilterCollection`; its members are listed in [Custom filters](custom-filters.md#the-filter-collections).
+
+### Filters described on other pages
+
+Some features are filters too, but they belong to another part of the documentation:
+
+| Filter | Turned on by | Page |
+|--------|--------------|------|
+| `TagAttribute` | `[Tag("...")]` on a job method or class | [Tags and notes](../jobs/tags-and-notes.md) |
+| `JobInsightsAttribute`, `QueueInsightsFilter` | `UseJobInsights()` | [Insights](../monitoring/insights.md) |
+| `AlertsFilter` | `UseAlerts(...)` / `UseWebhookAlerts(...)` | [Alerts and webhooks](../monitoring/alerts-and-webhooks.md) |
+| `JobParameterInjectionFilter` | `UseResultsInContinuations()` | [Continuations](../jobs/continuations.md) |
+| Telemetry filter (internal) | `UseTelemetry()` | [OpenTelemetry](../monitoring/opentelemetry.md) |
+| Failed-job retention filter (internal) | `UseFailedJobRetention(...)` | [Timing](timing.md#failed-jobs) |
+| Job logging scope (internal) | On by default with `AddNightShiftServer` | [Logging](../monitoring/logging.md) |
 
 ## Things to know
 

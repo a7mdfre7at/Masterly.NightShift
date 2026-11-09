@@ -1,6 +1,6 @@
 # Global configuration
 
-`GlobalConfiguration.Configuration` is the single object that every `Use*` and `Set*` extension method hangs off. Use it to pick the storage, the job activator, the log provider, global filters, serialization settings, telemetry and dashboard extensions, once, when the application starts.
+`GlobalConfiguration.Configuration` is the single object that every `Use*` and `Set*` extension method hangs off. Use it to pick the storage, the job activator, the log provider, global filters, serialization settings, telemetry and dashboard extensions, once, when the application starts. In ASP.NET Core and Worker Service apps you reach it through the callback of `services.AddNightShift(...)`; in other apps you call the methods on `GlobalConfiguration.Configuration` directly.
 
 ## Quick example
 
@@ -23,7 +23,7 @@ var app = builder.Build();
 app.Run();
 ```
 
-Without a DI container (console app, .NET Framework service), call the same methods on `GlobalConfiguration.Configuration` directly:
+Without a DI container (console app, Windows Service), call the same methods on `GlobalConfiguration.Configuration` directly:
 
 ```csharp
 using Masterly.NightShift;
@@ -54,13 +54,13 @@ Some methods return `IGlobalConfiguration<T>`, which also exposes the configured
 
 `AddNightShift(...)` (from `Masterly.NightShift.NetCore`) registers `IGlobalConfiguration` as a singleton. The first time it is resolved, which happens when the server, the client or the dashboard is first used, it:
 
-1. sets an `ILoggerFactory`-based log provider (`AspNetCoreLogProvider`) and a scope-per-job activator (`AspNetCoreJobActivator`) when those services exist;
+1. sets an `ILoggerFactory`-based log provider (`AspNetCoreLogProvider`) and a scope-per-job activator (`AspNetCoreJobActivator`) when those services exist, and makes an `ITimeZoneResolver` you registered in the container the global one;
 2. runs your callback, so anything you configure overrides those defaults;
-3. registers `JobStorage.Current` and `JobActivator.Current` as the `JobStorage` and `JobActivator` services.
+3. returns `GlobalConfiguration.Configuration`. The `JobStorage` and `JobActivator` services are `JobStorage.Current` and `JobActivator.Current`, read after the callback has run.
 
 The callback runs once. The overload `AddNightShift((provider, config) => ...)` also gives you the `IServiceProvider`, so the configuration can use registered services.
 
-Because the state is process-wide, configure once at startup, before you create jobs or start a server. Two `AddNightShift` calls in one process share the same `GlobalConfiguration`.
+Because the state is process-wide, configure once at startup, before you create jobs or start a server. Calling `AddNightShift` twice on one service collection doesn't combine the callbacks: only the last one runs. Two service collections in one process (two hosts in a test run, for example) share the same `GlobalConfiguration`.
 
 ## Options / API
 
@@ -71,8 +71,8 @@ Every public extension method on `IGlobalConfiguration`, grouped by purpose. "Wi
 | Method | Parameters | Without it | Meaning |
 |---|---|---|---|
 | `UseStorage<TStorage>(storage)` | a `JobStorage` | `JobStorage.Current` throws `InvalidOperationException` when first used | Makes `storage` the storage every client, server and dashboard uses by default. Returns `IGlobalConfiguration<TStorage>`. |
-| `WithJobExpirationTimeout(timeout)` | `TimeSpan`, zero or more | 1 day | Called on the result of `UseStorage`/`UseSqlServerStorage`. Sets `JobStorage.JobExpirationTimeout`: how long a job in a final state (Succeeded, Deleted) is kept before it expires. `[ExpireAfter]` overrides it per job. Failed jobs aren't affected: see `UseFailedJobRetention`. |
-| `UseSqlServerStorage(connectionString)` | `string` | | `Masterly.NightShift.SqlServer` package. Creates a `SqlServerStorage`, calls `UseStorage`, and adds the SQL Server dashboard metrics (schema version, connections, transactions, file sizes) once per process. |
+| `WithJobExpirationTimeout(timeout)` | `TimeSpan`, from zero to 36,500 days | 1 day | Called on the result of `UseStorage`/`UseSqlServerStorage`. Sets `JobStorage.JobExpirationTimeout`: how long a job in a final state (Succeeded, Deleted) is kept before it expires. A negative value throws `ArgumentException`, a longer one `ArgumentOutOfRangeException`. `[ExpireAfter]` overrides it per job. Failed jobs aren't affected: see `UseFailedJobRetention`. |
+| `UseSqlServerStorage(connectionString)` | `string` | | `Masterly.NightShift.SqlServer` package. Creates a `SqlServerStorage`, calls `UseStorage`, and adds the SQL Server dashboard metrics (schema version, connections, transactions, file sizes) once per process. Returns `IGlobalConfiguration<SqlServerStorage>`. The string must be a connection string: read it with `IConfiguration.GetConnectionString`; a text without any `key=value` pair throws `ArgumentException`. |
 | `UseSqlServerStorage(connectionString, options)` | `string`, `SqlServerStorageOptions` | | Same, with [options](../storage/sql-server-options.md). |
 | `UseSqlServerStorage(connectionFactory)` | `Func<DbConnection>` | | Same, with connections created by your factory. |
 | `UseSqlServerStorage(connectionFactory, options)` | `Func<DbConnection>`, `SqlServerStorageOptions` | | Same, with options. |
@@ -88,7 +88,7 @@ Every public extension method on `IGlobalConfiguration`, grouped by purpose. "Wi
 
 | Method | Parameters | Without it | Meaning |
 |---|---|---|---|
-| `UseLogProvider<TLogProvider>(provider)` | an `ILogProvider` | The first of Serilog, NLog, log4net, Enterprise Library, Loupe and Elmah found loaded; with `AddNightShift`, `AspNetCoreLogProvider` (`ILoggerFactory`) | Sends the library's log messages to `provider`, including those of loggers created earlier (on .NET 8 and later; see [Logging](../monitoring/logging.md)). |
+| `UseLogProvider<TLogProvider>(provider)` | an `ILogProvider` | The first of Serilog, NLog, log4net, Enterprise Library, Loupe and Elmah found loaded; with `AddNightShift`, `AspNetCoreLogProvider` (`ILoggerFactory`) | Sends the library's log messages to `provider`, including those of loggers created earlier (see [Logging](../monitoring/logging.md)). |
 | `UseNoOpLogProvider()` | | | Turns logging off. Meant for tests, not production. |
 | `UseColouredConsoleLogProvider()` | | | Writes to the console in colour, from `Info` up. |
 | `UseColouredConsoleLogProvider(minLevel)` | `Masterly.NightShift.Logging.LogLevel` | | Same, from `minLevel` up. |
@@ -135,11 +135,23 @@ See [Logging](../monitoring/logging.md) for log levels and what is logged.
 
 Type names are written for the job's type, the method's parameter types, states (`"$type"`), arguments declared as an interface or abstract class (`"$type"`) and, with the recommended settings, values declared as `object`. Whatever serializer you choose, the resolver must be able to read what it writes, and every server must use the same pair.
 
+`SetDataCompatibilityLevel` is defined in the `CompatibilityLevelExtensions` class; the other methods are in `GlobalConfigurationExtensions`. Both are in the `Masterly.NightShift` namespace.
+
+The functions behind these methods are public static members of `TypeHelper` (namespace `Masterly.NightShift.Common`), so your own serializer or resolver can call them:
+
+| Member | What it does |
+|---|---|
+| `DefaultTypeSerializer(type)` | Returns `type.AssemblyQualifiedName`. |
+| `SimpleAssemblyTypeSerializer(type)` | Returns `Namespace.Type, AssemblyName`, also for generic arguments. Types of `System.Private.CoreLib` are written as `mscorlib`, the name Hangfire wrote, so the stored names match those of existing data. |
+| `DefaultTypeResolver(typeName)` | Loads the type. Names of the earlier library (`Hangfire.*` types in `Hangfire.Core`, `Hangfire.SqlServer`, `Hangfire.NetCore`, `Hangfire.AspNetCore`) resolve to the matching `Masterly.NightShift.*` types, `mscorlib` and `System.Private.CoreLib` are treated as one, and an assembly version that can't be loaded falls back to the assembly's short name. Throws when the type isn't found. |
+| `IgnoredAssemblyVersionTypeResolver(typeName)` | Removes `Version`, `Culture` and `PublicKeyToken`, then calls `DefaultTypeResolver`. |
+| `CurrentTypeSerializer`, `CurrentTypeResolver` | The functions in use. Setting them is the same as `UseTypeSerializer`/`UseTypeResolver`; `null` restores the defaults. |
+
 ### Monitoring and alerts
 
 | Method | Parameters | Without it | Meaning |
 |---|---|---|---|
-| `UseTelemetry()` | | No spans or metrics | net8.0 and later only. Emits OpenTelemetry spans and metrics from the `Masterly.NightShift` `ActivitySource` and `Meter`. Costs nothing while no listener is attached. See [OpenTelemetry](../monitoring/opentelemetry.md). |
+| `UseTelemetry()` | | No spans or metrics | Emits OpenTelemetry spans and metrics from the `Masterly.NightShift` `ActivitySource` and `Meter`. Costs nothing while no listener is attached. See [OpenTelemetry](../monitoring/opentelemetry.md). |
 | `UseJobInsights()` | | The Insights page stays empty | Records per-method run counts, failures and durations, and per-queue latency and throughput, for the dashboard's Insights page. See [Insights](../monitoring/insights.md). |
 | `UseActivityFeed()` | | The home page's live activity and the Timeline stay empty | Records every state transition in the `activity` list, in the background after each state change commits. Call it in every process that changes job states. See [Audit log and activity feed](../monitoring/audit-log-and-activity.md). |
 | `UseActivityFeed(maxEntries)` | `int`, positive | 1000 entries | Same, and sets how many entries the list keeps (`ActivityFeed.MaxEntries`). |
@@ -188,11 +200,18 @@ Succeeded and deleted jobs are kept for a week, failed jobs (retries used up) fo
 ### Using registered services in the configuration
 
 ```csharp
+using Masterly.NightShift;
+using Masterly.NightShift.SqlServer;
+
+services.AddSingleton(new SqlServerStorageOptions { SchemaName = "Jobs" });
+
 services.AddNightShift((provider, config) => config
     .UseSqlServerStorage(
         "Server=.;Database=NightShift;Integrated Security=True;TrustServerCertificate=True;",
         provider.GetRequiredService<SqlServerStorageOptions>()));
 ```
+
+The callback runs when the container first resolves a NightShift service, so it can use anything registered by then.
 
 ### A custom job activator
 
@@ -212,7 +231,7 @@ public class TenantJobActivator : JobActivator
         _services = services;
     }
 
-    public override object ActivateJob(Type jobType)
+    public override object? ActivateJob(Type jobType)
     {
         return _services.GetService(jobType) ?? base.ActivateJob(jobType);
     }
@@ -305,6 +324,7 @@ GlobalConfiguration.Configuration
 ### Dashboard extensions
 
 ```csharp
+using System.Net;
 using Masterly.NightShift;
 using Masterly.NightShift.Dashboard;
 
@@ -312,7 +332,7 @@ var assembly = typeof(Program).Assembly;
 
 GlobalConfiguration.Configuration
     .UseDashboardMetrics(DashboardMetrics.ServerCount, DashboardMetrics.RecurringJobCount)
-    .UseJobDetailsRenderer(10, dto => new NonEscapedString($"<p>Job {dto.JobId}</p>"))
+    .UseJobDetailsRenderer(10, dto => new NonEscapedString($"<p>Job {WebUtility.HtmlEncode(dto.JobId)}</p>"))
     .UseDashboardStylesheet(assembly, "MyApp.Dashboard.custom.css")
     .UseDashboardStylesheetDarkMode(assembly, "MyApp.Dashboard.custom-dark.css")
     .UseDashboardJavaScript(assembly, "MyApp.Dashboard.custom.js")
@@ -320,7 +340,7 @@ GlobalConfiguration.Configuration
     .UseMaxLinesInExceptionDetails(30);
 ```
 
-The resource names are the manifest names of files marked as `EmbeddedResource` in your project.
+The resource names are the manifest names of files marked as `EmbeddedResource` in your project. `NonEscapedString` is written to the page as it is, so encode anything that comes from a job (its arguments, its parameters, even its ID) with `WebUtility.HtmlEncode`.
 
 ### Back to reflection for job methods
 

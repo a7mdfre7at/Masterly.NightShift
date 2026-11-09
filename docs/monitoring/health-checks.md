@@ -6,7 +6,7 @@ Load balancers, Kubernetes probes, uptime monitors and Prometheus need to ask "i
 - **The dashboard's `/health` and `/metrics` routes.** A detailed JSON report and Prometheus text, behind the dashboard's authorization.
 - **`MapNightShiftHealth` and `MapNightShiftMetrics`.** The same report and text as endpoints of their own, outside the dashboard's authorization, which you limit with endpoint conventions.
 
-The health check and the endpoints are in the `Masterly.NightShift.AspNetCore` package.
+The health check and the endpoints are in the `Masterly.NightShift.AspNetCore` package, in the `Masterly.NightShift` namespace. The health check's `AddNightShift()` extends `IHealthChecksBuilder` (what `AddHealthChecks()` returns); it is not the `services.AddNightShift(...)` that configures the library, which you still call as well.
 
 ## Quick example
 
@@ -19,7 +19,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 
 builder.Services.AddNightShiftServer();
 
@@ -58,7 +58,36 @@ The result's `Data` has the numbers: `servers` and `alive` for the cluster, `ser
 
 ### The dashboard's `/health`
 
-`GET {dashboard path}/health` answers a JSON report: `200` with `"status": "healthy"` or `"degraded"`, `503` with `"status": "unhealthy"`. The checks:
+`GET {dashboard path}/health` answers a JSON report: `200` with `"status": "healthy"` or `"degraded"`, `503` with `"status": "unhealthy"`. For example:
+
+```json
+{
+  "status": "degraded",
+  "checkedAt": 1793958087,
+  "checks": [
+    { "name": "storage", "status": "healthy", "detail": "answered in 4 ms" },
+    { "name": "servers", "status": "healthy", "detail": "2 alive, 40 workers" },
+    { "name": "queues", "status": "degraded", "detail": "no live server listens to: reports" },
+    { "name": "processing", "status": "healthy", "detail": "running" },
+    { "name": "recurring", "status": "healthy", "detail": "12 on schedule" }
+  ],
+  "servers": 2,
+  "paused": false,
+  "queues": [
+    { "name": "default", "length": 3 },
+    { "name": "reports", "length": 17 }
+  ],
+  "enqueued": 20,
+  "scheduled": 4,
+  "processing": 5,
+  "failed": 1,
+  "awaiting": 0,
+  "recurring": 12,
+  "retries": 2
+}
+```
+
+`checkedAt` is a Unix time in seconds, `servers` counts the servers that are alive, and the overall `status` is the worst of the checks. Fields without a value (for example the job counts when the storage didn't answer, or `fetched` when the storage doesn't report it) are left out. The checks:
 
 | Check | Unhealthy | Degraded |
 |---|---|---|
@@ -82,7 +111,7 @@ app.MapNightShiftHealth("/health/nightshift").RequireHost("jobs.internal:8080");
 app.MapNightShiftMetrics("/metrics/nightshift").RequireHost("jobs.internal:8080");
 ```
 
-They need .NET 8 or later (`IEndpointRouteBuilder`). The report names queues, servers and late recurring job ids, and the metrics name job methods; when that matters, prefer the health check, which only says whether things work.
+The report names queues, servers and late recurring job ids, and the metrics name job methods; when that matters, prefer the health check, which only says whether things work.
 
 ## Options / API
 
@@ -101,7 +130,7 @@ They need .NET 8 or later (`IEndpointRouteBuilder`). The report names queues, se
 | `HeartbeatTimeout` | `TimeSpan` | 1 minute | How old a server's last heartbeat may be for the server to count as alive. Keep it above the servers' `HeartbeatInterval` (30 seconds by default). |
 | `Storage` | `JobStorage?` | `null` | The storage to check; `null` uses the registered one, or `JobStorage.Current`. |
 
-### `NightShiftMonitoringEndpointRouteBuilderExtensions` (.NET 8 and later)
+### `NightShiftMonitoringEndpointRouteBuilderExtensions`
 
 | Member | Meaning |
 |---|---|
@@ -121,6 +150,8 @@ A Worker Service has no HTTP endpoint for Kubernetes to call. Publish the health
 When jobs are only part of what the app does, report trouble with them as degraded, so the load balancer keeps sending requests:
 
 ```csharp
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 builder.Services.AddHealthChecks()
     .AddNightShift(failureStatus: HealthStatus.Degraded, tags: ["ready"]);
 ```

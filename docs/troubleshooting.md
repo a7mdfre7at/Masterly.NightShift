@@ -2,6 +2,22 @@
 
 This page lists the problems people run into most often with Masterly.NightShift, each with its usual causes and the fix. Start with the symptom you see; most sections point to a page in the dashboard where you can confirm the cause.
 
+| Symptom | Section |
+|---|---|
+| Jobs are created but never run | [Jobs stay in Enqueued](#jobs-stay-in-enqueued), [Jobs are held](#jobs-are-held-processing-is-paused) |
+| Delayed jobs or retries start late | [Jobs stay in Scheduled, or start late](#jobs-stay-in-scheduled-or-start-late) |
+| A job shows Processing forever | [Jobs stuck in Processing](#jobs-stuck-in-processing) |
+| A job ran more than once | [A job runs twice](#a-job-runs-twice), [The app stops and jobs start over](#the-app-stops-and-jobs-start-over) |
+| `Enqueue` returned `null` | [`Enqueue` returns `null`](#enqueue-returns-null-and-no-job-appears) |
+| Jobs fail after a deploy or rename | [A job fails because it can't be loaded](#a-job-fails-because-it-cant-be-loaded), [Serialization errors](#serialization-errors-after-an-upgrade) |
+| Errors about services or `DbContext` in a job | [A job fails with a dependency injection error](#a-job-fails-with-a-dependency-injection-error) |
+| Exceptions at start-up | ["Unable to find the required services"](#unable-to-find-the-required-services), ["Current JobStorage instance has not been initialized yet"](#current-jobstorage-instance-has-not-been-initialized-yet), [SQL Server: errors at start-up](#sql-server-errors-at-start-up) |
+| Recurring jobs don't run, run twice, or run at the wrong hour | [A recurring job doesn't fire](#a-recurring-job-doesnt-fire), [A recurring job runs twice](#a-recurring-job-runs-twice-or-at-an-odd-time) |
+| The dashboard refuses access or buttons fail | [The dashboard returns 401, 403 or 404](#the-dashboard-returns-401-403-or-404) |
+| SQL timeouts, deadlocks | [SQL Server: timeouts and deadlocks](#sql-server-timeouts-and-deadlocks) |
+| Jobs stop when an IIS site is idle | [The server stops when IIS goes idle](#the-server-stops-when-iis-goes-idle) |
+| No traces, alerts, statistics or logs | [Monitoring shows nothing](#monitoring-shows-nothing) |
+
 ## Quick example
 
 Three places answer most questions:
@@ -34,6 +50,7 @@ The settings that come up on this page, with their defaults:
 | `BackgroundJobServerOptions.Queues` | `string[]` | `{ "default" }` | Jobs that stay Enqueued |
 | `BackgroundJobServerOptions.WorkerCount` | `int` | `Math.Min(Environment.ProcessorCount * 5, 20)` | Jobs that wait for a free worker |
 | `BackgroundJobServerOptions.SchedulePollingInterval` | `TimeSpan` | 15 seconds | Delayed jobs and retries starting late; recurring job scheduling |
+| `BackgroundJobServerOptions.StopTimeout` | `TimeSpan` | 500 ms | When running jobs' cancellation tokens are canceled on shutdown |
 | `BackgroundJobServerOptions.ShutdownTimeout` | `TimeSpan` | 15 seconds | Jobs interrupted on shutdown |
 | `BackgroundJobServerOptions.ServerTimeout` | `TimeSpan` | 5 minutes | When a silent server is removed from the Servers page |
 | `SqlServerStorageOptions.SlidingInvisibilityTimeout` | `TimeSpan?` | 5 minutes | When a job held by a crashed server becomes available again |
@@ -41,6 +58,7 @@ The settings that come up on this page, with their defaults:
 | `SqlServerStorageOptions.CommandBatchMaxTimeout` | `TimeSpan?` | 5 minutes | Timeouts on batched writes |
 | `SqlServerStorageOptions.PrepareSchemaIfNecessary` | `bool` | `true` | Schema installation on start-up |
 | `SqlServerStorageOptions.EnableHeavyMigrations` | `bool` | `false` | Upgrading old schemas |
+| `AutomaticRetryAttribute.Attempts` | `int` | 10 | How often a failed job is retried before it reaches Failed |
 | `DrainMode.HoldInterval` | `TimeSpan` | 30 seconds | How long held jobs wait before they are looked at again |
 | `DashboardOptions.Authorization` | `IEnumerable<IDashboardAuthorizationFilter>` | `LocalRequestsOnlyAuthorizationFilter` | Dashboard `401` |
 | `RecurringJobOptions.TimeZone` | `TimeZoneInfo` | UTC | Recurring jobs firing at the wrong hour |
@@ -64,7 +82,7 @@ services.AddNightShiftServer(options =>
 });
 ```
 
-Queue names are lowercase: they may only contain lowercase letters, digits, underscores and dashes. `[Queue("Billing")]` throws `ArgumentException` as soon as the attribute is read, so creating any job of that method fails. A template such as `[Queue("tenant-{0}")]` is checked when the job is enqueued: an argument that produces an invalid name, such as `Contoso`, throws `InvalidOperationException` naming the template and the result.
+Queue names are lowercase: they may only contain lowercase letters, digits, underscores and dashes. `[Queue("Billing")]` throws `ArgumentException` as soon as the attribute is read, so creating any job of that method fails. A template such as `[Queue("tenant-{0}")]` is checked when the job is enqueued: an argument that produces an invalid name, such as `Contoso`, throws `InvalidOperationException` naming the template and the result, and a placeholder for an argument the method doesn't have (`{3}` on a method with two parameters) throws `FormatException`.
 
 ## Jobs are held: "processing is paused"
 
@@ -98,7 +116,7 @@ A job shows as Processing for a long time, and its diagnosis says the server run
 
 The server crashed or was killed while the job ran. The job isn't lost: with SQL Server, the queue entry becomes visible to other workers once `SlidingInvisibilityTimeout` (5 minutes by default) passes without the crashed server refreshing it, and another worker runs the job again from the start. The dead server is removed from the Servers page after `ServerTimeout`. If you can't wait, requeue the job from the dashboard.
 
-If the server is alive and the job is just slow, the job details page compares the run time with the job's usual duration. Use [`[JobTimeout]`](filters/timing.md) to stop runs that take too long.
+If the server is alive and the job is slow, the job details page compares the run time with the job's usual duration. Use [`[JobTimeout]`](filters/timing.md) to stop runs that take too long.
 
 ## A job runs twice
 
@@ -107,7 +125,7 @@ Jobs run at least once, not exactly once. The usual reasons:
 | Cause | What you see |
 |---|---|
 | The job threw and was retried | The history shows Scheduled states with "Retry attempt n of m" reasons. Work done before the exception is repeated |
-| The server stopped while the job ran | The job ran on one server, then started again after a restart or deploy. A job canceled by the shutdown goes back to its queue; so does one still running when the process exits, because the server stops waiting for it after `ShutdownTimeout` |
+| The server stopped while the job ran | The job ran on one server, then started again after a restart or deploy. A job canceled by the shutdown goes back to its queue at once. One still running after `ShutdownTimeout` is abandoned and taken by another worker once `SlidingInvisibilityTimeout` passes. See [The app stops and jobs start over](#the-app-stops-and-jobs-start-over) |
 | The server crashed, or lost the database for longer than `SlidingInvisibilityTimeout` | Another worker fetched the job because the queue entry looked abandoned. Rarely, both runs overlap |
 | The same work was enqueued twice | Two different job IDs with the same method and arguments. Common with recurring jobs triggered by hand, or when a request that enqueues is retried |
 | Two environments share a database | A developer machine or a test environment pointed at the production database runs production jobs. The Servers page shows unexpected server names |
@@ -128,6 +146,32 @@ public class ImportService
 ```
 
 See [Concurrency](filters/concurrency.md), and [Core concepts](getting-started/core-concepts.md#at-least-once-execution) for why this can't be fully avoided.
+
+## `Enqueue` returns `null` and no job appears
+
+`Enqueue`, `Schedule` and `ContinueJobWith` return the new job's id, or `null` when a client filter canceled the creation. Nothing is stored and nothing is thrown.
+
+| Cause | Fix |
+|---|---|
+| `[PreventDuplicates]` found a pending job with the same method and arguments (`OnDuplicate = DuplicateHandling.Cancel`, the default) | This is what the attribute is for. Check the id for `null` if the caller needs to know. See [PreventDuplicatesAttribute](filters/concurrency.md#preventduplicatesattribute) |
+| Your own client filter set `context.Canceled = true` in `OnCreating` | Check the filter's condition |
+
+Treat the id as `string?` and handle `null` where it matters, for example before passing it to `ContinueJobWith`.
+
+## The app stops and jobs start over
+
+During a deploy or restart, running jobs are interrupted and run again from the start later.
+
+When the host stops, the server stops taking new jobs, cancels the token of every running job after `StopTimeout` (500 ms), and waits up to `ShutdownTimeout` (15 seconds) for them to return:
+
+- A job that takes a `CancellationToken` and throws `OperationCanceledException` goes back to its queue at once, and runs again on the next server that takes it.
+- A job that ignores the token keeps running until the process exits. The server stops waiting after `ShutdownTimeout` and logs that it stopped non-gracefully. The job stays in Processing and another worker takes it once `SlidingInvisibilityTimeout` (5 minutes) passes.
+
+Fixes:
+
+- Take a `CancellationToken` (pass `CancellationToken.None` when you create the job) and pass it to every awaited call, so the job stops quickly and is requeued at once. See [Cancellation](jobs/cancellation.md).
+- Give long jobs more time: raise `ShutdownTimeout`, and the host's own `HostOptions.ShutdownTimeout`, which ends the whole shutdown (see [Graceful shutdown](server/queues-and-workers.md#graceful-shutdown)). Kubernetes and other orchestrators also have a grace period before they kill the process.
+- Make long jobs resumable, for example by saving progress, so a second run continues instead of starting over.
 
 ## A job fails because it can't be loaded
 
@@ -165,12 +209,12 @@ To see what is stored, open the job in the dashboard, or read the `Arguments` co
 
 | Response | Cause | Fix |
 |---|---|---|
-| `401` for everyone but you | The default authorization filter, `LocalRequestsOnlyAuthorizationFilter`, only lets in requests from the same machine. Requests from another computer, from outside a Docker container, or through a proxy that adds `X-Forwarded-For` are refused (a proxy on the same machine that adds no forwarding header makes every request look local) | Set `DashboardOptions.Authorization` to your own filter, or use `MapNightShiftDashboardWithAuthorizationPolicy` (see below) |
+| `401` for everyone but you | The default authorization filter, `LocalRequestsOnlyAuthorizationFilter`, only lets in requests from the same machine. Requests from another computer, from outside a Docker container, or with a forwarding header (`Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host` or `X-Real-IP`, which proxies add) are refused. A proxy on the same machine that adds no forwarding header makes every request look local | Set `DashboardOptions.Authorization` to your own filter, or use `MapNightShiftDashboardWithAuthorizationPolicy` (see below) |
 | `403` on every page | You're signed in, but an authorization filter refused you. Unauthenticated users get `401`, authenticated ones `403` | Check the filter or policy, for example the role it requires |
 | `403` when clicking buttons (Requeue, Delete, Trigger now) | The antiforgery token was rejected. Common with several instances behind a load balancer that don't share Data Protection keys, so a token issued by one instance is invalid on another. Without `AddAntiforgery()`, the dashboard only accepts POSTs that carry `X-Requested-With` and come from its own origin (same scheme, host and port), so a script or a form on another site gets `403` with an explanation in the body. Behind a proxy that changes the `Host` header or the scheme, browsers that don't send `Sec-Fetch-Site` get `403` on every button, because their `Origin` no longer matches | Register antiforgery with `services.AddAntiforgery()`, and share the Data Protection key ring between instances. `DashboardOptions.IgnoreAntiforgeryToken = true` turns the check off, which you should only do when nothing else protects the dashboard from cross-site requests |
 | `404` | The path is wrong: the default is `/nightshift` (Hangfire used `/hangfire`). In an IIS virtual directory, the path is below it, for example `/shop/nightshift` | Use the path you passed to `MapNightShiftDashboard(...)`, or pass the one you want |
 | `404` for the dashboard's CSS and scripts behind a reverse proxy | The proxy serves the app under a prefix it strips, so the dashboard builds links without it | Set `DashboardOptions.PrefixPath` to that prefix, or forward it as the path base |
-| `404` with `UseNightShiftDashboard` | The middleware was added after a middleware that ends the request | Add it earlier in the pipeline, or use `MapNightShiftDashboard` on .NET 8+ |
+| `404` with `UseNightShiftDashboard` | The middleware was added after a middleware that ends the request | Add it earlier in the pipeline, or use `MapNightShiftDashboard` |
 
 A dashboard for administrators only, with ASP.NET Core authorization:
 
@@ -210,15 +254,15 @@ app.MapNightShiftDashboard(new DashboardOptions
 
 ## "Unable to find the required services"
 
-```
+```text
 InvalidOperationException: Unable to find the required services. Please add all the required services by calling 'IServiceCollection.AddNightShift' inside the call to 'ConfigureServices(...)' in the application startup code.
 ```
 
-`AddNightShiftServer`, `MapNightShiftDashboard` and `UseNightShiftDashboard` need the services that `AddNightShift(...)` registers. Call `builder.Services.AddNightShift(config => ...)` in every app that uses them, including a dashboard-only app.
+`AddNightShiftServer`, `MapNightShiftDashboard`, `UseNightShiftDashboard`, `MapNightShiftHealth` and `MapNightShiftMetrics` need the services that `AddNightShift(...)` registers. Call `builder.Services.AddNightShift(config => ...)` in every app that uses them, including a dashboard-only app.
 
 ## "Current JobStorage instance has not been initialized yet"
 
-```
+```text
 InvalidOperationException: Current JobStorage instance has not been initialized yet. You must set it before using Masterly.NightShift Client or Server API. ...
 ```
 
@@ -231,6 +275,18 @@ The static `BackgroundJob`, `RecurringJob` or `new BackgroundJobServer()` were u
 var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 recurringJobs.AddOrUpdate<ReportService>("daily-report", x => x.BuildDaily(), Cron.Daily(6));
 ```
+
+## A job fails with a dependency injection error
+
+With `AddNightShift`, each job run gets its own `IServiceScope`: the job class is created from it, and the scope is disposed when the method returns. See [Dependency injection](server/dependency-injection.md#how-it-works).
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `InvalidOperationException` from the container saying it is unable to resolve a service for a type, while activating your job class | A constructor parameter of the job class isn't registered in the process that runs the job. Web and worker processes often register different services | Register the service in every process that runs the job. The job class itself doesn't need to be registered |
+| `IHttpContextAccessor.HttpContext` is `null`, or a "current user" or "current tenant" service fails | Jobs don't run inside a web request, even when a request created them | Pass what the job needs (user id, tenant id, culture) as arguments, and look it up in the job |
+| `ObjectDisposedException` for a `DbContext` or another scoped service | Work continues after the job method returned: a `Task` that isn't awaited, `Task.Run` without `await`, or an `async void` helper the job calls. The scope is already disposed | Return `Task` from async job methods and await every call |
+| A scoped service holds stale data, or two workers corrupt each other's state | The job class is registered as a singleton, so all runs share it and its dependencies | Register job classes as scoped or transient, or don't register them |
+| Creating the job throws a serialization error, or an argument arrives empty or partial | Arguments are serialized to JSON when the job is created. Services, a `DbContext`, an `HttpContext` or an open connection can't be | Pass ids and plain data. Take services through the job class's constructor. See [Job arguments](jobs/job-arguments.md#what-can-and-cant-be-passed) |
 
 ## A recurring job doesn't fire
 
@@ -258,13 +314,30 @@ recurringJobs.AddOrUpdate<ReportService>(
     });
 ```
 
-The time zone ID is stored with the recurring job and resolved on every server that schedules it, so the ID must exist on all of them. On .NET 8 and later, Windows IDs (`W. Europe Standard Time`) and IANA IDs (`Europe/Berlin`) both resolve on Windows and Linux when ICU is available; on .NET Framework only Windows IDs do. To map IDs yourself, give the server an `ITimeZoneResolver` (see [Time zones and misfires](recurring-jobs/time-zones-and-misfires.md)).
+The time zone ID is stored with the recurring job and resolved on every server that schedules it, so the ID must exist on all of them. Windows IDs (`W. Europe Standard Time`) and IANA IDs (`Europe/Berlin`) both resolve on Windows and Linux when ICU is available. To map IDs yourself, give the server an `ITimeZoneResolver` (see [Time zones and misfires](recurring-jobs/time-zones-and-misfires.md)).
+
+## A recurring job runs twice, or at an odd time
+
+Each run is an ordinary job, so the job details page of each run shows who created it and when. Look at the reason of its first state and at the **Recurring Jobs** row.
+
+| Cause | How to tell | Fix |
+|---|---|---|
+| Two recurring jobs do the same work | **Recurring Jobs** lists both, often under an old and a new id. Renaming the id in `AddOrUpdate` creates a new recurring job and leaves the old one | Remove the old one with `RecurringJob.RemoveIfExists("old-id")`, or from the page |
+| Someone triggered it by hand | An extra run between two scheduled ones, created with the reason `Triggered using recurring job manager` instead of `Triggered by recurring job scheduler`. A trigger from the dashboard is listed on the **Audit** page as `Trigger recurring jobs` | Nothing to fix. Use `[PreventDuplicates]` if a manual run must not overlap a pending scheduled one |
+| A run failed and was retried | The run's history shows `Retry attempt n of m`; the work done before the exception is repeated | Make the job idempotent, or lower the retries with `[AutomaticRetry(Attempts = ...)]` |
+| A run was interrupted by a deploy | See [The app stops and jobs start over](#the-app-stops-and-jobs-start-over) | |
+| Missed runs were made up after downtime | Several runs at once when a server came back, with `MisfireHandling = MisfireHandlingMode.Strict` | Use `Relaxed` (one run for all missed occurrences) or `Ignorable` |
+| Daylight saving time | In a time zone with daylight saving, an hourly schedule runs twice in the repeated autumn hour and a daily job runs at an odd time on the spring day | Expected; see [Daylight saving time](recurring-jobs/time-zones-and-misfires.md#daylight-saving-time). Keep the job in UTC if it must run at fixed intervals |
+| Another environment runs it | A test or developer machine shares the production database; the Servers page shows its name | Give every environment its own database or schema |
+
+A recurring job is scheduled by one server at a time, under a distributed lock, so adding servers doesn't make it fire more often.
 
 ## SQL Server: errors at start-up
 
 | Error | Cause | Fix |
 |---|---|---|
-| `InvalidOperationException: Please add a NuGet package reference to either 'Microsoft.Data.SqlClient' or 'System.Data.SqlClient'...` | No SQL Server driver in the app | Add `Microsoft.Data.SqlClient` (see [Installation](getting-started/installation.md#the-sql-server-driver)) |
+| `ArgumentException: 'NightShift' is not a connection string: it has no 'key=value' pairs` | A connection string *name* was passed to `UseSqlServerStorage` or `new SqlServerStorage(...)`. Names aren't looked up in configuration | Read the value with `builder.Configuration.GetConnectionString("NightShift")` and pass it |
+| `SqlException: ... The certificate chain was issued by an authority that is not trusted` | `Microsoft.Data.SqlClient` encrypts connections by default and checks the server certificate, which a local or development SQL Server usually doesn't have from a trusted authority | Add `TrustServerCertificate=True` to the connection string for such a server, or install a trusted certificate on it (see [The SQL client](storage/sql-server.md#the-sql-client)) |
 | `Cannot open database "NightShift" requested by the login` | The database doesn't exist, or the login has no access | The storage creates tables, not the database. Create it first and grant the login access |
 | Warning `Was unable to perform the Masterly.NightShift schema migration due to an exception`, then `Invalid object name 'HangFire.Job'` | The schema couldn't be installed, usually because the login can't create tables | Run the install once with a privileged login, or run the script by hand (see [Schema and upgrades](storage/schema-and-upgrades.md)), then set `PrepareSchemaIfNecessary = false` for the app's login |
 | `ArgumentException: The server id '...' is N characters long, but the SQL Server storage keeps server ids of at most 200 characters`, and the server never processes jobs | `ServerName` is longer than 150 characters | Set a shorter `BackgroundJobServerOptions.ServerName` |
@@ -311,6 +384,22 @@ IIS shuts an app pool down after 20 minutes without requests (the default idle t
 2. **Start after a recycle.** The keep-alive runs inside the app, so it can't restart a pool that IIS recycled. In IIS, set the app pool's start mode to `AlwaysRunning` and enable preload for the site (Application Initialization), so the app starts without waiting for a request.
 
 See [Keep-alive](server/keep-alive.md). Alternatively, run the server in a Windows Service or Worker Service and keep only the client and dashboard in IIS.
+
+## Monitoring shows nothing
+
+Most monitoring features are turned on per process, and must be turned on in the process where the work happens: alerts, insights and telemetry where jobs run, the dashboard's features where the dashboard runs.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| No `create` or `process` spans, no `nightshift.job.*` metrics | `UseTelemetry()` isn't called, or the OpenTelemetry setup lacks `AddSource(NightShiftTelemetry.ActivitySourceName)` / `AddMeter(NightShiftTelemetry.MeterName)`. | Call `UseTelemetry()` in every process that creates or performs jobs, and subscribe to the source and meter. See [OpenTelemetry](monitoring/opentelemetry.md) |
+| Each job starts a new trace instead of joining the request's | The process that created the job didn't call `UseTelemetry()`, or there was no `Activity` when it created the job (the recurring job scheduler, a console app) | Call `UseTelemetry()` in the web app too |
+| No alert for a failed job | Alerts are raised where the job runs, and only when it reaches Failed: with the default 10 retries that is hours after the first failure. Or the sink was registered only in the web app, or its `Events` leave the kind out | Register the sink with `UseWebhookAlerts`/`UseAlerts` in every server process. Look for warnings from `Masterly.NightShift.WebhookAlertSink` (rejected, timed out or dropped requests). See [Alerts and webhooks](monitoring/alerts-and-webhooks.md) |
+| The Insights page is empty, or the Queues page has no wait times | `UseJobInsights()` isn't called in the processes that run jobs | Call it in every server process. See [Insights](monitoring/insights.md) |
+| The home page's live activity and the Timeline are empty | The activity feed is off by default | Call `UseActivityFeed()` in every process that changes job states. See [Audit log and activity feed](monitoring/audit-log-and-activity.md) |
+| The Audit page shows every action as anonymous | The dashboard isn't behind authentication, so there is no user name | Put the dashboard behind an authorization policy. See [Dashboard authorization](dashboard/authorization.md) |
+| Prometheus gets `401` from `/metrics` | The dashboard's `/metrics` route uses the dashboard's authorization, which allows local requests only by default | Map `MapNightShiftMetrics("/metrics/nightshift")` outside the dashboard and limit it with endpoint conventions. See [Health checks and probes](monitoring/health-checks.md) |
+| The `Process` health check is unhealthy | No server runs in this process yet, the server wasn't added with `AddNightShiftServer`, or it was given its own list of background processes | See [Health checks and probes](monitoring/health-checks.md#things-to-know) |
+| No log messages from Masterly.NightShift in an app without `AddNightShift` | Without `AddNightShift`, messages go to Serilog, NLog, log4net and a few others when one is loaded, and nowhere otherwise | Call a `Use...LogProvider()` method first thing at start-up. See [Logging](monitoring/logging.md) |
 
 ## See also
 

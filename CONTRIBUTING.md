@@ -21,13 +21,25 @@ The SQL Server tests need a reachable SQL Server. Set `NightShift_SqlServer_Conn
 
 Warnings are errors in `src/`, and the .NET analyzers run in `Recommended` mode, so a clean build matters.
 
+## Documentation
+
+The pages in `docs/` are also published as the [documentation site](https://a7mdfre7at.github.io/Masterly.NightShift/), built from `website/` with Docusaurus. To check a documentation change, you need Node.js 20 or later:
+
+```
+cd website
+npm ci
+npm run build    # fails on any broken link or anchor; npm start for a live preview
+```
+
+A new page also goes in `website/sidebars.js` and in its section's `README.md`. See [Contributing](docs/contributing/README.md#documentation-site) for more.
+
 ## Pull requests
 
 - Keep a change focused, and match the style of the code around it. `CLAUDE.md` describes the architecture and conventions.
-- Add or update tests for what you change. Run the Core and AspNetCore test projects on `net8.0` and `net10.0`, and on Windows on `net48` too, before you open the pull request.
-- Anything shared must still compile for `netstandard2.0`. Gate newer APIs with `#if NET8_0_OR_GREATER`.
+- Add or update tests for what you change. Run the test projects on `net8.0` and `net10.0` before you open the pull request.
+- The libraries target `net8.0` and `net10.0`: use .NET 8 APIs directly, and gate .NET 9+ APIs with `#if NET9_0_OR_GREATER`.
 - Don't add a member to a public storage interface: it breaks third-party storages. Extend through `JobStorage.HasFeature(...)` and the base classes.
-- List behaviour changes that users will notice in `CHANGELOG.md`.
+- List behaviour changes that users will notice in `CHANGELOG.md`, and update the documentation page of the feature you change.
 
 ## License of contributions
 

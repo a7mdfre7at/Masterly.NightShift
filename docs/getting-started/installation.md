@@ -6,21 +6,18 @@ Masterly.NightShift ships as a few NuGet packages: a core library, a storage, an
 
 For an ASP.NET Core app that uses SQL Server:
 
-```
+```text
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
 
-If the build warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](#the-sql-server-driver).
-
-`Masterly.NightShift` is a meta-package: it has no code of its own and installs `Masterly.NightShift.Core`, `Masterly.NightShift.SqlServer` and `Masterly.NightShift.AspNetCore` (which brings `Masterly.NightShift.NetCore` with it). The SQL Server driver is a separate package on purpose, see [The SQL Server driver](#the-sql-server-driver).
+`Masterly.NightShift` is a meta-package: it has no code of its own and installs `Masterly.NightShift.Core`, `Masterly.NightShift.SqlServer` (which brings the SQL Server driver, `Microsoft.Data.SqlClient`) and `Masterly.NightShift.AspNetCore` (which brings `Masterly.NightShift.NetCore` with it).
 
 ## How it works
 
 - **`Masterly.NightShift.Core`** has everything that doesn't depend on a host or a database: the client API (`BackgroundJob`, `IBackgroundJobClient`, `RecurringJob`, `IRecurringJobManager`), the server (`BackgroundJobServer`), states, filters, the storage abstraction (`JobStorage`) and the dashboard pages. It also ships a source generator as an analyzer, which writes direct calls for your job methods at build time (see [Source-generated invokers](../jobs/source-generated-invokers.md)).
 - **A storage package** decides where jobs are kept. `Masterly.NightShift.SqlServer` is the one in this repository. Other storages implement `JobStorage` (see [Custom storage](../storage/custom-storage.md)).
-- **`Masterly.NightShift.NetCore`** connects to `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Hosting`: `AddNightShift` registers the client services, `AddNightShiftServer` runs the server as an `IHostedService`, and job classes are created from the container, one scope per job.
-- **`Masterly.NightShift.AspNetCore`** serves the dashboard (`MapNightShiftDashboard`, `UseNightShiftDashboard`) and adds `AddNightShiftKeepAlive` for hosts that idle, such as IIS.
+- **`Masterly.NightShift.NetCore`** connects to `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting` and `Microsoft.Extensions.Logging`: `AddNightShift` registers the client services, `AddNightShiftServer` runs the server as an `IHostedService`, job classes are created from the container, one scope per job, and the library's log goes to `ILogger`.
+- **`Masterly.NightShift.AspNetCore`** serves the dashboard (`MapNightShiftDashboard`, `UseNightShiftDashboard`), adds ASP.NET Core health checks (`AddHealthChecks().AddNightShift()`), and adds `AddNightShiftKeepAlive` for hosts that idle, such as IIS.
 
 The packages depend on each other in a line: AspNetCore needs NetCore, NetCore and SqlServer need Core. Installing the top one you need is enough.
 
@@ -31,21 +28,20 @@ The packages depend on each other in a line: AspNetCore needs NetCore, NetCore a
 | Package | Contains | Depends on |
 |---|---|---|
 | `Masterly.NightShift` | Nothing; a meta-package | Core, SqlServer, AspNetCore |
-| `Masterly.NightShift.Core` | Client API, server, states, filters, storage abstraction, dashboard, source generator | Cronos; System.Text.Json on `netstandard2.0` |
-| `Masterly.NightShift.SqlServer` | `SqlServerStorage`, `SqlServerStorageOptions`, `UseSqlServerStorage(...)` | Core, Dapper |
-| `Masterly.NightShift.NetCore` | `AddNightShift`, `AddNightShiftServer`, DI-backed job activator, logging through `ILoggerFactory` | Core, `Microsoft.Extensions.*` abstractions |
-| `Masterly.NightShift.AspNetCore` | `MapNightShiftDashboard`, `UseNightShiftDashboard`, `AddNightShiftKeepAlive` | NetCore, ASP.NET Core |
+| `Masterly.NightShift.Core` | Client API, server, states, filters, storage abstraction, dashboard, source generator | Cronos |
+| `Masterly.NightShift.SqlServer` | `SqlServerStorage`, `SqlServerStorageOptions`, `UseSqlServerStorage(...)` | Core, Dapper, Microsoft.Data.SqlClient |
+| `Masterly.NightShift.NetCore` | `AddNightShift`, `AddNightShiftServer`, `ConfigureNightShiftJobLogging`, DI-backed job activator, logging through `ILoggerFactory` | Core; the `Microsoft.Extensions` DependencyInjection, Hosting and Logging abstractions (8.0.x on `net8.0`, 10.0.x on `net10.0`) |
+| `Masterly.NightShift.AspNetCore` | `MapNightShiftDashboard`, `UseNightShiftDashboard`, `MapNightShiftHealth`, `MapNightShiftMetrics`, health checks (`IHealthChecksBuilder.AddNightShift`), `AddNightShiftKeepAlive` | NetCore; the ASP.NET Core shared framework |
 
 ### Which packages to install
 
 | Your app | Install |
 |---|---|
-| ASP.NET Core app that creates and processes jobs and shows the dashboard | `Masterly.NightShift` + `Microsoft.Data.SqlClient` |
-| Worker Service or other Generic Host app (no web server) | `Masterly.NightShift.NetCore` + `Masterly.NightShift.SqlServer` + `Microsoft.Data.SqlClient` |
-| Console app without dependency injection | `Masterly.NightShift.Core` + `Masterly.NightShift.SqlServer` + `Microsoft.Data.SqlClient` |
-| .NET Framework app (Windows Service, WinForms, classic ASP.NET) | `Masterly.NightShift.Core` + `Masterly.NightShift.SqlServer` (the driver is optional, see below) |
-| ASP.NET Core app that only shows the dashboard for jobs processed elsewhere | `Masterly.NightShift.AspNetCore` + `Masterly.NightShift.SqlServer` + `Microsoft.Data.SqlClient` |
-| App that only creates jobs, for example a web API whose jobs run in a separate worker | Same packages as above for its host type; just don't call `AddNightShiftServer` or start a `BackgroundJobServer` |
+| ASP.NET Core app that creates and processes jobs and shows the dashboard | `Masterly.NightShift` |
+| Worker Service or other Generic Host app (no web server) | `Masterly.NightShift.NetCore` + `Masterly.NightShift.SqlServer` |
+| Console app or Windows Service without dependency injection | `Masterly.NightShift.Core` + `Masterly.NightShift.SqlServer` |
+| ASP.NET Core app that only shows the dashboard for jobs processed elsewhere | `Masterly.NightShift.AspNetCore` + `Masterly.NightShift.SqlServer` |
+| App that only creates jobs, for example a web API whose jobs run in a separate worker | Same packages as above for its host type, without calling `AddNightShiftServer` or starting a `BackgroundJobServer` |
 
 Every app that creates or processes jobs needs the assemblies that define the job classes. A job created by a web app and processed by a worker must find the same type and method in the worker.
 
@@ -53,41 +49,15 @@ A dashboard-only app doesn't need them for most pages and buttons, but **Trigger
 
 ### Target frameworks
 
-Every library package targets `netstandard2.0`, `net8.0` and `net10.0`.
+Every library package targets `net8.0` and `net10.0`, so it runs on .NET 8 and later. An app on .NET 10 gets the `net10.0` build, an app on .NET 8 or 9 the `net8.0` build; both have every feature. .NET Framework and .NET 7 or earlier are not supported: stay on Hangfire 1.8 there, or move the app to .NET 8 first.
 
-| Your app runs on | It gets | Notes |
-|---|---|---|
-| .NET 10 | `net10.0` | Everything is available |
-| .NET 8 or 9 | `net8.0` | Everything is available |
-| .NET Framework 4.6.2 or later | `netstandard2.0` | No `UseTelemetry()`, no `MapNightShiftDashboard*` (use `UseNightShiftDashboard` on ASP.NET Core 2.x for .NET Framework, or host the dashboard in a separate app), `AddNightShiftKeepAlive` needs an explicit URL. Classic ASP.NET and OWIN are not supported |
-| .NET Core 3.x to .NET 7 | `netstandard2.0` | These runtimes are out of support; the same limits as .NET Framework apply |
-
-The assemblies aren't strong-named, as Hangfire's weren't. A .NET Framework app or library that is strong-named itself can't load them (`FileLoadException: A strongly-named assembly is required`). This stays so for 1.x, because signing them later would change their identity.
-
-### Features that depend on the target framework
-
-| Feature | Available on |
-|---|---|
-| `UseTelemetry()` (OpenTelemetry traces and metrics) | `net8.0`, `net10.0` |
-| `MapNightShiftDashboard`, `MapNightShiftDashboardWithAuthorizationPolicy`, `MapNightShiftDashboardWithNoAuthorizationFilters` | `net8.0`, `net10.0` |
-| `UseNightShiftDashboard` | All targets |
-| `AddNightShiftKeepAlive()` without a URL (resolves the server's own address) | `net8.0`, `net10.0`; on `netstandard2.0`, set `KeepAliveOptions.Url` |
+The assemblies aren't strong-named, as Hangfire's weren't. This stays so for 1.x, because signing them later would change their identity.
 
 ### The SQL Server driver
 
-`Masterly.NightShift.SqlServer` works with either `Microsoft.Data.SqlClient` or `System.Data.SqlClient` and doesn't reference either, so your app decides. At start-up it looks for a driver in this order:
+`Masterly.NightShift.SqlServer` uses `Microsoft.Data.SqlClient` and brings it with it, so there is no driver to add. It also lifts the driver's `System.Security.Cryptography.Pkcs` dependency to a patched version, so the build doesn't warn about known vulnerabilities (NU1902, NU1903).
 
-1. `Microsoft.Data.SqlClient`
-2. `System.Data.SqlClient` from `System.Data` (built into .NET Framework)
-3. The `System.Data.SqlClient` package
-
-On .NET 8 and later, add `Microsoft.Data.SqlClient`. Without a driver, the storage throws this when it first opens a connection, which is at start-up while it installs the schema: `InvalidOperationException: Please add a NuGet package reference to either 'Microsoft.Data.SqlClient' or 'System.Data.SqlClient' in your application project.` On .NET Framework the built-in `System.Data` driver is found without any package. To choose a driver explicitly, set `SqlServerStorageOptions.SqlClientFactory` (see [SQL Server storage](../storage/sql-server.md)).
-
-`Microsoft.Data.SqlClient` 7.1.1 depends on a version of `System.Security.Cryptography.Pkcs` with known vulnerabilities, so after `dotnet add package Microsoft.Data.SqlClient` the build warns with NU1902 and NU1903 (errors if warnings are treated as errors). Reference the patched version directly, as this repository's samples do:
-
-```
-dotnet add package System.Security.Cryptography.Pkcs --version 10.0.14
-```
+To create the connections another way, for example to wrap them for profiling, set `SqlServerStorageOptions.SqlClientFactory` to your own `DbProviderFactory` (see [SQL Server storage](../storage/sql-server.md)). The connections it creates must be `Microsoft.Data.SqlClient` connections, or wrap them.
 
 ### Source generator requirements
 
@@ -107,17 +77,17 @@ When a job method has no generated invoker, it is called through an invoker comp
 
 If you don't want the meta-package, for example because you don't use the dashboard in this app:
 
-```
+```text
 dotnet add package Masterly.NightShift.Core
 dotnet add package Masterly.NightShift.SqlServer
 dotnet add package Masterly.NightShift.NetCore
-dotnet add package Microsoft.Data.SqlClient
 ```
 
 ## Things to know
 
 - Keep all Masterly.NightShift packages on the same version in every app that shares a database. Mixing versions works for reading old data, but newer servers may write data that older ones don't understand (see [Compatibility levels](../configuration/compatibility-levels.md)).
 - The SQL Server storage creates its tables on first start (in the `HangFire` schema by default), but not the database itself. Create an empty database first; the quick starts show how.
+- `UseSqlServerStorage` takes a connection string, not a connection string name: read the value with `builder.Configuration.GetConnectionString("NightShift")` and pass it, as the quick starts do. A text without any `key=value` pair throws `ArgumentException` at start-up, because it is most likely a name passed by mistake.
 - JSON goes through System.Text.Json. Newtonsoft.Json is not used or referenced (see [Serialization](../configuration/serialization.md)).
 
 ## See also

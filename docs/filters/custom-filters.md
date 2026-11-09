@@ -57,6 +57,19 @@ GlobalConfiguration.Configuration.UseFilter(new SlowJobWarningAttribute(threshol
 
 Deriving from `JobFilterAttribute` (namespace `Masterly.NightShift.Common`) is what makes the class usable as an attribute and gives it the `Order` property. A class that only implements the interfaces can still be registered globally.
 
+## Which one should I use?
+
+| I want to... | Write | Section |
+|--------------|-------|---------|
+| Add data to a job when it is created, or refuse to create it | Client filter (`IClientFilter`) | [Client filter](#client-filter) |
+| Run code on the server before and after the job (set up context, take a lock, skip the run) | Server filter (`IServerFilter`) | [Server filter](#server-filter) |
+| Change the state a job moves to (retry elsewhere, delete instead of fail) | Election filter (`IElectStateFilter`) | [Election filter](#election-filter) |
+| Write to storage in the same transaction as a state change | Apply filter (`IApplyStateFilter`) | [Apply filter](#apply-filter) |
+| Log or swallow errors from creating or running jobs | Exception filter | [Exception filters](#exception-filters) |
+| Wrap the method call itself: change arguments, call it again, time it | Interceptor | [Interceptors](#interceptors) |
+| Add a storage side effect to every job entering a given state, or add a state type | State handler (`IStateHandler`) | [State handlers](#state-handlers) |
+| Choose filters per job in code, without attributes | Filter provider (`IJobFilterProvider`) | [Filter providers](#filter-providers) |
+
 ## How it works
 
 The filter kinds and where they run:
@@ -484,7 +497,7 @@ An async job method starts inside the scope and keeps it for its whole run, even
 
 ### Interceptor order
 
-Global interceptors run first (outermost), in registration order. Then attribute interceptors, sorted by `JobInterceptorAttribute.Order` (lower is outermost, default `0`, any `int`), then class before method, then declaration order. Interceptor attributes allow multiple instances and are **not** de-duplicated: an attribute on the class and the same attribute on the method both run. All interceptors run inside the server filters, so `OnPerforming` has already run when the first interceptor starts.
+Global interceptors run first (outermost), in registration order. Then attribute interceptors, sorted by `JobInterceptorAttribute.Order` (lower is outermost, default `0`, any `int`), then class before method, then in the order .NET reflection returns them (usually the order they are written in; set `Order` when the order matters). Interceptor attributes allow multiple instances and are **not** de-duplicated: an attribute on the class and the same attribute on the method both run. All interceptors run inside the server filters, so `OnPerforming` has already run when the first interceptor starts.
 
 ## State handlers
 
@@ -561,6 +574,39 @@ public sealed class ReportsQueueFilterProvider : IJobFilterProvider
 
 `GlobalJobFilters.Filters.Add` accepts any object that implements at least one of the six filter interfaces and throws `InvalidOperationException` otherwise. Interceptors are not filters: register them with `UseJobInterceptor`, not `UseFilter`.
 
+### The filter collections
+
+`GlobalJobFilters.Filters` is a `JobFilterCollection` and `JobFilterProviders.Providers` is a `JobFilterProviderCollection`, both in the `Masterly.NightShift.Common` namespace. Change them at startup, before jobs are created or servers start: neither collection is safe to change while other threads read it.
+
+`JobFilterCollection` (the global filters):
+
+| Member | Meaning |
+|--------|---------|
+| `Add(filter)` | Adds a global filter with the filter's own `Order` (`-1` for a class that doesn't implement `IJobFilter`). |
+| `Add(filter, order)` | Adds it with the given order instead. |
+| `Remove(filter)` | Removes that instance. |
+| `Remove<T>()`, `Remove(Type)` | Removes every filter of exactly that type. Subclasses are not removed. |
+| `Contains(filter)` | Whether that instance is registered. |
+| `Clear()` | Removes every global filter, the [defaults](README.md#filters-registered-by-default) included. |
+| `Count` | The number of global filters. |
+| Enumerating | Yields `JobFilter` objects: `Instance` (the filter), `Order` and `Scope` (always `JobFilterScope.Global` here). |
+
+`JobFilterProviderCollection` is a `Collection<IJobFilterProvider>`, so it has the usual `Add`, `Insert`, `Remove` and `Clear`. By default it holds `GlobalJobFilters.Filters` and a `JobFilterAttributeFilterProvider`. Removing the attribute provider makes NightShift ignore every filter attribute. Its `GetFilters(job)` returns the filters that apply to a job, sorted and de-duplicated as described in [Order and execution](#order-and-execution). Call it when you want to see which filters a job gets:
+
+```csharp
+using Masterly.NightShift.Common;
+
+// ExportService from the quick example above
+var job = Job.FromExpression<ExportService>(x => x.ExportCustomers("eu", CancellationToken.None));
+
+foreach (var filter in JobFilterProviders.Providers.GetFilters(job))
+{
+    Console.WriteLine($"{filter.Instance.GetType().Name} ({filter.Scope}, order {filter.Order})");
+}
+```
+
+Servers and clients use `JobFilterProviders.Providers` unless you give them another provider: `BackgroundJobServerOptions.FilterProvider` ([Server options](../server/server-options.md)), the `IJobFilterProvider` service with dependency injection, or the `BackgroundJobClient(storage, filterProvider)` and `RecurringJobManager(storage, filterProvider)` constructors. A provider you pass there replaces the global one for that server or client, so filters registered later with `UseFilter` reach it only if your provider includes `GlobalJobFilters.Filters`.
+
 ### With dependency injection
 
 Filters are single instances, not resolved from the container per job. To give a filter its dependencies, use the `AddNightShift` overload that passes the service provider and register an instance:
@@ -573,7 +619,7 @@ using Microsoft.Extensions.Logging;
 builder.Services.AddSingleton<ITenantContext, AmbientTenantContext>();
 
 builder.Services.AddNightShift((provider, config) => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!)
     .UseFilter(new TenantFilter(provider.GetRequiredService<ITenantContext>()))
     .UseFilter(new ServerErrorLoggingFilter(provider.GetRequiredService<ILogger<ServerErrorLoggingFilter>>()))
     .UseFilterProvider(new ReportsQueueFilterProvider())
@@ -602,9 +648,9 @@ GlobalStateHandlers.Handlers.Add(new SucceededPerTypeHandler());
 |---------|--------------|
 | `CreateContext` (base of the client contexts) | `Job`, `InitialState` (may be `null`), `Parameters`, `Items`, `Storage`, `Connection` |
 | `CreatingContext` | `Canceled` (set to cancel), `SetJobParameter(name, value)`, `GetJobParameter<T>(name)` |
-| `CreatedContext` | `BackgroundJob` and `JobId` (`null` when canceled or failed), `Canceled`, `Exception`, `ExceptionHandled`, `SetJobParameter(name, value)` |
+| `CreatedContext` | `BackgroundJob` (`null` when canceled or failed), `Canceled`, `Exception`, `ExceptionHandled` |
 | `ClientExceptionContext` | `Exception`, `ExceptionHandled` |
-| `PerformContext` (base of the server contexts) | `BackgroundJob`, `JobId`, `Job`, `CreatedAt`, `CancellationToken`, `Connection`, `Storage`, `ServerId`, `Items`, `Console`, `SetJobParameter(name, value)`, `GetJobParameter<T>(name, allowStale)` |
+| `PerformContext` (base of the server contexts) | `BackgroundJob`, `CancellationToken`, `Connection`, `Storage`, `ServerId`, `Items`, `Console`, `SetJobParameter(name, value)`, `GetJobParameter<T>(name, allowStale)` |
 | `PerformingContext` | `Canceled` (set to skip the run) |
 | `PerformedContext` | `Result`, `Canceled`, `Exception`, `ExceptionHandled` |
 | `ServerExceptionContext` | `Exception`, `ExceptionHandled` |
@@ -612,6 +658,8 @@ GlobalStateHandlers.Handlers.Add(new SucceededPerTypeHandler());
 | `ApplyStateContext` | `BackgroundJob`, `OldStateName`, `NewState`, `JobExpirationTimeout` (get and set), `CustomData`, `Storage`, `Connection`, `Transaction`, `GetJobParameter<T>(name, allowStale)` |
 
 `ElectStateContext.SetJobParameter` writes to storage at once, not through the transaction.
+
+A few context members give access to the pipeline that is running the filter: `CreateContext.Factory` (the `IBackgroundJobFactory` creating the job), `PerformContext.Performer` (the `IBackgroundJobPerformer` running it), `ElectStateContext.StateMachine` and `ApplyStateContext.StateMachine` (the state machine applying the change). Most filters never need them. To replace these pipeline services altogether (`IBackgroundJobFactory`, `IBackgroundJobPerformer`, `IBackgroundJobStateChanger`), register your own in the container; see [Dependency injection](../server/dependency-injection.md) and [Server options](../server/server-options.md). Filters are the supported way to change behavior; replacing the pipeline is for storage and framework authors.
 
 ## Things to know
 

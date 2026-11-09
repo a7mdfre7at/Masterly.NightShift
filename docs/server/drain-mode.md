@@ -32,11 +32,13 @@ Drain mode is stored in the storage, in the `hangfire:control` hash (the name ke
 
 Nothing changes in the way jobs are created, scheduled or enqueued, apart from putting a held job back in its queue. The work happens when a worker picks a job up: the worker asks to move the job to Processing, and `DrainModeFilter`, an election filter registered globally by default, checks the switch. If the job must be held, the filter replaces Processing with Scheduled for `DrainMode.HoldInterval` (30 seconds), with one of these reasons:
 
-| Reason | When |
-| --- | --- |
-| `Held: processing is paused` | The global switch is on. |
-| `Held: server '{id}' is paused` | The server whose worker picked the job is paused. |
-| `Held: queue '{name}' is paused` | The job's queue is paused. |
+| Reason | Constant on `DrainModeFilter` (namespace `Masterly.NightShift.Server`) | When |
+| --- | --- | --- |
+| `Held: processing is paused` | `HeldReason` | The global switch is on. |
+| `Held: server '{id}' is paused` | `ServerHeldReasonFormat` | The server whose worker picked the job is paused. |
+| `Held: queue '{name}' is paused` | `QueueHeldReasonFormat` | The job's queue is paused. |
+
+Compare a job's state reason with these constants (format the two `...Format` ones with `String.Format`) rather than with the text, for example in a filter or a report that counts held jobs.
 
 The worker then removes the job from the queue and moves on to the next one. When the hold is over, the delayed job scheduler puts the job back in its queue (within `SchedulePollingInterval`, 15 seconds by default), and a worker looks at it again. While the pause lasts, the job goes around this loop; once the pause ends, it runs normally. Jobs that were already running when you paused are not touched and finish normally.
 

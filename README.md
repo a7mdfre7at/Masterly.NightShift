@@ -1,43 +1,82 @@
-<p align="center"><img src="https://raw.githubusercontent.com/a7mdfre7at/Masterly.NightShift/main/assets/readme-banner.png" alt="Masterly.NightShift" width="100%"></p>
-
 # Masterly.NightShift
 
-Reliable background jobs for .NET: fire-and-forget, delayed, recurring and continuation jobs, persisted to a storage you already run, with a built-in dashboard. No Windows Service or Task Scheduler needed.
+**Background jobs that work the night shift.**
 
-[![Build](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml) [![CodeQL Analysis](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml) [![Nuget](https://img.shields.io/nuget/v/Masterly.NightShift?style=flat-square)](https://www.nuget.org/packages/Masterly.NightShift) ![GitHub](https://img.shields.io/github/license/a7mdfre7at/Masterly.NightShift?style=flat-square)
+Fire-and-forget, delayed, recurring and continuation jobs for .NET 8 and later. They are stored in the SQL Server you already run, retried when they fail, and shown live in a built-in dashboard.
 
-**Documentation:** [docs/README.md](docs/README.md), with a [quick start for ASP.NET Core](docs/getting-started/quick-start-aspnetcore.md) and one for [console apps and worker services](docs/getting-started/quick-start-worker.md).
+![Masterly.NightShift: reliable background jobs for .NET](assets/readme-banner.png)
 
-## Give a Star! :star:
+[![Nuget](https://img.shields.io/nuget/v/Masterly.NightShift?style=flat-square)](https://www.nuget.org/packages/Masterly.NightShift) ![Nuget](https://img.shields.io/nuget/dt/Masterly.NightShift?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/a7mdfre7at/Masterly.NightShift?style=flat-square) ![GitHub](https://img.shields.io/github/license/a7mdfre7at/Masterly.NightShift?style=flat-square) [![Build](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/build.yml) [![CodeQL Analysis](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/codeql-analysis.yml) [![Publish to NuGet](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/publish.yml/badge.svg?branch=master)](https://github.com/a7mdfre7at/Masterly.NightShift/actions/workflows/publish.yml) [![Docs](https://img.shields.io/badge/docs-github.io-145a6b?style=flat-square)](https://a7mdfre7at.github.io/Masterly.NightShift/)
 
-If you like or are using this project please give it a star. Thanks!
+**Full documentation: [a7mdfre7at.github.io/Masterly.NightShift](https://a7mdfre7at.github.io/Masterly.NightShift/)**
+
+## Why NightShift
+
+Your web request should answer in milliseconds. The PDF report, the welcome e-mail, the nightly clean-up and the call to that slow partner API shouldn't hold it up. Hand them to NightShift: it stores each job, runs it on a background worker, retries it when it throws, and keeps it safe through restarts, deploys and crashed servers. You don't need a Windows Service, a cron box or a message broker.
+
+| | |
+|---|---|
+| **Durable** | Jobs live in your database, so they survive restarts and deploys. When a server dies, another one picks up its jobs. |
+| **Self-healing** | Automatic retries with growing, jittered delays, plus retry-later, in-process retries and circuit breakers for a dependency that is down. |
+| **Under control** | Throttles, rate limits, one-at-a-time locks, duplicate prevention, timeouts, deadlines, run windows and blackouts, across every server. |
+| **Readable** | Times and schedules in plain English: `"tomorrow at 9am"`, `"every 10 minutes from 9am to 5pm on weekdays"`. |
+| **Observable** | A live dashboard with insights, failure clusters, lineage and a "why isn't it running?" diagnosis, plus OpenTelemetry, alerts, health checks and Prometheus metrics. |
+| **Fast** | A source generator writes direct calls to your job methods, so they aren't invoked through reflection. |
+| **Familiar** | It started from the source of Hangfire 1.8. The API will feel at home, and your existing Hangfire SQL Server data keeps working. See [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire). |
+
+```csharp
+jobs.Enqueue<EmailService>(x => x.SendWelcome(userId));                       // now, in the background
+jobs.Schedule<ReminderService>(x => x.SendTrialEnding(accountId), "tomorrow at 9am"); // later
+recurringJobs.AddOrUpdate<ReportService>("daily-report", x => x.BuildDaily(), Cron.Daily(6)); // every day
+jobs.ContinueJobWith<EmailService>(chargeId, x => x.SendReceipt(orderId));    // after another job
+```
+
+**Everything it can do**
+
+- Run a method in the background now, later, on a CRON schedule, or after other jobs finish. See [Jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs) and [Recurring jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs).
+- Wait for a whole set of jobs, or create jobs as a group. See [Fan-in and batches](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/fan-in-and-batches).
+- Write times and schedules in plain English, such as `"tomorrow at 9am"` or `"every 10 minutes from 9am to 5pm on weekdays"`. See [Delayed jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/delayed-jobs) and [CRON and schedules](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/cron-and-schedules).
+- Retry with back-off, retry later, or stop calling a dependency that is down with a circuit breaker. See [Retries](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/retries).
+- Limit how many jobs run at once, throttle, rate-limit and prevent duplicates, across every server. See [Concurrency](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/concurrency).
+- Set timeouts, deadlines, run windows and blackouts. See [Timing](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/timing).
+- Show a job's progress and log lines live, and resume after a failure from a checkpoint. See [Progress, console and checkpoints](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/progress-and-console).
+- Watch, search and manage jobs in the dashboard, with insights, failure clusters, lineage and a "why isn't it running?" diagnosis. See [Dashboard](https://a7mdfre7at.github.io/Masterly.NightShift/docs/dashboard).
+- Stop starting new jobs before a deploy, for the whole system, a queue or one server. See [Drain mode](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/drain-mode).
+- Trace and measure every job with OpenTelemetry, send alerts to Slack, Teams or a webhook, and expose health and Prometheus endpoints. See [Monitoring](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring).
+- Call job methods without reflection: a source generator emits direct calls. See [Source-generated invokers](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/source-generated-invokers).
+
+---
 
 ## Installation
 
-Install the [Masterly.NightShift NuGet package](https://www.nuget.org/packages/Masterly.NightShift). It brings in the core library, SQL Server storage and the ASP.NET Core integration. The SQL Server storage also needs a SQL client package, which you choose; on .NET 8 and later use `Microsoft.Data.SqlClient`:
+ASP.NET Core apps install the meta-package. Worker Services and console apps take only the packages they use. All five packages ship together with the same version number.
 
-```
+| Package | What it is for | Extra dependencies |
+|---------|----------------|--------------------|
+| `Masterly.NightShift` | Meta-package for ASP.NET Core apps: Core, SqlServer and AspNetCore | The three packages it installs |
+| `Masterly.NightShift.Core` | Jobs, the server, filters and the dashboard | `Cronos` |
+| `Masterly.NightShift.SqlServer` | SQL Server storage | `Dapper`, `Microsoft.Data.SqlClient` |
+| `Masterly.NightShift.NetCore` | `Microsoft.Extensions.*` integration: dependency injection, logging, hosted services | `Microsoft.Extensions.*` abstractions |
+| `Masterly.NightShift.AspNetCore` | Dashboard middleware, endpoint mapping and health checks | ASP.NET Core |
+
+Every package targets `net8.0` and `net10.0`, so it runs on .NET 8 and later.
+
+```bash
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
 
-See [Installation](docs/getting-started/installation.md) for which package to pick, for .NET Framework, and for the NU1902/NU1903 warnings `Microsoft.Data.SqlClient` brings with it.
+See [Installation](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/installation) for which packages to pick for your kind of app.
 
-| Package | What it is |
-|---|---|
-| `Masterly.NightShift` | Meta-package: Core + SqlServer + AspNetCore |
-| `Masterly.NightShift.Core` | Jobs, the server, filters, the dashboard |
-| `Masterly.NightShift.SqlServer` | SQL Server storage |
-| `Masterly.NightShift.NetCore` | `Microsoft.Extensions.*` integration (DI, hosted service) |
-| `Masterly.NightShift.AspNetCore` | Dashboard middleware and endpoint mapping |
+---
 
-Targets: `netstandard2.0` (.NET Framework 4.6.2+), `net8.0` and `net10.0`.
+## Quick Start
 
-## Quick start
+This example adds background jobs to an ASP.NET Core app that stores them in SQL Server and serves the dashboard.
+
+**1. Add the storage, a server and the dashboard.** `AddNightShift` configures the storage, `AddNightShiftServer` starts the workers that run jobs, and `MapNightShiftDashboard` serves the dashboard at `/nightshift`.
 
 ```csharp
 using Masterly.NightShift;
-using Masterly.NightShift.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,80 +84,88 @@ var connectionString = builder.Configuration.GetConnectionString("NightShift")
     ?? throw new InvalidOperationException("Connection string 'NightShift' is missing.");
 
 builder.Services.AddNightShift(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
     .UseSqlServerStorage(connectionString));
+
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();
 
 app.MapNightShiftDashboard();   // served at /nightshift
+```
+
+**2. Create jobs.** A job is a call to one of your methods. Its arguments are stored, so the job runs even if the process that created it has gone away.
+
+```csharp
+// Fire-and-forget: runs as soon as a worker is free
+app.MapPost("/users/{id:int}/welcome", (int id, IBackgroundJobClient jobs) =>
+{
+    jobs.Enqueue<EmailService>(email => email.SendWelcome(id));
+    return Results.Accepted();
+});
+
+// Delayed and recurring jobs
+var jobs = app.Services.GetRequiredService<IBackgroundJobClient>();
+jobs.Schedule<ReminderService>(x => x.SendTrialEnding(42), "tomorrow at 9am");
+
+var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+recurringJobs.AddOrUpdate<ReportService>("daily-report", x => x.BuildDaily(), Cron.Daily(6));
 
 app.Run();
 ```
 
-Create jobs from anywhere:
+**3. Open the dashboard.** Run the app and browse to `/nightshift` to watch the jobs run. The dashboard is open to local requests only until you set up [authorization](https://a7mdfre7at.github.io/Masterly.NightShift/docs/dashboard/authorization).
 
-```csharp
-// Fire-and-forget: runs as soon as a worker is free
-BackgroundJob.Enqueue(() => Console.WriteLine("Hello from a background job"));
+**Next steps**
 
-// Delayed
-BackgroundJob.Schedule(() => SendReminder(42), TimeSpan.FromHours(1));
+- For Worker Services and console apps, see [Quick start: console and Worker Service](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/quick-start-worker).
+- For the mental model behind jobs, states, servers and queues, see [Core concepts](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/core-concepts).
 
-// Continuation: runs after the parent succeeds. Creating a job returns null when a filter cancels it.
-string? parent = BackgroundJob.Enqueue(() => BuildReport(7));
-if (parent != null)
-{
-    BackgroundJob.ContinueJobWith(parent, () => EmailReport(7));
-}
-
-// Recurring
-RecurringJob.AddOrUpdate("nightly-cleanup", () => Cleanup(), Cron.Daily());
-```
-
-Job arguments are serialized to the storage, so the job runs even if the process that created it has gone away. A job that throws is retried automatically.
-
-## What you get
-
-- **Job types:** fire-and-forget, delayed, recurring, continuations (including fan-in), batches.
-- **Reliable execution:** automatic retries, deadlines and timeouts, rate limits, throttling, circuit breakers, duplicate prevention, run windows and blackouts, retry-later.
-- **Fast invocation:** a source generator emits direct calls, so job methods are not invoked through reflection.
-- **Dashboard:** live monitoring, search, insights, a job diagnosis ("why isn't it running?"), lineage, failure clusters, a wallboard, a timeline, an activity heatmap, exports and a command palette.
-- **Operations:** drain mode, per-queue and per-server pause, health and Prometheus endpoints, alerts and webhooks, an audit log, a keep-alive for IIS-hosted servers.
-- **Observability:** OpenTelemetry-compatible traces and metrics through `UseTelemetry()`.
+---
 
 ## Documentation
 
-| Section | What's in it |
-|---|---|
-| [Getting started](docs/getting-started/README.md) | Installation, quick starts, the core concepts |
-| [Jobs](docs/jobs/README.md) | Fire-and-forget, delayed, continuations, fan-in and batches, arguments, cancellation |
-| [Recurring jobs](docs/recurring-jobs/README.md) | CRON and plain-English schedules, pausing, time zones, misfires |
-| [Filters](docs/filters/README.md) | Retries, concurrency limits, timeouts and run windows, writing your own |
-| [Server](docs/server/README.md) | Server options, queues and workers, drain mode, keep-alive, dependency injection |
-| [Storage](docs/storage/README.md) | SQL Server setup and options, schema upgrades, writing a custom storage |
-| [Dashboard](docs/dashboard/README.md) | Setup, authorization, every page, customization |
-| [Monitoring](docs/monitoring/README.md) | OpenTelemetry, alerts and webhooks, audit log, insights, logging |
-| [Configuration](docs/configuration/README.md) | Global configuration, JSON serialization, compatibility levels |
+| Topic | Guide |
+|-------|-------|
+| Getting started | [Installation](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/installation), [Quick start: ASP.NET Core](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/quick-start-aspnetcore), [Quick start: Worker Service](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/quick-start-worker), [Core concepts](https://a7mdfre7at.github.io/Masterly.NightShift/docs/getting-started/core-concepts) |
+| Jobs | [Fire-and-forget](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/fire-and-forget), [Delayed](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/delayed-jobs), [Continuations](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/continuations), [Fan-in and batches](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/fan-in-and-batches), [Arguments](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/job-arguments), [Cancellation](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/cancellation), [Testing](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/testing) |
+| Recurring jobs | [Creating](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/creating-recurring-jobs), [CRON and schedules](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/cron-and-schedules), [Pausing and updating](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/pausing-and-updating), [Time zones and misfires](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/time-zones-and-misfires) |
+| Filters | [Retries](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/retries), [Concurrency](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/concurrency), [Timing](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/timing), [Behavior](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/behavior), [Custom filters](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/custom-filters) |
+| Running | [Server options](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/server-options), [Queues and workers](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/queues-and-workers), [Drain mode](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/drain-mode), [Dependency injection](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/dependency-injection), [SQL Server storage](https://a7mdfre7at.github.io/Masterly.NightShift/docs/storage/sql-server) |
+| Operating | [Dashboard](https://a7mdfre7at.github.io/Masterly.NightShift/docs/dashboard), [OpenTelemetry](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/opentelemetry), [Alerts and webhooks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/alerts-and-webhooks), [Health checks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/health-checks), [Configuration](https://a7mdfre7at.github.io/Masterly.NightShift/docs/configuration) |
+| Reference | [Troubleshooting](https://a7mdfre7at.github.io/Masterly.NightShift/docs/troubleshooting), [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire), [Breaking changes](https://a7mdfre7at.github.io/Masterly.NightShift/docs/breaking-changes), [Roadmap](https://a7mdfre7at.github.io/Masterly.NightShift/docs/roadmap), [Changelog](https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md) |
 
-Moving from Hangfire? Start with [Migrating from Hangfire](docs/migrating-from-hangfire.md). Something not working? See [Troubleshooting](docs/troubleshooting.md).
+The same pages are in [docs/](docs/README.md) in this repository.
+
+If this library helps you, please give it a star on GitHub.
+
+---
 
 ## Building from source
 
 You need the .NET 10 SDK (see `global.json`).
 
-```
+```bash
 dotnet build Masterly.NightShift.slnx -c Release
 dotnet test tests/Masterly.NightShift.Core.Tests -f net10.0
-dotnet pack src/Masterly.NightShift.Core -c Release --no-build -o artifacts
 ```
-
-Pack the other packages the same way: `src/Masterly.NightShift.SqlServer`, `src/Masterly.NightShift.NetCore`, `src/Masterly.NightShift.AspNetCore` and the meta-package `src/Masterly.NightShift`.
 
 The SQL Server tests need a reachable SQL Server: set `NightShift_SqlServer_ConnectionStringTemplate` to a connection string with a `{0}` placeholder for the database name, for example `Server=(localdb)\MSSQLLocalDB;Database={0};Integrated Security=True;TrustServerCertificate=True;`.
 
-## Contributing
+The documentation site lives in `website/` and needs Node.js 20 or later:
+
+```bash
+cd website
+npm ci
+npm start       # live preview
+npm run build   # fails on any broken link
+```
 
 Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security problem privately, see [SECURITY.md](SECURITY.md).
+
+---
 
 ## License
 

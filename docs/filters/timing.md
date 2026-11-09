@@ -42,9 +42,7 @@ Cancels a job that runs longer than the given number of seconds and fails it wit
 | `Timeout` | `TimeSpan` | | The timeout as a `TimeSpan`. |
 | `Order` | `int` | `0` | Position among interceptors; lower runs outermost. |
 
-Related members: `JobTimeoutAttribute.TimeoutExceededParameter` (`"TimeoutExceeded"`) and `MaxTimeoutInSeconds` (`2147483`). The limit is the longest a timer accepts on .NET Framework (`Int32.MaxValue` milliseconds), and it applies on every framework so that a job behaves the same everywhere. For longer work, use a [`Deadline`](#deadlineattribute), which cancels nothing.
-
-How it works: `JobTimeoutAttribute` is an interceptor (`AsyncJobInterceptorAttribute`), so it runs inside the performer around the method call, without a storage round trip. It creates a token that is canceled after the timeout, when the server shuts down, or when the token already passed to the method is canceled (an outer `JobTimeout`, for example), and passes it to the method in place of every `CancellationToken` parameter. An `IJobCancellationToken` parameter is wrapped so that `ThrowIfCancellationRequested()` and its `ShutdownToken` also see the timeout. When the method throws `OperationCanceledException` because this timeout expired (not because of shutdown, because the job was deleted, or because another timeout expired first), the interceptor throws `TimeoutException` instead.
+Related members: `JobTimeoutAttribute.TimeoutExceededParameter` (`"TimeoutExceeded"`) and `MaxTimeoutInSeconds` (`2147483`). The limit is `Int32.MaxValue` milliseconds, about 24.8 days, as in Hangfire. For longer work, use a [`Deadline`](#deadlineattribute), which cancels nothing.
 
 The method must accept a cancellation parameter and observe it. A method without one can't be interrupted: it runs to the end and succeeds, and the overrun is recorded in the `TimeoutExceeded` job parameter. If the storage fails to record it, a warning is logged and the job still succeeds.
 
@@ -91,6 +89,10 @@ public class ImageService
 }
 ```
 
+### How JobTimeout works
+
+`JobTimeoutAttribute` is an interceptor (`AsyncJobInterceptorAttribute`), so it runs inside the performer around the method call, without a storage round trip. It creates a token that is canceled after the timeout, when the server shuts down, or when the token already passed to the method is canceled (an outer `JobTimeout`, for example), and passes it to the method in place of every `CancellationToken` parameter. An `IJobCancellationToken` parameter is wrapped so that `ThrowIfCancellationRequested()` and its `ShutdownToken` also see the timeout. When the method throws `OperationCanceledException` because this timeout expired (not because of shutdown, because the job was deleted, or because another timeout expired first), the interceptor throws `TimeoutException` instead.
+
 ## DeadlineAttribute
 
 Gives a job a deadline counted from its creation. It is a service-level expectation, not a timeout: nothing is canceled. The dashboard's Processing page and job details page highlight jobs that are still waiting or running past their deadline, and a job that finishes late keeps a record of how late it was.
@@ -112,8 +114,8 @@ public class OrderService
 
 | Parameter / property | Type | Default | Meaning |
 |----------------------|------|---------|---------|
-| `timeout` (constructor) | `string` | required | Time after creation, parsed as a `TimeSpan` with the invariant culture: `"00:10:00"`, `"1.00:00:00"`. Must be greater than zero. |
-| `timeoutInSeconds` (constructor) | `int` | required | The same, in seconds. Must be greater than zero. |
+| `timeout` (constructor) | `string` | required | Time after creation, parsed as a `TimeSpan` with the invariant culture: `"00:10:00"`, `"1.00:00:00"`. Text that isn't a time span throws `FormatException`; zero or less throws `ArgumentOutOfRangeException`. |
+| `timeoutInSeconds` (constructor) | `int` | required | The same, in seconds. Zero or less throws `ArgumentOutOfRangeException`. |
 | `Timeout` | `TimeSpan` | | The parsed deadline. |
 | `Order` | `int` | `-1` | Filter order. |
 
@@ -202,9 +204,9 @@ public class WarehouseService
 
 | Parameter / property | Type | Default | Meaning |
 |----------------------|------|---------|---------|
-| `window` (constructor) | `string` | required | `start-end`, each as `HH:mm`, `H:mm`, `HH:mm:ss` or a bare hour (`"22-6"`). The start is inclusive, the end exclusive. Start and end must differ. |
+| `window` (constructor) | `string` | required | `start-end`, each as `HH:mm`, `H:mm`, `HH:mm:ss` or a bare hour (`"22-6"`). The start is inclusive, the end exclusive. Any other form, or a start equal to the end, throws `ArgumentException` when the attribute is read. |
 | `timeZoneId` (constructor) | `string?` | `null` (UTC) | Time zone the window is expressed in, looked up with `TimeZoneInfo.FindSystemTimeZoneById`. |
-| `Window` | `string` | | The window as given. |
+| `Window` | `string` | | The window as given, without surrounding spaces. |
 | `Start`, `End` | `TimeSpan` | | The parsed times of day. `End` is before `Start` for an overnight window. |
 | `TimeZoneId` | `string` | `"UTC"` | The resolved time zone id. |
 | `WeekdaysOnly` | `bool` | `false` | Limits the rule to Monday to Friday, in the window's time zone. `RunWindow`: also keeps the job off Saturdays and Sundays. `Blackout`: the blackout applies on weekdays only, and the job may start at any time at the weekend. The day is the one of the moment checked, so the hours after midnight of an overnight window belong to the next day: `[Blackout("22:00-06:00", WeekdaysOnly = true)]` blocks Friday 22:00 to midnight and Monday 00:00 to 06:00, but not Saturday morning. |
@@ -217,7 +219,7 @@ var window = new RunWindowAttribute("22:00-06:00", "Europe/Berlin");
 DateTime next = window.GetNextStart(DateTime.UtcNow, out var allowedNow);
 ```
 
-`RunWindow` and `Blackout` are different types, so you can put both on one method, for example a night window with a blackout for a backup inside it.
+`RunWindow` and `Blackout` are different types, so you can put both on one method, for example a night window with a blackout for a backup inside it. Each can appear only once per job, and a method attribute replaces a class attribute of the same type. For two separate blackouts on one job, write a [custom election filter](custom-filters.md#election-filter).
 
 ## ExpireAfterAttribute
 
@@ -286,7 +288,7 @@ public class PartnerSync
 - **`JobTimeout` needs a cancellation parameter.** Without one the job is not stopped, only marked with `TimeoutExceeded`.
 - **`JobTimeout` and `RetryInProcess` nest by `Order`.** Both default to `Order = 0`; set `Order` to choose which one is outermost. With the timeout outside, it covers all in-process attempts; inside, each attempt gets its own timeout, and a `TimeoutException` is retried in process because it is not an `OperationCanceledException`.
 - **Interceptors are not de-duplicated.** A `[JobTimeout]` on the class and another on the method both apply, nested, with a `CancellationToken` parameter as with an `IJobCancellationToken` one: the token the method gets is canceled by whichever timeout expires first, and the `TimeoutException` names that one (`Timed out after 1 seconds (JobTimeout)`). For a method without a cancellation parameter, `TimeoutExceeded` records the shorter timeout that was exceeded.
-- **Time zone ids must exist on the server.** An unknown id throws `TimeZoneNotFoundException` when the attribute is read, which breaks creating and processing the job. On .NET 8 and later both IANA (`Europe/Berlin`) and Windows (`W. Europe Standard Time`) ids usually work; on .NET Framework use Windows ids. See [Time zones and misfires](../recurring-jobs/time-zones-and-misfires.md).
+- **Time zone ids must exist on the server.** An unknown id throws `TimeZoneNotFoundException` when the attribute is read, which breaks creating and processing the job. Both IANA (`Europe/Berlin`) and Windows (`W. Europe Standard Time`) ids usually work. See [Time zones and misfires](../recurring-jobs/time-zones-and-misfires.md).
 - **A rescheduled job doesn't use a retry attempt.** `RunWindow` moves the job to Scheduled during election, before it runs.
 - **A rescheduled job goes back to its queue.** When a job's queue came only from its Enqueued state (`new EnqueuedState("emails")`), `RunWindow` remembers it in the `HeldQueue` job parameter, like a job held by [drain mode](../server/drain-mode.md), and puts the job back in that queue when the window opens, also when `DrainModeFilter` was removed from the global filters. For a job requeued while it ran (still in the Processing state), the queue is read from the last Enqueued state in its history.
 

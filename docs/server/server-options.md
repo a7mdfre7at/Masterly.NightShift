@@ -47,7 +47,7 @@ A `BackgroundJobServer` is a set of background processes that run on dedicated t
 | `ServerWatchdog` | 1 | always | Every `ServerCheckInterval`, removes servers that have not sent a heartbeat for `ServerTimeout`. |
 | `ServerJobCancellationWatcher` | 1 | always | Every `CancellationCheckInterval`, cancels the tokens of running jobs that were deleted or moved to another state. |
 | Storage processes | 1 each | see below | Provided by the storage. For SQL Server: its heartbeat process (always) and `ExpirationManager` and `CountersAggregator` (not lightweight). |
-| Additional processes | 1 each | always | Whatever you pass to the constructor or register as `IBackgroundProcess` in DI, for example the [keep-alive process](keep-alive.md). |
+| Additional processes | 1 each | always | Whatever you pass to the constructor or register as `IBackgroundProcess` in DI, for example the [keep-alive process](keep-alive.md). See [Background processes](background-processes.md). |
 
 When the server starts it announces itself in the storage with an ID, its queues and its worker count; the dashboard's Servers page lists it. The server ID is built from `ServerName` (or the machine name), the process ID and a new GUID, all lowercase, for example `billing-worker:4120:1f0c6a3e-...`. A new GUID is generated every time the server starts, so two servers never share an ID, even in the same process.
 
@@ -74,9 +74,22 @@ On start the server writes its options to the log (worker count, queues, shutdow
 | `TaskScheduler` | `TaskScheduler?` | `TaskScheduler.Default` | Where asynchronous job methods (returning `Task` or `ValueTask`) run. The default runs them on the thread pool while the worker waits for the result. `null` runs them on the worker thread itself, with continuations pumped back onto it. Also used by the schedulers when `MaxDegreeOfParallelismForSchedulers` is greater than 1. |
 | `WorkerThreadConfigurationAction` | `Action<Thread>?` | `null` | Called for each worker thread before it starts, for example to set its culture or priority. |
 | `MaxDegreeOfParallelismForSchedulers` | `int` | `1` | Experimental. When greater than 1, the delayed and recurring schedulers process due jobs in parallel on `TaskScheduler`. Workers are not affected. |
-| `ServerWatchdogOptions` | `ServerWatchdogOptions?` | `null` | Obsolete. When set, its `ServerTimeout` and `CheckInterval` replace `ServerTimeout` and `ServerCheckInterval`. Use those two properties instead. |
 
 The values are read once, when the server is created. Changing the options object afterwards has no effect on a running server.
+
+### BackgroundJobServer constructors
+
+Without a host, create the server with one of these. It starts at once and runs until you stop or dispose it; see [Stopping a server you created](queues-and-workers.md#stopping-a-server-you-created).
+
+| Constructor | Meaning |
+| --- | --- |
+| `BackgroundJobServer()` | Default options, on `JobStorage.Current`. |
+| `BackgroundJobServer(JobStorage storage)` | Default options, on `storage`. |
+| `BackgroundJobServer(BackgroundJobServerOptions options)` | `options`, on `JobStorage.Current`. |
+| `BackgroundJobServer(BackgroundJobServerOptions options, JobStorage storage)` | `options`, on `storage`. |
+| `BackgroundJobServer(BackgroundJobServerOptions options, JobStorage storage, IEnumerable<IBackgroundProcess> additionalProcesses)` | Also runs `additionalProcesses`, one thread each. See [Background processes](background-processes.md). |
+
+`JobStorage.Current` is set by `UseSqlServerStorage` (or another storage's `Use...` method) on `GlobalConfiguration.Configuration`; creating a server before that throws `InvalidOperationException`. The constructor that also takes a filter provider, an activator, a job factory, a performer and a state changer replaces the services that create, run and move jobs; `AddNightShiftServer` uses it for the services registered in the container. To change only the filter provider or the activator, set `FilterProvider` and `Activator` in the options. A server starts when it is created; `SendStop()` asks it to stop, and `Dispose()` stops it and waits. Hangfire's `Start()` and `Stop()` are gone.
 
 ## More examples
 
@@ -219,5 +232,6 @@ Removing a dead server only cleans up the server list. Jobs that were running on
 - [Dependency injection](dependency-injection.md)
 - [Drain mode](drain-mode.md)
 - [Keep-alive](keep-alive.md)
+- [Background processes](background-processes.md)
 - [Core concepts](../getting-started/core-concepts.md)
 - [Cancellation](../jobs/cancellation.md)

@@ -43,9 +43,9 @@ app.Run();
 
 | Page | What it covers |
 |---|---|
-| [Installation](getting-started/installation.md) | Packages, target frameworks, the SQL client package |
+| [Installation](getting-started/installation.md) | Packages, target frameworks, which packages your app needs |
 | [Quick start: ASP.NET Core](getting-started/quick-start-aspnetcore.md) | From an empty web app to a job in the dashboard |
-| [Quick start: console and Worker Service](getting-started/quick-start-worker.md) | Generic Host apps, and plain console or .NET Framework apps without DI |
+| [Quick start: console and Worker Service](getting-started/quick-start-worker.md) | Generic Host apps, and plain console apps without DI |
 | [Core concepts](getting-started/core-concepts.md) | Jobs, states, storage, servers, workers, queues, filters: the mental model |
 
 ### [Jobs](jobs/README.md)
@@ -94,12 +94,13 @@ app.Run();
 | [Drain mode](server/drain-mode.md) | Stop starting new jobs, for the whole system, a queue or a server |
 | [Keep-alive](server/keep-alive.md) | Keep IIS-hosted servers from being shut down when idle |
 | [Dependency injection](server/dependency-injection.md) | What `AddNightShift` and `AddNightShiftServer` register; job activation and scopes |
+| [Background processes](server/background-processes.md) | Your own code running in a loop on every server, such as an outbox relay or a cache warmer |
 
 ### [Storage](storage/README.md)
 
 | Page | What it covers |
 |---|---|
-| [SQL Server storage](storage/sql-server.md) | Setup, connection strings, SQL client packages, permissions |
+| [SQL Server storage](storage/sql-server.md) | Setup, connection strings and factories, permissions |
 | [SQL Server options](storage/sql-server-options.md) | Every `SqlServerStorageOptions` property and when to change it |
 | [Schema and upgrades](storage/schema-and-upgrades.md) | Tables, schema versions, automatic and manual install, purging |
 | [Custom storage](storage/custom-storage.md) | Writing a storage for another database |

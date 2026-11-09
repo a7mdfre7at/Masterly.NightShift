@@ -20,13 +20,25 @@ jobs.Enqueue<InvoiceService>(x => x.Send(new InvoiceRequest(42, 99.50m, "EUR")))
 
 The job is stored as its type and method name plus one JSON string per argument:
 
-```
+```text
 Type:       InvoiceService, MyApp
 Method:     Send
 Arguments:  ["{\"CustomerId\":42,\"Amount\":99.5,\"Currency\":\"EUR\"}"]
 ```
 
 When a server picks the job up, it reads the JSON back into an `InvoiceRequest` and calls `Send` with it. Nothing else is needed for a type like this one: public properties, a public constructor whose parameters match them.
+
+### Which settings to use
+
+| Your situation | Call |
+|---|---|
+| A new application | `UseRecommendedSerializerSettings()`. Arguments declared as `object` keep their type, and `null` members are left out. |
+| You want camelCase names or your own converters | `UseRecommendedSerializerSettings(options => ...)`, which starts from the recommended options. |
+| You have your own `JsonSerializerOptions`, for example with a source-generated `JsonSerializerContext` | `UseSerializerSettings(options)`. |
+| Servers of an older version share the storage | The settings those servers use, until they are gone. Every client and server must agree (see [Things to know](#things-to-know)). |
+| None of the above | Nothing: the defaults read and write plain JSON and read everything older versions wrote. |
+
+Call only one of `UseRecommendedSerializerSettings` and `UseSerializerSettings`; the last call wins. Whatever you choose, data already stored stays readable, because user data is always read leniently.
 
 ## How it works
 
@@ -66,12 +78,11 @@ Both the internal options and the default user options start from the same base,
 | Setting | Value | Why |
 |---|---|---|
 | `PropertyNameCaseInsensitive` | `true` | Older data may use `customerId` or `CustomerId`. |
-| `NumberHandling` | `AllowReadingFromString` | Older data may have `"42"` where a number is expected. |
+| `NumberHandling` | `AllowReadingFromString`, `AllowNamedFloatingPointLiterals` | Older data may have `"42"` where a number is expected. `double.NaN` and the infinities are written as `"NaN"`, `"Infinity"` and `"-Infinity"`, as older versions did, instead of failing. |
 | `IncludeFields` | `true` | Public fields were serialized before. |
 | `AllowTrailingCommas`, `ReadCommentHandling` | `true`, `Skip` | Hand-edited or older JSON still reads. |
 | `Encoder` | `JavaScriptEncoder.UnsafeRelaxedJsonEscaping` | Non-ASCII text stays readable in the storage. |
-| `MaxDepth` | 128 | |
-| `NumberHandling` | Also `AllowNamedFloatingPointLiterals` | `double.NaN` and the infinities are written as `"NaN"`, `"Infinity"` and `"-Infinity"`, as older versions did, instead of failing. |
+| `MaxDepth` | 128 | Deeply nested arguments still serialize. |
 | `[DefaultValue]` members | Always written; set to their default when missing from the JSON | Older versions left such members out when they equaled their default (`DefaultValueHandling.IgnoreAndPopulate`); reading puts the value back. See [below](#defaultvalue-members). |
 
 And these converters, which add what System.Text.Json doesn't do by itself:
@@ -318,7 +329,7 @@ jobs.Enqueue<NotificationService>(x => x.Send(new EmailNotification("ana@example
 
 The argument is stored with its actual type, and `Send` receives an `EmailNotification`:
 
-```
+```text
 Arguments:  ["{\"$type\":\"EmailNotification, MyApp\",\"Recipient\":\"ana@example.com\",\"Subject\":\"Welcome\"}"]
 ```
 

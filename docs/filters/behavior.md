@@ -22,6 +22,18 @@ jobs.Enqueue<EmailService>(x => x.SendPasswordReset(42));  // queue "critical"
 
 A server only processes the queues it listens to, so make sure one does (see [Queues and workers](../server/queues-and-workers.md)).
 
+## Which one should I use?
+
+| I want to... | Use | Kind |
+|--------------|-----|------|
+| Send a job to a specific queue, fixed or chosen from an argument | `[Queue]` | Election filter |
+| Show a readable name in the dashboard | `[JobDisplayName]` | Plain attribute, read by the dashboard |
+| Run a job with the culture of the code that created it | `CaptureCulture` (on by default) | Client and server filter |
+| See the start, end and errors of a job in its console | `[LogInvocation]` | Interceptor |
+| Hide an argument's value in the dashboard | `[Redacted]` on the parameter | Plain attribute |
+
+All of them can go on a method or on a class or interface, except `[JobDisplayName]` (methods only) and `[Redacted]` (parameters only).
+
 ## QueueAttribute
 
 Puts a job on a named queue. Apply it to a method, or to a class or interface for all its methods; a method attribute replaces the class one. Without it, jobs go to the `default` queue.
@@ -178,7 +190,7 @@ using System.Globalization;
 using Masterly.NightShift;
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Jobs")!)
     .UseDefaultCulture(CultureInfo.GetCultureInfo("en-US")));
 ```
 
@@ -188,16 +200,19 @@ The overloads are `UseDefaultCulture(culture)`, `UseDefaultCulture(culture, capt
 config.UseDefaultCulture(CultureInfo.GetCultureInfo("de-DE"), CultureInfo.GetCultureInfo("en-US"), captureDefault: false);
 ```
 
-### A fixed culture for one job
+### A fallback culture for one job
 
 ```csharp
-public class FixedCultureService
+public class ExportService
 {
-    // Falls back to en-GB for jobs without culture parameters.
-    [CaptureCulture("en-GB", captureDefault: true)]
+    // Jobs created under en-GB store no culture parameter and still run in en-GB. Jobs created under
+    // another culture run in that culture, as usual.
+    [CaptureCulture("en-GB", captureDefault: false)]
     public Task ExportCsv(int reportId) => Task.CompletedTask;
 }
 ```
+
+The defaults are only a fallback: a job still runs in the culture it was created with. A method or class attribute replaces the global `CaptureCulture` for that job. To run a job in one culture whatever created it, set `CultureInfo.CurrentCulture` inside the job method.
 
 To stop capturing cultures entirely, remove the filter: `GlobalJobFilters.Filters.Remove<CaptureCultureAttribute>()`.
 

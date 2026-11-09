@@ -1,6 +1,6 @@
 # Quick start: console and Worker Service
 
-This page sets up a process whose only job is to run background jobs: a Worker Service (Generic Host with dependency injection), or a plain console app or .NET Framework app without it. Because these apps have no web server, the last step adds a small ASP.NET Core app that shows the dashboard for the same database.
+This page sets up a process whose only job is to run background jobs: a Worker Service (Generic Host with dependency injection), or a plain console app without it. Because these apps have no web server, the last step adds a small ASP.NET Core app that shows the dashboard for the same database.
 
 ## Quick example
 
@@ -46,18 +46,15 @@ The dashboard reads the same database. It can be served by any ASP.NET Core app,
 
 The job classes go in a class library, `Shop.Jobs`, so that every app that creates, runs or shows jobs can reference them: this worker, and later the dashboard app.
 
-```
+```text
 dotnet new classlib -n Shop.Jobs
 dotnet add Shop.Jobs package Microsoft.Extensions.Logging.Abstractions
 dotnet new worker -n Shop.Worker
 cd Shop.Worker
 dotnet add package Masterly.NightShift.NetCore
 dotnet add package Masterly.NightShift.SqlServer
-dotnet add package Microsoft.Data.SqlClient
 dotnet add reference ../Shop.Jobs/Shop.Jobs.csproj
 ```
-
-If the build then warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](installation.md#the-sql-server-driver).
 
 The templates create a sample `Class1` and a sample `Worker` class; delete `Class1.cs` in `Shop.Jobs`, and `Worker.cs` and its `AddHostedService<Worker>()` line in `Shop.Worker`, you won't need them.
 
@@ -65,7 +62,7 @@ The templates create a sample `Class1` and a sample `Worker` class; delete `Clas
 
 Create an empty database (the storage creates the tables, not the database). With LocalDB:
 
-```
+```text
 sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "CREATE DATABASE NightShift"
 ```
 
@@ -150,7 +147,7 @@ public class JobRegistration : BackgroundService
 
 Use the `Program.cs` from the [Quick example](#quick-example) above, then run:
 
-```
+```text
 dotnet run
 ```
 
@@ -158,66 +155,44 @@ The log shows `Starting Masterly.NightShift Server using job storage: ...`, then
 
 To run the worker as a Windows Service or a systemd unit, use the usual Generic Host integration for that platform. Nothing in the job configuration changes.
 
-## Console app or .NET Framework app without dependency injection
+## Console app without dependency injection
 
-Without the Generic Host, configure `GlobalConfiguration.Configuration` once at start-up and start a `BackgroundJobServer` yourself. This works the same way in a .NET 8+ console app and in a .NET Framework 4.6.2+ app (Windows Service, WinForms, classic ASP.NET).
+Without the Generic Host, configure `GlobalConfiguration.Configuration` once at start-up and start a `BackgroundJobServer` yourself. This suits a console app, or a Windows Service that doesn't use the Generic Host.
 
-```
+```text
 dotnet new console -n Shop.Runner
 cd Shop.Runner
 dotnet add package Masterly.NightShift.Core
 dotnet add package Masterly.NightShift.SqlServer
-dotnet add package Microsoft.Data.SqlClient
 ```
 
-For .NET Framework, set the target framework in `Shop.Runner.csproj` and remove the `ImplicitUsings` and `Nullable` lines, which C# 7.3 (the default language version on .NET Framework) doesn't support:
-
-```xml
-<PropertyGroup>
-  <OutputType>Exe</OutputType>
-  <TargetFramework>net48</TargetFramework>
-</PropertyGroup>
-```
-
-On .NET Framework, `Microsoft.Data.SqlClient` is optional: the driver built into `System.Data` is used when no other is installed.
-
-Replace `Program.cs` with this code. It uses a `Main` method and explicit `using` directives, so it compiles on .NET Framework as well as on .NET 8 and later:
+Replace `Program.cs` with this code:
 
 ```csharp
-using System;
 using Masterly.NightShift;
 
-namespace Shop.Runner
+GlobalConfiguration.Configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseColouredConsoleLogProvider()
+    .UseSqlServerStorage(
+        @"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;TrustServerCertificate=True;");
+
+BackgroundJob.Enqueue<ReportService>(x => x.BuildDaily());
+RecurringJob.AddOrUpdate<ReportService>("daily-report", x => x.BuildDaily(), Cron.Daily(6));
+
+using (var server = new BackgroundJobServer())
 {
-    public static class Program
+    Console.WriteLine("Server started. Press Enter to stop.");
+    Console.ReadLine();
+}
+
+public class ReportService
+{
+    public void BuildDaily()
     {
-        public static void Main()
-        {
-            GlobalConfiguration.Configuration
-                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                .UseSimpleAssemblyNameTypeSerializer()
-                .UseRecommendedSerializerSettings()
-                .UseColouredConsoleLogProvider()
-                .UseSqlServerStorage(
-                    @"Server=(localdb)\MSSQLLocalDB;Database=NightShift;Integrated Security=True;TrustServerCertificate=True;");
-
-            BackgroundJob.Enqueue<ReportService>(x => x.BuildDaily());
-            RecurringJob.AddOrUpdate<ReportService>("daily-report", x => x.BuildDaily(), Cron.Daily(6));
-
-            using (var server = new BackgroundJobServer())
-            {
-                Console.WriteLine("Server started. Press Enter to stop.");
-                Console.ReadLine();
-            }
-        }
-    }
-
-    public class ReportService
-    {
-        public void BuildDaily()
-        {
-            Console.WriteLine($"Daily report built at {DateTime.UtcNow:O}");
-        }
+        Console.WriteLine($"Daily report built at {DateTime.UtcNow:O}");
     }
 }
 ```
@@ -229,14 +204,13 @@ namespace Shop.Runner
 
 ## See the jobs in the dashboard
 
-A Worker Service or console app has no web server, so serve the dashboard from an ASP.NET Core app pointed at the same database. It can be an app you already have, or a small one just for the dashboard. From the folder that holds `Shop.Jobs` and `Shop.Worker`:
+A Worker Service or console app has no web server, so serve the dashboard from an ASP.NET Core app pointed at the same database. It can be an app you already have, or a small one only for the dashboard. From the folder that holds `Shop.Jobs` and `Shop.Worker`:
 
-```
+```text
 dotnet new web -n Shop.Dashboard
 cd Shop.Dashboard
 dotnet add package Masterly.NightShift.AspNetCore
 dotnet add package Masterly.NightShift.SqlServer
-dotnet add package Microsoft.Data.SqlClient
 dotnet add reference ../Shop.Jobs/Shop.Jobs.csproj
 ```
 
@@ -272,10 +246,10 @@ The reference to `Shop.Jobs` matters: the dashboard loads job types to show thei
 | Member | Parameters | Default | What it does |
 |---|---|---|---|
 | `services.AddNightShift(configuration)` | `Action<IGlobalConfiguration>` or `Action<IServiceProvider, IGlobalConfiguration>` | | Registers the client services, the container-backed job activator and `ILoggerFactory` logging |
-| `services.AddNightShiftServer(...)` | none, `Action<BackgroundJobServerOptions>`, `Action<IServiceProvider, BackgroundJobServerOptions>`, optional `JobStorage` and `IEnumerable<IBackgroundProcess>` | Options from DI or `new BackgroundJobServerOptions()` | Runs a server as an `IHostedService` |
+| `services.AddNightShiftServer(...)` | none, `Action<BackgroundJobServerOptions>`, `Action<IServiceProvider, BackgroundJobServerOptions>` (optionally followed by a `JobStorage` and an `IEnumerable<IBackgroundProcess>`), or an `IConfiguration` section | Options from DI or `new BackgroundJobServerOptions()` | Runs a server as an `IHostedService`. Each call adds another server |
 | `GlobalConfiguration.Configuration` | | | The process-wide configuration the `Use*` methods change (see [Global configuration](../configuration/global-configuration.md)) |
 | `new BackgroundJobServer()` | optional `BackgroundJobServerOptions`, optional `JobStorage` | `new BackgroundJobServerOptions()`, `JobStorage.Current` | Starts a server immediately; `Dispose()` stops it |
-| `UseColouredConsoleLogProvider()` | optional `LogLevel minLevel` | | Logs to the console in colour |
+| `UseColouredConsoleLogProvider()` | optional `Masterly.NightShift.Logging.LogLevel minLevel` | `LogLevel.Info` | Logs to the console in colour |
 
 The full list of server options is in [Server options](../server/server-options.md).
 
@@ -296,6 +270,28 @@ using (var server = new BackgroundJobServer(options))
 }
 ```
 
+### Read server options from `appsettings.json`
+
+In a Worker Service, `AddNightShiftServer` can read the server options from a configuration section:
+
+```json
+{
+  "NightShift": {
+    "Server": {
+      "WorkerCount": 4,
+      "Queues": [ "critical", "default" ],
+      "SchedulePollingInterval": "00:00:05"
+    }
+  }
+}
+```
+
+```csharp
+builder.Services.AddNightShiftServer(builder.Configuration.GetSection("NightShift:Server"));
+```
+
+The keys are the option names: `ServerName`, `WorkerCount`, `Queues` (an array or a comma-separated list), `IsLightweightServer`, `MaxDegreeOfParallelismForSchedulers`, and the time spans `StopTimeout`, `ShutdownTimeout`, `SchedulePollingInterval`, `HeartbeatInterval`, `ServerCheckInterval`, `ServerTimeout` and `CancellationCheckInterval`. A missing key keeps its default. To also set options that configuration can't hold, such as an activator, pass a callback as well: `AddNightShiftServer(section, (provider, options) => ...)`. See [Server options](../server/server-options.md).
+
 ### Change SQL Server storage options
 
 ```csharp
@@ -315,7 +311,7 @@ Every option is described in [SQL Server options](../storage/sql-server-options.
 ## Things to know
 
 - Configure once, at start-up, before you create jobs or start servers. Calling `Use*` methods later changes global state that running servers already read.
-- Every process that runs jobs needs the job classes. If a web app creates `ReportService.BuildDaily` jobs, the worker must reference the assembly that defines `ReportService`; otherwise the worker can't load the job, which is retried and then fails with a reason like "Can not change the state to 'Enqueued': the job's type or method was not found." (see [Troubleshooting](../troubleshooting.md#a-job-fails-because-it-cant-be-loaded)).
+- Every process that runs jobs needs the job classes. If a web app creates `ReportService.BuildDaily` jobs, the worker must reference the assembly that defines `ReportService`; otherwise the worker can't load the job, which is retried and then fails with a reason like `Can not change the state to 'Processing': the job's type or method was not found.` (see [Troubleshooting](../troubleshooting.md#a-job-fails-because-it-cant-be-loaded)).
 - You can run as many worker processes as you like against one database. A job is fetched by one worker at a time, and it runs at least once rather than exactly once (see [Core concepts](core-concepts.md#at-least-once-execution)).
 
 ## See also

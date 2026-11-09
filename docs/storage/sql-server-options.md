@@ -38,11 +38,10 @@ All properties are on `Masterly.NightShift.SqlServer.SqlServerStorageOptions`.
 | Option | Type | Default | Meaning |
 |---|---|---|---|
 | `SlidingInvisibilityTimeout` | `TimeSpan?` | 5 minutes | How a worker claims a job. With a value, the queue row is marked as fetched and kept alive while the job runs; if the server disappears, the job is fetched again once the mark is older than this. `null` switches to the legacy transactional fetch. SQL Server compares it in whole seconds, so it must be at least 1 second; a shorter value throws `ArgumentOutOfRangeException` (it would round down to 0 and let a second worker fetch a running job at once). See [Fetching](#fetching-sliding-invisibility-or-transactional). |
-| `QueuePollInterval` | `TimeSpan` | `Zero` | How long the polling worker waits before asking for a job again. Values below 1 second are clamped to 100 ms to 1 s, and `Zero` means 200 ms. With sliding invisibility, only one idle worker per process and set of queues polls at a time; the others wait for it. Negative values throw `ArgumentException`. See [Polling](#polling). |
+| `QueuePollInterval` | `TimeSpan` | `Zero` | How long the polling worker waits before asking for a job again. With sliding invisibility, values below 1 second are clamped to 100 ms to 1 s, and `Zero` means 200 ms; the transactional fetch uses the value as it is, and 1 second for `Zero`. With sliding invisibility, only one idle worker per process and set of queues polls at a time; the others wait for it. Negative values throw `ArgumentException`. See [Polling](#polling). |
 | `DisableFetchSemaphores` | `bool` | `false` | `true` lets every idle worker poll on its own instead of one per process and set of queues. More queries, faster pickup of bursts. |
 | `CommandTimeout` | `TimeSpan?` | `null` | Timeout of each SQL command, including each batch of `Purge`. `null` uses the client's default (30 seconds). Doesn't apply to the install script, expiration and aggregation, which run without a timeout. Commands take whole seconds, so a value must be at least 1 second; a shorter one throws `ArgumentOutOfRangeException` (it would round down to 0, which means no timeout at all). |
 | `CommandBatchMaxTimeout` | `TimeSpan?` | 5 minutes | When set, the commands of one storage transaction are sent to the server as a single batch, with a timeout of `CommandTimeout` (or 30 s) times the number of commands, capped at this value. `null` sends them one by one. At least 1 second, like `CommandTimeout`. |
-| `UseRecommendedIsolationLevel` | `bool` | `true` | Run storage transactions as `READ COMMITTED`. When `false`, `TransactionIsolationLevel` is used instead. |
 | `DisableGlobalLocks` | `bool` | `false` (`true` on schema 6+ when auto-detected and not set) | When `false`, every transaction that writes to `[Set]`, `[Hash]` or `[List]` takes an exclusive application lock on that whole table type, which serializes those writes across all servers. Needed only on schema versions before 6. Setting it to `true` on such a version logs a warning at startup when auto-detection is on. |
 | `UseFineGrainedLocks` | `bool` | `false` | With `DisableGlobalLocks = true`, take an application lock per key (for example one per set) instead of none. Writers of different keys don't wait for each other. |
 | `UseIgnoreDupKeyOption` | `bool` | `false` (`true` on schema 8+ when auto-detected and not set) | Write `[Set]` and `[Hash]` rows with `INSERT` and a fallback `UPDATE` instead of `MERGE`, which avoids range-lock deadlocks. Requires the `IGNORE_DUP_KEY` option that schema 8 sets on those tables. When auto-detection finds an older schema, the option stays off even if you set it, and a warning is logged at startup; with auto-detection off, don't turn it on for an older schema. |
@@ -56,21 +55,17 @@ All properties are on `Masterly.NightShift.SqlServer.SqlServerStorageOptions`.
 | `PrepareSchemaIfNecessary` | `bool` | `true` | Run the install script when the storage is created, which creates or upgrades the tables. After a failure (a database error, or an exception from your connection factory) it tries twice more, 1 and 3 seconds apart, clearing the SQL client's connection pool after a failed open so that each attempt contacts the server, then logs a warning and goes on; it tries again when the storage is used, 30 seconds later at first and less often after each failure (up to every 30 minutes). Turn it off when the account the app uses can't change the schema, or when you deploy schema changes yourself. |
 | `EnableHeavyMigrations` | `bool` | `false` | Let the startup install apply the upgrades from schema 5 to 6 and from 7 to 8, which rebuild large tables. Without it, an upgrade stops at version 5 or 7. New installs always go to the latest version. See [Heavy migrations](schema-and-upgrades.md#heavy-migrations). |
 | `TryAutoDetectSchemaDependentOptions` | `bool` | `true` | Read the schema version at startup and decide the dependent options you didn't set, as described in [How it works](#how-it-works). |
-| `SqlClientFactory` | `DbProviderFactory` | `Microsoft.Data.SqlClient` if referenced, else `System.Data.SqlClient` | Creates connections when the storage was given a connection string. Reading it throws `InvalidOperationException` when neither client is available, and so does the storage's connection string constructor; setting it to `null` throws `ArgumentNullException`. See [Choosing the SQL client](sql-server.md#choosing-the-sql-client). |
-| `ImpersonationFunc` | `Func<IDisposable>` | `null` | Called before each connection is opened; the result is disposed right after. For Windows impersonation on .NET Framework, where opening a connection under another identity needs an impersonation context. |
+| `SqlClientFactory` | `DbProviderFactory` | `Microsoft.Data.SqlClient.SqlClientFactory.Instance` | Creates connections when the storage was given a connection string. Set it to wrap the connections, for example for profiling; they must be `Microsoft.Data.SqlClient` connections or wrap them. Setting it to `null` throws `ArgumentNullException`. See [The SQL client](sql-server.md#the-sql-client). |
+| `ImpersonationFunc` | `Func<IDisposable>` | `null` | Called before each connection is opened; the result is disposed right after. For Windows impersonation, where opening a connection under another identity needs an impersonation context. |
 | `DefaultQueueProvider` | `IPersistentJobQueueProvider` | `null` (the built-in SQL Server queue) | A replacement queue implementation for every queue that has no provider of its own in `SqlServerStorage.QueueProviders`. |
 
-### Obsolete options
+### Legacy fetch option
 
-These still compile, with an obsolete warning. Most do nothing.
-
-| Option | Type | Default | Status |
+| Option | Type | Default | Meaning |
 |---|---|---|---|
-| `TransactionIsolationLevel` | `IsolationLevel?` | `null` | Used only when `UseRecommendedIsolationLevel` is `false`. `null` means `READ COMMITTED`. Prefer `UseRecommendedIsolationLevel`. |
 | `InvisibilityTimeout` | `TimeSpan` | 30 minutes | Used only by the legacy transactional fetch (`SlidingInvisibilityTimeout = null`), to also take queue rows that were marked as fetched longer ago than this (for example by a server that used sliding invisibility before). No effect with sliding invisibility. |
-| `TransactionTimeout` | `TimeSpan` | 1 minute | No effect: explicit transactions are always used. |
-| `DisableTransactionScope` | `bool` | `false` | No effect, for the same reason. |
-| `UsePageLocksOnDequeue` | `bool` | `false` | No effect. |
+
+Hangfire's `TransactionIsolationLevel`, `UseRecommendedIsolationLevel`, `TransactionTimeout`, `DisableTransactionScope` and `UsePageLocksOnDequeue` are gone. Storage transactions always run as `READ COMMITTED`, which is what the default options did.
 
 ## More examples
 
@@ -150,7 +145,7 @@ var options = new SqlServerStorageOptions
 };
 ```
 
-Raise `CommandTimeout` when the dashboard or monitoring queries time out on very large tables. Batching needs the SQL client's internal `SqlCommandSet` type; when it isn't available (for example in `System.Data.SqlClient` older than 4.7 on .NET Core), commands are sent one by one automatically.
+Raise `CommandTimeout` when the dashboard or monitoring queries time out on very large tables. Batching uses the SQL client's internal `SqlCommandSet` type; when a custom `SqlClientFactory` creates connections that don't provide it, commands are sent one by one automatically.
 
 ### Schema managed by your deployment
 

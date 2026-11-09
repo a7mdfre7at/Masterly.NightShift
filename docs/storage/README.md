@@ -4,21 +4,18 @@ Masterly.NightShift keeps every job, its state history, queues, recurring job de
 
 | Page | What it covers |
 |---|---|
-| [SQL Server setup](sql-server.md) | `UseSqlServerStorage` overloads, connection strings and factories, choosing `Microsoft.Data.SqlClient` or `System.Data.SqlClient`, database permissions, schemas, several storages in one database |
+| [SQL Server setup](sql-server.md) | `UseSqlServerStorage` overloads, connection strings and factories, the SQL client, database permissions, schemas, several storages in one database |
 | [SQL Server options](sql-server-options.md) | Every `SqlServerStorageOptions` property: fetching, polling, batching, locks, cleanup, schema handling |
 | [Schema and upgrades](schema-and-upgrades.md) | The tables created, schema versions 1 to 9, automatic and manual install, heavy migrations, purging data, backups |
 | [Custom storage](custom-storage.md) | For storage authors: `JobStorage` and its base classes, feature flags, the semantics a storage must provide, a skeleton |
 
 ## Most common setup
 
-Add a SQL Server client package next to Masterly.NightShift (the storage works with either client but doesn't pick one for you):
+Install Masterly.NightShift, which brings the SQL Server storage and its driver:
 
 ```
 dotnet add package Masterly.NightShift
-dotnet add package Microsoft.Data.SqlClient
 ```
-
-If the build warns about `System.Security.Cryptography.Pkcs` (NU1902, NU1903), see [The SQL Server driver](../getting-started/installation.md#the-sql-server-driver).
 
 Then point the storage at a database. The tables are created on first start in the `[HangFire]` schema:
 
@@ -29,7 +26,7 @@ using Masterly.NightShift.SqlServer;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")));
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!));
 builder.Services.AddNightShiftServer();
 
 var app = builder.Build();

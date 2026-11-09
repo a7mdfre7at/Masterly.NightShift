@@ -1,6 +1,6 @@
 # Alerts and webhooks
 
-Masterly.NightShift raises an alert when a job finally fails, when a job finishes after its deadline, and when a circuit breaker opens. Alerts go to the sinks you register: the built-in `WebhookAlertSink` posts them to an HTTP endpoint (your own API, Slack, Mattermost, Discord), and you can write your own sink for anything else.
+Masterly.NightShift raises an alert when a job finally fails, when a job finishes after its deadline, and when a circuit breaker opens. Alerts go to the sinks you register: the built-in `WebhookAlertSink` posts them to an HTTP endpoint (your own API, Slack, Mattermost, Discord, Microsoft Teams), and you can write your own sink (`IAlertSink`) for anything else, such as e-mail or a paging service. Alerts are off until you register a sink.
 
 ## Quick example
 
@@ -10,7 +10,7 @@ using Masterly.NightShift;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddNightShift(config => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseWebhookAlerts("https://alerts.example.com/nightshift"));
 
 builder.Services.AddNightShiftServer();
@@ -26,13 +26,18 @@ Three places raise alerts:
 
 | Kind | Raised by | When |
 |---|---|---|
-| `JobFailed` | `AlertsFilter` (a global apply-state filter) | A job has entered the Failed state and the change is committed. With the default `AutomaticRetry` (10 retries) that is after the last retry failed, not on every failed attempt. |
+| `JobFailed` | `AlertsFilter` (a global apply-state filter) | A job has entered the Failed state and the change is committed. With the default `AutomaticRetry` (10 retries, with growing delays) that is after the last retry failed, several hours after the first failure, not on every failed attempt. |
 | `DeadlineMissed` | `[Deadline]` | A job with a deadline is about to enter the Succeeded state after its deadline has passed. |
 | `CircuitOpened` | `[CircuitBreaker]` | A circuit opens: the failure threshold is reached within the window, or the half-open probe job failed. |
 
 `UseWebhookAlerts(...)` and `UseAlerts(...)` register the sink and add `AlertsFilter` to the global filters (only once, however many sinks you add). `[Deadline]` and `[CircuitBreaker]` raise their alerts directly, so they work with any registered sink.
 
-Alerts are raised synchronously, on the thread that changes the job's state (usually a worker), after the job's lock is released. `JobFailed` and `DeadlineMissed`, and `CircuitOpened` for a failed probe, wait until the state change is committed to storage, so a state change that fails and is retried sends one alert, and no alert goes out for a change that never happened. `CircuitOpened` for a reached threshold describes the circuit's own state, which is stored in a transaction of its own, so it is sent after the job's state change is attempted, even when that attempt fails. `Alerts.Raise` catches and logs an exception thrown by a sink (as a warning, in the `Masterly.NightShift.Alert` log category) and moves on to the next sink.
+Alerts are raised synchronously, on the thread that changes the job's state (usually a worker), after the job's lock is released:
+
+- `JobFailed`, `DeadlineMissed`, and `CircuitOpened` for a failed probe, are sent only once the state change is committed to storage. A state change that fails and is retried sends one alert, and a change that never happened sends none.
+- `CircuitOpened` for a reached threshold is about the circuit, whose state is stored in a transaction of its own. It is sent after the job's state change is attempted, even when that attempt fails.
+
+`Alerts.Raise` catches and logs an exception thrown by a sink (as a warning, in the `Masterly.NightShift.Alert` log category) and moves on to the next sink.
 
 `WebhookAlertSink` does not block that thread: `Publish` checks the event filter, takes a slot from its in-flight limit, and sends the request on the thread pool. When all slots are busy, the alert is dropped with a warning. Each request gets `Timeout` to finish; after that it is canceled and counted as failed.
 
@@ -188,7 +193,11 @@ There is no retry: a request that fails is counted in `Failed`, logged, and forg
 | `Alerts.Raise(Alert alert)` | Delivers an alert to every sink. A sink that throws is logged and skipped. |
 | `Alerts.Clear()` | Removes every sink. |
 | `Alerts.HasSinks` | Whether at least one sink is registered. |
-| `Alerts.Sinks` | The registered sinks. |
+| `Alerts.Sinks` | The registered sinks, as an `IReadOnlyList<IAlertSink>`. |
+
+### `AlertsFilter`
+
+The global apply-state filter that raises `JobFailed`. It has no options. `UseAlerts` and `UseWebhookAlerts` add it to `GlobalJobFilters` once. If you register sinks with `Alerts.AddSink` alone, add it yourself with `GlobalJobFilters.Filters.Add(new AlertsFilter())`, or `JobFailed` alerts are never raised. It does nothing while no sink is registered.
 
 ### `IAlertSink`
 
@@ -283,7 +292,7 @@ public sealed class LoggingAlertSink : IAlertSink
 builder.Services.AddSingleton<LoggingAlertSink>();
 
 builder.Services.AddNightShift((provider, config) => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseAlerts(provider.GetRequiredService<LoggingAlertSink>()));
 ```
 
@@ -353,7 +362,7 @@ builder.Services.AddSingleton<QueuedAlertSink>();
 builder.Services.AddHostedService<TeamsAlertSender>();
 
 builder.Services.AddNightShift((provider, config) => config
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift"))
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("NightShift")!)
     .UseAlerts(provider.GetRequiredService<QueuedAlertSink>()));
 
 builder.Services.AddNightShiftServer();
@@ -403,7 +412,6 @@ bool delivered = await sink.SendAsync(new Alert(AlertKind.JobFailed, "Test alert
 - **No grouping or rate limiting.** A hundred failing jobs send a hundred alerts. `MaxConcurrentRequests` caps the number of requests in flight; the rest are dropped and counted in `Dropped`. Write a custom sink if you need batching or de-duplication.
 - **Logs show only the start of the webhook URL.** Warnings about rejected, failed or timed-out requests write the URL as `https://hooks.slack.com/... (hash 3fa2c1)`: scheme, host and port, with the path, query and any user name and password left out, because Slack, Mattermost and Discord put the webhook's secret token in the path. The hash is the first six hex digits of the SHA-256 of the whole URL (UTF-8), so you can tell two webhooks on the same host apart. `HttpClient` instrumentation that you add yourself (for example OpenTelemetry's) can still record the full URL. Where the receiver supports it, an `Authorization` header is still the better place for a secret.
 - **Calling `UseWebhookAlerts` twice adds two sinks.** Registration is not idempotent, for example if the configuration code runs twice in tests. `Alerts.Clear()` removes all sinks.
-- Alerts work on every target framework, including .NET Framework.
 
 ## See also
 

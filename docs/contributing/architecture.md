@@ -32,13 +32,13 @@ Paths are relative to `src/Masterly.NightShift.Core/`. The sections below explai
 |---|---|---|
 | `src/Masterly.NightShift.Core` | `Masterly.NightShift.Core` | Everything storage- and host-independent: client, server, states, filters, dashboard, serialization |
 | `src/Masterly.NightShift.SqlServer` | `Masterly.NightShift.SqlServer` | The reference storage implementation |
-| `src/Masterly.NightShift.NetCore` | `Masterly.NightShift.NetCore` | Microsoft.Extensions integration: `AddNightShift`, `AddNightShiftServer`, hosted services, DI-backed activator, `ILogger` log provider |
-| `src/Masterly.NightShift.AspNetCore` | `Masterly.NightShift.AspNetCore` | Dashboard middleware, `UseNightShiftDashboard`, `MapNightShiftDashboard`, keep-alive registration |
+| `src/Masterly.NightShift.NetCore` | `Masterly.NightShift.NetCore` | Microsoft.Extensions integration: `AddNightShift`, `AddNightShiftServer`, hosted services, DI-backed activator, `ILogger` log provider, the job logging scope |
+| `src/Masterly.NightShift.AspNetCore` | `Masterly.NightShift.AspNetCore` | Dashboard middleware, `UseNightShiftDashboard`, `MapNightShiftDashboard`, `MapNightShiftHealth`/`MapNightShiftMetrics`, health checks (`AddHealthChecks().AddNightShift()`), keep-alive registration |
 | `src/Masterly.NightShift` | `Masterly.NightShift` | Meta-package that depends on all of the above |
 | `src/Masterly.NightShift.SourceGenerator` | Inside `Masterly.NightShift.Core`, as an analyzer | Generates job invokers in consumers' projects |
 | `src/Masterly.NightShift.Dashboard.Generator` | Not shipped | Compiles the dashboard's `.cshtml` pages during the build |
 | `samples/ConsoleSample`, `samples/NetCoreSample`, `samples/WebSample` | Not shipped | Working examples: a console app, a generic host, and an ASP.NET Core app with the dashboard |
-| `samples/CSharp73Check` | Not shipped | Not an example: builds job code as C# 7.3, so the solution build fails if the job invoker generator emits newer syntax |
+| `samples/Shared` | Not shipped | A helper the samples use to create their database on first run (the storage creates tables, not databases) |
 | `tests/*` | Not shipped | One test project per package; folders mirror `src/` |
 
 Inside `Masterly.NightShift.Core`, the user-facing features are grouped in feature folders:
@@ -63,13 +63,13 @@ The extension points and internals keep their original folders:
 | `Storage/` | `JobStorage`, `IStorageConnection`, `IWriteOnlyTransaction`, `IMonitoringApi`, their base classes, `JobStorageFeatures`, `InvocationData`, monitoring DTOs |
 | `Processing/` | `BackgroundDispatcher` and `BackgroundExecution`: the thread pool and retry/back-off loop every server process runs in |
 | `Dashboard/` | Routes, dispatchers, Razor pages (`Pages/`), static content and localized strings (`Content/`) |
-| `Diagnostics/` | `TelemetryFilter` and the `NightShiftTelemetry` names (net8.0+), and the job outcome classification that telemetry and insights share |
-| `Common/` | `Job`, filter infrastructure, `SerializationHelper` and the JSON converters, `TypeHelper`, job invokers, polyfills |
+| `Diagnostics/` | `TelemetryFilter` and the `NightShiftTelemetry` names, and the job outcome classification that telemetry and insights share |
+| `Common/` | `Job`, filter infrastructure, `SerializationHelper` and the JSON converters, `TypeHelper`, job invokers |
+| `Logging/` | `LateBoundLogProvider`, which makes every logger follow the provider set later with `UseLogProvider` (installed by a module initializer). The LibLog code itself is in `App_Packages/` |
 | `Profiling/` | The slow-call profiler used around filters |
-| `Obsolete/` | Types kept only for compatibility |
 | `App_Packages/` | Vendored source-only packages (LibLog, StackTraceParser, StackTraceFormatter, MoreLinq); change only their namespaces |
 
-**Namespaces don't follow folders.** Files were moved into feature folders without changing their namespaces, so every type in `Jobs/`, `RecurringJobs/`, `Scheduling/`, `Hosting/`, `Filters/`, `Monitoring/` and `Configuration/` is in the `Masterly.NightShift` namespace. The older folders mostly match their namespaces (`Masterly.NightShift.Server`, `.States`, `.Storage`, `.Client`, `.Dashboard`, `.Common`, `.Processing`, `.Profiling`, `.Diagnostics`), and their subfolders add a level (`Storage/Monitoring/` is `Masterly.NightShift.Storage.Monitoring`). A few public types there are in `Masterly.NightShift` instead: `JobStorage` (`Storage/`), `DashboardOptions` (`Dashboard/`), `ExceptionInfo` and `ExceptionTypeHelper` (`Common/`) and `NightShiftTelemetry` (`Diagnostics/`). `Common/LanguagePolyfills.cs` declares its polyfills in `System.*` namespaces, and `Obsolete/` holds types from several namespaces. Put a new type in the namespace its neighbours use.
+**Namespaces don't follow folders.** Files were moved into feature folders without changing their namespaces, so every type in `Jobs/`, `RecurringJobs/`, `Scheduling/`, `Hosting/`, `Filters/`, `Monitoring/` and `Configuration/` is in the `Masterly.NightShift` namespace. The older folders mostly match their namespaces (`Masterly.NightShift.Server`, `.States`, `.Storage`, `.Client`, `.Dashboard`, `.Common`, `.Processing`, `.Profiling`, `.Diagnostics`), and their subfolders add a level (`Storage/Monitoring/` is `Masterly.NightShift.Storage.Monitoring`). A few public types there are in `Masterly.NightShift` instead: `JobStorage` (`Storage/`), `DashboardOptions` (`Dashboard/`), `ExceptionInfo` (`Common/`) and `NightShiftTelemetry` (`Diagnostics/`). Put a new type in the namespace its neighbours use.
 
 The SQL Server project is organized the same way: storage, connection, transaction, monitoring API and options at the root; `Queues/` (`IPersistentJobQueueProvider`, `SqlServerJobQueue`, the sliding-invisibility `SqlServerTimeoutJob` and the legacy `SqlServerTransactionJob`), `Locking/` (`SqlServerDistributedLock`), `Maintenance/` (`ExpirationManager`, `CountersAggregator`, `SqlServerHeartbeatProcess`), `Schema/` (`Install.sql`, the generated `DefaultInstall.sql`, the installer), `Entities/` and `Infrastructure/` (command batching and helpers). `Masterly.NightShift.NetCore` has `DependencyInjection/`, `Hosting/` (hosted services) and `AspNetCore/` (activator and log provider).
 
@@ -165,13 +165,15 @@ Pages are `.cshtml` files in `Dashboard/Pages/`, passed to the compiler as `Addi
 - the expression lambdas passed to client APIs (`Enqueue`, `Schedule`, `AddOrUpdate` and similar) in the same project;
 - every public method of a type marked `[GenerateJobInvokers]`, for jobs created from another assembly.
 
-Generated invokers register with `JobInvokerRegistry` through a module initializer, or, where the target framework has none (.NET Framework consumers of `netstandard2.0`), through an assembly-level `JobInvokersProviderAttribute` that the registry scans for. The registry resolves a method to a generated invoker first, then a runtime-compiled one (unless `UseCompiledJobInvokers(false)`), then reflection, and caches the result.
+Generated invokers register with `JobInvokerRegistry` through a module initializer, or, where the consuming project can't have one (a C# version before 9), through an assembly-level `JobInvokersProviderAttribute` that the registry scans for. The registry resolves a method to a generated invoker first, then a runtime-compiled one (unless `UseCompiledJobInvokers(false)`), then reflection, and caches the result.
 
 The generator never fails a build: a method it can't call safely is skipped, and an unexpected error becomes warning `NSGEN001`. Consumers turn it off with `<NightShiftDisableJobInvokerGeneration>true</NightShiftDisableJobInvokerGeneration>`, which `build/Masterly.NightShift.Core.props` makes visible to the generator. `Microsoft.CodeAnalysis.CSharp` is kept at the oldest version the generators need so the analyzer still loads in older compilers. `tests/Masterly.NightShift.Core.Tests` references the generator as an analyzer, so `GeneratedJobInvokerFacts` tests real generated code. See [Source-generated invokers](../jobs/source-generated-invokers.md) for the user's view.
 
 ### Hosting integration
 
-`Masterly.NightShift.NetCore` registers the configuration, the storage, the client and recurring job manager factories, and `BackgroundJobServerHostedService` for each `AddNightShiftServer` call. `AspNetCoreJobActivator` opens one DI scope per job; `AspNetCoreLogProvider` sends log messages to `ILoggerFactory`. See [Dependency injection](../server/dependency-injection.md).
+`Masterly.NightShift.NetCore` registers the configuration, the storage, the client and recurring job manager factories, and `BackgroundJobServerHostedService` for each `AddNightShiftServer` call. `AspNetCoreJobActivator` opens one DI scope per job; `AspNetCoreLogProvider` sends log messages to `ILoggerFactory`. Servers added with `AddNightShiftServer` put a server filter in front of their filter provider (`Hosting/JobLoggingScope.cs`) that runs each job inside `ILogger.BeginScope`. See [Dependency injection](../server/dependency-injection.md).
+
+`Masterly.NightShift.AspNetCore` adapts the dashboard (see above) and adds the health checks in `HealthChecks/`.
 
 ## Where to add things
 
@@ -186,7 +188,7 @@ The generator never fails a build: a method it can't call safely is skipped, and
 | A dashboard page | A `.cshtml` in `Dashboard/Pages/` (plus a `.cs` partial if needed) and a route in `DashboardRoutes` | Strings in `Strings.resx`; new static files as `EmbeddedResource`; a rendering test with `PageRenderer` |
 | A client API | `Jobs/` or `RecurringJobs/`, as an extension method or a new interface (such as `IRecurringJobManagerV3`) | Never a new member on `IBackgroundJobClient` or `IRecurringJobManager` |
 | DI registration | `src/Masterly.NightShift.NetCore/DependencyInjection/` | Tests in `tests/Masterly.NightShift.AspNetCore.Tests` |
-| Telemetry | `Diagnostics/TelemetryFilter.cs`, behind `#if NET8_0_OR_GREATER` | Check `HasListeners()`/`Enabled` before doing any work |
+| Telemetry | `Diagnostics/TelemetryFilter.cs` | Check `HasListeners()`/`Enabled` before doing any work |
 
 Every new or changed file in `src/` gets tests in the matching folder under `tests/`.
 

@@ -73,6 +73,19 @@ Queue names may contain only lowercase letters, digits, `_` and `-`. A `[Queue]`
 
 `IBackgroundJobClientV2` also exposes `Storage`, the `JobStorage` the client writes to. Both interfaces are registered in DI.
 
+### The Job class
+
+`Job` (namespace `Masterly.NightShift.Common`) is what a lambda turns into: the type, the method and the argument values. You need it for `Create(Job, ...)`, `BatchJob.ContinueWith(..., Job, ...)`, the job catalog and tests.
+
+| Member | Meaning |
+|---|---|
+| `Job.FromExpression(methodCall)` | Builds a job from the same four lambda types `Enqueue` takes. Evaluates the argument expressions now |
+| `Job.FromExpression(methodCall, string queue)` | The same, with a queue stored on the job |
+| `new Job(Type type, MethodInfo method, IReadOnlyList<object> args, string queue)` | Builds a job without a lambda. Shorter constructors leave out the queue, the arguments or the type (the method's declaring type is used) |
+| `Type` (`Type`), `Method` (`MethodInfo`), `Args` (`IReadOnlyList<object>`) | What the server calls, and with which values |
+| `Queue` (`string`) | The queue stored on the job, or `null` |
+| `ToString()` | `Type.Method`, and the queue in parentheses when there is one |
+
 ### BackgroundJobClient
 
 `BackgroundJobClient` is the default implementation of both interfaces. You need it only outside DI.
