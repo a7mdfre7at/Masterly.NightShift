@@ -111,6 +111,15 @@ namespace Masterly.NightShift.Dashboard
                 executingAssembly,
                 GetContentResourceName("fonts", "glyphicons-halflings-regular.woff2")));
 
+            // The documentation site's fonts, referenced by the @font-face rules of nightshift-ui.css
+            foreach (var font in Fonts)
+            {
+                Routes.Add($"/fonts/{font}/woff2", new EmbeddedResourceDispatcher(
+                    "font/woff2",
+                    executingAssembly,
+                    GetContentResourceName("fonts", $"{font}.woff2")));
+            }
+
             #endregion
 
             #region Razor pages and commands
@@ -444,6 +453,26 @@ namespace Masterly.NightShift.Dashboard
         {
             return $"{typeof (DashboardRoutes).Namespace}.Content.{contentFolder}";
         }
+
+        // IBM Plex Sans and JetBrains Mono, one file per subset, weight and style
+        private static readonly string[] Fonts =
+        [
+            "ibm-plex-sans-latin-400-normal",
+            "ibm-plex-sans-latin-500-normal",
+            "ibm-plex-sans-latin-600-normal",
+            "ibm-plex-sans-latin-700-normal",
+            "ibm-plex-sans-latin-ext-400-normal",
+            "ibm-plex-sans-latin-ext-500-normal",
+            "ibm-plex-sans-latin-ext-600-normal",
+            "ibm-plex-sans-latin-ext-700-normal",
+            "ibm-plex-sans-cyrillic-400-normal",
+            "ibm-plex-sans-cyrillic-500-normal",
+            "ibm-plex-sans-cyrillic-600-normal",
+            "ibm-plex-sans-cyrillic-700-normal",
+            "ibm-plex-sans-latin-400-italic",
+            "jetbrains-mono-latin-400-normal",
+            "jetbrains-mono-latin-600-normal"
+        ];
 
         internal static string GetContentResourceName(string contentFolder, string resourceName)
         {

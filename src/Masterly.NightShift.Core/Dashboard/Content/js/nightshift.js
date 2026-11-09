@@ -11,40 +11,53 @@
         
         this._chart.options.scales.xAxes[0].gridLines.color = COLORS[newColorScheme].cartesianColor;
         this._chart.options.scales.yAxes[0].gridLines.color = COLORS[newColorScheme].cartesianColor;
+        this._chart.options.scales.xAxes[0].ticks.fontColor = COLORS[newColorScheme].tickColor;
+        this._chart.options.scales.yAxes[0].ticks.fontColor = COLORS[newColorScheme].tickColor;
 
         this._chart.update();
     }
 
+    // The job-state colors of the documentation site: succeeded green, failed rose, deleted slate. Only the
+    // succeeded series has a line; the others are areas, so empty series draw no line along zero.
     var COLORS = {
         light: {
-            cartesianColor: '#e5e5e5',
+            cartesianColor: '#e3eeef',
+            tickColor: '#5f7882',
             failed: {
-                backgroundColor: '#D55251',
+                backgroundColor: 'rgba(225, 29, 72, 0.75)',
                 borderColor: null,
             },
             deleted: {
-                backgroundColor: '#919191',
+                backgroundColor: 'rgba(95, 120, 130, 0.45)',
                 borderColor: null,
             },
             succeeded: {
-                backgroundColor: '#6FCD6D',
-                borderColor: '#62B35F',
+                backgroundColor: 'rgba(52, 211, 153, 0.55)',
+                borderColor: '#059669',
             },
         },
         dark: {
-            cartesianColor: '#5f5f5f',
+            cartesianColor: 'rgba(95, 224, 200, 0.1)',
+            tickColor: '#779597',
             failed: {
-                backgroundColor: 'rgba(215, 58, 74, 0.4)',
+                backgroundColor: 'rgba(251, 113, 133, 0.4)',
+                borderColor: null,
             },
             deleted: {
-                backgroundColor: 'rgba(204, 204, 204, 0.4)',
+                backgroundColor: 'rgba(166, 193, 195, 0.25)',
+                borderColor: null,
             },
             succeeded: {
-                backgroundColor: 'rgba(87, 171, 90, 0.4)',
-                borderColor: 'rgba(87, 171, 90, 1)',
+                backgroundColor: 'rgba(52, 211, 153, 0.35)',
+                borderColor: '#34d399',
             },
         },
     };
+
+    if (typeof Chart !== 'undefined') {
+        // Canvas fonts accept only real family names, so no ui-sans-serif or system-ui here
+        Chart.defaults.global.defaultFontFamily = '"IBM Plex Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    }
 
     nightshift.config = {
         pollInterval: $("#nightshiftConfig").data("pollinterval"),
@@ -317,11 +330,11 @@
                             type: 'realtime',
                             realtime: { duration: 60 * 1000, delay: pollInterval },
                             time: { unit: 'second', tooltipFormat: 'dateTimeWithSeconds', displayFormats: { second: 'timeWithSeconds', minute: 'timeWithSeconds' } },
-                            ticks: { maxRotation: 0 }
+                            ticks: { maxRotation: 0, fontColor: COLORS[colorScheme].tickColor }
                         }],
                         yAxes: [{
                             gridLines: { color: COLORS[colorScheme].cartesianColor },
-                            ticks: { beginAtZero: true, precision: 0, min: 0, maxTicksLimit: 6, suggestedMax: 10 }, 
+                            ticks: { beginAtZero: true, precision: 0, min: 0, maxTicksLimit: 6, suggestedMax: 10, fontColor: COLORS[colorScheme].tickColor }, 
                             stacked: true 
                         }]
                     },
@@ -398,8 +411,8 @@
                 },
                 options: {
                     scales: {
-                        xAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, type: 'time', time: timeOptions, ticks: { maxRotation: 0 } }],
-                        yAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, ticks: { beginAtZero: true, precision: 0, maxTicksLimit: 6 }, stacked: true }]
+                        xAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, type: 'time', time: timeOptions, ticks: { maxRotation: 0, fontColor: COLORS[colorScheme].tickColor } }],
+                        yAxes: [{ gridLines: { color: COLORS[colorScheme].cartesianColor }, ticks: { beginAtZero: true, precision: 0, maxTicksLimit: 6, fontColor: COLORS[colorScheme].tickColor }, stacked: true }]
                     },
                     elements: { line: { tension: 0 }, point: { radius: 0 } },
                     legend: { display: false },

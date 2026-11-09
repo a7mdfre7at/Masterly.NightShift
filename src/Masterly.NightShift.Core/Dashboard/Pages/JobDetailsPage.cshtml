@@ -535,7 +535,8 @@
                     {
                         var share = Math.Max(1.5, 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal);
                         var color = JobHistoryRenderer.GetForegroundStateColor(segment.Key);
-                        <span class="hf-state-seg" style="width: @share.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%; background: @color" title="@segment.Key: @Html.ToHumanDuration(segment.Value, false)"><em>@segment.Key</em></span>
+                        // A state without a color (Created, or a custom state without a CSS suffix) sits on the bar's neutral track
+                        <span class="hf-state-seg@(color == "inherit" ? " hf-state-seg-neutral" : null)" style="width: @share.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%; background: @color" title="@segment.Key: @Html.ToHumanDuration(segment.Value, false)"><em>@segment.Key</em></span>
                     }
                 </div>
             }

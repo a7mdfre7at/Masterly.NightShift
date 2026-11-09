@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
@@ -43,6 +45,28 @@ namespace Masterly.NightShift.Core.Tests.Dashboard
         // Fixed inputs for the independently computed hashes below, not the current resource names
         private const string JavaScript = "Hangfire.Dashboard.Content.js.hangfire.js";
         private const string Stylesheet = "Hangfire.Dashboard.Content.css.hangfire.css";
+
+        [Fact]
+        public void EveryFontTheStylesheetUses_HasARoute_AndAnEmbeddedFile()
+        {
+            var assembly = typeof(DashboardRoutes).Assembly;
+            string css;
+            using (var stream = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("css", "nightshift-ui.css")))
+            using (var reader = new StreamReader(stream!))
+            {
+                css = reader.ReadToEnd();
+            }
+
+            var fonts = Regex.Matches(css, @"url\(fonts/([a-z0-9-]+)/woff2\)").Select(x => x.Groups[1].Value).ToArray();
+
+            Assert.Equal(15, fonts.Length);
+            Assert.All(fonts, font =>
+            {
+                Assert.NotNull(DashboardRoutes.Routes.FindDispatcher($"/fonts/{font}/woff2"));
+                using var file = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("fonts", font + ".woff2"));
+                Assert.NotNull(file);
+            });
+        }
 
         [Fact]
         public void CombineResourceHash_IsTheSameInEveryProcessAndOnEveryPlatform()

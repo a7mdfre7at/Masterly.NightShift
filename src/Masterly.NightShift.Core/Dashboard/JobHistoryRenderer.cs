@@ -55,21 +55,21 @@ namespace Masterly.NightShift.Dashboard
             Register(DeletedState.StateName, DeletedRenderer);
             Register(AwaitingState.StateName, AwaitingRenderer);
 
-            BackgroundStateColors.Add(EnqueuedState.StateName, "#F5F5F5");
-            BackgroundStateColors.Add(SucceededState.StateName, "#EDF7ED");
-            BackgroundStateColors.Add(FailedState.StateName, "#FAEBEA");
-            BackgroundStateColors.Add(ProcessingState.StateName, "#FCEFDC");
-            BackgroundStateColors.Add(ScheduledState.StateName, "#E0F3F8");
-            BackgroundStateColors.Add(DeletedState.StateName, "#ddd");
-            BackgroundStateColors.Add(AwaitingState.StateName, "#E0F3F8");
+            BackgroundStateColors.Add(EnqueuedState.StateName, "#E3F0F1");
+            BackgroundStateColors.Add(SucceededState.StateName, "#E0F5EC");
+            BackgroundStateColors.Add(FailedState.StateName, "#FDE8EC");
+            BackgroundStateColors.Add(ProcessingState.StateName, "#FFEDE4");
+            BackgroundStateColors.Add(ScheduledState.StateName, "#E7EFFD");
+            BackgroundStateColors.Add(DeletedState.StateName, "#EAF3F3");
+            BackgroundStateColors.Add(AwaitingState.StateName, "#E7EFFD");
 
-            ForegroundStateColors.Add(EnqueuedState.StateName, "#999");
-            ForegroundStateColors.Add(SucceededState.StateName, "#5cb85c");
-            ForegroundStateColors.Add(FailedState.StateName, "#d9534f");
-            ForegroundStateColors.Add(ProcessingState.StateName, "#f0ad4e");
-            ForegroundStateColors.Add(ScheduledState.StateName, "#5bc0de");
-            ForegroundStateColors.Add(DeletedState.StateName, "#777");
-            ForegroundStateColors.Add(AwaitingState.StateName, "#5bc0de");
+            ForegroundStateColors.Add(EnqueuedState.StateName, "#0F6E80");
+            ForegroundStateColors.Add(SucceededState.StateName, "#059669");
+            ForegroundStateColors.Add(FailedState.StateName, "#E11D48");
+            ForegroundStateColors.Add(ProcessingState.StateName, "#E2622C");
+            ForegroundStateColors.Add(ScheduledState.StateName, "#2563EB");
+            ForegroundStateColors.Add(DeletedState.StateName, "#5F7882");
+            ForegroundStateColors.Add(AwaitingState.StateName, "#2563EB");
 
             StateCssSuffixes.Add(EnqueuedState.StateName, "active");
             StateCssSuffixes.Add(SucceededState.StateName, "success");

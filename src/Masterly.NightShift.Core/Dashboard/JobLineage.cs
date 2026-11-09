@@ -355,7 +355,7 @@ namespace Masterly.NightShift.Dashboard
             foreach (var node in lineage.Nodes)
             {
                 var (x, y) = positions[node.Id];
-                var color = node.State != null ? JobHistoryRenderer.GetForegroundStateColor(node.State) : "#999";
+                var color = node.State != null ? JobHistoryRenderer.GetForegroundStateColor(node.State) : "#5F7882";
                 var css = "hf-lineage-node" + (node.IsCurrent ? " hf-lineage-current" : String.Empty) + (node.Exists ? String.Empty : " hf-lineage-missing");
                 var title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {node.State}" : String.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
 

@@ -43,6 +43,8 @@
     <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.ttf" />
     <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff" />
     <EmbeddedResource Include="Dashboard\Content\fonts\glyphicons-halflings-regular.woff2" />
+    <!-- The documentation site's fonts (IBM Plex Sans, JetBrains Mono), served by DashboardRoutes -->
+    <EmbeddedResource Include="Dashboard\Content\fonts\ibm-plex-sans-*.woff2;Dashboard\Content\fonts\jetbrains-mono-*.woff2" />
     <EmbeddedResource Include="Dashboard\Content\js\bootstrap.min.js" />
     <EmbeddedResource Include="Dashboard\Content\js\nightshift.js" />
     <EmbeddedResource Include="Dashboard\Content\js\jquery-3.7.1.min.js" />

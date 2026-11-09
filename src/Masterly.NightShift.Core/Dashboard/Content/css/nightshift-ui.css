@@ -7,103 +7,258 @@
    provides the grid, tables, buttons and modal, restyled below.
    ------------------------------------------------------------------ */
 
+/* Fonts of the documentation site, served by the dashboard itself so it needs no external request.
+   IBM Plex Sans and JetBrains Mono, SIL Open Font License 1.1 (THIRD-PARTY-NOTICES.md). Each subset has
+   a unicode-range, so a browser downloads only the files a page uses; other scripts use the system font. */
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-400-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-500-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-600-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-700-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-ext-400-normal/woff2) format("woff2");
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-ext-500-normal/woff2) format("woff2");
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-ext-600-normal/woff2) format("woff2");
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-ext-700-normal/woff2) format("woff2");
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-cyrillic-400-normal/woff2) format("woff2");
+    unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-cyrillic-500-normal/woff2) format("woff2");
+    unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-cyrillic-600-normal/woff2) format("woff2");
+    unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-cyrillic-700-normal/woff2) format("woff2");
+    unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/ibm-plex-sans-latin-400-italic/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/jetbrains-mono-latin-400-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(fonts/jetbrains-mono-latin-600-normal/woff2) format("woff2");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 :root {
-    --hf-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-    --hf-mono: "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Courier New", monospace;
+    /* The palette of the documentation site and the logo (assets/branding/README.md): a deep-teal night
+       (#145a6b -> #0a2530), a mint orbit (#5fe0c8), a moonlight crescent (#f6e9cf) and one ember job (#ff7a45).
+       Neutrals lean teal. Job states: processing ember, succeeded green, failed rose, scheduled blue. */
+    --hf-font: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --hf-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
 
-    --hf-bg: #f4f6fa;
+    --hf-bg: #f4f9f9;
     --hf-surface: #ffffff;
-    --hf-surface-2: #f8fafc;
-    --hf-border: #e4e8ef;
-    --hf-border-strong: #cfd6e1;
-    --hf-text: #14213d;
-    --hf-text-2: #4b5567;
-    --hf-muted: #7b8597;
-    --hf-primary: #3b6ff0;
-    --hf-primary-strong: #2a5ad8;
-    --hf-primary-soft: #e8efff;
-    --hf-success: #1f9d61;
-    --hf-success-soft: #e3f6ec;
-    --hf-warning: #d9880b;
-    --hf-warning-soft: #fff3df;
-    --hf-danger: #d64545;
-    --hf-danger-soft: #fdeaea;
-    --hf-info: #2a8fbd;
-    --hf-info-soft: #e3f3fa;
-    --hf-neutral-soft: #eef1f6;
+    --hf-surface-2: #f7fbfb;
+    --hf-border: #dce8ea;
+    --hf-border-strong: #bcd3d7;
+    --hf-text: #0a2530;
+    --hf-text-2: #3d5560;
+    --hf-muted: #5f7882;
+    --hf-primary: #0f6e80;
+    --hf-primary-strong: #0a4d5a;
+    --hf-primary-soft: #e3f0f1;
+    /* Text on a filled primary or state color */
+    --hf-on-color: #ffffff;
+    --hf-success: #047857;
+    --hf-success-soft: #e0f5ec;
+    --hf-warning: #c2410c;
+    --hf-warning-soft: #ffede4;
+    --hf-danger: #e11d48;
+    --hf-danger-strong: #be123c;
+    --hf-danger-soft: #fde8ec;
+    --hf-info: #2563eb;
+    --hf-info-soft: #e7effd;
+    --hf-neutral-soft: #eaf3f3;
 
-    --hf-sidebar-bg: #0f172a;
-    --hf-sidebar-text: #c7d0e0;
-    --hf-sidebar-muted: #7f8aa3;
-    --hf-sidebar-active: rgba(99, 140, 255, .18);
+    --hf-sidebar-bg: linear-gradient(180deg, #0f3a47 0%, #0a2530 42%, #071c25 100%);
+    --hf-sidebar-border: transparent;
+    --hf-sidebar-text: #c3d8da;
+    --hf-sidebar-muted: #7f9ea3;
+    --hf-sidebar-accent: #5fe0c8;
+    --hf-sidebar-active: rgba(95, 224, 200, .14);
     --hf-sidebar-hover: rgba(255, 255, 255, .06);
     --hf-sidebar-width: 252px;
 
     --hf-radius-sm: 6px;
     --hf-radius: 10px;
-    --hf-radius-lg: 14px;
-    --hf-shadow-sm: 0 1px 2px rgba(20, 33, 61, .05);
-    --hf-shadow: 0 1px 2px rgba(20, 33, 61, .04), 0 4px 16px -8px rgba(20, 33, 61, .12);
-    --hf-shadow-lg: 0 24px 64px -16px rgba(20, 33, 61, .3);
-    --hf-focus: 0 0 0 3px rgba(59, 111, 240, .25);
+    --hf-radius-lg: 16px;
+    --hf-shadow-sm: 0 1px 2px rgba(10, 37, 48, .06);
+    --hf-shadow: 0 1px 2px rgba(10, 37, 48, .04), 0 8px 24px -8px rgba(10, 37, 48, .14);
+    --hf-shadow-lg: 0 2px 4px rgba(10, 37, 48, .04), 0 24px 48px -16px rgba(10, 37, 48, .2);
+    --hf-focus: 0 0 0 3px rgba(18, 140, 150, .35);
 
     color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-    --hf-bg: #0b0f17;
-    --hf-surface: #141a24;
-    --hf-surface-2: #1a2130;
-    --hf-border: #232c3b;
-    --hf-border-strong: #33405a;
-    --hf-text: #e6eaf2;
-    --hf-text-2: #b4bdcd;
-    --hf-muted: #7f8aa3;
-    --hf-primary: #6b93ff;
-    --hf-primary-strong: #5a82f0;
-    --hf-primary-soft: rgba(107, 147, 255, .16);
-    --hf-success: #3ccf7c;
-    --hf-success-soft: rgba(60, 207, 124, .14);
-    --hf-warning: #f2b544;
-    --hf-warning-soft: rgba(242, 181, 68, .14);
-    --hf-danger: #ff6b6b;
-    --hf-danger-soft: rgba(255, 107, 107, .14);
-    --hf-info: #52b5e6;
-    --hf-info-soft: rgba(82, 181, 230, .14);
-    --hf-neutral-soft: #222b3a;
-    --hf-sidebar-bg: #090d14;
+    --hf-bg: #061a22;
+    --hf-surface: #0a242e;
+    --hf-surface-2: #0e2d38;
+    --hf-border: #17414a;
+    --hf-border-strong: #245a63;
+    --hf-text: #eaf6f4;
+    --hf-text-2: #a6c1c3;
+    --hf-muted: #779597;
+    --hf-primary: #5fe0c8;
+    --hf-primary-strong: #86e8d6;
+    --hf-primary-soft: rgba(95, 224, 200, .12);
+    --hf-on-color: #04131a;
+    --hf-success: #34d399;
+    --hf-success-soft: rgba(52, 211, 153, .14);
+    --hf-warning: #ff9e73;
+    --hf-warning-soft: rgba(255, 122, 69, .14);
+    --hf-danger: #fb7185;
+    --hf-danger-strong: #f43f5e;
+    --hf-danger-soft: rgba(251, 113, 133, .14);
+    --hf-info: #93c5fd;
+    --hf-info-soft: rgba(96, 165, 250, .14);
+    --hf-neutral-soft: #12343f;
+    --hf-sidebar-bg: linear-gradient(180deg, #082029 0%, #04131a 100%);
+    --hf-sidebar-border: rgba(95, 224, 200, .1);
     --hf-shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-    --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
-    --hf-shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, .7);
+    --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .5);
+    --hf-shadow-lg: 0 2px 4px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .6);
+    --hf-focus: 0 0 0 3px rgba(95, 224, 200, .42);
     color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-        --hf-bg: #0b0f17;
-        --hf-surface: #141a24;
-        --hf-surface-2: #1a2130;
-        --hf-border: #232c3b;
-        --hf-border-strong: #33405a;
-        --hf-text: #e6eaf2;
-        --hf-text-2: #b4bdcd;
-        --hf-muted: #7f8aa3;
-        --hf-primary: #6b93ff;
-        --hf-primary-strong: #5a82f0;
-        --hf-primary-soft: rgba(107, 147, 255, .16);
-        --hf-success: #3ccf7c;
-        --hf-success-soft: rgba(60, 207, 124, .14);
-        --hf-warning: #f2b544;
-        --hf-warning-soft: rgba(242, 181, 68, .14);
-        --hf-danger: #ff6b6b;
-        --hf-danger-soft: rgba(255, 107, 107, .14);
-        --hf-info: #52b5e6;
-        --hf-info-soft: rgba(82, 181, 230, .14);
-        --hf-neutral-soft: #222b3a;
-        --hf-sidebar-bg: #090d14;
+        --hf-bg: #061a22;
+        --hf-surface: #0a242e;
+        --hf-surface-2: #0e2d38;
+        --hf-border: #17414a;
+        --hf-border-strong: #245a63;
+        --hf-text: #eaf6f4;
+        --hf-text-2: #a6c1c3;
+        --hf-muted: #779597;
+        --hf-primary: #5fe0c8;
+        --hf-primary-strong: #86e8d6;
+        --hf-primary-soft: rgba(95, 224, 200, .12);
+        --hf-on-color: #04131a;
+        --hf-success: #34d399;
+        --hf-success-soft: rgba(52, 211, 153, .14);
+        --hf-warning: #ff9e73;
+        --hf-warning-soft: rgba(255, 122, 69, .14);
+        --hf-danger: #fb7185;
+        --hf-danger-strong: #f43f5e;
+        --hf-danger-soft: rgba(251, 113, 133, .14);
+        --hf-info: #93c5fd;
+        --hf-info-soft: rgba(96, 165, 250, .14);
+        --hf-neutral-soft: #12343f;
+        --hf-sidebar-bg: linear-gradient(180deg, #082029 0%, #04131a 100%);
+        --hf-sidebar-border: rgba(95, 224, 200, .1);
         --hf-shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-        --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
-        --hf-shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, .7);
+        --hf-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .5);
+        --hf-shadow-lg: 0 2px 4px rgba(0, 0, 0, .3), 0 24px 48px -16px rgba(0, 0, 0, .6);
+        --hf-focus: 0 0 0 3px rgba(95, 224, 200, .42);
         color-scheme: dark;
     }
 }
@@ -209,12 +364,13 @@ body.hf-app hr {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: var(--hf-sidebar-bg);
+    background: var(--hf-sidebar-bg);
+    border-right: 1px solid var(--hf-sidebar-border);
     color: var(--hf-sidebar-text);
     z-index: 1030;
 }
 
-.hf-brand {
+.hf-sidebar .hf-brand {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -226,8 +382,8 @@ body.hf-app hr {
     letter-spacing: -.01em;
 }
 
-.hf-brand:hover,
-.hf-brand:focus {
+.hf-sidebar .hf-brand:hover,
+.hf-sidebar .hf-brand:focus {
     color: #fff;
     text-decoration: none;
 }
@@ -235,19 +391,14 @@ body.hf-app hr {
 .hf-brand-mark {
     width: 30px;
     height: 30px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, #5b8cff 0%, #8e5bff 100%);
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 6px 16px -6px rgba(91, 140, 255, .8);
     flex: 0 0 30px;
+    filter: drop-shadow(0 6px 10px rgba(95, 224, 200, .22));
 }
 
 .hf-brand-mark svg {
-    width: 16px;
-    height: 16px;
-    fill: #fff;
+    width: 100%;
+    height: 100%;
 }
 
 .hf-brand-text {
@@ -272,7 +423,7 @@ body.hf-app hr {
     color: var(--hf-sidebar-muted);
 }
 
-.hf-nav-item {
+.hf-sidebar .hf-nav-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -285,20 +436,21 @@ body.hf-app hr {
     transition: background-color .12s ease, color .12s ease;
 }
 
-.hf-nav-item:hover,
-.hf-nav-item:focus {
+.hf-sidebar .hf-nav-item:hover,
+.hf-sidebar .hf-nav-item:focus {
     background-color: var(--hf-sidebar-hover);
     color: #fff;
     text-decoration: none;
 }
 
-.hf-nav-item.active {
+.hf-sidebar .hf-nav-item.active {
     background-color: var(--hf-sidebar-active);
+    box-shadow: inset 2px 0 0 var(--hf-sidebar-accent);
     color: #fff;
 }
 
 .hf-nav-item.active .hf-nav-icon {
-    color: #8fb0ff;
+    color: var(--hf-sidebar-accent);
 }
 
 .hf-nav-icon {
@@ -327,7 +479,7 @@ body.hf-app hr {
     list-style: none;
 }
 
-.hf-nav-sub .hf-nav-item {
+.hf-sidebar .hf-nav-sub .hf-nav-item {
     padding: 6px 10px 6px 38px;
     font-weight: 400;
     font-size: 13px;
@@ -356,7 +508,7 @@ body.hf-app hr {
 
 .hf-sidebar .metric.highlighted,
 .hf-app span.metric.highlighted {
-    color: #fff !important;
+    color: var(--hf-on-color) !important;
 }
 
 .hf-sidebar .metric.metric-info.highlighted, .hf-app span.metric.metric-info.highlighted { background-color: var(--hf-info); }
@@ -364,10 +516,10 @@ body.hf-app hr {
 .hf-sidebar .metric.metric-warning.highlighted, .hf-app span.metric.metric-warning.highlighted { background-color: var(--hf-warning); }
 .hf-sidebar .metric.metric-danger.highlighted, .hf-app span.metric.metric-danger.highlighted { background-color: var(--hf-danger); }
 
-.hf-sidebar .metric.metric-info { background-color: rgba(82, 181, 230, .22); color: #9ad9f7; }
-.hf-sidebar .metric.metric-success { background-color: rgba(60, 207, 124, .22); color: #8fe6b3; }
-.hf-sidebar .metric.metric-warning { background-color: rgba(242, 181, 68, .22); color: #f8d38a; }
-.hf-sidebar .metric.metric-danger { background-color: rgba(255, 107, 107, .25); color: #ffb0b0; }
+.hf-sidebar .metric.metric-info { background-color: rgba(96, 165, 250, .22); color: #bfdbfe; }
+.hf-sidebar .metric.metric-success { background-color: rgba(52, 211, 153, .22); color: #a7f3d0; }
+.hf-sidebar .metric.metric-warning { background-color: rgba(255, 122, 69, .24); color: #ffc9b0; }
+.hf-sidebar .metric.metric-danger { background-color: rgba(251, 113, 133, .25); color: #fecdd3; }
 .hf-sidebar .metric.metric-null { display: none; }
 
 .hf-sidebar-footer {
@@ -381,11 +533,11 @@ body.hf-app hr {
     color: var(--hf-sidebar-muted);
 }
 
-.hf-sidebar-footer a {
+.hf-sidebar .hf-sidebar-footer a {
     color: var(--hf-sidebar-text);
 }
 
-.hf-sidebar-footer a:hover {
+.hf-sidebar .hf-sidebar-footer a:hover {
     color: #fff;
 }
 
@@ -525,7 +677,7 @@ body.hf-app hr {
     height: 8px;
     border-radius: 50%;
     background-color: var(--hf-success);
-    box-shadow: 0 0 0 0 rgba(31, 157, 97, .5);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, .5);
     animation: hf-pulse 2.4s ease-out infinite;
 }
 
@@ -535,9 +687,9 @@ body.hf-app hr {
 }
 
 @keyframes hf-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(31, 157, 97, .45); }
-    70% { box-shadow: 0 0 0 7px rgba(31, 157, 97, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(31, 157, 97, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .45); }
+    70% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
 }
 
 .hf-content {
@@ -892,7 +1044,7 @@ body.hf-app hr {
 .hf-app .btn-primary {
     background-color: var(--hf-primary);
     border-color: var(--hf-primary);
-    color: #fff;
+    color: var(--hf-on-color);
     box-shadow: 0 6px 14px -8px var(--hf-primary);
 }
 
@@ -901,7 +1053,7 @@ body.hf-app hr {
 .hf-app .btn-primary:active {
     background-color: var(--hf-primary-strong);
     border-color: var(--hf-primary-strong);
-    color: #fff;
+    color: var(--hf-on-color);
 }
 
 .hf-app .btn-primary[disabled],
@@ -915,14 +1067,14 @@ body.hf-app hr {
 .hf-app .btn-death {
     background-color: var(--hf-danger);
     border-color: var(--hf-danger);
-    color: #fff;
+    color: var(--hf-on-color);
 }
 
 .hf-app .btn-death:hover,
 .hf-app .btn-death:focus {
-    background-color: #c23636;
-    border-color: #c23636;
-    color: #fff;
+    background-color: var(--hf-danger-strong);
+    border-color: var(--hf-danger-strong);
+    color: var(--hf-on-color);
 }
 
 .hf-app .btn-toolbar-top {
@@ -999,7 +1151,7 @@ body.hf-app hr {
 
 .hf-app a:hover .label-hover {
     background-color: var(--hf-primary) !important;
-    color: #fff !important;
+    color: var(--hf-on-color) !important;
 }
 
 .hf-app .cron-badge {
@@ -1020,7 +1172,7 @@ body.hf-app hr {
     padding: 12px 16px;
 }
 
-.hf-app .alert-info { background-color: var(--hf-info-soft); border-color: transparent; color: var(--hf-text); }
+.hf-app .alert-info { background-color: var(--hf-primary-soft); border-color: transparent; color: var(--hf-text); }
 .hf-app .alert-warning { background-color: var(--hf-warning-soft); border-color: transparent; color: var(--hf-text); }
 .hf-app .alert-danger { background-color: var(--hf-danger-soft); border-color: transparent; color: var(--hf-text); }
 .hf-app .alert-success { background-color: var(--hf-success-soft); border-color: transparent; color: var(--hf-text); }
@@ -1103,7 +1255,7 @@ body.hf-app hr {
 .hf-app .list-group-item.active:hover {
     background-color: var(--hf-primary);
     border-color: var(--hf-primary);
-    color: #fff;
+    color: var(--hf-on-color);
 }
 
 .hf-app .tooltip-inner {
@@ -1230,9 +1382,9 @@ body.hf-app hr {
 .hf-app .progress-bar-danger { background-color: var(--hf-danger); }
 
 .hf-app .job-console {
-    background-color: #0d1117;
+    background-color: #04131a;
     border: 1px solid var(--hf-border);
-    color: #d4dae3;
+    color: #d7e8e6;
 }
 
 .hf-app .job-checkpoints li {
@@ -1282,7 +1434,7 @@ body.hf-app hr {
     position: fixed;
     inset: 0;
     z-index: 1060;
-    background-color: rgba(8, 12, 20, .5);
+    background-color: rgba(4, 19, 26, .55);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
     padding: 12vh 16px 0;
@@ -1428,7 +1580,7 @@ body.hf-app hr {
         content: "";
         position: fixed;
         inset: 0;
-        background-color: rgba(8, 12, 20, .45);
+        background-color: rgba(4, 19, 26, .5);
         z-index: 1025;
     }
 
@@ -1804,7 +1956,7 @@ body.hf-app hr {
 
 .hf-segmented label.active {
     background-color: var(--hf-primary);
-    color: #fff;
+    color: var(--hf-on-color);
 }
 
 .hf-segmented input {
@@ -1947,7 +2099,7 @@ body.hf-app hr {
 .hf-chip:hover {
     text-decoration: none;
     background-color: var(--hf-primary);
-    color: #fff;
+    color: var(--hf-on-color);
 }
 
 /* Insights anomalies */
@@ -2201,7 +2353,7 @@ body.hf-app hr {
 .hf-tag:hover,
 .hf-tag:focus {
     background: var(--hf-primary);
-    color: #fff;
+    color: var(--hf-on-color);
     text-decoration: none;
 }
 
@@ -2509,12 +2661,12 @@ body.hf-app hr {
 
 .hf-wb-html, .hf-wallboard {
     height: 100%;
-    background: #070a12;
+    background: #04131a;
     color: var(--hf-text);
     font-family: var(--hf-font);
 }
 
-.hf-wallboard {
+body.hf-app.hf-wallboard {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -2540,17 +2692,13 @@ body.hf-app hr {
 .hf-wb-brand .hf-brand-mark {
     width: 36px;
     height: 36px;
-    border-radius: 10px;
-    background: var(--hf-primary);
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    flex: 0 0 36px;
 }
 
 .hf-wb-brand .hf-brand-mark svg {
-    width: 20px;
-    height: 20px;
-    fill: #fff;
+    width: 100%;
+    height: 100%;
 }
 
 .hf-wb-status {
@@ -2578,11 +2726,11 @@ body.hf-app hr {
     100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
 }
 
-.hf-wb-ok .hf-wb-status { background: rgba(60, 207, 124, .14); color: var(--hf-success); }
+.hf-wb-ok .hf-wb-status { background: var(--hf-success-soft); color: var(--hf-success); }
 .hf-wb-ok .hf-wb-status-dot { background: var(--hf-success); }
-.hf-wb-warn .hf-wb-status { background: rgba(242, 181, 68, .16); color: var(--hf-warning); }
+.hf-wb-warn .hf-wb-status { background: var(--hf-warning-soft); color: var(--hf-warning); }
 .hf-wb-warn .hf-wb-status-dot { background: var(--hf-warning); }
-.hf-wb-down .hf-wb-status { background: rgba(255, 107, 107, .18); color: var(--hf-danger); }
+.hf-wb-down .hf-wb-status { background: var(--hf-danger-soft); color: var(--hf-danger); }
 .hf-wb-down .hf-wb-status-dot { background: var(--hf-danger); }
 
 .hf-wb-clock {
@@ -2620,8 +2768,8 @@ body.hf-app hr {
     justify-content: center;
 }
 
-.hf-wb-tile-good { border-color: rgba(60, 207, 124, .5); }
-.hf-wb-tile-bad { border-color: rgba(255, 107, 107, .6); background: rgba(255, 107, 107, .08); }
+.hf-wb-tile-good { border-color: rgba(52, 211, 153, .5); }
+.hf-wb-tile-bad { border-color: rgba(251, 113, 133, .6); background: rgba(251, 113, 133, .08); }
 
 .hf-wb-value {
     font-size: 52px;
@@ -2761,7 +2909,7 @@ body.hf-app hr {
 }
 
 .hf-wb-attention:not(.hf-wb-attention-ok) {
-    border-color: rgba(242, 181, 68, .6);
+    border-color: rgba(255, 122, 69, .6);
 }
 
 .hf-wb-footer {
@@ -3063,9 +3211,9 @@ body.hf-app hr {
     background: rgba(255, 255, 255, .08);
 }
 
-.hf-watchlist-state.state-succeeded { background: rgba(60, 207, 124, .25); color: #9ff0c2; }
-.hf-watchlist-state.state-failed { background: rgba(255, 107, 107, .3); color: #ffb3b3; }
-.hf-watchlist-state.state-processing { background: rgba(107, 147, 255, .3); color: #c3d2ff; }
+.hf-watchlist-state.state-succeeded { background: rgba(52, 211, 153, .25); color: #a7f3d0; }
+.hf-watchlist-state.state-failed { background: rgba(251, 113, 133, .3); color: #fecdd3; }
+.hf-watchlist-state.state-processing { background: rgba(255, 122, 69, .3); color: #ffd2bf; }
 
 .hf-watchlist-remove {
     border: 0;
@@ -3156,6 +3304,10 @@ body.hf-app hr {
     padding: 0 6px;
     box-sizing: border-box;
     border-right: 1px solid rgba(0, 0, 0, .15);
+}
+
+.hf-state-seg.hf-state-seg-neutral {
+    color: var(--hf-text-2);
 }
 
 .hf-state-seg em {
