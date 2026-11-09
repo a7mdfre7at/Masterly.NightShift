@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Globalization;
 using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Extensions.Diagnostics.HealthChecks;

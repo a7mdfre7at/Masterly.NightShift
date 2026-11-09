@@ -34,9 +34,9 @@ public class SqlServerStorage : JobStorage
 
     private readonly ConcurrentDictionary<KeyValuePair<Func<string, string>, string>, string> _queryTemplateCache = new(new QueryTemplateKeyEqualityComparer());
 
-    private readonly DbConnection _existingConnection;
-    private readonly Func<DbConnection> _connectionFactory;
-    private readonly string _connectionString;
+    private readonly DbConnection? _existingConnection;
+    private readonly Func<DbConnection>? _connectionFactory;
+    private readonly string? _connectionString;
 
     // Set by TryAutoDetectSchemaDependentOptions. Kept here rather than written to the options,
     // so the values the user set (or left unset) on the options object stay as they are. The version is
@@ -183,17 +183,17 @@ public class SqlServerStorage : JobStorage
     /// Gets the queue implementations: <see cref="SqlServerStorageOptions.DefaultQueueProvider"/> (or the
     /// built-in SQL Server queue) for every queue, plus the providers added for particular queues.
     /// </summary>
-    public virtual PersistentJobQueueProviderCollection QueueProviders { get; private set; }
+    public virtual PersistentJobQueueProviderCollection QueueProviders { get; private set; } = null!; // Set by every constructor
 
     /// <inheritdoc />
     public override bool LinearizableReads => true;
 
-    internal string SchemaName { get; private set; }
+    internal string SchemaName { get; private set; } = null!; // Set by every constructor
     internal int? CommandTimeout => Options.CommandTimeout.HasValue ? (int)Options.CommandTimeout.Value.TotalSeconds : (int?)null;
     internal int? CommandBatchMaxTimeout => Options.CommandBatchMaxTimeout.HasValue ? (int)Options.CommandBatchMaxTimeout.Value.TotalSeconds : (int?)null;
     internal TimeSpan? SlidingInvisibilityTimeout => Options.SlidingInvisibilityTimeout;
     internal SqlServerStorageOptions Options { get; }
-    internal SqlServerHeartbeatProcess HeartbeatProcess { get; private set; }
+    internal SqlServerHeartbeatProcess HeartbeatProcess { get; private set; } = null!; // Set by every constructor
 
     // The schema-dependent options in effect: the user's value when set, otherwise the detected one
     internal bool DisableGlobalLocks => Options.DisableGlobalLocksIfSet ?? DetectedSchemaVersion >= 6;
@@ -334,7 +334,7 @@ public class SqlServerStorage : JobStorage
         log.Info($"The SQL Server job storage was purged: {deleted} rows deleted.");
     }
 
-    private long PurgeTable(DbConnection connection, string table, string condition)
+    private long PurgeTable(DbConnection connection, string table, string? condition)
     {
         var batchSize = EffectiveDeleteBatchSize;
 
@@ -419,7 +419,7 @@ public class SqlServerStorage : JobStorage
     }
 
     internal void UseConnection(
-        DbConnection dedicatedConnection,
+        DbConnection? dedicatedConnection,
         [InstantHandle] Action<SqlServerStorage, DbConnection> action)
     {
         UseConnection(dedicatedConnection, static (storage, connection, ctx) =>
@@ -430,18 +430,18 @@ public class SqlServerStorage : JobStorage
     }
 
     internal TResult UseConnection<TResult>(
-        DbConnection dedicatedConnection,
+        DbConnection? dedicatedConnection,
         [InstantHandle] Func<SqlServerStorage, DbConnection, TResult> action)
     {
         return UseConnection(dedicatedConnection, static (storage, connection, ctx) => ctx(storage, connection), action);
     }
 
     internal TResult UseConnection<TContext, TResult>(
-        DbConnection dedicatedConnection,
+        DbConnection? dedicatedConnection,
         [InstantHandle] Func<SqlServerStorage, DbConnection, TContext, TResult> func,
         TContext context)
     {
-        DbConnection connection = null;
+        DbConnection? connection = null;
 
         try
         {
@@ -458,7 +458,7 @@ public class SqlServerStorage : JobStorage
     }
 
     internal void UseTransaction<TContext>(
-        DbConnection dedicatedConnection,
+        DbConnection? dedicatedConnection,
         [InstantHandle] Action<SqlServerStorage, DbConnection, DbTransaction, TContext> action,
         TContext context)
     {
@@ -470,7 +470,7 @@ public class SqlServerStorage : JobStorage
     }
 
     internal TResult UseTransaction<TContext, TResult>(
-        DbConnection dedicatedConnection,
+        DbConnection? dedicatedConnection,
         [InstantHandle] Func<SqlServerStorage, DbConnection, DbTransaction, TContext, TResult> func,
         TContext context,
         IsolationLevel? isolationLevel)
@@ -527,11 +527,11 @@ public class SqlServerStorage : JobStorage
     {
         using (Options.ImpersonationFunc?.Invoke())
         {
-            DbConnection connection = null;
+            DbConnection? connection = null;
 
             try
             {
-                connection = _existingConnection ?? _connectionFactory();
+                connection = _existingConnection ?? _connectionFactory!(); // One of the two is set by every constructor
 
                 if (connection.State == ConnectionState.Closed)
                 {
@@ -559,7 +559,7 @@ public class SqlServerStorage : JobStorage
         return connection != null && ReferenceEquals(connection, _existingConnection);
     }
 
-    internal void ReleaseConnection(IDbConnection connection)
+    internal void ReleaseConnection(IDbConnection? connection)
     {
         if (connection != null && !IsExistingConnection(connection))
         {
@@ -603,7 +603,7 @@ public class SqlServerStorage : JobStorage
 
         log.Info("Start installing Masterly.NightShift SQL objects...");
 
-        Exception lastException = null;
+        Exception? lastException = null;
 
         for (var attempt = 0; attempt <= InstallRetryDelays.Length; attempt++)
         {
@@ -663,7 +663,7 @@ public class SqlServerStorage : JobStorage
 
     // One more attempt of the install that failed at startup, without waiting between attempts. Returns the error,
     // or null when it succeeded.
-    private Exception RetryInstallSchema()
+    private Exception? RetryInstallSchema()
     {
         try
         {

@@ -69,7 +69,7 @@ public class BackgroundJobFactory : IBackgroundJobFactory
 
     public IStateMachine StateMachine => _innerFactory.StateMachine;
 
-    public BackgroundJob Create(CreateContext context)
+    public BackgroundJob? Create(CreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

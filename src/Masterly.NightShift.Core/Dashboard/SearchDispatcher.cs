@@ -79,7 +79,7 @@ internal sealed class SearchDispatcher : IDashboardDispatcher
         return DashboardJson.WriteAsync(context, 200, new { jobs, recurringJobs, tags });
     }
 
-    private static JobData TryGetJobData(IStorageConnection connection, string jobId)
+    private static JobData? TryGetJobData(IStorageConnection connection, string jobId)
     {
         if (jobId.Length > 128 || jobId.Any(static ch => char.IsWhiteSpace(ch)))
         {

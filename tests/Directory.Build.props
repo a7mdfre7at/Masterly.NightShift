@@ -5,6 +5,8 @@
     <OutputType>Exe</OutputType>
     <!-- Never packed, also when the whole solution is packed -->
     <IsPackable>false</IsPackable>
+    <!-- Nullable reference types are on, but tests pass null on purpose to check argument validation, and read results
+         without null checks because a failed assertion reports the null. --><NoWarn>$(NoWarn);nullable;xUnit1012</NoWarn>
     <NuGetAudit>false</NuGetAudit><!-- We are testing against these packages, not including them into the product -->
   </PropertyGroup>
 

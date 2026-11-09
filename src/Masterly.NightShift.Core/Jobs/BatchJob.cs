@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Linq.Expressions;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;

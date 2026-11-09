@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Collections;
 using System.Text;
 using Masterly.NightShift.Common;
@@ -102,7 +100,7 @@ internal static class JobLoggingScope
         private readonly IJobFilterProvider _inner = inner;
         private readonly JobFilter _filter = new(filter, JobFilterScope.Global, null);
 
-        public IEnumerable<JobFilter> GetFilters(Job job)
+        public IEnumerable<JobFilter> GetFilters(Job? job)
         {
             // First, so the scope also covers the other server filters and what they log
             var filters = new List<JobFilter> { _filter };

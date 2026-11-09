@@ -78,7 +78,7 @@ internal static class SqlServerDistributedLock
 
             command.ExecuteNonQuery();
 
-            var lockResult = (int)resultParameter.Value;
+            var lockResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
 
             if (lockResult >= 0)
             {
@@ -101,7 +101,7 @@ internal static class SqlServerDistributedLock
         using var command = CreateReleaseCommand(connection, resource, out var resultParameter);
         command.ExecuteNonQuery();
 
-        var releaseResult = (int)resultParameter.Value;
+        var releaseResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
 
         if (releaseResult < 0)
         {

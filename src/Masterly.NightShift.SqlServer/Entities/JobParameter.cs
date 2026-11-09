@@ -18,6 +18,6 @@ namespace Masterly.NightShift.SqlServer.Entities;
 internal sealed class JobParameter
 {
     public long JobId { get; set; }
-    public string Name { get; set; }
-    public string Value { get; set; }
+    public string Name { get; set; } = null!; // NOT NULL column, set by Dapper
+    public string? Value { get; set; }
 }

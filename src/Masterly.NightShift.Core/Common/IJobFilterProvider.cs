@@ -27,5 +27,5 @@ public interface IJobFilterProvider
     /// <returns>
     /// The enumerator that contains all the <see cref="IJobFilterProvider"/>.
     /// </returns>
-    IEnumerable<JobFilter> GetFilters(Job job);
+    IEnumerable<JobFilter> GetFilters(Job? job);
 }

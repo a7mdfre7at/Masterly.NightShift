@@ -125,7 +125,7 @@ public class DelayedJobScheduler : IBackgroundProcess
     /// Gets or sets a task scheduler that will be used when parallel scheduling
     /// is enabled via the <see cref="MaxDegreeOfParallelism"/> option.
     /// </summary>
-    public TaskScheduler TaskScheduler { get; set; }
+    public TaskScheduler? TaskScheduler { get; set; }
 
     internal Func<int, TimeSpan> RetryDelayFunc { get; set; } = attempt => TimeSpan.FromSeconds(attempt);
 
@@ -273,7 +273,7 @@ public class DelayedJobScheduler : IBackgroundProcess
 
     private void EnqueueBackgroundJob(BackgroundProcessContext context, IStorageConnection connection, string jobId)
     {
-        Exception exception = null;
+        Exception? exception = null;
 
         // At least one retry attempt should always be performed.
         var maxRetryAttempts = MaxStateChangeAttempts > 0 ? MaxStateChangeAttempts : 1;
@@ -343,7 +343,7 @@ public class DelayedJobScheduler : IBackgroundProcess
             context.Storage,
             connection,
             jobId,
-            new FailedState(exception, context.ServerId)
+            new FailedState(exception!, context.ServerId) // Set by the failed attempts above
             {
                 Reason = $"Failed to change state to the '{EnqueuedState.StateName}' one due to an exception after {MaxStateChangeAttempts} retry attempts"
             },
@@ -371,7 +371,7 @@ public class DelayedJobScheduler : IBackgroundProcess
                 {
                     try
                     {
-                        storageConnection.GetFirstByLowestScoreFromSet(null, 0, 0, 1);
+                        storageConnection.GetFirstByLowestScoreFromSet(null!, 0, 0, 1); // Deliberately invalid: checks only that the call is supported
                     }
                     catch (ArgumentNullException ex) when (ex.ParamName == "key")
                     {
@@ -387,7 +387,7 @@ public class DelayedJobScheduler : IBackgroundProcess
             });
     }
 
-    private T UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
+    private T? UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
     {
         var resource = "locks:schedulepoller";
         try

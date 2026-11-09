@@ -54,7 +54,7 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
         }
     }
 
-    private static DateTime? ParseInstant(string value)
+    private static DateTime? ParseInstant(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) ||
             !long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var milliseconds))

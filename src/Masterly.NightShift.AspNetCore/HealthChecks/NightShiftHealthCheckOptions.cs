@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Masterly.NightShift;
 
 /// <summary>What the health check added by <c>AddNightShift</c> verifies.</summary>

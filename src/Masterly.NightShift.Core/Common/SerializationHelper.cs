@@ -94,7 +94,7 @@ public static class SerializationHelper
     private static readonly Lazy<UserSerializerOptions> DefaultUserSerializerOptions =
         new(static () => new UserSerializerOptions(CreateDefaultUserOptions()), LazyThreadSafetyMode.PublicationOnly);
 
-    private static UserSerializerOptions _userSerializerOptions;
+    private static UserSerializerOptions? _userSerializerOptions;
 
     // Quoted numbers, and NaN and infinities as "NaN", "Infinity" and "-Infinity", which the previous serializer wrote
     private const JsonNumberHandling LenientNumberHandling =
@@ -104,7 +104,8 @@ public static class SerializationHelper
     /// Serializes data with <see cref="SerializationOption.Internal"/> option.
     /// Use this method to serialize internal data. Using isolated settings that can't be changed from user code.
     /// </summary>
-    public static string Serialize<T>([CanBeNull] T value)
+    [return: NotNullIfNotNull(nameof(value))]
+    public static string? Serialize<T>([CanBeNull] T? value)
     {
         return Serialize(value, SerializationOption.Internal);
     }
@@ -115,7 +116,8 @@ public static class SerializationHelper
     /// Use <see cref="SerializationOption.TypedInternal"/> option if you need to store type information.
     /// Use <see cref="SerializationOption.User"/> option to serialize user data like arguments and parameters.
     /// </summary>
-    public static string Serialize<T>([CanBeNull] T value, SerializationOption option)
+    [return: NotNullIfNotNull(nameof(value))]
+    public static string? Serialize<T>([CanBeNull] T? value, SerializationOption option)
     {
         return Serialize(value, typeof(T), option);
     }
@@ -126,7 +128,8 @@ public static class SerializationHelper
     /// Use <see cref="SerializationOption.TypedInternal"/> option if you need to store type information.
     /// Use <see cref="SerializationOption.User"/> option to serialize user data like arguments and parameters.
     /// </summary>
-    public static string Serialize([CanBeNull] object value, [CanBeNull] Type type, SerializationOption option)
+    [return: NotNullIfNotNull(nameof(value))]
+    public static string? Serialize([CanBeNull] object? value, [CanBeNull] Type? type, SerializationOption option)
     {
         if (value == null) return null;
 
@@ -138,12 +141,12 @@ public static class SerializationHelper
 
         if (ReferenceEquals(options, InternalSerializerOptions.Value) || !IsLibraryData(value, type, option))
         {
-            return SerializeWith(value, type, option, options);
+            return SerializeWith(value, type!, option, options); // Checked above: a null type uses the value's type
         }
 
         try
         {
-            return SerializeWith(value, type, option, options);
+            return SerializeWith(value, type!, option, options); // Checked above: a null type uses the value's type
         }
         catch (NotSupportedException ex)
         {
@@ -152,7 +155,7 @@ public static class SerializationHelper
             // which Deserialize tries first, instead of failing every job and state change.
             try
             {
-                return SerializeWith(value, type, option, InternalSerializerOptions.Value);
+                return SerializeWith(value, type!, option, InternalSerializerOptions.Value); // Checked above: a null type uses the value's type
             }
             catch (Exception internalEx) when (internalEx.IsCatchableExceptionType())
             {
@@ -167,7 +170,7 @@ public static class SerializationHelper
     /// below <see cref="CompatibilityLevel.Version_170"/>, or a type of Masterly.NightShift itself, such as the
     /// exception of a deleted job.
     /// </summary>
-    private static bool IsLibraryData(object value, Type type, SerializationOption option)
+    private static bool IsLibraryData(object value, Type? type, SerializationOption option)
     {
         return option != SerializationOption.User || (type ?? value.GetType()).Assembly == typeof(SerializationHelper).Assembly;
     }
@@ -180,7 +183,7 @@ public static class SerializationHelper
     /// <see cref="Deserialize(string, Type)"/> reads it back, and still reads data written with the user options
     /// before.
     /// </summary>
-    internal static string SerializeInternal([CanBeNull] object value)
+    internal static string? SerializeInternal([CanBeNull] object? value)
     {
         if (value == null) return null;
         return SerializeWith(value, value.GetType(), SerializationOption.Internal, InternalSerializerOptions.Value);
@@ -201,7 +204,7 @@ public static class SerializationHelper
     /// Deserializes data with <see cref="SerializationOption.Internal"/> option.
     /// Use this method to deserialize internal data. Using isolated settings that can't be changed from user code.
     /// </summary>
-    public static object Deserialize([CanBeNull] string value, [NotNull] Type type)
+    public static object? Deserialize([CanBeNull] string? value, [NotNull] Type type)
     {
         return Deserialize(value, type, SerializationOption.Internal);
     }
@@ -212,14 +215,14 @@ public static class SerializationHelper
     /// Use <see cref="SerializationOption.TypedInternal"/> if deserializable internal data has type names information.
     /// Use <see cref="SerializationOption.User"/> to deserialize user data like arguments and parameters.
     /// </summary>
-    public static object Deserialize([CanBeNull] string value, [NotNull] Type type, SerializationOption option)
+    public static object? Deserialize([CanBeNull] string? value, [NotNull] Type type, SerializationOption option)
     {
         ArgumentNullException.ThrowIfNull(type);
 
         // An empty value means no value, as it did before
         if (string.IsNullOrWhiteSpace(value)) return null;
 
-        Exception exception = null;
+        Exception? exception = null;
 
         if (option != SerializationOption.User)
         {
@@ -250,7 +253,7 @@ public static class SerializationHelper
     /// Deserializes data with <see cref="SerializationOption.Internal"/> option.
     /// Use this method to deserialize internal data. Using isolated settings that can't be changed from user code.
     /// </summary>
-    public static T Deserialize<T>([CanBeNull] string value)
+    public static T? Deserialize<T>([CanBeNull] string? value)
     {
         if (value == null) return default;
         return Deserialize<T>(value, SerializationOption.Internal);
@@ -262,7 +265,7 @@ public static class SerializationHelper
     /// Use <see cref="SerializationOption.TypedInternal"/> if deserializable internal data has type names information.
     /// Use <see cref="SerializationOption.User"/> to deserialize user data like arguments and parameters.
     /// </summary>
-    public static T Deserialize<T>([CanBeNull] string value, SerializationOption option)
+    public static T? Deserialize<T>([CanBeNull] string? value, SerializationOption option)
     {
         if (value == null) return default;
         var result = Deserialize(value, typeof(T), option);
@@ -278,7 +281,7 @@ public static class SerializationHelper
     /// refused, because resolving it would load any type the text names. Stored data is read by
     /// <see cref="Deserialize(string, Type, SerializationOption)"/> as before.
     /// </summary>
-    internal static object DeserializeInput([CanBeNull] string value, [NotNull] Type type)
+    internal static object? DeserializeInput([CanBeNull] string? value, [NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -290,7 +293,7 @@ public static class SerializationHelper
     /// Writes a value of <paramref name="type"/> as text <see cref="DeserializeInput"/> reads back, to pre-fill the
     /// dashboard's job forms: like user data, but without type names in values declared as <see cref="object"/>.
     /// </summary>
-    internal static string SerializeInput([CanBeNull] object value, [NotNull] Type type)
+    internal static string? SerializeInput([CanBeNull] object? value, [NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
         if (value == null) return null;
@@ -309,7 +312,7 @@ public static class SerializationHelper
         return options;
     }
 
-    internal static void SetUserSerializerSettings([CanBeNull] JsonSerializerOptions options)
+    internal static void SetUserSerializerSettings([CanBeNull] JsonSerializerOptions? options)
     {
         Volatile.Write(
             ref _userSerializerOptions,
@@ -320,7 +323,7 @@ public static class SerializationHelper
     /// Uses a copy of the internal options for user data, changed by <paramref name="configure"/>. The converters
     /// it adds come before the built-in ones, so they win for the same type.
     /// </summary>
-    internal static void SetRecommendedSerializerSettings([CanBeNull] Action<JsonSerializerOptions> configure)
+    internal static void SetRecommendedSerializerSettings([CanBeNull] Action<JsonSerializerOptions>? configure)
     {
         var options = GetInternalSettings();
         configure?.Invoke(options);
@@ -413,7 +416,7 @@ public static class SerializationHelper
         ];
     }
 
-    private static Type GetSerializedType(object value, Type type, SerializationOption option, JsonTypeInfo abstractTypeInfo)
+    private static Type GetSerializedType(object value, Type type, SerializationOption option, JsonTypeInfo? abstractTypeInfo)
     {
         // A state is written with its "$type", so it can be read back as IState
         if (type == typeof(IState) || (option == SerializationOption.TypedInternal && value is IState))
@@ -432,7 +435,7 @@ public static class SerializationHelper
         return value.GetType();
     }
 
-    private static object DeserializeWith(string value, Type type, JsonSerializerOptions options)
+    private static object? DeserializeWith(string value, Type type, JsonSerializerOptions options)
     {
         if (NeedsTypeName(GetAbstractTypeInfo(type, options))) return DeserializeTypeNamed(value, type, options);
 
@@ -448,7 +451,7 @@ public static class SerializationHelper
         return JsonSerializer.Deserialize(value, type, options);
     }
 
-    private static object DeserializeTypeNamed(string value, Type type, JsonSerializerOptions options)
+    private static object? DeserializeTypeNamed(string value, Type type, JsonSerializerOptions options)
     {
         var documentOptions = new JsonDocumentOptions
         {
@@ -473,7 +476,7 @@ public static class SerializationHelper
     /// <summary>
     /// Returns the contract of a declared interface or abstract class, or <c>null</c> for any other type.
     /// </summary>
-    private static JsonTypeInfo GetAbstractTypeInfo(Type type, JsonSerializerOptions options)
+    private static JsonTypeInfo? GetAbstractTypeInfo(Type type, JsonSerializerOptions options)
     {
         if (type == null || !(type.IsInterface || type.IsAbstract)) return null;
 
@@ -493,7 +496,7 @@ public static class SerializationHelper
     /// an interface or abstract class read as an object (not a collection), that no converter handles, that the
     /// options can't create, and that has no polymorphism configured.
     /// </summary>
-    private static bool NeedsTypeName(JsonTypeInfo abstractTypeInfo)
+    private static bool NeedsTypeName(JsonTypeInfo? abstractTypeInfo)
     {
         return abstractTypeInfo != null &&
                abstractTypeInfo.Kind == JsonTypeInfoKind.Object &&
@@ -594,7 +597,7 @@ public static class SerializationHelper
         // collide once names are case-insensitive. They are read with the options they were written with.
         private readonly ConcurrentDictionary<Type, bool> _strictTypes = new();
 
-        public object Deserialize(string value, Type type)
+        public object? Deserialize(string value, Type type)
         {
             if (ReferenceEquals(Reading, StrictReading) || _strictTypes.ContainsKey(type))
             {
@@ -614,7 +617,7 @@ public static class SerializationHelper
             }
         }
 
-        public object DeserializeInput(string value, Type type)
+        public object? DeserializeInput(string value, Type type)
         {
             if (ReferenceEquals(Reading, StrictReading) || _strictTypes.ContainsKey(type))
             {

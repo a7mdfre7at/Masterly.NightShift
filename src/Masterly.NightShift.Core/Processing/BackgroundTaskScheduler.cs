@@ -62,7 +62,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
     private readonly ManualResetEvent _stopped = new(false);
 
     private readonly WaitHandle[] _waitHandles;
-    private readonly Action<Exception> _exceptionHandler;
+    private readonly Action<Exception>? _exceptionHandler;
 
     private int _disposed;
 
@@ -98,7 +98,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
     /// <exception cref="ArgumentException"><paramref name="threadFactory"/> returned at least one thread not in the <see cref="ThreadState.Unstarted"/> state.</exception>
     public BackgroundTaskScheduler(
         [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory,
-        [CanBeNull] Action<Exception> exceptionHandler)
+        [CanBeNull] Action<Exception>? exceptionHandler)
     {
         ArgumentNullException.ThrowIfNull(threadFactory);
 
@@ -108,7 +108,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
         // Stopped event should always be the first in this array, see the DispatchLoop method.
         _waitHandles = [_stopped, _semaphore];
 
-        _threads = threadFactory(DispatchLoop)?.ToArray();
+        _threads = threadFactory(DispatchLoop)?.ToArray()!; // Checked right below
 
         if (_threads == null || _threads.Length == 0)
         {
@@ -236,7 +236,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
 
             while (Volatile.Read(ref _disposed) == 0)
             {
-                Task task = null;
+                Task? task = null;
 
                 try
                 {

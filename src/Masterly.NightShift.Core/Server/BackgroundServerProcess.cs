@@ -56,7 +56,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         CancellationToken stoppedToken, CancellationToken shutdownToken)
     {
         var serverId = GetServerId();
-        Stopwatch stoppedAt = null;
+        Stopwatch? stoppedAt = null;
 
         void HandleStopRestartSignal() => Interlocked.CompareExchange(ref stoppedAt, Stopwatch.StartNew(), null);
         void HandleStoppingSignal() => _logger.Info($"{GetServerTemplate(serverId)} caught stopping signal...");
@@ -189,7 +189,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         _logger.Info($"{GetServerTemplate(context.ServerId)} successfully announced in {stopwatch.Elapsed.TotalMilliseconds} ms");
     }
 
-    private void ServerDelete(BackgroundServerContext context, Stopwatch stoppedAt)
+    private void ServerDelete(BackgroundServerContext context, Stopwatch? stoppedAt)
     {
         try
         {

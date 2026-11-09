@@ -34,7 +34,7 @@ internal sealed class JsonStats : IDashboardDispatcher
         page.Assign(context);
 
         var metrics = DashboardMetrics.GetMetrics().Where(x => requestedMetrics.Contains(x.Name));
-        var result = new Dictionary<string, Metric>();
+        var result = new Dictionary<string, Metric?>();
 
         foreach (var metric in metrics)
         {

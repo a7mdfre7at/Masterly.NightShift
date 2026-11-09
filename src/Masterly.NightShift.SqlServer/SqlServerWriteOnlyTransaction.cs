@@ -132,7 +132,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         if (disposableLock.OwnLock)
         {
             var command = SqlServerDistributedLock.CreateReleaseCommand(
-                _connection.DedicatedConnection,
+                _connection.DedicatedConnection!, // A lock owned here holds a dedicated connection
                 disposableLock.Resource,
                 out var resultParameter);
 
@@ -187,9 +187,9 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
             .AddParameter("@name", state.Name, DbType.String, size: 20)
-            .AddParameter("@reason", (object)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
+            .AddParameter("@reason", (object?)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
             .AddParameter("@createdAt", DateTime.UtcNow, DbType.DateTime)
-            .AddParameter("@data", (object)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
+            .AddParameter("@data", (object?)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
     }
 
     public override void AddJobState(string jobId, IState state)
@@ -209,9 +209,9 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
             .AddParameter("@name", state.Name, DbType.String, size: 20)
-            .AddParameter("@reason", (object)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
+            .AddParameter("@reason", (object?)state.Reason?[..Math.Min(99, state.Reason.Length)] ?? DBNull.Value, DbType.String, size: 100)
             .AddParameter("@createdAt", DateTime.UtcNow, DbType.DateTime)
-            .AddParameter("@data", (object)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
+            .AddParameter("@data", (object?)SerializationHelper.Serialize(state.SerializeData()) ?? DBNull.Value, DbType.String, size: -1));
     }
 
     public override void AddToQueue(string queue, string jobId)
@@ -601,6 +601,7 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
     private static void AppendBatch<TKey>(
         SortedDictionary<TKey, List<Func<DbConnection, DbCommand>>> collection,
         SqlCommandBatch batch)
+        where TKey : notnull
     {
         foreach (var pair in collection)
         {
@@ -616,6 +617,7 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
         SortedDictionary<TKey, List<Func<DbConnection, DbCommand>>> collection,
         TKey key,
         Func<DbConnection, DbCommand> command)
+        where TKey : notnull
     {
         if (!collection.TryGetValue(key, out var commands))
         {

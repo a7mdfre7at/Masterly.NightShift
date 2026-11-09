@@ -1,5 +1,3 @@
-#nullable enable
-
 using Masterly.NightShift.HealthChecks;
 using Masterly.NightShift.Server;
 using Microsoft.Extensions.DependencyInjection.Extensions;

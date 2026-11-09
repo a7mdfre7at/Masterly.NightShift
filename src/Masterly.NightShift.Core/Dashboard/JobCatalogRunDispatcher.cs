@@ -42,13 +42,13 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             return;
         }
 
-        JobCatalogEntry entry;
-        Job sourceJob = null;
+        JobCatalogEntry? entry;
+        Job? sourceJob = null;
 
         if (!string.IsNullOrEmpty(source))
         {
             // "Run again with changes": the method comes from an existing job, catalogued or not
-            JobData sourceData;
+            JobData? sourceData;
             using (var connection = context.Storage.GetReadOnlyConnection())
             {
                 sourceData = connection.GetJobData(source);
@@ -76,10 +76,10 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
         }
         else
         {
-            entry = JobCatalog.Find(id);
+            entry = JobCatalog.Find(id!); // The route has an id when it has no source job
             if (entry == null)
             {
-                AuditLog.Record(context, [id], null, (int)HttpStatusCode.NotFound);
+                AuditLog.Record(context, [id!], null, (int)HttpStatusCode.NotFound); // The route has an id here
                 context.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 return;
             }
@@ -94,7 +94,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             queue = sourceJob.Queue;
         }
 
-        var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
+        var arguments = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var parameter in entry.UserParameters)
         {
             // A checkbox comes with a hidden "false", a multiple choice with one value per choice
@@ -111,7 +111,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
                 case "enqueue":
                     {
                         var jobId = context.GetBackgroundJobClient().Create(job, new EnqueuedState(string.IsNullOrWhiteSpace(queue) ? EnqueuedState.DefaultQueue : queue));
-                        AuditLog.Record(context, [jobId], $"{entry.Type.Name}.{entry.Method.Name} enqueued", 200);
+                        AuditLog.Record(context, [jobId!], $"{entry.Type.Name}.{entry.Method.Name} enqueued", 200); // Null only if a filter canceled the creation
                         await DashboardJson.WriteAsync(context, 200, new { jobId }).ConfigureAwait(false);
                         return;
                     }
@@ -137,7 +137,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
                         }
 
                         var jobId = context.GetBackgroundJobClient().Create(job, new ScheduledState(enqueueAt));
-                        AuditLog.Record(context, [jobId], $"{entry.Type.Name}.{entry.Method.Name} scheduled for {enqueueAt:u}", 200);
+                        AuditLog.Record(context, [jobId!], $"{entry.Type.Name}.{entry.Method.Name} scheduled for {enqueueAt:u}", 200); // Null only if a filter canceled the creation
                         await DashboardJson.WriteAsync(context, 200, new { jobId }).ConfigureAwait(false);
                         return;
                     }
@@ -176,7 +176,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
         }
     }
 
-    private static async Task<string> GetFormValueAsync(DashboardContext context, string key)
+    private static async Task<string?> GetFormValueAsync(DashboardContext context, string key)
     {
         var values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
         return values?.FirstOrDefault();

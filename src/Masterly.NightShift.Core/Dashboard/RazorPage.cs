@@ -26,12 +26,12 @@ namespace Masterly.NightShift.Dashboard;
 /// </summary>
 public abstract class RazorPage
 {
-    private Lazy<StatisticsDto> _statisticsLazy;
-    private Lazy<Tuple<DateTime?, DateTime, TimeSpan?>> _dateTimeLazy;
+    private Lazy<StatisticsDto>? _statisticsLazy;
+    private Lazy<Tuple<DateTime?, DateTime, TimeSpan?>>? _dateTimeLazy;
 
     private readonly StringBuilder _content = new();
-    private string _body;
-    private string _attributeSuffix;
+    private string? _body;
+    private string? _attributeSuffix;
 
     protected RazorPage()
     {
@@ -39,9 +39,9 @@ public abstract class RazorPage
         Html = new HtmlHelper(this);
     }
 
-    public RazorPage Layout { get; protected set; }
+    public RazorPage? Layout { get; protected set; }
     public HtmlHelper Html { get; private set; }
-    public UrlHelper Url { get; private set; }
+    public UrlHelper Url { get; private set; } = null!; // Set by Assign, before the page runs
 
     public JobStorage Storage => Context.Storage;
     public string AppPath => Context.Options.AppPath;
@@ -84,7 +84,7 @@ public abstract class RazorPage
         }
     }
 
-    public DashboardContext Context { get; private set; }
+    public DashboardContext Context { get; private set; } = null!; // Set by Assign, before the page runs
 
     internal DashboardRequest Request => Context.Request;
     internal DashboardResponse Response => Context.Response;
@@ -105,14 +105,14 @@ public abstract class RazorPage
     /// <exclude />
     public abstract void Execute();
 
-    public string Query(string key)
+    public string? Query(string key)
     {
         return Request.GetQuery(key);
     }
 
     public override string ToString()
     {
-        return TransformText(null);
+        return TransformText(string.Empty);
     }
 
     /// <exclude />
@@ -160,7 +160,7 @@ public abstract class RazorPage
     }
 
     /// <exclude />
-    protected void WriteLiteral(string textToAppend)
+    protected void WriteLiteral(string? textToAppend)
     {
         if (string.IsNullOrEmpty(textToAppend))
             return;
@@ -168,7 +168,7 @@ public abstract class RazorPage
     }
 
     /// <exclude />
-    protected virtual void Write(object value)
+    protected virtual void Write(object? value)
     {
         if (value == null)
             return;
@@ -187,7 +187,7 @@ public abstract class RazorPage
     }
 
     private protected void WriteAttributeValue(
-        string prefix, int prefixOffset, object value, int valueOffset, int valueLength, bool isLiteral)
+        string prefix, int prefixOffset, object? value, int valueOffset, int valueLength, bool isLiteral)
     {
         WriteLiteral(prefix);
 
@@ -209,7 +209,7 @@ public abstract class RazorPage
 
     protected virtual object RenderBody()
     {
-        return new NonEscapedString(_body);
+        return new NonEscapedString(_body ?? string.Empty);
     }
 
     private string TransformText(string body)
@@ -227,7 +227,7 @@ public abstract class RazorPage
         return _content.ToString();
     }
 
-    private static string Encode(string text)
+    private static string Encode(string? text)
     {
         return string.IsNullOrEmpty(text)
                    ? string.Empty

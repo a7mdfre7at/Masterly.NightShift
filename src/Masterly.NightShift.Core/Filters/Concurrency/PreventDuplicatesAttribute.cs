@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;

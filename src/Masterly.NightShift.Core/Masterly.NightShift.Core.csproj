@@ -102,7 +102,8 @@
   </ItemGroup>
   <!-- Global usings, next to the implicit ones of the SDK -->
   <ItemGroup>
-    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Annotations" /><Using Include="System.Diagnostics.CodeAnalysis.NotNullWhenAttribute" Alias="NotNullWhenAttribute" />
+    <Using Include="System.Diagnostics.CodeAnalysis.NotNullIfNotNullAttribute" Alias="NotNullIfNotNullAttribute" />
     <Using Include="Masterly.NightShift.Common" />
     <Using Include="Masterly.NightShift.States" />
     <Using Include="Masterly.NightShift.Storage" />

@@ -21,13 +21,13 @@
     var processingJobs = monitor.ProcessingJobs(pager.FromRecord, pager.RecordsPerPage);
     var servers = monitor.Servers();
 
-    var progressByJob = new Dictionary<string, JobProgress>();
+    var progressByJob = new Dictionary<string, JobProgress?>();
     var deadlineByJob = new Dictionary<string, DateTime?>();
     var insightByJob = new Dictionary<string, JobInsight>();
     using (var connection = Storage.GetReadOnlyConnection())
     {
         var storageConnection = connection as JobStorageConnection;
-        var insightCache = new Dictionary<string, JobInsight>();
+        var insightCache = new Dictionary<string, JobInsight?>();
 
         foreach (var processingJob in processingJobs)
         {
@@ -157,7 +157,7 @@
                                     else
                                     {
                                         <td class="min-width">
-                                            @Html.ServerId(job.Value.ServerId)
+                                            @Html.ServerId(job.Value.ServerId!)
                                         </td>
                                         <td class="word-break">
                                             @if (servers.All(x => x.Name != job.Value.ServerId || x.Heartbeat < (StorageUtcNow ?? ApplicationUtcNow).Add(DashboardOptions.ServerPossiblyAbortedThreshold.Negate())))
@@ -182,14 +182,14 @@
                                                 var jobInsight = insightByJob.TryGetValue(job.Key, out var ins) ? ins : null;
                                                 var expectedEnd = jobInsight != null && job.Value.StartedAt.HasValue ? jobInsight.EstimateCompletion(job.Value.StartedAt.Value) : null;
                                                 var etaPercent = 0;
-                                                string etaText = null;
+                                                string? etaText = null;
                                                 var etaLate = false;
 
                                                 if (jobProgress == null && expectedEnd.HasValue && job.Value.StartedAt.HasValue)
                                                 {
                                                     var elapsed = now - job.Value.StartedAt.Value;
                                                     var remaining = expectedEnd.Value - now;
-                                                    etaLate = elapsed.TotalMilliseconds > Math.Max(jobInsight.P95Ms, jobInsight.MedianMs * 2);
+                                                    etaLate = elapsed.TotalMilliseconds > Math.Max(jobInsight!.P95Ms, jobInsight.MedianMs * 2);
                                                     etaPercent = (int)Math.Min(97, Math.Max(2, 100.0 * elapsed.Ticks / Math.Max(1, (expectedEnd.Value - job.Value.StartedAt.Value).Ticks)));
                                                     etaText = etaLate
                                                         ? Strings.ProcessingJobsPage_LongerThanUsual

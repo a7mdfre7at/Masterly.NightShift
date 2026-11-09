@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Storage;
 /// job.
 /// </summary>
 [method: JsonConstructor]
-public class InvocationData(string type, string method, string parameterTypes, string arguments, string queue)
+public class InvocationData(string type, string method, string? parameterTypes, string? arguments, string? queue)
 {
     private static readonly
         ConcurrentDictionary<MethodDeserializerCacheKey, MethodDeserializerCacheValue>
@@ -41,21 +41,21 @@ public class InvocationData(string type, string method, string parameterTypes, s
     private static readonly ConcurrentDictionary<Tuple<Func<Type, string>, string>, string[]>
         ParameterTypesDeserializerCache = new();
 
-    public InvocationData(string type, string method, string parameterTypes, string arguments)
+    public InvocationData(string type, string method, string? parameterTypes, string? arguments)
         : this(type, method, parameterTypes, arguments, null)
     {
     }
 
     public string Type { get; } = type;
     public string Method { get; } = method;
-    public string ParameterTypes { get; } = parameterTypes;
+    public string? ParameterTypes { get; } = parameterTypes;
 
     // Written as null when missing, as the payload below Version_170 always had it
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public string Arguments { get; set; } = arguments;
+    public string? Arguments { get; set; } = arguments;
 
     [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string Queue { get; } = queue;
+    public string? Queue { get; } = queue;
 
     public Job DeserializeJob()
     {
@@ -116,8 +116,8 @@ public class InvocationData(string type, string method, string parameterTypes, s
     {
         ArgumentNullException.ThrowIfNull(payload);
 
-        JobPayload jobPayload = null;
-        Exception exception = null;
+        JobPayload? jobPayload = null;
+        Exception? exception = null;
 
         try
         {
@@ -128,7 +128,7 @@ public class InvocationData(string type, string method, string parameterTypes, s
             exception = ex;
         }
 
-        if (exception == null && jobPayload.TypeName != null && jobPayload.MethodName != null)
+        if (exception == null && jobPayload!.TypeName != null && jobPayload.MethodName != null) // exception == null: it was read
         {
             return new InvocationData(
                 jobPayload.TypeName,
@@ -150,10 +150,10 @@ public class InvocationData(string type, string method, string parameterTypes, s
             data = DeserializeWithUserNames(payload) ?? data;
         }
 
-        return data;
+        return data!; // Not the JSON null: the first read would have thrown
     }
 
-    private static InvocationData DeserializeWithUserNames(string payload)
+    private static InvocationData? DeserializeWithUserNames(string payload)
     {
         try
         {
@@ -166,11 +166,11 @@ public class InvocationData(string type, string method, string parameterTypes, s
         }
     }
 
-    public string SerializePayload(bool excludeArguments = false)
+    public string? SerializePayload(bool excludeArguments = false)
     {
         if (GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170))
         {
-            var parameterTypes = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, ParameterTypes);
+            var parameterTypes = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, ParameterTypes!); // A readable payload has them
             var arguments = excludeArguments ? null : SerializationHelper.Deserialize<string[]>(Arguments);
 
             return SerializationHelper.Serialize(new JobPayload
@@ -198,14 +198,14 @@ public class InvocationData(string type, string method, string parameterTypes, s
         {
             try
             {
-                return SerializationHelper.Deserialize<string[]>(tuple.Item2);
+                return SerializationHelper.Deserialize<string[]>(tuple.Item2)!; // Not the JSON null
             }
             catch (Exception outerException) when (outerException.IsCatchableExceptionType())
             {
                 try
                 {
                     var types = SerializationHelper.Deserialize<Type[]>(tuple.Item2);
-                    return [.. types.Select(tuple.Item1)];
+                    return [.. types!.Select(tuple.Item1)]; // Not the JSON null
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
@@ -226,7 +226,7 @@ public class InvocationData(string type, string method, string parameterTypes, s
             var parameter = parameters[i];
             var argument = arguments[i];
 
-            string value;
+            string? value;
 
             if (argument != null)
             {
@@ -259,13 +259,13 @@ public class InvocationData(string type, string method, string parameterTypes, s
             // can be skipped, because it is impossible to omit them in 
             // lambda-expressions (leads to a compile-time error).
 
-            serializedArguments.Add(value);
+            serializedArguments.Add(value!); // A null argument is stored as null
         }
 
         return [.. serializedArguments];
     }
 
-    internal static object[] DeserializeArguments(MethodInfo methodInfo, string[] arguments)
+    internal static object[] DeserializeArguments(MethodInfo methodInfo, string[]? arguments)
     {
         if (arguments == null) return [];
 
@@ -277,7 +277,7 @@ public class InvocationData(string type, string method, string parameterTypes, s
             var parameter = parameters[i];
             var argument = arguments[i];
 
-            object value;
+            object? value;
 
             if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType))
             {
@@ -290,7 +290,7 @@ public class InvocationData(string type, string method, string parameterTypes, s
                 value = DeserializeArgument(argument, parameter.ParameterType);
             }
 
-            result.Add(value);
+            result.Add(value!); // A null argument stays null
         }
 
         return [.. result];
@@ -319,15 +319,15 @@ public class InvocationData(string type, string method, string parameterTypes, s
     }
 
     private static void CachedDeserializeMethod(
-        Func<string, Type> typeResolver, string typeName, string methodName, string parameterTypes,
+        Func<string, Type> typeResolver, string typeName, string methodName, string? parameterTypes,
         out Type type, out MethodInfo methodInfo)
     {
         var entry = MethodDeserializerCache.GetOrAdd(
-            new MethodDeserializerCacheKey { TypeResolver = typeResolver, TypeName = typeName, MethodName = methodName, ParameterTypes = parameterTypes },
+            new MethodDeserializerCacheKey { TypeResolver = typeResolver, TypeName = typeName, MethodName = methodName, ParameterTypes = parameterTypes! }, // A readable payload has them
             static key =>
             {
                 var type = key.TypeResolver(key.TypeName);
-                var parameterTypesArray = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, key.ParameterTypes);
+                var parameterTypesArray = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, key.ParameterTypes!); // A readable payload has them
                 var parameterTypes = parameterTypesArray?.Select(key.TypeResolver).ToArray();
                 var method = type.GetNonOpenMatchingMethod(key.MethodName, parameterTypes);
 
@@ -348,9 +348,9 @@ public class InvocationData(string type, string method, string parameterTypes, s
         methodInfo = entry.Method;
     }
 
-    private static object DeserializeArgument(string argument, Type type)
+    private static object? DeserializeArgument(string argument, Type type)
     {
-        object value;
+        object? value;
         try
         {
             value = SerializationHelper.Deserialize(argument, type, SerializationOption.User);
@@ -419,19 +419,19 @@ public class InvocationData(string type, string method, string parameterTypes, s
     private sealed class JobPayload
     {
         [JsonInclude, JsonPropertyName("t")]
-        public string TypeName { get; set; }
+        public string? TypeName { get; set; }
 
         [JsonInclude, JsonPropertyName("m")]
-        public string MethodName { get; set; }
+        public string? MethodName { get; set; }
 
         [JsonInclude, JsonPropertyName("p"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string[] ParameterTypes { get; set; }
+        public string[]? ParameterTypes { get; set; }
 
         [JsonInclude, JsonPropertyName("a"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string[] Arguments { get; set; }
+        public string[]? Arguments { get; set; }
 
         [JsonInclude, JsonPropertyName("q"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string Queue { get; set; }
+        public string? Queue { get; set; }
     }
 
     private readonly record struct MethodDeserializerCacheKey

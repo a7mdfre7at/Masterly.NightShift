@@ -24,11 +24,11 @@ internal sealed class EmptyProfiler : IProfiler
     }
 
     public TResult InvokeMeasured<TInstance, TResult>(
-        TInstance instance,
+        TInstance? instance,
         Func<TInstance, TResult> action,
-        Func<TInstance, string> messageFunc)
+        Func<TInstance, string>? messageFunc)
     {
         ArgumentNullException.ThrowIfNull(action);
-        return action(instance);
+        return action(instance!); // The instance the caller passed
     }
 }

@@ -97,7 +97,7 @@ public static class CancellationTokenExtensions
     /// </summary>
     public sealed class CancellationEvent : IDisposable
     {
-        private static readonly Action<object> SetEventCallback = SetEvent;
+        private static readonly Action<object?> SetEventCallback = SetEvent;
 
         private readonly ManualResetEvent _mre;
         private readonly CancellationTokenRegistration _registration;
@@ -116,11 +116,11 @@ public static class CancellationTokenExtensions
             _mre.Dispose();
         }
 
-        private static void SetEvent(object state)
+        private static void SetEvent(object? state)
         {
             try
             {
-                ((ManualResetEvent)state).Set();
+                ((ManualResetEvent)state!).Set(); // The event passed when registering
             }
             catch (ObjectDisposedException)
             {

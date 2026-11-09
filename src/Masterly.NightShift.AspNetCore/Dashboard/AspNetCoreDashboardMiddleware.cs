@@ -86,7 +86,7 @@ public class AspNetCoreDashboardMiddleware
     public async Task Invoke(HttpContext httpContext)
     {
         var context = new AspNetCoreDashboardContext(_storage, _options, httpContext);
-        var findResult = _routes.FindDispatcher(httpContext.Request.Path.Value, httpContext.Request.Method);
+        var findResult = _routes.FindDispatcher(httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Method);
 
         if (findResult == null)
         {

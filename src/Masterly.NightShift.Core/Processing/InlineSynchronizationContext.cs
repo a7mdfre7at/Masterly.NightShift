@@ -19,12 +19,12 @@ namespace Masterly.NightShift.Processing;
 
 internal sealed class InlineSynchronizationContext : SynchronizationContext, IDisposable
 {
-    private readonly ConcurrentQueue<Tuple<SendOrPostCallback, object>> _queue = new();
+    private readonly ConcurrentQueue<Tuple<SendOrPostCallback, object?>> _queue = new();
     private readonly Semaphore _semaphore = new(0, int.MaxValue);
 
     public WaitHandle WaitHandle => _semaphore;
 
-    public Tuple<SendOrPostCallback, object> Dequeue()
+    public Tuple<SendOrPostCallback, object?>? Dequeue()
     {
         _queue.TryDequeue(out var tuple);
         return tuple;
@@ -35,7 +35,7 @@ internal sealed class InlineSynchronizationContext : SynchronizationContext, IDi
         _semaphore.Dispose();
     }
 
-    public override void Post(SendOrPostCallback callback, object state)
+    public override void Post(SendOrPostCallback callback, object? state)
     {
         try
         {

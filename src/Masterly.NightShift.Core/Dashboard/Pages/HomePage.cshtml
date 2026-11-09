@@ -9,9 +9,9 @@
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.HomePage_Title);
-    IDictionary<DateTime, long> succeeded = null;
-    IDictionary<DateTime, long> failed = null;
-    IDictionary<DateTime, long> deleted = null;
+    IDictionary<DateTime, long>? succeeded = null;
+    IDictionary<DateTime, long>? failed = null;
+    IDictionary<DateTime, long>? deleted = null;
 
     var period = Query("period") ?? "day";
 

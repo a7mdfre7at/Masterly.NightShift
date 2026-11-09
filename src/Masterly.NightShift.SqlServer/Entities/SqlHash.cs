@@ -17,8 +17,8 @@ namespace Masterly.NightShift.SqlServer.Entities;
 
 internal sealed class SqlHash
 {
-    public string Key { get; set; }
-    public string Field { get; set; }
-    public string Value { get; set; }
+    public string Key { get; set; } = null!; // NOT NULL column, set by Dapper
+    public string Field { get; set; } = null!; // NOT NULL column, set by Dapper
+    public string? Value { get; set; }
     public DateTime? ExpireAt { get; set; }
 }

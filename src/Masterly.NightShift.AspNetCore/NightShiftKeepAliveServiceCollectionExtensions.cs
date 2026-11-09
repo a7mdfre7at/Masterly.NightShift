@@ -1,5 +1,3 @@
-#nullable enable
-
 using Masterly.NightShift.Server;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;

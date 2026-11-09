@@ -46,7 +46,7 @@ public class JobDisplayNameAttribute : Attribute
     /// <summary>
     /// Gets or sets resource type to localize <see cref="DisplayName"/> string.
     /// </summary>
-    public Type ResourceType { get; set; }
+    public Type? ResourceType { get; set; }
 
     /// <summary>
     /// Formats the display name for a job: <c>{0}</c>, <c>{1}</c>... are replaced with the job's arguments,
@@ -79,10 +79,10 @@ public class JobDisplayNameAttribute : Attribute
     private static ResourceManager InitResourceManager(Type type)
     {
         var prop = type.GetTypeInfo().GetDeclaredProperty("ResourceManager");
-        if (prop != null && prop.PropertyType == typeof(ResourceManager) && prop.CanRead && prop.GetMethod.IsStatic)
+        if (prop != null && prop.PropertyType == typeof(ResourceManager) && prop.CanRead && prop.GetMethod!.IsStatic) // CanRead: it has a getter
         {
             // use existing resource manager if possible
-            return (ResourceManager)prop.GetValue(null);
+            return (ResourceManager)prop.GetValue(null)!; // A static ResourceManager property
         }
 
         return new ResourceManager(type);

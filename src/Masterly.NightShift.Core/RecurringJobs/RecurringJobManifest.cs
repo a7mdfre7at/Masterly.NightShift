@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -419,7 +417,7 @@ public static class RecurringJobManifest
         return new RecurringJobManifestEntry
         {
             Id = dto.Id,
-            Cron = dto.Cron,
+            Cron = dto.Cron!, // Only jobs that weren't removed reach this
             TimeZone = string.IsNullOrEmpty(dto.TimeZoneId) || dto.TimeZoneId == TimeZoneInfo.Utc.Id ? null : dto.TimeZoneId,
             Queue = queue,
             Paused = dto.Paused,
@@ -451,7 +449,7 @@ public static class RecurringJobManifest
             if (RedactedAttribute.IsRedacted(parameters[i]))
             {
                 var type = parameters[i].ParameterType;
-                arguments[i] = type.GetTypeInfo().IsValueType ? Activator.CreateInstance(type) : null;
+                arguments[i] = (type.GetTypeInfo().IsValueType ? Activator.CreateInstance(type) : null)!; // Reference types are redacted to null
             }
         }
 

@@ -63,7 +63,7 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     }
 
     /// <inheritdoc />
-    public override string GetUserName()
+    public override string? GetUserName()
     {
         var identity = HttpContext.User?.Identity;
         return identity != null && identity.IsAuthenticated ? identity.Name : null;

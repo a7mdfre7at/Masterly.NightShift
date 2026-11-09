@@ -32,7 +32,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
     }
 
     public SqlServerStorage Storage { get; }
-    public DbConnection DedicatedConnection { get; private set; }
+    public DbConnection? DedicatedConnection { get; private set; }
 
     public override void Dispose()
     {
@@ -74,7 +74,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
     public override string CreateExpiredJob(
         Job job,
-        IDictionary<string, string> parameters,
+        IDictionary<string, string?> parameters,
         DateTime createdAt,
         TimeSpan expireIn)
     {
@@ -102,7 +102,7 @@ internal sealed class SqlServerConnection : JobStorageConnection
             .AddParameter("@createdAt", createdAt, DbType.DateTime)
             .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(createdAt, expireIn), DbType.DateTime);
 
-        Action<DbCommand> additionalParameters = null;
+        Action<DbCommand>? additionalParameters = null;
 
         var parametersArray = parameters.ToArray();
 
@@ -185,9 +185,9 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
                     return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
                 },
-                new KeyValuePair<string, KeyValuePair<Action<DbCommand>, Action<DbCommand>>>(
+                new KeyValuePair<string, KeyValuePair<Action<DbCommand>, Action<DbCommand>?>>(
                     queryString,
-                    new KeyValuePair<Action<DbCommand>, Action<DbCommand>>(queryParameters, additionalParameters)));
+                    new KeyValuePair<Action<DbCommand>, Action<DbCommand>?>(queryParameters, additionalParameters)));
         }
 
         return Storage.UseTransaction(DedicatedConnection, static (storage, connection, transaction, triple) =>
@@ -212,7 +212,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
                     var command = connection.Create(query)
                         .AddParameter("@jobId", long.Parse(jobId, CultureInfo.InvariantCulture), DbType.Int64)
                         .AddParameter("@name", parameter.Key, DbType.String, size: 40)
-                        .AddParameter("@value", (object)parameter.Value ?? DBNull.Value, DbType.String, size: -1);
+                        .AddParameter("@value", (object?)parameter.Value ?? DBNull.Value, DbType.String, size: -1);
 
                     commandBatch.Append(command);
                 }
@@ -224,7 +224,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         }, ValueTuple.Create(queryString, queryParameters, parametersArray), null);
     }
 
-    public override JobData GetJobData(string id)
+    public override JobData? GetJobData(string id)
     {
         ArgumentNullException.ThrowIfNull(id);
 
@@ -251,7 +251,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
             for (var i = 0; i < jobParameters.Length; i++)
             {
                 var jobParameter = jobParameters[i];
-                parameters[jobParameter.Name] = jobParameter.Value;
+                parameters[jobParameter.Name] = jobParameter.Value!; // A parameter set to null reads back as null
             }
 
             // TODO: conversion exception could be thrown.
@@ -262,8 +262,8 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
                 invocationData.Arguments = jobData.Arguments;
             }
 
-            Job job = null;
-            JobLoadException loadException = null;
+            Job? job = null;
+            JobLoadException? loadException = null;
 
             try
             {
@@ -286,7 +286,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         }, parsedId);
     }
 
-    public override StateData GetStateData(string jobId)
+    public override StateData? GetStateData(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
 
@@ -312,7 +312,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
             }
 
             var data = new Dictionary<string, string>(
-                SerializationHelper.Deserialize<Dictionary<string, string>>(sqlState.Data),
+                SerializationHelper.Deserialize<Dictionary<string, string>>(sqlState.Data)!, // Every state is written with its data
                 StringComparer.OrdinalIgnoreCase);
 
             return new StateData
@@ -324,7 +324,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         }, parsedId);
     }
 
-    public override void SetJobParameter(string id, string name, string value)
+    public override void SetJobParameter(string id, string name, string? value)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
@@ -362,7 +362,7 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         }, ValueTuple.Create(parsedId, name, value));
     }
 
-    public override string GetJobParameter(string id, string name)
+    public override string? GetJobParameter(string id, string name)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
@@ -398,7 +398,7 @@ $@"select Value from [{schemaName}].[Set] with (forceseek) where [Key] = @key");
         }, key);
     }
 
-    public override string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
+    public override string? GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
     {
         return GetFirstByLowestScoreFromSet(key, fromScore, toScore, 1).FirstOrDefault();
     }
@@ -467,7 +467,7 @@ $@"select top (@count) Value from [{schemaName}].[Set] with (forceseek) where [K
                 var command = connection.Create(query)
                     .AddParameter("@key", pair.Key, DbType.String)
                     .AddParameter("@field", keyValuePair.Key, DbType.String, size: 100)
-                    .AddParameter("@value", (object)keyValuePair.Value ?? DBNull.Value, DbType.String, size: -1);
+                    .AddParameter("@value", (object?)keyValuePair.Value ?? DBNull.Value, DbType.String, size: -1);
                 commandBatch.Append(command);
             }
 
@@ -486,7 +486,7 @@ $@"select top (@count) Value from [{schemaName}].[Set] with (forceseek) where [K
         }, new KeyValuePair<string, IEnumerable<KeyValuePair<string, string>>>(key, pairs));
     }
 
-    public override Dictionary<string, string> GetAllEntriesFromHash(string key)
+    public override Dictionary<string, string>? GetAllEntriesFromHash(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
 
@@ -499,7 +499,7 @@ $@"select Field, Value from [{schemaName}].Hash with (forceseek) where [Key] = @
                 query,
                 new { key },
                 commandTimeout: storage.CommandTimeout)
-                .ToDictionary(static x => x.Field, static x => x.Value);
+                .ToDictionary(static x => x.Field, static x => x.Value!); // A field set to null reads back as null
 
             return result.Count != 0 ? result : null;
         }, key);
@@ -748,7 +748,7 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
         }, key);
     }
 
-    public override string GetValueFromHash(string key, string name)
+    public override string? GetValueFromHash(string key, string name)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(name);
@@ -896,7 +896,7 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
                     if (lockIds.Remove(lockId) &&
                         lockIds.Count == 0 &&
                         _lockedResources.Remove(resource) &&
-                        DedicatedConnection.State == ConnectionState.Open)
+                        DedicatedConnection!.State == ConnectionState.Open) // Session locks imply a dedicated connection
                     {
                         // Session-scoped application locks are held only when connection
                         // is open. When connection is closed or broken, for example, when

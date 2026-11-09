@@ -33,7 +33,7 @@ internal sealed class ServerPauseDispatcher(bool pause) : IDashboardDispatcher
             return;
         }
 
-        string reason = null;
+        string? reason = null;
         using (var connection = context.Storage.GetConnection())
         {
             if (_pause)

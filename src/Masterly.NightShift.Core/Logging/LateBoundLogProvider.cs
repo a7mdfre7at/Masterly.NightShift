@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Masterly.NightShift.Logging;
 
 /// <summary>

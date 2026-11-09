@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Globalization;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;

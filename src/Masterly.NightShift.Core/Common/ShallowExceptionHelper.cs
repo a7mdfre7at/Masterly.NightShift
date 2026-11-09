@@ -37,7 +37,7 @@ internal static class ShallowExceptionHelper
         public string ToStringWithOriginalStackTrace(int? numLines, bool includeFileInfo)
         {
             ArgumentNullException.ThrowIfNull(exception);
-            return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
+            return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines)!; // The text is not null
         }
     }
 
@@ -55,7 +55,7 @@ internal static class ShallowExceptionHelper
         }
         else sb.Append('\n');
 
-        var stackTrace = exception.Data.Contains(DataKey) ? (string)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
+        var stackTrace = exception.Data.Contains(DataKey) ? (string?)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
         if (!string.IsNullOrWhiteSpace(stackTrace))
         {
             sb.Append(stackTrace);
@@ -67,7 +67,7 @@ internal static class ShallowExceptionHelper
         return sb.ToString();
     }
 
-    private static string GetFirstLines(string text, int? numLines)
+    private static string? GetFirstLines(string text, int? numLines)
     {
         if (text == null) return null;
         if (!numLines.HasValue || numLines.Value < 0) return text;

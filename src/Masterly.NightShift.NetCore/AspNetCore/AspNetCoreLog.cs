@@ -21,7 +21,7 @@ namespace Masterly.NightShift.AspNetCore;
 
 internal sealed class AspNetCoreLog : ILog
 {
-    private static readonly Func<object, Exception, string> MessageFormatterFunc = MessageFormatter;
+    private static readonly Func<object, Exception?, string> MessageFormatterFunc = MessageFormatter;
 
     private readonly ILogger _targetLogger;
 
@@ -31,7 +31,7 @@ internal sealed class AspNetCoreLog : ILog
         _targetLogger = targetLogger;
     }
 
-    public bool Log(Logging.LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
+    public bool Log(Logging.LogLevel logLevel, Func<string> messageFunc, Exception? exception = null)
     {
         var targetLogLevel = ToTargetLogLevel(logLevel);
 
@@ -66,8 +66,8 @@ internal sealed class AspNetCoreLog : ILog
         };
     }
 
-    private static string MessageFormatter(object state, Exception exception)
+    private static string MessageFormatter(object state, Exception? exception)
     {
-        return state.ToString();
+        return state.ToString()!; // ToString of a log state
     }
 }

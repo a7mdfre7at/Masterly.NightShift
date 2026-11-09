@@ -133,7 +133,7 @@ public class StateMachine : IStateMachine
         }
     }
 
-    private JobFilterInfo GetFilters(Job job)
+    private JobFilterInfo GetFilters(Job? job)
     {
         return new JobFilterInfo(_filterProvider.GetFilters(job));
     }

@@ -47,7 +47,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         _stateMachine = new StateMachine(filterProvider, stateMachine);
     }
 
-    public IState ChangeState(StateChangeContext context)
+    public IState? ChangeState(StateChangeContext context)
     {
         // To ensure that job state will be changed only from one of the
         // specified states, we need to ensure that other users/workers
@@ -55,7 +55,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         // execution of this method. To guarantee this behavior, we are
         // using distributed application locks and rely on fact, that
         // any state transitions will be made only within a such lock.
-        IDisposable distributedLock = null;
+        IDisposable? distributedLock = null;
 
         if (context.Transaction != null)
         {
@@ -66,7 +66,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
             distributedLock = context.Connection.AcquireDistributedJobLock(context.BackgroundJobId, JobLockTimeout);
         }
 
-        PostCommitActions afterCommit = null;
+        PostCommitActions? afterCommit = null;
         IState appliedState;
 
         try
@@ -106,7 +106,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     // will not.
                     if (!stateToApply.IgnoreJobLoadException)
                     {
-                        stateToApply = new FailedState(ex.InnerException, context.ServerId)
+                        stateToApply = new FailedState(ex.InnerException!, context.ServerId) // Wraps the exception the handler threw
                         {
                             Reason = $"Can not change the state to '{stateToApply.Name}': {DescribeLoadFailure(ex)}"
                         };
@@ -114,7 +114,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                 }
 
                 IWriteOnlyTransaction transaction;
-                IDisposable disposableTransaction;
+                IDisposable? disposableTransaction;
 
                 if (context.Transaction == null)
                 {
@@ -203,7 +203,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         };
     }
 
-    private static JobData GetJobData(StateChangeContext context)
+    private static JobData? GetJobData(StateChangeContext context)
     {
         // This code was introduced as a fix for an issue, which appeared when an
         // external queue implementation was used together with a non-linearizable

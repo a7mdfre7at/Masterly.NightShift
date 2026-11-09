@@ -17,7 +17,7 @@ namespace Masterly.NightShift.SqlServer.Entities;
 
 internal sealed class Server
 {
-    public string Id { get; set; }
-    public string Data { get; set; }
+    public string Id { get; set; } = null!; // NOT NULL column, set by Dapper
+    public string? Data { get; set; }
     public DateTime LastHeartbeat { get; set; }
 }

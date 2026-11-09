@@ -55,17 +55,17 @@ public static class Program
         NewFeatures.Test(throwException: true);
 
         var job1 = BackgroundJob.Enqueue<Services>(x => x.WriteIndex(0));
-        var job2 = BackgroundJob.ContinueJobWith<Services>(job1, "default", x => x.WriteIndex(default));
-        var job3 = BackgroundJob.ContinueJobWith<Services>(job2, "critical", x => x.WriteIndex(default));
-        var job4 = BackgroundJob.ContinueJobWith<Services>(job3, "default", x => x.WriteIndex(default));
-        var job5 = BackgroundJob.ContinueJobWith<Services>(job4, "critical", x => x.WriteIndex(default));
+        var job2 = BackgroundJob.ContinueJobWith<Services>(job1!, "default", x => x.WriteIndex(default));
+        var job3 = BackgroundJob.ContinueJobWith<Services>(job2!, "critical", x => x.WriteIndex(default));
+        var job4 = BackgroundJob.ContinueJobWith<Services>(job3!, "default", x => x.WriteIndex(default));
+        var job5 = BackgroundJob.ContinueJobWith<Services>(job4!, "critical", x => x.WriteIndex(default));
 
         // Features from docs/whats-new-next.md: a live console, throttling, rate limits, a circuit breaker
-        BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null, CancellationToken.None));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null));
-        BackgroundJob.Enqueue<NextFeatures>(x => x.Transient(null));
+        BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null!, CancellationToken.None));
+        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+        BackgroundJob.Enqueue<NextFeatures>(x => x.PerTenant("contoso", null!));
+        BackgroundJob.Enqueue<NextFeatures>(x => x.Transient(null!));
         RecurringJob.AddOrUpdate<NextFeatures>("flaky-api", x => x.CallFlakyApi(), Cron.FromText("every 20 seconds"));
         RecurringJob.AddOrUpdate<NextFeatures>("sms", x => x.SendSms("+1 555 0100"), Cron.FromText("every 5 seconds"));
 
@@ -207,7 +207,7 @@ public static class Program
                             new[] { "1", "2", "3" },
                             new[] { 4, 5, 6 },
                             new long[0],
-                            null,
+                            null!,
                             new List<string> { "7", "8", "9" }));
                     }
                 }
@@ -276,9 +276,9 @@ public static class Program
 
         for (var i = 1; i < value.Length; i++)
         {
-            lastId = BackgroundJob.ContinueJobWith<Services>(lastId, x => x.Write(value[i]));
+            lastId = BackgroundJob.ContinueJobWith<Services>(lastId!, x => x.Write(value[i]));
         }
 
-        BackgroundJob.ContinueJobWith<Services>(lastId, x => x.WriteBlankLine());
+        BackgroundJob.ContinueJobWith<Services>(lastId!, x => x.WriteBlankLine());
     }
 }

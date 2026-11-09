@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -308,7 +306,7 @@ internal static partial class JobDiagnostics
         }
         else if (server != null && !IsAlive(page, server, now))
         {
-            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers));
+            findings.Add(new JobDiagnostic("server-stale", JobDiagnosticSeverity.Problem, Format(page, Strings.Diagnostics_ServerStale, page.Html.ServerId(serverId!), page.Html.RelativeTime(server.Heartbeat ?? server.StartedAt)), page.Url.To("/servers"), Strings.NavigationMenu_Servers)); // server was found by this id
         }
 
         JobInsight? insight = null;
@@ -479,7 +477,7 @@ internal static partial class JobDiagnostics
         return true;
     }
 
-    private static NonEscapedString Encode(RazorPage page, string text)
+    private static NonEscapedString Encode(RazorPage page, string? text)
     {
         return new NonEscapedString(page.Html.HtmlEncode(text));
     }

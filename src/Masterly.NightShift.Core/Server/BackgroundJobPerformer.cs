@@ -47,7 +47,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
     public BackgroundJobPerformer(
         [NotNull] IJobFilterProvider filterProvider,
         [NotNull] JobActivator activator,
-        [CanBeNull] TaskScheduler taskScheduler)
+        [CanBeNull] TaskScheduler? taskScheduler)
         : this(filterProvider, new CoreBackgroundJobPerformer(activator, taskScheduler))
     {
     }
@@ -63,7 +63,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
         _innerPerformer = innerPerformer;
     }
 
-    public object Perform(PerformContext context)
+    public object? Perform(PerformContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -103,12 +103,12 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
         return null;
     }
 
-    private JobFilterInfo GetFilters(Job job)
+    private JobFilterInfo GetFilters(Job? job)
     {
         return new JobFilterInfo(_filterProvider.GetFilters(job));
     }
 
-    private object PerformJobWithFilters(PerformContext context, JobFilterInfo.FilterCollection<IServerFilter> filters)
+    private object? PerformJobWithFilters(PerformContext context, JobFilterInfo.FilterCollection<IServerFilter> filters)
     {
         var preContext = new PerformingContext(context);
         var enumerator = filters.GetEnumerator();

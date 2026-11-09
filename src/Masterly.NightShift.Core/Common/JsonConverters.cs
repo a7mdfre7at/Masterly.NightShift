@@ -20,7 +20,7 @@ namespace Masterly.NightShift.Common;
 /// </summary>
 internal sealed class StateJsonConverter : JsonConverter<IState>
 {
-    public override IState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override IState? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var document = JsonDocument.ParseValue(ref reader);
         var root = document.RootElement;
@@ -31,7 +31,7 @@ internal sealed class StateJsonConverter : JsonConverter<IState>
             throw new JsonException($"A state must be a JSON object with a \"{TypeNamedJson.TypeProperty}\" property.");
         }
 
-        return (IState)TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, typeof(IState)), options);
+        return (IState?)TypeNamedJson.Read(root, TypeNamedJson.ResolveType(typeName, typeof(IState)), options);
     }
 
     public override void Write(Utf8JsonWriter writer, IState value, JsonSerializerOptions options)
@@ -77,11 +77,11 @@ internal static class TypeNamedJson
         if (root.ValueKind == JsonValueKind.Object &&
             root.TryGetProperty(TypeProperty, out var property) && property.ValueKind == JsonValueKind.String)
         {
-            typeName = property.GetString();
+            typeName = property.GetString()!; // The token is a string
             return true;
         }
 
-        typeName = null;
+        typeName = null!; // Unused when this returns false
         return false;
     }
 
@@ -101,7 +101,7 @@ internal static class TypeNamedJson
     }
 
     /// <summary>Reads an object written by <see cref="Write"/> as <paramref name="type"/>, leaving out <c>"$type"</c>.</summary>
-    public static object Read(JsonElement root, Type type, JsonSerializerOptions options)
+    public static object? Read(JsonElement root, Type type, JsonSerializerOptions options)
     {
         return JsonSerializer.Deserialize(WithoutTypeProperty(root), type, options);
     }
@@ -151,7 +151,7 @@ internal sealed class TypeNameJsonConverter : JsonConverter<Type>
 {
     public override bool CanConvert(Type typeToConvert) => typeof(Type).IsAssignableFrom(typeToConvert);
 
-    public override Type Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Type? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return null;
         var name = reader.GetString();
@@ -173,7 +173,7 @@ internal sealed class RefusedTypeInputJsonConverter : JsonConverter<Type>
 {
     public override bool CanConvert(Type typeToConvert) => typeof(Type).IsAssignableFrom(typeToConvert);
 
-    public override Type Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Type? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return null;
         throw new JsonException("A System.Type value can't be entered from the dashboard.");
@@ -193,9 +193,9 @@ internal sealed class LenientEnumConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type typeToConvert) => typeToConvert.IsEnum;
 
-    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
-        return (JsonConverter)Activator.CreateInstance(typeof(LenientEnumConverter<>).MakeGenericType(typeToConvert));
+        return (JsonConverter?)Activator.CreateInstance(typeof(LenientEnumConverter<>).MakeGenericType(typeToConvert));
     }
 
     private sealed class LenientEnumConverter<TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
@@ -210,7 +210,7 @@ internal sealed class LenientEnumConverterFactory : JsonConverterFactory
                 JsonTokenType.Number => IsUnsigned
                                         ? (TEnum)Enum.ToObject(typeof(TEnum), reader.GetUInt64())
                                         : (TEnum)Enum.ToObject(typeof(TEnum), reader.GetInt64()),
-                JsonTokenType.String => Parse(reader.GetString()),
+                JsonTokenType.String => Parse(reader.GetString()!), // The token is a string
                 _ => throw new JsonException($"Can't convert {reader.TokenType} to {typeof(TEnum).Name}."),
             };
         }
@@ -223,7 +223,7 @@ internal sealed class LenientEnumConverterFactory : JsonConverterFactory
 
         public override TEnum ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return Parse(reader.GetString());
+            return Parse(reader.GetString()!); // The token is a string
         }
 
         public override void WriteAsPropertyName(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
@@ -267,7 +267,7 @@ internal sealed class InferredObjectJsonConverter(bool typeNames, bool rejectTyp
     {
     }
 
-    public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override object? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         switch (reader.TokenType)
         {
@@ -331,15 +331,15 @@ internal sealed class LegacyTypedArrayConverterFactory : JsonConverterFactory
         return typeToConvert.IsArray && typeToConvert.GetArrayRank() == 1 && typeToConvert != typeof(byte[]);
     }
 
-    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
-        return (JsonConverter)Activator.CreateInstance(
-            typeof(ArrayConverter<>).MakeGenericType(typeToConvert.GetElementType()));
+        return (JsonConverter?)Activator.CreateInstance(
+            typeof(ArrayConverter<>).MakeGenericType(typeToConvert.GetElementType()!)); // An array type has an element type
     }
 
     private sealed class ArrayConverter<TElement> : JsonConverter<TElement[]>
     {
-        public override TElement[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override TElement[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.StartObject)
             {
@@ -360,7 +360,7 @@ internal sealed class LegacyTypedArrayConverterFactory : JsonConverterFactory
             var items = new System.Collections.Generic.List<TElement>();
             while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
             {
-                items.Add(JsonSerializer.Deserialize<TElement>(ref reader, options));
+                items.Add(JsonSerializer.Deserialize<TElement>(ref reader, options)!); // A null element stays null
             }
 
             return [.. items];
@@ -373,7 +373,7 @@ internal sealed class LegacyTypedArrayConverterFactory : JsonConverterFactory
             {
                 // Every member of the actual item, as for other values; object and IState have their own converters
                 var declared = typeof(TElement) == typeof(object) || typeof(TElement) == typeof(IState) || item == null;
-                JsonSerializer.Serialize(writer, item, declared ? typeof(TElement) : item.GetType(), options);
+                JsonSerializer.Serialize(writer, item, declared ? typeof(TElement) : item!.GetType(), options); // declared is true when the item is null
             }
             writer.WriteEndArray();
         }
@@ -451,7 +451,7 @@ internal static class LegacyCollectionJson
     }
 
     /// <summary>Reads <paramref name="json"/> as <paramref name="type"/>, rewriting it first when it holds wrapped collections.</summary>
-    public static object Deserialize(string json, Type type, JsonSerializerOptions options)
+    public static object? Deserialize(string json, Type type, JsonSerializerOptions options)
     {
         var documentOptions = new JsonDocumentOptions
         {
@@ -475,7 +475,7 @@ internal static class LegacyCollectionJson
             case JsonValueKind.Object when shape.Kind is ShapeKind.Collection or ShapeKind.Array:
                 return true;
             case JsonValueKind.Object when shape.Kind == ShapeKind.Dictionary:
-                if (StartsWithTypeName(element, shape.Type)) return true;
+                if (StartsWithTypeName(element, shape.Type!)) return true; // Only collection shapes reach this, and they have a type
                 if (shape.Item.Kind == ShapeKind.None) return false;
                 foreach (var property in element.EnumerateObject())
                 {
@@ -504,7 +504,7 @@ internal static class LegacyCollectionJson
                 return;
             case JsonValueKind.Object when shape.Kind == ShapeKind.Dictionary:
                 writer.WriteStartObject();
-                var skipFirst = StartsWithTypeName(element, shape.Type);
+                var skipFirst = StartsWithTypeName(element, shape.Type!); // Only collection shapes reach this, and they have a type
                 foreach (var property in element.EnumerateObject())
                 {
                     if (skipFirst)
@@ -547,7 +547,7 @@ internal static class LegacyCollectionJson
     /// serializer wrote there, rather than an ordinary key: a name the configured type resolver resolves to a
     /// dictionary type assignable to the declared type, or of the same generic type definition.
     /// </summary>
-    private static bool IsLegacyTypeName(string value, Type declaredType)
+    private static bool IsLegacyTypeName(string? value, Type? declaredType)
     {
         // A type name always names an assembly or a namespace
         if (string.IsNullOrWhiteSpace(value) || declaredType == null || !value.AsSpan().ContainsAny(TypeNameSeparators)) return false;
@@ -599,7 +599,7 @@ internal static class LegacyCollectionJson
         if (type.IsArray)
         {
             return type.GetArrayRank() == 1 && type != typeof(byte[])
-                ? new Shape(ShapeKind.Array, CreateShape(type.GetElementType(), depth + 1))
+                ? new Shape(ShapeKind.Array, CreateShape(type.GetElementType()!, depth + 1)) // An array type has an element type
                 : Shape.None;
         }
 
@@ -610,7 +610,7 @@ internal static class LegacyCollectionJson
         if (type.IsDefined(typeof(JsonConverterAttribute), inherit: false)) return Shape.None;
 
         var interfaces = type.IsInterface ? [.. type.GetInterfaces(), .. new[] { type }] : type.GetInterfaces();
-        Type itemType = null;
+        Type? itemType = null;
 
         foreach (var candidate in interfaces)
         {
@@ -644,9 +644,9 @@ internal static class LegacyCollectionJson
     /// </summary>
     private sealed class Shape
     {
-        public static readonly Shape None = new(ShapeKind.None, null);
+        public static readonly Shape None = new(ShapeKind.None, null!); // This shape has no type
 
-        public Shape(ShapeKind kind, Shape item, Type type = null)
+        public Shape(ShapeKind kind, Shape item, Type? type = null)
         {
             Kind = kind;
             Item = item ?? this;
@@ -655,7 +655,7 @@ internal static class LegacyCollectionJson
 
         public ShapeKind Kind { get; }
         public Shape Item { get; }
-        public Type Type { get; }
+        public Type? Type { get; }
     }
 }
 
@@ -685,7 +685,7 @@ internal static class JsonLegacyCollectionModifier
                                    typeInfo.Options.PreferredObjectCreationHandling;
             if (creationHandling == JsonObjectCreationHandling.Populate || HasConverterInOptions(typeInfo.Options, type)) continue;
 
-            property.CustomConverter = (JsonConverter)Activator.CreateInstance(typeof(Converter<>).MakeGenericType(type));
+            property.CustomConverter = (JsonConverter?)Activator.CreateInstance(typeof(Converter<>).MakeGenericType(type));
         }
     }
 
@@ -701,7 +701,7 @@ internal static class JsonLegacyCollectionModifier
 
     private sealed class Converter<T> : JsonConverter<T>
     {
-        public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (!LegacyCollectionJson.MayBeWrapped(ref reader, typeof(T)))
             {
@@ -769,10 +769,10 @@ internal static class JsonConstructorOnlyStructModifier
 
             // A collection member without a setter gets its items added to the collection the constructor
             // created, so it waits for the constructor like the members that can be set
-            setters[i] = property.Set ?? (parameter ? null : JsonGetOnlyCollectionModifier.CreateSetter(typeInfo, property));
+            setters[i] = property.Set ?? (parameter ? null : JsonGetOnlyCollectionModifier.CreateSetter(typeInfo, property))!; // Filtered on use: a parameter has no setter
             if (setters[i] == null && !parameter) continue;
 
-            property.Set = (instance, value) => Pending.GetValue(instance, _ => NewValues(count))[index] = value;
+            property.Set = (instance, value) => Pending.GetValue(instance, _ => NewValues(count))[index] = value!; // A null value stays null
         }
 
         var previous = typeInfo.OnDeserialized;
@@ -783,7 +783,7 @@ internal static class JsonConstructorOnlyStructModifier
         };
     }
 
-    private static ConstructorInfo GetConstructor(Type type)
+    private static ConstructorInfo? GetConstructor(Type type)
     {
         foreach (var candidate in type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
@@ -831,7 +831,7 @@ internal static class JsonConstructorOnlyStructModifier
         for (var i = 0; i < parameters.Length; i++)
         {
             var value = values[parameterProperties[i]];
-            arguments[i] = !ReferenceEquals(value, Missing) ? value : DefaultOf(parameters[i]);
+            arguments[i] = !ReferenceEquals(value, Missing) ? value : DefaultOf(parameters[i])!; // A null argument stays null
         }
 
         object constructed;
@@ -859,7 +859,7 @@ internal static class JsonConstructorOnlyStructModifier
         }
     }
 
-    private static object DefaultOf(ParameterInfo parameter)
+    private static object? DefaultOf(ParameterInfo parameter)
     {
         var type = parameter.ParameterType;
         if (parameter.HasDefaultValue && parameter.DefaultValue != null && parameter.DefaultValue != DBNull.Value)
@@ -885,10 +885,10 @@ internal static class JsonConstructorOnlyStructModifier
 /// </summary>
 internal static class JsonGetOnlyCollectionModifier
 {
-    private static readonly MethodInfo AddItemsMethod = typeof(JsonGetOnlyCollectionModifier)
+    private static readonly MethodInfo? AddItemsMethod = typeof(JsonGetOnlyCollectionModifier)
         .GetMethod(nameof(AddItems), BindingFlags.NonPublic | BindingFlags.Static);
 
-    private static readonly MethodInfo SetItemsMethod = typeof(JsonGetOnlyCollectionModifier)
+    private static readonly MethodInfo? SetItemsMethod = typeof(JsonGetOnlyCollectionModifier)
         .GetMethod(nameof(SetItems), BindingFlags.NonPublic | BindingFlags.Static);
 
     public static void Apply(JsonTypeInfo typeInfo)
@@ -898,7 +898,7 @@ internal static class JsonGetOnlyCollectionModifier
         foreach (var property in typeInfo.Properties)
         {
             var set = CreateSetter(typeInfo, property);
-            if (set != null) property.Set = set;
+            if (set != null) property.Set = set!; // Checked above
         }
     }
 
@@ -906,7 +906,7 @@ internal static class JsonGetOnlyCollectionModifier
     /// Returns what adds the items read for a collection member without a setter to the collection the object
     /// holds, or <c>null</c> when this doesn't apply to the member.
     /// </summary>
-    public static Action<object, object> CreateSetter(JsonTypeInfo typeInfo, JsonPropertyInfo property)
+    public static Action<object, object>? CreateSetter(JsonTypeInfo typeInfo, JsonPropertyInfo property)
     {
         if (property.Get == null || property.Set != null || property.IsExtensionData) return null;
 
@@ -930,7 +930,7 @@ internal static class JsonGetOnlyCollectionModifier
     /// Returns what adds the items of a deserialized collection to an existing one, or <c>null</c> when
     /// <paramref name="type"/> isn't a collection System.Text.Json creates on its own.
     /// </summary>
-    private static Action<object, object> GetAdder(Type type)
+    private static Action<object, object>? GetAdder(Type type)
     {
         if (type.IsArray || type == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(type)) return null;
         if (!type.IsInterface && (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null)) return null;
@@ -946,7 +946,7 @@ internal static class JsonGetOnlyCollectionModifier
             var definition = candidate.GetGenericTypeDefinition();
             if (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>))
             {
-                return SetItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
+                return SetItemsMethod!.MakeGenericMethod(candidate.GetGenericArguments()) // The method exists: found by name on this type
                     .CreateDelegate<Action<object, object>>();
             }
         }
@@ -955,7 +955,7 @@ internal static class JsonGetOnlyCollectionModifier
         {
             if (candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>))
             {
-                return AddItemsMethod.MakeGenericMethod(candidate.GetGenericArguments())
+                return AddItemsMethod!.MakeGenericMethod(candidate.GetGenericArguments()) // The method exists: found by name on this type
                     .CreateDelegate<Action<object, object>>();
             }
         }
@@ -1022,8 +1022,8 @@ internal static class JsonDefaultValueModifier
     {
         if (typeInfo.Kind != JsonTypeInfoKind.Object) return;
 
-        List<KeyValuePair<JsonPropertyInfo, object>> populated = null;
-        HashSet<string> constructorParameters = null;
+        List<KeyValuePair<JsonPropertyInfo, object>>? populated = null;
+        HashSet<string>? constructorParameters = null;
 
         foreach (var property in typeInfo.Properties)
         {
@@ -1055,7 +1055,7 @@ internal static class JsonDefaultValueModifier
         {
             foreach (var member in populated)
             {
-                member.Key.Set(instance, member.Value);
+                member.Key.Set!(instance, member.Value); // Only members with a setter are collected
             }
 
             previous?.Invoke(instance);
@@ -1064,14 +1064,14 @@ internal static class JsonDefaultValueModifier
 
     private static bool TryGetDefaultValue(JsonPropertyInfo property, out object value)
     {
-        value = null;
+        value = null!; // Unused when this returns false
 
         var attributes = property.AttributeProvider?.GetCustomAttributes(typeof(DefaultValueAttribute), inherit: true);
         if (attributes is not { Length: > 0 } || attributes[0] is not DefaultValueAttribute defaultValue) return false;
 
         try
         {
-            value = ConvertDefault(defaultValue.Value, property.PropertyType);
+            value = ConvertDefault(defaultValue.Value, property.PropertyType)!; // A null default stays null
             return true;
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException or ArgumentException)
@@ -1081,7 +1081,7 @@ internal static class JsonDefaultValueModifier
         }
     }
 
-    private static object ConvertDefault(object value, Type type)
+    private static object? ConvertDefault(object? value, Type type)
     {
         if (value == null || type.IsInstanceOfType(value)) return value;
 
@@ -1121,7 +1121,7 @@ internal static partial class JsonTypeNames
     [GeneratedRegex(@",\s*(Version|Culture|PublicKeyToken)=[^,\]]*", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 5000)]
     private static partial Regex AssemblyDetailsRegex();
 
-    public static string Simple(string typeName)
+    public static string? Simple(string typeName)
     {
         return typeName == null ? null : AssemblyDetailsRegex().Replace(typeName, string.Empty);
     }
@@ -1130,7 +1130,7 @@ internal static partial class JsonTypeNames
 /// <summary>Writes a culture as its name, for example <c>"en-US"</c>, and reads it back.</summary>
 internal sealed class CultureInfoJsonConverter : JsonConverter<CultureInfo>
 {
-    public override CultureInfo Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override CultureInfo? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return null;
         return CultureInfo.GetCultureInfo(reader.GetString() ?? string.Empty);
@@ -1149,7 +1149,7 @@ internal sealed class CultureInfoJsonConverter : JsonConverter<CultureInfo>
 /// </summary>
 internal sealed class XElementJsonConverter : JsonConverter<XElement>
 {
-    public override XElement Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override XElement? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return null;
         if (reader.TokenType == JsonTokenType.String) return XElement.Parse(reader.GetString() ?? string.Empty);
@@ -1211,7 +1211,7 @@ internal sealed class XElementJsonConverter : JsonConverter<XElement>
         }
     }
 
-    private static string ScalarText(JsonElement value)
+    private static string? ScalarText(JsonElement value)
     {
         return value.ValueKind switch
         {

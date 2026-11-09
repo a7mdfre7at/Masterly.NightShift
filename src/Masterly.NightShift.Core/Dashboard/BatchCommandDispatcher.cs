@@ -89,7 +89,7 @@ internal sealed class BatchCommandDispatcher(Action<DashboardContext, string> co
     }
 
     /// <summary>Whether the exception says a job's type or method couldn't be loaded, and why.</summary>
-    internal static bool TryGetLoadFailure(Exception exception, out string reason)
+    internal static bool TryGetLoadFailure(Exception exception, out string? reason)
     {
         var load = exception as JobLoadException
             ?? (exception as AggregateException)?.Flatten().InnerExceptions.OfType<JobLoadException>().FirstOrDefault();

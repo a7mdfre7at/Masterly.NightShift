@@ -32,8 +32,8 @@ namespace Masterly.NightShift.Dashboard;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "We use instance methods in this class for better observability.")]
 public class HtmlHelper
 {
-    private static readonly Type DisplayNameType;
-    private static readonly Func<object, string> GetDisplayName;
+    private static readonly Type? DisplayNameType;
+    private static readonly Func<object, string>? GetDisplayName;
 
     static HtmlHelper()
     {
@@ -108,9 +108,9 @@ public class HtmlHelper
         return new NonEscapedString(partialPage.ToString());
     }
 
-    public NonEscapedString Raw(string value)
+    public NonEscapedString Raw(string? value)
     {
-        return new NonEscapedString(value);
+        return new NonEscapedString(value ?? string.Empty);
     }
 
     public NonEscapedString JobId(string jobId, bool shorten = true)
@@ -120,12 +120,12 @@ public class HtmlHelper
             : $"#{jobId}"));
     }
 
-    public string JobName(Job job)
+    public string JobName(Job? job)
     {
         return JobName(job, includeQueue: true);
     }
 
-    public string JobName(Job job, bool includeQueue)
+    public string JobName(Job? job, bool includeQueue)
     {
         if (job == null)
         {
@@ -180,12 +180,12 @@ public class HtmlHelper
         return job.ToString(includeQueue);
     }
 
-    public NonEscapedString StateLabel(string stateName)
+    public NonEscapedString StateLabel(string? stateName)
     {
         return StateLabel(stateName, stateName);
     }
 
-    public NonEscapedString StateLabel(string stateName, string text, bool hover = false)
+    public NonEscapedString StateLabel(string? stateName, string? text, bool hover = false)
     {
         if (string.IsNullOrWhiteSpace(stateName))
         {
@@ -209,12 +209,12 @@ public class HtmlHelper
         return Raw($"<a href=\"{HtmlEncode(Page.Url.JobDetails(jobId))}\">{JobId(jobId)}</a>");
     }
 
-    public NonEscapedString JobNameLink(string jobId, Job job)
+    public NonEscapedString JobNameLink(string jobId, Job? job)
     {
         return JobNameLink(jobId, job, includeQueue: true);
     }
 
-    public NonEscapedString JobNameLink(string jobId, Job job, bool includeQueue)
+    public NonEscapedString JobNameLink(string jobId, Job? job, bool includeQueue)
     {
         return Raw($"<a class=\"job-method\" href=\"{HtmlEncode(Page.Url.JobDetails(jobId))}\">{HtmlEncode(JobName(job, includeQueue))}</a>");
     }
@@ -224,7 +224,7 @@ public class HtmlHelper
         return Raw($"<span data-moment=\"{HtmlEncode(JobHelper.ToTimestamp(value).ToString(CultureInfo.InvariantCulture))}\">{HtmlEncode(value.ToString(CultureInfo.CurrentCulture))}</span>");
     }
 
-    public NonEscapedString MomentTitle(DateTime time, string value)
+    public NonEscapedString MomentTitle(DateTime time, string? value)
     {
         return Raw($"<span data-moment-title=\"{HtmlEncode(JobHelper.ToTimestamp(time).ToString(CultureInfo.InvariantCulture))}\">{HtmlEncode(value)}</span>");
     }
@@ -234,7 +234,7 @@ public class HtmlHelper
         return Raw($"<span data-moment-local=\"{HtmlEncode(JobHelper.ToTimestamp(value).ToString(CultureInfo.InvariantCulture))}\">{HtmlEncode(value.ToString(CultureInfo.CurrentCulture))}</span>");
     }
 
-    public string ToHumanDuration(TimeSpan? duration, bool displaySign = true)
+    public string? ToHumanDuration(TimeSpan? duration, bool displaySign = true)
     {
         if (duration == null) return null;
 
@@ -324,7 +324,7 @@ public class HtmlHelper
         BeforeLine          = "<span class='st-line'>"                             , AfterLine          = "</span>",
     };
 
-    public NonEscapedString StackTrace(string stackTrace)
+    public NonEscapedString StackTrace(string? stackTrace)
     {
         try
         {
@@ -339,8 +339,8 @@ public class HtmlHelper
         }
     }
 
-    public string HtmlEncode(string text)
+    public string HtmlEncode(string? text)
     {
-        return WebUtility.HtmlEncode(text);
+        return WebUtility.HtmlEncode(text) ?? string.Empty;
     }
 }

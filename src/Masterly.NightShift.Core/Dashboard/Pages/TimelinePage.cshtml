@@ -60,7 +60,7 @@
                         }
                     </div>
                 </div>
-                @{ string lastServer = null; }
+                @{ string? lastServer = null; }
                 @foreach (var lane in timeline.Lanes)
                 {
                     if (lane.ServerId != lastServer)

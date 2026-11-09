@@ -18,9 +18,9 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    List<string> jobIds = null;
-    Pager pager = null;
-    JobList <AwaitingJobDto> jobs = null;
+    List<string>? jobIds = null;
+    Pager? pager = null;
+    JobList<AwaitingJobDto?>? jobs = null;
     int jobCount = 0;
 
     if (Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs))
@@ -96,7 +96,7 @@
                             @Strings.Common_DeleteSelected
                         </button>
                     }
-                    @Html.PerPageSelector(pager)
+                    @Html.PerPageSelector(pager!)
                 </div>
 
                 <div class="table-responsive">
@@ -119,24 +119,24 @@
                         <tbody>
                             @for (var i = 0; i < jobCount; i++)
                             {
-                                var jobId = jobIds != null ? jobIds[i] : jobs[i].Key;
+                                var jobId = jobIds != null ? jobIds[i] : jobs![i].Key;
 
-                                Job job = null;
+                                Job? job = null;
                                 bool inAwaitingState = true;
-                                IDictionary<string, string> stateData = null;
-                                string parentStateName = null;
-                                string parentId = null;
+                                IDictionary<string, string>? stateData = null;
+                                string? parentStateName = null;
+                                string? parentId = null;
                                 DateTime? awaitingSince = null;
 
                                 if (jobs != null)
                                 {
                                     if (jobs[i].Value != null)
                                     {
-                                        job = jobs[i].Value.Job;
-                                        inAwaitingState = jobs[i].Value.InAwaitingState;
-                                        stateData = jobs[i].Value.StateData;
-                                        parentStateName = jobs[i].Value.ParentStateName;
-                                        awaitingSince = jobs[i].Value.AwaitingAt;
+                                        job = jobs![i].Value!.Job;
+                                        inAwaitingState = jobs![i].Value!.InAwaitingState;
+                                        stateData = jobs![i].Value!.StateData;
+                                        parentStateName = jobs![i].Value!.ParentStateName;
+                                        awaitingSince = jobs![i].Value!.AwaitingAt;
                                         stateData?.TryGetValue("ParentId", out parentId);
                                     }
                                 }
@@ -230,7 +230,7 @@
                         </tbody>
                     </table>
                 </div>
-                @Html.Paginator(pager)
+                @Html.Paginator(pager!)
             </div>
         }
         else

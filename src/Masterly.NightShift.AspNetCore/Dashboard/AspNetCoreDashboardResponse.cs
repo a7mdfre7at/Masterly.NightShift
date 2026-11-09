@@ -27,7 +27,7 @@ internal sealed class AspNetCoreDashboardResponse : DashboardResponse
         _context = context;
     }
 
-    public override string ContentType
+    public override string? ContentType
     {
         get { return _context.Response.ContentType; }
         set

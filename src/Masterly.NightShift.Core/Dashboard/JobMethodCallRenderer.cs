@@ -42,7 +42,7 @@ internal static class JobMethodCallRenderer
         builder.AppendLine();
         builder.AppendLine();
 
-        string serviceName = null;
+        string? serviceName = null;
 
         if (!job.Method.IsStatic)
         {
@@ -119,7 +119,7 @@ internal static class JobMethodCallRenderer
 
                 var enumerableArgument = GetIEnumerableGenericArgument(parameter.ParameterType);
 
-                object argumentValue;
+                object? argumentValue;
                 bool isJson = true;
 
                 try
@@ -144,7 +144,7 @@ internal static class JobMethodCallRenderer
                     var renderedItems = new List<string>();
 
                     // ReSharper disable once LoopCanBeConvertedToQuery
-                    foreach (var item in argumentValue as IEnumerable)
+                    foreach (var item in (IEnumerable)argumentValue) // Checked to be enumerable above
                     {
                         var argumentRenderer = ArgumentRenderer.GetRenderer(enumerableArgument);
                         renderedItems.Add(argumentRenderer.Render(isJson, item?.ToString(),
@@ -228,12 +228,12 @@ internal static class JobMethodCallRenderer
         return $"<span class=\"{@class}\">{value}</span>";
     }
 
-    private static string Encode(string value)
+    private static string Encode(string? value)
     {
-        return WebUtility.HtmlEncode(value);
+        return WebUtility.HtmlEncode(value) ?? string.Empty;
     }
 
-    private static Type GetIEnumerableGenericArgument(Type type)
+    private static Type? GetIEnumerableGenericArgument(Type type)
     {
         if (type == typeof(string)) return null;
 
@@ -254,7 +254,7 @@ internal static class JobMethodCallRenderer
     private sealed class ArgumentRenderer
     {
         private string _enclosingString;
-        private Type _deserializationType;
+        private Type? _deserializationType;
         private Func<string, string> _valueRenderer;
 
         private ArgumentRenderer()
@@ -263,7 +263,7 @@ internal static class JobMethodCallRenderer
             _valueRenderer = static value => value == null ? WrapKeyword("null") : WrapString(value);
         }
 
-        public string Render(bool isJson, string deserializedValue, string rawValue)
+        public string Render(bool isJson, string? deserializedValue, string? rawValue)
         {
             var builder = new StringBuilder();
 
@@ -376,7 +376,7 @@ internal static class JobMethodCallRenderer
             };
         }
 
-        private static bool IsNumericType(Type type)
+        private static bool IsNumericType(Type? type)
         {
             if (type == null) return false;
 

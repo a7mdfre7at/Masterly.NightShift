@@ -49,7 +49,7 @@ public class RouteCollection
         _dispatchers.Add(new Tuple<Regex, IDashboardDispatcher>(regex, dispatcher));
     }
 
-    public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path)
+    public Tuple<IDashboardDispatcher, Match>? FindDispatcher(string path)
     {
         return FindDispatcher(path, null);
     }
@@ -62,7 +62,7 @@ public class RouteCollection
     /// <param name="path">The request path relative to the dashboard, like <c>"/jobs/failed"</c>.</param>
     /// <param name="method">The HTTP method, or <c>null</c> to take the first match whatever it is.</param>
     /// <returns>The dispatcher and the match, or <c>null</c> when no route matches.</returns>
-    public Tuple<IDashboardDispatcher, Match> FindDispatcher(string path, [CanBeNull] string method)
+    public Tuple<IDashboardDispatcher, Match>? FindDispatcher(string path, [CanBeNull] string? method)
     {
         ArgumentNullException.ThrowIfNull(path);
 
@@ -72,7 +72,7 @@ public class RouteCollection
         var skipCommands = "GET".Equals(method, StringComparison.OrdinalIgnoreCase)
             || "HEAD".Equals(method, StringComparison.OrdinalIgnoreCase);
 
-        Tuple<IDashboardDispatcher, Match> command = null;
+        Tuple<IDashboardDispatcher, Match>? command = null;
 
         foreach (var dispatcher in _dispatchers)
         {

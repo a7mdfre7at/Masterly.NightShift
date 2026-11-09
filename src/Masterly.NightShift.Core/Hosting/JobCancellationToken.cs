@@ -22,7 +22,7 @@ public class JobCancellationToken(bool canceled) : IJobCancellationToken
 {
     public CancellationToken ShutdownToken { get; } = new(canceled);
 
-    public static IJobCancellationToken Null => null;
+    public static IJobCancellationToken Null => null!; // A placeholder in job expressions: the worker passes the real token
 
     /// <inheritdoc cref="IJobCancellationToken.ThrowIfCancellationRequested" />
     public void ThrowIfCancellationRequested()

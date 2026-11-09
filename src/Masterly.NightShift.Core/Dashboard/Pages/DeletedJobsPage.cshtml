@@ -105,13 +105,13 @@
                                         </td>
                                         if (job.Value.StateData != null)
                                         {
-                                            ExceptionInfo exception = null;
-                                            string typeName = null;
+                                            ExceptionInfo? exception = null;
+                                            string? typeName = null;
                                             if (job.Value.StateData.TryGetValue("Exception", out var serializedException) &&
                                                 !String.IsNullOrWhiteSpace(serializedException))
                                             {
                                                 exception = Common.SerializationHelper.Deserialize<ExceptionInfo>(serializedException, Common.SerializationOption.Internal);
-                                                var commaIndex = exception.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
+                                                var commaIndex = exception!.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
                                                 typeName = commaIndex > 0 
                                                     ? exception.Type.Substring(0, commaIndex)
                                                     : exception.Type;
@@ -119,7 +119,7 @@
                                             <td class=min-width>
                                                 @if (!String.IsNullOrEmpty(typeName))
                                                 {
-                                                    <code title="@exception.Message">@typeName</code>
+                                                    <code title="@exception!.Message">@typeName</code>
                                                 }
                                             </td>
                                         }

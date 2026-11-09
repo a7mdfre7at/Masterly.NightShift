@@ -47,7 +47,7 @@ public class JobParameterInjectionFilter : IServerFilter
             var serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, parameterName);
             if (serialized != null)
             {
-                object deserialized;
+                object? deserialized;
 
                 if (parameterType == typeof(ExceptionInfo) && DefaultException.Equals(serialized, StringComparison.Ordinal))
                 {
@@ -58,7 +58,7 @@ public class JobParameterInjectionFilter : IServerFilter
                     deserialized = SerializationHelper.Deserialize(serialized, parameterType, SerializationOption.User);
                 }
 
-                argumentsArray[index] = deserialized;
+                argumentsArray[index] = deserialized!; // A null parameter stays null
             }
         }
     }

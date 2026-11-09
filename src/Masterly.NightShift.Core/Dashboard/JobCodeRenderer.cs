@@ -1,5 +1,3 @@
-#nullable enable
-
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -124,7 +122,7 @@ internal static class JobCodeRenderer
                 return m.ToString(CultureInfo.InvariantCulture) + "m";
         }
 
-        string json;
+        string? json;
         try
         {
             json = SerializationHelper.Serialize(value, SerializationOption.User);

@@ -30,9 +30,9 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     // to not to make stress on logging subsystem with thousands of messages in
     // case of transient faults.
     private readonly ManualResetEvent _stopped = new(false);
-    private Stopwatch _faultedSince;
-    private Stopwatch _failedSince;
-    private Stopwatch _lastException;
+    private Stopwatch? _faultedSince;
+    private Stopwatch? _failedSince;
+    private Stopwatch? _lastException;
     private int _exceptionsCount;
 
     private readonly CancellationToken _stopToken;
@@ -40,7 +40,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     private readonly ILog _logger;
 
     private readonly Stopwatch _createdAt;
-    private Stopwatch _stoppedAt;
+    private Stopwatch? _stoppedAt;
     private readonly CancellationTokenRegistration _stopRegistration;
 
     private volatile bool _disposed;
@@ -59,7 +59,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
 
     public bool StopRequested => _disposed || _stopToken.IsCancellationRequested;
 
-    public void Run(Action<Guid, object> callback, object state)
+    public void Run(Action<Guid, object?> callback, object? state)
     {
         ArgumentNullException.ThrowIfNull(callback);
 
@@ -94,7 +94,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
         HandleStop(executionId);
     }
 
-    public async Task RunAsync(Func<Guid, object, Task> callback, object state)
+    public async Task RunAsync(Func<Guid, object?, Task> callback, object? state)
     {
         ArgumentNullException.ThrowIfNull(callback);
 

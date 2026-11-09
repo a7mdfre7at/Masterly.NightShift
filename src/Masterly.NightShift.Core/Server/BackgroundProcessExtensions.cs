@@ -42,7 +42,7 @@ public static class BackgroundProcessExtensions
 
         public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
             int threadCount,
-            [CanBeNull] Action<Thread> threadConfig)
+            [CanBeNull] Action<Thread>? threadConfig)
         {
             ArgumentNullException.ThrowIfNull(process);
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
@@ -135,7 +135,7 @@ public static class BackgroundProcessExtensions
         int threadCount,
         [NotNull] string threadName,
         [NotNull] ThreadStart threadStart,
-        [CanBeNull] Action<Thread> threadConfig = null)
+        [CanBeNull] Action<Thread>? threadConfig = null)
     {
         ArgumentNullException.ThrowIfNull(threadName);
         ArgumentNullException.ThrowIfNull(threadStart);

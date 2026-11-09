@@ -20,19 +20,19 @@ namespace Masterly.NightShift.Storage;
 /// </summary>
 public class RecurringJobDto
 {
-    public string Id { get; set; }
-    public string Cron { get; set; }
-    public string Queue { get; set; }
-    public Job Job { get; set; }
-    public JobLoadException LoadException { get; set; }
+    public string Id { get; set; } = null!; // Always set: a job that was removed still has its id
+    public string? Cron { get; set; }
+    public string? Queue { get; set; }
+    public Job? Job { get; set; }
+    public JobLoadException? LoadException { get; set; }
     public DateTime? NextExecution { get; set; }
-    public string LastJobId { get; set; }
-    public string LastJobState { get; set; }
+    public string? LastJobId { get; set; }
+    public string? LastJobState { get; set; }
     public DateTime? LastExecution { get; set; }
     public DateTime? CreatedAt { get; set; }
     public bool Removed { get; set; }
-    public string TimeZoneId { get; set; }
-    public string Error { get; set; }
+    public string? TimeZoneId { get; set; }
+    public string? Error { get; set; }
     public int RetryAttempt { get; set; }
 
     /// <summary>Gets or sets whether the job is paused from the dashboard or by <c>IRecurringJobManagerV3.Pause</c>.</summary>

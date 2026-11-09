@@ -168,7 +168,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Writer_WritesEveryQueuedEntry_InOrder_InOneTransaction()
     {
-        ActivityFeedWriter.Schedule = flush => _scheduled.Add(flush);
+        ActivityFeedWriter.Schedule = _scheduled.Add;
         var storage = new Mock<JobStorage>();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
         var writer = ActivityFeedWriter.For(storage.Object);
@@ -188,7 +188,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Writer_StartsANewFlush_AfterTheLastOneFinished()
     {
-        ActivityFeedWriter.Schedule = flush => _scheduled.Add(flush);
+        ActivityFeedWriter.Schedule = _scheduled.Add;
         var storage = new Mock<JobStorage>();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
         var writer = ActivityFeedWriter.For(storage.Object);
@@ -205,7 +205,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Writer_DropsEntries_BeyondTheLimit_AndWarnsOnce()
     {
-        ActivityFeedWriter.Schedule = flush => _scheduled.Add(flush);
+        ActivityFeedWriter.Schedule = _scheduled.Add;
         var provider = new RecordingLogProvider();
         var storage = new Mock<JobStorage>();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);

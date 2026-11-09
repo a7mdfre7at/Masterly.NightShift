@@ -146,20 +146,20 @@ internal sealed class RecurringJobEntity
 
     public string RecurringJobId { get; }
 
-    public string Queue { get; set; }
-    public string Cron { get; set; }
+    public string? Queue { get; set; }
+    public string? Cron { get; set; }
     public string TimeZoneId { get; set; }
-    public string Job { get; set; }
+    public string? Job { get; set; }
     public MisfireHandlingMode MisfireHandling { get; set; }
 
     public DateTime? CreatedAt { get; }
     public DateTime? NextExecution { get; private set; }
 
     public DateTime? LastExecution { get; set; }
-    public string LastJobId { get; set; }
+    public string? LastJobId { get; set; }
     public int? Version { get; private set; }
     public int RetryAttempt { get; set; }
-    public string Error { get; set; }
+    public string? Error { get; set; }
 
     /// <summary>
     /// A paused job keeps its definition but leaves the schedule: <see cref="ScheduleNext(ITimeZoneResolver, DateTime)"/>
@@ -283,7 +283,7 @@ internal sealed class RecurringJobEntity
             return result;
         }
 
-        var cron = ParseCronExpression(Cron);
+        var cron = ParseCronExpression(Cron!); // An entry without a cron returned above
         var timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
 
         // Before the window opens, the first occurrence is the first one at or after its start, so no
@@ -363,12 +363,12 @@ internal sealed class RecurringJobEntity
 
         if ((_recurringJob.TryGetValue("Queue", out var queue) ? queue : null) != Queue)
         {
-            result.Add("Queue", Queue);
+            result.Add("Queue", Queue!); // A null value stays null in the hash
         }
 
         if ((_recurringJob.TryGetValue("Cron", out var cron) ? cron : null) != Cron)
         {
-            result.Add("Cron", Cron);
+            result.Add("Cron", Cron!); // A null value stays null in the hash
         }
 
         if ((_recurringJob.TryGetValue("TimeZoneId", out var timeZoneId) ? timeZoneId : null) != TimeZoneId)
@@ -378,7 +378,7 @@ internal sealed class RecurringJobEntity
 
         if ((_recurringJob.TryGetValue("Job", out var job) ? job : null) != Job)
         {
-            result.Add("Job", Job);
+            result.Add("Job", Job!); // A null value stays null in the hash
         }
 
         if (!_recurringJob.ContainsKey("CreatedAt"))

@@ -15,7 +15,7 @@ internal partial class RecurringJobsPage
     }
 
     // The job /recurring?edit={id} names, when it isn't on this page
-    private RecurringJobDto FindJobToEdit(IStorageConnection connection, List<RecurringJobDto> shown)
+    private RecurringJobDto? FindJobToEdit(IStorageConnection connection, List<RecurringJobDto> shown)
     {
         var id = IsReadOnly ? null : Query("edit");
         if (string.IsNullOrEmpty(id) || shown.Exists(job => job.Id == id)) return null;
@@ -53,7 +53,7 @@ internal partial class RecurringJobsPage
         return new NonEscapedString(builder.ToString());
     }
 
-    private static void AppendAttribute(StringBuilder builder, string name, string value)
+    private static void AppendAttribute(StringBuilder builder, string name, string? value)
     {
         // Written empty when there's no value, as the page always wrote them
         builder.Append(' ').Append(name).Append("=\"").Append(WebUtility.HtmlEncode(value)).Append('"');

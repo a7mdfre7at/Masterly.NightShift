@@ -19,7 +19,7 @@ namespace Masterly.NightShift.Server;
 /// Wraps an exception thrown while a job was performed, with the job's identifier.
 /// </summary>
 [Serializable]
-public class JobPerformanceException(string message, Exception innerException, string jobId) : Exception(message, innerException)
+public class JobPerformanceException(string message, Exception innerException, string? jobId) : Exception(message, innerException)
 {
     public JobPerformanceException(string message, Exception innerException)
         : this(message, innerException, null)
@@ -29,5 +29,5 @@ public class JobPerformanceException(string message, Exception innerException, s
     /// <summary>
     /// The Background Job Id of the Job instance this exception has been raised for
     /// </summary>
-    public string JobId { get; private set; } = jobId;
+    public string? JobId { get; private set; } = jobId;
 }

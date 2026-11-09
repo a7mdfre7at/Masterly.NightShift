@@ -17,14 +17,14 @@ namespace Masterly.NightShift.States;
 
 internal sealed class CoreStateMachine : IStateMachine
 {
-    private readonly Func<JobStorage, string, StateHandlersCollection> _stateHandlersThunk;
+    private readonly Func<JobStorage, string?, StateHandlersCollection> _stateHandlersThunk;
 
     public CoreStateMachine()
         : this(GetStateHandlers)
     {
     }
 
-    internal CoreStateMachine([NotNull] Func<JobStorage, string, StateHandlersCollection> stateHandlersThunk)
+    internal CoreStateMachine([NotNull] Func<JobStorage, string?, StateHandlersCollection> stateHandlersThunk)
     {
         ArgumentNullException.ThrowIfNull(stateHandlersThunk);
         _stateHandlersThunk = stateHandlersThunk;
@@ -61,7 +61,7 @@ internal sealed class CoreStateMachine : IStateMachine
         return context.NewState;
     }
 
-    private static StateHandlersCollection GetStateHandlers(JobStorage storage, string stateName)
+    private static StateHandlersCollection GetStateHandlers(JobStorage storage, string? stateName)
     {
         var globalHandlers = GlobalStateHandlers.Handlers;
 
@@ -74,15 +74,15 @@ internal sealed class CoreStateMachine : IStateMachine
     internal readonly struct StateHandlersCollection(
         List<IStateHandler> globalHandlers,
         IEnumerable<IStateHandler> storageHandlers,
-        string stateName)
+        string? stateName)
     {
         public Enumerator GetEnumerator() => new(globalHandlers, storageHandlers, stateName);
 
-        public ref struct Enumerator(List<IStateHandler> globalHandlers, IEnumerable<IStateHandler> storageHandlers, string stateName)
+        public ref struct Enumerator(List<IStateHandler> globalHandlers, IEnumerable<IStateHandler> storageHandlers, string? stateName)
         {
             private List<IStateHandler>.Enumerator _globalEnumerator = globalHandlers.GetEnumerator();
             private readonly IEnumerator<IStateHandler> _storageEnumerator = storageHandlers.GetEnumerator();
-            private readonly string _stateName = stateName;
+            private readonly string? _stateName = stateName;
 
             public bool MoveNext()
             {
@@ -106,11 +106,11 @@ internal sealed class CoreStateMachine : IStateMachine
                     }
                 }
 
-                Current = default;
+                Current = default!; // Read only after MoveNext returned true
                 return false;
             }
 
-            public IStateHandler Current { get; private set; } = default;
+            public IStateHandler Current { get; private set; } = default!; // Read only after MoveNext returned true
         }
     }
 }

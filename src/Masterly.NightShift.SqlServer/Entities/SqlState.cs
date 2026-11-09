@@ -18,8 +18,8 @@ namespace Masterly.NightShift.SqlServer.Entities;
 internal sealed class SqlState
 {
     public long JobId { get; set; }
-    public string Name { get; set; }
-    public string Reason { get; set; }
+    public string Name { get; set; } = null!; // NOT NULL column, set by Dapper
+    public string? Reason { get; set; }
     public DateTime CreatedAt { get; set; }
-    public string Data { get; set; }
+    public string? Data { get; set; }
 }

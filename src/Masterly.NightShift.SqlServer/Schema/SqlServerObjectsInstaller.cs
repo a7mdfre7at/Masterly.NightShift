@@ -33,7 +33,7 @@ public static class SqlServerObjectsInstaller
     /// <param name="connection">An open connection to the database.</param>
     public static void Install(DbConnection connection)
     {
-        Install(connection, null);
+        Install(connection, schema: null);
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public static class SqlServerObjectsInstaller
     /// </summary>
     /// <param name="connection">An open connection to the database.</param>
     /// <param name="schema">The schema name, or <c>null</c> for <c>HangFire</c>.</param>
-    public static void Install(DbConnection connection, string schema)
+    public static void Install(DbConnection connection, string? schema)
     {
         Install(connection, schema, false);
     }
@@ -52,7 +52,7 @@ public static class SqlServerObjectsInstaller
     /// <param name="connection">An open connection to the database.</param>
     /// <param name="schema">The schema name, or <c>null</c> for <c>HangFire</c>.</param>
     /// <param name="enableHeavyMigrations">Whether the upgrades that rebuild large tables (5 to 6, 7 to 8) may run.</param>
-    public static void Install(DbConnection connection, string schema, bool enableHeavyMigrations)
+    public static void Install(DbConnection connection, string? schema, bool enableHeavyMigrations)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
@@ -68,7 +68,7 @@ public static class SqlServerObjectsInstaller
     /// <param name="enableHeavyMigrations">Whether the upgrades that rebuild large tables (5 to 6, 7 to 8) may run.</param>
     /// <exception cref="ArgumentException">The schema name is longer than 128 characters or contains <c>]</c>,
     /// <c>'</c> or a control character.</exception>
-    public static string GetInstallScript(string schema, bool enableHeavyMigrations)
+    public static string GetInstallScript(string? schema, bool enableHeavyMigrations)
     {
         schema = !string.IsNullOrWhiteSpace(schema) ? schema : Constants.DefaultSchema;
 

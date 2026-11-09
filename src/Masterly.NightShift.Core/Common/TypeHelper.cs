@@ -35,7 +35,7 @@ public partial class TypeHelper
 
     private static readonly Assembly CoreLibrary = typeof(int).GetTypeInfo().Assembly;
     private static readonly AssemblyName MscorlibAssemblyName = new("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
-    private static readonly ConcurrentDictionary<string, Assembly> AssemblyCache = new();
+    private static readonly ConcurrentDictionary<string, Assembly?> AssemblyCache = new();
 
     [GeneratedRegex(@", Version=\d+.\d+.\d+.\d+", RegexOptions.None, matchTimeoutMilliseconds: 5000)]
     private static partial Regex VersionRegex();
@@ -58,7 +58,7 @@ public partial class TypeHelper
 
     public static string DefaultTypeSerializer(Type type)
     {
-        return DefaultTypeSerializerCache.GetOrAdd(type, static t => t.AssemblyQualifiedName);
+        return DefaultTypeSerializerCache.GetOrAdd(type, static t => t.AssemblyQualifiedName!); // Serialized types are named
     }
 
     public static string SimpleAssemblyTypeSerializer(Type type)
@@ -80,7 +80,7 @@ public partial class TypeHelper
                 name,
                 typeResolver: TypeResolver,
                 assemblyResolver: CachedAssemblyResolver,
-                throwOnError: true);
+                throwOnError: true)!; // throwOnError: true, so never null
         });
     }
 
@@ -113,7 +113,7 @@ public partial class TypeHelper
         if (type.IsArray && type.HasElementType)
         {
             var elementType = type.GetElementType();
-            SerializeType(elementType, false, typeNameBuilder);
+            SerializeType(elementType!, false, typeNameBuilder); // An array type has an element type
             typeNameBuilder.Append("[]");
         }
         else
@@ -142,7 +142,7 @@ public partial class TypeHelper
 
         if (type != typeof(object) && type != typeof(string) && !typeInfo.IsPrimitive)
         {
-            string assemblyName;
+            string? assemblyName;
 
             var typeForwardedFrom = typeInfo.GetCustomAttribute<TypeForwardedFromAttribute>();
             if (typeForwardedFrom != null)
@@ -158,7 +158,7 @@ public partial class TypeHelper
                 assemblyName = typeInfo.Assembly.GetName().Name;
             }
 
-            if (assemblyName.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase))
+            if (assemblyName!.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase)) // Loaded assemblies have names
             {
                 assemblyName = "mscorlib";
             }
@@ -185,7 +185,7 @@ public partial class TypeHelper
         typeNamesBuilder.Append(']');
     }
 
-    private static Assembly CachedAssemblyResolver(AssemblyName assemblyName)
+    private static Assembly? CachedAssemblyResolver(AssemblyName assemblyName)
     {
         return AssemblyCache.GetOrAdd(assemblyName.FullName, AssemblyResolver);
     }
@@ -216,17 +216,17 @@ public partial class TypeHelper
             : name;
     }
 
-    private static Assembly AssemblyResolver(string assemblyString)
+    private static Assembly? AssemblyResolver(string assemblyString)
     {
         var assemblyName = new AssemblyName(assemblyString);
 
-        if (IsLegacyAssembly(assemblyName.Name))
+        if (IsLegacyAssembly(assemblyName.Name!)) // Loaded assemblies have names
         {
             // Its version and public key belong to the old package, so only the name is kept
-            assemblyName = new AssemblyName(ToCurrentName(assemblyName.Name));
+            assemblyName = new AssemblyName(ToCurrentName(assemblyName.Name!)); // Loaded assemblies have names
         }
 
-        if (assemblyName.Name.Equals("System.Console", StringComparison.OrdinalIgnoreCase) ||
+        if (assemblyName.Name!.Equals("System.Console", StringComparison.OrdinalIgnoreCase) || // Loaded assemblies have names
             assemblyName.Name.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase) ||
             assemblyName.Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
         {
@@ -244,7 +244,7 @@ public partial class TypeHelper
             // A partial name, as Assembly.LoadWithPartialName (obsolete) loads it on .NET
             try
             {
-                return Assembly.Load(new AssemblyName(assemblyName.Name));
+                return Assembly.Load(new AssemblyName(assemblyName.Name!)); // Loaded assemblies have names
             }
             catch (FileNotFoundException)
             {
@@ -258,7 +258,7 @@ public partial class TypeHelper
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            var shortName = new AssemblyName(assemblyName.Name);
+            var shortName = new AssemblyName(assemblyName.Name!); // Loaded assemblies have names
             if (publicKeyToken != null)
             {
                 shortName.SetPublicKeyToken(publicKeyToken);
@@ -268,7 +268,7 @@ public partial class TypeHelper
         }
     }
 
-    private static Type TypeResolver(Assembly assembly, string typeName, bool ignoreCase)
+    private static Type? TypeResolver(Assembly? assembly, string typeName, bool ignoreCase)
     {
         if (typeName.Equals("System.Diagnostics.Debug", StringComparison.Ordinal))
         {
@@ -283,7 +283,7 @@ public partial class TypeHelper
         }
 
         if (assembly != CoreLibrary &&
-            assembly.GetName().Name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
+            assembly.GetName().Name!.Equals("mscorlib", StringComparison.OrdinalIgnoreCase)) // Loaded assemblies have names
         {
             // Everything defaults to `mscorlib` for interoperability reasons between
             // .NET Framework and .NET Core. Most of the types have the proper forwarding,

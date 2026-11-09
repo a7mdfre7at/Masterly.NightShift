@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -226,7 +224,7 @@ public static partial class JobCatalog
         return result;
     }
 
-    internal static string FormatArgument(object? value, Type type)
+    internal static string? FormatArgument(object? value, Type type)
     {
         var underlying = Nullable.GetUnderlyingType(type) ?? type;
 
@@ -283,7 +281,7 @@ public static partial class JobCatalog
             values[i] = ConvertArgument(parameter, text);
         }
 
-        return new Job(entry.Type, entry.Method, values, string.IsNullOrWhiteSpace(queue) ? null : queue);
+        return new Job(entry.Type, entry.Method, values!, string.IsNullOrWhiteSpace(queue) ? null : queue); // Job arguments may be null
     }
 
     internal static object? ConvertArgument(JobCatalogParameter parameter, string? text)
@@ -343,7 +341,7 @@ public static partial class JobCatalog
             {
                 // A date and time without an offset, as the datetime-local input gives it, is read as UTC, so
                 // the server's own time zone never decides which moment it is
-                var wallClock = (DateTime)SerializationHelper.DeserializeInput(text, typeof(DateTime));
+                var wallClock = (DateTime)SerializationHelper.DeserializeInput(text, typeof(DateTime))!; // Throws on text that isn't a date
                 return new DateTimeOffset(DateTime.SpecifyKind(wallClock, DateTimeKind.Unspecified), TimeSpan.Zero);
             }
 
@@ -520,7 +518,7 @@ public static partial class JobCatalog
         };
     }
 
-    internal static string FormatDefault(object? value)
+    internal static string? FormatDefault(object? value)
     {
         return value switch
         {

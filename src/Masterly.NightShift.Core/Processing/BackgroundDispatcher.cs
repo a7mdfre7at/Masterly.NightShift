@@ -25,13 +25,13 @@ internal sealed class BackgroundDispatcher : IBackgroundDispatcher
     private readonly CountdownEvent _stopped;
 
     private readonly IBackgroundExecution _execution;
-    private readonly Action<Guid, object> _action;
-    private readonly object _state;
+    private readonly Action<Guid, object?> _action;
+    private readonly object? _state;
 
     public BackgroundDispatcher(
         [NotNull] IBackgroundExecution execution,
-        [NotNull] Action<Guid, object> action,
-        [CanBeNull] object state,
+        [NotNull] Action<Guid, object?> action,
+        [CanBeNull] object? state,
         [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
     {
         ArgumentNullException.ThrowIfNull(threadFactory);
@@ -76,7 +76,7 @@ internal sealed class BackgroundDispatcher : IBackgroundDispatcher
         _stopped.Dispose();
     }
 
-    public override string ToString()
+    public override string? ToString()
     {
         return _execution.ToString();
     }

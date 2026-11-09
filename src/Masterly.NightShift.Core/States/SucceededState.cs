@@ -13,8 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-#nullable enable
-
 using System.Globalization;
 using System.Text.Json.Serialization;
 
@@ -38,7 +36,7 @@ namespace Masterly.NightShift.States;
 /// 
 /// <threadsafety static="true" instance="false" />
 [method: JsonConstructor]
-public class SucceededState(object result, long latency, long performanceDuration) : IState
+public class SucceededState(object? result, long latency, long performanceDuration) : IState
 {
     /// <summary>
     /// Represents the name of the <i>Succeeded</i> state. This field is read-only.
@@ -60,7 +58,7 @@ public class SucceededState(object result, long latency, long performanceDuratio
     /// <summary>
     /// Gets the value returned by a job method.
     /// </summary>
-    public object Result { get; } = result;
+    public object? Result { get; } = result;
 
     /// <summary>
     /// Gets the total number of milliseconds passed from a job
@@ -164,7 +162,7 @@ public class SucceededState(object result, long latency, long performanceDuratio
 
         if (Result != null)
         {
-            string serializedResult;
+            string? serializedResult;
 
             try
             {

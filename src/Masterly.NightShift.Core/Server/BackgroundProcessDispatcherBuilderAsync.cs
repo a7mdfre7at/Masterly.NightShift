@@ -67,9 +67,9 @@ internal sealed class BackgroundProcessDispatcherBuilderAsync : IBackgroundProce
         return _process.GetType().Name;
     }
 
-    private static async Task ExecuteProcess(Guid executionId, object state)
+    private static async Task ExecuteProcess(Guid executionId, object? state)
     {
-        var tuple = (Tuple<IBackgroundProcessAsync, BackgroundServerContext, BackgroundExecution>)state;
+        var tuple = (Tuple<IBackgroundProcessAsync, BackgroundServerContext, BackgroundExecution>)state!; // The tuple passed when creating the dispatcher
         var serverContext = tuple.Item2;
 
         var context = new BackgroundProcessContext(

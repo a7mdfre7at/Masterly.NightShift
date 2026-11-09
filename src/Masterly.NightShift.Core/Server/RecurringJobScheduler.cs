@@ -158,7 +158,7 @@ public class RecurringJobScheduler : IBackgroundProcess
     /// Gets or sets a task scheduler that will be used when parallel scheduling
     /// is enabled via the <see cref="MaxDegreeOfParallelism"/> option.
     /// </summary>
-    public TaskScheduler TaskScheduler { get; set; }
+    public TaskScheduler? TaskScheduler { get; set; }
 
     // With a zero polling delay the scheduler wakes up on every minute boundary (see Execute)
     private TimeSpan PollingInterval => _pollingDelay > TimeSpan.Zero ? _pollingDelay : TimeSpan.FromMinutes(1);
@@ -368,7 +368,7 @@ public class RecurringJobScheduler : IBackgroundProcess
         try
         {
             using var transaction = connection.CreateWriteTransaction();
-            Exception exception = null;
+            Exception? exception = null;
 
             // The last run that is created and enqueued in this transaction (or canceled by a filter). When a
             // run fails, the job's last execution goes back to it, so the next pass creates the failed run and
@@ -387,7 +387,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                     throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version ?? 1}'. Max supported version of this server is '{MaxSupportedVersion}'.");
                 }
 
-                var runs = new List<KeyValuePair<DateTime, BackgroundJob>>();
+                var runs = new List<KeyValuePair<DateTime, BackgroundJob?>>();
 
                 // How late an Ignorable run may be noticed and still be created
                 var precision = PollingInterval + PollingInterval;
@@ -413,7 +413,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                         backgroundJob = null;
                     }
 
-                    runs.Add(new KeyValuePair<DateTime, BackgroundJob>(execution, backgroundJob));
+                    runs.Add(new KeyValuePair<DateTime, BackgroundJob?>(execution, backgroundJob));
                 }
 
                 foreach (var run in runs)
@@ -499,7 +499,7 @@ public class RecurringJobScheduler : IBackgroundProcess
         transaction.Commit();
     }
 
-    private T UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
+    private T? UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
     {
         var resource = "recurring-jobs:lock";
         try
@@ -539,7 +539,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                 {
                     try
                     {
-                        storageConnection.GetFirstByLowestScoreFromSet(null, 0, 0, 1);
+                        storageConnection.GetFirstByLowestScoreFromSet(null!, 0, 0, 1); // Deliberately invalid: checks only that the call is supported
                     }
                     catch (ArgumentNullException ex) when (ex.ParamName == "key")
                     {

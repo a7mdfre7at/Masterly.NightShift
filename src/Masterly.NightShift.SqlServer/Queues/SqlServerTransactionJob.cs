@@ -25,9 +25,9 @@ internal sealed class SqlServerTransactionJob : IFetchedJob
     private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(1);
 
     private readonly SqlServerStorage _storage;
-    private IDbConnection _connection;
+    private IDbConnection? _connection;
     private readonly IDbTransaction _transaction;
-    private readonly Timer _timer;
+    private readonly Timer? _timer;
     private readonly NightShiftLock _lockObject = new();
 
     public SqlServerTransactionJob(
@@ -88,7 +88,7 @@ internal sealed class SqlServerTransactionJob : IFetchedJob
         }
     }
 
-    private void ExecuteKeepAliveQuery(object obj)
+    private void ExecuteKeepAliveQuery(object? obj)
     {
         lock (_lockObject)
         {

@@ -105,7 +105,7 @@ public class DashboardOptions
     /// <summary>
     /// Display name provider for jobs
     /// </summary>
-    public Func<DashboardContext, Job, string> DisplayNameFunc { get; set; }
+    public Func<DashboardContext, Job, string>? DisplayNameFunc { get; set; }
 
     /// <summary>
     /// Gets or sets whether the antiforgery check of <c>POST</c> requests is turned off, and the pages stop
@@ -118,7 +118,7 @@ public class DashboardOptions
     /// the Forecast page. Default is <c>null</c>, which uses the global resolver; the ASP.NET Core extensions
     /// fill it from the service container.
     /// </summary>
-    public ITimeZoneResolver TimeZoneResolver { get; set; }
+    public ITimeZoneResolver? TimeZoneResolver { get; set; }
 
     /// <summary>
     /// Gets or sets the default number of records per page.

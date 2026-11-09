@@ -52,7 +52,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
         set { lock (_syncRoot) { field = value; } }
     }
 
-    public BackgroundJob Create(CreateContext context)
+    public BackgroundJob? Create(CreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -73,7 +73,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
         return CreateBackgroundJobTwoSteps(context, parameters, createdAt, expireIn);
     }
 
-    private BackgroundJob CreateBackgroundJobTwoSteps(CreateContext context, Dictionary<string, string> parameters, DateTime createdAt, TimeSpan expireIn)
+    private BackgroundJob? CreateBackgroundJobTwoSteps(CreateContext context, Dictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
         var attemptsLeft = Math.Max(RetryAttempts, 0);
 
@@ -98,7 +98,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
             return null;
         }
 
-        var backgroundJob = new BackgroundJob(jobId, context.Job, createdAt, parameters);
+        var backgroundJob = new BackgroundJob(jobId, context.Job, createdAt, parameters!); // A parameter set to null reads back as null
 
         if (context.InitialState != null)
         {
@@ -127,7 +127,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                         ctx.Context.Connection,
                         transaction,
                         ctx.BackgroundJob,
-                        ctx.Context.InitialState,
+                        ctx.Context.InitialState!, // Only reached when the job has an initial state
                         oldStateName: null,
                         ctx.Context.Profiler,
                         ctx.StateMachine)
@@ -164,7 +164,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
 
     private TResult RetryOnException<TContext, TResult>(ref int attemptsLeft, Func<int, TContext, TResult> action, TContext context)
     {
-        List<Exception> exceptions = null;
+        List<Exception>? exceptions = null;
         var attempt = 0;
         var delay = TimeSpan.Zero;
 
@@ -209,7 +209,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
     private readonly record struct JobCreateContext
     {
         public required CreateContext Context { get; init; }
-        public required Dictionary<string, string> Parameters { get; init; }
+        public required Dictionary<string, string?> Parameters { get; init; }
         public required DateTime CreatedAt { get; init; }
         public required TimeSpan ExpireIn { get; init; }
     }

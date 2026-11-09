@@ -28,8 +28,8 @@ public static class JobHistoryRenderer
     /// <summary>How many parents of a continuation the Awaiting state links to.</summary>
     internal const int MaxParentLinks = 50;
 
-    private static readonly IDictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString>>
-        Renderers = new Dictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString>>();
+    private static readonly IDictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString?>>
+        Renderers = new Dictionary<string, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString?>>();
 
     private static readonly IDictionary<string, string> BackgroundStateColors
         = new Dictionary<string, string>();
@@ -108,7 +108,7 @@ public static class JobHistoryRenderer
     /// neutral look.
     /// </summary>
     [CanBeNull]
-    public static string GetStateCssSuffix(string stateName)
+    public static string? GetStateCssSuffix(string stateName)
     {
         if (stateName == null || !StateCssSuffixes.TryGetValue(stateName, out var suffix))
         {
@@ -119,13 +119,13 @@ public static class JobHistoryRenderer
     }
 
     [CanBeNull]
-    internal static string FindForegroundStateColor(string stateName)
+    internal static string? FindForegroundStateColor(string stateName)
     {
         return FindStateColor(stateName, ForegroundStateColors);
     }
 
     [CanBeNull]
-    internal static string FindBackgroundStateColor(string stateName)
+    internal static string? FindBackgroundStateColor(string stateName)
     {
         return FindStateColor(stateName, BackgroundStateColors);
     }
@@ -133,7 +133,7 @@ public static class JobHistoryRenderer
     // A built-in state's own color, else the color of a built-in state with the same CSS suffix (only built-in
     // states have colors, and built-in states that share a suffix share colors too)
     [CanBeNull]
-    private static string FindStateColor(string stateName, IDictionary<string, string> colors)
+    private static string? FindStateColor(string stateName, IDictionary<string, string> colors)
     {
         if (stateName == null) return null;
         if (colors.TryGetValue(stateName, out var color)) return color;
@@ -151,7 +151,7 @@ public static class JobHistoryRenderer
         return null;
     }
 
-    public static void Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString> renderer)
+    public static void Register(string state, Func<HtmlHelper, IDictionary<string, string>, NonEscapedString?> renderer)
     {
         if (!Renderers.ContainsKey(state))
         {
@@ -170,7 +170,7 @@ public static class JobHistoryRenderer
 
     extension(HtmlHelper helper)
     {
-        public NonEscapedString RenderHistory(
+        public NonEscapedString? RenderHistory(
             string state, IDictionary<string, string> properties)
         {
             if (!Renderers.TryGetValue(state, out var renderer))
@@ -193,12 +193,12 @@ public static class JobHistoryRenderer
         }
     }
 
-    public static NonEscapedString NullRenderer(HtmlHelper helper, IDictionary<string, string> properties)
+    public static NonEscapedString? NullRenderer(HtmlHelper helper, IDictionary<string, string> properties)
     {
         return null;
     }
 
-    public static NonEscapedString DefaultRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
+    public static NonEscapedString? DefaultRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
         if (stateData == null || stateData.Count == 0) return null;
 
@@ -216,7 +216,7 @@ public static class JobHistoryRenderer
         return new NonEscapedString(builder.ToString());
     }
 
-    public static NonEscapedString SucceededRenderer(HtmlHelper html, IDictionary<string, string> stateData)
+    public static NonEscapedString? SucceededRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
         var builder = new StringBuilder();
         builder.Append("<dl class=\"dl-horizontal\">");
@@ -305,7 +305,7 @@ public static class JobHistoryRenderer
         return new NonEscapedString(builder.ToString());
     }
 
-    private static NonEscapedString EnqueuedRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
+    private static NonEscapedString? EnqueuedRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
         stateData.TryGetValue("Queue", out var queue);
 
@@ -404,7 +404,7 @@ public static class JobHistoryRenderer
     }
 
     [CanBeNull]
-    internal static string GetStoredTypeName([CanBeNull] string serializedState)
+    internal static string? GetStoredTypeName([CanBeNull] string? serializedState)
     {
         if (string.IsNullOrEmpty(serializedState)) return null;
 
@@ -417,7 +417,7 @@ public static class JobHistoryRenderer
             {
                 var name = type.GetString();
                 var comma = name?.IndexOf(',') ?? -1;
-                return comma > 0 ? name[..comma] : name;
+                return comma > 0 ? name![..comma] : name; // comma > 0: name is not null
             }
         }
         catch (System.Text.Json.JsonException)
@@ -427,7 +427,7 @@ public static class JobHistoryRenderer
         return null;
     }
 
-    private static NonEscapedString DeletedRenderer(HtmlHelper html, IDictionary<string, string> stateData)
+    private static NonEscapedString? DeletedRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
         if (stateData.TryGetValue("Exception", out var exception))
         {

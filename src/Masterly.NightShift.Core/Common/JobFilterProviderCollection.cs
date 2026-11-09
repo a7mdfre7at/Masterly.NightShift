@@ -42,7 +42,7 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
     /// </summary>
     /// <param name="job">Job, can be null.</param>
     /// <returns>The collection of filter providers.</returns>
-    public IEnumerable<JobFilter> GetFilters(Job job)
+    public IEnumerable<JobFilter> GetFilters(Job? job)
     {
         var combinedFilters = new List<JobFilter>();
 
@@ -89,7 +89,7 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
 
     private sealed class JobFilterComparer : IComparer<JobFilter>
     {
-        public int Compare(JobFilter x, JobFilter y)
+        public int Compare(JobFilter? x, JobFilter? y)
         {
             // Nulls always have to be less than non-nulls
             if (x == null && y == null)

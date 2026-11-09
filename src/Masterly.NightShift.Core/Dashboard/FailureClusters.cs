@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Masterly.NightShift.Dashboard;
 
 /// <summary>Failed jobs that share an exception type and a method.</summary>

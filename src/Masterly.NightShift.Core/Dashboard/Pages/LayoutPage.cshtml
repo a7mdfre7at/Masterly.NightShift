@@ -28,8 +28,8 @@
         }
     }
     @{
-        var version = GetType().GetTypeInfo().Assembly.GetName().Version;
-        var storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version;
+        var version = GetType().GetTypeInfo().Assembly.GetName().Version!;
+        var storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version!;
     }
 
     @if(!string.IsNullOrWhiteSpace(DashboardOptions.FaviconPath))
@@ -115,7 +115,7 @@
                 @Html.RenderPartial(new ErrorAlert())
 
                 @{
-                    DrainModeStatus drainStatus = null;
+                    DrainModeStatus? drainStatus = null;
                     IList<string> pausedServers = new List<string>();
                     try
                     {

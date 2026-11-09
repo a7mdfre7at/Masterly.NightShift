@@ -17,8 +17,8 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    Pager pager = null;
-    RecurringJobDto editJob = null;
+    Pager? pager = null;
+    RecurringJobDto? editJob = null;
 
 	using (var connection = Storage.GetReadOnlyConnection())
 	{
@@ -176,7 +176,7 @@
                                     <td class="min-width min-width-125p ">
                                         @* ReSharper disable once EmptyGeneralCatchClause *@
                                         @{
-                                            string cronDescription = null;
+                                            string? cronDescription = null;
                                             bool cronError = false;
 
                                             if (!String.IsNullOrEmpty(job.Cron))
@@ -212,8 +212,8 @@
                                     <td>
                                         @if (!String.IsNullOrWhiteSpace(job.TimeZoneId))
                                         {
-                                            string displayName;
-                                            Exception exception = null;
+                                            string? displayName;
+                                            Exception? exception = null;
 
                                             try
                                             {

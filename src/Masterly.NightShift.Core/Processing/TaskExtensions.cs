@@ -95,7 +95,7 @@ internal static class TaskExtensions
 
     extension(Type type)
     {
-        public bool IsTaskLike(out Func<object, Task> getTaskFunc)
+        public bool IsTaskLike([NotNullWhen(true)] out Func<object, Task>? getTaskFunc)
         {
             var typeInfo = type.GetTypeInfo();
 
@@ -124,7 +124,7 @@ internal static class TaskExtensions
                     if (asTask != null && asTask.IsPublic && !asTask.IsStatic &&
                         typeof(Task).GetTypeInfo().IsAssignableFrom(asTask.ReturnType.GetTypeInfo()))
                     {
-                        getTaskFunc = obj => (Task)asTask.Invoke(obj, null);
+                        getTaskFunc = obj => (Task)asTask.Invoke(obj, null)!; // AsTask never returns null
                         return true;
                     }
                 }
@@ -137,7 +137,7 @@ internal static class TaskExtensions
 
     extension([NotNull] Task task)
     {
-        public object GetTaskLikeResult(object obj, Type returnType)
+        public object? GetTaskLikeResult(object obj, Type returnType)
         {
             ArgumentNullException.ThrowIfNull(task);
 
@@ -172,20 +172,20 @@ internal static class TaskExtensions
         }
     }
 
-    private static void CallBack(object state, bool timedOut)
+    private static void CallBack(object? state, bool timedOut)
     {
         // We do call the Unregister method to prevent race condition between
         // registered wait and cancellation token registration, so can use the
         // SetResult safely.
-        ((TaskCompletionSource<bool>)state).SetResult(!timedOut);
+        ((TaskCompletionSource<bool>)state!).SetResult(!timedOut); // The source passed when registering
     }
 
-    private static void Callback(object state)
+    private static void Callback(object? state)
     {
         // We need to ensure there's no race condition, where wait handle was
         // set, but callback wasn't fully completed. In this case handle is
         // acquired, but task is cancelled.
-        var ctx = (Tuple<RegisteredWaitHandle, TaskCompletionSource<bool>, CancellationToken>)state;
+        var ctx = (Tuple<RegisteredWaitHandle, TaskCompletionSource<bool>, CancellationToken>)state!; // The tuple passed when registering
 
         ctx.Item1.Unregister(InvalidWaitHandleInstance);
         TrySetCanceled(ctx.Item2, ctx.Item3);

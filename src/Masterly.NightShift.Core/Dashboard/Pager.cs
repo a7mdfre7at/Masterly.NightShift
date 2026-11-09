@@ -50,13 +50,13 @@ public class Pager
         PagerItems = GenerateItems();
     }
 
-    public string BasePageUrl { get; set; }
+    public string? BasePageUrl { get; set; }
 
     /// <summary>
     /// Appended to every page link, starting with <c>&amp;</c>, so links keep the page's other query parameters
     /// (the Tags page's filter, for example). <c>null</c> for none.
     /// </summary>
-    internal string QuerySuffix { get; set; }
+    internal string? QuerySuffix { get; set; }
 
     public int FromRecord { get; }
     public int RecordsPerPage { get; }

@@ -55,10 +55,10 @@ internal sealed class SqlServerJobQueue : IPersistentJobQueue
 
         if (_options.SlidingInvisibilityTimeout.HasValue)
         {
-            return DequeueUsingSlidingInvisibilityTimeout(queues, cancellationToken);
+            return DequeueUsingSlidingInvisibilityTimeout(queues, cancellationToken)!; // A job, or it throws when canceled
         }
 
-        return DequeueUsingTransaction(queues, cancellationToken);
+        return DequeueUsingTransaction(queues, cancellationToken)!; // A job, or it throws when canceled
     }
 
     public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
@@ -78,7 +78,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         command.ExecuteNonQuery();
     }
 
-    private SqlServerTimeoutJob DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
+    private SqlServerTimeoutJob? DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
         if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
@@ -116,7 +116,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         using var cancellationEvent = cancellationToken.GetCancellationEvent();
         var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
 
-        SemaphoreSlim semaphore = null;
+        SemaphoreSlim? semaphore = null;
 
         try
         {
@@ -155,7 +155,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         return new SemaphoreSlim(initialCount: 1);
     }
 
-    private SqlServerTimeoutJob FetchJob(string[] queues)
+    private SqlServerTimeoutJob? FetchJob(string[] queues)
     {
         return _storage.UseConnection(null, static (storage, connection, queues) =>
         {
@@ -175,7 +175,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         }, queues);
     }
 
-    internal static SqlServerTimeoutJob ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
+    internal static SqlServerTimeoutJob? ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
     {
         var row = ReadSingleRow(reader, static current => Tuple.Create(
             Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
@@ -191,7 +191,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
             : new SqlServerTimeoutJob(storage, row.Item1, row.Item2.ToString(CultureInfo.InvariantCulture), row.Item3, row.Item4);
     }
 
-    internal static SqlServerTransactionJob ReadTransactionJob(
+    internal static SqlServerTransactionJob? ReadTransactionJob(
         SqlServerStorage storage,
         DbConnection connection,
         DbTransaction transaction,
@@ -207,9 +207,9 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
             : new SqlServerTransactionJob(storage, connection, transaction, row.Item1.ToString(CultureInfo.InvariantCulture), row.Item2);
     }
 
-    private static T ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class
+    private static T? ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class
     {
-        T result = null;
+        T? result = null;
 
         do
         {
@@ -246,9 +246,9 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
             .AddExpandedParameter("@queues", queues, DbType.String);
     }
 
-    private SqlServerTransactionJob DequeueUsingTransaction(string[] queues, CancellationToken cancellationToken)
+    private SqlServerTransactionJob? DequeueUsingTransaction(string[] queues, CancellationToken cancellationToken)
     {
-        DbTransaction transaction = null;
+        DbTransaction? transaction = null;
 
         var pollInterval = _options.QueuePollInterval > TimeSpan.Zero
             ? _options.QueuePollInterval
@@ -353,7 +353,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
     {
         public long Id { get; set; }
         public long JobId { get; set; }
-        public string Queue { get; set; }
+        public string? Queue { get; set; }
         public DateTime? FetchedAt { get; set; }
     }
 }

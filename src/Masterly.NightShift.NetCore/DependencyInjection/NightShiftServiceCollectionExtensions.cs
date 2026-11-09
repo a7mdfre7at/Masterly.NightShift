@@ -13,8 +13,6 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
-#nullable enable
-
 using Masterly.NightShift.AspNetCore;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Common;
@@ -405,9 +403,9 @@ public static class NightShiftServiceCollectionExtensions
     /// <returns><c>true</c> when all three are registered; otherwise <c>false</c>, and all three are <c>null</c>.</returns>
     public static bool GetInternalServices(
         [NotNull] IServiceProvider provider,
-        out IBackgroundJobFactory? factory,
-        out IBackgroundJobStateChanger? stateChanger,
-        out IBackgroundJobPerformer? performer)
+        [NotNullWhen(true)] out IBackgroundJobFactory? factory,
+        [NotNullWhen(true)] out IBackgroundJobStateChanger? stateChanger,
+        [NotNullWhen(true)] out IBackgroundJobPerformer? performer)
     {
         factory = provider.GetService<IBackgroundJobFactory>();
         performer = provider.GetService<IBackgroundJobPerformer>();

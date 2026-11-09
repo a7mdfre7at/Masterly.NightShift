@@ -110,7 +110,7 @@ public class Worker : IBackgroundProcess
 
         try
         {
-            BackgroundJob backgroundJob = null;
+            BackgroundJob? backgroundJob = null;
 
             using (var timeoutCts = new CancellationTokenSource(_jobInitializationWaitTimeout))
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -147,7 +147,7 @@ public class Worker : IBackgroundProcess
             // it was performed to guarantee that it was performed AT LEAST once.
             // It will be re-queued after the JobTimeout was expired.
 
-            var state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob, disposeAfterStateChange, out var customData);
+            var state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob!, disposeAfterStateChange, out var customData); // Loaded by the change to Processing above
             var transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
 
             if (state != null)
@@ -216,19 +216,19 @@ public class Worker : IBackgroundProcess
         disposables.Clear();
     }
 
-    private IState TryChangeState(
+    private IState? TryChangeState(
         BackgroundProcessContext context,
         IStorageConnection connection,
         string jobId,
         IState state,
-        IReadOnlyDictionary<string, object> customData,
+        IReadOnlyDictionary<string, object>? customData,
         string[] expectedStates,
-        IFetchedJob completeJob,
-        out BackgroundJob backgroundJob,
+        IFetchedJob? completeJob,
+        out BackgroundJob? backgroundJob,
         CancellationToken initializeToken,
         CancellationToken abortToken)
     {
-        Exception exception = null;
+        Exception? exception = null;
 
         abortToken.ThrowIfCancellationRequested();
 
@@ -279,7 +279,7 @@ public class Worker : IBackgroundProcess
             connection,
             null,
             jobId,
-            new FailedState(exception, context.ServerId) { Reason = $"Failed to change state to a '{state.Name}' one due to an exception after {_maxStateChangeAttempts} retry attempts" },
+            new FailedState(exception!, context.ServerId) { Reason = $"Failed to change state to a '{state.Name}' one due to an exception after {_maxStateChangeAttempts} retry attempts" }, // Set by the failed attempts above
             expectedStates,
             disableFilters: true,
             completeJob,
@@ -304,13 +304,13 @@ public class Worker : IBackgroundProcess
         }
     }
 
-    private IState PerformJob(
+    private IState? PerformJob(
         BackgroundProcessContext context,
         IStorageConnection connection,
         string jobId,
         BackgroundJob backgroundJob,
         List<IDisposable> disposeAfterStateChange,
-        out IReadOnlyDictionary<string, object> customData)
+        out IReadOnlyDictionary<string, object>? customData)
     {
         customData = null;
 
@@ -380,7 +380,7 @@ public class Worker : IBackgroundProcess
         }
         catch (JobPerformanceException ex)
         {
-            return new FailedState(ex.InnerException, context.ServerId)
+            return new FailedState(ex.InnerException!, context.ServerId) // Wraps the exception the job threw
             {
                 Reason = ex.Message
             };

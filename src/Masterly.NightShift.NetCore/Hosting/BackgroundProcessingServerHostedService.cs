@@ -25,7 +25,7 @@ namespace Masterly.NightShift;
 /// </summary>
 public sealed class BackgroundProcessingServerHostedService : IHostedService, IDisposable
 {
-    private IBackgroundProcessingServer _server;
+    private IBackgroundProcessingServer? _server;
 
     /// <summary>
     /// Initializes the service.
@@ -43,7 +43,7 @@ public sealed class BackgroundProcessingServerHostedService : IHostedService, ID
     /// <param name="lifetime">The application's lifetime, or <c>null</c>.</param>
     public BackgroundProcessingServerHostedService(
         [NotNull] IBackgroundProcessingServer server,
-        [CanBeNull] IHostApplicationLifetime lifetime)
+        [CanBeNull] IHostApplicationLifetime? lifetime)
     {
         _server = server ?? throw new ArgumentNullException(nameof(server));
         lifetime?.ApplicationStopping.Register(server.SendStop);

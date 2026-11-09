@@ -1,5 +1,3 @@
-#nullable enable
-
 using Masterly.NightShift.Processing;
 
 namespace Masterly.NightShift.Server;

@@ -18,7 +18,7 @@ namespace Masterly.NightShift.SqlServer;
 internal sealed class SqlCommandBatch : IDisposable
 {
     private readonly List<DbCommand> _commandList = [];
-    private readonly SqlCommandSet _commandSet;
+    private readonly SqlCommandSet? _commandSet;
     private readonly int _defaultTimeout;
 
     public SqlCommandBatch(DbConnection connection, DbTransaction transaction, bool preferBatching)

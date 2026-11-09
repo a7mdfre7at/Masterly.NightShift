@@ -207,7 +207,7 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(filter);
 
-            return configuration.Use(filter, static x => GlobalJobFilters.Filters.Add(x));
+            return configuration.Use(filter, static x => GlobalJobFilters.Filters.Add(x!)); // Checked above
         }
 
         public IGlobalConfiguration<TFilterProvider> UseFilterProvider<TFilterProvider>(
@@ -260,20 +260,20 @@ public static class GlobalConfigurationExtensions
         }
 
         public IGlobalConfiguration UseTypeResolver(
-            [CanBeNull] Func<string, Type> typeResolver)
+            [CanBeNull] Func<string, Type>? typeResolver)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            TypeHelper.CurrentTypeResolver = typeResolver;
+            TypeHelper.CurrentTypeResolver = typeResolver!; // null restores the default
             return configuration;
         }
 
         public IGlobalConfiguration UseTypeSerializer(
-            [CanBeNull] Func<Type, string> typeSerializer)
+            [CanBeNull] Func<Type, string>? typeSerializer)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            TypeHelper.CurrentTypeSerializer = typeSerializer;
+            TypeHelper.CurrentTypeSerializer = typeSerializer!; // null restores the default
             return configuration;
         }
 
@@ -321,7 +321,7 @@ public static class GlobalConfigurationExtensions
         /// <param name="timeZoneResolver">The resolver, or <c>null</c> to restore <see cref="DefaultTimeZoneResolver"/>.</param>
         /// <returns>The same configuration, for chaining.</returns>
         public IGlobalConfiguration UseTimeZoneResolver(
-            [CanBeNull] ITimeZoneResolver timeZoneResolver)
+            [CanBeNull] ITimeZoneResolver? timeZoneResolver)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
@@ -342,7 +342,7 @@ public static class GlobalConfigurationExtensions
         /// with other options, for example another naming policy, still bind their arguments.
         /// </remarks>
         public IGlobalConfiguration UseSerializerSettings(
-            [CanBeNull] JsonSerializerOptions settings)
+            [CanBeNull] JsonSerializerOptions? settings)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
@@ -364,7 +364,7 @@ public static class GlobalConfigurationExtensions
         /// <paramref name="settingsConfiguration"/>. Converters it adds win over the built-in ones for the same type.
         /// </summary>
         public IGlobalConfiguration UseRecommendedSerializerSettings(
-            [CanBeNull] Action<JsonSerializerOptions> settingsConfiguration)
+            [CanBeNull] Action<JsonSerializerOptions>? settingsConfiguration)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
@@ -429,14 +429,14 @@ public static class GlobalConfigurationExtensions
         }
 
         public IGlobalConfiguration UseDefaultCulture(
-            [CanBeNull] CultureInfo culture)
+            [CanBeNull] CultureInfo? culture)
         {
             ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name));
         }
 
         public IGlobalConfiguration UseDefaultCulture(
-            [CanBeNull] CultureInfo culture,
+            [CanBeNull] CultureInfo? culture,
             bool captureDefault)
         {
             ArgumentNullException.ThrowIfNull(configuration);
@@ -444,16 +444,16 @@ public static class GlobalConfigurationExtensions
         }
 
         public IGlobalConfiguration UseDefaultCulture(
-            [CanBeNull] CultureInfo culture,
-            [CanBeNull] CultureInfo uiCulture)
+            [CanBeNull] CultureInfo? culture,
+            [CanBeNull] CultureInfo? uiCulture)
         {
             ArgumentNullException.ThrowIfNull(configuration);
             return configuration.UseFilter(new CaptureCultureAttribute(culture?.Name, uiCulture?.Name));
         }
 
         public IGlobalConfiguration UseDefaultCulture(
-            [CanBeNull] CultureInfo culture,
-            [CanBeNull] CultureInfo uiCulture,
+            [CanBeNull] CultureInfo? culture,
+            [CanBeNull] CultureInfo? uiCulture,
             bool captureDefault)
         {
             ArgumentNullException.ThrowIfNull(configuration);
@@ -550,7 +550,7 @@ public static class GlobalConfigurationExtensions
         /// <returns>The same configuration, for chaining.</returns>
         public IGlobalConfiguration UseWebhookAlerts(
             [NotNull] string url,
-            [CanBeNull] Action<WebhookAlertOptions> configure = null)
+            [CanBeNull] Action<WebhookAlertOptions>? configure = null)
         {
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(url);

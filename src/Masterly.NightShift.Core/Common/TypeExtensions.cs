@@ -30,12 +30,12 @@ internal static partial class TypeExtensions
         {
             if (!type.GetTypeInfo().IsGenericType)
             {
-                return type.GetFullNameWithoutNamespace()
+                return type.GetFullNameWithoutNamespace()! // Generic and array types have these
                         .ReplacePlusWithDotInNestedTypeName();
             }
 
             return type.GetGenericTypeDefinition()
-                    .GetFullNameWithoutNamespace()
+                    .GetFullNameWithoutNamespace()! // Generic and array types have these
                     .ReplacePlusWithDotInNestedTypeName()
                     .ReplaceGenericParametersInGenericTypeName(type);
         }
@@ -43,9 +43,9 @@ internal static partial class TypeExtensions
 
     extension([NotNull] Type type)
     {
-        public MethodInfo GetNonOpenMatchingMethod(
+        public MethodInfo? GetNonOpenMatchingMethod(
             [NotNull] string name,
-            [CanBeNull] Type[] parameterTypes)
+            [CanBeNull] Type[]? parameterTypes)
         {
             ArgumentNullException.ThrowIfNull(type);
             ArgumentNullException.ThrowIfNull(name);
@@ -65,8 +65,8 @@ internal static partial class TypeExtensions
             // A non-generic exact match wins at once, like C# prefers it over a generic method; failing
             // that, a generic method whose inferred parameter types are exact; and failing that, the first
             // candidate whose parameter types accept the given ones, as before.
-            MethodInfo exactGenericMatch = null;
-            MethodInfo firstMatch = null;
+            MethodInfo? exactGenericMatch = null;
+            MethodInfo? firstMatch = null;
 
             foreach (var methodCandidate in methodCandidates)
             {
@@ -94,7 +94,7 @@ internal static partial class TypeExtensions
                     var parameterType = parameters[i].ParameterType.GetTypeInfo();
                     var actualType = parameterTypes[i].GetTypeInfo();
 
-                    if (!TypesMatchRecursive(parameterType, actualType, genericArguments))
+                    if (!TypesMatchRecursive(parameterType, actualType, genericArguments!)) // Generic methods have generic arguments here
                     {
                         parameterTypesMatched = false;
                         break;
@@ -192,7 +192,7 @@ internal static partial class TypeExtensions
                 var parameterElementType = parameterType.GetElementType();
                 var actualElementType = actualType.GetElementType();
 
-                return TypesMatchRecursive(parameterElementType.GetTypeInfo(), actualElementType.GetTypeInfo(), genericArguments);
+                return TypesMatchRecursive(parameterElementType!.GetTypeInfo(), actualElementType!.GetTypeInfo(), genericArguments); // Generic and array types have these
             }
 
             if (!actualType.IsGenericType || parameterType.GetGenericTypeDefinition() != actualType.GetGenericTypeDefinition())
@@ -221,7 +221,7 @@ internal static partial class TypeExtensions
 
     extension(Type type)
     {
-        private string GetFullNameWithoutNamespace()
+        private string? GetFullNameWithoutNamespace()
         {
             if (type.IsGenericParameter)
             {
@@ -231,7 +231,7 @@ internal static partial class TypeExtensions
             const int dotLength = 1;
             // ReSharper disable once PossibleNullReferenceException
             return !string.IsNullOrEmpty(type.Namespace)
-                ? type.FullName[(type.Namespace.Length + dotLength)..]
+                ? type.FullName![(type.Namespace.Length + dotLength)..] // Only named types reach this
                 : type.FullName;
         }
     }

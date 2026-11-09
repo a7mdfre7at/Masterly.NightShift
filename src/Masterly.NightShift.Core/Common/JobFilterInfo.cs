@@ -117,12 +117,12 @@ internal readonly struct JobFilterInfo
                 return MoveNextRare();
             }
 
-            public T Current { get; private set; } = default;
+            public T Current { get; private set; } = default!; // Read only after MoveNext returned true
 
             private bool MoveNextRare()
             {
                 _index = _filters.Count + 1;
-                Current = default;
+                Current = default!; // Read only after MoveNext returned true
                 return false;
             }
         }
@@ -153,12 +153,12 @@ internal readonly struct JobFilterInfo
                 return MoveNextRare();
             }
 
-            public T Current { get; private set; } = default;
+            public T Current { get; private set; } = default!; // Read only after MoveNext returned true
 
             private bool MoveNextRare()
             {
                 _index = -1;
-                Current = default;
+                Current = default!; // Read only after MoveNext returned true
                 return false;
             }
         }

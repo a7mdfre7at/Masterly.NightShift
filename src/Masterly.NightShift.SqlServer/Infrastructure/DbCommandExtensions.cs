@@ -49,7 +49,7 @@ internal static class DbCommandExtensions
     {
         public DbCommand AddParameter(
             [NotNull] string parameterName,
-            [CanBeNull] object value,
+            [CanBeNull] object? value,
             DbType dbType,
             [CanBeNull] int? size = null)
         {
@@ -100,7 +100,7 @@ internal static class DbCommandExtensions
             for (var i = 0; i < parameterValues.Length; i++)
             {
                 var parameter = AddParameterInternal(command, parameterName + i.ToString(CultureInfo.InvariantCulture), parameterType, parameterSize);
-                parameter.Value = (object)parameterValues[i] ?? DBNull.Value;
+                parameter.Value = (object?)parameterValues[i] ?? DBNull.Value;
             }
 
             return command;
@@ -109,7 +109,7 @@ internal static class DbCommandExtensions
 
     extension([NotNull] DbParameter parameter)
     {
-        public T GetParameterValue<T>()
+        public T? GetParameterValue<T>()
         {
             ArgumentNullException.ThrowIfNull(parameter);
 

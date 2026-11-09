@@ -18,16 +18,16 @@ namespace Masterly.NightShift.Dashboard;
 /// <summary>
 /// A named value the dashboard's home page can show, computed for each page by a function.
 /// </summary>
-public class DashboardMetric(string name, string title, Func<RazorPage, Metric> func)
+public class DashboardMetric(string name, string title, Func<RazorPage, Metric?> func)
 {
-    public DashboardMetric(string name, Func<RazorPage, Metric> func)
+    public DashboardMetric(string name, Func<RazorPage, Metric?> func)
         : this(name, name, func)
     {
     }
 
     public string Name { get; } = name;
-    public Func<RazorPage, Metric> Func { get; } = func;
+    public Func<RazorPage, Metric?> Func { get; } = func;
 
     public string Title { get; set; } = title;
-    public string Url { get; set; }
+    public string? Url { get; set; }
 }

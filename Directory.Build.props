@@ -10,6 +10,7 @@
         <!-- The newest C# the SDK supports, on every target framework (C# 14 with the .NET 10 SDK) -->
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
         <!-- The build enforces the code style in .editorconfig. Reporting unused usings (IDE0005) needs the
              documentation file; missing XML comments (CS1591) are not reported. -->
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

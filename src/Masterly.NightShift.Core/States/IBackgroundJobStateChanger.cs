@@ -25,5 +25,5 @@ public interface IBackgroundJobStateChanger
     /// </summary>
     /// <returns><c>Null</c> if a constraint has failed, otherwise the final applied state</returns>
     /// <remarks>Also ensures that the job data can be loaded for this job</remarks>
-    IState ChangeState(StateChangeContext context);
+    IState? ChangeState(StateChangeContext context);
 }

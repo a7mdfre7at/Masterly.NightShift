@@ -73,7 +73,7 @@ public static class JobHelper
         return DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
 
-    public static DateTime? DeserializeNullableDateTime(string value)
+    public static DateTime? DeserializeNullableDateTime(string? value)
     {
         if (string.IsNullOrEmpty(value))
         {

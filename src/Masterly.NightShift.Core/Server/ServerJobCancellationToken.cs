@@ -19,7 +19,7 @@ namespace Masterly.NightShift.Server;
 
 internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDisposable
 {
-    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<ServerJobCancellationToken, object>> WatchedServers
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<ServerJobCancellationToken, object?>> WatchedServers
         = new();
 
     private readonly NightShiftLock _syncRoot = new();
@@ -29,7 +29,7 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
     private readonly IStorageConnection _connection;
     private readonly CancellationToken _shutdownToken;
     private readonly Lazy<CancellationTokenHolder> _cancellationTokenHolder;
-    private readonly ConcurrentDictionary<ServerJobCancellationToken, object> _watchedTokens;
+    private readonly ConcurrentDictionary<ServerJobCancellationToken, object?>? _watchedTokens;
     private bool _disposed;
 
     public ServerJobCancellationToken(
@@ -120,7 +120,7 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
 
     public static void AddServer(string serverId)
     {
-        WatchedServers.TryAdd(serverId, new ConcurrentDictionary<ServerJobCancellationToken, object>());
+        WatchedServers.TryAdd(serverId, new ConcurrentDictionary<ServerJobCancellationToken, object?>());
     }
 
     public static void RemoveServer(string serverId)

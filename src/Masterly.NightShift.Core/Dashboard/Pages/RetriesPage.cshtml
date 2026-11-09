@@ -16,8 +16,8 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    Pager pager = null;
-    List<string> jobIds = null;
+    Pager? pager = null;
+    List<string>? jobIds = null;
 
     using (var connection = Storage.GetReadOnlyConnection())
     {
@@ -43,7 +43,7 @@ else
     <div class="row">
         <div class="col-md-12">
             <h1 id="page-title" class="page-header">@Strings.RetriesPage_Title</h1>
-            @if (jobIds.Count == 0)
+            @if (jobIds!.Count == 0)
             {
                 <div class="alert alert-success">
                     @Strings.RetriesPage_NoJobs
@@ -108,8 +108,8 @@ else
                             <tbody>
                                 @foreach (var jobId in jobIds)
                                 {
-                                    JobData jobData;
-                                    StateData stateData;
+                                    JobData? jobData;
+                                    StateData? stateData;
 
                                     using (var connection = Storage.GetReadOnlyConnection())
                                     {

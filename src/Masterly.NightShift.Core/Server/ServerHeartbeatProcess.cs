@@ -25,7 +25,7 @@ internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverT
     private readonly TimeSpan _interval = interval;
     private readonly TimeSpan _serverTimeout = serverTimeout;
     private readonly Action _requestRestart = requestRestart;
-    private Stopwatch _faultedSince;
+    private Stopwatch? _faultedSince;
 
     public void Execute(BackgroundProcessContext context)
     {

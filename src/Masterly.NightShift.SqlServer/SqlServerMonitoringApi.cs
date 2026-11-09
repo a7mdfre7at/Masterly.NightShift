@@ -73,7 +73,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             GetNumberOfJobsByStateName(connection, ProcessingState.StateName));
     }
 
-    public override JobList<ProcessingJobDto> ProcessingJobs(int @from, int count)
+    public override JobList<ProcessingJobDto?> ProcessingJobs(int @from, int count)
     {
         return UseConnection(connection => GetJobs(
             connection,
@@ -92,7 +92,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             }));
     }
 
-    public override JobList<ScheduledJobDto> ScheduledJobs(int @from, int count)
+    public override JobList<ScheduledJobDto?> ScheduledJobs(int @from, int count)
     {
         return UseConnection(connection => GetJobs(
             connection,
@@ -146,7 +146,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             {
                 var data = SerializationHelper.Deserialize<ServerData>(server.Data);
 
-                if (data.Queues == null && data.StartedAt == null && data.WorkerCount == 0)
+                if (data!.Queues == null && data.StartedAt == null && data.WorkerCount == 0) // Server data is never the JSON null
                 {
                     data = SerializationHelper.Deserialize<ServerData>(server.Data, SerializationOption.User);
                 }
@@ -155,7 +155,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 {
                     Name = server.Id,
                     Heartbeat = server.LastHeartbeat,
-                    Queues = data.Queues,
+                    Queues = data!.Queues!, // Checked above
                     StartedAt = data.StartedAt ?? DateTime.MinValue,
                     WorkersCount = data.WorkerCount
                 });
@@ -165,7 +165,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         });
     }
 
-    public override JobList<FailedJobDto> FailedJobs(int @from, int count)
+    public override JobList<FailedJobDto?> FailedJobs(int @from, int count)
     {
         return UseConnection(connection => GetJobs(
             connection,
@@ -188,7 +188,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             }));
     }
 
-    public override JobList<SucceededJobDto> SucceededJobs(int @from, int count)
+    public override JobList<SucceededJobDto?> SucceededJobs(int @from, int count)
     {
         return UseConnection(connection => GetJobs(
             connection,
@@ -211,7 +211,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             }));
     }
 
-    public override JobList<DeletedJobDto> DeletedJobs(int @from, int count)
+    public override JobList<DeletedJobDto?> DeletedJobs(int @from, int count)
     {
         return UseConnection(connection => GetJobs(
             connection,
@@ -230,7 +230,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             }));
     }
 
-    public override JobList<AwaitingJobDto> AwaitingJobs(int @from, int count)
+    public override JobList<AwaitingJobDto?> AwaitingJobs(int @from, int count)
     {
         var awaitingJobs = UseConnection(connection => GetJobs(
             connection,
@@ -249,8 +249,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             }));
 
         var parentIds = awaitingJobs
-            .Where(static x => x.Value != null && x.Value.InAwaitingState && x.Value.StateData.ContainsKey("ParentId"))
-            .Select(static x => long.Parse(x.Value.StateData["ParentId"], CultureInfo.InvariantCulture))
+            .Where(static x => x.Value != null && x.Value.InAwaitingState && x.Value.StateData!.ContainsKey("ParentId")) // A job in the Awaiting state has its data
+            .Select(static x => long.Parse(x.Value!.StateData!["ParentId"]!, CultureInfo.InvariantCulture)) // Filtered above
             .ToArray();
 
         var parentStates = UseConnection(connection =>
@@ -265,7 +265,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
         foreach (var awaitingJob in awaitingJobs)
         {
-            if (awaitingJob.Value != null && awaitingJob.Value.InAwaitingState && awaitingJob.Value.StateData.TryGetValue("ParentId", out var parentIdString))
+            if (awaitingJob.Value != null && awaitingJob.Value.InAwaitingState && awaitingJob.Value.StateData!.TryGetValue("ParentId", out var parentIdString)) // A job in the Awaiting state has its data
             {
                 var parentId = long.Parse(parentIdString, CultureInfo.InvariantCulture);
                 if (parentStates.TryGetValue(parentId, out var parentStateName))
@@ -316,7 +316,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
             var firstJobs = enqueuedJobIds != null
                 ? UseConnection(connection => EnqueuedJobs(connection, [.. enqueuedJobIds]))
-                : new JobList<EnqueuedJobDto>([]);
+                : new JobList<EnqueuedJobDto?>([]);
 
             result.Add(new QueueWithTopEnqueuedJobsDto
             {
@@ -330,7 +330,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         return result;
     }
 
-    public override JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
+    public override JobList<EnqueuedJobDto?> EnqueuedJobs(string queue, int from, int perPage)
     {
         ArgumentNullException.ThrowIfNull(queue);
 
@@ -340,7 +340,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         return UseConnection(connection => EnqueuedJobs(connection, [.. enqueuedJobIds]));
     }
 
-    public override JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
+    public override JobList<FetchedJobDto?> FetchedJobs(string queue, int @from, int perPage)
     {
         ArgumentNullException.ThrowIfNull(queue);
 
@@ -368,7 +368,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             GetHourlyTimelineStats(connection, "deleted"));
     }
 
-    public override JobDetailsDto JobDetails(string jobId)
+    public override JobDetailsDto? JobDetails(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
 
@@ -426,7 +426,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                         CreatedAt = x.CreatedAt,
                         Reason = x.Reason,
                         Data = new SafeDictionary<string, string>(
-                            SerializationHelper.Deserialize<Dictionary<string, string>>(x.Data),
+                            SerializationHelper.Deserialize<Dictionary<string, string>>(x.Data)!, // Every state is written with its data
                             StringComparer.OrdinalIgnoreCase),
                     })
                     .ToList();
@@ -439,7 +439,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 InvocationData = payload,
                 LoadException = exception,
                 History = history,
-                Properties = parameters
+                Properties = parameters! // A parameter set to null reads back as null
             };
         });
     }
@@ -584,7 +584,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         return _storage.UseConnection(null, static (_, connection, action) => action(connection), action);
     }
 
-    private JobList<EnqueuedJobDto> EnqueuedJobs(DbConnection connection, long[] jobIds)
+    private JobList<EnqueuedJobDto?> EnqueuedJobs(DbConnection connection, long[] jobIds)
     {
         var query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
@@ -634,7 +634,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         return count;
     }
 
-    private static Job DeserializeJob(string invocationData, string arguments, out InvocationData data, out JobLoadException exception)
+    private static Job? DeserializeJob(string invocationData, string? arguments, out InvocationData data, out JobLoadException? exception)
     {
         data = InvocationData.DeserializePayload(invocationData);
 
@@ -655,13 +655,13 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         }
     }
 
-    private JobList<TDto> GetJobs<TDto>(
+    private JobList<TDto?> GetJobs<TDto>(
         DbConnection connection,
         int from,
         int count,
         string stateName,
         bool descending,
-        Func<SqlJob, Job, InvocationData, JobLoadException, SafeDictionary<string, string>, TDto> selector)
+        Func<SqlJob, Job?, InvocationData, JobLoadException?, SafeDictionary<string, string>, TDto> selector)
     {
         var order = descending ? "desc" : "asc";
         var query = string.Format(CultureInfo.InvariantCulture, _storage.GetQueryFromTemplate(static schemaName =>
@@ -688,11 +688,11 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         return DeserializeJobs(jobs, selector);
     }
 
-    private static JobList<TDto> DeserializeJobs<TDto>(
+    private static JobList<TDto?> DeserializeJobs<TDto>(
         ICollection<SqlJob> jobs,
-        Func<SqlJob, Job, InvocationData, JobLoadException, SafeDictionary<string, string>, TDto> selector)
+        Func<SqlJob, Job?, InvocationData, JobLoadException?, SafeDictionary<string, string>, TDto> selector)
     {
-        var result = new List<KeyValuePair<string, TDto>>(jobs.Count);
+        var result = new List<KeyValuePair<string, TDto?>>(jobs.Count);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var job in jobs)
@@ -706,17 +706,17 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                     ? new SafeDictionary<string, string>(deserializedData, StringComparer.OrdinalIgnoreCase)
                     : null;
 
-                dto = selector(job, DeserializeJob(job.InvocationData, job.Arguments, out var invocationData, out var loadException), invocationData, loadException, stateData);
+                dto = selector(job, DeserializeJob(job.InvocationData, job.Arguments, out var invocationData, out var loadException), invocationData, loadException, stateData!); // A job listed by state has its data
             }
 
-            result.Add(new KeyValuePair<string, TDto>(
+            result.Add(new KeyValuePair<string, TDto?>(
                 job.Id.ToString(CultureInfo.InvariantCulture), dto));
         }
 
-        return new JobList<TDto>(result);
+        return new JobList<TDto?>(result);
     }
 
-    private JobList<FetchedJobDto> FetchedJobs(DbConnection connection, IEnumerable<long> jobIds)
+    private JobList<FetchedJobDto?> FetchedJobs(DbConnection connection, IEnumerable<long> jobIds)
     {
         var query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
@@ -732,12 +732,12 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             commandTimeout: _storage.CommandTimeout)
             .ToList();
 
-        var result = new List<KeyValuePair<string, FetchedJobDto>>(jobs.Count);
+        var result = new List<KeyValuePair<string, FetchedJobDto?>>(jobs.Count);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var job in jobs)
         {
-            result.Add(new KeyValuePair<string, FetchedJobDto>(
+            result.Add(new KeyValuePair<string, FetchedJobDto?>(
                 job.Id.ToString(CultureInfo.InvariantCulture),
                 new FetchedJobDto
                 {
@@ -746,26 +746,26 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 }));
         }
 
-        return new JobList<FetchedJobDto>(result);
+        return new JobList<FetchedJobDto?>(result);
     }
 
     /// <summary>
     /// Overloaded dictionary that doesn't throw if given an invalid key
     /// Fixes issues such as https://github.com/HangfireIO/Hangfire/issues/871
     /// </summary>
-    private sealed class SafeDictionary<TKey, TValue>(IDictionary<TKey, TValue> dictionary, IEqualityComparer<TKey> comparer) : Dictionary<TKey, TValue>(dictionary, comparer)
+    private sealed class SafeDictionary<TKey, TValue>(IDictionary<TKey, TValue> dictionary, IEqualityComparer<TKey> comparer) : Dictionary<TKey, TValue>(dictionary, comparer) where TKey : notnull
     {
-        public new TValue this[TKey i]
+        public new TValue? this[TKey i]
         {
             get => TryGetValue(i, out var value) ? value : default;
-            set => base[i] = value;
+            set => base[i] = value!; // Written as given, as the base class does
         }
     }
 
     private sealed class ParentStateDto
     {
         public long Id { get; set; }
-        public string StateName { get; set; }
+        public string? StateName { get; set; }
     }
 }
 

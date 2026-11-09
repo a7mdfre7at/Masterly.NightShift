@@ -19,14 +19,14 @@ namespace Masterly.NightShift.Dashboard;
 
 internal class EmbeddedResourceDispatcher : IDashboardDispatcher
 {
-    private readonly Assembly _assembly;
-    private readonly string _resourceName;
+    private readonly Assembly? _assembly;
+    private readonly string? _resourceName;
     private readonly string _contentType;
 
     public EmbeddedResourceDispatcher(
         [NotNull] string contentType,
-        [CanBeNull] Assembly assembly,
-        [CanBeNull] string resourceName)
+        [CanBeNull] Assembly? assembly,
+        [CanBeNull] string? resourceName)
     {
         ArgumentNullException.ThrowIfNull(contentType);
 
@@ -45,7 +45,7 @@ internal class EmbeddedResourceDispatcher : IDashboardDispatcher
 
     protected virtual Task WriteResponse(DashboardResponse response)
     {
-        return WriteResource(response, _assembly, _resourceName);
+        return WriteResource(response, _assembly!, _resourceName!); // Null only in classes that override this method
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Context can be potentially accessed in derived classes.")]

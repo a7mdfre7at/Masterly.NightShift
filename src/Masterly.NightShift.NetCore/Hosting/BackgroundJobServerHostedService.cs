@@ -30,12 +30,12 @@ public class BackgroundJobServerHostedService : IHostedService, IDisposable
     private readonly BackgroundJobServerOptions _options;
     private readonly JobStorage _storage;
     private readonly IEnumerable<IBackgroundProcess> _additionalProcesses;
-    private readonly IHostApplicationLifetime _hostApplicationLifetime;
-    private readonly IBackgroundJobFactory _factory;
-    private readonly IBackgroundJobPerformer _performer;
-    private readonly IBackgroundJobStateChanger _stateChanger;
+    private readonly IHostApplicationLifetime? _hostApplicationLifetime;
+    private readonly IBackgroundJobFactory? _factory;
+    private readonly IBackgroundJobPerformer? _performer;
+    private readonly IBackgroundJobStateChanger? _stateChanger;
 
-    private IBackgroundProcessingServer _processingServer;
+    private IBackgroundProcessingServer? _processingServer;
 
     /// <summary>
     /// Initializes the service, which starts the server at once.
@@ -62,7 +62,7 @@ public class BackgroundJobServerHostedService : IHostedService, IDisposable
         [NotNull] JobStorage storage,
         [NotNull] BackgroundJobServerOptions options,
         [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
-        [CanBeNull] IHostApplicationLifetime hostApplicationLifetime)
+        [CanBeNull] IHostApplicationLifetime? hostApplicationLifetime)
         : this(storage, options, additionalProcesses, null, null, null, hostApplicationLifetime)
     {
     }
@@ -81,9 +81,9 @@ public class BackgroundJobServerHostedService : IHostedService, IDisposable
         [NotNull] JobStorage storage,
         [NotNull] BackgroundJobServerOptions options,
         [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
-        [CanBeNull] IBackgroundJobFactory factory,
-        [CanBeNull] IBackgroundJobPerformer performer,
-        [CanBeNull] IBackgroundJobStateChanger stateChanger)
+        [CanBeNull] IBackgroundJobFactory? factory,
+        [CanBeNull] IBackgroundJobPerformer? performer,
+        [CanBeNull] IBackgroundJobStateChanger? stateChanger)
         : this(storage, options, additionalProcesses, factory, performer, stateChanger, null)
     {
     }
@@ -103,10 +103,10 @@ public class BackgroundJobServerHostedService : IHostedService, IDisposable
         [NotNull] JobStorage storage,
         [NotNull] BackgroundJobServerOptions options,
         [NotNull] IEnumerable<IBackgroundProcess> additionalProcesses,
-        [CanBeNull] IBackgroundJobFactory factory,
-        [CanBeNull] IBackgroundJobPerformer performer,
-        [CanBeNull] IBackgroundJobStateChanger stateChanger,
-        [CanBeNull] IHostApplicationLifetime hostApplicationLifetime)
+        [CanBeNull] IBackgroundJobFactory? factory,
+        [CanBeNull] IBackgroundJobPerformer? performer,
+        [CanBeNull] IBackgroundJobStateChanger? stateChanger,
+        [CanBeNull] IHostApplicationLifetime? hostApplicationLifetime)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));

@@ -20,5 +20,5 @@ namespace Masterly.NightShift.Server;
 /// </summary>
 public interface IBackgroundJobPerformer
 {
-    object Perform(PerformContext context);
+    object? Perform(PerformContext context);
 }

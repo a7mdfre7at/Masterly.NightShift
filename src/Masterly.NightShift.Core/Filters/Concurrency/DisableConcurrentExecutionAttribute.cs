@@ -52,12 +52,12 @@ public class DisableConcurrentExecutionAttribute : JobFilterAttribute, IServerFi
     }
 
     [CanBeNull]
-    public string Resource { get; }
+    public string? Resource { get; }
     public int TimeoutSec { get; }
 
     public void OnPerforming(PerformingContext context)
     {
-        var resource = GetResource(context.BackgroundJob.Job);
+        var resource = GetResource(context.BackgroundJob.Job!); // A job being performed was loaded
         var timeout = TimeSpan.FromSeconds(TimeoutSec);
 
         var distributedLock = context.Connection.AcquireDistributedLock(resource, timeout);

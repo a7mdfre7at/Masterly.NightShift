@@ -162,7 +162,7 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
         _shutdownCts.Dispose();
     }
 
-    private void OnCurrentDomainUnload(object sender, EventArgs args)
+    private void OnCurrentDomainUnload(object? sender, EventArgs args)
     {
         if (Volatile.Read(ref _disposed) == 1) return;
 
@@ -200,9 +200,9 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
             ThreadFactory);
     }
 
-    private void RunServer(Guid executionId, object state)
+    private void RunServer(Guid executionId, object? state)
     {
-        _process.Execute(executionId, (BackgroundExecution)state, _stoppingCts.Token, _stoppedCts.Token, _shutdownCts.Token);
+        _process.Execute(executionId, (BackgroundExecution)state!, _stoppingCts.Token, _stoppedCts.Token, _shutdownCts.Token); // The execution passed when creating the dispatcher
     }
 
     private static IEnumerable<Thread> ThreadFactory(ThreadStart threadStart)

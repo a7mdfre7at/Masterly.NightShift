@@ -30,9 +30,9 @@ internal sealed class SlowLogProfiler(ILog logger, TimeSpan threshold) : IProfil
     }
 
     public TResult InvokeMeasured<TInstance, TResult>(
-        TInstance instance,
+        TInstance? instance,
         Func<TInstance, TResult> action,
-        Func<TInstance, string> messageFunc = null)
+        Func<TInstance, string>? messageFunc = null)
     {
         ArgumentNullException.ThrowIfNull(action);
 
@@ -41,15 +41,15 @@ internal sealed class SlowLogProfiler(ILog logger, TimeSpan threshold) : IProfil
         // TODO: Change implementation to thread-based, once it is possible to query custom services everywhere
         using (new Timer(LogWarningMessage, null, _threshold, _threshold))
         {
-            return action(instance);
+            return action(instance!); // The instance the caller passed
         }
 
-        void LogWarningMessage(object state)
+        void LogWarningMessage(object? state)
         {
             var elapsedSec = unchecked(Environment.TickCount - startedAt) / 1_000;
 
             var type = instance?.ToString() ?? typeof(TInstance).ToString();
-            var message = messageFunc?.Invoke(instance) ?? "(null)";
+            var message = messageFunc?.Invoke(instance!) ?? "(null)"; // The instance the caller passed
 
             _logger.Warn($"Slow log: {type} is still performing \"{message}\" after {elapsedSec} sec");
         }

@@ -42,14 +42,14 @@ public class JobFilterAttributeFilterProvider(bool cacheAttributeInstances) : IJ
         return job.GetMethodFilterAttributes(_cacheAttributeInstances);
     }
 
-    public virtual IEnumerable<JobFilter> GetFilters(Job job)
+    public virtual IEnumerable<JobFilter> GetFilters(Job? job)
     {
         if (job == null) return [];
 
         var typeAttributes = GetTypeAttributes(job);
         var methodAttributes = GetMethodAttributes(job);
 
-        List<JobFilter> combined = null;
+        List<JobFilter>? combined = null;
 
         foreach (var typeAttribute in typeAttributes)
         {

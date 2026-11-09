@@ -100,7 +100,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         // TODO: Remove this method and IApplyStateFilter interface in 2.0.0.
     }
 
-    internal static List<Continuation> DeserializeContinuations(string serialized)
+    internal static List<Continuation> DeserializeContinuations(string? serialized)
     {
         var continuations = SerializationHelper.Deserialize<List<Continuation>>(serialized);
 
@@ -199,7 +199,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             // the state of a continuation, we should simply skip it.
             if (currentState.Name != AwaitingState.StateName) continue;
 
-            IState nextState;
+            IState? nextState;
 
             if (!ShouldStartContinuation(context.CandidateState.Name, continuation.Options))
             {
@@ -222,11 +222,11 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
             // Duplicate continuations are possible when they were added by Hangfire before version 1.6.10, see the
             // check for existing continuations in AddContinuation; the first one wins.
-            nextStates.TryAdd(continuation.JobId, nextState);
+            nextStates.TryAdd(continuation.JobId, nextState!); // NextState was written from a real state
         }
 
-        string antecedentResult = null;
-        string antecedentException = null;
+        string? antecedentResult = null;
+        string? antecedentException = null;
 
         if (PushResults)
         {
@@ -266,9 +266,9 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         }
     }
 
-    private StateData GetContinuationState(ElectStateContext context, string continuationJobId, TimeSpan timeout)
+    private StateData? GetContinuationState(ElectStateContext context, string continuationJobId, TimeSpan timeout)
     {
-        StateData currentState = null;
+        StateData? currentState = null;
 
         var started = Stopwatch.StartNew();
         var firstAttempt = true;
@@ -341,12 +341,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         connection.SetJobParameter(jobId, "Continuations", SerializationHelper.Serialize(continuations));
     }
 
-    private static List<Continuation> GetContinuations(ElectStateContext context, string jobId)
+    private static List<Continuation> GetContinuations(ElectStateContext context, string? jobId)
     {
         // We are altering continuation list only when its background job is locked,
         // and parameter snapshot is obtained only when background job is locked, so
         // it's safe to use cached list when possible.
-        string serialized;
+        string? serialized;
 
         if (string.IsNullOrEmpty(jobId) && context.BackgroundJob.ParametersSnapshot != null)
         {

@@ -37,7 +37,7 @@ public class Metric
     public long IntValue { get; set; }
     public MetricStyle Style { get; set; }
     public bool Highlighted { get; set; }
-    public string Title { get; set; }
+    public string? Title { get; set; }
 }
 
 /// <summary>

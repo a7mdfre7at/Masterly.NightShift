@@ -20,6 +20,6 @@ namespace Masterly.NightShift.Processing;
 /// </summary>
 public interface IBackgroundExecution : IDisposable
 {
-    void Run([NotNull] Action<Guid, object> callback, [CanBeNull] object state);
-    Task RunAsync([NotNull] Func<Guid, object, Task> callback, [CanBeNull] object state);
+    void Run([NotNull] Action<Guid, object?> callback, [CanBeNull] object? state);
+    Task RunAsync([NotNull] Func<Guid, object?, Task> callback, [CanBeNull] object? state);
 }

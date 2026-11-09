@@ -19,6 +19,7 @@
   <!-- Global usings, next to the implicit ones of the SDK -->
   <ItemGroup>
     <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="System.Diagnostics.CodeAnalysis.NotNullWhenAttribute" Alias="NotNullWhenAttribute" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 </Project>

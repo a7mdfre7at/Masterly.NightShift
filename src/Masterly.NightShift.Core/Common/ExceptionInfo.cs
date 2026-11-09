@@ -39,7 +39,7 @@ public sealed class ExceptionInfo
     }
 
     [JsonConstructor]
-    public ExceptionInfo([NotNull] string type, [CanBeNull] string message, [CanBeNull] ExceptionInfo innerException)
+    public ExceptionInfo([NotNull] string type, [CanBeNull] string? message, [CanBeNull] ExceptionInfo? innerException)
     {
         Type = type ?? throw new ArgumentNullException(nameof(type));
         Message = message;
@@ -52,11 +52,11 @@ public sealed class ExceptionInfo
 
     [CanBeNull]
     [JsonInclude, JsonPropertyName("m"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string Message { get; }
+    public string? Message { get; }
 
     [CanBeNull]
     [JsonInclude, JsonPropertyName("i"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ExceptionInfo InnerException { get; }
+    public ExceptionInfo? InnerException { get; }
 
     public override string ToString()
     {

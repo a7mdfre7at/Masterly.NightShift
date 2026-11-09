@@ -32,5 +32,5 @@ public interface IBackgroundJobFactory
     /// Runs the process of job creation with the specified context.
     /// </summary>
     [CanBeNull]
-    BackgroundJob Create([NotNull] CreateContext context);
+    BackgroundJob? Create([NotNull] CreateContext context);
 }

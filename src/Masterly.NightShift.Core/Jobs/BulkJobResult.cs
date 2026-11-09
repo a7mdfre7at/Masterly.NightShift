@@ -1,5 +1,3 @@
-#nullable enable
-
 using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift;

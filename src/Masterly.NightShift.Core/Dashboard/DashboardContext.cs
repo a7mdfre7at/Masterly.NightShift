@@ -63,19 +63,19 @@ public abstract class DashboardContext
     /// Gets or sets the URI match information passed from the configured <c>pathTemplate</c>
     /// when defining a route in the <see cref="DashboardRoutes"/> class.
     /// </summary>
-    public Match UriMatch { get; set; }
+    public Match UriMatch { get; set; } = null!; // Set when a route matches, before any dispatcher runs
 
     /// <summary>
     /// Gets the <see cref="DashboardRequest"/> metadata.
     /// Used by request dispatchers (please see <see cref="IDashboardDispatcher"/>) to provide request information.
     /// </summary>
-    public DashboardRequest Request { get; protected set; }
+    public DashboardRequest Request { get; protected set; } = null!; // Set by the constructor of each host's context
 
     /// <summary>
     /// Gets the <see cref="DashboardResponse"/> metadata.
     /// Used by request dispatchers (please see <see cref="IDashboardDispatcher"/>) to send response information.
     /// </summary>
-    public DashboardResponse Response { get; protected set; }
+    public DashboardResponse Response { get; protected set; } = null!; // Set by the constructor of each host's context
 
     /// <summary>
     /// Gets a value indicating whether the Dashboard UI is in read-only mode to possibly
@@ -87,7 +87,7 @@ public abstract class DashboardContext
     /// Gets or sets the name of the header the page's scripts send the anti-forgery token in. Reading it the
     /// first time generates the tokens (see <see cref="GenerateAntiforgeryTokens"/>), unless a value was set.
     /// </summary>
-    public string AntiforgeryHeader
+    public string? AntiforgeryHeader
     {
         get
         {
@@ -105,7 +105,7 @@ public abstract class DashboardContext
     /// Gets or sets the anti-forgery token the page's scripts send with every request. Reading it the first
     /// time generates the tokens (see <see cref="GenerateAntiforgeryTokens"/>), unless a value was set.
     /// </summary>
-    public string AntiforgeryToken
+    public string? AntiforgeryToken
     {
         get
         {
@@ -151,7 +151,7 @@ public abstract class DashboardContext
     /// The ASP.NET Core adapter answers from <c>HttpContext.User</c>.
     /// </summary>
     /// <returns>The user name, or <c>null</c> when the host has none.</returns>
-    public virtual string GetUserName()
+    public virtual string? GetUserName()
     {
         return null;
     }

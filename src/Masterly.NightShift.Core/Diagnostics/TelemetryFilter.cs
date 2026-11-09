@@ -56,7 +56,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         var traceContext = activity ?? Activity.Current;
         if (traceContext != null && traceContext.IdFormat == ActivityIdFormat.W3C)
         {
-            context.SetJobParameter(TraceParentParameter, traceContext.Id);
+            context.SetJobParameter(TraceParentParameter, traceContext.Id!); // A started activity has an id
 
             if (!string.IsNullOrEmpty(traceContext.TraceStateString))
             {
@@ -95,7 +95,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 
             if (failed)
             {
-                SetError(activity, context.Exception);
+                SetError(activity, context.Exception!); // A failed run has its exception
             }
 
             activity.Stop();
@@ -184,7 +184,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 
             if (outcome == OutcomeFailed)
             {
-                SetError(activity, context.Exception);
+                SetError(activity, context.Exception!); // A failed run has its exception
             }
 
             activity.Stop();
@@ -225,7 +225,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         };
     }
 
-    private static void SetCommonTags(Activity activity, string operation, Job job, string queue)
+    private static void SetCommonTags(Activity activity, string operation, Job? job, string? queue)
     {
         activity.SetTag("messaging.system", "nightshift");
         activity.SetTag("messaging.operation.name", operation);
@@ -259,7 +259,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 #endif
     }
 
-    private static string GetErrorType(Exception exception)
+    private static string? GetErrorType(Exception? exception)
     {
         return exception != null ? Unwrap(exception).GetType().FullName : null;
     }
@@ -270,22 +270,22 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         return JobOutcomes.Unwrap(exception);
     }
 
-    private static KeyValuePair<string, object> Tag(string key, object value)
+    private static KeyValuePair<string, object?> Tag(string key, object? value)
     {
-        return new KeyValuePair<string, object>(key, value);
+        return new KeyValuePair<string, object?>(key, value);
     }
 
-    private static string GetJobName(Job job)
+    private static string? GetJobName(Job? job)
     {
         return job?.Type != null ? $"{job.Type.Name}.{job.Method?.Name}" : null;
     }
 
-    private static string GetQueue(Job job, IState state)
+    private static string? GetQueue(Job job, IState? state)
     {
         return state is EnqueuedState enqueued ? GetEnqueuedQueue(job, enqueued.Queue) : job?.Queue;
     }
 
-    private static string ReadFetchedQueue(ApplyStateContext context)
+    private static string? ReadFetchedQueue(ApplyStateContext context)
     {
         try
         {
@@ -303,7 +303,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         }
     }
 
-    private static string GetEnqueuedQueue(Job job, string stateQueue)
+    private static string? GetEnqueuedQueue(Job? job, string? stateQueue)
     {
         // The same choice EnqueuedState's handler makes when it adds the job to a queue: the state's queue,
         // unless it's the default one and the job has its own

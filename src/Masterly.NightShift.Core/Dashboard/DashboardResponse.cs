@@ -30,7 +30,7 @@ public abstract class DashboardResponse
     /// Gets or sets the content type of the response like <c>"application/json"</c>.
     /// </summary>
     /// <value>The content type of the response.</value>
-    public abstract string ContentType { get; set; }
+    public abstract string? ContentType { get; set; }
 
     /// <summary>
     /// Gets or sets the HTTP status code of the response like <c>200</c>.

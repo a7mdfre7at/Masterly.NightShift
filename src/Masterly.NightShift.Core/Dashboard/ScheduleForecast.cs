@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-namespace Masterly.NightShift.Dashboard;
+﻿namespace Masterly.NightShift.Dashboard;
 
 /// <summary>
 /// Projects every recurring job's upcoming runs over a window, with the expected duration of each run taken

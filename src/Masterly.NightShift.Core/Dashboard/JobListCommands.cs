@@ -65,7 +65,7 @@ internal static class JobListCommands
     /// <returns>
     /// The result, or <c>null</c> when the storage can't page through a set (no <see cref="JobStorageFeatures.ExtendedApi"/>).
     /// </returns>
-    public static BulkJobResult DeleteAllFromSet(DashboardContext context, string setKey, string expectedState)
+    public static BulkJobResult? DeleteAllFromSet(DashboardContext context, string setKey, string expectedState)
     {
         if (!context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
         {
@@ -119,7 +119,7 @@ internal static class JobListCommands
     internal static BulkJobResult Run(
         Func<string, bool> change,
         Func<int, int, IEnumerable<KeyValuePair<string, bool>>> page,
-        Func<long> count)
+        Func<long>? count)
     {
         return BulkStateChange.RunOnPages(change, page, count, MaxReads, TimeBudget);
     }
@@ -130,9 +130,9 @@ internal static class JobListCommands
 /// <c>200</c> with <c>{ processed, remaining, complete }</c>, or <c>422</c> when the storage can't do it,
 /// and records the action in the audit log.
 /// </summary>
-internal sealed class JobListCommandDispatcher(Func<DashboardContext, BulkJobResult> command) : IDashboardCommandDispatcher
+internal sealed class JobListCommandDispatcher(Func<DashboardContext, BulkJobResult?> command) : IDashboardCommandDispatcher
 {
-    private readonly Func<DashboardContext, BulkJobResult> _command = command ?? throw new ArgumentNullException(nameof(command));
+    private readonly Func<DashboardContext, BulkJobResult?> _command = command ?? throw new ArgumentNullException(nameof(command));
 
     public async Task Dispatch(DashboardContext context)
     {
@@ -148,7 +148,7 @@ internal sealed class JobListCommandDispatcher(Func<DashboardContext, BulkJobRes
             return;
         }
 
-        BulkJobResult result;
+        BulkJobResult? result;
         try
         {
             result = _command(context);

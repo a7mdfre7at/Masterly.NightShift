@@ -67,7 +67,7 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
             // The job finished before: don't run it again, restore the recorded final state instead
             if (completed)
             {
-                context.CandidateState = SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal);
+                context.CandidateState = SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal)!; // A recorded state is never the JSON null
             }
 
             return;
@@ -81,9 +81,9 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
 
         // Leaving a final state (Requeue, for example) is an explicit request to run the job again. A job whose
         // final state was lost is still Processing in storage, and keeps its recorded completion.
-        if (completed && IsFinalState(context.CurrentState, serializedState))
+        if (completed && IsFinalState(context.CurrentState, serializedState!)) // completed: not null
         {
-            context.SetJobParameter<string>(CompletionParameter, null);
+            context.SetJobParameter<string?>(CompletionParameter, null);
         }
     }
 

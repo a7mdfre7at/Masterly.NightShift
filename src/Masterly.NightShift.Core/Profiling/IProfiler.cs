@@ -20,7 +20,7 @@ internal interface IProfiler
 {
     // TODO: Replace method with some eventId
     TResult InvokeMeasured<TInstance, TResult>(
-        [CanBeNull] TInstance instance,
+        [CanBeNull] TInstance? instance,
         [NotNull, InstantHandle] Func<TInstance, TResult> action,
-        [CanBeNull] Func<TInstance, string> messageFunc = null);
+        [CanBeNull] Func<TInstance, string>? messageFunc = null);
 }

@@ -35,7 +35,7 @@
     var finishedHour = Math.Round(succeededHour + failedHour);
     double? successRate = finishedHour < 1 ? (double?)null : 100.0 * succeededHour / (succeededHour + failedHour);
 
-    var processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto>(new List<KeyValuePair<string, ProcessingJobDto>>()) : monitor.ProcessingJobs(0, 8);
+    var processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto?>(new List<KeyValuePair<string, ProcessingJobDto?>>()) : monitor.ProcessingJobs(0, 8);
     var totalWorkers = monitor.Servers().Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= now - DashboardOptions.ServerPossiblyAbortedThreshold).Sum(s => s.WorkersCount);
 
     IReadOnlyDictionary<string, QueueHealth> queueHealth = new Dictionary<string, QueueHealth>();
@@ -57,7 +57,7 @@
 
             if (connection is JobStorageConnection storageConnection)
             {
-                foreach (var key in processing.Where(p => p.Value != null && p.Value.Job != null).Select(p => JobInsightsAttribute.GetKey(p.Value.Job)).Distinct(StringComparer.Ordinal))
+                foreach (var key in processing.Where(p => p.Value != null && p.Value.Job != null).Select(p => JobInsightsAttribute.GetKey(p.Value!.Job!)).Distinct(StringComparer.Ordinal))
                 {
                     var insight = JobInsightsAttribute.Read(storageConnection, key);
                     if (insight != null) insights[key] = insight;
@@ -76,7 +76,7 @@
     var statusClass = report.Status == HealthStatus.Healthy ? "hf-wb-ok" : report.Status == HealthStatus.Degraded ? "hf-wb-warn" : "hf-wb-down";
     var statusText = report.Status == HealthStatus.Healthy ? Strings.WallboardPage_Healthy : report.Status == HealthStatus.Degraded ? Strings.WallboardPage_Degraded : Strings.WallboardPage_Unhealthy;
 
-    var version = GetType().GetTypeInfo().Assembly.GetName().Version;
+    var version = GetType().GetTypeInfo().Assembly.GetName().Version!;
     var statistics = report.Statistics;
 }<!DOCTYPE html>
 <html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" data-theme="dark" class="hf-wb-html">

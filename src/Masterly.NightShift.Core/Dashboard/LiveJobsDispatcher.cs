@@ -27,7 +27,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
         }
 
         var withConsole = await GetConsoleFlagAsync(context).ConfigureAwait(false);
-        var jobs = new Dictionary<string, object>();
+        var jobs = new Dictionary<string, object?>();
 
         using var connection = context.Storage.GetReadOnlyConnection();
         var now = GetUtcNow(context.Storage, connection);
@@ -45,7 +45,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
         }).ConfigureAwait(false);
     }
 
-    private static object GetLiveJob(IStorageConnection connection, string jobId, DateTime now, bool withConsole)
+    private static object? GetLiveJob(IStorageConnection connection, string jobId, DateTime now, bool withConsole)
     {
         var stateData = connection.GetStateData(jobId);
         if (stateData == null)
@@ -54,7 +54,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
         }
 
         DateTime? startedAt = null;
-        string serverId = null;
+        string? serverId = null;
 
         if (stateData.Data != null)
         {
@@ -95,7 +95,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
     private static async Task<bool> GetConsoleFlagAsync(DashboardContext context)
     {
-        string value;
+        string? value;
 
         if ("POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
         {

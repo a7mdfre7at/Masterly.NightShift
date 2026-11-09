@@ -28,7 +28,7 @@ internal sealed class SqlServerHeartbeatProcess : IBackgroundProcess
 
     public void Track(SqlServerTimeoutJob item)
     {
-        _items.TryAdd(item, null);
+        _items.TryAdd(item, null!); // Used as a set: the value is ignored
     }
 
     public void Untrack(SqlServerTimeoutJob item)

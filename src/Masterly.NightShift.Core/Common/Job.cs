@@ -73,7 +73,7 @@ namespace Masterly.NightShift.Common;
 public partial class Job
 {
     private static readonly object[] EmptyObjectArray = [];
-    private static readonly ConcurrentDictionary<MethodInfo, AsyncStateMachineAttribute>
+    private static readonly ConcurrentDictionary<MethodInfo, AsyncStateMachineAttribute?>
         AsyncStateMachineAttributeCache = new();
 
     /// <summary>
@@ -103,7 +103,7 @@ public partial class Job
     /// <exception cref="NotSupportedException"><paramref name="method"/> is not supported.</exception>
     public Job([NotNull] MethodInfo method, [NotNull] params object[] args)
         // ReSharper disable once AssignNullToNotNullAttribute
-        : this(method.DeclaringType, method, args)
+        : this(method.DeclaringType!, method, args) // Job methods are declared on a type
     {
     }
 
@@ -189,7 +189,7 @@ public partial class Job
     /// </exception>
     /// <exception cref="ArgumentException">Parameter/argument count mismatch.</exception>
     /// <exception cref="NotSupportedException"><paramref name="method"/> is not supported.</exception>
-    public Job([NotNull] Type type, [NotNull] MethodInfo method, [NotNull] IReadOnlyList<object> args, [CanBeNull] string queue)
+    public Job([NotNull] Type type, [NotNull] MethodInfo method, [NotNull] IReadOnlyList<object> args, [CanBeNull] string? queue)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(method);
@@ -234,7 +234,7 @@ public partial class Job
     /// overriden by a job filter.
     /// </summary>
     [CanBeNull]
-    public string Queue { get; }
+    public string? Queue { get; }
 
     public override string ToString()
     {
@@ -308,7 +308,7 @@ public partial class Job
         return FromExpression(methodCall, null);
     }
 
-    public static Job FromExpression([NotNull, InstantHandle] Expression<Action> methodCall, [CanBeNull] string queue)
+    public static Job FromExpression([NotNull, InstantHandle] Expression<Action> methodCall, [CanBeNull] string? queue)
     {
         return FromExpression(methodCall, null, queue);
     }
@@ -346,7 +346,7 @@ public partial class Job
         return FromExpression(methodCall, null);
     }
 
-    public static Job FromExpression([NotNull, InstantHandle] Expression<Func<Task>> methodCall, [CanBeNull] string queue)
+    public static Job FromExpression([NotNull, InstantHandle] Expression<Func<Task>> methodCall, [CanBeNull] string? queue)
     {
         return FromExpression(methodCall, null, queue);
     }
@@ -376,7 +376,7 @@ public partial class Job
         return FromExpression(methodCall, null);
     }
 
-    public static Job FromExpression<TType>([NotNull, InstantHandle] Expression<Action<TType>> methodCall, [CanBeNull] string queue)
+    public static Job FromExpression<TType>([NotNull, InstantHandle] Expression<Action<TType>> methodCall, [CanBeNull] string? queue)
     {
         return FromExpression(methodCall, typeof(TType), queue);
     }
@@ -406,12 +406,12 @@ public partial class Job
         return FromExpression(methodCall, null);
     }
 
-    public static Job FromExpression<TType>([NotNull, InstantHandle] Expression<Func<TType, Task>> methodCall, [CanBeNull] string queue)
+    public static Job FromExpression<TType>([NotNull, InstantHandle] Expression<Func<TType, Task>> methodCall, [CanBeNull] string? queue)
     {
         return FromExpression(methodCall, typeof(TType), queue);
     }
 
-    private static Job FromExpression([NotNull] LambdaExpression methodCall, [CanBeNull] Type explicitType, [CanBeNull] string queue)
+    private static Job FromExpression([NotNull] LambdaExpression methodCall, [CanBeNull] Type? explicitType, [CanBeNull] string? queue)
     {
         ArgumentNullException.ThrowIfNull(methodCall);
 
@@ -441,8 +441,8 @@ public partial class Job
 
         return new Job(
             // ReSharper disable once AssignNullToNotNullAttribute
-            type,
-            method,
+            type!, // Set by the parsing above
+            method!, // Set by the parsing above
             GetExpressionValues(callExpression.Arguments),
             queue);
     }
@@ -529,13 +529,13 @@ public partial class Job
 
         foreach (var expression in expressions)
         {
-            result[index++] = GetExpressionValue(expression);
+            result[index++] = GetExpressionValue(expression)!; // Job arguments may be null
         }
 
         return result;
     }
 
-    private static object GetExpressionValue(Expression expression)
+    private static object? GetExpressionValue(Expression expression)
     {
         return expression is ConstantExpression constantExpression
             ? constantExpression.Value

@@ -47,19 +47,19 @@ public abstract class DashboardRequest
     /// <summary>
     /// Gets the local IP address from which the request originated.
     /// </summary>
-    public abstract string LocalIpAddress { get; }
+    public abstract string? LocalIpAddress { get; }
 
     /// <summary>
     /// Gets the remote IP address from which the request originated.
     /// </summary>
-    public abstract string RemoteIpAddress { get; }
+    public abstract string? RemoteIpAddress { get; }
 
     /// <summary>
     /// Gets the value of a specific query string parameter.
     /// </summary>
     /// <param name="key">The key of the query string parameter.</param>
     /// <returns>The value of the query string parameter.</returns>
-    public abstract string GetQuery(string key);
+    public abstract string? GetQuery(string key);
 
     /// <summary>
     /// Gets the values of a specific form parameter asynchronously, reading the request body if it's a form.
@@ -75,7 +75,7 @@ public abstract class DashboardRequest
     /// </summary>
     /// <param name="name">The header name, compared without case.</param>
     /// <returns>The header value, or <c>null</c> when the request doesn't have the header or the host doesn't expose headers.</returns>
-    public virtual string GetHeader(string name)
+    public virtual string? GetHeader(string name)
     {
         return null;
     }

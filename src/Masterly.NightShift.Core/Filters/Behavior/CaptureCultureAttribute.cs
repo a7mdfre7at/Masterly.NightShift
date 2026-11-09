@@ -25,8 +25,8 @@ namespace Masterly.NightShift;
 /// while the job runs. Added to the global filters by default.
 /// </summary>
 public sealed class CaptureCultureAttribute(
-    [CanBeNull] string defaultCultureName,
-    [CanBeNull] string defaultUICultureName,
+    [CanBeNull] string? defaultCultureName,
+    [CanBeNull] string? defaultUICultureName,
     bool captureDefault = true) : JobFilterAttribute, IClientFilter, IServerFilter
 {
     private readonly ILog _logger = LogProvider.GetLogger(typeof(CaptureCultureAttribute));
@@ -35,16 +35,16 @@ public sealed class CaptureCultureAttribute(
     {
     }
 
-    public CaptureCultureAttribute([CanBeNull] string defaultCultureName, bool captureDefault = true)
+    public CaptureCultureAttribute([CanBeNull] string? defaultCultureName, bool captureDefault = true)
         : this(defaultCultureName, defaultCultureName, captureDefault)
     {
     }
 
     [CanBeNull]
-    public string DefaultCultureName { get; } = defaultCultureName;
+    public string? DefaultCultureName { get; } = defaultCultureName;
 
     [CanBeNull]
-    public string DefaultUICultureName { get; } = defaultUICultureName;
+    public string? DefaultUICultureName { get; } = defaultUICultureName;
 
     public bool CaptureDefault { get; } = captureDefault;
 

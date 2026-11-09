@@ -38,7 +38,7 @@ public class StateChangeContext
         [NotNull] IStorageConnection connection,
         [NotNull] string backgroundJobId,
         [NotNull] IState newState,
-        [CanBeNull] params string[] expectedStates)
+        [CanBeNull] params string[]? expectedStates)
         : this(storage, connection, backgroundJobId, newState, expectedStates, CancellationToken.None)
     {
     }
@@ -48,7 +48,7 @@ public class StateChangeContext
         [NotNull] IStorageConnection connection,
         [NotNull] string backgroundJobId,
         [NotNull] IState newState,
-        [CanBeNull] IEnumerable<string> expectedStates,
+        [CanBeNull] IEnumerable<string>? expectedStates,
         CancellationToken cancellationToken)
     : this(storage, connection, null, backgroundJobId, newState, expectedStates, false, null, cancellationToken, EmptyProfiler.Instance, null)
     {
@@ -57,10 +57,10 @@ public class StateChangeContext
     public StateChangeContext(
         [NotNull] JobStorage storage,
         [NotNull] IStorageConnection connection,
-        [CanBeNull] JobStorageTransaction transaction,
+        [CanBeNull] JobStorageTransaction? transaction,
         [NotNull] string backgroundJobId,
         [NotNull] IState newState,
-        [CanBeNull] IEnumerable<string> expectedStates,
+        [CanBeNull] IEnumerable<string>? expectedStates,
         CancellationToken cancellationToken)
         : this(storage, connection, transaction, backgroundJobId, newState, expectedStates, false, null, cancellationToken, EmptyProfiler.Instance, null)
     {
@@ -71,12 +71,12 @@ public class StateChangeContext
         [NotNull] IStorageConnection connection,
         [NotNull] string backgroundJobId,
         [NotNull] IState newState,
-        [CanBeNull] IEnumerable<string> expectedStates,
+        [CanBeNull] IEnumerable<string>? expectedStates,
         bool disableFilters,
         CancellationToken cancellationToken,
         [NotNull] IProfiler profiler,
-        [CanBeNull] string serverId,
-        [CanBeNull] IReadOnlyDictionary<string, object> customData = null)
+        [CanBeNull] string? serverId,
+        [CanBeNull] IReadOnlyDictionary<string, object>? customData = null)
         : this(storage, connection, null, backgroundJobId, newState, expectedStates, disableFilters, null, cancellationToken, profiler, serverId, customData)
     {
     }
@@ -84,16 +84,16 @@ public class StateChangeContext
     internal StateChangeContext(
         [NotNull] JobStorage storage,
         [NotNull] IStorageConnection connection,
-        [CanBeNull] JobStorageTransaction transaction,
+        [CanBeNull] JobStorageTransaction? transaction,
         [NotNull] string backgroundJobId,
         [NotNull] IState newState,
-        [CanBeNull] IEnumerable<string> expectedStates,
+        [CanBeNull] IEnumerable<string>? expectedStates,
         bool disableFilters,
-        [CanBeNull] IFetchedJob completeJob,
+        [CanBeNull] IFetchedJob? completeJob,
         CancellationToken cancellationToken,
         [NotNull] IProfiler profiler,
-        [CanBeNull] string serverId,
-        [CanBeNull] IReadOnlyDictionary<string, object> customData = null)
+        [CanBeNull] string? serverId,
+        [CanBeNull] IReadOnlyDictionary<string, object>? customData = null)
     {
         Storage = storage ?? throw new ArgumentNullException(nameof(storage));
         Connection = connection ?? throw new ArgumentNullException(nameof(connection));
@@ -116,7 +116,7 @@ public class StateChangeContext
     public IStorageConnection Connection { get; }
 
     [CanBeNull]
-    public JobStorageTransaction Transaction { get; }
+    public JobStorageTransaction? Transaction { get; }
 
     [NotNull]
     public string BackgroundJobId { get; }
@@ -125,7 +125,7 @@ public class StateChangeContext
     public IState NewState { get; }
 
     [CanBeNull]
-    public IEnumerable<string> ExpectedStates { get; }
+    public IEnumerable<string>? ExpectedStates { get; }
 
     public bool DisableFilters { get; }
     public CancellationToken CancellationToken { get; }
@@ -134,14 +134,14 @@ public class StateChangeContext
     internal IProfiler Profiler { get; }
 
     [CanBeNull]
-    public IReadOnlyDictionary<string, object> CustomData { get; }
+    public IReadOnlyDictionary<string, object>? CustomData { get; }
 
     [CanBeNull]
-    public IFetchedJob CompleteJob { get; }
+    public IFetchedJob? CompleteJob { get; }
 
     [CanBeNull]
-    public BackgroundJob ProcessedJob { get; set; }
+    public BackgroundJob? ProcessedJob { get; set; }
 
     [CanBeNull]
-    public string ServerId { get; set; }
+    public string? ServerId { get; set; }
 }

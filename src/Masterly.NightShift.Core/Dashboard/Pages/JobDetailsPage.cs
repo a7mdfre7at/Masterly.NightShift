@@ -7,7 +7,7 @@ internal partial class JobDetailsPage(string jobId)
     public string JobId { get; } = jobId;
 
     /// <summary>The job whose page is being rendered, so the history renderers can read its own queue.</summary>
-    internal Job RenderedJob { get; set; }
+    internal Job? RenderedJob { get; set; }
 
     /// <summary>
     /// The queue "Run again with changes" starts with: the job's own queue (<see cref="Job.Queue"/>), else the

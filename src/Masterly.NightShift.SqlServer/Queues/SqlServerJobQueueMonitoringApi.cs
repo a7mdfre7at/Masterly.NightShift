@@ -27,7 +27,7 @@ internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonito
     private readonly NightShiftLock _cacheLock = new();
 
     private List<string> _queuesCache = [];
-    private Stopwatch _cacheUpdated;
+    private Stopwatch? _cacheUpdated;
 
     public SqlServerJobQueueMonitoringApi([NotNull] SqlServerStorage storage)
     {
@@ -39,7 +39,7 @@ internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonito
     {
         lock (_cacheLock)
         {
-            if (_queuesCache.Count == 0 || _cacheUpdated.Elapsed > QueuesCacheTimeout)
+            if (_queuesCache.Count == 0 || _cacheUpdated!.Elapsed > QueuesCacheTimeout) // Set whenever the cache has items
             {
                 var result = _storage.UseConnection(null, static (storage, connection) =>
                 {

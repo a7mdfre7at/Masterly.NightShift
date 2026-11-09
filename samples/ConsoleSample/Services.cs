@@ -119,7 +119,7 @@ public class Services
     public class CustomObject
     {
         public int Id { get; set; }
-        public CustomObject[] Children { get; set; }
+        public CustomObject[]? Children { get; set; }
     }
 
     public async Task Write(char character)

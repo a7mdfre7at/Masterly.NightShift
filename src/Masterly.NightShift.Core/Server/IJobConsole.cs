@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Masterly.NightShift.Server;
 
 /// <summary>Severity of a job console line.</summary>

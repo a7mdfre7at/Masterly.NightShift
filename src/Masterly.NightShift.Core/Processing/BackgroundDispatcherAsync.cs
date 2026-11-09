@@ -24,16 +24,16 @@ internal sealed class BackgroundDispatcherAsync : IBackgroundDispatcher
     private readonly CountdownEvent _stopped;
 
     private readonly IBackgroundExecution _execution;
-    private readonly Func<Guid, object, Task> _action;
-    private readonly object _state;
+    private readonly Func<Guid, object?, Task> _action;
+    private readonly object? _state;
 
     private readonly TaskScheduler _taskScheduler;
     private readonly bool _ownsScheduler;
 
     public BackgroundDispatcherAsync(
         [NotNull] IBackgroundExecution execution,
-        [NotNull] Func<Guid, object, Task> action,
-        [CanBeNull] object state,
+        [NotNull] Func<Guid, object?, Task> action,
+        [CanBeNull] object? state,
         [NotNull] TaskScheduler taskScheduler,
         int maxConcurrency,
         bool ownsScheduler)
@@ -79,7 +79,7 @@ internal sealed class BackgroundDispatcherAsync : IBackgroundDispatcher
         }
     }
 
-    public override string ToString()
+    public override string? ToString()
     {
         return _execution.ToString();
     }

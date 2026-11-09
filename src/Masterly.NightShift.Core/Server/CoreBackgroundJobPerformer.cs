@@ -20,7 +20,7 @@ using Masterly.NightShift.Processing;
 
 namespace Masterly.NightShift.Server;
 
-internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activator, [CanBeNull] TaskScheduler taskScheduler) : IBackgroundJobPerformer
+internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activator, [CanBeNull] TaskScheduler? taskScheduler) : IBackgroundJobPerformer
 {
     internal static readonly Dictionary<Type, Func<PerformContext, object>> Substitutions
         = new()
@@ -32,12 +32,12 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         };
 
     private readonly JobActivator _activator = activator ?? throw new ArgumentNullException(nameof(activator));
-    private readonly TaskScheduler _taskScheduler = taskScheduler;
+    private readonly TaskScheduler? _taskScheduler = taskScheduler;
 
-    public object Perform(PerformContext context)
+    public object? Perform(PerformContext context)
     {
         using var scope = _activator.BeginScope(context);
-        object instance = null;
+        object? instance = null;
 
         var job = context.BackgroundJob.Job ?? throw new InvalidOperationException("Can't perform a background job with a null job.");
 
@@ -67,7 +67,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         return result;
     }
 
-    internal static void HandleJobPerformanceException(Exception exception, IJobCancellationToken cancellationToken, [CanBeNull] BackgroundJob job)
+    internal static void HandleJobPerformanceException(Exception exception, IJobCancellationToken cancellationToken, [CanBeNull] BackgroundJob? job)
     {
         if (exception is JobAbortedException)
         {
@@ -101,10 +101,10 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             exception, job?.Id);
     }
 
-    private object InvokeMethod(
+    private object? InvokeMethod(
         PerformContext context,
         JobInvoker invoker,
-        object instance,
+        object? instance,
         object[] arguments,
         IReadOnlyList<IJobInterceptor> interceptors)
     {
@@ -132,12 +132,12 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         }
         catch (AggregateException ex)
         {
-            HandleJobPerformanceException(ex.InnerException, context.CancellationToken, context.BackgroundJob);
+            HandleJobPerformanceException(ex.InnerException!, context.CancellationToken, context.BackgroundJob); // Wraps the exception the job threw
             throw;
         }
         catch (TargetInvocationException ex)
         {
-            HandleJobPerformanceException(ex.InnerException, context.CancellationToken, context.BackgroundJob);
+            HandleJobPerformanceException(ex.InnerException!, context.CancellationToken, context.BackgroundJob); // Wraps the exception the job threw
             throw;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -147,14 +147,14 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         }
     }
 
-    private object InvokeOnTaskScheduler(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
+    private object? InvokeOnTaskScheduler(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
     {
         var scheduledTask = Task.Factory.StartNew(
             InvokeOnTaskSchedulerInternal,
             method,
             CancellationToken.None,
             TaskCreationOptions.None,
-            _taskScheduler);
+            _taskScheduler!); // Only called when a scheduler was given
 
         var result = scheduledTask.GetAwaiter().GetResult();
         if (result == null) return null;
@@ -162,15 +162,15 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         return getTaskFunc(result).GetTaskLikeResult(result, method.ReturnType);
     }
 
-    private static object InvokeOnTaskSchedulerInternal(object state)
+    private static object? InvokeOnTaskSchedulerInternal(object? state)
     {
         // ExecutionContext is captured automatically when calling the Task.Factory.StartNew
         // method, so we don't need to capture it manually. Please see the comment for
         // synchronous method execution below for details.
-        return ((BackgroundJobMethod)state).Invoke();
+        return ((BackgroundJobMethod)state!).Invoke(); // The method passed when scheduling this
     }
 
-    private static object InvokeOnTaskPump(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
+    private static object? InvokeOnTaskPump(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
     {
         // Using SynchronizationContext here is the best default option, where workers
         // are still running on synchronous dispatchers, and where a single job performer
@@ -200,7 +200,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             while (!asyncResult.IsCompleted && WaitHandle.WaitAny(waitHandles) == 0)
             {
                 var workItem = syncContext.Dequeue();
-                workItem.Item1(workItem.Item2);
+                workItem!.Item1(workItem.Item2); // The wait above returned because an item was queued
             }
 
             return task.GetTaskLikeResult(result, method.ReturnType);
@@ -211,7 +211,7 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         }
     }
 
-    private static object InvokeSynchronously(object state)
+    private static object? InvokeSynchronously(object state)
     {
         var method = (BackgroundJobMethod)state;
         var executionContext = ExecutionContext.Capture();
@@ -243,9 +243,9 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         return method.Invoke();
     }
 
-    private static void InvokeSynchronouslyInternal(object state)
+    private static void InvokeSynchronouslyInternal(object? state)
     {
-        ((BackgroundJobMethod)state).Invoke();
+        ((BackgroundJobMethod)state!).Invoke(); // The method passed when scheduling this
     }
 
     private static object[] SubstituteArguments(PerformContext context, Job job, Type[] parameterTypes)
@@ -267,14 +267,14 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
     private sealed class BackgroundJobMethod(
         PerformContext context,
         JobInvoker invoker,
-        object instance,
+        object? instance,
         object[] arguments,
         IReadOnlyList<IJobInterceptor> interceptors)
     {
         public Type ReturnType => invoker.ReturnType;
-        public object Result { get; private set; }
+        public object? Result { get; private set; }
 
-        public object Invoke()
+        public object? Invoke()
         {
             Result = interceptors.Count > 0
                 ? new JobInvocation(context, invoker, instance, arguments, interceptors).Proceed()

@@ -82,7 +82,7 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
 
     // Missing keeps the queue. Sent empty, it means the default queue: UpdateSchedule then also clears the queue
     // stored in the job itself, so its retries leave the old queue too.
-    private static async Task<string> GetQueueAsync(DashboardContext context)
+    private static async Task<string?> GetQueueAsync(DashboardContext context)
     {
         var values = await context.Request.GetFormValuesAsync("queue").ConfigureAwait(false);
         if (values == null || values.Count == 0) return null;
@@ -91,7 +91,7 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
         return string.IsNullOrWhiteSpace(value) ? EnqueuedState.DefaultQueue : value.Trim();
     }
 
-    private static async Task<string> GetFormValueAsync(DashboardContext context, string key)
+    private static async Task<string?> GetFormValueAsync(DashboardContext context, string key)
     {
         var values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
         var value = values?.FirstOrDefault();

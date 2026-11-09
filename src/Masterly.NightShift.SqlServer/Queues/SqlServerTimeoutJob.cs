@@ -26,7 +26,7 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
     private bool _disposed;
     private bool _removedFromQueue;
     private bool _requeued;
-    private SqlServerWriteOnlyTransaction _transaction;
+    private SqlServerWriteOnlyTransaction? _transaction;
 
     private long _lastHeartbeat;
     private readonly TimeSpan _interval;

@@ -129,7 +129,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
         return $"{storage.SchemaName}:{DistributedLockResource}";
     }
 
-    private void CleanupTable(SqlServerStorage storage, string query, string table, int numberOfRecordsInSinglePass, CancellationToken cancellationToken, Action<DbCommand> additionalActions = null)
+    private void CleanupTable(SqlServerStorage storage, string query, string table, int numberOfRecordsInSinglePass, CancellationToken cancellationToken, Action<DbCommand>? additionalActions = null)
     {
         _logger.Debug($"Removing outdated records from the '{table}' table...");
 
@@ -153,7 +153,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
         _logger.Trace($"Outdated records removed from the '{table}' table.");
     }
 
-    private T UseConnectionDistributedLock<T>(SqlServerStorage storage, Func<DbConnection, T> action)
+    private T? UseConnectionDistributedLock<T>(SqlServerStorage storage, Func<DbConnection, T> action)
     {
         var lockKey = GetDistributedLockKey(storage);
 
@@ -240,7 +240,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
         DbConnection connection,
         string commandText,
         int numberOfRecordsInSinglePass,
-        Action<DbCommand> additionalActions,
+        Action<DbCommand>? additionalActions,
         CancellationToken cancellationToken)
     {
         using var command = connection.Create(commandText, timeout: 0)
@@ -249,7 +249,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
         additionalActions?.Invoke(command);
 
-        using (cancellationToken.Register(static state => ((DbCommand)state).Cancel(), command))
+        using (cancellationToken.Register(static state => ((DbCommand)state!).Cancel(), command)) // The command passed when registering
         {
             try
             {

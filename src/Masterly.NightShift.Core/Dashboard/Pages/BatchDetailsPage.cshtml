@@ -11,11 +11,11 @@
 @using Masterly.NightShift.Storage
 @inherits RazorPage
 @{
-    JobBatch batch;
-    var jobs = new List<KeyValuePair<string, JobData>>();
-    var continuations = new List<KeyValuePair<string, JobData>>();
+    JobBatch? batch;
+    var jobs = new List<KeyValuePair<string, JobData?>>();
+    var continuations = new List<KeyValuePair<string, JobData?>>();
     const int maxJobsShown = 500;
-    Pager pager = null;
+    Pager? pager = null;
 
     int from, perPage;
     int.TryParse(Query("from"), out from);
@@ -45,12 +45,12 @@
 
             foreach (var jobId in jobIds)
             {
-                jobs.Add(new KeyValuePair<string, JobData>(jobId, connection.GetJobData(jobId)));
+                jobs.Add(new KeyValuePair<string, JobData?>(jobId, connection.GetJobData(jobId)));
             }
 
             foreach (var jobId in batch.Continuations)
             {
-                continuations.Add(new KeyValuePair<string, JobData>(jobId, connection.GetJobData(jobId)));
+                continuations.Add(new KeyValuePair<string, JobData?>(jobId, connection.GetJobData(jobId)));
             }
         }
     }

@@ -18,7 +18,7 @@
     RenderedJob = job?.Job;
     var dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
     
-    string title = null;
+    string? title = null;
 
     if (job != null)
     {
@@ -304,7 +304,7 @@
 
             @* Live view: progress, console and checkpoints reported through IJobConsole *@
             IReadOnlyList<JobConsoleEntry> consoleEntries;
-            JobProgress progress;
+            JobProgress? progress;
 
             using (var connection = Storage.GetReadOnlyConnection())
             {
@@ -363,7 +363,7 @@
                                     }
                                     else
                                     {
-                                        <div class="job-console-line job-console-@(entry.Level.ToString().ToLowerInvariant())"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span>@entry.Message</div>
+                                        <div class="job-console-line job-console-@((entry.Level?.ToString() ?? string.Empty).ToLowerInvariant())"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span>@entry.Message</div>
                                     }
                                 }
                             </div>
@@ -424,7 +424,7 @@
                             <tbody>
                             @foreach (var continuation in continuations)
                             {
-                                JobData jobData;
+                                JobData? jobData;
 
                                 using (var connection = Storage.GetReadOnlyConnection())
                                 {
@@ -472,7 +472,7 @@
                             <tbody>
                             @foreach (var childId in fanInChildren)
                             {
-                                JobData childData;
+                                JobData? childData;
 
                                 using (var connection = Storage.GetReadOnlyConnection())
                                 {

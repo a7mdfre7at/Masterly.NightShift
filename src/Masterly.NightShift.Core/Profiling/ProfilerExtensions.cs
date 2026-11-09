@@ -20,9 +20,9 @@ internal static class ProfilerExtensions
     extension([NotNull] IProfiler profiler)
     {
         public void InvokeMeasured<TInstance>(
-            [CanBeNull] TInstance instance,
+            [CanBeNull] TInstance? instance,
             [NotNull] Action<TInstance> action,
-            [CanBeNull] Func<TInstance, string> messageFunc = null)
+            [CanBeNull] Func<TInstance, string>? messageFunc = null)
         {
             ArgumentNullException.ThrowIfNull(profiler);
             ArgumentNullException.ThrowIfNull(action);
@@ -33,18 +33,18 @@ internal static class ProfilerExtensions
 
     private static bool InvokeAction<TInstance>(InstanceAction<TInstance> tuple)
     {
-        tuple.Action(tuple.Instance);
+        tuple.Action(tuple.Instance!); // The instance the caller passed
         return true;
     }
 
     private static string MessageCallback<TInstance>(InstanceAction<TInstance> action)
     {
-        return action.MessageFunc?.Invoke(action.Instance);
+        return action.MessageFunc?.Invoke(action.Instance!) ?? string.Empty; // The instance the caller passed
     }
 
     internal readonly struct InstanceAction<TInstance>
     {
-        public InstanceAction([CanBeNull] TInstance instance, [NotNull] Action<TInstance> action, [CanBeNull] Func<TInstance, string> messageFunc)
+        public InstanceAction([CanBeNull] TInstance? instance, [NotNull] Action<TInstance> action, [CanBeNull] Func<TInstance, string>? messageFunc)
         {
             ArgumentNullException.ThrowIfNull(action);
 
@@ -54,13 +54,13 @@ internal static class ProfilerExtensions
         }
 
         [CanBeNull]
-        public TInstance Instance { get; }
+        public TInstance? Instance { get; }
 
         [NotNull]
         public Action<TInstance> Action { get; }
 
         [CanBeNull]
-        public Func<TInstance, string> MessageFunc { get; }
+        public Func<TInstance, string>? MessageFunc { get; }
 
         public override string ToString()
         {

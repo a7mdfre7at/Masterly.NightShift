@@ -139,7 +139,7 @@ public sealed class NotifyPropertyChangedInvocatorAttribute : Attribute
         ParameterName = parameterName;
     }
 
-    public string ParameterName { get; private set; }
+    public string? ParameterName { get; private set; }
 }
 
 /// <summary>

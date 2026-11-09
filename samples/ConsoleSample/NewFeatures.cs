@@ -56,9 +56,9 @@ public static class NewFeatures
     {
         var exceptionalId = BackgroundJob.Enqueue(() => TryExceptional(throwException));
 
-        BackgroundJob.ContinueJobWith(exceptionalId, () => Continuation(default), JobContinuationOptions.OnlyOnSucceededState);
-        BackgroundJob.ContinueJobWith(exceptionalId, () => CatchExceptional(default), JobContinuationOptions.OnlyOnDeletedState);
-        BackgroundJob.ContinueJobWith(exceptionalId, () => FinallyExceptional(default), JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState);
-        BackgroundJob.ContinueJobWith(exceptionalId, () => FinallyExceptional2(default, default), JobContinuationOptions.OnAnyFinishedState);
+        BackgroundJob.ContinueJobWith(exceptionalId!, () => Continuation(default!), JobContinuationOptions.OnlyOnSucceededState);
+        BackgroundJob.ContinueJobWith(exceptionalId!, () => CatchExceptional(default!), JobContinuationOptions.OnlyOnDeletedState);
+        BackgroundJob.ContinueJobWith(exceptionalId!, () => FinallyExceptional(default!), JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState);
+        BackgroundJob.ContinueJobWith(exceptionalId!, () => FinallyExceptional2(default!, default!), JobContinuationOptions.OnAnyFinishedState);
     }
 }

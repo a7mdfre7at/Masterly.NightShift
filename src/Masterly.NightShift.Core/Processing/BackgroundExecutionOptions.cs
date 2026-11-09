@@ -27,7 +27,7 @@ internal sealed class BackgroundExecutionOptions
         RetryDelay = GetBackOffMultiplier;
     }
 
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     public TimeSpan WarningThreshold
     {

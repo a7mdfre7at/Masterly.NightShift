@@ -1,5 +1,3 @@
-#nullable enable
-
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
@@ -386,7 +384,7 @@ public static class JobTags
     /// Writes the <c>Tags</c> parameter with the internal options, so the application's serializer settings (a
     /// resolver that doesn't know <c>string[]</c>, for example) can't break tagging.
     /// </summary>
-    internal static string Serialize(string[] tags)
+    internal static string? Serialize(string[] tags)
     {
         return SerializationHelper.SerializeInternal(tags);
     }

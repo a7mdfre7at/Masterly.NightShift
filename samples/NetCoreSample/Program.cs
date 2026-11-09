@@ -89,7 +89,7 @@ internal sealed class CustomBackgroundJobFactory([NotNull] IBackgroundJobFactory
 
     public IStateMachine StateMachine => _inner.StateMachine;
 
-    public BackgroundJob Create(CreateContext context)
+    public BackgroundJob? Create(CreateContext context)
     {
         Console.WriteLine($"Create: {context.Job.Type.FullName}.{context.Job.Method.Name} in {context.InitialState?.Name} state");
         return _inner.Create(context);
@@ -100,9 +100,9 @@ internal sealed class CustomBackgroundJobPerformer([NotNull] IBackgroundJobPerfo
 {
     private readonly IBackgroundJobPerformer _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
-    public object Perform(PerformContext context)
+    public object? Perform(PerformContext context)
     {
-        Console.WriteLine($"Perform {context.BackgroundJob.Id} ({context.BackgroundJob.Job.Type.FullName}.{context.BackgroundJob.Job.Method.Name})");
+        Console.WriteLine($"Perform {context.BackgroundJob.Id} ({context.BackgroundJob.Job!.Type.FullName}.{context.BackgroundJob.Job.Method.Name})");
         return _inner.Perform(context);
     }
 }
@@ -111,7 +111,7 @@ internal sealed class CustomBackgroundJobStateChanger([NotNull] IBackgroundJobSt
 {
     private readonly IBackgroundJobStateChanger _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
-    public IState ChangeState(StateChangeContext context)
+    public IState? ChangeState(StateChangeContext context)
     {
         Console.WriteLine($"ChangeState {context.BackgroundJobId} to {context.NewState}");
         return _inner.ChangeState(context);

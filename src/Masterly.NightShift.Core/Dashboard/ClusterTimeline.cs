@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Masterly.NightShift.Dashboard;
 
 /// <summary>One run of a job on one worker.</summary>
