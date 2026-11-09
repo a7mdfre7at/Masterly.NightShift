@@ -148,20 +148,22 @@ The library is consumed by many old and new runtimes, and other repositories imp
 
 ### Nullable annotations
 
-Nullable reference types are being turned on file by file with `#nullable enable`. Done so far: the client API (`BackgroundJob*`, `IBackgroundJobClient`, `RecurringJob*`, `IRecurringJobManager`), `BackgroundJobServer*`, the client/server/state filter interfaces and their contexts, `IState` and the built-in states, the storage contract (`JobStorage`, `IStorageConnection`, `JobStorageConnection`, `IWriteOnlyTransaction`, `JobStorageTransaction`, `IFetchedJob`, `JobData`, `StateData`), and the monitoring API with its DTOs. The most-used entry points are annotated too: `AddNightShift`/`AddNightShiftServer`, the ASP.NET Core dashboard and server extensions, `UseSqlServerStorage` with `SqlServerStorageOptions`, `Cron`, `AutomaticRetryAttribute` and `JobActivator`/`JobActivatorScope`/`JobActivatorContext`. Other public types are not annotated yet (for example `GlobalConfigurationExtensions`, `GlobalConfiguration`, `Job`, the other filter attributes, `DashboardOptions`, `SqlServerStorage` and the dashboard extension API), nor is internal code.
+Nullable reference types are on in every project. When you add or change code:
 
-When you convert a file:
-
-- keep the JetBrains-style `[NotNull]`/`[CanBeNull]` attributes, and turn `[CanBeNull]` into `?`;
+- keep the JetBrains-style `[NotNull]`/`[CanBeNull]` attributes, and write `?` where a value can be null;
 - fix what the compiler reports instead of suppressing it;
-- review interfaces and values from unconverted files by hand, because the compiler can't check them;
+- leave a member that is always set before use non-nullable, with `= null!`;
+- give every `!` a comment saying why the value can't be null;
 - for storage interfaces, base each annotation on evidence: what Masterly.NightShift passes in, and what `Masterly.NightShift.SqlServer` returns.
+
+`Common/ExpressionUtil` and `CachedExpressionCompiler` are ported from ASP.NET MVC and stay `#nullable disable`. The test projects don't report nullable warnings, because tests pass `null` on purpose.
 
 Job IDs returned by `Create`, `Enqueue`, `Schedule` and `ContinueJobWith` are `string?` on purpose: a client filter can cancel creation.
 
 ### Code style
 
-- Match the code around you rather than modern C# defaults: block-scoped namespaces, `var` where the existing code uses it, `[NotNull]`/`[CanBeNull]` (from `Masterly.NightShift.Annotations`) on parameters.
+- The build enforces the code style in [`.editorconfig`](../../.editorconfig). Use C# 8 to 14 features: file-scoped namespaces, primary constructors, records for read-only data, collection expressions, pattern matching, `extension` blocks and raw string literals. `var` is fine, and parameters carry `[NotNull]`/`[CanBeNull]` (from `Masterly.NightShift.Annotations`).
+- In library code, read the time from `JobClock.UtcNow`, not `DateTime.UtcNow`.
 - Four spaces, no tabs ([`.editorconfig`](../../.editorconfig)).
 - Most public types are in the `Masterly.NightShift` namespace no matter which folder they live in. Keep a moved or new type in the namespace its neighbours use. See [Architecture](architecture.md#source-tree).
 - Don't hand-edit generated files: `Strings.Designer.cs` (from `Strings.resx`) and `DefaultInstall.sql` (from `Install.sql` through the `DefaultInstall.tt` T4 template).

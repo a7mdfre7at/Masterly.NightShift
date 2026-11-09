@@ -91,6 +91,8 @@ app.MapNightShiftDashboard("/nightshift", new DashboardOptions
     .RequireAuthorization("NightShiftAdmins");
 ```
 
+Other endpoint conventions work the same way, for example `.RequireRateLimiting("dashboard")` or `.RequireHost("admin.example.com")`.
+
 `MapNightShiftDashboardWithNoAuthorizationFilters` does the clearing for you, which is handy with an inline policy:
 
 ```csharp

@@ -106,6 +106,7 @@ See [Logging](../monitoring/logging.md) for log levels and what is logged.
 
 | Method | Parameters | Without it | Meaning |
 |---|---|---|---|
+| `UseTimeProvider(timeProvider)` | `TimeProvider` | The system clock | The clock behind the timestamps the library writes, such as when a state was entered. Waits between polls use real time. |
 | `UseFilter<TFilter>(filter)` | any filter object | The default global filters (culture capture, automatic retry, statistics history, continuations, fan-in, job console, drain mode, activity feed (idle until `UseActivityFeed()`), batches) | Adds `filter` to `GlobalJobFilters.Filters`, so it applies to every job. An attribute filter that doesn't allow multiple instances replaces the default one of the same type. |
 | `UseFilterProvider<TFilterProvider>(provider)` | an `IJobFilterProvider` | Global filters, attribute filters | Adds a provider that decides per job which filters apply. |
 | `UseJobInterceptor(interceptor)` | an `IJobInterceptor` | None | Runs `interceptor` around every job method, before the interceptors declared with attributes. |

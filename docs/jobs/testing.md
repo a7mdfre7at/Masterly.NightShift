@@ -351,6 +351,7 @@ Run integration tests one at a time against one database, or give each test clas
 - **Mock `IBackgroundJobClient`, not the static `BackgroundJob` class.** The static class uses `JobStorage.Current` and can't be replaced in a test. Inject the interface; `AddNightShift` registers it.
 - **The state passed to `Create` is a new object.** Match it by type (`It.IsAny<EnqueuedState>()`) or by its properties, not by reference.
 - **Arguments are evaluated when the job is created.** `Job.FromExpression` runs the argument expressions, so `JobMatch` compares values, not the code that computed them.
+- **Control time with `UseTimeProvider`.** `GlobalConfiguration.Configuration.UseTimeProvider(fakeProvider)` sets the clock behind the timestamps the library writes. It is global, so restore `TimeProvider.System` afterwards. Waits between polls still use real time.
 - **Global configuration is static.** Tests that change `GlobalConfiguration`, `GlobalJobFilters` or `JobStorage.Current` affect each other; restore what you change, and don't run such tests in parallel.
 
 ## See also

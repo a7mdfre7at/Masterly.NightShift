@@ -157,7 +157,7 @@ The dashboard formats dates with the browser's built-in `Intl` APIs instead of m
 
 ## Nullable reference type annotations (source-level only)
 
-These parts of the API now carry C# nullable annotations:
+The whole public API carries C# nullable annotations. The parts where they matter most:
 
 - **Client:** `BackgroundJob`, `IBackgroundJobClient`, `BackgroundJobClient`, `BackgroundJobClientExtensions`, `RecurringJob`, `IRecurringJobManager`, `RecurringJobManager`, `RecurringJobManagerExtensions` and `RecurringJobOptions`.
 - **Server:** `BackgroundJobServer` and `BackgroundJobServerOptions`.
@@ -170,6 +170,10 @@ These parts of the API now carry C# nullable annotations:
 - **Retries:** `AutomaticRetryAttribute.DelaysInSeconds`, `OnlyOn` and `ExceptOn` are nullable.
 - **SQL Server:** `UseSqlServerStorage` and `SqlServerStorageOptions` (`ImpersonationFunc` and `DefaultQueueProvider` are nullable). Passing `configuration.GetConnectionString(...)` warns, because the method throws for `null`.
 - **ASP.NET Core and DI:** `AddNightShift`, `AddNightShiftServer`, `UseNightShiftDashboard`, `UseNightShiftServer`, `MapNightShiftDashboard*` and `AddNightShiftKeepAlive`; optional `options`, `storage`, `additionalProcesses` and `configure` parameters are nullable, and `GetInternalServices` has nullable `out` parameters.
+
+- **Interfaces that can return nothing:** `IBackgroundJobFactory.Create`, `IBackgroundJobPerformer.Perform` and `IBackgroundJobStateChanger.ChangeState` return nullable types, because filters can cancel the work. `IJobFilterProvider.GetFilters` takes `Job?`, because a job may fail to load.
+- **Dashboard:** `DashboardRequest.GetQuery`, `LocalIpAddress` and `RemoteIpAddress`, and `DashboardResponse.ContentType`, are nullable.
+- **`InvocationData`:** `parameterTypes`, `arguments` and `queue` are nullable.
 
 Compiled code is unaffected. Projects with `<Nullable>enable</Nullable>` may see new warnings:
 
@@ -200,6 +204,10 @@ These annotations are based on what Masterly.NightShift passes in and what the S
 - Fields the dashboard uses without checks stay non-null, and storages must set them: `JobDetailsDto.Properties` and `History`, `ServerDto.Name` and `Queues`, `StateHistoryDto.StateName` and `Data`, `QueueWithTopEnqueuedJobsDto.Name` and `FirstJobs`.
 
 Override signatures that use non-nullable types where the contract is nullable get `CS8609`/`CS8610`/`CS8765` warnings. These point to places where Masterly.NightShift can pass `null`.
+
+## Types that became records
+
+`BulkJobResult`, `JobStateInfo`, `BackgroundServerContext` and `JobDetailsRendererDto` are records, so they compare by value and support `with` and deconstruction. Their constructor parameters are named after their properties: write `new BulkJobResult(1, 0, Complete: true)`, not `complete: true`.
 
 ## Behaviour changes that are not API breaks
 
@@ -280,6 +288,7 @@ The export routes are registered before the list pages whose patterns would also
 
 ### Server and hosting
 
+- **An empty string argument throws `ArgumentException`,** as in .NET; `null` still throws `ArgumentNullException`. In Hangfire both threw `ArgumentNullException`. This affects `ProcessingState`, the `resource` of `AcquireDistributedLock`, and the names given to `CreatingContext`, `JobActivatorContext` and the job console.
 - **Interval options must be positive.** `BackgroundJobServerOptions.HeartbeatInterval`, `ServerCheckInterval` and `ServerTimeout` no longer accept `TimeSpan.Zero`, and `CancellationCheckInterval` is now validated: all four must be greater than zero (`CancellationCheckInterval` at most `Int32.MaxValue` milliseconds), otherwise `ArgumentOutOfRangeException`.
 - **`JobStorage.JobExpirationTimeout`** (and `WithJobExpirationTimeout`) accepts at most 36,500 days (`ExpireAfterAttribute.MaxDays`) and throws `ArgumentOutOfRangeException` above it. A longer value (such as `TimeSpan.MaxValue`) used to be accepted and then made every final-state commit on SQL Server throw, leaving jobs in Processing.
 - **Servers added with `AddNightShiftServer` run each job inside `ILogger.BeginScope`** with `JobId`, `JobName`, `RecurringJobId` and `RetryCount`, so providers that print scopes show them. The scope stays open until the worker has changed the job's state, so retry and final-failure entries carry `JobId` too. Turn it off with `services.ConfigureNightShiftJobLogging(o => o.BeginScope = false)`. See [Logging](monitoring/logging.md#job-logging-scope).

@@ -48,6 +48,8 @@ using (var server = new BackgroundJobServer())
 }
 ```
 
+In async code, `await using var server = new BackgroundJobServer();` stops the server and waits for it to shut down without blocking a thread.
+
 ## See also
 
 - [Core concepts](../getting-started/core-concepts.md)

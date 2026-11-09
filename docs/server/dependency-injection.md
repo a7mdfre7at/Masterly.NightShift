@@ -85,6 +85,14 @@ It registers these singletons. All except `IGlobalConfiguration` use `TryAdd`, s
 | `IRecurringJobManagerFactory`, `IRecurringJobManagerFactoryV2`, `IRecurringJobManagerFactoryV3` | Create a recurring job manager for any `JobStorage` (`GetManager`, `GetManagerV2`, `GetManagerV3`). All three are the same factory object. |
 | `RouteCollection` | `DashboardRoutes.Routes`, used by the dashboard. |
 
+`AddNightShift` and `AddNightShiftServer` also work directly on the builders from `Host.CreateApplicationBuilder` and `WebApplication.CreateBuilder` (any `IHostApplicationBuilder`), and return the builder:
+
+```csharp
+builder
+    .AddNightShift(config => config.UseSqlServerStorage(connectionString))
+    .AddNightShiftServer();
+```
+
 ### AddNightShiftServer
 
 Each call adds one more server to the application, as an `IHostedService`. All overloads except the last require `AddNightShift`; without it the host fails at start with `InvalidOperationException` ("Unable to find the required services...").
