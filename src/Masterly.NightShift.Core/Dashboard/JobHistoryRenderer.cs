@@ -168,26 +168,28 @@ public static class JobHistoryRenderer
         return Renderers.ContainsKey(state);
     }
 
-    public static NonEscapedString RenderHistory(
-        this HtmlHelper helper,
-        string state, IDictionary<string, string> properties)
+    extension(HtmlHelper helper)
     {
-        if (!Renderers.TryGetValue(state, out var renderer))
+        public NonEscapedString RenderHistory(
+            string state, IDictionary<string, string> properties)
         {
-            return DefaultRenderer(helper, properties);
-        }
+            if (!Renderers.TryGetValue(state, out var renderer))
+            {
+                return DefaultRenderer(helper, properties);
+            }
 
-        if (renderer == null) return null;
+            if (renderer == null) return null;
 
-        try
-        {
-            return renderer(helper, properties);
-        }
-        catch (Exception ex) when (ex.IsCatchableExceptionType())
-        {
-            // Data this dashboard can't read (a type it doesn't have, a value written by another version)
-            // must not break the whole job page: show the raw state data instead
-            return DefaultRenderer(helper, properties);
+            try
+            {
+                return renderer(helper, properties);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // Data this dashboard can't read (a type it doesn't have, a value written by another version)
+                // must not break the whole job page: show the raw state data instead
+                return DefaultRenderer(helper, properties);
+            }
         }
     }
 

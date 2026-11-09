@@ -76,27 +76,29 @@ public class GlobalConfiguration : IGlobalConfiguration
 /// </summary>
 public static class CompatibilityLevelExtensions
 {
-    /// <summary>
-    /// Chooses the format in which data is written to storage, for every client, server and dashboard in this
-    /// process. Without this call the level is <see cref="CompatibilityLevel.Version_110"/>, the oldest format,
-    /// which keeps a rolling upgrade from older servers safe but isn't the better choice otherwise: a new
-    /// application should use <see cref="CompatibilityLevel.Version_180"/>. When older servers share the
-    /// storage, use the newest level that all of them read, and raise it once they are gone.
-    /// </summary>
-    /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
-    /// <exception cref="InvalidEnumArgumentException"><paramref name="compatibilityLevel"/> isn't a defined value.</exception>
-    public static IGlobalConfiguration SetDataCompatibilityLevel(
-        [NotNull] this IGlobalConfiguration configuration,
-        CompatibilityLevel compatibilityLevel)
+    extension([NotNull] IGlobalConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        /// <summary>
+        /// Chooses the format in which data is written to storage, for every client, server and dashboard in this
+        /// process. Without this call the level is <see cref="CompatibilityLevel.Version_110"/>, the oldest format,
+        /// which keeps a rolling upgrade from older servers safe but isn't the better choice otherwise: a new
+        /// application should use <see cref="CompatibilityLevel.Version_180"/>. When older servers share the
+        /// storage, use the newest level that all of them read, and raise it once they are gone.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidEnumArgumentException"><paramref name="compatibilityLevel"/> isn't a defined value.</exception>
+        public IGlobalConfiguration SetDataCompatibilityLevel(
+            CompatibilityLevel compatibilityLevel)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
 
-        if (!Enum.IsDefined(compatibilityLevel))
-            throw new InvalidEnumArgumentException(nameof(compatibilityLevel), (int)compatibilityLevel,
-                typeof(CompatibilityLevel));
+            if (!Enum.IsDefined(compatibilityLevel))
+                throw new InvalidEnumArgumentException(nameof(compatibilityLevel), (int)compatibilityLevel,
+                    typeof(CompatibilityLevel));
 
-        GlobalConfiguration.CompatibilityLevel = compatibilityLevel;
+            GlobalConfiguration.CompatibilityLevel = compatibilityLevel;
 
-        return configuration;
+            return configuration;
+        }
     }
 }

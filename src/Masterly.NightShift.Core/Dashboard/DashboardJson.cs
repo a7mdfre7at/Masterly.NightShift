@@ -46,7 +46,7 @@ internal static class DashboardJson
 /// Writes every date as UTC with a trailing <c>Z</c>, treating dates of unspecified kind as UTC, so browsers
 /// never read them as local time.
 /// </summary>
-internal sealed class UtcDateTimeJsonConverter : JsonConverter<DateTime>
+file sealed class UtcDateTimeJsonConverter : JsonConverter<DateTime>
 {
     public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {

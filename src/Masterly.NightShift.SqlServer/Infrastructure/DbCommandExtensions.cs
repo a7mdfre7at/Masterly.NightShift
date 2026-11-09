@@ -22,101 +22,106 @@ internal static class DbCommandExtensions
     private static readonly ConcurrentDictionary<KeyValuePair<string, KeyValuePair<string, int>>, string> ExpandedQueries =
         new();
 
-    public static DbCommand Create(
-        [NotNull] this DbConnection connection,
-        [NotNull] string text,
-        CommandType type = CommandType.Text,
-        int? timeout = null)
+    extension([NotNull] DbConnection connection)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(text);
-
-        var command = connection.CreateCommand();
-        command.CommandType = type;
-        command.CommandText = text;
-
-        if (timeout.HasValue)
+        public DbCommand Create(
+            [NotNull] string text,
+            CommandType type = CommandType.Text,
+            int? timeout = null)
         {
-            command.CommandTimeout = timeout.Value;
-        }
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(text);
 
-        return command;
-    }
+            var command = connection.CreateCommand();
+            command.CommandType = type;
+            command.CommandText = text;
 
-    public static DbCommand AddParameter(
-        [NotNull] this DbCommand command,
-        [NotNull] string parameterName,
-        [CanBeNull] object value,
-        DbType dbType,
-        [CanBeNull] int? size = null)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(parameterName);
-
-        var parameter = AddParameterInternal(command, parameterName, dbType, size);
-        parameter.Value = value ?? DBNull.Value;
-
-        return command;
-    }
-
-    public static DbCommand AddReturnParameter(
-        [NotNull] this DbCommand command,
-        string parameterName,
-        out DbParameter parameter,
-        DbType dbType,
-        int? size = null)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(parameterName);
-
-        parameter = AddParameterInternal(command, parameterName, dbType, size);
-        parameter.Direction = ParameterDirection.ReturnValue;
-        parameter.Value = DBNull.Value;
-
-        return command;
-    }
-
-    public static DbCommand AddExpandedParameter<T>(
-        [NotNull] this DbCommand command,
-        [NotNull] string parameterName,
-        [NotNull] T[] parameterValues,
-        DbType parameterType,
-        int? parameterSize = null)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(parameterName);
-        ArgumentNullException.ThrowIfNull(parameterValues);
-
-        command.CommandText = ExpandedQueries.GetOrAdd(
-            new KeyValuePair<string, KeyValuePair<string, int>>(command.CommandText, new KeyValuePair<string, int>(parameterName, parameterValues.Length)),
-            static pair =>
+            if (timeout.HasValue)
             {
-                return pair.Key.Replace(
-                    pair.Value.Key,
-                    "(" + string.Join(",", Enumerable.Range(0, pair.Value.Value).Select(i => pair.Value.Key + i.ToString(CultureInfo.InvariantCulture))) + ")");
-            });
+                command.CommandTimeout = timeout.Value;
+            }
 
-        for (var i = 0; i < parameterValues.Length; i++)
-        {
-            var parameter = AddParameterInternal(command, parameterName + i.ToString(CultureInfo.InvariantCulture), parameterType, parameterSize);
-            parameter.Value = (object)parameterValues[i] ?? DBNull.Value;
+            return command;
         }
-
-        return command;
     }
 
-    public static T GetParameterValue<T>([NotNull] this DbParameter parameter)
+    extension([NotNull] DbCommand command)
     {
-        ArgumentNullException.ThrowIfNull(parameter);
-
-        switch (parameter.Value)
+        public DbCommand AddParameter(
+            [NotNull] string parameterName,
+            [CanBeNull] object value,
+            DbType dbType,
+            [CanBeNull] int? size = null)
         {
-            case null or DBNull: return default;
-            case T typed: return typed;
-            default:
-                var type = typeof(T);
-                type = Nullable.GetUnderlyingType(type) ?? type;
-                return (T)Convert.ChangeType(parameter.Value, type, CultureInfo.InvariantCulture);
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
+
+            var parameter = AddParameterInternal(command, parameterName, dbType, size);
+            parameter.Value = value ?? DBNull.Value;
+
+            return command;
+        }
+
+        public DbCommand AddReturnParameter(
+            string parameterName,
+            out DbParameter parameter,
+            DbType dbType,
+            int? size = null)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
+
+            parameter = AddParameterInternal(command, parameterName, dbType, size);
+            parameter.Direction = ParameterDirection.ReturnValue;
+            parameter.Value = DBNull.Value;
+
+            return command;
+        }
+
+        public DbCommand AddExpandedParameter<T>(
+            [NotNull] string parameterName,
+            [NotNull] T[] parameterValues,
+            DbType parameterType,
+            int? parameterSize = null)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(parameterName);
+            ArgumentNullException.ThrowIfNull(parameterValues);
+
+            command.CommandText = ExpandedQueries.GetOrAdd(
+                new KeyValuePair<string, KeyValuePair<string, int>>(command.CommandText, new KeyValuePair<string, int>(parameterName, parameterValues.Length)),
+                static pair =>
+                {
+                    return pair.Key.Replace(
+                        pair.Value.Key,
+                        "(" + string.Join(",", Enumerable.Range(0, pair.Value.Value).Select(i => pair.Value.Key + i.ToString(CultureInfo.InvariantCulture))) + ")");
+                });
+
+            for (var i = 0; i < parameterValues.Length; i++)
+            {
+                var parameter = AddParameterInternal(command, parameterName + i.ToString(CultureInfo.InvariantCulture), parameterType, parameterSize);
+                parameter.Value = (object)parameterValues[i] ?? DBNull.Value;
+            }
+
+            return command;
+        }
+    }
+
+    extension([NotNull] DbParameter parameter)
+    {
+        public T GetParameterValue<T>()
+        {
+            ArgumentNullException.ThrowIfNull(parameter);
+
+            switch (parameter.Value)
+            {
+                case null or DBNull: return default;
+                case T typed: return typed;
+                default:
+                    var type = typeof(T);
+                    type = Nullable.GetUnderlyingType(type) ?? type;
+                    return (T)Convert.ChangeType(parameter.Value, type, CultureInfo.InvariantCulture);
+            }
         }
     }
 

@@ -27,115 +27,111 @@ namespace Masterly.NightShift;
 /// </summary>
 public static class NightShiftEndpointRouteBuilderExtensions
 {
-    /// <summary>
-    /// Maps the dashboard under <c>/nightshift</c>.
-    /// </summary>
     /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="options">The dashboard options, or <c>null</c> for the registered ones, or new ones.</param>
-    /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
-    /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
-    public static IEndpointConventionBuilder MapNightShiftDashboard(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
+    extension([NotNull] IEndpointRouteBuilder endpoints)
     {
-        return MapNightShiftDashboard(endpoints, "/nightshift", options, storage);
-    }
+        /// <summary>
+        /// Maps the dashboard under <c>/nightshift</c>.
+        /// </summary>
+        /// <param name="options">The dashboard options, or <c>null</c> for the registered ones, or new ones.</param>
+        /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
+        /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
+        public IEndpointConventionBuilder MapNightShiftDashboard(
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            return MapNightShiftDashboard(endpoints, "/nightshift", options, storage);
+        }
 
-    /// <summary>
-    /// Maps the dashboard under <paramref name="pattern"/>.
-    /// </summary>
-    /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="pattern">The path the dashboard is served under, for example <c>/nightshift</c>.</param>
-    /// <param name="options">The dashboard options, or <c>null</c> for the <see cref="DashboardOptions"/>
-    /// registered in the container, or new ones. A <c>null</c> <see cref="DashboardOptions.TimeZoneResolver"/>
-    /// is set to the registered <see cref="ITimeZoneResolver"/>.</param>
-    /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
-    /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
-    /// <exception cref="InvalidOperationException"><c>AddNightShift</c> wasn't called.</exception>
-    public static IEndpointConventionBuilder MapNightShiftDashboard(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [NotNull] string pattern,
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
-    {
-        ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(pattern);
+        /// <summary>
+        /// Maps the dashboard under <paramref name="pattern"/>.
+        /// </summary>
+        /// <param name="pattern">The path the dashboard is served under, for example <c>/nightshift</c>.</param>
+        /// <param name="options">The dashboard options, or <c>null</c> for the <see cref="DashboardOptions"/>
+        /// registered in the container, or new ones. A <c>null</c> <see cref="DashboardOptions.TimeZoneResolver"/>
+        /// is set to the registered <see cref="ITimeZoneResolver"/>.</param>
+        /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
+        /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
+        /// <exception cref="InvalidOperationException"><c>AddNightShift</c> wasn't called.</exception>
+        public IEndpointConventionBuilder MapNightShiftDashboard(
+            [NotNull] string pattern,
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(pattern);
 
-        var app = endpoints.CreateApplicationBuilder();
+            var app = endpoints.CreateApplicationBuilder();
 
-        NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
+            NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
 
-        var services = app.ApplicationServices;
+            var services = app.ApplicationServices;
 
-        storage ??= services.GetRequiredService<JobStorage>();
-        options ??= services.GetService<DashboardOptions>() ?? new DashboardOptions();
-        options.TimeZoneResolver ??= services.GetService<ITimeZoneResolver>();
+            storage ??= services.GetRequiredService<JobStorage>();
+            options ??= services.GetService<DashboardOptions>() ?? new DashboardOptions();
+            options.TimeZoneResolver ??= services.GetService<ITimeZoneResolver>();
 
-        var routes = app.ApplicationServices.GetRequiredService<Dashboard.RouteCollection>();
+            var routes = app.ApplicationServices.GetRequiredService<Dashboard.RouteCollection>();
 
-        var pipeline = app
-            .UsePathBase(pattern)
-            .UseMiddleware<AspNetCoreDashboardMiddleware>(storage, options, routes, true)
-            .Build();
+            var pipeline = app
+                .UsePathBase(pattern)
+                .UseMiddleware<AspNetCoreDashboardMiddleware>(storage, options, routes, true)
+                .Build();
 
-        return endpoints.Map(pattern + "/{**path}", pipeline);
-    }
+            return endpoints.Map(pattern + "/{**path}", pipeline);
+        }
 
-    /// <summary>
-    /// Maps the dashboard like <see cref="MapNightShiftDashboard(IEndpointRouteBuilder, string, DashboardOptions, JobStorage)"/>,
-    /// without the dashboard's own authorization filters, for an endpoint protected with <c>RequireAuthorization</c>.
-    /// The options are <paramref name="options"/>, or the <see cref="DashboardOptions"/> registered in DI, or new
-    /// ones. A copy of them is used with empty <see cref="DashboardOptions.Authorization"/> and
-    /// <see cref="DashboardOptions.AsyncAuthorization"/>, so the instance you pass or registered keeps its filters.
-    /// </summary>
-    /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="pattern">The path the dashboard is served under. Default is <c>/nightshift</c>.</param>
-    /// <param name="options">The dashboard options to copy, or <c>null</c>.</param>
-    /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
-    /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
-    public static IEndpointConventionBuilder MapNightShiftDashboardWithNoAuthorizationFilters(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [NotNull] string pattern = "/nightshift",
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
-    {
-        ArgumentNullException.ThrowIfNull(endpoints);
+        /// <summary>
+        /// Maps the dashboard like <see cref="MapNightShiftDashboard(IEndpointRouteBuilder, string, DashboardOptions, JobStorage)"/>,
+        /// without the dashboard's own authorization filters, for an endpoint protected with <c>RequireAuthorization</c>.
+        /// The options are <paramref name="options"/>, or the <see cref="DashboardOptions"/> registered in DI, or new
+        /// ones. A copy of them is used with empty <see cref="DashboardOptions.Authorization"/> and
+        /// <see cref="DashboardOptions.AsyncAuthorization"/>, so the instance you pass or registered keeps its filters.
+        /// </summary>
+        /// <param name="pattern">The path the dashboard is served under. Default is <c>/nightshift</c>.</param>
+        /// <param name="options">The dashboard options to copy, or <c>null</c>.</param>
+        /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
+        /// <returns>A builder to add conventions, such as authorization, to the endpoint.</returns>
+        public IEndpointConventionBuilder MapNightShiftDashboardWithNoAuthorizationFilters(
+            [NotNull] string pattern = "/nightshift",
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            ArgumentNullException.ThrowIfNull(endpoints);
 
-        NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(endpoints.ServiceProvider);
+            NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(endpoints.ServiceProvider);
 
-        options = CopyOptions(options ?? endpoints.ServiceProvider.GetService<DashboardOptions>() ?? new DashboardOptions());
+            options = CopyOptions(options ?? endpoints.ServiceProvider.GetService<DashboardOptions>() ?? new DashboardOptions());
 
-        // We don't require the default LocalRequestsOnlyAuthorizationFilter since we provide our own policy
-        options.Authorization = [];
-        options.AsyncAuthorization = [];
+            // We don't require the default LocalRequestsOnlyAuthorizationFilter since we provide our own policy
+            options.Authorization = [];
+            options.AsyncAuthorization = [];
 
-        return endpoints.MapNightShiftDashboard(pattern, options, storage);
-    }
+            return endpoints.MapNightShiftDashboard(pattern, options, storage);
+        }
 
-    /// <summary>
-    /// Maps the dashboard like <see cref="MapNightShiftDashboardWithNoAuthorizationFilters"/>, and requires
-    /// the ASP.NET Core authorization policy <paramref name="authorizationPolicyName"/> on the endpoint.
-    /// </summary>
-    /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="authorizationPolicyName">The name of the authorization policy.</param>
-    /// <param name="pattern">The path the dashboard is served under. Default is <c>/nightshift</c>.</param>
-    /// <param name="options">The dashboard options to copy, or <c>null</c>.</param>
-    /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
-    /// <returns>A builder to add further conventions to the endpoint.</returns>
-    public static IEndpointConventionBuilder MapNightShiftDashboardWithAuthorizationPolicy(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [NotNull] string authorizationPolicyName,
-        [NotNull] string pattern = "/nightshift",
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
-    {
-        ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(authorizationPolicyName);
+        /// <summary>
+        /// Maps the dashboard like <see cref="MapNightShiftDashboardWithNoAuthorizationFilters"/>, and requires
+        /// the ASP.NET Core authorization policy <paramref name="authorizationPolicyName"/> on the endpoint.
+        /// </summary>
+        /// <param name="authorizationPolicyName">The name of the authorization policy.</param>
+        /// <param name="pattern">The path the dashboard is served under. Default is <c>/nightshift</c>.</param>
+        /// <param name="options">The dashboard options to copy, or <c>null</c>.</param>
+        /// <param name="storage">The storage to show, or <c>null</c> for the registered <see cref="JobStorage"/>.</param>
+        /// <returns>A builder to add further conventions to the endpoint.</returns>
+        public IEndpointConventionBuilder MapNightShiftDashboardWithAuthorizationPolicy(
+            [NotNull] string authorizationPolicyName,
+            [NotNull] string pattern = "/nightshift",
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(authorizationPolicyName);
 
-        return endpoints
-            .MapNightShiftDashboardWithNoAuthorizationFilters(pattern, options, storage)
-            .RequireAuthorization(authorizationPolicyName);
+            return endpoints
+                .MapNightShiftDashboardWithNoAuthorizationFilters(pattern, options, storage)
+                .RequireAuthorization(authorizationPolicyName);
+        }
     }
 
     internal static DashboardOptions CopyOptions(DashboardOptions source)

@@ -21,18 +21,24 @@ internal static class ShallowExceptionHelper
 {
     private static readonly object DataKey = "OriginalStackTrace";
 
-    public static void PreserveOriginalStackTrace(this Exception exception)
+    extension(Exception exception)
     {
-        if (exception != null && !exception.Data.Contains(DataKey))
+        public void PreserveOriginalStackTrace()
         {
-            exception.Data.Add(DataKey, GetStackTrace(exception, includeFileInfo: false));
+            if (exception != null && !exception.Data.Contains(DataKey))
+            {
+                exception.Data.Add(DataKey, GetStackTrace(exception, includeFileInfo: false));
+            }
         }
     }
 
-    public static string ToStringWithOriginalStackTrace([NotNull] this Exception exception, int? numLines, bool includeFileInfo)
+    extension([NotNull] Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(exception);
-        return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
+        public string ToStringWithOriginalStackTrace(int? numLines, bool includeFileInfo)
+        {
+            ArgumentNullException.ThrowIfNull(exception);
+            return GetFirstLines(ToStringHelper(exception, false, includeFileInfo), numLines);
+        }
     }
 
     private static string ToStringHelper(Exception exception, bool isInner, bool includeFileInfo)

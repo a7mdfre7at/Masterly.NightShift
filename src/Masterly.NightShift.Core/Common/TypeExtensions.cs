@@ -23,118 +23,123 @@ internal static class TypeExtensions
 {
     private static readonly Regex GenericArgumentsRegex = new(@"`[1-9]\d*", RegexOptions.Compiled, TimeSpan.FromSeconds(5));
 
-    public static string ToGenericTypeString(this Type type)
+    extension(Type type)
     {
-        if (!type.GetTypeInfo().IsGenericType)
+        public string ToGenericTypeString()
         {
-            return type.GetFullNameWithoutNamespace()
-                    .ReplacePlusWithDotInNestedTypeName();
-        }
+            if (!type.GetTypeInfo().IsGenericType)
+            {
+                return type.GetFullNameWithoutNamespace()
+                        .ReplacePlusWithDotInNestedTypeName();
+            }
 
-        return type.GetGenericTypeDefinition()
-                .GetFullNameWithoutNamespace()
-                .ReplacePlusWithDotInNestedTypeName()
-                .ReplaceGenericParametersInGenericTypeName(type);
+            return type.GetGenericTypeDefinition()
+                    .GetFullNameWithoutNamespace()
+                    .ReplacePlusWithDotInNestedTypeName()
+                    .ReplaceGenericParametersInGenericTypeName(type);
+        }
     }
 
-    public static MethodInfo GetNonOpenMatchingMethod(
-        [NotNull] this Type type,
-        [NotNull] string name,
-        [CanBeNull] Type[] parameterTypes)
+    extension([NotNull] Type type)
     {
-        ArgumentNullException.ThrowIfNull(type);
-        ArgumentNullException.ThrowIfNull(name);
-
-        parameterTypes ??= Type.EmptyTypes;
-
-        var methodCandidates = new List<MethodInfo>(type.GetRuntimeMethods());
-
-        if (type.GetTypeInfo().IsInterface)
+        public MethodInfo GetNonOpenMatchingMethod(
+            [NotNull] string name,
+            [CanBeNull] Type[] parameterTypes)
         {
-            methodCandidates.AddRange(type.GetTypeInfo()
-                .ImplementedInterfaces.SelectMany(static x => x.GetRuntimeMethods()));
-        }
+            ArgumentNullException.ThrowIfNull(type);
+            ArgumentNullException.ThrowIfNull(name);
 
-        // Prefer the overload whose parameter types are exactly the given ones: a job created for
-        // Handle(Derived) must not run Handle(Base) just because that overload is declared first.
-        // A non-generic exact match wins at once, like C# prefers it over a generic method; failing
-        // that, a generic method whose inferred parameter types are exact; and failing that, the first
-        // candidate whose parameter types accept the given ones, as before.
-        MethodInfo exactGenericMatch = null;
-        MethodInfo firstMatch = null;
+            parameterTypes ??= Type.EmptyTypes;
 
-        foreach (var methodCandidate in methodCandidates)
-        {
-            if (!methodCandidate.GetNormalizedName().Equals(name, StringComparison.Ordinal))
+            var methodCandidates = new List<MethodInfo>(type.GetRuntimeMethods());
+
+            if (type.GetTypeInfo().IsInterface)
             {
-                continue;
+                methodCandidates.AddRange(type.GetTypeInfo()
+                    .ImplementedInterfaces.SelectMany(static x => x.GetRuntimeMethods()));
             }
 
-            var parameters = methodCandidate.GetParameters();
-            if (parameters.Length != parameterTypes.Length)
+            // Prefer the overload whose parameter types are exactly the given ones: a job created for
+            // Handle(Derived) must not run Handle(Base) just because that overload is declared first.
+            // A non-generic exact match wins at once, like C# prefers it over a generic method; failing
+            // that, a generic method whose inferred parameter types are exact; and failing that, the first
+            // candidate whose parameter types accept the given ones, as before.
+            MethodInfo exactGenericMatch = null;
+            MethodInfo firstMatch = null;
+
+            foreach (var methodCandidate in methodCandidates)
             {
-                continue;
-            }
-
-            var parameterTypesMatched = true;
-
-            var genericArguments = methodCandidate.ContainsGenericParameters
-                ? new Type[methodCandidate.GetGenericArguments().Length]
-                : null;
-
-            // Determining whether we can use this method candidate with
-            // current parameter types.
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameterType = parameters[i].ParameterType.GetTypeInfo();
-                var actualType = parameterTypes[i].GetTypeInfo();
-
-                if (!TypesMatchRecursive(parameterType, actualType, genericArguments))
+                if (!methodCandidate.GetNormalizedName().Equals(name, StringComparison.Ordinal))
                 {
-                    parameterTypesMatched = false;
-                    break;
+                    continue;
                 }
-            }
 
-            if (parameterTypesMatched)
-            {
-                if (genericArguments != null)
+                var parameters = methodCandidate.GetParameters();
+                if (parameters.Length != parameterTypes.Length)
                 {
-                    var genericArgumentsResolved = true;
+                    continue;
+                }
 
-                    foreach (var genericArgument in genericArguments)
+                var parameterTypesMatched = true;
+
+                var genericArguments = methodCandidate.ContainsGenericParameters
+                    ? new Type[methodCandidate.GetGenericArguments().Length]
+                    : null;
+
+                // Determining whether we can use this method candidate with
+                // current parameter types.
+                for (var i = 0; i < parameters.Length; i++)
+                {
+                    var parameterType = parameters[i].ParameterType.GetTypeInfo();
+                    var actualType = parameterTypes[i].GetTypeInfo();
+
+                    if (!TypesMatchRecursive(parameterType, actualType, genericArguments))
                     {
-                        if (genericArgument == null)
-                        {
-                            genericArgumentsResolved = false;
-                        }
+                        parameterTypesMatched = false;
+                        break;
                     }
+                }
 
-                    if (genericArgumentsResolved)
+                if (parameterTypesMatched)
+                {
+                    if (genericArguments != null)
                     {
-                        var genericMethod = methodCandidate.MakeGenericMethod(genericArguments);
+                        var genericArgumentsResolved = true;
 
-                        if (exactGenericMatch == null && HasParameterTypes(genericMethod, parameterTypes))
+                        foreach (var genericArgument in genericArguments)
                         {
-                            exactGenericMatch = genericMethod;
+                            if (genericArgument == null)
+                            {
+                                genericArgumentsResolved = false;
+                            }
                         }
 
-                        firstMatch ??= genericMethod;
-                    }
-                }
-                else
-                {
-                    if (HasParameterTypes(methodCandidate, parameterTypes))
-                    {
-                        return methodCandidate;
-                    }
+                        if (genericArgumentsResolved)
+                        {
+                            var genericMethod = methodCandidate.MakeGenericMethod(genericArguments);
 
-                    firstMatch ??= methodCandidate;
+                            if (exactGenericMatch == null && HasParameterTypes(genericMethod, parameterTypes))
+                            {
+                                exactGenericMatch = genericMethod;
+                            }
+
+                            firstMatch ??= genericMethod;
+                        }
+                    }
+                    else
+                    {
+                        if (HasParameterTypes(methodCandidate, parameterTypes))
+                        {
+                            return methodCandidate;
+                        }
+
+                        firstMatch ??= methodCandidate;
+                    }
                 }
             }
-        }
 
-        return exactGenericMatch ?? firstMatch;
+            return exactGenericMatch ?? firstMatch;
+        }
     }
 
     private static bool HasParameterTypes(MethodInfo method, Type[] parameterTypes)
@@ -152,9 +157,12 @@ internal static class TypeExtensions
         return true;
     }
 
-    public static Type[] GetAllGenericArguments(this TypeInfo type)
+    extension(TypeInfo type)
     {
-        return type.GenericTypeArguments.Length > 0 ? type.GenericTypeArguments : type.GenericTypeParameters;
+        public Type[] GetAllGenericArguments()
+        {
+            return type.GenericTypeArguments.Length > 0 ? type.GenericTypeArguments : type.GenericTypeParameters;
+        }
     }
 
     private static bool TypesMatchRecursive(TypeInfo parameterType, TypeInfo actualType, IList<Type> genericArguments)
@@ -210,37 +218,43 @@ internal static class TypeExtensions
             : parameterType == actualType;
     }
 
-    private static string GetFullNameWithoutNamespace(this Type type)
+    extension(Type type)
     {
-        if (type.IsGenericParameter)
+        private string GetFullNameWithoutNamespace()
         {
-            return type.Name;
+            if (type.IsGenericParameter)
+            {
+                return type.Name;
+            }
+
+            const int dotLength = 1;
+            // ReSharper disable once PossibleNullReferenceException
+            return !string.IsNullOrEmpty(type.Namespace)
+                ? type.FullName[(type.Namespace.Length + dotLength)..]
+                : type.FullName;
+        }
+    }
+
+    extension(string typeName)
+    {
+        private string ReplacePlusWithDotInNestedTypeName()
+        {
+            return typeName.Replace('+', '.');
         }
 
-        const int dotLength = 1;
-        // ReSharper disable once PossibleNullReferenceException
-        return !string.IsNullOrEmpty(type.Namespace)
-            ? type.FullName[(type.Namespace.Length + dotLength)..]
-            : type.FullName;
-    }
-
-    private static string ReplacePlusWithDotInNestedTypeName(this string typeName)
-    {
-        return typeName.Replace('+', '.');
-    }
-
-    private static string ReplaceGenericParametersInGenericTypeName(this string typeName, Type type)
-    {
-        var genericArguments = type.GetTypeInfo().GetAllGenericArguments();
-
-        typeName = GenericArgumentsRegex.Replace(typeName, match =>
+        private string ReplaceGenericParametersInGenericTypeName(Type type)
         {
-            var currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
-            var currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));
-            genericArguments = [.. genericArguments.Skip(currentGenericArgumentNumbers)];
-            return string.Concat("<", currentArguments, ">");
-        });
+            var genericArguments = type.GetTypeInfo().GetAllGenericArguments();
 
-        return typeName;
+            typeName = GenericArgumentsRegex.Replace(typeName, match =>
+            {
+                var currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
+                var currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));
+                genericArguments = [.. genericArguments.Skip(currentGenericArgumentNumbers)];
+                return string.Concat("<", currentArguments, ">");
+            });
+
+            return typeName;
+        }
     }
 }

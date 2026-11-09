@@ -12,41 +12,41 @@ namespace Masterly.NightShift;
 /// </summary>
 public static class NightShiftMonitoringEndpointRouteBuilderExtensions
 {
-    /// <summary>
-    /// Maps <c>GET {pattern}</c> to the JSON health report the dashboard serves at <c>/health</c>: <c>200</c>
-    /// when healthy or degraded, <c>503</c> when unhealthy. The report names queues and recurring job ids;
-    /// for a plain status, use ASP.NET Core health checks with <c>AddNightShift</c> instead.
-    /// </summary>
     /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="pattern">The route, for example <c>"/health/nightshift"</c>.</param>
-    /// <param name="options">The dashboard options to use, for <c>ServerPossiblyAbortedThreshold</c>. <c>null</c> uses the registered ones, or the defaults.</param>
-    /// <param name="storage">The storage to report on. <c>null</c> uses the registered one.</param>
-    /// <returns>A builder to add conventions to the endpoint.</returns>
-    public static IEndpointConventionBuilder MapNightShiftHealth(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [NotNull] string pattern,
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
+    extension([NotNull] IEndpointRouteBuilder endpoints)
     {
-        return MapDashboardRoute(endpoints, pattern, "/health", options, storage);
-    }
+        /// <summary>
+        /// Maps <c>GET {pattern}</c> to the JSON health report the dashboard serves at <c>/health</c>: <c>200</c>
+        /// when healthy or degraded, <c>503</c> when unhealthy. The report names queues and recurring job ids;
+        /// for a plain status, use ASP.NET Core health checks with <c>AddNightShift</c> instead.
+        /// </summary>
+        /// <param name="pattern">The route, for example <c>"/health/nightshift"</c>.</param>
+        /// <param name="options">The dashboard options to use, for <c>ServerPossiblyAbortedThreshold</c>. <c>null</c> uses the registered ones, or the defaults.</param>
+        /// <param name="storage">The storage to report on. <c>null</c> uses the registered one.</param>
+        /// <returns>A builder to add conventions to the endpoint.</returns>
+        public IEndpointConventionBuilder MapNightShiftHealth(
+            [NotNull] string pattern,
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            return MapDashboardRoute(endpoints, pattern, "/health", options, storage);
+        }
 
-    /// <summary>
-    /// Maps <c>GET {pattern}</c> to the Prometheus text the dashboard serves at <c>/metrics</c>: job counts by
-    /// state, queues, servers, recurring jobs and, when recorded, the per-method and per-queue insights.
-    /// </summary>
-    /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="pattern">The route, for example <c>"/metrics/nightshift"</c>.</param>
-    /// <param name="options">The dashboard options to use. <c>null</c> uses the registered ones, or the defaults.</param>
-    /// <param name="storage">The storage to report on. <c>null</c> uses the registered one.</param>
-    /// <returns>A builder to add conventions to the endpoint.</returns>
-    public static IEndpointConventionBuilder MapNightShiftMetrics(
-        [NotNull] this IEndpointRouteBuilder endpoints,
-        [NotNull] string pattern,
-        [CanBeNull] DashboardOptions? options = null,
-        [CanBeNull] JobStorage? storage = null)
-    {
-        return MapDashboardRoute(endpoints, pattern, "/metrics", options, storage);
+        /// <summary>
+        /// Maps <c>GET {pattern}</c> to the Prometheus text the dashboard serves at <c>/metrics</c>: job counts by
+        /// state, queues, servers, recurring jobs and, when recorded, the per-method and per-queue insights.
+        /// </summary>
+        /// <param name="pattern">The route, for example <c>"/metrics/nightshift"</c>.</param>
+        /// <param name="options">The dashboard options to use. <c>null</c> uses the registered ones, or the defaults.</param>
+        /// <param name="storage">The storage to report on. <c>null</c> uses the registered one.</param>
+        /// <returns>A builder to add conventions to the endpoint.</returns>
+        public IEndpointConventionBuilder MapNightShiftMetrics(
+            [NotNull] string pattern,
+            [CanBeNull] DashboardOptions? options = null,
+            [CanBeNull] JobStorage? storage = null)
+        {
+            return MapDashboardRoute(endpoints, pattern, "/metrics", options, storage);
+        }
     }
 
     private static IEndpointConventionBuilder MapDashboardRoute(

@@ -20,11 +20,14 @@ internal static class ExceptionTypeHelper
     private static readonly Type StackOverflowType = typeof(StackOverflowException);
     private static readonly Type OutOfMemoryType = typeof(OutOfMemoryException);
 
-    internal static bool IsCatchableExceptionType(this Exception e)
+    extension(Exception e)
     {
-        var type = e.GetType();
-        return
-            type != StackOverflowType &&
-            type != OutOfMemoryType;
+        internal bool IsCatchableExceptionType()
+        {
+            var type = e.GetType();
+            return
+                type != StackOverflowType &&
+                type != OutOfMemoryType;
+        }
     }
 }

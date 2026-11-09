@@ -11,39 +11,41 @@ namespace Masterly.NightShift;
 /// </summary>
 public static class NightShiftKeepAliveServiceCollectionExtensions
 {
-    /// <summary>
-    /// Keeps the web host from idling by requesting one of its own URLs at a fixed interval (5 minutes by
-    /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, the first address the
-    /// server listens on is used with the given path. The request has to reach the host that applies the idle timeout, so behind IIS give the
-    /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
-    /// answers without touching the storage.
-    /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">Changes to the defaults: URL, interval, timeout.</param>
-    /// <param name="path">Path requested when the URL is resolved from the server's address. Default is <c>/nightshift/ping</c>, a route that answers without touching the storage.</param>
-    /// <returns>The same collection, for chaining.</returns>
-    public static IServiceCollection AddNightShiftKeepAlive(
-        [NotNull] this IServiceCollection services,
-        [CanBeNull] Action<KeepAliveOptions>? configure = null,
-        [NotNull] string path = "/nightshift/ping")
+    extension([NotNull] IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(path);
-
-        services.AddSingleton<IBackgroundProcess>(provider =>
+        /// <summary>
+        /// Keeps the web host from idling by requesting one of its own URLs at a fixed interval (5 minutes by
+        /// default). Call it next to <c>AddNightShiftServer()</c>. Without an explicit URL, the first address the
+        /// server listens on is used with the given path. The request has to reach the host that applies the idle timeout, so behind IIS give the
+        /// public address, for example <c>https://jobs.example.com/nightshift/ping</c>, a dashboard route that
+        /// answers without touching the storage.
+        /// </summary>
+        /// <param name="configure">Changes to the defaults: URL, interval, timeout.</param>
+        /// <param name="path">Path requested when the URL is resolved from the server's address. Default is <c>/nightshift/ping</c>, a route that answers without touching the storage.</param>
+        /// <returns>The same collection, for chaining.</returns>
+        public IServiceCollection AddNightShiftKeepAlive(
+            [CanBeNull] Action<KeepAliveOptions>? configure = null,
+            [NotNull] string path = "/nightshift/ping")
         {
-            var options = new KeepAliveOptions();
-            configure?.Invoke(options);
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(path);
 
-            if (options.Url == null && options.UrlFactory == null)
+            services.AddSingleton<IBackgroundProcess>(provider =>
             {
-                options.UrlFactory = () => ResolveFromServer(provider, path);
-            }
+                var options = new KeepAliveOptions();
+                configure?.Invoke(options);
 
-            return new KeepAliveProcess(options);
-        });
+                if (options.Url == null && options.UrlFactory == null)
+                {
+                    options.UrlFactory = () => ResolveFromServer(provider, path);
+                }
 
-        return services;
+                return new KeepAliveProcess(options);
+            });
+
+            return services;
+        }
     }
 
     private static string? ResolveFromServer(IServiceProvider provider, string path)

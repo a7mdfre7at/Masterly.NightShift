@@ -22,112 +22,113 @@ namespace Masterly.NightShift.Server;
 /// Turns background processes into dispatcher builders for <see cref="BackgroundProcessingServer"/>, running them
 /// on dedicated threads.
 /// </summary>
+#pragma warning disable CA1708 // False positive: the analyzer compares the types the compiler generates for extension blocks
 public static class BackgroundProcessExtensions
+#pragma warning restore CA1708
 {
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcess process)
+    extension([NotNull] IBackgroundProcess process)
     {
-        return UseBackgroundPool(process, Environment.ProcessorCount);
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+    )
+        {
+            return UseBackgroundPool(process, Environment.ProcessorCount);
+        }
+
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            int threadCount)
+        {
+            return UseBackgroundPool(process, threadCount, null);
+        }
+
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            int threadCount,
+            [CanBeNull] Action<Thread> threadConfig)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+
+            return UseBackgroundPool(
+                process,
+                (threadName, threadStart) => DefaultThreadFactory(threadCount, threadName, threadStart, threadConfig));
+        }
+
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentNullException.ThrowIfNull(threadFactory);
+
+            return new BackgroundProcessDispatcherBuilder(
+                process,
+                threadStart => threadFactory(process.GetType().Name, threadStart));
+        }
     }
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcess process,
-        int threadCount)
+    extension([NotNull] IBackgroundProcessAsync process)
     {
-        return UseBackgroundPool(process, threadCount, null);
-    }
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+    )
+        {
+            return UseBackgroundPool(process, Environment.ProcessorCount);
+        }
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcess process,
-        int threadCount,
-        [CanBeNull] Action<Thread> threadConfig)
-    {
-        ArgumentNullException.ThrowIfNull(process);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            int maxConcurrency)
+        {
+            return UseBackgroundPool(
+                process,
+                maxConcurrency,
+                maxConcurrency < Environment.ProcessorCount ? maxConcurrency : Environment.ProcessorCount);
+        }
 
-        return UseBackgroundPool(
-            process,
-            (threadName, threadStart) => DefaultThreadFactory(threadCount, threadName, threadStart, threadConfig));
-    }
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            int maxConcurrency,
+            int threadCount)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcess process,
-        [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
-    {
-        ArgumentNullException.ThrowIfNull(process);
-        ArgumentNullException.ThrowIfNull(threadFactory);
+            return UseBackgroundPool(
+                process,
+                maxConcurrency,
+                (threadName, threadStart) => DefaultThreadFactory(threadCount, threadName, threadStart, null));
+        }
 
-        return new BackgroundProcessDispatcherBuilder(
-            process,
-            threadStart => threadFactory(process.GetType().Name, threadStart));
-    }
+        public IBackgroundProcessDispatcherBuilder UseBackgroundPool(
+            int maxConcurrency,
+            [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+            ArgumentNullException.ThrowIfNull(threadFactory);
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcessAsync process)
-    {
-        return UseBackgroundPool(process, Environment.ProcessorCount);
-    }
+            Func<TaskScheduler> createScheduler = () => new BackgroundTaskScheduler(
+                threadStart => threadFactory(process.GetType().Name, threadStart),
+                static exception =>
+                {
+                    LogProvider.GetLogger(typeof(BackgroundTaskScheduler)).FatalException(
+                        "Unhandled exception occurred in scheduler. Please report it to Masterly.NightShift developers",
+                        exception);
+                });
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcessAsync process,
-        int maxConcurrency)
-    {
-        return UseBackgroundPool(
-            process,
-            maxConcurrency,
-            maxConcurrency < Environment.ProcessorCount ? maxConcurrency : Environment.ProcessorCount);
-    }
+            return new BackgroundProcessDispatcherBuilderAsync(process, createScheduler, maxConcurrency, true);
+        }
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcessAsync process,
-        int maxConcurrency,
-        int threadCount)
-    {
-        ArgumentNullException.ThrowIfNull(process);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+        public IBackgroundProcessDispatcherBuilder UseThreadPool(
+    )
+        {
+            return UseThreadPool(process, Environment.ProcessorCount);
+        }
 
-        return UseBackgroundPool(
-            process,
-            maxConcurrency,
-            (threadName, threadStart) => DefaultThreadFactory(threadCount, threadName, threadStart, null));
-    }
+        public IBackgroundProcessDispatcherBuilder UseThreadPool(
+            int maxConcurrency)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 
-    public static IBackgroundProcessDispatcherBuilder UseBackgroundPool(
-        [NotNull] this IBackgroundProcessAsync process,
-        int maxConcurrency,
-        [NotNull] Func<string, ThreadStart, IEnumerable<Thread>> threadFactory)
-    {
-        ArgumentNullException.ThrowIfNull(process);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-        ArgumentNullException.ThrowIfNull(threadFactory);
-
-        Func<TaskScheduler> createScheduler = () => new BackgroundTaskScheduler(
-            threadStart => threadFactory(process.GetType().Name, threadStart),
-            static exception =>
-            {
-                LogProvider.GetLogger(typeof(BackgroundTaskScheduler)).FatalException(
-                    "Unhandled exception occurred in scheduler. Please report it to Masterly.NightShift developers",
-                    exception);
-            });
-
-        return new BackgroundProcessDispatcherBuilderAsync(process, createScheduler, maxConcurrency, true);
-    }
-
-    public static IBackgroundProcessDispatcherBuilder UseThreadPool(
-        [NotNull] this IBackgroundProcessAsync process)
-    {
-        return UseThreadPool(process, Environment.ProcessorCount);
-    }
-
-    public static IBackgroundProcessDispatcherBuilder UseThreadPool(
-        [NotNull] this IBackgroundProcessAsync process,
-        int maxConcurrency)
-    {
-        ArgumentNullException.ThrowIfNull(process);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-
-        return new BackgroundProcessDispatcherBuilderAsync(process, static () => TaskScheduler.Default, maxConcurrency, false);
+            return new BackgroundProcessDispatcherBuilderAsync(process, static () => TaskScheduler.Default, maxConcurrency, false);
+        }
     }
 
     internal static IEnumerable<Thread> DefaultThreadFactory(

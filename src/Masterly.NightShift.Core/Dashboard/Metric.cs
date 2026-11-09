@@ -54,16 +54,19 @@ public enum MetricStyle
 
 internal static class MetricStyleExtensions
 {
-    public static string ToClassName(this MetricStyle style)
+    extension(MetricStyle style)
     {
-        return style switch
+        public string ToClassName()
         {
-            MetricStyle.Default => "metric-default",
-            MetricStyle.Info => "metric-info",
-            MetricStyle.Success => "metric-success",
-            MetricStyle.Warning => "metric-warning",
-            MetricStyle.Danger => "metric-danger",
-            _ => "metric-null",
-        };
+            return style switch
+            {
+                MetricStyle.Default => "metric-default",
+                MetricStyle.Info => "metric-info",
+                MetricStyle.Success => "metric-success",
+                MetricStyle.Warning => "metric-warning",
+                MetricStyle.Danger => "metric-danger",
+                _ => "metric-null",
+            };
+        }
     }
 }

@@ -18,70 +18,80 @@ namespace Masterly.NightShift.Storage;
 /// <summary>
 /// Reads recurring jobs and takes job locks through a storage connection.
 /// </summary>
+#pragma warning disable CA1708 // False positive: the analyzer compares the types the compiler generates for extension blocks
 public static class StorageConnectionExtensions
+#pragma warning restore CA1708
 {
-    public static IDisposable AcquireDistributedJobLock(
-        [NotNull] this IStorageConnection connection,
-        [NotNull] string jobId,
-        TimeSpan timeout)
+    extension([NotNull] IStorageConnection connection)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(jobId);
+        public IDisposable AcquireDistributedJobLock(
+            [NotNull] string jobId,
+            TimeSpan timeout)
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(jobId);
 
-        return connection.AcquireDistributedLock(
-            $"job:{jobId}:state-lock",
-            timeout);
+            return connection.AcquireDistributedLock(
+                $"job:{jobId}:state-lock",
+                timeout);
+        }
     }
 
-    public static void AcquireDistributedJobLock(
-        [NotNull] this JobStorageTransaction transaction,
-        [NotNull] string jobId,
-        TimeSpan timeout)
+    extension([NotNull] JobStorageTransaction transaction)
     {
-        ArgumentNullException.ThrowIfNull(transaction);
-        ArgumentNullException.ThrowIfNull(jobId);
+        public void AcquireDistributedJobLock(
+            [NotNull] string jobId,
+            TimeSpan timeout)
+        {
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(jobId);
 
-        transaction.AcquireDistributedLock($"job:{jobId}:state-lock", timeout);
+            transaction.AcquireDistributedLock($"job:{jobId}:state-lock", timeout);
+        }
     }
 
-    public static long GetRecurringJobCount([NotNull] this JobStorageConnection connection)
+    extension([NotNull] JobStorageConnection connection)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        return connection.GetSetCount("recurring-jobs");
+        public long GetRecurringJobCount()
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+            return connection.GetSetCount("recurring-jobs");
+        }
+
+        public List<string> GetRecurringJobIds(
+            int startingFrom,
+            int endingAt)
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+            return connection.GetRangeFromSet("recurring-jobs", startingFrom, endingAt);
+        }
+
+        public List<RecurringJobDto> GetRecurringJobs(
+            int startingFrom,
+            int endingAt)
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+
+            var ids = connection.GetRecurringJobIds(startingFrom, endingAt);
+            return GetRecurringJobDtos(connection, ids);
+        }
     }
 
-    public static List<string> GetRecurringJobIds(
-        [NotNull] this JobStorageConnection connection,
-        int startingFrom,
-        int endingAt)
+    extension([NotNull] IStorageConnection connection)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        return connection.GetRangeFromSet("recurring-jobs", startingFrom, endingAt);
-    }
+        public List<RecurringJobDto> GetRecurringJobs()
+        {
+            ArgumentNullException.ThrowIfNull(connection);
 
-    public static List<RecurringJobDto> GetRecurringJobs(
-        [NotNull] this JobStorageConnection connection,
-        int startingFrom,
-        int endingAt)
-    {
-        ArgumentNullException.ThrowIfNull(connection);
+            var ids = connection.GetAllItemsFromSet("recurring-jobs");
+            return GetRecurringJobDtos(connection, ids);
+        }
 
-        var ids = connection.GetRecurringJobIds(startingFrom, endingAt);
-        return GetRecurringJobDtos(connection, ids);
-    }
-
-    public static List<RecurringJobDto> GetRecurringJobs([NotNull] this IStorageConnection connection)
-    {
-        ArgumentNullException.ThrowIfNull(connection);
-
-        var ids = connection.GetAllItemsFromSet("recurring-jobs");
-        return GetRecurringJobDtos(connection, ids);
-    }
-
-    public static List<RecurringJobDto> GetRecurringJobs([NotNull] this IStorageConnection connection, IEnumerable<string> ids)
-    {
-        ArgumentNullException.ThrowIfNull(connection);
-        return GetRecurringJobDtos(connection, ids);
+        public List<RecurringJobDto> GetRecurringJobs(IEnumerable<string> ids)
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+            return GetRecurringJobDtos(connection, ids);
+        }
     }
 
     private static List<RecurringJobDto> GetRecurringJobDtos(IStorageConnection connection, IEnumerable<string> ids)

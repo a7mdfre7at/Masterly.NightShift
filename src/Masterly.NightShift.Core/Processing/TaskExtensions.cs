@@ -24,143 +24,152 @@ internal static class TaskExtensions
     private static readonly Type[] EmptyTypes = Type.EmptyTypes;
     private static readonly WaitHandle InvalidWaitHandleInstance = new InvalidWaitHandle();
 
-    public static bool WaitOne([NotNull] this WaitHandle waitHandle, TimeSpan timeout, CancellationToken token)
+    extension([NotNull] WaitHandle waitHandle)
     {
-        ArgumentNullException.ThrowIfNull(waitHandle);
-        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
-
-        token.ThrowIfCancellationRequested();
-
-        using var ev = token.GetCancellationEvent();
-
-        var waitHandles = new[] { waitHandle, ev.WaitHandle };
-
-        var stopwatch = Stopwatch.StartNew();
-        var waitResult = WaitHandle.WaitAny(waitHandles, timeout);
-        stopwatch.Stop();
-
-        var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
-        var elapsedThreshold = TimeSpan.FromMilliseconds(500);
-        var protectionTime = TimeSpan.FromSeconds(1);
-
-        if (waitResult == 0)
+        public bool WaitOne(TimeSpan timeout, CancellationToken token)
         {
-            return true;
-        }
+            ArgumentNullException.ThrowIfNull(waitHandle);
+            ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
 
-        if (!token.IsCancellationRequested &&
-            timeout >= timeoutThreshold &&
-            stopwatch.Elapsed < elapsedThreshold)
-        {
-            try
+            token.ThrowIfCancellationRequested();
+
+            using var ev = token.GetCancellationEvent();
+
+            var waitHandles = new[] { waitHandle, ev.WaitHandle };
+
+            var stopwatch = Stopwatch.StartNew();
+            var waitResult = WaitHandle.WaitAny(waitHandles, timeout);
+            stopwatch.Stop();
+
+            var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
+            var elapsedThreshold = TimeSpan.FromMilliseconds(500);
+            var protectionTime = TimeSpan.FromSeconds(1);
+
+            if (waitResult == 0)
             {
-                var logger = LogProvider.GetLogger(typeof(TaskExtensions));
-                logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
-            }
-            finally
-            {
-                Thread.Sleep(protectionTime);
-            }
-        }
-
-        token.ThrowIfCancellationRequested();
-        return false;
-    }
-
-    public static async Task<bool> WaitOneAsync([NotNull] this WaitHandle waitHandle, TimeSpan timeout, CancellationToken token)
-    {
-        ArgumentNullException.ThrowIfNull(waitHandle);
-        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
-
-        token.ThrowIfCancellationRequested();
-
-        if (waitHandle.WaitOne(TimeSpan.Zero))
-        {
-            return true;
-        }
-
-        var tcs = CreateCompletionSource<bool>();
-        var registration = ThreadPool.RegisterWaitForSingleObject(waitHandle, CallBack, tcs, timeout, executeOnlyOnce: true);
-
-        if (token.CanBeCanceled)
-        {
-            token.Register(Callback, Tuple.Create(registration, tcs, token), useSynchronizationContext: false);
-        }
-
-        return await tcs.Task.ConfigureAwait(false);
-    }
-
-    public static bool IsTaskLike(this Type type, out Func<object, Task> getTaskFunc)
-    {
-        var typeInfo = type.GetTypeInfo();
-
-        // There are no primitive types that behave as Task
-        if (!typeInfo.IsPrimitive)
-        {
-            if (typeof(Task).GetTypeInfo().IsAssignableFrom(typeInfo))
-            {
-                getTaskFunc = static obj => (Task)obj;
                 return true;
             }
 
-            // We are don't relying on GetAwaiter/GetResult methods for ValueTask,
-            // because it's not a valid pattern to use them as written here:
-            // https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/#user-content-valid-consumption-patterns-for-valuetasks
-            // So we're using their `AsTask` method to create a task first, and then
-            // waiting on it.
-            // This method can be replaced with wrapping in a custom awaiter like
-            // in ASP.NET Core, but this step requires using the `await` keyword
-            // to get the result, so can be implemented only in future.
-            if (typeInfo.FullName != null &&
-                typeInfo.FullName.StartsWith("System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
+            if (!token.IsCancellationRequested &&
+                timeout >= timeoutThreshold &&
+                stopwatch.Elapsed < elapsedThreshold)
             {
-                var asTask = type.GetRuntimeMethod("AsTask", EmptyTypes);
-
-                if (asTask != null && asTask.IsPublic && !asTask.IsStatic &&
-                    typeof(Task).GetTypeInfo().IsAssignableFrom(asTask.ReturnType.GetTypeInfo()))
+                try
                 {
-                    getTaskFunc = obj => (Task)asTask.Invoke(obj, null);
-                    return true;
+                    var logger = LogProvider.GetLogger(typeof(TaskExtensions));
+                    logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
+                }
+                finally
+                {
+                    Thread.Sleep(protectionTime);
                 }
             }
+
+            token.ThrowIfCancellationRequested();
+            return false;
         }
 
-        getTaskFunc = null;
-        return false;
+        public async Task<bool> WaitOneAsync(TimeSpan timeout, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(waitHandle);
+            ArgumentOutOfRangeException.ThrowIfLessThan(timeout, Timeout.InfiniteTimeSpan);
+
+            token.ThrowIfCancellationRequested();
+
+            if (waitHandle.WaitOne(TimeSpan.Zero))
+            {
+                return true;
+            }
+
+            var tcs = CreateCompletionSource<bool>();
+            var registration = ThreadPool.RegisterWaitForSingleObject(waitHandle, CallBack, tcs, timeout, executeOnlyOnce: true);
+
+            if (token.CanBeCanceled)
+            {
+                token.Register(Callback, Tuple.Create(registration, tcs, token), useSynchronizationContext: false);
+            }
+
+            return await tcs.Task.ConfigureAwait(false);
+        }
     }
 
-    public static object GetTaskLikeResult([NotNull] this Task task, object obj, Type returnType)
+    extension(Type type)
     {
-        ArgumentNullException.ThrowIfNull(task);
-
-        if (task != obj)
+        public bool IsTaskLike(out Func<object, Task> getTaskFunc)
         {
-            // We shouldn't call GetAwaiter/GetResult on ValueTask directly, because
-            // there may be a race condition as tells us this article:
-            // https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/#user-content-valid-consumption-patterns-for-valuetasks
-            // So we are waiting on task, returned by the AsTask method to ensure it's
-            // completed, before querying for the result.
-            task.GetAwaiter().GetResult();
+            var typeInfo = type.GetTypeInfo();
+
+            // There are no primitive types that behave as Task
+            if (!typeInfo.IsPrimitive)
+            {
+                if (typeof(Task).GetTypeInfo().IsAssignableFrom(typeInfo))
+                {
+                    getTaskFunc = static obj => (Task)obj;
+                    return true;
+                }
+
+                // We are don't relying on GetAwaiter/GetResult methods for ValueTask,
+                // because it's not a valid pattern to use them as written here:
+                // https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/#user-content-valid-consumption-patterns-for-valuetasks
+                // So we're using their `AsTask` method to create a task first, and then
+                // waiting on it.
+                // This method can be replaced with wrapping in a custom awaiter like
+                // in ASP.NET Core, but this step requires using the `await` keyword
+                // to get the result, so can be implemented only in future.
+                if (typeInfo.FullName != null &&
+                    typeInfo.FullName.StartsWith("System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
+                {
+                    var asTask = type.GetRuntimeMethod("AsTask", EmptyTypes);
+
+                    if (asTask != null && asTask.IsPublic && !asTask.IsStatic &&
+                        typeof(Task).GetTypeInfo().IsAssignableFrom(asTask.ReturnType.GetTypeInfo()))
+                    {
+                        getTaskFunc = obj => (Task)asTask.Invoke(obj, null);
+                        return true;
+                    }
+                }
+            }
+
+            getTaskFunc = null;
+            return false;
         }
+    }
 
-        // ReturnType is used instead of task.GetType, because we should return `null` result,
-        // when method is returning non-generic Task. However async state machines may use
-        // Task<VoidTaskResult> or Task<VoidResult> for these cases, and the number of such
-        // void types is pretty high. So it's much safer to call GetAwaiter/GetResult on an
-        // original result object.
+    extension([NotNull] Task task)
+    {
+        public object GetTaskLikeResult(object obj, Type returnType)
+        {
+            ArgumentNullException.ThrowIfNull(task);
 
-        // Awaitable type must have a public parameterless GetAwaiter instance method, ...
-        var getAwaiter = returnType.GetRuntimeMethod("GetAwaiter", EmptyTypes);
-        if (getAwaiter == null || getAwaiter.IsStatic || !getAwaiter.IsPublic) return null;
+            if (task != obj)
+            {
+                // We shouldn't call GetAwaiter/GetResult on ValueTask directly, because
+                // there may be a race condition as tells us this article:
+                // https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/#user-content-valid-consumption-patterns-for-valuetasks
+                // So we are waiting on task, returned by the AsTask method to ensure it's
+                // completed, before querying for the result.
+                task.GetAwaiter().GetResult();
+            }
 
-        var awaiterType = getAwaiter.ReturnType;
+            // ReturnType is used instead of task.GetType, because we should return `null` result,
+            // when method is returning non-generic Task. However async state machines may use
+            // Task<VoidTaskResult> or Task<VoidResult> for these cases, and the number of such
+            // void types is pretty high. So it's much safer to call GetAwaiter/GetResult on an
+            // original result object.
 
-        // ... and also have a public parameterless GetResult instance method
-        var getResult = awaiterType.GetRuntimeMethod("GetResult", EmptyTypes);
-        if (getResult == null || getResult.IsStatic || !getResult.IsPublic) return null;
+            // Awaitable type must have a public parameterless GetAwaiter instance method, ...
+            var getAwaiter = returnType.GetRuntimeMethod("GetAwaiter", EmptyTypes);
+            if (getAwaiter == null || getAwaiter.IsStatic || !getAwaiter.IsPublic) return null;
 
-        var awaiter = getAwaiter.Invoke(obj, null);
-        return getResult.Invoke(awaiter, null);
+            var awaiterType = getAwaiter.ReturnType;
+
+            // ... and also have a public parameterless GetResult instance method
+            var getResult = awaiterType.GetRuntimeMethod("GetResult", EmptyTypes);
+            if (getResult == null || getResult.IsStatic || !getResult.IsPublic) return null;
+
+            var awaiter = getAwaiter.Invoke(obj, null);
+            return getResult.Invoke(awaiter, null);
+        }
     }
 
     private static void CallBack(object state, bool timedOut)

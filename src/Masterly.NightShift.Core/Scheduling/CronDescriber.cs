@@ -318,8 +318,8 @@ internal static class CronDescriber
 
     private static string JoinList(IList<string> items)
     {
-        if (items.Count == 1) return items[0];
-        if (items.Count == 2) return $"{items[0]} and {items[1]}";
+        if (items is [var only]) return only;
+        if (items is [var first, var second]) return $"{first} and {second}";
         return string.Join(", ", items.Take(items.Count - 1)) + " and " + items[items.Count - 1];
     }
 
@@ -345,7 +345,7 @@ internal static class CronDescriber
         public string[]? Names { get; private set; }
 
         public bool IsSpecific => !IsEvery && Step == 1 && Special == null;
-        public bool IsZero => IsSpecific && Values.Count == 1 && Values[0] == 0;
+        public bool IsZero => IsSpecific && Values is [0];
 
         /// <summary>A single range without a step, such as <c>9-17</c>, or <c>22-2</c> across midnight.</summary>
         public bool IsRange => IsSpecific && RangeStart.HasValue && Values.Count == RangeLength;

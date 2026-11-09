@@ -186,9 +186,9 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
             }
         } while (attemptsLeft-- > 0);
 
-        if (exceptions.Count == 1)
+        if (exceptions is [var only])
         {
-            ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+            ExceptionDispatchInfo.Capture(only).Throw();
         }
 
         throw new AggregateException(exceptions);

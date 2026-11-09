@@ -365,7 +365,7 @@ public static class JobCatalog
     internal static string? CombineFormValues([NotNull] JobCatalogParameter parameter, [CanBeNull] IList<string?>? values)
     {
         if (values == null || values.Count == 0) return null;
-        if (values.Count == 1) return values[0];
+        if (values is [var only]) return only;
 
         var underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
 
@@ -420,7 +420,7 @@ public static class JobCatalog
 
     private static bool IsJsonString(string text)
     {
-        return text.Length >= 2 && text[0] == '"' && text[^1] == '"';
+        return text is ['"', .., '"'];
     }
 
     // "Z" or "+05:00" after the time, inside the quotes ConvertArgument added
@@ -440,7 +440,7 @@ public static class JobCatalog
             if (text.IndexOf(':') < 0) throw new FormatException($"'{text.Trim()}' is not a time span; use hh:mm:ss, for example 00:30:00.");
             return TimeSpan.Parse(text.Trim(), CultureInfo.InvariantCulture);
         }
-        if (text.Length == 1) return text[0];
+        if (text is [var character]) return character;
 
         throw new FormatException($"'{text}' is not a single character.");
     }

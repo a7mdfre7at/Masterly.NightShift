@@ -11,300 +11,279 @@ namespace Masterly.NightShift;
 /// </summary>
 public static class BackgroundJobClientFanInExtensions
 {
-    /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+    extension([NotNull] IBackgroundJobClient client)
     {
-        return ContinueJobWithAll(client, parentIds, methodCall, new EnqueuedState(), options);
-    }
+        /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return ContinueJobWithAll(client, parentIds, methodCall, new EnqueuedState(), options);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAll(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAll(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.All);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAll<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), once <em>every</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAll<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.All);
+        }
 
-    /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Action> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Action> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAny(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAny(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Action<T>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), options, FanInMode.Any);
+        }
 
-    /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        [NotNull] IState nextState,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
-    }
+        /// <summary>Creates a job that starts, in <paramref name="nextState"/>, as soon as <em>one</em> parent has finished as <paramref name="options"/> require.</summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            [NotNull] IState nextState,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            return Create(client, parentIds, Job.FromExpression(methodCall), nextState, options, FanInMode.Any);
+        }
 
-    /// <summary>
-    /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
-    /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
-    /// </summary>
-    public static string? ContinueJobWithAny<T>(
-        [NotNull] this IBackgroundJobClient client,
-        [NotNull] IEnumerable<string?> parentIds,
-        [NotNull] string queue,
-        [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
-        [CanBeNull] IState? nextState = null,
-        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
+        /// <summary>
+        /// Creates a job for the specified queue that starts, in <paramref name="nextState"/> (<see cref="EnqueuedState"/>
+        /// when <c>null</c>), as soon as <em>one</em> parent has finished as <paramref name="options"/> require.
+        /// </summary>
+        public string? ContinueJobWithAny<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            [NotNull] string queue,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall,
+            [CanBeNull] IState? nextState = null,
+            JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            return Create(client, parentIds, Job.FromExpression(methodCall, queue), nextState ?? new EnqueuedState(), options, FanInMode.Any);
+        }
     }
 
     private static string? Create(

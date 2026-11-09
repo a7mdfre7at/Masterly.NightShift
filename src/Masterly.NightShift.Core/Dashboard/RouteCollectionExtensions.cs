@@ -20,69 +20,72 @@ namespace Masterly.NightShift.Dashboard;
 /// <summary>
 /// Adds Razor pages, commands and other dispatchers to the dashboard's <see cref="RouteCollection"/>.
 /// </summary>
+#pragma warning disable CA1708 // False positive: the analyzer compares the types the compiler generates for extension blocks
 public static class RouteCollectionExtensions
+#pragma warning restore CA1708
 {
-    public static void AddRazorPage(
-        [NotNull] this RouteCollection routes,
-        [NotNull] string pathTemplate,
-        [NotNull] Func<Match, RazorPage> pageFunc)
+    extension([NotNull] RouteCollection routes)
     {
-        ArgumentNullException.ThrowIfNull(routes);
-        ArgumentNullException.ThrowIfNull(pathTemplate);
-        ArgumentNullException.ThrowIfNull(pageFunc);
-
-        routes.Add(pathTemplate, new RazorPageDispatcher(pageFunc));
-    }
-
-    public static void AddCommand(
-        [NotNull] this RouteCollection routes,
-        [NotNull] string pathTemplate,
-        [NotNull] Func<DashboardContext, bool> command)
-    {
-        ArgumentNullException.ThrowIfNull(routes);
-        ArgumentNullException.ThrowIfNull(pathTemplate);
-        ArgumentNullException.ThrowIfNull(command);
-
-        routes.Add(pathTemplate, new CommandDispatcher(command));
-    }
-
-    public static void AddBatchCommand(
-        [NotNull] this RouteCollection routes,
-        [NotNull] string pathTemplate,
-        [NotNull] Action<DashboardContext, string> command)
-    {
-        ArgumentNullException.ThrowIfNull(routes);
-        ArgumentNullException.ThrowIfNull(pathTemplate);
-        ArgumentNullException.ThrowIfNull(command);
-
-        routes.Add(pathTemplate, new BatchCommandDispatcher(command));
-    }
-
-    public static void AddClientBatchCommand(
-        this RouteCollection routes,
-        string pathTemplate,
-        [NotNull] Action<IBackgroundJobClient, string> command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-
-        routes.AddBatchCommand(pathTemplate, (context, jobId) =>
+        public void AddRazorPage(
+            [NotNull] string pathTemplate,
+            [NotNull] Func<Match, RazorPage> pageFunc)
         {
-            var client = context.GetBackgroundJobClient();
-            command(client, jobId);
-        });
+            ArgumentNullException.ThrowIfNull(routes);
+            ArgumentNullException.ThrowIfNull(pathTemplate);
+            ArgumentNullException.ThrowIfNull(pageFunc);
+
+            routes.Add(pathTemplate, new RazorPageDispatcher(pageFunc));
+        }
+
+        public void AddCommand(
+            [NotNull] string pathTemplate,
+            [NotNull] Func<DashboardContext, bool> command)
+        {
+            ArgumentNullException.ThrowIfNull(routes);
+            ArgumentNullException.ThrowIfNull(pathTemplate);
+            ArgumentNullException.ThrowIfNull(command);
+
+            routes.Add(pathTemplate, new CommandDispatcher(command));
+        }
+
+        public void AddBatchCommand(
+            [NotNull] string pathTemplate,
+            [NotNull] Action<DashboardContext, string> command)
+        {
+            ArgumentNullException.ThrowIfNull(routes);
+            ArgumentNullException.ThrowIfNull(pathTemplate);
+            ArgumentNullException.ThrowIfNull(command);
+
+            routes.Add(pathTemplate, new BatchCommandDispatcher(command));
+        }
     }
 
-    public static void AddRecurringBatchCommand(
-        this RouteCollection routes,
-        string pathTemplate,
-        [NotNull] Action<IRecurringJobManager, string> command)
+    extension(RouteCollection routes)
     {
-        ArgumentNullException.ThrowIfNull(command);
-
-        routes.AddBatchCommand(pathTemplate, (context, jobId) =>
+        public void AddClientBatchCommand(
+            string pathTemplate,
+            [NotNull] Action<IBackgroundJobClient, string> command)
         {
-            var manager = context.GetRecurringJobManager();
-            command(manager, jobId);
-        });
+            ArgumentNullException.ThrowIfNull(command);
+
+            routes.AddBatchCommand(pathTemplate, (context, jobId) =>
+            {
+                var client = context.GetBackgroundJobClient();
+                command(client, jobId);
+            });
+        }
+
+        public void AddRecurringBatchCommand(
+            string pathTemplate,
+            [NotNull] Action<IRecurringJobManager, string> command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+
+            routes.AddBatchCommand(pathTemplate, (context, jobId) =>
+            {
+                var manager = context.GetRecurringJobManager();
+                command(manager, jobId);
+            });
+        }
     }
 }

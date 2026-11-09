@@ -23,69 +23,72 @@ namespace Masterly.NightShift.Common;
 /// </summary>
 public static class CancellationTokenExtensions
 {
-    /// <summary>
-    /// Returns a class that contains a <see cref="EventWaitHandle"/> that is set, when
-    /// the given <paramref name="cancellationToken"/> is canceled. This method is based
-    /// on cancellation token registration and avoids using the <see cref="CancellationToken.WaitHandle"/>
-    /// property as it may lead to high CPU issues.
-    /// </summary>
-    public static CancellationEvent GetCancellationEvent(this CancellationToken cancellationToken)
+    extension(CancellationToken cancellationToken)
     {
-        return new CancellationEvent(cancellationToken);
-    }
-
-    /// <summary>
-    /// Performs a wait until the specified <paramref name="timeout"/> is elapsed or the
-    /// given cancellation token is canceled and throw <see cref="OperationCanceledException"/>
-    /// exception if wait succeeded. The wait is performed on a dedicated event
-    /// wait handle to avoid using the <see cref="CancellationToken.WaitHandle"/> property
-    /// that may lead to high CPU issues.
-    /// </summary>
-    public static void WaitOrThrow(this CancellationToken cancellationToken, TimeSpan timeout)
-    {
-        if (Wait(cancellationToken, timeout))
+        /// <summary>
+        /// Returns a class that contains a <see cref="EventWaitHandle"/> that is set, when
+        /// the given <paramref name="cancellationToken"/> is canceled. This method is based
+        /// on cancellation token registration and avoids using the <see cref="CancellationToken.WaitHandle"/>
+        /// property as it may lead to high CPU issues.
+        /// </summary>
+        public CancellationEvent GetCancellationEvent()
         {
-            throw new OperationCanceledException(cancellationToken);
+            return new CancellationEvent(cancellationToken);
         }
-    }
 
-    /// <summary>
-    /// Performs a wait until the specified <paramref name="timeout"/> is elapsed or the
-    /// given cancellation token is canceled. The wait is performed on a dedicated event
-    /// wait handle to avoid using the <see cref="CancellationToken.WaitHandle"/> property
-    /// that may lead to high CPU issues.
-    /// </summary>
-    public static bool Wait(this CancellationToken cancellationToken, TimeSpan timeout)
-    {
-        using var cancellationEvent = GetCancellationEvent(cancellationToken);
-
-        var stopwatch = Stopwatch.StartNew();
-        var waitResult = cancellationEvent.WaitHandle.WaitOne(timeout);
-        stopwatch.Stop();
-
-        var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
-        var elapsedThreshold = TimeSpan.FromMilliseconds(500);
-        var protectionTime = TimeSpan.FromSeconds(1);
-
-        // There was a precedent of the following message logged when CancellationToken.WaitHandle
-        // was used directly, instead of having our custom CancellationEvent class used, please see
-        // https://github.com/HangfireIO/Hangfire/issues/2447
-        if (!cancellationToken.IsCancellationRequested &&
-            timeout >= timeoutThreshold &&
-            stopwatch.Elapsed < elapsedThreshold)
+        /// <summary>
+        /// Performs a wait until the specified <paramref name="timeout"/> is elapsed or the
+        /// given cancellation token is canceled and throw <see cref="OperationCanceledException"/>
+        /// exception if wait succeeded. The wait is performed on a dedicated event
+        /// wait handle to avoid using the <see cref="CancellationToken.WaitHandle"/> property
+        /// that may lead to high CPU issues.
+        /// </summary>
+        public void WaitOrThrow(TimeSpan timeout)
         {
-            try
+            if (Wait(cancellationToken, timeout))
             {
-                var logger = LogProvider.GetLogger(typeof(CancellationTokenExtensions));
-                logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
-            }
-            finally
-            {
-                Thread.Sleep(protectionTime);
+                throw new OperationCanceledException(cancellationToken);
             }
         }
 
-        return waitResult;
+        /// <summary>
+        /// Performs a wait until the specified <paramref name="timeout"/> is elapsed or the
+        /// given cancellation token is canceled. The wait is performed on a dedicated event
+        /// wait handle to avoid using the <see cref="CancellationToken.WaitHandle"/> property
+        /// that may lead to high CPU issues.
+        /// </summary>
+        public bool Wait(TimeSpan timeout)
+        {
+            using var cancellationEvent = GetCancellationEvent(cancellationToken);
+
+            var stopwatch = Stopwatch.StartNew();
+            var waitResult = cancellationEvent.WaitHandle.WaitOne(timeout);
+            stopwatch.Stop();
+
+            var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
+            var elapsedThreshold = TimeSpan.FromMilliseconds(500);
+            var protectionTime = TimeSpan.FromSeconds(1);
+
+            // There was a precedent of the following message logged when CancellationToken.WaitHandle
+            // was used directly, instead of having our custom CancellationEvent class used, please see
+            // https://github.com/HangfireIO/Hangfire/issues/2447
+            if (!cancellationToken.IsCancellationRequested &&
+                timeout >= timeoutThreshold &&
+                stopwatch.Elapsed < elapsedThreshold)
+            {
+                try
+                {
+                    var logger = LogProvider.GetLogger(typeof(CancellationTokenExtensions));
+                    logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
+                }
+                finally
+                {
+                    Thread.Sleep(protectionTime);
+                }
+            }
+
+            return waitResult;
+        }
     }
 
     /// <summary>

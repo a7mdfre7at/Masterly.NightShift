@@ -20,16 +20,19 @@ namespace Masterly.NightShift.Dashboard;
 /// </summary>
 public static class AspNetCoreDashboardContextExtensions
 {
-    /// <summary>
-    /// Gets the <see cref="HttpContext"/> of a dashboard request served by ASP.NET Core.
-    /// </summary>
     /// <param name="context">The dashboard context.</param>
-    /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
-    public static HttpContext GetHttpContext([NotNull] this DashboardContext context)
+    extension([NotNull] DashboardContext context)
     {
-        ArgumentNullException.ThrowIfNull(context);
+        /// <summary>
+        /// Gets the <see cref="HttpContext"/> of a dashboard request served by ASP.NET Core.
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="context"/> isn't an <see cref="AspNetCoreDashboardContext"/>.</exception>
+        public HttpContext GetHttpContext()
+        {
+            ArgumentNullException.ThrowIfNull(context);
 
-        var aspNetCoreContext = context as AspNetCoreDashboardContext ?? throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
-        return aspNetCoreContext.HttpContext;
+            var aspNetCoreContext = context as AspNetCoreDashboardContext ?? throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
+            return aspNetCoreContext.HttpContext;
+        }
     }
 }

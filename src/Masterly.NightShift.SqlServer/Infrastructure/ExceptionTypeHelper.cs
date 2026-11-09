@@ -24,12 +24,15 @@ internal static class ExceptionTypeHelper
     private static readonly Type AccessViolationType = typeof(AccessViolationException);
     private static readonly Type SecurityType = typeof(System.Security.SecurityException);
 
-    internal static bool IsCatchableExceptionType(this Exception e)
+    extension(Exception e)
     {
-        var type = e.GetType();
-        return type != OutOfMemoryType &&
-               type != StackOverflowType &&
-               type != AccessViolationType &&
-               !SecurityType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo());
+        internal bool IsCatchableExceptionType()
+        {
+            var type = e.GetType();
+            return type != OutOfMemoryType &&
+                   type != StackOverflowType &&
+                   type != AccessViolationType &&
+                   !SecurityType.GetTypeInfo().IsAssignableFrom(type.GetTypeInfo());
+        }
     }
 }

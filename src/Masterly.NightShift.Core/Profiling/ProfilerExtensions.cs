@@ -17,16 +17,18 @@ namespace Masterly.NightShift.Profiling;
 
 internal static class ProfilerExtensions
 {
-    public static void InvokeMeasured<TInstance>(
-        [NotNull] this IProfiler profiler,
-        [CanBeNull] TInstance instance,
-        [NotNull] Action<TInstance> action,
-        [CanBeNull] Func<TInstance, string> messageFunc = null)
+    extension([NotNull] IProfiler profiler)
     {
-        ArgumentNullException.ThrowIfNull(profiler);
-        ArgumentNullException.ThrowIfNull(action);
+        public void InvokeMeasured<TInstance>(
+            [CanBeNull] TInstance instance,
+            [NotNull] Action<TInstance> action,
+            [CanBeNull] Func<TInstance, string> messageFunc = null)
+        {
+            ArgumentNullException.ThrowIfNull(profiler);
+            ArgumentNullException.ThrowIfNull(action);
 
-        profiler.InvokeMeasured(new InstanceAction<TInstance>(instance, action, messageFunc), InvokeAction, MessageCallback);
+            profiler.InvokeMeasured(new InstanceAction<TInstance>(instance, action, messageFunc), InvokeAction, MessageCallback);
+        }
     }
 
     private static bool InvokeAction<TInstance>(InstanceAction<TInstance> tuple)

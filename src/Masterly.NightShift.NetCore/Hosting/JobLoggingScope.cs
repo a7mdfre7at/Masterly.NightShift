@@ -29,38 +29,40 @@ public sealed class NightShiftJobLoggingOptions
 /// </summary>
 public static class NightShiftJobLoggingServiceCollectionExtensions
 {
-    /// <summary>
-    /// Changes the <see cref="NightShiftJobLoggingOptions"/> of the servers added with <c>AddNightShiftServer</c>
-    /// in this service collection, for example <c>services.ConfigureNightShiftJobLogging(o => o.BeginScope = false)</c>.
-    /// It can be called before or after <c>AddNightShiftServer</c>; several calls change the same options.
-    /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">Changes the options.</param>
-    public static IServiceCollection ConfigureNightShiftJobLogging(
-        [NotNull] this IServiceCollection services,
-        [NotNull] Action<NightShiftJobLoggingOptions> configure)
+    extension([NotNull] IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configure);
-
-        NightShiftJobLoggingOptions? options = null;
-        foreach (var descriptor in services)
+        /// <summary>
+        /// Changes the <see cref="NightShiftJobLoggingOptions"/> of the servers added with <c>AddNightShiftServer</c>
+        /// in this service collection, for example <c>services.ConfigureNightShiftJobLogging(o => o.BeginScope = false)</c>.
+        /// It can be called before or after <c>AddNightShiftServer</c>; several calls change the same options.
+        /// </summary>
+        /// <param name="configure">Changes the options.</param>
+        public IServiceCollection ConfigureNightShiftJobLogging(
+            [NotNull] Action<NightShiftJobLoggingOptions> configure)
         {
-            if (descriptor.ServiceType == typeof(NightShiftJobLoggingOptions) &&
-                descriptor.ImplementationInstance is NightShiftJobLoggingOptions registered)
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configure);
+
+            NightShiftJobLoggingOptions? options = null;
+            foreach (var descriptor in services)
             {
-                options = registered;
+                if (descriptor.ServiceType == typeof(NightShiftJobLoggingOptions) &&
+                    descriptor.ImplementationInstance is NightShiftJobLoggingOptions registered)
+                {
+                    options = registered;
+                }
             }
-        }
 
-        if (options == null)
-        {
-            options = new NightShiftJobLoggingOptions();
-            services.AddSingleton(options);
-        }
+            if (options == null)
+            {
+                options = new NightShiftJobLoggingOptions();
+                services.AddSingleton(options);
+            }
 
-        configure(options);
-        return services;
+            configure(options);
+            return services;
+        }
     }
 }
 

@@ -68,46 +68,49 @@ public interface IJobConsole
 /// <summary>Resumable steps on top of <see cref="IJobConsole"/> checkpoints.</summary>
 public static class JobConsoleExtensions
 {
-    /// <summary>
-    /// Runs a step unless an earlier attempt already recorded its checkpoint, and records the checkpoint
-    /// once it finishes. On a retry the job skips what it already did:
-    /// <code>
-    /// console.Resume("download", () => Download(file));
-    /// console.Resume("parse", () => Parse(file));
-    /// console.Resume("save", () => Save());
-    /// </code>
-    /// Steps must be safe to repeat from their start, since a crash in the middle of one runs it again.
-    /// </summary>
-    public static void Resume([NotNull] this IJobConsole console, [NotNull] string checkpoint, [NotNull] Action step)
+    extension([NotNull] IJobConsole console)
     {
-        ArgumentNullException.ThrowIfNull(console);
-        ArgumentNullException.ThrowIfNull(checkpoint);
-        ArgumentNullException.ThrowIfNull(step);
-
-        if (console.HasCheckpoint(checkpoint))
+        /// <summary>
+        /// Runs a step unless an earlier attempt already recorded its checkpoint, and records the checkpoint
+        /// once it finishes. On a retry the job skips what it already did:
+        /// <code>
+        /// console.Resume("download", () => Download(file));
+        /// console.Resume("parse", () => Parse(file));
+        /// console.Resume("save", () => Save());
+        /// </code>
+        /// Steps must be safe to repeat from their start, since a crash in the middle of one runs it again.
+        /// </summary>
+        public void Resume([NotNull] string checkpoint, [NotNull] Action step)
         {
-            console.WriteLine($"Skipped '{checkpoint}': already done by an earlier attempt");
-            return;
+            ArgumentNullException.ThrowIfNull(console);
+            ArgumentNullException.ThrowIfNull(checkpoint);
+            ArgumentNullException.ThrowIfNull(step);
+
+            if (console.HasCheckpoint(checkpoint))
+            {
+                console.WriteLine($"Skipped '{checkpoint}': already done by an earlier attempt");
+                return;
+            }
+
+            step();
+            console.Checkpoint(checkpoint);
         }
 
-        step();
-        console.Checkpoint(checkpoint);
-    }
-
-    /// <summary>The asynchronous form of <see cref="Resume"/>.</summary>
-    public static async Task ResumeAsync([NotNull] this IJobConsole console, [NotNull] string checkpoint, [NotNull] Func<Task> step)
-    {
-        ArgumentNullException.ThrowIfNull(console);
-        ArgumentNullException.ThrowIfNull(checkpoint);
-        ArgumentNullException.ThrowIfNull(step);
-
-        if (console.HasCheckpoint(checkpoint))
+        /// <summary>The asynchronous form of <see cref="Resume"/>.</summary>
+        public async Task ResumeAsync([NotNull] string checkpoint, [NotNull] Func<Task> step)
         {
-            console.WriteLine($"Skipped '{checkpoint}': already done by an earlier attempt");
-            return;
-        }
+            ArgumentNullException.ThrowIfNull(console);
+            ArgumentNullException.ThrowIfNull(checkpoint);
+            ArgumentNullException.ThrowIfNull(step);
 
-        await step().ConfigureAwait(false);
-        console.Checkpoint(checkpoint);
+            if (console.HasCheckpoint(checkpoint))
+            {
+                console.WriteLine($"Skipped '{checkpoint}': already done by an earlier attempt");
+                return;
+            }
+
+            await step().ConfigureAwait(false);
+            console.Checkpoint(checkpoint);
+        }
     }
 }

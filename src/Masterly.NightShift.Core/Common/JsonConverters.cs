@@ -790,7 +790,7 @@ internal static class JsonConstructorOnlyStructModifier
         }
 
         var constructors = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public);
-        return constructors.Length == 1 && constructors[0].GetParameters().Length > 0 ? constructors[0] : null;
+        return constructors is [var only] && only.GetParameters().Length > 0 ? only : null;
     }
 
     private static int FindProperty(IList<JsonPropertyInfo> properties, ParameterInfo parameter)
@@ -1115,7 +1115,7 @@ internal static class JsonDefaultValueModifier
 }
 
 /// <summary>Type names as stored in a <c>"$type"</c> property: without version, culture or public key.</summary>
-internal static class JsonTypeNames
+file static class JsonTypeNames
 {
     private static readonly Regex AssemblyDetails = new(
         @",\s*(Version|Culture|PublicKeyToken)=[^,\]]*", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));

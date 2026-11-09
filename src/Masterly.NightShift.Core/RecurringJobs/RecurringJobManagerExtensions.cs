@@ -23,39 +23,43 @@ namespace Masterly.NightShift;
 /// Overloads of <see cref="IRecurringJobManager"/> that create or update a recurring job from a method call
 /// expression.
 /// </summary>
+#pragma warning disable CA1708 // False positive: the analyzer compares the types the compiler generates for extension blocks
 public static class RecurringJobManagerExtensions
+#pragma warning restore CA1708
 {
-    /// <summary>
-    /// Pauses a recurring job, see <see cref="IRecurringJobManagerV3.Pause"/>.
-    /// </summary>
-    /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
-    public static bool Pause([NotNull] this IRecurringJobManager manager, [NotNull] string recurringJobId)
+    extension([NotNull] IRecurringJobManager manager)
     {
-        return AsV3(manager).Pause(recurringJobId);
-    }
+        /// <summary>
+        /// Pauses a recurring job, see <see cref="IRecurringJobManagerV3.Pause"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public bool Pause([NotNull] string recurringJobId)
+        {
+            return AsV3(manager).Pause(recurringJobId);
+        }
 
-    /// <summary>
-    /// Resumes a paused recurring job, see <see cref="IRecurringJobManagerV3.Resume"/>.
-    /// </summary>
-    /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
-    public static bool Resume([NotNull] this IRecurringJobManager manager, [NotNull] string recurringJobId)
-    {
-        return AsV3(manager).Resume(recurringJobId);
-    }
+        /// <summary>
+        /// Resumes a paused recurring job, see <see cref="IRecurringJobManagerV3.Resume"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public bool Resume([NotNull] string recurringJobId)
+        {
+            return AsV3(manager).Resume(recurringJobId);
+        }
 
-    /// <summary>
-    /// Changes a recurring job's schedule, see <see cref="IRecurringJobManagerV3.UpdateSchedule"/>.
-    /// </summary>
-    /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
-    public static bool UpdateSchedule(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [CanBeNull] string? cronExpression,
-        [CanBeNull] TimeZoneInfo? timeZone = null,
-        [CanBeNull] string? queue = null,
-        MisfireHandlingMode? misfireHandling = null)
-    {
-        return AsV3(manager).UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
+        /// <summary>
+        /// Changes a recurring job's schedule, see <see cref="IRecurringJobManagerV3.UpdateSchedule"/>.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The manager doesn't implement <see cref="IRecurringJobManagerV3"/>.</exception>
+        public bool UpdateSchedule(
+            [NotNull] string recurringJobId,
+            [CanBeNull] string? cronExpression,
+            [CanBeNull] TimeZoneInfo? timeZone = null,
+            [CanBeNull] string? queue = null,
+            MisfireHandlingMode? misfireHandling = null)
+        {
+            return AsV3(manager).UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
+        }
     }
 
     private static IRecurringJobManagerV3 AsV3(IRecurringJobManager manager)
@@ -66,381 +70,351 @@ public static class RecurringJobManagerExtensions
             ?? throw new NotSupportedException($"The recurring job manager '{manager.GetType()}' doesn't implement {nameof(IRecurringJobManagerV3)}, so recurring jobs can't be paused, resumed or rescheduled through it.");
     }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Job job,
-        [NotNull] string cronExpression)
+    extension([NotNull] IRecurringJobManager manager)
     {
-        ArgumentNullException.ThrowIfNull(manager);
-
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, new RecurringJobOptions
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Job job,
+            [NotNull] string cronExpression)
         {
-            TimeZone = TimeZoneInfo.Utc
-        });
-    }
+            ArgumentNullException.ThrowIfNull(manager);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(cronExpression);
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(cronExpression);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(cronExpression);
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(cronExpression);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
-        ArgumentNullException.ThrowIfNull(queue);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall, queue);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall, queue);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Action<T>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
-        ArgumentNullException.ThrowIfNull(queue);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall, queue);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Action<T>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall, queue);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(cronExpression);
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(cronExpression);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(cronExpression);
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] Func<string> cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(cronExpression);
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] Func<string> cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(cronExpression);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] Func<string> cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] Func<string> cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(queue);
+            ArgumentNullException.ThrowIfNull(cronExpression);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression(), options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<Task>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
-        ArgumentNullException.ThrowIfNull(queue);
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall, queue);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<Task>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall, queue);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
-    }
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] string cronExpression)
-    {
-        AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
-    }
+            var job = Job.FromExpression(methodCall);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
 
-    public static void AddOrUpdate<T>(
-        [NotNull] this IRecurringJobManager manager,
-        [NotNull] string recurringJobId,
-        [NotNull] string queue,
-        [NotNull] Expression<Func<T, Task>> methodCall,
-        [NotNull] string cronExpression,
-        [NotNull] RecurringJobOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(manager);
-        ArgumentNullException.ThrowIfNull(queue);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] string cronExpression)
+        {
+            AddOrUpdate(manager, recurringJobId, queue, methodCall, cronExpression, new RecurringJobOptions());
+        }
 
-        var job = Job.FromExpression(methodCall, queue);
-        manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        public void AddOrUpdate<T>(
+            [NotNull] string recurringJobId,
+            [NotNull] string queue,
+            [NotNull] Expression<Func<T, Task>> methodCall,
+            [NotNull] string cronExpression,
+            [NotNull] RecurringJobOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(manager);
+            ArgumentNullException.ThrowIfNull(queue);
+
+            var job = Job.FromExpression(methodCall, queue);
+            manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
+        }
     }
 }
