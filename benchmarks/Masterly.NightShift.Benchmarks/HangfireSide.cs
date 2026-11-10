@@ -64,6 +64,39 @@ internal sealed class HangfireSide : ILibrary
 
     public string? Enqueue() => _client!.Enqueue<HangfireJobs>(x => x.Process(42, "report")); // Set by OpenDatabase
 
+    public string? EnqueueCounted() => _client!.Enqueue<HangfireJobs>(x => x.Counted()); // Set by OpenDatabase
+
+    public void EnqueueAllCounted(int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            EnqueueCounted();
+        }
+    }
+
+    public void EnqueueCountedInParallel(int count, int threads)
+    {
+        int next = 0;
+        Thread[] workers = new Thread[threads];
+
+        for (int i = 0; i < threads; i++)
+        {
+            workers[i] = new Thread(() =>
+            {
+                while (Interlocked.Increment(ref next) <= count)
+                {
+                    EnqueueCounted();
+                }
+            });
+            workers[i].Start();
+        }
+
+        foreach (Thread worker in workers)
+        {
+            worker.Join();
+        }
+    }
+
     public object? ReadJob(string id)
     {
         using IStorageConnection connection = _storage!.GetConnection(); // Set by OpenDatabase

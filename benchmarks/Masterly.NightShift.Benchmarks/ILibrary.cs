@@ -13,6 +13,14 @@ internal interface ILibrary
 
     string? Enqueue();
 
+    string? EnqueueCounted();
+
+    /// <summary>Enqueues the given number of counted jobs, in the fastest way the library offers.</summary>
+    void EnqueueAllCounted(int count);
+
+    /// <summary>Enqueues the given number of counted jobs one by one, from several threads at once.</summary>
+    void EnqueueCountedInParallel(int count, int threads);
+
     IDisposable StartServer(int workerCount);
 
     long SucceededCount();

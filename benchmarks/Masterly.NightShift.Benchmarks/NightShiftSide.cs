@@ -9,7 +9,7 @@ using Masterly.NightShift.Storage;
 namespace NightShiftBenchmarks;
 
 /// <summary>Everything the benchmarks do, through the NightShift API.</summary>
-internal sealed class NightShiftSide : ILibrary
+internal sealed class NightShiftSide(bool bulk = false) : ILibrary
 {
     public const string DatabaseName = "NightShiftBench_NightShift";
 
@@ -26,7 +26,7 @@ internal sealed class NightShiftSide : ILibrary
     private SqlServerStorage? _storage;
     private BackgroundJobClient? _client;
 
-    public string Name => "NightShift";
+    public string Name => bulk ? "NightShift EnqueueMany" : "NightShift";
 
     public string Driver => new SqlServerStorageOptions().SqlClientFactory?.GetType().FullName ?? "default";
 
@@ -81,6 +81,10 @@ internal sealed class NightShiftSide : ILibrary
         Database.EnsureCreated(DatabaseName);
         _storage = new SqlServerStorage(Database.ConnectionString(DatabaseName), new SqlServerStorageOptions
         {
+            // NS_DD=1: let the commits that are safe to lose skip the wait for the disk
+            AllowDelayedDurability = Environment.GetEnvironmentVariable("NS_DD") == "1",
+            // NS_COALESCE=0: every caller writes on its own
+            MaxConcurrentWriters = Environment.GetEnvironmentVariable("NS_COALESCE") == "0" ? 0 : 8,
             CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
             SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
             QueuePollInterval = TimeSpan.Zero,
@@ -92,6 +96,45 @@ internal sealed class NightShiftSide : ILibrary
     public void Reset() => Database.Reset(DatabaseName);
 
     public string? Enqueue() => _client!.Enqueue<GeneratedJobs>(x => x.Process(42, "report")); // Set by OpenDatabase
+
+    public string? EnqueueCounted() => _client!.Enqueue<GeneratedJobs>(x => x.Counted()); // Set by OpenDatabase
+
+    public void EnqueueAllCounted(int count)
+    {
+        if (bulk)
+        {
+            _client!.EnqueueMany<GeneratedJobs, int>(Enumerable.Range(0, count), static (x, _) => x.Counted()); // Set by OpenDatabase
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            EnqueueCounted();
+        }
+    }
+
+    public void EnqueueCountedInParallel(int count, int threads)
+    {
+        int next = 0;
+        Thread[] workers = new Thread[threads];
+
+        for (int i = 0; i < threads; i++)
+        {
+            workers[i] = new Thread(() =>
+            {
+                while (Interlocked.Increment(ref next) <= count)
+                {
+                    EnqueueCounted();
+                }
+            });
+            workers[i].Start();
+        }
+
+        foreach (Thread worker in workers)
+        {
+            worker.Join();
+        }
+    }
 
     public object? ReadJob(string id)
     {
