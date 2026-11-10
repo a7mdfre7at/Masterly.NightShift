@@ -335,7 +335,7 @@ public static void RemoveUnknown(JobStorage storage, IRecurringJobManager recurr
 }
 ```
 
-`JobStorage` is registered in the container by `AddNightShift`. A [manifest](recurring-job-manifest.md) applied with `prune: true` does this for you.
+`JobStorage` is registered in the container by `AddNightShift`. A [manifest](recurring-job-manifest.md) applied with `prune: true` does this for you, and so does `RemoveUndeclared` on [recurring jobs declared in code](recurring-jobs-in-code.md).
 
 ### Knowing which run you are
 
