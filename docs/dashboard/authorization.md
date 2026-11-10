@@ -72,6 +72,7 @@ In development on your machine this lets you in. In a container, or behind a loa
 | `IDashboardAsyncAuthorizationFilter.AuthorizeAsync(DashboardContext context)` | returns `Task<bool>` | | Your asynchronous check. |
 | `LocalRequestsOnlyAuthorizationFilter` | class | | The default filter described above. |
 | `context.GetHttpContext()` | extension on `DashboardContext`, returns `HttpContext` | | In `AspNetCoreDashboardContextExtensions`, namespace `Masterly.NightShift.Dashboard` (package `Masterly.NightShift.AspNetCore`). Gives your filter the user, headers and services of the request. The context of an ASP.NET Core dashboard is an `AspNetCoreDashboardContext`, whose `HttpContext` property returns the same; on any other `DashboardContext` (a test double, for example) it throws `ArgumentException`. |
+| `BasicAuthDashboardAuthorizationFilter` | class | | HTTP Basic authentication for hosts without a sign-in of their own. See [Basic authentication](#basic-authentication). |
 | `MapNightShiftDashboardWithNoAuthorizationFilters(...)` | `IEndpointConventionBuilder` | | Maps the dashboard without the dashboard's own filters, ready for `.RequireAuthorization(...)`. It uses a copy of the options you pass (or the ones registered in DI) with both filter lists empty; the original keeps its filters, and every other option, such as `IsReadOnlyFunc`, applies. |
 | `MapNightShiftDashboardWithAuthorizationPolicy(policyName, ...)` | `IEndpointConventionBuilder` | | The same, plus `.RequireAuthorization(policyName)`. |
 
@@ -161,6 +162,36 @@ app.MapNightShiftDashboard(new DashboardOptions
     AsyncAuthorization = [new PolicyFilter("NightShiftAdmins")],
 });
 ```
+
+### Basic authentication
+
+For a host with no sign-in of its own, such as a worker that only serves the dashboard:
+
+```csharp
+using Masterly.NightShift.Dashboard;
+
+builder.Services.AddAntiforgery();
+
+app.MapNightShiftDashboard(new DashboardOptions
+{
+    AsyncAuthorization = [new BasicAuthDashboardAuthorizationFilter(
+        builder.Configuration["Dashboard:UserName"]!,
+        builder.Configuration["Dashboard:Password"]!)],
+});
+```
+
+The browser shows its sign-in prompt. A missing, malformed or wrong `Authorization` header answers **401** and asks again. The user name and the password are compared exactly, in constant time. The accepted user becomes the request's user unless one is already signed in, so the [audit log](../monitoring/audit-log-and-activity.md) records the name.
+
+| Member | Default | Meaning |
+|---|---|---|
+| `new BasicAuthDashboardAuthorizationFilter(userName, password)` | | Fixed credentials. A user name can't contain a colon. |
+| `new BasicAuthDashboardAuthorizationFilter(IDashboardBasicAuthCredentialProvider)` | | Reads the credential on each request through `GetCredentialAsync(cancellationToken)`. Return `null` to refuse everyone. The filter runs for every request, so cache what is expensive to read. |
+| `Realm` | `Masterly.NightShift Dashboard` | The name in the browser's prompt. |
+| `RequireHttps` | `true` | Refuses plain HTTP, except from a loopback address, because Basic authentication sends the password readable. No prompt is sent, and a warning is logged. |
+
+Behind a proxy that terminates TLS, call `app.UseForwardedHeaders(...)` before the dashboard, so the request reports HTTPS.
+
+Keep antiforgery on: browsers send Basic credentials on their own, as they do cookies. The filter doesn't limit password guessing, so add `.RequireRateLimiting(...)` on the endpoint when it is reachable from outside. Keep the password out of source control.
 
 ### Read-only dashboards
 
@@ -274,7 +305,7 @@ Every dashboard response carries `X-Frame-Options: SAMEORIGIN` and `Content-Secu
 
 ## Production checklist
 
-1. **Replace the default.** Local-only access is a development setting. Use `MapNightShiftDashboardWithAuthorizationPolicy` or your own filters, and make sure the default `LocalRequestsOnlyAuthorizationFilter` is gone when you use `RequireAuthorization`.
+1. **Replace the default.** Local-only access is a development setting. Use `MapNightShiftDashboardWithAuthorizationPolicy`, [Basic authentication](#basic-authentication) or your own filters, and make sure the default `LocalRequestsOnlyAuthorizationFilter` is gone when you use `RequireAuthorization`.
 2. **Use HTTPS** for the dashboard, like the rest of your app.
 3. **Register antiforgery** (`AddAntiforgery()`) and leave `IgnoreAntiforgeryToken` at `false` whenever users sign in with cookies. Behind several instances, share the Data Protection keys so a token issued by one instance is valid on the others.
 4. **Give most people read-only access** with `IsReadOnlyFunc`. Remember who can press "Clear all jobs" and "Reset storage" on the Servers page: anyone who isn't read-only.

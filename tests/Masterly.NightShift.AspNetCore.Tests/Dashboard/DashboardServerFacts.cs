@@ -36,12 +36,40 @@ public class DashboardServerFacts
     }
 
     [Fact]
+    public async Task BasicAuth_WithoutCredentials_AnswersUnauthorized_WithTheBrowsersChallenge()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboard(new DashboardOptions
+        {
+            AsyncAuthorization = [new BasicAuthDashboardAuthorizationFilter("operator", "s3cret")],
+        }));
+
+        HttpResponseMessage response = await app.GetAsync("/nightshift/");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("Basic", Assert.Single(response.Headers.WwwAuthenticate).Scheme);
+    }
+
+    [Fact]
+    public async Task BasicAuth_WithTheRightCredentials_ServesThePage()
+    {
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboard(new DashboardOptions
+        {
+            AsyncAuthorization = [new BasicAuthDashboardAuthorizationFilter("operator", "s3cret")],
+        }));
+
+        HttpResponseMessage response = await app.GetAsync("/nightshift/", static request =>
+            request.Headers.TryAddWithoutValidation("Authorization", "Basic b3BlcmF0b3I6czNjcmV0"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task WithoutAntiforgery_ACrossSiteFormPost_IsRejected()
     {
         // What a page on another site does: a form posted by the victim's browser, no custom header possible
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("Origin", "https://evil.example");
             request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site");
@@ -55,9 +83,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_APostWithoutTheScriptHeader_IsRejected_EvenWithoutOrigin()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1");
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
@@ -66,9 +94,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_ASameOriginScriptPost_IsAccepted()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
@@ -87,9 +115,9 @@ public class DashboardServerFacts
     public async Task WithoutAntiforgery_AScriptPostFromAnotherSite_IsRejected(string fetchSite, string origin)
     {
         // A script on another origin can add the header only after a CORS preflight, which an app may allow
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             if (fetchSite != null) request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", fetchSite);
@@ -103,9 +131,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_AScriptPostWithTheRequestsOwnOrigin_IsAccepted_FromBrowsersWithoutFetchMetadata()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             request.Headers.TryAddWithoutValidation("Origin", app.BaseAddress);
@@ -117,9 +145,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_IgnoreAntiforgeryToken_TurnsTheCheckOff()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters(options: new DashboardOptions { IgnoreAntiforgeryToken = true }));
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters(options: new DashboardOptions { IgnoreAntiforgeryToken = true }));
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1");
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
@@ -127,15 +155,15 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithAntiforgery_ATokenlessPost_IsRejected_AndThePagesTokenIsAccepted()
     {
-        await using var app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
         // The custom header alone doesn't replace the token when antiforgery is registered
-        var tokenless = await app.PostAsync("/nightshift/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest"));
+        HttpResponseMessage tokenless = await app.PostAsync("/nightshift/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest"));
 
-        var page = await app.GetStringAsync("/nightshift/jobs/scheduled");
-        var header = Regex.Match(page, "<meta name=\"csrf-header\" content=\"([^\"]+)\">").Groups[1].Value;
-        var token = Regex.Match(page, "<meta name=\"csrf-token\" content=\"([^\"]+)\">").Groups[1].Value;
-        var withToken = await app.PostAsync("/nightshift/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation(header, WebUtility.HtmlDecode(token)));
+        string page = await app.GetStringAsync("/nightshift/jobs/scheduled");
+        string header = Regex.Match(page, "<meta name=\"csrf-header\" content=\"([^\"]+)\">").Groups[1].Value;
+        string token = Regex.Match(page, "<meta name=\"csrf-token\" content=\"([^\"]+)\">").Groups[1].Value;
+        HttpResponseMessage withToken = await app.PostAsync("/nightshift/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation(header, WebUtility.HtmlDecode(token)));
 
         Assert.Equal(HttpStatusCode.Forbidden, tokenless.StatusCode);
         Assert.False(string.IsNullOrEmpty(token));
@@ -146,10 +174,10 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithAntiforgery_OnlyPagesGetTokens_SoStaticBundlesStayCacheable()
     {
-        await using var app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetAsync("/nightshift/js1");
-        var page = await app.GetAsync("/nightshift/jobs/scheduled");
+        HttpResponseMessage bundle = await app.GetAsync("/nightshift/js1");
+        HttpResponseMessage page = await app.GetAsync("/nightshift/jobs/scheduled");
 
         Assert.Equal(HttpStatusCode.OK, bundle.StatusCode);
         Assert.False(bundle.Headers.Contains("Set-Cookie"));
@@ -163,9 +191,9 @@ public class DashboardServerFacts
     public async Task TheScriptBundle_AddsTheTokenAndTheScriptHeader_OnlyToSameOriginRequests()
     {
         // $.ajaxSetup({ headers }) sent them to every origin an extension called, leaking the token
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("$.ajaxPrefilter(function (options, originalOptions, xhr) {", bundle);
         Assert.Contains("if (options.crossDomain) return;", bundle);
@@ -175,10 +203,10 @@ public class DashboardServerFacts
     [Fact]
     public async Task EveryPage_ForbidsFramingByOtherSites()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var page = await app.GetAsync("/nightshift/jobs/scheduled");
-        var again = await app.GetAsync("/nightshift/jobs/scheduled");
+        HttpResponseMessage page = await app.GetAsync("/nightshift/jobs/scheduled");
+        HttpResponseMessage again = await app.GetAsync("/nightshift/jobs/scheduled");
 
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Equal("SAMEORIGIN", Assert.Single(page.Headers.GetValues("X-Frame-Options")));
@@ -189,9 +217,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithAntiforgery_ThePage_SendsTheFramingHeaderOnce()
     {
-        await using var app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var page = await app.GetAsync("/nightshift/jobs/scheduled");
+        HttpResponseMessage page = await app.GetAsync("/nightshift/jobs/scheduled");
 
         Assert.Equal("SAMEORIGIN", Assert.Single(page.Headers.GetValues("X-Frame-Options")));
     }
@@ -199,10 +227,10 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheDefaultFilter_TurnsAwayRequestsForwardedByAProxyOnTheSameMachine()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboard());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboard());
 
-        var direct = await app.GetAsync("/nightshift/ping");
-        var viaProxy = await app.GetAsync("/nightshift/ping", request => request.Headers.TryAddWithoutValidation("X-Forwarded-For", "203.0.113.9"));
+        HttpResponseMessage direct = await app.GetAsync("/nightshift/ping");
+        HttpResponseMessage viaProxy = await app.GetAsync("/nightshift/ping", request => request.Headers.TryAddWithoutValidation("X-Forwarded-For", "203.0.113.9"));
 
         Assert.Equal(HttpStatusCode.OK, direct.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, viaProxy.StatusCode);
@@ -211,10 +239,10 @@ public class DashboardServerFacts
     [Fact]
     public async Task AFormWithMoreValuesThanAspNetCoreAccepts_Answers413_WithTheReason()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
-        var form = Enumerable.Range(0, 1100).Select(static i => new KeyValuePair<string, string>("jobs[]", i.ToString()));
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        IEnumerable<KeyValuePair<string, string>> form = Enumerable.Range(0, 1100).Select(static i => new KeyValuePair<string, string>("jobs[]", i.ToString()));
 
-        var response = await app.PostAsync("/nightshift/jobs/scheduled/delete", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/scheduled/delete", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             request.Content = new FormUrlEncodedContent(form);
@@ -230,10 +258,10 @@ public class DashboardServerFacts
     public async Task WithAntiforgery_ATokenlessFormOverTheLimits_Answers413_InsteadOfFailing()
     {
         // Without the token in a header, antiforgery reads the form to find it, and this one can't be read
-        await using var app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
-        var form = Enumerable.Range(0, 1100).Select(static i => new KeyValuePair<string, string>("jobs[]", i.ToString()));
+        await using RunningApp app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        IEnumerable<KeyValuePair<string, string>> form = Enumerable.Range(0, 1100).Select(static i => new KeyValuePair<string, string>("jobs[]", i.ToString()));
 
-        var response = await app.PostAsync("/nightshift/jobs/scheduled/delete", request => request.Content = new FormUrlEncodedContent(form));
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/scheduled/delete", request => request.Content = new FormUrlEncodedContent(form));
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
@@ -242,9 +270,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_AScriptPost_DoesNotTrustAForwardedHost_ToMatchItsOrigin()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             request.Headers.TryAddWithoutValidation("Origin", "https://evil.example");
@@ -261,9 +289,9 @@ public class DashboardServerFacts
     [InlineData("https://dashboard.example:80")]
     public async Task WithoutAntiforgery_AScriptPost_FromAnotherPortOrSchemeOfTheSameHost_IsRejected(string origin)
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             // A Host without a port, as browsers send it for the default port
             request.Headers.Host = "dashboard.example";
@@ -277,9 +305,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task WithoutAntiforgery_AScriptPost_FromTheDefaultPortOfTheSameHost_IsAccepted()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.Host = "dashboard.example";
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
@@ -298,9 +326,9 @@ public class DashboardServerFacts
         // jQuery's $.post(url) without data sends no body and no Content-Type, as the Pause buttons and the
         // palette's pause commands do. Reading the optional reason made ASP.NET Core throw, so they answered 500.
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.PostAsync(path, request =>
+        HttpResponseMessage response = await app.PostAsync(path, request =>
         {
             request.Content = null;
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
@@ -314,12 +342,12 @@ public class DashboardServerFacts
     public async Task WithAntiforgery_AScriptPostWithoutABody_IsAccepted_WithThePagesToken()
     {
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
-        await using var app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
-        var page = await app.GetStringAsync("/nightshift/jobs/scheduled");
-        var header = Regex.Match(page, "<meta name=\"csrf-header\" content=\"([^\"]+)\">").Groups[1].Value;
-        var token = WebUtility.HtmlDecode(Regex.Match(page, "<meta name=\"csrf-token\" content=\"([^\"]+)\">").Groups[1].Value);
+        await using RunningApp app = await StartAsync(services => services.AddAntiforgery(), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        string page = await app.GetStringAsync("/nightshift/jobs/scheduled");
+        string header = Regex.Match(page, "<meta name=\"csrf-header\" content=\"([^\"]+)\">").Groups[1].Value;
+        string token = WebUtility.HtmlDecode(Regex.Match(page, "<meta name=\"csrf-token\" content=\"([^\"]+)\">").Groups[1].Value);
 
-        var response = await app.PostAsync("/nightshift/queues/pause/default", request =>
+        HttpResponseMessage response = await app.PostAsync("/nightshift/queues/pause/default", request =>
         {
             request.Content = null;
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
@@ -333,9 +361,9 @@ public class DashboardServerFacts
     public async Task TheStatsEndpoint_AnswersAGetWith405()
     {
         // The pages post the metric names; a GET has no form, and answered 500 before
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var response = await app.GetAsync("/nightshift/stats");
+        HttpResponseMessage response = await app.GetAsync("/nightshift/stats");
 
         Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
@@ -345,9 +373,9 @@ public class DashboardServerFacts
     {
         // The group headers are list items too, so the position among them isn't the entry's index: a click
         // ran the entry after the one clicked, and a click on the "Commands" header paused processing
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._list.on('click', 'li.hf-palette-item', function () {", bundle);
         Assert.Contains("var index = $(this).data('index');", bundle);
@@ -357,10 +385,10 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheWallboardsDateScript_IsServed()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
         // The wallboard page links it with a version number, like the bundle
-        var script = await app.GetAsync("/nightshift/js-intl1");
+        HttpResponseMessage script = await app.GetAsync("/nightshift/js-intl1");
 
         Assert.Equal(HttpStatusCode.OK, script.StatusCode);
         Assert.Contains("global.NightShiftIntl = NightShiftIntl;", await script.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -369,9 +397,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_KeepsTheLiveToggle_PerPage_AndSkipsHiddenTabs()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._storageKey = STORAGE_PREFIX + window.location.pathname;", bundle);
         Assert.Contains("if (!manual && (document.hidden ||", bundle);
@@ -383,9 +411,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_PreFillsTheRunFormsDatesAndQueue()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._modal.find('[name=\"queue\"]').val(button.data('queue') || '');", bundle);
         Assert.Contains("input = $('<input type=\"datetime-local\" step=\"1\" class=\"form-control\">').attr({ id: id, name: name }).val(value);", bundle);
@@ -394,9 +422,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_SendsExplicitValues_ForCheckboxesNullableChoicesAndFlags()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         // An unchecked box sent nothing, which the server read as the default
         Assert.Contains(".append($('<input type=\"hidden\" value=\"false\">').attr('name', name))", bundle);
@@ -408,9 +436,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_PollsTheProcessingRows_WithoutConsoles_AndNotInHiddenTabs()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("$.post(self._url, { 'jobs[]': ids, console: 0 })", bundle);
         Assert.Matches(@"if \(document\.hidden\) \{\s+self\._timer = setTimeout\(poll, self\._pollInterval\);\s+return;", bundle);
@@ -419,9 +447,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_KeepsAZoneMissingFromTheList_AndSendsAnEmptyQueue()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("this._timezone.append($('<option>').val(timezone).text(timezone));", bundle);
         Assert.Contains("queue: $.trim(this._queue.val()),", bundle);
@@ -430,9 +458,9 @@ public class DashboardServerFacts
     [Fact]
     public async Task TheScriptBundle_GivesThePaletteRolesAndNames_AndLetsUsersTurnOffSingleKeyShortcuts()
     {
-        await using var app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
+        await using RunningApp app = await StartAsync(map: static app => app.MapNightShiftDashboardWithNoAuthorizationFilters());
 
-        var bundle = await app.GetStringAsync("/nightshift/js1");
+        string bundle = await app.GetStringAsync("/nightshift/js1");
 
         Assert.Contains("role=\"dialog\" aria-modal=\"true\" aria-label=\"Command palette\"", bundle);
         Assert.Contains("role=\"combobox\" aria-autocomplete=\"list\" aria-expanded=\"true\" aria-controls=\"hfPaletteResults\"", bundle);
@@ -447,11 +475,11 @@ public class DashboardServerFacts
     [Fact]
     public async Task NoAuthorizationFilters_UsesTheOptionsRegisteredInDI()
     {
-        var registered = new DashboardOptions { IsReadOnlyFunc = static _ => true, DashboardTitle = "From DI" };
-        await using var app = await StartAsync(services => services.AddSingleton(registered), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters("/nofilters"));
+        DashboardOptions registered = new() { IsReadOnlyFunc = static _ => true, DashboardTitle = "From DI" };
+        await using RunningApp app = await StartAsync(services => services.AddSingleton(registered), static app => app.MapNightShiftDashboardWithNoAuthorizationFilters("/nofilters"));
 
-        var page = await app.GetStringAsync("/nofilters/jobs/scheduled");
-        var command = await app.PostAsync("/nofilters/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest"));
+        string page = await app.GetStringAsync("/nofilters/jobs/scheduled");
+        HttpResponseMessage command = await app.PostAsync("/nofilters/jobs/actions/delete/1", request => request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest"));
 
         Assert.Contains("From DI", page);
         Assert.Equal(HttpStatusCode.Unauthorized, command.StatusCode);
@@ -464,11 +492,11 @@ public class DashboardServerFacts
     [Fact]
     public async Task NoAuthorizationFilters_DoesNotClearTheFiltersOfTheOptionsPassed()
     {
-        var filter = new Mock<IDashboardAuthorizationFilter>().Object;
-        var options = new DashboardOptions { Authorization = [filter] };
-        await using var app = await StartAsync(map: app => app.MapNightShiftDashboardWithNoAuthorizationFilters("/nofilters", options));
+        IDashboardAuthorizationFilter filter = new Mock<IDashboardAuthorizationFilter>().Object;
+        DashboardOptions options = new() { Authorization = [filter] };
+        await using RunningApp app = await StartAsync(map: app => app.MapNightShiftDashboardWithNoAuthorizationFilters("/nofilters", options));
 
-        var response = await app.GetAsync("/nofilters/ping");
+        HttpResponseMessage response = await app.GetAsync("/nofilters/ping");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Same(filter, Assert.Single(options.Authorization));
@@ -476,7 +504,7 @@ public class DashboardServerFacts
 
     private async Task<RunningApp> StartAsync(Action<IServiceCollection> services = null, Action<WebApplication> map = null)
     {
-        var builder = WebApplication.CreateBuilder();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddSingleton(_storage.Object);
@@ -484,7 +512,7 @@ public class DashboardServerFacts
         builder.Services.AddNightShift(_ => { });
         services?.Invoke(builder.Services);
 
-        var app = builder.Build();
+        WebApplication app = builder.Build();
         map?.Invoke(app);
         await app.StartAsync(TestContext.Current.CancellationToken);
 
@@ -507,7 +535,7 @@ public class DashboardServerFacts
 
         public Task<HttpResponseMessage> PostAsync(string path, Action<HttpRequestMessage> configure = null)
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, BaseAddress + path)
+            HttpRequestMessage request = new(HttpMethod.Post, BaseAddress + path)
             {
                 Content = new FormUrlEncodedContent([]),
             };
@@ -517,7 +545,7 @@ public class DashboardServerFacts
 
         public Task<HttpResponseMessage> GetAsync(string path, Action<HttpRequestMessage> configure = null)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, BaseAddress + path);
+            HttpRequestMessage request = new(HttpMethod.Get, BaseAddress + path);
             configure?.Invoke(request);
             return Client.SendAsync(request, TestContext.Current.CancellationToken);
         }
