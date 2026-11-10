@@ -21,7 +21,7 @@ Your web request should answer in milliseconds. The PDF report, the welcome e-ma
 | **Under control** | Throttles, rate limits, one-at-a-time locks, duplicate prevention, timeouts, deadlines, run windows and blackouts, across every server. |
 | **Readable** | Times and schedules in plain English: `"tomorrow at 9am"`, `"every 10 minutes from 9am to 5pm on weekdays"`. |
 | **Observable** | A live dashboard with insights, failure clusters, lineage and a "why isn't it running?" diagnosis, plus OpenTelemetry, alerts, health checks and Prometheus metrics. |
-| **Fast** | A source generator writes direct calls to your job methods, so they aren't invoked through reflection. |
+| **Lean** | A source generator writes direct calls to your job methods instead of invoking them through reflection, and job data goes through System.Text.Json, which allocates over 80% less memory. |
 | **Familiar** | It started from the source of Hangfire 1.8. The API will feel at home, and your existing Hangfire SQL Server data keeps working. See [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire). |
 
 ```csharp
@@ -44,6 +44,44 @@ jobs.ContinueJobWith<EmailService>(chargeId, x => x.SendReceipt(orderId));    //
 - Stop starting new jobs before a deploy, for the whole system, a queue or one server. See [Drain mode](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/drain-mode).
 - Trace and measure every job with OpenTelemetry, send alerts to Slack, Teams or a webhook, and expose health and Prometheus endpoints. See [Monitoring](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring).
 - Call job methods without reflection: a source generator emits direct calls. See [Source-generated invokers](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/source-generated-invokers).
+
+---
+
+## NightShift and Hangfire
+
+NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/) 1.8.25. It keeps Hangfire's programming model and reads your existing Hangfire SQL Server data. It was refactored for .NET 8 and later, and a source generator writes direct calls to your job methods instead of calling them through reflection. Features that Hangfire leaves to paid add-ons or community packages are built in. NightShift is an independent project, not affiliated with or endorsed by Hangfire OÜ.
+
+| | Hangfire 1.8.25 | NightShift 1.0 |
+|---|---|---|
+| **Platforms** | .NET Framework 4.5.1 and later, .NET Standard | .NET 8 and later only |
+| **Calling your job method** | `MethodInfo.Invoke` | Source-generated direct call, with compiled and reflection fallbacks |
+| **JSON** | Newtonsoft.Json | System.Text.Json |
+| **Batches and fan-in** | Paid (Hangfire Pro) | Included |
+| **Semaphores and rate limits** | Paid (Hangfire Ace) | Included: `[Throttle]`, `[RateLimit]` |
+| **Circuit breaker, duplicate prevention** | Not included | Included: `[CircuitBreaker]`, `[PreventDuplicates]` |
+| **Timeouts, deadlines, run windows** | `[LatencyTimeout]` only | Included: `[JobTimeout]`, `[Deadline]`, `[RunWindow]`, `[Blackout]` |
+| **Progress, console, resume after failure** | Community packages | Included |
+| **OpenTelemetry, Prometheus, health checks, alerts** | Community packages | Included |
+| **Dashboard** | Jobs, queues, servers, retries, recurring jobs | The same, plus insights, failure clusters, lineage and job diagnosis |
+| **Storage** | SQL Server, paid Redis, many community storages | SQL Server; other storages have to be written or ported |
+| **Support and track record** | Paid support available; more than a decade in production | Community support through GitHub; 1.0 is the first release |
+
+**Why choose NightShift:** you get batches, throttling, circuit breakers and full monitoring without a subscription or extra packages, on a smaller dependency set for modern .NET, and your existing Hangfire SQL Server data keeps working.
+
+**Stay on Hangfire if** you run on .NET Framework or .NET 7 and earlier, use Redis, depend on third-party Hangfire extensions, or need a vendor with paid support.
+
+**Benchmarks** (.NET 10, against Hangfire 1.8.25):
+
+| Operation | Hangfire | NightShift |
+|---|---|---|
+| Call the job method | 17.0 ns | 3.5 ns |
+| Serialize a job | 2.38 µs, 10.97 KB | 1.59 µs, 1.84 KB |
+| Deserialize a job | 3.34 µs, 17.32 KB | 3.04 µs, 2.08 KB |
+| Run an empty job through all filters | 0.58 µs, 1.62 KB | 0.27 µs, 0.63 KB |
+| Enqueue into SQL Server | 1,300 jobs/s | 1,383 jobs/s |
+| Process from SQL Server | 1,710 jobs/s | 1,583 jobs/s |
+
+Expect about the same throughput: a job spends its time in the database and in your own code, and the end-to-end results overlap from run to run. NightShift's clearest gain is memory: running a job allocates about 60% less and serializing one over 80% less. See [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire) for the full comparison, the .NET 8 numbers and how to run the benchmarks yourself.
 
 ---
 
@@ -135,7 +173,7 @@ app.Run();
 | Filters | [Retries](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/retries), [Concurrency](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/concurrency), [Timing](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/timing), [Behavior](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/behavior), [Custom filters](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/custom-filters) |
 | Running | [Server options](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/server-options), [Queues and workers](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/queues-and-workers), [Drain mode](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/drain-mode), [Dependency injection](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/dependency-injection), [SQL Server storage](https://a7mdfre7at.github.io/Masterly.NightShift/docs/storage/sql-server) |
 | Operating | [Dashboard](https://a7mdfre7at.github.io/Masterly.NightShift/docs/dashboard), [OpenTelemetry](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/opentelemetry), [Alerts and webhooks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/alerts-and-webhooks), [Health checks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/health-checks), [Configuration](https://a7mdfre7at.github.io/Masterly.NightShift/docs/configuration) |
-| Reference | [Troubleshooting](https://a7mdfre7at.github.io/Masterly.NightShift/docs/troubleshooting), [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire), [Breaking changes](https://a7mdfre7at.github.io/Masterly.NightShift/docs/breaking-changes), [Roadmap](https://a7mdfre7at.github.io/Masterly.NightShift/docs/roadmap), [Changelog](https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md) |
+| Reference | [Troubleshooting](https://a7mdfre7at.github.io/Masterly.NightShift/docs/troubleshooting), [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire), [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire), [Breaking changes](https://a7mdfre7at.github.io/Masterly.NightShift/docs/breaking-changes), [Roadmap](https://a7mdfre7at.github.io/Masterly.NightShift/docs/roadmap), [Changelog](https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md) |
 
 The same pages are in [docs/](docs/README.md) in this repository.
 
