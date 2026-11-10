@@ -59,19 +59,19 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
     public Job DeserializeJob()
     {
-        var typeResolver = TypeHelper.CurrentTypeResolver;
-        var failure = JobLoadFailure.TypeOrMethod;
+        Func<string, Type> typeResolver = TypeHelper.CurrentTypeResolver;
+        JobLoadFailure failure = JobLoadFailure.TypeOrMethod;
 
         try
         {
-            CachedDeserializeMethod(typeResolver, Type, Method, ParameterTypes, out var type, out var method);
+            CachedDeserializeMethod(typeResolver, Type, Method, ParameterTypes, out Type? type, out MethodInfo? method);
 
             failure = JobLoadFailure.Arguments;
             object[] arguments;
 
             if (Arguments != null && !Arguments.Equals("[]", StringComparison.Ordinal))
             {
-                var argumentsArray = SerializationHelper.Deserialize<string[]>(Arguments);
+                string[]? argumentsArray = SerializationHelper.Deserialize<string[]>(Arguments);
                 arguments = DeserializeArguments(method, argumentsArray);
             }
             else
@@ -84,7 +84,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            var message = failure switch
+            string message = failure switch
             {
                 JobLoadFailure.TypeOrMethod => "Could not load the job: its type or method was not found. See inner exception for the details.",
                 JobLoadFailure.Arguments => "Could not load the job: its arguments could not be deserialized. See inner exception for the details.",
@@ -101,11 +101,11 @@ public class InvocationData(string type, string method, string? parameterTypes, 
             TypeHelper.CurrentTypeSerializer,
             job.Type,
             job.Method,
-            out var typeName,
-            out var methodName,
-            out var parameterTypes);
+            out string? typeName,
+            out string? methodName,
+            out string? parameterTypes);
 
-        var arguments = job.Args.Count == 0
+        string arguments = job.Args.Count == 0
             ? "[]"
             : SerializationHelper.Serialize(SerializeArguments(job.Method, job.Args));
 
@@ -138,7 +138,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
                 jobPayload.Queue);
         }
 
-        var data = SerializationHelper.Deserialize<InvocationData>(payload) ?? throw new InvalidOperationException("Deserialize<InvocationData> returned `null` for a non-null payload.");
+        InvocationData? data = SerializationHelper.Deserialize<InvocationData>(payload) ?? throw new InvalidOperationException("Deserialize<InvocationData> returned `null` for a non-null payload.");
         if (data.Type == null || data.Method == null)
         {
             data = SerializationHelper.Deserialize<InvocationData>(payload, SerializationOption.User);
@@ -157,7 +157,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
     {
         try
         {
-            var data = SerializationHelper.Deserialize<InvocationData>(payload, SerializationOption.User);
+            InvocationData? data = SerializationHelper.Deserialize<InvocationData>(payload, SerializationOption.User);
             return data?.Type != null && data.Method != null && data.ParameterTypes != null ? data : null;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -170,8 +170,8 @@ public class InvocationData(string type, string method, string? parameterTypes, 
     {
         if (GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170))
         {
-            var parameterTypes = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, ParameterTypes!); // A readable payload has them
-            var arguments = excludeArguments ? null : SerializationHelper.Deserialize<string[]>(Arguments);
+            string[] parameterTypes = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, ParameterTypes!); // A readable payload has them
+            string[]? arguments = excludeArguments ? null : SerializationHelper.Deserialize<string[]>(Arguments);
 
             return SerializationHelper.Serialize(new JobPayload
             {
@@ -204,7 +204,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
             {
                 try
                 {
-                    var types = SerializationHelper.Deserialize<Type[]>(tuple.Item2);
+                    Type[]? types = SerializationHelper.Deserialize<Type[]>(tuple.Item2);
                     return [.. types!.Select(tuple.Item1)]; // Not the JSON null
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -218,13 +218,13 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
     internal static string[] SerializeArguments(MethodInfo methodInfo, IReadOnlyList<object> arguments)
     {
-        var serializedArguments = new List<string>(arguments.Count);
-        var parameters = methodInfo.GetParameters();
+        List<string> serializedArguments = new(arguments.Count);
+        ParameterInfo[] parameters = methodInfo.GetParameters();
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
-            var argument = arguments[i];
+            ParameterInfo parameter = parameters[i];
+            object argument = arguments[i];
 
             string? value;
 
@@ -269,13 +269,13 @@ public class InvocationData(string type, string method, string? parameterTypes, 
     {
         if (arguments == null) return [];
 
-        var parameters = methodInfo.GetParameters();
-        var result = new List<object>(arguments.Length);
+        ParameterInfo[] parameters = methodInfo.GetParameters();
+        List<object> result = new(arguments.Length);
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
-            var argument = arguments[i];
+            ParameterInfo parameter = parameters[i];
+            string argument = arguments[i];
 
             object? value;
 
@@ -300,7 +300,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         Func<Type, string> typeSerializer, Type type, MethodInfo methodInfo,
         out string typeName, out string methodName, out string parameterTypes)
     {
-        var entry = MethodSerializerCache.GetOrAdd(
+        MethodSerializerCacheValue entry = MethodSerializerCache.GetOrAdd(
             new MethodSerializerCacheKey { TypeSerializer = typeSerializer, Type = type, Method = methodInfo },
             static key =>
             {
@@ -322,18 +322,18 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         Func<string, Type> typeResolver, string typeName, string methodName, string? parameterTypes,
         out Type type, out MethodInfo methodInfo)
     {
-        var entry = MethodDeserializerCache.GetOrAdd(
+        MethodDeserializerCacheValue entry = MethodDeserializerCache.GetOrAdd(
             new MethodDeserializerCacheKey { TypeResolver = typeResolver, TypeName = typeName, MethodName = methodName, ParameterTypes = parameterTypes! }, // A readable payload has them
             static key =>
             {
-                var type = key.TypeResolver(key.TypeName);
-                var parameterTypesArray = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, key.ParameterTypes!); // A readable payload has them
-                var parameterTypes = parameterTypesArray?.Select(key.TypeResolver).ToArray();
-                var method = type.GetNonOpenMatchingMethod(key.MethodName, parameterTypes);
+                Type type = key.TypeResolver(key.TypeName);
+                string[] parameterTypesArray = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, key.ParameterTypes!); // A readable payload has them
+                Type[]? parameterTypes = parameterTypesArray?.Select(key.TypeResolver).ToArray();
+                MethodInfo? method = type.GetNonOpenMatchingMethod(key.MethodName, parameterTypes);
 
                 if (method == null)
                 {
-                    var parametersString = parameterTypes != null
+                    string parametersString = parameterTypes != null
                         ? string.Join(", ", parameterTypes.Select(static x => x.Name))
                         : key.ParameterTypes ?? string.Empty;
 
@@ -363,7 +363,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
                 // be converted to object type.
                 value = argument;
             }
-            else if ((type == typeof(DateTime) || type == typeof(DateTime?)) && ParseDateTimeArgument(argument, out var dateTime))
+            else if ((type == typeof(DateTime) || type == typeof(DateTime?)) && ParseDateTimeArgument(argument, out DateTime dateTime))
             {
                 value = dateTime;
             }
@@ -371,7 +371,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
             {
                 try
                 {
-                    var converter = TypeDescriptor.GetConverter(type);
+                    TypeConverter converter = TypeDescriptor.GetConverter(type);
 
                     // ReferenceConverter can't correctly convert the serialized
                     // data. This may happen when FromJson method threw an exception,
@@ -396,12 +396,12 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
     internal static bool ParseDateTimeArgument(string argument, out DateTime value)
     {
-        var result = DateTime.TryParseExact(
+        bool result = DateTime.TryParseExact(
             argument,
             "MM/dd/yyyy HH:mm:ss.ffff",
             CultureInfo.CurrentCulture,
             DateTimeStyles.None,
-            out var dateTime);
+            out DateTime dateTime);
 
         if (!result)
         {

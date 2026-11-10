@@ -94,14 +94,14 @@ public sealed class JobInvocation
     [NotNull]
     public async Task<object?> ProceedAsync()
     {
-        var result = Proceed();
+        object? result = Proceed();
 
         if (result == null || _getTask == null)
         {
             return result;
         }
 
-        var task = _getTask(result);
+        Task task = _getTask(result);
         await task.ConfigureAwait(false);
 
         return task.GetTaskLikeResult(result, ReturnType);

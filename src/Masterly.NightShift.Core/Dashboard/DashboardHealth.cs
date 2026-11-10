@@ -106,7 +106,7 @@ internal static class DashboardHealth
         ArgumentNullException.ThrowIfNull(drain);
         if (drain.PausedServers.Count == 0) return [];
 
-        var registered = new HashSet<string>((servers ?? []).Select(static s => s.Name), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> registered = new((servers ?? []).Select(static s => s.Name), StringComparer.OrdinalIgnoreCase);
         return [.. drain.PausedServers.Keys.Where(id => !registered.Contains(id)).OrderBy(static id => id, StringComparer.Ordinal)];
     }
 
@@ -127,16 +127,16 @@ internal static class DashboardHealth
         ArgumentNullException.ThrowIfNull(storage);
         ArgumentNullException.ThrowIfNull(options);
 
-        var checks = new List<HealthCheck>();
+        List<HealthCheck> checks = [];
         StatisticsDto? statistics = null;
         IList<ServerDto> servers = Array.Empty<ServerDto>();
         IList<QueueWithTopEnqueuedJobsDto> queues = Array.Empty<QueueWithTopEnqueuedJobsDto>();
-        var paused = false;
+        bool paused = false;
 
-        var stopwatch = Stopwatch.StartNew();
+        Stopwatch stopwatch = Stopwatch.StartNew();
         try
         {
-            var monitor = storage.GetMonitoringApi();
+            IMonitoringApi monitor = storage.GetMonitoringApi();
             statistics = monitor.GetStatistics();
             servers = monitor.Servers() ?? Array.Empty<ServerDto>();
             queues = GetQueueCounts(storage, monitor) ?? Array.Empty<QueueWithTopEnqueuedJobsDto>();
@@ -150,8 +150,8 @@ internal static class DashboardHealth
             return new HealthReport(HealthStatus.Unhealthy, utcNow, checks, null, [], 0, false);
         }
 
-        var alive = servers.Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= utcNow - options.ServerPossiblyAbortedThreshold).ToList();
-        var stale = servers.Count - alive.Count;
+        List<ServerDto> alive = [.. servers.Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= utcNow - options.ServerPossiblyAbortedThreshold)];
+        int stale = servers.Count - alive.Count;
 
         if (alive.Count == 0)
         {
@@ -166,8 +166,8 @@ internal static class DashboardHealth
             checks.Add(new HealthCheck("servers", HealthStatus.Healthy, $"{alive.Count.ToString(CultureInfo.InvariantCulture)} alive, {alive.Sum(static s => s.WorkersCount).ToString(CultureInfo.InvariantCulture)} workers"));
         }
 
-        var served = new HashSet<string>(alive.SelectMany(static s => s.Queues ?? Array.Empty<string>()), StringComparer.OrdinalIgnoreCase);
-        var unserved = queues.Where(q => q.Length > 0 && !served.Contains(q.Name)).Select(static q => q.Name).ToList();
+        HashSet<string> served = new(alive.SelectMany(static s => s.Queues ?? Array.Empty<string>()), StringComparer.OrdinalIgnoreCase);
+        List<string> unserved = [.. queues.Where(q => q.Length > 0 && !served.Contains(q.Name)).Select(static q => q.Name)];
 
         if (unserved.Count > 0 && alive.Count > 0)
         {
@@ -178,14 +178,14 @@ internal static class DashboardHealth
             checks.Add(new HealthCheck("queues", HealthStatus.Healthy, $"{queues.Count.ToString(CultureInfo.InvariantCulture)} queues, {queues.Sum(static q => q.Length).ToString(CultureInfo.InvariantCulture)} jobs waiting"));
         }
 
-        var lateCount = 0;
+        int lateCount = 0;
 
         try
         {
-            using var connection = storage.GetReadOnlyConnection();
-            var drain = DrainMode.Read(connection);
-            var stalePausedServers = GetStalePausedServers(drain, servers);
-            var pausedServers = drain.PausedServers.Keys.Except(stalePausedServers, StringComparer.OrdinalIgnoreCase).OrderBy(static q => q, StringComparer.Ordinal).ToList();
+            using IStorageConnection connection = storage.GetReadOnlyConnection();
+            DrainModeStatus drain = DrainMode.Read(connection);
+            IReadOnlyList<string> stalePausedServers = GetStalePausedServers(drain, servers);
+            List<string> pausedServers = [.. drain.PausedServers.Keys.Except(stalePausedServers, StringComparer.OrdinalIgnoreCase).OrderBy(static q => q, StringComparer.Ordinal)];
 
             paused = drain.Active;
             if (paused)
@@ -194,7 +194,7 @@ internal static class DashboardHealth
             }
             else if (drain.PausedQueues.Count > 0 || pausedServers.Count > 0)
             {
-                var parts = new List<string>();
+                List<string> parts = [];
                 if (drain.PausedQueues.Count > 0) parts.Add($"queues paused: {string.Join(", ", drain.PausedQueues.Keys.OrderBy(static q => q, StringComparer.Ordinal))}");
                 if (pausedServers.Count > 0) parts.Add($"servers paused: {string.Join(", ", pausedServers)}");
                 checks.Add(new HealthCheck("processing", HealthStatus.Degraded, string.Join("; ", parts)));
@@ -204,9 +204,9 @@ internal static class DashboardHealth
                 checks.Add(new HealthCheck("processing", HealthStatus.Healthy, "running"));
             }
 
-            var recurring = ReadRecurring(storage, connection, statistics, utcNow);
-            var late = recurring.Late;
-            var disabled = recurring.Disabled;
+            RecurringProblems recurring = ReadRecurring(storage, connection, statistics, utcNow);
+            IReadOnlyList<string> late = recurring.Late;
+            IReadOnlyList<string> disabled = recurring.Disabled;
             lateCount = late.Count;
 
             if (late.Count > 0)
@@ -228,7 +228,7 @@ internal static class DashboardHealth
             checks.Add(new HealthCheck("recurring", HealthStatus.Degraded, "could not read the recurring jobs, see the log"));
         }
 
-        var status = checks.Any(static c => c.Status == HealthStatus.Unhealthy) ? HealthStatus.Unhealthy
+        HealthStatus status = checks.Any(static c => c.Status == HealthStatus.Unhealthy) ? HealthStatus.Unhealthy
             : checks.Any(static c => c.Status == HealthStatus.Degraded) ? HealthStatus.Degraded
             : HealthStatus.Healthy;
 
@@ -260,21 +260,21 @@ internal static class DashboardHealth
             storage.HasFeature(JobStorageFeatures.Connection.BatchedGetFirstByLowest))
         {
             // Jobs whose next run, or next retry, was due a while ago and nobody started them
-            var late = storageConnection.GetFirstByLowestScoreFromSet(RecurringJobsSetKey, 0, JobHelper.ToTimestamp(utcNow - RecurringLateThreshold), MaxRecurringCandidates)
+            List<string> late = storageConnection.GetFirstByLowestScoreFromSet(RecurringJobsSetKey, 0, JobHelper.ToTimestamp(utcNow - RecurringLateThreshold), MaxRecurringCandidates)
                        ?? [];
 
             // Paused and disabled jobs have no next run; only the disabled ones keep an error
-            var disabled = new List<string>();
-            foreach (var id in storageConnection.GetFirstByLowestScoreFromSet(RecurringJobsSetKey, -1, -1, MaxRecurringCandidates) ?? [])
+            List<string> disabled = [];
+            foreach (string id in storageConnection.GetFirstByLowestScoreFromSet(RecurringJobsSetKey, -1, -1, MaxRecurringCandidates) ?? [])
             {
                 if (!string.IsNullOrWhiteSpace(storageConnection.GetValueFromHash($"recurring-job:{id}", "Error"))) disabled.Add(id);
             }
 
-            var total = statistics?.Recurring ?? storageConnection.GetSetCount(RecurringJobsSetKey);
+            long total = statistics?.Recurring ?? storageConnection.GetSetCount(RecurringJobsSetKey);
             return new RecurringProblems(late, disabled, total);
         }
 
-        var recurringJobs = connection.GetRecurringJobs();
+        List<RecurringJobDto> recurringJobs = connection.GetRecurringJobs();
         return new RecurringProblems(
             [.. recurringJobs.Where(j => IsLate(j, utcNow)).Select(static j => j.Id)],
             [.. recurringJobs.Where(static j => j.Error != null && !j.Removed && !j.NextExecution.HasValue).Select(static j => j.Id)],
@@ -301,7 +301,7 @@ internal sealed class StorageCache<T>(TimeSpan duration)
 
     public T Get(JobStorage storage, DashboardOptions options, DateTime utcNow, Func<T> compute)
     {
-        var entries = _entries.GetValue(storage, static _ => []);
+        Dictionary<TimeSpan, Entry> entries = _entries.GetValue(storage, static _ => []);
         Entry? entry;
 
         lock (entries)
@@ -320,7 +320,7 @@ internal sealed class StorageCache<T>(TimeSpan duration)
                 return entry.Value;
             }
 
-            var value = compute();
+            T value = compute();
             entry.Value = value;
             entry.ComputedAt = utcNow;
             return value;

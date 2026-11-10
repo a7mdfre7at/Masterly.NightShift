@@ -12,8 +12,8 @@
 @inherits RazorPage
 @{
     JobBatch? batch;
-    var jobs = new List<KeyValuePair<string, JobData?>>();
-    var continuations = new List<KeyValuePair<string, JobData?>>();
+    List<KeyValuePair<string, JobData?>> jobs = [];
+    List<KeyValuePair<string, JobData?>> continuations = [];
     const int maxJobsShown = 500;
     Pager? pager = null;
 
@@ -21,19 +21,19 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         batch = BatchJob.Get(connection, Id);
 
         if (batch != null)
         {
             IEnumerable<string> jobIds;
-            var storageConnection = connection as JobStorageConnection;
+            JobStorageConnection? storageConnection = connection as JobStorageConnection;
 
             if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
             {
                 // One page of the batch's jobs, instead of every id of a batch of any size
-                var jobsKey = BatchJob.GetJobsKey(Id);
+                string jobsKey = BatchJob.GetJobsKey(Id);
                 pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, storageConnection.GetSetCount(jobsKey));
                 jobIds = storageConnection.GetRangeFromSet(jobsKey, pager.FromRecord, pager.FromRecord + pager.RecordsPerPage - 1) ?? new List<string>();
             }
@@ -43,19 +43,19 @@
                 jobIds = BatchJob.GetJobIds(connection, Id).Take(maxJobsShown);
             }
 
-            foreach (var jobId in jobIds)
+            foreach (string jobId in jobIds)
             {
                 jobs.Add(new KeyValuePair<string, JobData?>(jobId, connection.GetJobData(jobId)));
             }
 
-            foreach (var jobId in batch.Continuations)
+            foreach (string jobId in batch.Continuations)
             {
                 continuations.Add(new KeyValuePair<string, JobData?>(jobId, connection.GetJobData(jobId)));
             }
         }
     }
 
-    var title = batch != null ? (batch.Description ?? String.Format(Strings.BatchDetailsPage_Title, batch.Id)) : String.Format(Strings.BatchDetailsPage_Title, Id);
+    string title = batch != null ? (batch.Description ?? String.Format(Strings.BatchDetailsPage_Title, batch.Id)) : String.Format(Strings.BatchDetailsPage_Title, Id);
     Layout = new LayoutPage(title);
 }
 
@@ -71,9 +71,9 @@
         }
         else
         {
-            var total = Math.Max(1, batch.Total);
-            var stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
-            var stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
+            long total = Math.Max(1, batch.Total);
+            string stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
+            string stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
 
             <section class="hf-card hf-batch-summary">
                 <div class="hf-batch-head">
@@ -113,9 +113,9 @@
 
                 <div class="hf-batch-stats">
                     <div class="hf-batch-stat"><span class="hf-batch-stat-value">@batch.Total</span><span class="hf-batch-stat-label">@Strings.BatchesPage_Table_Jobs</span></div>
-                    @foreach (var state in BatchJob.TrackedStates)
+                    @foreach (string state in BatchJob.TrackedStates)
                     {
-                        var count = batch.Count(state);
+                        long count = batch.Count(state);
                         if (count == 0) continue;
                         <div class="hf-batch-stat"><span class="hf-batch-stat-value">@count</span><span class="hf-batch-stat-label">@Html.StateLabel(state)</span></div>
                     }
@@ -135,7 +135,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var continuation in continuations)
+                            @foreach (KeyValuePair<string, JobData?> continuation in continuations)
                             {
                                 <tr>
                                     <td class="min-width">@Html.JobIdLink(continuation.Key)</td>
@@ -173,7 +173,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var job in jobs)
+                        @foreach (KeyValuePair<string, JobData?> job in jobs)
                         {
                             <tr class="hover">
                                 <td class="min-width">@Html.JobIdLink(job.Key)</td>

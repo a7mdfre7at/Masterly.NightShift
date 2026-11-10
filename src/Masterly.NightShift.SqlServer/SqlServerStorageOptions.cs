@@ -51,7 +51,7 @@ public class SqlServerStorageOptions
     /// <exception cref="ArgumentException">The value is negative.</exception>
     public TimeSpan QueuePollInterval { get; set
         {
-            var message = $"The QueuePollInterval property value should be positive. Given: {value}.";
+            string message = $"The QueuePollInterval property value should be positive. Given: {value}.";
 
             if (value != value.Duration())
             {
@@ -199,7 +199,7 @@ public class SqlServerStorageOptions
             throw new ArgumentException($"The schema name can be at most {MaxSchemaNameLength} characters long, but {schemaName.Length} were given.", paramName);
         }
 
-        foreach (var ch in schemaName)
+        foreach (char ch in schemaName)
         {
             if (ch == ']' || ch == '\'' || char.IsControl(ch))
             {

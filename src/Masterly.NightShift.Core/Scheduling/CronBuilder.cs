@@ -67,7 +67,7 @@ public sealed class CronBuilder
     {
         Validate(hours, 1, 23, nameof(hours));
 
-        var call = Call("EveryHours", hours);
+        string call = Call("EveryHours", hours);
         if (_firstAt != null) throw AtConflict(_firstAt, call);
 
         _hourStep.Set(hours.ToString(CultureInfo.InvariantCulture), call);
@@ -105,11 +105,11 @@ public sealed class CronBuilder
         Validate(hour, 0, 23, nameof(hour));
         Validate(minute, 0, 59, nameof(minute));
 
-        var call = Call("At", hour, minute);
+        string call = Call("At", hour, minute);
         if (_hourStep.SetBy != null) throw AtConflict(call, _hourStep.SetBy);
         if (_hourRange.SetBy != null) throw AtConflict(call, _hourRange.SetBy);
 
-        var minuteText = minute.ToString(CultureInfo.InvariantCulture);
+        string minuteText = minute.ToString(CultureInfo.InvariantCulture);
         if (_firstAt != null && _minute.Value != minuteText)
         {
             throw new InvalidOperationException("Several times a day must share the same minute, for example 09:30 and 17:30.");
@@ -142,7 +142,7 @@ public sealed class CronBuilder
         Validate(fromHour, 0, 23, nameof(fromHour));
         Validate(toHour, 0, 23, nameof(toHour));
 
-        var call = Call("Between", fromHour, toHour);
+        string call = Call("Between", fromHour, toHour);
         if (_firstAt != null) throw AtConflict(_firstAt, call);
 
         _hourRange.Set($"{fromHour.ToString(CultureInfo.InvariantCulture)}-{toHour.ToString(CultureInfo.InvariantCulture)}", call);
@@ -157,7 +157,7 @@ public sealed class CronBuilder
     {
         if (days == null || days.Length == 0) throw new ArgumentException("At least one day is required.", nameof(days));
 
-        var sorted = days.Select(static x => (int)x).Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
+        IEnumerable<string> sorted = days.Select(static x => (int)x).Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
         _dayOfWeek.Set(string.Join(",", sorted), "OnDays(...)");
         return this;
     }
@@ -206,9 +206,9 @@ public sealed class CronBuilder
     public CronBuilder InMonths(params int[] months)
     {
         if (months == null || months.Length == 0) throw new ArgumentException("At least one month is required.", nameof(months));
-        foreach (var month in months) Validate(month, 1, 12, nameof(months));
+        foreach (int month in months) Validate(month, 1, 12, nameof(months));
 
-        var sorted = months.Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
+        IEnumerable<string> sorted = months.Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
         _month.Set(string.Join(",", sorted), "InMonths(...)");
         return this;
     }
@@ -216,16 +216,16 @@ public sealed class CronBuilder
     /// <summary>Returns the validated CRON expression.</summary>
     public override string ToString()
     {
-        var second = _second.Value;
-        var minute = _minute.Value ?? (second != null ? "*" : "0");
-        var hour = BuildHour(second != null || _minuteInterval);
-        var month = _month.Value ?? "*";
-        var dayOfWeek = _dayOfWeek.Value ?? "*";
+        string? second = _second.Value;
+        string minute = _minute.Value ?? (second != null ? "*" : "0");
+        string hour = BuildHour(second != null || _minuteInterval);
+        string month = _month.Value ?? "*";
+        string dayOfWeek = _dayOfWeek.Value ?? "*";
 
         // A month schedule runs on the 1st unless it says which days; days of week say it too
-        var dayOfMonth = _dayOfMonth.Value ?? (_month.Value != null && _dayOfWeek.Value == null ? "1" : "*");
+        string dayOfMonth = _dayOfMonth.Value ?? (_month.Value != null && _dayOfWeek.Value == null ? "1" : "*");
 
-        var cron = $"{minute} {hour} {dayOfMonth} {month} {dayOfWeek}";
+        string cron = $"{minute} {hour} {dayOfMonth} {month} {dayOfWeek}";
         if (second != null) cron = $"{second} {cron}";
 
         RecurringJobEntity.ParseCronExpression(cron);
@@ -243,7 +243,7 @@ public sealed class CronBuilder
     {
         if (_hours.Count > 0) return string.Join(",", _hours.Select(static x => x.ToString(CultureInfo.InvariantCulture)));
 
-        var step = _hourStep.Value;
+        string? step = _hourStep.Value;
 
         if (_hourRange.Value != null)
         {

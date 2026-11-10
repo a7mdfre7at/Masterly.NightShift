@@ -52,7 +52,7 @@ internal static partial class TypeExtensions
 
             parameterTypes ??= Type.EmptyTypes;
 
-            var methodCandidates = new List<MethodInfo>(type.GetRuntimeMethods());
+            List<MethodInfo> methodCandidates = [.. type.GetRuntimeMethods()];
 
             if (type.GetTypeInfo().IsInterface)
             {
@@ -68,31 +68,31 @@ internal static partial class TypeExtensions
             MethodInfo? exactGenericMatch = null;
             MethodInfo? firstMatch = null;
 
-            foreach (var methodCandidate in methodCandidates)
+            foreach (MethodInfo methodCandidate in methodCandidates)
             {
                 if (!methodCandidate.GetNormalizedName().Equals(name, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var parameters = methodCandidate.GetParameters();
+                ParameterInfo[] parameters = methodCandidate.GetParameters();
                 if (parameters.Length != parameterTypes.Length)
                 {
                     continue;
                 }
 
-                var parameterTypesMatched = true;
+                bool parameterTypesMatched = true;
 
-                var genericArguments = methodCandidate.ContainsGenericParameters
+                Type[]? genericArguments = methodCandidate.ContainsGenericParameters
                     ? new Type[methodCandidate.GetGenericArguments().Length]
                     : null;
 
                 // Determining whether we can use this method candidate with
                 // current parameter types.
-                for (var i = 0; i < parameters.Length; i++)
+                for (int i = 0; i < parameters.Length; i++)
                 {
-                    var parameterType = parameters[i].ParameterType.GetTypeInfo();
-                    var actualType = parameterTypes[i].GetTypeInfo();
+                    TypeInfo parameterType = parameters[i].ParameterType.GetTypeInfo();
+                    TypeInfo actualType = parameterTypes[i].GetTypeInfo();
 
                     if (!TypesMatchRecursive(parameterType, actualType, genericArguments!)) // Generic methods have generic arguments here
                     {
@@ -105,9 +105,9 @@ internal static partial class TypeExtensions
                 {
                     if (genericArguments != null)
                     {
-                        var genericArgumentsResolved = true;
+                        bool genericArgumentsResolved = true;
 
-                        foreach (var genericArgument in genericArguments)
+                        foreach (Type genericArgument in genericArguments)
                         {
                             if (genericArgument == null)
                             {
@@ -117,7 +117,7 @@ internal static partial class TypeExtensions
 
                         if (genericArgumentsResolved)
                         {
-                            var genericMethod = methodCandidate.MakeGenericMethod(genericArguments);
+                            MethodInfo genericMethod = methodCandidate.MakeGenericMethod(genericArguments);
 
                             if (exactGenericMatch == null && HasParameterTypes(genericMethod, parameterTypes))
                             {
@@ -145,9 +145,9 @@ internal static partial class TypeExtensions
 
     private static bool HasParameterTypes(MethodInfo method, Type[] parameterTypes)
     {
-        var parameters = method.GetParameters();
+        ParameterInfo[] parameters = method.GetParameters();
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
             if (parameters[i].ParameterType != parameterTypes[i])
             {
@@ -170,7 +170,7 @@ internal static partial class TypeExtensions
     {
         if (parameterType.IsGenericParameter)
         {
-            var position = parameterType.GenericParameterPosition;
+            int position = parameterType.GenericParameterPosition;
 
             // Return false if this generic parameter has been identified and it's not the same as actual type
             if (genericArguments[position] != null && genericArguments[position].GetTypeInfo() != actualType)
@@ -189,8 +189,8 @@ internal static partial class TypeExtensions
                 // Return false if parameterType is array whereas actualType isn't
                 if (!actualType.IsArray) return false;
 
-                var parameterElementType = parameterType.GetElementType();
-                var actualElementType = actualType.GetElementType();
+                Type? parameterElementType = parameterType.GetElementType();
+                Type? actualElementType = actualType.GetElementType();
 
                 return TypesMatchRecursive(parameterElementType!.GetTypeInfo(), actualElementType!.GetTypeInfo(), genericArguments); // Generic and array types have these
             }
@@ -200,10 +200,10 @@ internal static partial class TypeExtensions
                 return false;
             }
 
-            for (var i = 0; i < parameterType.GenericTypeArguments.Length; i++)
+            for (int i = 0; i < parameterType.GenericTypeArguments.Length; i++)
             {
-                var parameterGenericArgument = parameterType.GenericTypeArguments[i];
-                var actualGenericArgument = actualType.GenericTypeArguments[i];
+                Type parameterGenericArgument = parameterType.GenericTypeArguments[i];
+                Type actualGenericArgument = actualType.GenericTypeArguments[i];
 
                 if (!TypesMatchRecursive(parameterGenericArgument.GetTypeInfo(), actualGenericArgument.GetTypeInfo(), genericArguments))
                 {
@@ -245,12 +245,12 @@ internal static partial class TypeExtensions
 
         private string ReplaceGenericParametersInGenericTypeName(Type type)
         {
-            var genericArguments = type.GetTypeInfo().GetAllGenericArguments();
+            Type[] genericArguments = type.GetTypeInfo().GetAllGenericArguments();
 
             typeName = GenericArgumentsRegex().Replace(typeName, match =>
             {
-                var currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
-                var currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));
+                int currentGenericArgumentNumbers = int.Parse(match.Value.AsSpan(1), CultureInfo.InvariantCulture);
+                string currentArguments = string.Join(",", genericArguments.Take(currentGenericArgumentNumbers).Select(ToGenericTypeString));
                 genericArguments = [.. genericArguments.Skip(currentGenericArgumentNumbers)];
                 return string.Concat("<", currentArguments, ">");
             });

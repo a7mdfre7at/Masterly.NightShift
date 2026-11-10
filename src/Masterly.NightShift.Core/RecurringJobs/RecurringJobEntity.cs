@@ -32,12 +32,12 @@ internal sealed class RecurringJobEntity
 
         RecurringJobId = recurringJobId ?? throw new ArgumentNullException(nameof(recurringJobId));
 
-        if (recurringJob.TryGetValue("Queue", out var queue) && !string.IsNullOrWhiteSpace(queue))
+        if (recurringJob.TryGetValue("Queue", out string? queue) && !string.IsNullOrWhiteSpace(queue))
         {
             Queue = queue;
         }
 
-        if (recurringJob.TryGetValue("TimeZoneId", out var timeZoneId) && !string.IsNullOrWhiteSpace(timeZoneId))
+        if (recurringJob.TryGetValue("TimeZoneId", out string? timeZoneId) && !string.IsNullOrWhiteSpace(timeZoneId))
         {
             TimeZoneId = timeZoneId;
         }
@@ -46,37 +46,37 @@ internal sealed class RecurringJobEntity
             TimeZoneId = TimeZoneInfo.Utc.Id;
         }
 
-        if (recurringJob.TryGetValue("Cron", out var cron) && !string.IsNullOrWhiteSpace(cron))
+        if (recurringJob.TryGetValue("Cron", out string? cron) && !string.IsNullOrWhiteSpace(cron))
         {
             Cron = cron;
         }
 
-        if (recurringJob.TryGetValue("Job", out var job) && !string.IsNullOrWhiteSpace(job))
+        if (recurringJob.TryGetValue("Job", out string? job) && !string.IsNullOrWhiteSpace(job))
         {
             Job = job;
         }
 
-        if (recurringJob.TryGetValue("LastJobId", out var lastJobId) && !string.IsNullOrWhiteSpace(lastJobId))
+        if (recurringJob.TryGetValue("LastJobId", out string? lastJobId) && !string.IsNullOrWhiteSpace(lastJobId))
         {
             LastJobId = lastJobId;
         }
 
-        if (recurringJob.TryGetValue("LastExecution", out var lastExecution) && !string.IsNullOrWhiteSpace(lastExecution))
+        if (recurringJob.TryGetValue("LastExecution", out string? lastExecution) && !string.IsNullOrWhiteSpace(lastExecution))
         {
             LastExecution = JobHelper.DeserializeDateTime(lastExecution);
         }
 
-        if (recurringJob.TryGetValue("NextExecution", out var nextExecution) && !string.IsNullOrWhiteSpace(nextExecution))
+        if (recurringJob.TryGetValue("NextExecution", out string? nextExecution) && !string.IsNullOrWhiteSpace(nextExecution))
         {
             NextExecution = JobHelper.DeserializeDateTime(nextExecution);
         }
 
-        if (recurringJob.TryGetValue("CreatedAt", out var createdAt) && !string.IsNullOrWhiteSpace(createdAt))
+        if (recurringJob.TryGetValue("CreatedAt", out string? createdAt) && !string.IsNullOrWhiteSpace(createdAt))
         {
             CreatedAt = JobHelper.DeserializeDateTime(createdAt);
         }
 
-        if (recurringJob.TryGetValue("Misfire", out var misfireStr))
+        if (recurringJob.TryGetValue("Misfire", out string? misfireStr))
         {
             MisfireHandling = Enum.Parse<MisfireHandlingMode>(misfireStr);
             if (!Enum.IsDefined(MisfireHandling))
@@ -89,43 +89,43 @@ internal sealed class RecurringJobEntity
             MisfireHandling = MisfireHandlingMode.Relaxed;
         }
 
-        if (recurringJob.TryGetValue("V", out var version) && !string.IsNullOrWhiteSpace(version))
+        if (recurringJob.TryGetValue("V", out string? version) && !string.IsNullOrWhiteSpace(version))
         {
             Version = int.Parse(version, CultureInfo.InvariantCulture);
         }
 
-        if (recurringJob.TryGetValue("RetryAttempt", out var attemptString) &&
-            int.TryParse(attemptString, out var retryAttempt))
+        if (recurringJob.TryGetValue("RetryAttempt", out string? attemptString) &&
+            int.TryParse(attemptString, out int retryAttempt))
         {
             RetryAttempt = retryAttempt;
         }
 
-        if (recurringJob.TryGetValue("Error", out var error) && !string.IsNullOrWhiteSpace(error))
+        if (recurringJob.TryGetValue("Error", out string? error) && !string.IsNullOrWhiteSpace(error))
         {
             Error = error;
         }
 
-        if (recurringJob.TryGetValue("Paused", out var paused) && paused == "1")
+        if (recurringJob.TryGetValue("Paused", out string? paused) && paused == "1")
         {
             Paused = true;
         }
 
-        if (recurringJob.TryGetValue("ResumedAt", out var resumedAt) && !string.IsNullOrWhiteSpace(resumedAt))
+        if (recurringJob.TryGetValue("ResumedAt", out string? resumedAt) && !string.IsNullOrWhiteSpace(resumedAt))
         {
             ResumedAt = JobHelper.DeserializeDateTime(resumedAt);
         }
 
-        if (recurringJob.TryGetValue("ScheduleChangedAt", out var scheduleChangedAt) && !string.IsNullOrWhiteSpace(scheduleChangedAt))
+        if (recurringJob.TryGetValue("ScheduleChangedAt", out string? scheduleChangedAt) && !string.IsNullOrWhiteSpace(scheduleChangedAt))
         {
             ScheduleChangedAt = JobHelper.DeserializeDateTime(scheduleChangedAt);
         }
 
-        if (recurringJob.TryGetValue(StartAtField, out var startAt) && !string.IsNullOrWhiteSpace(startAt))
+        if (recurringJob.TryGetValue(StartAtField, out string? startAt) && !string.IsNullOrWhiteSpace(startAt))
         {
             StartAt = JobHelper.DeserializeDateTime(startAt);
         }
 
-        if (recurringJob.TryGetValue(EndAtField, out var endAt) && !string.IsNullOrWhiteSpace(endAt))
+        if (recurringJob.TryGetValue(EndAtField, out string? endAt) && !string.IsNullOrWhiteSpace(endAt))
         {
             EndAt = JobHelper.DeserializeDateTime(endAt);
         }
@@ -200,8 +200,8 @@ internal sealed class RecurringJobEntity
     /// <returns><c>true</c> when the window changed.</returns>
     public bool SetWindow(DateTime? startAt, DateTime? endAt)
     {
-        var newStartAt = Normalize(startAt);
-        var newEndAt = Normalize(endAt);
+        DateTime? newStartAt = Normalize(startAt);
+        DateTime? newEndAt = Normalize(endAt);
 
         if (newStartAt == StartAt && newEndAt == EndAt) return false;
 
@@ -274,7 +274,7 @@ internal sealed class RecurringJobEntity
     {
         ArgumentNullException.ThrowIfNull(timeZoneResolver);
 
-        var result = new List<DateTime>();
+        List<DateTime> result = [];
 
         if (Paused)
         {
@@ -283,12 +283,12 @@ internal sealed class RecurringJobEntity
             return result;
         }
 
-        var cron = ParseCronExpression(Cron!); // An entry without a cron returned above
-        var timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
+        CronExpression cron = ParseCronExpression(Cron!); // An entry without a cron returned above
+        TimeZoneInfo timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
 
         // Before the window opens, the first occurrence is the first one at or after its start, so no
         // misfire handling mode catches up on the occurrences before it
-        var next = StartAt.HasValue && StartAt.Value > from
+        DateTime? next = StartAt.HasValue && StartAt.Value > from
             ? cron.GetNextOccurrence(StartAt.Value, timeZone, inclusive: true)
             : cron.GetNextOccurrence(from, timeZone, inclusive: false);
 
@@ -359,24 +359,24 @@ internal sealed class RecurringJobEntity
 
     private IReadOnlyDictionary<string, string> GetChangedFields(DateTime now)
     {
-        var result = new Dictionary<string, string>();
+        Dictionary<string, string> result = [];
 
-        if ((_recurringJob.TryGetValue("Queue", out var queue) ? queue : null) != Queue)
+        if ((_recurringJob.TryGetValue("Queue", out string? queue) ? queue : null) != Queue)
         {
             result.Add("Queue", Queue!); // A null value stays null in the hash
         }
 
-        if ((_recurringJob.TryGetValue("Cron", out var cron) ? cron : null) != Cron)
+        if ((_recurringJob.TryGetValue("Cron", out string? cron) ? cron : null) != Cron)
         {
             result.Add("Cron", Cron!); // A null value stays null in the hash
         }
 
-        if ((_recurringJob.TryGetValue("TimeZoneId", out var timeZoneId) ? timeZoneId : null) != TimeZoneId)
+        if ((_recurringJob.TryGetValue("TimeZoneId", out string? timeZoneId) ? timeZoneId : null) != TimeZoneId)
         {
             result.Add("TimeZoneId", TimeZoneId);
         }
 
-        if ((_recurringJob.TryGetValue("Job", out var job) ? job : null) != Job)
+        if ((_recurringJob.TryGetValue("Job", out string? job) ? job : null) != Job)
         {
             result.Add("Job", Job!); // A null value stays null in the hash
         }
@@ -386,29 +386,29 @@ internal sealed class RecurringJobEntity
             result.Add("CreatedAt", JobHelper.SerializeDateTime(now));
         }
 
-        var serializedLastExecution = LastExecution.HasValue ? JobHelper.SerializeDateTime(LastExecution.Value) : null;
+        string? serializedLastExecution = LastExecution.HasValue ? JobHelper.SerializeDateTime(LastExecution.Value) : null;
 
-        if ((_recurringJob.TryGetValue("LastExecution", out var lastExecution) ? lastExecution : null) !=
+        if ((_recurringJob.TryGetValue("LastExecution", out string? lastExecution) ? lastExecution : null) !=
             serializedLastExecution)
         {
             result.Add("LastExecution", serializedLastExecution ?? string.Empty);
         }
 
-        var serializedNextExecution = NextExecution.HasValue ? JobHelper.SerializeDateTime(NextExecution.Value) : null;
-        if ((_recurringJob.TryGetValue("NextExecution", out var next) ? next : null) !=
+        string? serializedNextExecution = NextExecution.HasValue ? JobHelper.SerializeDateTime(NextExecution.Value) : null;
+        if ((_recurringJob.TryGetValue("NextExecution", out string? next) ? next : null) !=
             serializedNextExecution)
         {
             result.Add("NextExecution", serializedNextExecution ?? string.Empty);
         }
 
-        if ((_recurringJob.TryGetValue("LastJobId", out var last) && !string.IsNullOrWhiteSpace(last) ? last : null) != LastJobId)
+        if ((_recurringJob.TryGetValue("LastJobId", out string? last) && !string.IsNullOrWhiteSpace(last) ? last : null) != LastJobId)
         {
             result.Add("LastJobId", LastJobId ?? string.Empty);
         }
 
-        var misfireHandlingValue = MisfireHandling.ToString("D");
+        string misfireHandlingValue = MisfireHandling.ToString("D");
         if ((!_recurringJob.ContainsKey("Misfire") && MisfireHandling != MisfireHandlingMode.Relaxed) ||
-            (_recurringJob.TryGetValue("Misfire", out var misfire) && misfire != misfireHandlingValue))
+            (_recurringJob.TryGetValue("Misfire", out string? misfire) && misfire != misfireHandlingValue))
         {
             result.Add("Misfire", misfireHandlingValue);
         }
@@ -418,21 +418,21 @@ internal sealed class RecurringJobEntity
             result.Add("V", "2");
         }
 
-        if ((_recurringJob.TryGetValue("Error", out var error) && !string.IsNullOrWhiteSpace(error) ? error : null) != Error)
+        if ((_recurringJob.TryGetValue("Error", out string? error) && !string.IsNullOrWhiteSpace(error) ? error : null) != Error)
         {
             result.Add("Error", Error ?? string.Empty);
         }
 
-        var serializedResumedAt = ResumedAt.HasValue ? JobHelper.SerializeDateTime(ResumedAt.Value) : null;
+        string? serializedResumedAt = ResumedAt.HasValue ? JobHelper.SerializeDateTime(ResumedAt.Value) : null;
         if (serializedResumedAt != null &&
-            (_recurringJob.TryGetValue("ResumedAt", out var resumedAt) ? resumedAt : null) != serializedResumedAt)
+            (_recurringJob.TryGetValue("ResumedAt", out string? resumedAt) ? resumedAt : null) != serializedResumedAt)
         {
             result.Add("ResumedAt", serializedResumedAt);
         }
 
-        var serializedScheduleChangedAt = ScheduleChangedAt.HasValue ? JobHelper.SerializeDateTime(ScheduleChangedAt.Value) : null;
+        string? serializedScheduleChangedAt = ScheduleChangedAt.HasValue ? JobHelper.SerializeDateTime(ScheduleChangedAt.Value) : null;
         if (serializedScheduleChangedAt != null &&
-            (_recurringJob.TryGetValue("ScheduleChangedAt", out var scheduleChangedAt) ? scheduleChangedAt : null) != serializedScheduleChangedAt)
+            (_recurringJob.TryGetValue("ScheduleChangedAt", out string? scheduleChangedAt) ? scheduleChangedAt : null) != serializedScheduleChangedAt)
         {
             result.Add("ScheduleChangedAt", serializedScheduleChangedAt);
         }
@@ -440,15 +440,15 @@ internal sealed class RecurringJobEntity
         AddWindowFieldIfChanged(result, StartAtField, StartAt);
         AddWindowFieldIfChanged(result, EndAtField, EndAt);
 
-        var pausedValue = Paused ? "1" : "0";
+        string pausedValue = Paused ? "1" : "0";
         if ((!_recurringJob.ContainsKey("Paused") && Paused) ||
-            (_recurringJob.TryGetValue("Paused", out var pausedStored) && pausedStored != pausedValue))
+            (_recurringJob.TryGetValue("Paused", out string? pausedStored) && pausedStored != pausedValue))
         {
             result.Add("Paused", pausedValue);
         }
 
-        var retryAttemptValue = RetryAttempt.ToString(CultureInfo.InvariantCulture);
-        if ((_recurringJob.TryGetValue("RetryAttempt", out var retryAttempt) ? retryAttempt : null) != retryAttemptValue)
+        string retryAttemptValue = RetryAttempt.ToString(CultureInfo.InvariantCulture);
+        if ((_recurringJob.TryGetValue("RetryAttempt", out string? retryAttempt) ? retryAttempt : null) != retryAttemptValue)
         {
             if (_recurringJob.ContainsKey("RetryAttempt") || retryAttemptValue != "0")
             {
@@ -462,8 +462,8 @@ internal sealed class RecurringJobEntity
     // A window that was never set writes nothing; a cleared one writes an empty value, which reads as no value
     private void AddWindowFieldIfChanged(Dictionary<string, string> result, string field, DateTime? value)
     {
-        var serialized = value.HasValue ? JobHelper.SerializeDateTime(value.Value) : null;
-        var stored = _recurringJob.TryGetValue(field, out var storedValue) && !string.IsNullOrWhiteSpace(storedValue)
+        string? serialized = value.HasValue ? JobHelper.SerializeDateTime(value.Value) : null;
+        string? stored = _recurringJob.TryGetValue(field, out string? storedValue) && !string.IsNullOrWhiteSpace(storedValue)
             ? storedValue
             : null;
 
@@ -488,11 +488,11 @@ internal sealed class RecurringJobEntity
     {
         ArgumentNullException.ThrowIfNull(cronExpression);
 
-        var format = CronFormat.Standard;
+        CronFormat format = CronFormat.Standard;
 
         if (!cronExpression.StartsWith("@", StringComparison.OrdinalIgnoreCase))
         {
-            var parts = cronExpression.Split(SeparatorCharacters, StringSplitOptions.RemoveEmptyEntries);
+            string[] parts = cronExpression.Split(SeparatorCharacters, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 6)
             {
                 format |= CronFormat.IncludeSeconds;

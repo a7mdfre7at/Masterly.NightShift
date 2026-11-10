@@ -18,7 +18,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
     public async Task Dispatch(DashboardContext context)
     {
-        var jobIds = await GetJobIdsAsync(context).ConfigureAwait(false);
+        List<string> jobIds = await GetJobIdsAsync(context).ConfigureAwait(false);
 
         if (jobIds.Count == 0)
         {
@@ -26,13 +26,13 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
             return;
         }
 
-        var withConsole = await GetConsoleFlagAsync(context).ConfigureAwait(false);
-        var jobs = new Dictionary<string, object?>();
+        bool withConsole = await GetConsoleFlagAsync(context).ConfigureAwait(false);
+        Dictionary<string, object?> jobs = [];
 
-        using var connection = context.Storage.GetReadOnlyConnection();
-        var now = GetUtcNow(context.Storage, connection);
+        using IStorageConnection connection = context.Storage.GetReadOnlyConnection();
+        DateTime now = GetUtcNow(context.Storage, connection);
 
-        foreach (var jobId in jobIds.Take(MaxJobs))
+        foreach (string? jobId in jobIds.Take(MaxJobs))
         {
             jobs[jobId] = GetLiveJob(connection, jobId, now, withConsole);
         }
@@ -47,7 +47,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
     private static object? GetLiveJob(IStorageConnection connection, string jobId, DateTime now, bool withConsole)
     {
-        var stateData = connection.GetStateData(jobId);
+        StateData? stateData = connection.GetStateData(jobId);
         if (stateData == null)
         {
             return null;
@@ -58,7 +58,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
         if (stateData.Data != null)
         {
-            if (stateData.Data.TryGetValue("StartedAt", out var startedAtValue))
+            if (stateData.Data.TryGetValue("StartedAt", out string? startedAtValue))
             {
                 startedAt = JobHelper.DeserializeNullableDateTime(startedAtValue);
             }
@@ -66,10 +66,10 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
             stateData.Data.TryGetValue("ServerId", out serverId);
         }
 
-        var isProcessing = ProcessingState.StateName.Equals(stateData.Name, StringComparison.OrdinalIgnoreCase);
-        var progress = JobConsole.ReadProgress(connection, jobId);
+        bool isProcessing = ProcessingState.StateName.Equals(stateData.Name, StringComparison.OrdinalIgnoreCase);
+        JobProgress? progress = JobConsole.ReadProgress(connection, jobId);
         // The console can hold thousands of long lines; the rows of the Processing page don't show it
-        var entries = withConsole ? JobConsole.ReadEntries(connection, jobId) : null;
+        IReadOnlyList<JobConsoleEntry>? entries = withConsole ? JobConsole.ReadEntries(connection, jobId) : null;
 
         return new
         {
@@ -99,7 +99,7 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
         if ("POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
         {
-            var values = await context.Request.GetFormValuesAsync("console").ConfigureAwait(false);
+            IList<string> values = await context.Request.GetFormValuesAsync("console").ConfigureAwait(false);
             value = values?.FirstOrDefault();
         }
         else
@@ -112,16 +112,16 @@ internal sealed class LiveJobsDispatcher : IDashboardDispatcher
 
     private static async Task<List<string>> GetJobIdsAsync(DashboardContext context)
     {
-        var result = new List<string>();
+        List<string> result = [];
 
         if ("POST".Equals(context.Request.Method, StringComparison.OrdinalIgnoreCase))
         {
-            var values = await context.Request.GetFormValuesAsync("jobs[]").ConfigureAwait(false);
+            IList<string> values = await context.Request.GetFormValuesAsync("jobs[]").ConfigureAwait(false);
             result.AddRange(values ?? []);
         }
         else
         {
-            var query = context.Request.GetQuery("jobs");
+            string? query = context.Request.GetQuery("jobs");
             if (!string.IsNullOrWhiteSpace(query))
             {
                 result.AddRange(query.Split(IdSeparators, StringSplitOptions.RemoveEmptyEntries));

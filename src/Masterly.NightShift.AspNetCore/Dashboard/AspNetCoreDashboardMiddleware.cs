@@ -14,6 +14,7 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Antiforgery;
 
 namespace Masterly.NightShift.Dashboard;
@@ -85,8 +86,8 @@ public class AspNetCoreDashboardMiddleware
     /// <param name="httpContext">The request's HTTP context.</param>
     public async Task Invoke(HttpContext httpContext)
     {
-        var context = new AspNetCoreDashboardContext(_storage, _options, httpContext);
-        var findResult = _routes.FindDispatcher(httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Method);
+        AspNetCoreDashboardContext context = new(_storage, _options, httpContext);
+        Tuple<IDashboardDispatcher, Match>? findResult = _routes.FindDispatcher(httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Method);
 
         if (findResult == null)
         {
@@ -106,7 +107,7 @@ public class AspNetCoreDashboardMiddleware
         }
 
         // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var filter in _options.Authorization)
+        foreach (IDashboardAuthorizationFilter filter in _options.Authorization)
         {
             if (!filter.Authorize(context))
             {
@@ -115,7 +116,7 @@ public class AspNetCoreDashboardMiddleware
             }
         }
 
-        foreach (var filter in _options.AsyncAuthorization)
+        foreach (IDashboardAsyncAuthorizationFilter filter in _options.AsyncAuthorization)
         {
             if (!await filter.AuthorizeAsync(context))
             {
@@ -126,7 +127,7 @@ public class AspNetCoreDashboardMiddleware
 
         if (!_options.IgnoreAntiforgeryToken)
         {
-            var antiforgery = httpContext.RequestServices.GetService<IAntiforgery>();
+            IAntiforgery? antiforgery = httpContext.RequestServices.GetService<IAntiforgery>();
 
             if (antiforgery != null)
             {
@@ -209,21 +210,21 @@ public class AspNetCoreDashboardMiddleware
             return false;
         }
 
-        var fetchSite = request.Headers["Sec-Fetch-Site"].ToString();
+        string fetchSite = request.Headers["Sec-Fetch-Site"].ToString();
         if (!string.IsNullOrEmpty(fetchSite))
         {
             return "same-origin".Equals(fetchSite, StringComparison.OrdinalIgnoreCase)
                 || "none".Equals(fetchSite, StringComparison.OrdinalIgnoreCase);
         }
 
-        var origin = request.Headers["Origin"].ToString();
+        string origin = request.Headers["Origin"].ToString();
         if (string.IsNullOrEmpty(origin))
         {
             // Browsers send Origin with every cross-origin POST, so this one isn't from another site's page
             return true;
         }
 
-        if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri))
         {
             // Including "null", sent by sandboxed frames and local files
             return false;
@@ -236,7 +237,7 @@ public class AspNetCoreDashboardMiddleware
     // another origin
     private static bool IsRequestOrigin(Uri origin, HttpRequest request)
     {
-        var host = request.Host;
+        HostString host = request.Host;
         if (!host.HasValue) return false;
 
         if (!string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase)) return false;

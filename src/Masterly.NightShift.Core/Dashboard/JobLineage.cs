@@ -69,25 +69,25 @@ internal sealed class JobLineage
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(details);
 
-        var nodes = new Dictionary<string, JobLineageNode>(StringComparer.Ordinal);
-        var edges = new List<JobLineageEdge>();
-        var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
-        var queue = new Queue<(string Id, int Depth, JobDetailsDto? Details)>();
-        var truncated = false;
+        Dictionary<string, JobLineageNode> nodes = new(StringComparer.Ordinal);
+        List<JobLineageEdge> edges = [];
+        HashSet<string> edgeKeys = new(StringComparer.Ordinal);
+        Queue<(string Id, int Depth, JobDetailsDto? Details)> queue = new();
+        bool truncated = false;
 
-        var fanInModes = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> fanInModes = new(StringComparer.Ordinal);
 
-        var current = new JobLineageNode(jobId, 0) { IsCurrent = true };
+        JobLineageNode current = new(jobId, 0) { IsCurrent = true };
         Describe(current, details);
         nodes.Add(jobId, current);
         queue.Enqueue((jobId, 0, details));
 
         while (queue.Count > 0)
         {
-            var (id, depth, loaded) = queue.Dequeue();
-            var jobDetails = loaded ?? TryLoad(monitor, id);
+            (string? id, int depth, JobDetailsDto? loaded) = queue.Dequeue();
+            JobDetailsDto? jobDetails = loaded ?? TryLoad(monitor, id);
 
-            if (loaded == null && nodes.TryGetValue(id, out var node))
+            if (loaded == null && nodes.TryGetValue(id, out JobLineageNode? node))
             {
                 Describe(node, jobDetails);
             }
@@ -97,7 +97,7 @@ internal sealed class JobLineage
             // Upwards: the parents this job waited for
             if (depth <= 0)
             {
-                foreach (var (parentId, label) in GetParents(jobDetails))
+                foreach ((string? parentId, string? label) in GetParents(jobDetails))
                 {
                     if (!HasRoom(parentId)) break;
                     if (!AddEdge(parentId, id, label)) continue;
@@ -108,7 +108,7 @@ internal sealed class JobLineage
             // Downwards: the continuations waiting for this job
             if (depth >= 0)
             {
-                foreach (var (childId, label) in GetChildren(jobDetails))
+                foreach ((string? childId, string? label) in GetChildren(jobDetails))
                 {
                     if (!HasRoom(childId)) break;
                     if (!AddEdge(id, childId, label)) continue;
@@ -119,7 +119,7 @@ internal sealed class JobLineage
             // A fan-in child below us waits for other jobs too: show them beside their siblings
             if (depth > 0 && fanInModes.ContainsKey(id))
             {
-                foreach (var (parentId, label) in GetParents(jobDetails))
+                foreach ((string? parentId, string? label) in GetParents(jobDetails))
                 {
                     if (!HasRoom(parentId)) break;
                     if (!AddEdge(parentId, id, label)) continue;
@@ -129,9 +129,7 @@ internal sealed class JobLineage
         }
 
         // A fan-in child carries its mode in its own Awaiting state, so its edges are labelled once it is loaded
-        var finalEdges = edges
-            .Select(e => e.Label == null && fanInModes.TryGetValue(e.ChildId, out var mode) ? new JobLineageEdge(e.ParentId, e.ChildId, mode) : e)
-            .ToList();
+        List<JobLineageEdge> finalEdges = [.. edges.Select(e => e.Label == null && fanInModes.TryGetValue(e.ChildId, out string? mode) ? new JobLineageEdge(e.ParentId, e.ChildId, mode) : e)];
 
         return new JobLineage(jobId, [.. nodes.Values.OrderBy(static x => x.Depth).ThenBy(static x => x.Id, StringComparer.Ordinal)], finalEdges, truncated);
 
@@ -146,7 +144,7 @@ internal sealed class JobLineage
 
             if (node.State == AwaitingState.StateName && loadedDetails.History![0].Data != null)
             {
-                var fanIn = AwaitingJobsState.FromStateData(loadedDetails.History[0].Data);
+                AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(loadedDetails.History[0].Data);
                 if (fanIn != null)
                 {
                     fanInModes[node.Id] = fanIn.Mode == FanInMode.All ? Strings.Lineage_All : Strings.Lineage_Any;
@@ -190,20 +188,20 @@ internal sealed class JobLineage
 
         IEnumerable<(string, string?)> GetParents(JobDetailsDto job)
         {
-            var awaiting = job.History?.FirstOrDefault(static x => x.StateName == AwaitingState.StateName);
+            StateHistoryDto? awaiting = job.History?.FirstOrDefault(static x => x.StateName == AwaitingState.StateName);
             if (awaiting?.Data == null) yield break;
 
-            var fanIn = AwaitingJobsState.FromStateData(awaiting.Data);
+            AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(awaiting.Data);
             if (fanIn != null)
             {
-                var label = fanIn.Mode == FanInMode.All ? Strings.Lineage_All : Strings.Lineage_Any;
-                foreach (var parentId in fanIn.ParentIds) yield return (parentId, label);
+                string label = fanIn.Mode == FanInMode.All ? Strings.Lineage_All : Strings.Lineage_Any;
+                foreach (string parentId in fanIn.ParentIds) yield return (parentId, label);
                 yield break;
             }
 
-            if (awaiting.Data.TryGetValue("ParentId", out var single) && !string.IsNullOrEmpty(single))
+            if (awaiting.Data.TryGetValue("ParentId", out string? single) && !string.IsNullOrEmpty(single))
             {
-                yield return (single, DescribeOptions(awaiting.Data.TryGetValue("Options", out var options) ? options : null));
+                yield return (single, DescribeOptions(awaiting.Data.TryGetValue("Options", out string? options) ? options : null));
             }
         }
 
@@ -211,7 +209,7 @@ internal sealed class JobLineage
         {
             if (job.Properties == null) yield break;
 
-            if (job.Properties.TryGetValue("Continuations", out var serialized) && !string.IsNullOrEmpty(serialized))
+            if (job.Properties.TryGetValue("Continuations", out string? serialized) && !string.IsNullOrEmpty(serialized))
             {
                 List<ContinuationsSupportAttribute.Continuation> continuations;
                 try
@@ -223,15 +221,15 @@ internal sealed class JobLineage
                     continuations = [];
                 }
 
-                foreach (var continuation in continuations)
+                foreach (ContinuationsSupportAttribute.Continuation continuation in continuations)
                 {
                     yield return (continuation.JobId, DescribeOptions(continuation.Options.ToString("G")));
                 }
             }
 
-            if (job.Properties.TryGetValue(FanInContinuationsSupportAttribute.ParameterName, out var fanIn) && !string.IsNullOrEmpty(fanIn))
+            if (job.Properties.TryGetValue(FanInContinuationsSupportAttribute.ParameterName, out string? fanIn) && !string.IsNullOrEmpty(fanIn))
             {
-                foreach (var childId in FanInContinuationsSupportAttribute.Parse(fanIn))
+                foreach (string childId in FanInContinuationsSupportAttribute.Parse(fanIn))
                 {
                     yield return (childId, null);
                 }
@@ -287,36 +285,36 @@ internal static class JobLineageRenderer
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(lineage);
 
-        var columns = lineage.Nodes.GroupBy(static x => x.Depth).OrderBy(static g => g.Key).Select(static g => g.ToList()).ToList();
-        var tallest = columns.Max(static c => c.Count);
-        var height = Padding * 2 + tallest * NodeHeight + (tallest - 1) * RowGap;
-        var width = Padding * 2 + columns.Count * NodeWidth + (columns.Count - 1) * ColumnGap;
+        List<List<JobLineageNode>> columns = [.. lineage.Nodes.GroupBy(static x => x.Depth).OrderBy(static g => g.Key).Select(static g => g.ToList())];
+        int tallest = columns.Max(static c => c.Count);
+        int height = Padding * 2 + tallest * NodeHeight + (tallest - 1) * RowGap;
+        int width = Padding * 2 + columns.Count * NodeWidth + (columns.Count - 1) * ColumnGap;
 
-        var positions = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
-        for (var c = 0; c < columns.Count; c++)
+        Dictionary<string, (double X, double Y)> positions = new(StringComparer.Ordinal);
+        for (int c = 0; c < columns.Count; c++)
         {
-            var column = columns[c];
-            var columnHeight = column.Count * NodeHeight + (column.Count - 1) * RowGap;
-            var top = Padding + (height - Padding * 2 - columnHeight) / 2.0;
+            List<JobLineageNode> column = columns[c];
+            int columnHeight = column.Count * NodeHeight + (column.Count - 1) * RowGap;
+            double top = Padding + (height - Padding * 2 - columnHeight) / 2.0;
 
-            for (var r = 0; r < column.Count; r++)
+            for (int r = 0; r < column.Count; r++)
             {
                 positions[column[r].Id] = (Padding + c * (NodeWidth + ColumnGap), top + r * (NodeHeight + RowGap));
             }
         }
 
-        var svg = new StringBuilder();
+        StringBuilder svg = new();
         svg.Append(FormattableString.Invariant($"<svg class=\"hf-lineage-svg\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\" role=\"img\" aria-label=\"{Encode(Strings.JobDetailsPage_Lineage)}\">"));
 
-        foreach (var edge in lineage.Edges)
+        foreach (JobLineageEdge edge in lineage.Edges)
         {
-            if (!positions.TryGetValue(edge.ParentId, out var from) || !positions.TryGetValue(edge.ChildId, out var to)) continue;
+            if (!positions.TryGetValue(edge.ParentId, out (double X, double Y) from) || !positions.TryGetValue(edge.ChildId, out (double X, double Y) to)) continue;
 
-            var x1 = from.X + NodeWidth;
-            var y1 = from.Y + NodeHeight / 2.0;
-            var x2 = to.X;
-            var y2 = to.Y + NodeHeight / 2.0;
-            var dx = Math.Max(24, (x2 - x1) / 2.0);
+            double x1 = from.X + NodeWidth;
+            double y1 = from.Y + NodeHeight / 2.0;
+            double x2 = to.X;
+            double y2 = to.Y + NodeHeight / 2.0;
+            double dx = Math.Max(24, (x2 - x1) / 2.0);
 
             svg.Append(FormattableString.Invariant($"<path class=\"hf-lineage-edge\" d=\"M{x1:0.#} {y1:0.#} C{x1 + dx:0.#} {y1:0.#} {x2 - dx:0.#} {y2:0.#} {x2:0.#} {y2:0.#}\"/>"));
 
@@ -326,12 +324,12 @@ internal static class JobLineageRenderer
             }
         }
 
-        foreach (var node in lineage.Nodes)
+        foreach (JobLineageNode node in lineage.Nodes)
         {
-            var (x, y) = positions[node.Id];
-            var color = node.State != null ? JobHistoryRenderer.GetForegroundStateColor(node.State) : "#5F7882";
-            var css = "hf-lineage-node" + (node.IsCurrent ? " hf-lineage-current" : string.Empty) + (node.Exists ? string.Empty : " hf-lineage-missing");
-            var title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {node.State}" : string.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
+            (double x, double y) = positions[node.Id];
+            string color = node.State != null ? JobHistoryRenderer.GetForegroundStateColor(node.State) : "#5F7882";
+            string css = "hf-lineage-node" + (node.IsCurrent ? " hf-lineage-current" : string.Empty) + (node.Exists ? string.Empty : " hf-lineage-missing");
+            string title = node.Exists ? $"{page.Html.JobId(node.Id, false)} · {node.Name} · {node.State}" : string.Format(CultureInfo.CurrentCulture, Strings.JobDetailsPage_JobExpired, node.Id);
 
             svg.Append(FormattableString.Invariant($"<a href=\"{Encode(page.Url.JobDetails(node.Id))}\" class=\"{css}\" style=\"--hf-state: {Encode(color)}\"><title>{Encode(title)}</title>"));
             svg.Append(FormattableString.Invariant($"<rect x=\"{x}\" y=\"{y}\" width=\"{NodeWidth}\" height=\"{NodeHeight}\" rx=\"8\" ry=\"8\"/>"));
@@ -340,7 +338,7 @@ internal static class JobLineageRenderer
 
             if (node.Exists)
             {
-                var state = node.State ?? string.Empty;
+                string state = node.State ?? string.Empty;
                 svg.Append(FormattableString.Invariant($"<text class=\"hf-lineage-state\" x=\"{x + NodeWidth - 10}\" y=\"{y + 19}\" text-anchor=\"end\">{Encode(state)}</text>"));
                 svg.Append(FormattableString.Invariant($"<text class=\"hf-lineage-name\" x=\"{x + 14}\" y=\"{y + 37}\">{Encode(Truncate(node.Name ?? string.Empty))}</text>"));
             }

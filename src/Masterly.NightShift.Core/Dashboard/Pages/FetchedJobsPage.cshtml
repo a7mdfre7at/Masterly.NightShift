@@ -5,6 +5,7 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Queue);
@@ -14,9 +15,9 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FetchedCount(Queue));
-    var fetchedJobs = monitor.FetchedJobs(Queue, pager.FromRecord, pager.RecordsPerPage);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FetchedCount(Queue));
+    JobList<FetchedJobDto?> fetchedJobs = monitor.FetchedJobs(Queue, pager.FromRecord, pager.RecordsPerPage);
 }
 
 <div class="row">
@@ -82,7 +83,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var job in fetchedJobs)
+                        @foreach (KeyValuePair<string, FetchedJobDto?> job in fetchedJobs)
                         {
                             <tr class="js-jobs-list-row hover @(job.Value == null ? "obsolete-data" : null)">
                                 @if (!IsReadOnly)

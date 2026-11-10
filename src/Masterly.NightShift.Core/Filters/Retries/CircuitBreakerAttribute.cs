@@ -136,16 +136,16 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
-        var jobId = context.BackgroundJob.Id;
-        var circuit = ReadCircuit(context.Connection, resource);
+        string resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
+        string jobId = context.BackgroundJob.Id;
+        CircuitState circuit = ReadCircuit(context.Connection, resource);
 
         // Lock-free fast paths: a closed circuit, the probe itself running again (after a crash, for example),
         // and an open period that hasn't ended yet.
         if (circuit.State is not OpenState and not HalfOpenState) return;
         if (circuit.State == HalfOpenState && jobId.Equals(circuit.ProbeJobId, StringComparison.Ordinal)) return;
 
-        var holdUntil = GetOpenPeriodEnd(circuit, ConcurrencyControl.Clock(), out var reason);
+        DateTime? holdUntil = GetOpenPeriodEnd(circuit, ConcurrencyControl.Clock(), out string? reason);
 
         if (holdUntil == null)
         {
@@ -161,7 +161,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
                     // The probe doesn't take this lock: it commits its final state together with its verdict on
                     // the circuit. GetHoldTime read the probe's state after the circuit, so read the circuit
                     // again before taking over, or a verdict committed in between would be overwritten.
-                    var current = ReadCircuit(context.Connection, resource);
+                    CircuitState current = ReadCircuit(context.Connection, resource);
                     if (current.State != HalfOpenState || !string.Equals(current.ProbeJobId, circuit.ProbeJobId, StringComparison.Ordinal))
                     {
                         circuit = current;
@@ -178,7 +178,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
                     // Writing the same values again is harmless, so a transient storage error is retried
                     ConcurrencyControl.WithRetries(context, $"record background job '{jobId}' as the probe of circuit '{resource}'", () =>
                     {
-                        using var transaction = context.Connection.CreateWriteTransaction();
+                        using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
                         WriteState(transaction, context.Storage, resource, HalfOpenState, ConcurrencyControl.Clock(), jobId);
                         transaction.Commit();
                     });
@@ -217,8 +217,8 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             return;
         }
 
-        var failure = context.CandidateState as FailedState ?? context.TraversedStates.OfType<FailedState>().LastOrDefault();
-        var succeeded = context.CandidateState is SucceededState;
+        FailedState? failure = context.CandidateState as FailedState ?? context.TraversedStates.OfType<FailedState>().LastOrDefault();
+        bool succeeded = context.CandidateState is SucceededState;
 
         if (failure == null && !succeeded)
         {
@@ -233,13 +233,13 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             return;
         }
 
-        var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job, MaxResourceLength);
-        var now = ConcurrencyControl.Clock();
-        var circuit = ReadCircuit(context.Connection, resource, out var stored);
+        string resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job, MaxResourceLength);
+        DateTime now = ConcurrencyControl.Clock();
+        CircuitState circuit = ReadCircuit(context.Connection, resource, out bool stored);
 
         // Only the probe decides a half-open circuit. A circuit written before probes were recorded has none,
         // and then any job decides. The probe commits its verdict together with its own final state.
-        var isProbe = circuit.State == HalfOpenState
+        bool isProbe = circuit.State == HalfOpenState
             && (circuit.ProbeJobId == null || circuit.ProbeJobId.Equals(context.BackgroundJob.Id, StringComparison.Ordinal));
 
         if (succeeded)
@@ -249,7 +249,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
                 Logger.Info($"Circuit '{resource}' is closed again after a successful probe.");
                 WriteState(context.Transaction, context.Storage, resource, ClosedState, now);
 
-                foreach (var member in context.Connection.GetAllItemsFromSet(GetFailuresKey(resource)))
+                foreach (string member in context.Connection.GetAllItemsFromSet(GetFailuresKey(resource)))
                 {
                     context.Transaction.RemoveFromSet(GetFailuresKey(resource), member);
                 }
@@ -268,7 +268,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             WriteState(context.Transaction, context.Storage, resource, OpenState, now);
             context.Transaction.AddToSet(CircuitsSetKey, resource);
 
-            var alert = CreateOpenedAlert(context, resource, FailureThreshold);
+            Alert? alert = CreateOpenedAlert(context, resource, FailureThreshold);
             if (alert != null)
             {
                 // Sent once the state change is stored, so a retried state change doesn't alert twice
@@ -286,9 +286,9 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     {
         if (exception == null) return true;
 
-        var exceptionType = exception.GetType();
-        var onlyOn = OnlyOn;
-        var exceptOn = ExceptOn;
+        Type exceptionType = exception.GetType();
+        Type[] onlyOn = OnlyOn;
+        Type[] exceptOn = ExceptOn;
 
         if (onlyOn != null && onlyOn.Length > 0 && !Array.Exists(onlyOn, x => x != null && x.IsAssignableFrom(exceptionType)))
         {
@@ -301,7 +301,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // The state the state change started with, before election filters (AutomaticRetry, for example) replaced it.
     private static IState GetRequestedState(ElectStateContext context)
     {
-        var traversed = context.TraversedStates;
+        IState[] traversed = context.TraversedStates;
         return traversed.Length > 0 ? traversed[0] : context.CandidateState;
     }
 
@@ -309,7 +309,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private static bool IsFailureCounted(IState requestedState, string key)
     {
-        if (!CountedFailures.TryGetValue(requestedState, out var keys)) return false;
+        if (!CountedFailures.TryGetValue(requestedState, out HashSet<string>? keys)) return false;
 
         lock (keys)
         {
@@ -319,7 +319,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private static void MarkFailureCounted(IState requestedState, string key)
     {
-        var keys = CountedFailures.GetValue(requestedState, static _ => new HashSet<string>(StringComparer.Ordinal));
+        HashSet<string> keys = CountedFailures.GetValue(requestedState, static _ => new HashSet<string>(StringComparer.Ordinal));
 
         lock (keys)
         {
@@ -343,7 +343,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
         ArgumentNullException.ThrowIfNull(resource);
 
         using (connection.AcquireDistributedLock(GetLockKey(resource), LockTimeout))
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             // The closed hash is removed by the first successful run once the circuit is quiet
             transaction.SetRangeInHash(GetCircuitKey(resource),
@@ -355,7 +355,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             ]);
             transaction.RemoveFromSet(CircuitsSetKey, resource);
 
-            foreach (var member in connection.GetAllItemsFromSet(GetFailuresKey(resource)))
+            foreach (string member in connection.GetAllItemsFromSet(GetFailuresKey(resource)))
             {
                 transaction.RemoveFromSet(GetFailuresKey(resource), member);
             }
@@ -369,26 +369,26 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(resource);
 
-        var hash = connection.GetAllEntriesFromHash(GetCircuitKey(resource));
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetCircuitKey(resource));
         stored = hash != null && hash.Count > 0;
 
-        var state = hash != null && hash.TryGetValue(StateField, out var stateValue) && !string.IsNullOrEmpty(stateValue) ? stateValue : ClosedState;
-        var openedAt = ReadTimestamp(hash, OpenedAtField) ?? DateTime.MinValue;
-        var openUntil = state == OpenState ? ReadTimestamp(hash, OpenUntilField) : null;
+        string state = hash != null && hash.TryGetValue(StateField, out string? stateValue) && !string.IsNullOrEmpty(stateValue) ? stateValue : ClosedState;
+        DateTime openedAt = ReadTimestamp(hash, OpenedAtField) ?? DateTime.MinValue;
+        DateTime? openUntil = state == OpenState ? ReadTimestamp(hash, OpenUntilField) : null;
 
-        var probeJobId = state == HalfOpenState && hash != null && hash.TryGetValue(ProbeField, out var probeValue) && !string.IsNullOrEmpty(probeValue)
+        string? probeJobId = state == HalfOpenState && hash != null && hash.TryGetValue(ProbeField, out string? probeValue) && !string.IsNullOrEmpty(probeValue)
             ? probeValue
             : null;
 
         // Only the failures within the window count. A circuit written before the window was stored counts them all.
-        var members = connection.GetAllItemsFromSet(GetFailuresKey(resource));
-        var failures = members.Count;
+        HashSet<string> members = connection.GetAllItemsFromSet(GetFailuresKey(resource));
+        int failures = members.Count;
 
-        if (hash != null && hash.TryGetValue(WindowField, out var windowValue)
-            && int.TryParse(windowValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var windowSeconds))
+        if (hash != null && hash.TryGetValue(WindowField, out string? windowValue)
+            && int.TryParse(windowValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int windowSeconds))
         {
-            var windowStart = ConcurrencyControl.ToUnixSeconds(ConcurrencyControl.Clock()) - windowSeconds;
-            ConcurrencyControl.Partition(members, windowStart, ownJobId: null, out var live, out _);
+            long windowStart = ConcurrencyControl.ToUnixSeconds(ConcurrencyControl.Clock()) - windowSeconds;
+            ConcurrencyControl.Partition(members, windowStart, ownJobId: null, out List<(long Timestamp, string JobId)>? live, out _);
             failures = live.Count;
         }
 
@@ -397,13 +397,13 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private static string ReadState(IStorageConnection connection, string resource)
     {
-        var hash = connection.GetAllEntriesFromHash(GetCircuitKey(resource));
-        return hash != null && hash.TryGetValue(StateField, out var state) && !string.IsNullOrEmpty(state) ? state : ClosedState;
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetCircuitKey(resource));
+        return hash != null && hash.TryGetValue(StateField, out string? state) && !string.IsNullOrEmpty(state) ? state : ClosedState;
     }
 
     private static DateTime? ReadTimestamp(Dictionary<string, string>? hash, string field)
     {
-        return hash != null && hash.TryGetValue(field, out var value) && long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds)
+        return hash != null && hash.TryGetValue(field, out string? value) && long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long seconds)
             ? ConcurrencyControl.FromUnixSeconds(seconds)
             : null;
     }
@@ -413,8 +413,8 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // the failure is recorded even when the job's own state change fails, and a retry of it doesn't count it again.
     private void RecordFailure(ElectStateContext context, string resource, DateTime now)
     {
-        var requestedState = GetRequestedState(context);
-        var countedKey = GetCountedFailureKey(resource, context.BackgroundJob.Id);
+        IState requestedState = GetRequestedState(context);
+        string countedKey = GetCountedFailureKey(resource, context.BackgroundJob.Id);
 
         if (IsFailureCounted(requestedState, countedKey))
         {
@@ -422,19 +422,19 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             return;
         }
 
-        var timestamp = ConcurrencyControl.ToUnixSeconds(now);
-        var failuresKey = GetFailuresKey(resource);
-        var opened = 0;
+        long timestamp = ConcurrencyControl.ToUnixSeconds(now);
+        string failuresKey = GetFailuresKey(resource);
+        int opened = 0;
 
         using (context.Connection.AcquireDistributedLock(GetLockKey(resource), LockTimeout))
         {
-            var state = ReadState(context.Connection, resource);
-            ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(failuresKey), timestamp - WindowSeconds, ownJobId: null, out var live, out var stale);
+            string state = ReadState(context.Connection, resource);
+            ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(failuresKey), timestamp - WindowSeconds, ownJobId: null, out List<(long Timestamp, string JobId)>? live, out List<string>? stale);
 
-            var opens = live.Count + 1 >= FailureThreshold && state != OpenState && state != HalfOpenState;
+            bool opens = live.Count + 1 >= FailureThreshold && state != OpenState && state != HalfOpenState;
 
-            using var transaction = context.Connection.CreateWriteTransaction();
-            foreach (var member in stale)
+            using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
+            foreach (string member in stale)
             {
                 transaction.RemoveFromSet(failuresKey, member);
             }
@@ -446,7 +446,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
                     new KeyValuePair<string, string>(WindowField, WindowSeconds.ToString(CultureInfo.InvariantCulture)),
                 ]);
 
-            var expiring = ConcurrencyControl.GetExpiringTransaction(context.Storage, transaction);
+            JobStorageTransaction? expiring = ConcurrencyControl.GetExpiringTransaction(context.Storage, transaction);
             expiring?.ExpireSet(failuresKey, TimeSpan.FromSeconds(WindowSeconds) + ExpirationMargin);
 
             if (opens)
@@ -470,7 +470,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             // Already stored, so raised even when the job's own state change fails: a retry of it doesn't count
             // the failure again, and doesn't alert. Raised once the job's lock is released, so a slow alert sink
             // doesn't hold up the state change.
-            var alert = CreateOpenedAlert(context, resource, opened);
+            Alert? alert = CreateOpenedAlert(context, resource, opened);
             if (alert != null) context.RunAfterCommitAttempt(() => Alerts.Raise(alert));
         }
     }
@@ -500,18 +500,18 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // Removes a quiet closed circuit from the circuits set, with its hash and stale failures.
     private void Forget(ElectStateContext context, string resource, DateTime now)
     {
-        var failuresKey = GetFailuresKey(resource);
-        var windowStart = ConcurrencyControl.ToUnixSeconds(now) - WindowSeconds;
+        string failuresKey = GetFailuresKey(resource);
+        long windowStart = ConcurrencyControl.ToUnixSeconds(now) - WindowSeconds;
 
         using (context.Connection.AcquireDistributedLock(GetLockKey(resource), LockTimeout))
         {
-            var circuit = ReadCircuit(context.Connection, resource, out var stored);
-            ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(failuresKey), windowStart, ownJobId: null, out var live, out var stale);
+            CircuitState circuit = ReadCircuit(context.Connection, resource, out bool stored);
+            ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(failuresKey), windowStart, ownJobId: null, out List<(long Timestamp, string JobId)>? live, out List<string>? stale);
 
             if (!stored || live.Count > 0 || circuit.State != ClosedState || now - circuit.OpenedAt < GetRetention()) return;
 
-            using var transaction = context.Connection.CreateWriteTransaction();
-            foreach (var member in stale)
+            using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
+            foreach (string member in stale)
             {
                 transaction.RemoveFromSet(failuresKey, member);
             }
@@ -542,7 +542,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // When the open period is not over yet, the time it ends; otherwise null.
     private DateTime? GetOpenPeriodEnd(CircuitState circuit, DateTime now, out string? reason)
     {
-        var halfOpenAt = circuit.OpenedAt.AddSeconds(OpenSeconds);
+        DateTime halfOpenAt = circuit.OpenedAt.AddSeconds(OpenSeconds);
 
         if (circuit.State == OpenState && now < halfOpenAt)
         {
@@ -570,7 +570,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
         {
             // Shorter than the open period, so the held jobs don't all wait that long again once the probe
             // succeeds, and long enough not to reschedule them every few seconds while a slow probe runs
-            var retryAt = now.AddSeconds(ProbeHoldSeconds);
+            DateTime retryAt = now.AddSeconds(ProbeHoldSeconds);
             reason = $"Circuit '{circuit.Resource}' is half-open and job '{circuit.ProbeJobId}' is probing it; retry at {retryAt:HH:mm:ss} UTC";
             return retryAt;
         }
@@ -592,7 +592,7 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private static bool IsProcessing(IStorageConnection connection, string jobId)
     {
-        var state = connection.GetStateData(jobId);
+        StateData? state = connection.GetStateData(jobId);
         return state != null && ProcessingState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase);
     }
 

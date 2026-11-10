@@ -190,7 +190,7 @@ public class FailedState : IState
     /// </remarks>
     public Dictionary<string, string> SerializeData()
     {
-        var result = new Dictionary<string, string>
+        Dictionary<string, string> result = new()
         {
             { "FailedAt", JobHelper.SerializeDateTime(FailedAt) },
             { "ExceptionType", Exception.GetType().FullName ?? Exception.GetType().Name },

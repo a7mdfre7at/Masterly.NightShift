@@ -21,8 +21,8 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        var parts = window.Split('-');
-        if (parts.Length != 2 || !TryParseTime(parts[0], out var start) || !TryParseTime(parts[1], out var end))
+        string[] parts = window.Split('-');
+        if (parts.Length != 2 || !TryParseTime(parts[0], out TimeSpan start) || !TryParseTime(parts[1], out TimeSpan end))
         {
             throw new ArgumentException($"'{window}' is not a window in the form HH:mm-HH:mm.", nameof(window));
         }
@@ -76,8 +76,8 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
 
         if (context.CandidateState is not ProcessingState) return;
 
-        var nowUtc = Clock();
-        var nextStartUtc = GetNextStart(nowUtc, out var allowedNow);
+        DateTime nowUtc = Clock();
+        DateTime nextStartUtc = GetNextStart(nowUtc, out bool allowedNow);
         if (allowedNow) return;
 
         // The job comes back with a new Enqueued state for the default queue: keep a queue given only by its state
@@ -95,7 +95,7 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     /// </summary>
     public DateTime GetNextStart(DateTime utcNow, out bool allowedNow)
     {
-        var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), _timeZone);
+        DateTime local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), _timeZone);
 
         if (IsAllowed(local))
         {
@@ -106,8 +106,8 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
         allowedNow = false;
 
         // Walk forward from boundary to boundary (where the rules change), at least six days ahead
-        var candidate = local;
-        for (var i = 0; i < 20; i++)
+        DateTime candidate = local;
+        for (int i = 0; i < 20; i++)
         {
             candidate = SkipInvalidTime(NextBoundary(candidate));
             if (IsAllowed(candidate))
@@ -124,14 +124,14 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     // the night. TimeZoneInfo.ConvertTimeToUtc would always pick the standard, later one.
     private DateTime ToUtc(DateTime local, DateTime utcNow)
     {
-        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+        DateTime unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
 
         if (_timeZone.IsAmbiguousTime(unspecified))
         {
             // The larger offset gives the earlier instant
-            foreach (var offset in _timeZone.GetAmbiguousTimeOffsets(unspecified).OrderByDescending(static x => x))
+            foreach (TimeSpan offset in _timeZone.GetAmbiguousTimeOffsets(unspecified).OrderByDescending(static x => x))
             {
-                var utc = DateTime.SpecifyKind(unspecified - offset, DateTimeKind.Utc);
+                DateTime utc = DateTime.SpecifyKind(unspecified - offset, DateTimeKind.Utc);
                 if (utc >= utcNow) return utc;
             }
         }
@@ -143,8 +143,8 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     // throws. The first moment that exists is the end of that gap.
     private DateTime SkipInvalidTime(DateTime local)
     {
-        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
-        for (var minutes = 0; minutes < MinutesPerDay && _timeZone.IsInvalidTime(unspecified); minutes++)
+        DateTime unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+        for (int minutes = 0; minutes < MinutesPerDay && _timeZone.IsInvalidTime(unspecified); minutes++)
         {
             unspecified = unspecified.AddMinutes(1);
         }
@@ -157,8 +157,8 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
     private bool IsAllowed(DateTime local)
     {
         // With WeekdaysOnly the rule is off at the weekend: a run window is closed, a blackout is lifted
-        var ruleApplies = !WeekdaysOnly || (local.DayOfWeek != DayOfWeek.Saturday && local.DayOfWeek != DayOfWeek.Sunday);
-        var inside = IsInside(local.TimeOfDay);
+        bool ruleApplies = !WeekdaysOnly || (local.DayOfWeek != DayOfWeek.Saturday && local.DayOfWeek != DayOfWeek.Sunday);
+        bool inside = IsInside(local.TimeOfDay);
 
         return Invert
             ? !(ruleApplies && inside)
@@ -174,13 +174,13 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
 
     private DateTime NextBoundary(DateTime local)
     {
-        var date = local.Date;
-        var time = local.TimeOfDay;
+        DateTime date = local.Date;
+        TimeSpan time = local.TimeOfDay;
 
         // The boundaries of a day are Start and End; take the first one after "local", else tomorrow's first.
         // With WeekdaysOnly the rules also change at midnight, when a weekend starts or ends.
-        var first = Start < End ? Start : End;
-        var second = Start < End ? End : Start;
+        TimeSpan first = Start < End ? Start : End;
+        TimeSpan second = Start < End ? End : Start;
 
         if (time < first) return date + first;
         if (time < second) return date + second;
@@ -196,7 +196,7 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
             return true;
         }
 
-        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hour) && hour >= 0 && hour < 24)
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int hour) && hour >= 0 && hour < 24)
         {
             time = TimeSpan.FromHours(hour);
             return true;

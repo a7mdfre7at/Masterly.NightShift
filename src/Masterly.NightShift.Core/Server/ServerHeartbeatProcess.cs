@@ -35,7 +35,7 @@ internal sealed class ServerHeartbeatProcess(TimeSpan interval, TimeSpan serverT
 
         try
         {
-            using (var connection = context.Storage.GetConnection())
+            using (IStorageConnection connection = context.Storage.GetConnection())
             {
                 connection.Heartbeat(context.ServerId);
             }

@@ -16,50 +16,50 @@
     // It is always dark, whatever DarkModeEnabled says (data-theme="dark" and the dark stylesheet for all media):
     // a dark screen is easier to read from across a room and doesn't light it up.
     const int refreshSeconds = 10;
-    var now = StorageUtcNow ?? ApplicationUtcNow;
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
     // Cached for a few seconds and shared with /health, so every screen polling it costs one check
-    var report = DashboardHealth.GetReport(Storage, DashboardOptions, now);
-    var monitor = Storage.GetMonitoringApi();
+    HealthReport report = DashboardHealth.GetReport(Storage, DashboardOptions, now);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
 
     // Storages count by clock hour, so the last 60 minutes are the current hour plus the part of the previous
     // hour they cover, estimated as if its jobs were spread evenly over it
-    var previousHourShare = 1 - (ApplicationUtcNow.Minute * 60 + ApplicationUtcNow.Second) / 3600.0;
+    double previousHourShare = 1 - (ApplicationUtcNow.Minute * 60 + ApplicationUtcNow.Second) / 3600.0;
     Func<IDictionary<DateTime, long>, double> lastHour = counts =>
     {
-        var latest = counts.OrderByDescending(p => p.Key).Take(2).Select(p => p.Value).ToList();
+        List<long> latest = counts.OrderByDescending(p => p.Key).Take(2).Select(p => p.Value).ToList();
         return (latest.Count > 0 ? latest[0] : 0) + (latest.Count > 1 ? latest[1] * previousHourShare : 0);
     };
 
-    var succeededHour = lastHour(monitor.HourlySucceededJobs());
-    var failedHour = lastHour(monitor.HourlyFailedJobs());
-    var finishedHour = Math.Round(succeededHour + failedHour);
+    double succeededHour = lastHour(monitor.HourlySucceededJobs());
+    double failedHour = lastHour(monitor.HourlyFailedJobs());
+    double finishedHour = Math.Round(succeededHour + failedHour);
     double? successRate = finishedHour < 1 ? (double?)null : 100.0 * succeededHour / (succeededHour + failedHour);
 
-    var processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto?>(new List<KeyValuePair<string, ProcessingJobDto?>>()) : monitor.ProcessingJobs(0, 8);
-    var totalWorkers = monitor.Servers().Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= now - DashboardOptions.ServerPossiblyAbortedThreshold).Sum(s => s.WorkersCount);
+    JobList<ProcessingJobDto?> processing = report.Status == HealthStatus.Unhealthy && report.Statistics == null ? new JobList<ProcessingJobDto?>(new List<KeyValuePair<string, ProcessingJobDto?>>()) : monitor.ProcessingJobs(0, 8);
+    int totalWorkers = monitor.Servers().Where(s => !s.Heartbeat.HasValue || s.Heartbeat.Value >= now - DashboardOptions.ServerPossiblyAbortedThreshold).Sum(s => s.WorkersCount);
 
     IReadOnlyDictionary<string, QueueHealth> queueHealth = new Dictionary<string, QueueHealth>();
-    var insights = new Dictionary<string, JobInsight>(StringComparer.Ordinal);
-    var openCircuits = new List<string>();
+    Dictionary<string, JobInsight> insights = new(StringComparer.Ordinal);
+    List<string> openCircuits = [];
     DrainModeStatus drain = DrainModeStatus.Inactive;
 
     try
     {
-        using (var connection = Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = Storage.GetReadOnlyConnection())
         {
             queueHealth = QueueInsights.ReadAll(connection);
             drain = DrainMode.Read(connection);
 
-            foreach (var resource in connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey) ?? new HashSet<string>())
+            foreach (string resource in connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey) ?? new HashSet<string>())
             {
                 if (CircuitBreakerAttribute.ReadCircuit(connection, resource).State == CircuitBreakerAttribute.OpenState) openCircuits.Add(resource);
             }
 
             if (connection is JobStorageConnection storageConnection)
             {
-                foreach (var key in processing.Where(p => p.Value != null && p.Value.Job != null).Select(p => JobInsightsAttribute.GetKey(p.Value!.Job!)).Distinct(StringComparer.Ordinal))
+                foreach (string key in processing.Where(p => p.Value != null && p.Value.Job != null).Select(p => JobInsightsAttribute.GetKey(p.Value!.Job!)).Distinct(StringComparer.Ordinal))
                 {
-                    var insight = JobInsightsAttribute.Read(storageConnection, key);
+                    JobInsight? insight = JobInsightsAttribute.Read(storageConnection, key);
                     if (insight != null) insights[key] = insight;
                 }
             }
@@ -70,14 +70,14 @@
         // The storage check above already reports the outage
     }
 
-    var attention = report.Checks.Where(c => c.Status != HealthStatus.Healthy).Select(c => c.Name + ": " + c.Detail).ToList();
+    List<string> attention = report.Checks.Where(c => c.Status != HealthStatus.Healthy).Select(c => c.Name + ": " + c.Detail).ToList();
     if (openCircuits.Count > 0) attention.Add(String.Format(Strings.WallboardPage_OpenCircuits, String.Join(", ", openCircuits)));
 
-    var statusClass = report.Status == HealthStatus.Healthy ? "hf-wb-ok" : report.Status == HealthStatus.Degraded ? "hf-wb-warn" : "hf-wb-down";
-    var statusText = report.Status == HealthStatus.Healthy ? Strings.WallboardPage_Healthy : report.Status == HealthStatus.Degraded ? Strings.WallboardPage_Degraded : Strings.WallboardPage_Unhealthy;
+    string statusClass = report.Status == HealthStatus.Healthy ? "hf-wb-ok" : report.Status == HealthStatus.Degraded ? "hf-wb-warn" : "hf-wb-down";
+    string statusText = report.Status == HealthStatus.Healthy ? Strings.WallboardPage_Healthy : report.Status == HealthStatus.Degraded ? Strings.WallboardPage_Degraded : Strings.WallboardPage_Unhealthy;
 
-    var version = GetType().GetTypeInfo().Assembly.GetName().Version!;
-    var statistics = report.Statistics;
+    Version version = GetType().GetTypeInfo().Assembly.GetName().Version!;
+    StatisticsDto? statistics = report.Statistics;
 }<!DOCTYPE html>
 <html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" data-theme="dark" class="hf-wb-html">
 <head>
@@ -133,16 +133,16 @@
 
         <section class="hf-wb-card hf-wb-queues">
             <h2>@Strings.WallboardPage_Queues</h2>
-            @{ var maxLength = Math.Max(1, report.Queues.Count == 0 ? 1 : report.Queues.Max(q => q.Length)); }
+            @{ long maxLength = Math.Max(1, report.Queues.Count == 0 ? 1 : report.Queues.Max(q => q.Length)); }
             @if (report.Queues.Count == 0)
             {
                 <p class="hf-wb-muted">@Strings.WallboardPage_Empty</p>
             }
-            @foreach (var queue in report.Queues.OrderByDescending(q => q.Length))
+            @foreach (QueueWithTopEnqueuedJobsDto queue in report.Queues.OrderByDescending(q => q.Length))
             {
-                var health = queueHealth.TryGetValue(queue.Name, out var h) ? h : null;
-                var eta = health != null ? health.EstimateDrain(queue.Length) : null;
-                var paused = drain.PausedQueues.ContainsKey(queue.Name);
+                QueueHealth? health = queueHealth.TryGetValue(queue.Name, out QueueHealth? h) ? h : null;
+                TimeSpan? eta = health != null ? health.EstimateDrain(queue.Length) : null;
+                bool paused = drain.PausedQueues.ContainsKey(queue.Name);
                 <div class="hf-wb-queue @(paused ? "hf-wb-queue-paused" : null)">
                     <div class="hf-wb-queue-head">
                         <span class="hf-wb-queue-name">@queue.Name @if (paused) { <span class="hf-wb-pill">@Strings.QueuesPage_Paused</span> }</span>
@@ -164,16 +164,16 @@
             {
                 <p class="hf-wb-muted">@Strings.WallboardPage_NothingRunning</p>
             }
-            @foreach (var job in processing)
+            @foreach (KeyValuePair<string, ProcessingJobDto?> job in processing)
             {
                 if (job.Value == null || !job.Value.InProcessingState) continue;
-                var elapsed = job.Value.StartedAt.HasValue ? now - job.Value.StartedAt.Value : (TimeSpan?)null;
-                var insight = job.Value.Job != null && insights.TryGetValue(JobInsightsAttribute.GetKey(job.Value.Job), out var i) ? i : null;
-                var expectedEnd = insight != null && job.Value.StartedAt.HasValue ? insight.EstimateCompletion(job.Value.StartedAt.Value) : null;
+                TimeSpan? elapsed = job.Value.StartedAt.HasValue ? now - job.Value.StartedAt.Value : (TimeSpan?)null;
+                JobInsight? insight = job.Value.Job != null && insights.TryGetValue(JobInsightsAttribute.GetKey(job.Value.Job), out JobInsight? i) ? i : null;
+                DateTime? expectedEnd = insight != null && job.Value.StartedAt.HasValue ? insight.EstimateCompletion(job.Value.StartedAt.Value) : null;
                 double percent = 0;
                 if (expectedEnd.HasValue && job.Value.StartedAt.HasValue)
                 {
-                    var totalMs = (expectedEnd.Value - job.Value.StartedAt.Value).TotalMilliseconds;
+                    double totalMs = (expectedEnd.Value - job.Value.StartedAt.Value).TotalMilliseconds;
                     percent = totalMs <= 0 ? 100 : Math.Min(100, 100.0 * (now - job.Value.StartedAt.Value).TotalMilliseconds / totalMs);
                 }
                 <div class="hf-wb-job">
@@ -195,7 +195,7 @@
             else
             {
                 <ul>
-                    @foreach (var item in attention)
+                    @foreach (string item in attention)
                     {
                         <li>@item</li>
                     }

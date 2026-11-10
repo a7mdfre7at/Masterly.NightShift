@@ -68,7 +68,7 @@ internal sealed class LateBoundLogProvider : ILogProvider
         // provider is the current one
         try
         {
-            foreach (var resolver in LogProvider.LogProviderResolvers)
+            foreach (Tuple<LogProvider.IsLoggerAvailable, LogProvider.CreateLogProvider>? resolver in LogProvider.LogProviderResolvers)
             {
                 if (resolver.Item1())
                 {
@@ -92,8 +92,8 @@ internal sealed class LateBoundLogProvider : ILogProvider
 
         public bool Log(LogLevel logLevel, Func<string>? messageFunc, Exception? exception = null)
         {
-            var provider = GetCurrentProvider();
-            var binding = Volatile.Read(ref _binding);
+            ILogProvider provider = GetCurrentProvider();
+            Binding? binding = Volatile.Read(ref _binding);
 
             if (binding == null || !ReferenceEquals(binding.Provider, provider))
             {

@@ -114,11 +114,13 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
 
         _options = options;
 
-        var processes = new List<IBackgroundProcessDispatcherBuilder>();
-        processes.AddRange(GetRequiredProcesses(filterProvider, activator, factory, performer, stateChanger));
-        processes.AddRange(additionalProcesses.Select(static x => x.UseBackgroundPool(1)));
+        List<IBackgroundProcessDispatcherBuilder> processes =
+        [
+            .. GetRequiredProcesses(filterProvider, activator, factory, performer, stateChanger),
+            .. additionalProcesses.Select(static x => x.UseBackgroundPool(1)),
+        ];
 
-        var properties = new Dictionary<string, object>
+        Dictionary<string, object> properties = new()
         {
             { "Queues", options.Queues },
             { "WorkerCount", options.WorkerCount }
@@ -134,8 +136,8 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             $"    Shutdown timeout: {options.ShutdownTimeout}\r\n" +
             $"    Schedule polling interval: {options.SchedulePollingInterval}");
 
-        var wrongQueues = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var queue in options.Queues)
+        HashSet<string> wrongQueues = new(StringComparer.Ordinal);
+        foreach (string queue in options.Queues)
         {
             if (!EnqueuedState.TryValidateQueueName(queue))
             {
@@ -198,8 +200,8 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
         [CanBeNull] IBackgroundJobPerformer? performer,
         [CanBeNull] IBackgroundJobStateChanger? stateChanger)
     {
-        var processes = new List<IBackgroundProcessDispatcherBuilder>();
-        var timeZoneResolver = _options.TimeZoneResolver ?? GlobalTimeZoneResolver.Current;
+        List<IBackgroundProcessDispatcherBuilder> processes = [];
+        ITimeZoneResolver timeZoneResolver = _options.TimeZoneResolver ?? GlobalTimeZoneResolver.Current;
 
         if (factory == null && performer == null && stateChanger == null)
         {

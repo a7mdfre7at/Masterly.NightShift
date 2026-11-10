@@ -18,9 +18,9 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using NightShiftSamples;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("NightShift")
+string connectionString = builder.Configuration.GetConnectionString("NightShift")
     ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.WebSample;Integrated Security=True;TrustServerCertificate=True;";
 
 // The storage creates its tables but not the database; the sample creates it on a fresh machine
@@ -52,7 +52,7 @@ builder.Services.AddHealthChecks()
     .AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process, name: "nightshift-server", tags: ["live"])
     .AddNightShift(name: "nightshift-cluster", tags: ["ready"]);
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -64,7 +64,7 @@ app.MapGet("/", () => Results.Text("Masterly.NightShift web sample. POST /report
 
 app.MapPost("/reports", (IBackgroundJobClient jobs) =>
 {
-    var jobId = jobs.Enqueue<ReportJobs>(x => x.SendDailyReport());
+    string? jobId = jobs.Enqueue<ReportJobs>(x => x.SendDailyReport());
     return jobId == null ? Results.Problem("A filter canceled the job.") : Results.Accepted(value: new { jobId });
 });
 
@@ -74,14 +74,14 @@ if (app.Environment.IsDevelopment())
     // company's sign-in in a real app.
     app.MapGet("/login", async (HttpContext context, string? returnUrl) =>
     {
-        var identity = new ClaimsIdentity(
+        ClaimsIdentity identity = new(
             [new Claim(ClaimTypes.Name, "developer"), new Claim(ClaimTypes.Role, "Operations")],
             CookieAuthenticationDefaults.AuthenticationScheme);
 
         await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
 
         // Only local paths, so the link can't send the browser to another site
-        var isLocal = returnUrl is { Length: > 1 } && returnUrl[0] == '/' && returnUrl[1] != '/' && returnUrl[1] != '\\';
+        bool isLocal = returnUrl is { Length: > 1 } && returnUrl[0] == '/' && returnUrl[1] != '/' && returnUrl[1] != '\\';
         return Results.LocalRedirect(isLocal ? returnUrl! : "/nightshift");
     });
 }

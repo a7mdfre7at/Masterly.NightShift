@@ -49,7 +49,7 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
                 : new HealthCheckResult(failureStatus, "The NightShift storage did not answer.");
         }
 
-        var oldest = utcNow - _options.HeartbeatTimeout;
+        DateTime oldest = utcNow - _options.HeartbeatTimeout;
 
         return _options.Scope == NightShiftHealthCheckScope.Process
             ? CheckProcess(storage, servers, oldest, failureStatus)
@@ -63,8 +63,8 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
 
     private static HealthCheckResult CheckCluster(IList<ServerDto> servers, DateTime oldest, HealthStatus failureStatus)
     {
-        var alive = servers.Count(server => server.Heartbeat.HasValue && server.Heartbeat.Value >= oldest);
-        var data = new Dictionary<string, object> { { "servers", servers.Count }, { "alive", alive } };
+        int alive = servers.Count(server => server.Heartbeat.HasValue && server.Heartbeat.Value >= oldest);
+        Dictionary<string, object> data = new() { { "servers", servers.Count }, { "alive", alive } };
 
         return alive > 0
             ? HealthCheckResult.Healthy($"{alive.ToString(CultureInfo.InvariantCulture)} NightShift servers are alive.", data)
@@ -73,18 +73,18 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
 
     private static HealthCheckResult CheckProcess(JobStorage storage, IList<ServerDto> servers, DateTime oldest, HealthStatus failureStatus)
     {
-        var local = LocalServerTracker.GetServerIds(storage);
+        IReadOnlyList<string> local = LocalServerTracker.GetServerIds(storage);
         if (local.Count == 0)
         {
             return new HealthCheckResult(failureStatus, "No NightShift server runs in this process.");
         }
 
-        var registered = servers
+        Dictionary<string, ServerDto> registered = servers
             .Where(static server => server.Name != null)
             .DistinctBy(static server => server.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(static server => server.Name, StringComparer.OrdinalIgnoreCase);
-        var silent = local.Count(id => !registered.TryGetValue(id, out var server) || !server.Heartbeat.HasValue || server.Heartbeat.Value < oldest);
-        var data = new Dictionary<string, object> { { "servers", local.Count }, { "silent", silent } };
+        int silent = local.Count(id => !registered.TryGetValue(id, out ServerDto? server) || !server.Heartbeat.HasValue || server.Heartbeat.Value < oldest);
+        Dictionary<string, object> data = new() { { "servers", local.Count }, { "silent", silent } };
 
         return silent == 0
             ? HealthCheckResult.Healthy($"The {local.Count.ToString(CultureInfo.InvariantCulture)} NightShift servers of this process are alive.", data)

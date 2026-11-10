@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
@@ -43,7 +44,7 @@ public static class NightShiftJobLoggingServiceCollectionExtensions
             ArgumentNullException.ThrowIfNull(configure);
 
             NightShiftJobLoggingOptions? options = null;
-            foreach (var descriptor in services)
+            foreach (ServiceDescriptor descriptor in services)
             {
                 if (descriptor.ServiceType == typeof(NightShiftJobLoggingOptions) &&
                     descriptor.ImplementationInstance is NightShiftJobLoggingOptions registered)
@@ -84,10 +85,10 @@ internal static class JobLoggingScope
         // Options registered as a singleton may be passed to the factory again; one scope per job is enough
         if (filterProvider is ScopeFilterProvider) return filterProvider;
 
-        var options = services.GetService<NightShiftJobLoggingOptions>();
+        NightShiftJobLoggingOptions? options = services.GetService<NightShiftJobLoggingOptions>();
         if (options != null && !options.BeginScope) return filterProvider;
 
-        var loggerFactory = services.GetService<ILoggerFactory>();
+        ILoggerFactory? loggerFactory = services.GetService<ILoggerFactory>();
         if (loggerFactory == null) return filterProvider;
 
         return new ScopeFilterProvider(
@@ -99,13 +100,24 @@ internal static class JobLoggingScope
     {
         private readonly IJobFilterProvider _inner = inner;
         private readonly JobFilter _filter = new(filter, JobFilterScope.Global, null);
+        private readonly ConditionalWeakTable<JobFilter[], JobFilter[]> _combined = [];
 
         public IEnumerable<JobFilter> GetFilters(Job? job)
         {
-            // First, so the scope also covers the other server filters and what they log
-            var filters = new List<JobFilter> { _filter };
-            filters.AddRange(_inner.GetFilters(job));
-            return filters;
+            IEnumerable<JobFilter> inner = _inner.GetFilters(job);
+
+            // The default providers return one shared array per job method, so the combined list is kept per array
+            return inner is JobFilter[] shared
+                ? _combined.GetValue(shared, CombineShared)
+                : Combine(inner);
+        }
+
+        private JobFilter[] CombineShared(JobFilter[] inner) => Combine(inner);
+
+        // First, so the scope also covers the other server filters and what they log
+        private JobFilter[] Combine(IEnumerable<JobFilter> inner)
+        {
+            return [_filter, .. inner];
         }
     }
 
@@ -130,7 +142,7 @@ internal static class JobLoggingScope
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            var scope = _logger.BeginScope(new ScopeState(context.BackgroundJob));
+            IDisposable? scope = _logger.BeginScope(new ScopeState(context.BackgroundJob));
             if (scope != null)
             {
                 context.Items[ScopeItem] = scope;
@@ -147,10 +159,10 @@ internal static class JobLoggingScope
             // A thread the job started may still add items (PerformContext.Console does, under this lock)
             lock (context.Items)
             {
-                scope = context.Items.TryGetValue(ScopeItem, out var value) ? value as IDisposable : null;
+                scope = context.Items.TryGetValue(ScopeItem, out object? value) ? value as IDisposable : null;
                 context.Items.Remove(ScopeItem);
 
-                disposeAfterStateChange = context.Items.TryGetValue(DisposeAfterStateChangeItem, out var collection)
+                disposeAfterStateChange = context.Items.TryGetValue(DisposeAfterStateChangeItem, out object? collection)
                     ? collection as ICollection<IDisposable>
                     : null;
             }
@@ -195,8 +207,8 @@ internal static class JobLoggingScope
         {
             if (_text == null)
             {
-                var text = new StringBuilder();
-                foreach (var pair in Values)
+                StringBuilder text = new();
+                foreach (KeyValuePair<string, object> pair in Values)
                 {
                     if (text.Length > 0) text.Append(' ');
                     text.Append(pair.Key).Append(':').Append(pair.Value);
@@ -210,24 +222,24 @@ internal static class JobLoggingScope
 
         private KeyValuePair<string, object>[] ReadValues()
         {
-            var values = new List<KeyValuePair<string, object>>(4)
+            List<KeyValuePair<string, object>> values = new(4)
             {
                 new("JobId", _backgroundJob.Id)
             };
 
-            var job = _backgroundJob.Job;
+            Job? job = _backgroundJob.Job;
             if (job != null)
             {
                 values.Add(new KeyValuePair<string, object>("JobName", $"{job.Type.Name}.{job.Method.Name}"));
             }
 
-            var recurringJobId = ReadParameter<string>("RecurringJobId");
+            string? recurringJobId = ReadParameter<string>("RecurringJobId");
             if (!string.IsNullOrEmpty(recurringJobId))
             {
                 values.Add(new KeyValuePair<string, object>("RecurringJobId", recurringJobId));
             }
 
-            var retryCount = ReadParameter<int>("RetryCount");
+            int retryCount = ReadParameter<int>("RetryCount");
             if (retryCount > 0)
             {
                 values.Add(new KeyValuePair<string, object>("RetryCount", retryCount));
@@ -238,8 +250,8 @@ internal static class JobLoggingScope
 
         private T? ReadParameter<T>(string name)
         {
-            var snapshot = _backgroundJob.ParametersSnapshot;
-            if (snapshot == null || !snapshot.TryGetValue(name, out var value) || value == null) return default;
+            IReadOnlyDictionary<string, string>? snapshot = _backgroundJob.ParametersSnapshot;
+            if (snapshot == null || !snapshot.TryGetValue(name, out string? value) || value == null) return default;
 
             try
             {

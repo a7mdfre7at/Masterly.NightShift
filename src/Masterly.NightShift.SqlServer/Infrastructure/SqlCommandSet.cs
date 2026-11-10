@@ -48,58 +48,58 @@ internal sealed class SqlCommandSet : IDisposable
         {
             sqlCommandSetType = SqlCommandSetType.GetOrAdd(connection.GetType().GetTypeInfo().Assembly, static sqlClientAssembly =>
             {
-                var type = sqlClientAssembly.GetTypes().FirstOrDefault(static x => x.Name == "SqlCommandSet") ?? throw new TypeLoadException($"Could not load type 'SqlCommandSet' from assembly '{sqlClientAssembly}'.");
+                Type type = sqlClientAssembly.GetTypes().FirstOrDefault(static x => x.Name == "SqlCommandSet") ?? throw new TypeLoadException($"Could not load type 'SqlCommandSet' from assembly '{sqlClientAssembly}'.");
                 return type;
             });
 
             _setConnection = SetConnection.GetOrAdd(sqlCommandSetType, static type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
-                var connectionParameter = Expression.Parameter(typeof(DbConnection));
-                var connectionProperty = type.GetProperty("Connection", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? throw new MissingMemberException($"Property '{type.FullName}.Connection' not found.");
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
+                ParameterExpression connectionParameter = Expression.Parameter(typeof(DbConnection));
+                PropertyInfo connectionProperty = type.GetProperty("Connection", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? throw new MissingMemberException($"Property '{type.FullName}.Connection' not found.");
                 return Expression.Lambda<Action<object, DbConnection>>(Expression.Assign(Expression.Property(converted, connectionProperty), Expression.Convert(connectionParameter, connectionProperty.PropertyType)), p, connectionParameter).Compile();
             });
             _setTransaction = SetTransaction.GetOrAdd(sqlCommandSetType, static type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
-                var transactionParameter = Expression.Parameter(typeof(DbTransaction));
-                var transactionProperty = type.GetProperty("Transaction", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? throw new MissingMemberException($"Property '{type.FullName}.Transaction' not found.");
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
+                ParameterExpression transactionParameter = Expression.Parameter(typeof(DbTransaction));
+                PropertyInfo transactionProperty = type.GetProperty("Transaction", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? throw new MissingMemberException($"Property '{type.FullName}.Transaction' not found.");
                 return Expression.Lambda<Action<object, DbTransaction>>(Expression.Assign(Expression.Property(converted, transactionProperty), Expression.Convert(transactionParameter, transactionProperty.PropertyType)), p, transactionParameter).Compile();
             });
-            var batchCommandProperty = BatchCommandProperty.GetOrAdd(sqlCommandSetType, static type =>
+            PropertyInfo batchCommandProperty = BatchCommandProperty.GetOrAdd(sqlCommandSetType, static type =>
             {
                 return type.GetProperty("BatchCommand", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? throw new MissingMemberException($"Property '{type.FullName}.BatchCommand' not found.");
             });
             _getBatchCommand = GetBatchCommand.GetOrAdd(sqlCommandSetType, type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
                 return Expression.Lambda<Func<object, DbCommand>>(Expression.Property(converted, batchCommandProperty), p).Compile();
             });
             _appendMethod = AppendMethod.GetOrAdd(sqlCommandSetType, type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
-                var batchCommandParameter = Expression.Parameter(typeof(DbCommand));
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
+                ParameterExpression batchCommandParameter = Expression.Parameter(typeof(DbCommand));
                 return Expression.Lambda<Action<object, DbCommand>>(Expression.Call(converted, "Append", null, Expression.Convert(batchCommandParameter, batchCommandProperty.PropertyType)), p, batchCommandParameter).Compile();
             });
             _executeNonQueryMethod = ExecuteNonQueryMethod.GetOrAdd(sqlCommandSetType, static type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
                 return Expression.Lambda<Func<object, int>>(Expression.Call(converted, "ExecuteNonQuery", null), p).Compile();
             });
             _disposeMethod = DisposeMethod.GetOrAdd(sqlCommandSetType, static type =>
             {
-                var p = Expression.Parameter(typeof(object));
-                var converted = Expression.Convert(p, type);
+                ParameterExpression p = Expression.Parameter(typeof(object));
+                UnaryExpression converted = Expression.Convert(p, type);
                 return Expression.Lambda<Action<object>>(Expression.Call(converted, "Dispose", null), p).Compile();
             });
             _constructor = SqlCommandSetConstructor.GetOrAdd(sqlCommandSetType, static type =>
             {
-                var ctor = Expression.New(type);
+                NewExpression ctor = Expression.New(type);
                 return Expression.Lambda<Func<object>>(ctor).Compile();
             });
         }

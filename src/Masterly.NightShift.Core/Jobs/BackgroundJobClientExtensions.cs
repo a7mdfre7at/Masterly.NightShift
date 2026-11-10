@@ -744,7 +744,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new DeletedState();
+            DeletedState state = new();
             return client.ChangeState(jobId, state, fromState);
         }
 
@@ -778,7 +778,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new ScheduledState(delay);
+            ScheduledState state = new(delay);
             return client.ChangeState(jobId, state, fromState);
         }
 
@@ -813,7 +813,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new ScheduledState(enqueueAt.UtcDateTime);
+            ScheduledState state = new(enqueueAt.UtcDateTime);
             return client.ChangeState(jobId, state, fromState);
         }
 
@@ -846,7 +846,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new EnqueuedState();
+            EnqueuedState state = new();
             return client.ChangeState(jobId, state, fromState);
         }
 
@@ -960,7 +960,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState, options);
+            AwaitingState state = new(parentId, nextState, options);
             return client.Create(methodCall, state);
         }
 
@@ -983,7 +983,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
         }
 
@@ -1005,7 +1005,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(methodCall, state);
         }
 
@@ -1030,7 +1030,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
         }
 
@@ -1050,7 +1050,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState, options);
+            AwaitingState state = new(parentId, nextState, options);
             return client.Create(methodCall, state);
         }
 
@@ -1073,7 +1073,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
         }
 
@@ -1095,7 +1095,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(methodCall, state);
         }
 
@@ -1120,7 +1120,7 @@ public static class BackgroundJobClientExtensions
         {
             ArgumentNullException.ThrowIfNull(client);
 
-            var state = new AwaitingState(parentId, nextState ?? new EnqueuedState(), options);
+            AwaitingState state = new(parentId, nextState ?? new EnqueuedState(), options);
             return client.Create(queue, methodCall, state);
         }
     }

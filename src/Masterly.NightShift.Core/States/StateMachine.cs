@@ -49,14 +49,14 @@ public class StateMachine : IStateMachine
     {
         ArgumentNullException.ThrowIfNull(initialContext);
 
-        var filterInfo = GetFilters(initialContext.BackgroundJob.Job);
-        var electFilters = filterInfo.ElectStateFilters;
-        var applyFilters = filterInfo.ApplyStateFilters;
+        JobFilterInfo filterInfo = GetFilters(initialContext.BackgroundJob.Job);
+        JobFilterInfo.FilterCollection<IElectStateFilter> electFilters = filterInfo.ElectStateFilters;
+        JobFilterInfo.FilterCollection<IApplyStateFilter> applyFilters = filterInfo.ApplyStateFilters;
 
         // Electing a a state
-        var electContext = new ElectStateContext(initialContext, this);
+        ElectStateContext electContext = new(initialContext, this);
 
-        foreach (var filter in electFilters)
+        foreach (IElectStateFilter filter in electFilters)
         {
             electContext.Profiler.InvokeMeasured(
                 new KeyValuePair<IElectStateFilter, ElectStateContext>(filter, electContext),
@@ -64,18 +64,18 @@ public class StateMachine : IStateMachine
                 static ctx => $"OnStateElection for job {ctx.Value.BackgroundJob.Id}");
         }
 
-        foreach (var state in electContext.TraversedStates)
+        foreach (IState state in electContext.TraversedStates)
         {
             initialContext.Transaction.AddJobState(electContext.BackgroundJob.Id, state);
         }
 
         // Applying the elected state
-        var context = new ApplyStateContext(initialContext.Transaction, electContext)
+        ApplyStateContext context = new(initialContext.Transaction, electContext)
         {
             JobExpirationTimeout = initialContext.JobExpirationTimeout
         };
 
-        foreach (var filter in applyFilters)
+        foreach (IApplyStateFilter filter in applyFilters)
         {
             context.Profiler.InvokeMeasured(
                 new KeyValuePair<IApplyStateFilter, ApplyStateContext>(filter, context),
@@ -83,7 +83,7 @@ public class StateMachine : IStateMachine
                 static ctx => $"OnStateUnapplied for job {ctx.Value.BackgroundJob.Id}");
         }
 
-        foreach (var filter in applyFilters)
+        foreach (IApplyStateFilter filter in applyFilters)
         {
             context.Profiler.InvokeMeasured(
                 new KeyValuePair<IApplyStateFilter, ApplyStateContext>(filter, context),

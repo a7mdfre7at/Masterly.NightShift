@@ -22,10 +22,10 @@ internal sealed class JobNotesDispatcher : IDashboardDispatcher
             return;
         }
 
-        var jobId = RouteValues.Get(context, "JobId");
-        var text = ((await context.Request.GetFormValuesAsync("text").ConfigureAwait(false))?.FirstOrDefault() ?? string.Empty).Trim();
-        var ackValue = (await context.Request.GetFormValuesAsync("ack").ConfigureAwait(false))?.FirstOrDefault();
-        var acknowledges = ackValue is "true" or "on" or "1";
+        string jobId = RouteValues.Get(context, "JobId");
+        string text = ((await context.Request.GetFormValuesAsync("text").ConfigureAwait(false))?.FirstOrDefault() ?? string.Empty).Trim();
+        string? ackValue = (await context.Request.GetFormValuesAsync("ack").ConfigureAwait(false))?.FirstOrDefault();
+        bool acknowledges = ackValue is "true" or "on" or "1";
 
         // The page's text box allows JobNotes.MaxLength characters; longer text didn't come from it
         if ((text.Length == 0 && !acknowledges) || text.Length > JobNotes.MaxLength)
@@ -34,7 +34,7 @@ internal sealed class JobNotesDispatcher : IDashboardDispatcher
             return;
         }
 
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
             if (connection.GetJobData(jobId) == null)
             {

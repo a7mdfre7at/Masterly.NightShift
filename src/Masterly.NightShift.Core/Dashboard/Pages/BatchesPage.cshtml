@@ -18,7 +18,7 @@
     Pager pager;
 
     // Read only: expired batches are skipped here and removed from the index when new batches start
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, BatchJob.Count(connection));
         batches = BatchJob.List(connection, pager.FromRecord, pager.RecordsPerPage);
@@ -51,15 +51,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var batch in batches)
+                            @foreach (JobBatch batch in batches)
                             {
-                                var total = Math.Max(1, batch.Total);
-                                var successPercent = 100.0 * batch.Succeeded / total;
-                                var failedPercent = 100.0 * batch.Failed / total;
-                                var processingPercent = 100.0 * batch.Processing / total;
-                                var deletedPercent = 100.0 * batch.Deleted / total;
-                                var stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
-                                var stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
+                                long total = Math.Max(1, batch.Total);
+                                double successPercent = 100.0 * batch.Succeeded / total;
+                                double failedPercent = 100.0 * batch.Failed / total;
+                                double processingPercent = 100.0 * batch.Processing / total;
+                                double deletedPercent = 100.0 * batch.Deleted / total;
+                                string stateCss = batch.IsFinished ? "label-success" : batch.IsStuck ? "label-danger" : "label-info";
+                                string stateText = batch.IsFinished ? Strings.BatchesPage_State_Finished : batch.IsStuck ? Strings.BatchesPage_State_Failed : Strings.BatchesPage_State_Running;
 
                                 <tr class="hover">
                                     <td>

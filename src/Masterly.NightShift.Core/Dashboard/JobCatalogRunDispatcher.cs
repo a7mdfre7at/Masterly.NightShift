@@ -32,8 +32,8 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             return;
         }
 
-        var id = await GetFormValueAsync(context, "id").ConfigureAwait(false);
-        var source = await GetFormValueAsync(context, "source").ConfigureAwait(false);
+        string? id = await GetFormValueAsync(context, "id").ConfigureAwait(false);
+        string? source = await GetFormValueAsync(context, "source").ConfigureAwait(false);
 
         if (string.IsNullOrEmpty(id) && string.IsNullOrEmpty(source))
         {
@@ -49,7 +49,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
         {
             // "Run again with changes": the method comes from an existing job, catalogued or not
             JobData? sourceData;
-            using (var connection = context.Storage.GetReadOnlyConnection())
+            using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
             {
                 sourceData = connection.GetJobData(source);
             }
@@ -66,7 +66,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             {
                 // The job exists, but its type or method isn't loaded in this process (a dashboard hosted
                 // without the job's assemblies, or code that changed since)
-                var reason = sourceData.LoadException?.InnerException?.Message ?? sourceData.LoadException?.Message ?? "its method can't be loaded here";
+                string reason = sourceData.LoadException?.InnerException?.Message ?? sourceData.LoadException?.Message ?? "its method can't be loaded here";
                 AuditLog.Record(context, [source], null, 422);
                 await DashboardJson.WriteAsync(context, 422, new { error = $"Job {source} can't be run again from this dashboard: {reason}" }).ConfigureAwait(false);
                 return;
@@ -85,8 +85,8 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             }
         }
 
-        var mode = (await GetFormValueAsync(context, "mode").ConfigureAwait(false) ?? "enqueue").ToLowerInvariant();
-        var queue = await GetFormValueAsync(context, "queue").ConfigureAwait(false);
+        string mode = (await GetFormValueAsync(context, "mode").ConfigureAwait(false) ?? "enqueue").ToLowerInvariant();
+        string? queue = await GetFormValueAsync(context, "queue").ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(queue) && sourceJob?.Queue != null)
         {
@@ -94,23 +94,23 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
             queue = sourceJob.Queue;
         }
 
-        var arguments = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var parameter in entry.UserParameters)
+        Dictionary<string, string?> arguments = new(StringComparer.Ordinal);
+        foreach (JobCatalogParameter parameter in entry.UserParameters)
         {
             // A checkbox comes with a hidden "false", a multiple choice with one value per choice
-            var values = await context.Request.GetFormValuesAsync(ArgumentPrefix + parameter.Name).ConfigureAwait(false);
+            IList<string> values = await context.Request.GetFormValuesAsync(ArgumentPrefix + parameter.Name).ConfigureAwait(false);
             arguments[parameter.Name] = JobCatalog.CombineFormValues(parameter, values?.ToArray());
         }
 
         try
         {
-            var job = JobCatalog.CreateJob(entry, arguments, queue);
+            Job job = JobCatalog.CreateJob(entry, arguments, queue);
 
             switch (mode)
             {
                 case "enqueue":
                     {
-                        var jobId = context.GetBackgroundJobClient().Create(job, new EnqueuedState(string.IsNullOrWhiteSpace(queue) ? EnqueuedState.DefaultQueue : queue));
+                        string? jobId = context.GetBackgroundJobClient().Create(job, new EnqueuedState(string.IsNullOrWhiteSpace(queue) ? EnqueuedState.DefaultQueue : queue));
                         AuditLog.Record(context, [jobId!], $"{entry.Type.Name}.{entry.Method.Name} enqueued", 200); // Null only if a filter canceled the creation
                         await DashboardJson.WriteAsync(context, 200, new { jobId }).ConfigureAwait(false);
                         return;
@@ -119,10 +119,10 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
                 case "schedule":
                     {
                         // A number of minutes, or a phrase such as "tomorrow at 9am" or "in 2 hours"
-                        var delayText = await GetFormValueAsync(context, "delay").ConfigureAwait(false);
+                        string? delayText = await GetFormValueAsync(context, "delay").ConfigureAwait(false);
                         DateTime enqueueAt;
 
-                        if (double.TryParse(delayText, NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes))
+                        if (double.TryParse(delayText, NumberStyles.Float, CultureInfo.InvariantCulture, out double minutes))
                         {
                             if (double.IsNaN(minutes) || minutes < 0 || minutes > MaxDelayMinutes)
                             {
@@ -136,7 +136,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
                             throw new ArgumentException("The delay must be a number of minutes or a phrase like \"in 2 hours\" or \"tomorrow at 9am\".");
                         }
 
-                        var jobId = context.GetBackgroundJobClient().Create(job, new ScheduledState(enqueueAt));
+                        string? jobId = context.GetBackgroundJobClient().Create(job, new ScheduledState(enqueueAt));
                         AuditLog.Record(context, [jobId!], $"{entry.Type.Name}.{entry.Method.Name} scheduled for {enqueueAt:u}", 200); // Null only if a filter canceled the creation
                         await DashboardJson.WriteAsync(context, 200, new { jobId }).ConfigureAwait(false);
                         return;
@@ -144,8 +144,8 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
 
                 case "recurring":
                     {
-                        var recurringId = await GetFormValueAsync(context, "recurringId").ConfigureAwait(false);
-                        var cronText = await GetFormValueAsync(context, "cron").ConfigureAwait(false);
+                        string? recurringId = await GetFormValueAsync(context, "recurringId").ConfigureAwait(false);
+                        string? cronText = await GetFormValueAsync(context, "cron").ConfigureAwait(false);
 
                         if (string.IsNullOrWhiteSpace(recurringId))
                         {
@@ -178,7 +178,7 @@ internal sealed class JobCatalogRunDispatcher : IDashboardDispatcher
 
     private static async Task<string?> GetFormValueAsync(DashboardContext context, string key)
     {
-        var values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
+        IList<string> values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
         return values?.FirstOrDefault();
     }
 }

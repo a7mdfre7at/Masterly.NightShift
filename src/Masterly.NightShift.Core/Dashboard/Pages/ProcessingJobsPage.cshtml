@@ -7,6 +7,7 @@
 @using Masterly.NightShift.Dashboard.Resources
 @using Masterly.NightShift.Server
 @using Masterly.NightShift.Storage
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.ProcessingJobsPage_Title);
@@ -16,20 +17,20 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.ProcessingCount());
-    var processingJobs = monitor.ProcessingJobs(pager.FromRecord, pager.RecordsPerPage);
-    var servers = monitor.Servers();
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.ProcessingCount());
+    JobList<ProcessingJobDto?> processingJobs = monitor.ProcessingJobs(pager.FromRecord, pager.RecordsPerPage);
+    IList<ServerDto> servers = monitor.Servers();
 
-    var progressByJob = new Dictionary<string, JobProgress?>();
-    var deadlineByJob = new Dictionary<string, DateTime?>();
-    var insightByJob = new Dictionary<string, JobInsight>();
-    using (var connection = Storage.GetReadOnlyConnection())
+    Dictionary<string, JobProgress?> progressByJob = [];
+    Dictionary<string, DateTime?> deadlineByJob = [];
+    Dictionary<string, JobInsight> insightByJob = [];
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
-        var storageConnection = connection as JobStorageConnection;
-        var insightCache = new Dictionary<string, JobInsight?>();
+        JobStorageConnection? storageConnection = connection as JobStorageConnection;
+        Dictionary<string, JobInsight?> insightCache = [];
 
-        foreach (var processingJob in processingJobs)
+        foreach (KeyValuePair<string, ProcessingJobDto?> processingJob in processingJobs)
         {
             if (processingJob.Value != null && processingJob.Value.InProcessingState)
             {
@@ -38,8 +39,8 @@
 
                 if (storageConnection != null && processingJob.Value.Job != null)
                 {
-                    var key = JobInsightsAttribute.GetKey(processingJob.Value.Job);
-                    if (!insightCache.TryGetValue(key, out var insight))
+                    string key = JobInsightsAttribute.GetKey(processingJob.Value.Job);
+                    if (!insightCache.TryGetValue(key, out JobInsight? insight))
                     {
                         insight = JobInsightsAttribute.Read(storageConnection, key);
                         insightCache[key] = insight;
@@ -51,7 +52,7 @@
         }
     }
 
-    var now = StorageUtcNow ?? ApplicationUtcNow;
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
 }
 
 <div class="row">
@@ -124,10 +125,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var job in processingJobs)
+                            @foreach (KeyValuePair<string, ProcessingJobDto?> job in processingJobs)
                             {
-                                var deadline = deadlineByJob.TryGetValue(job.Key, out var d) ? d : null;
-                                var overdue = deadline.HasValue && deadline.Value < now;
+                                DateTime? deadline = deadlineByJob.TryGetValue(job.Key, out DateTime? d) ? d : null;
+                                bool overdue = deadline.HasValue && deadline.Value < now;
 
                                 <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InProcessingState ? "obsolete-data" : null) @(job.Value != null && job.Value.InProcessingState ? "hover" : null) @(overdue ? "overdue" : null)">
                                     @if (!IsReadOnly)
@@ -177,18 +178,18 @@
                                         </td>
                                         <td class="min-width job-live-cell js-live-row" data-job-id="@job.Key">
                                             @{
-                                                var jobProgress = progressByJob.TryGetValue(job.Key, out var p) ? p : null;
-                                                var jobPercent = jobProgress != null ? jobProgress.Percent : 0;
-                                                var jobInsight = insightByJob.TryGetValue(job.Key, out var ins) ? ins : null;
-                                                var expectedEnd = jobInsight != null && job.Value.StartedAt.HasValue ? jobInsight.EstimateCompletion(job.Value.StartedAt.Value) : null;
-                                                var etaPercent = 0;
+                                                JobProgress? jobProgress = progressByJob.TryGetValue(job.Key, out JobProgress? p) ? p : null;
+                                                double jobPercent = jobProgress != null ? jobProgress.Percent : 0;
+                                                JobInsight? jobInsight = insightByJob.TryGetValue(job.Key, out JobInsight? ins) ? ins : null;
+                                                DateTime? expectedEnd = jobInsight != null && job.Value.StartedAt.HasValue ? jobInsight.EstimateCompletion(job.Value.StartedAt.Value) : null;
+                                                int etaPercent = 0;
                                                 string? etaText = null;
-                                                var etaLate = false;
+                                                bool etaLate = false;
 
                                                 if (jobProgress == null && expectedEnd.HasValue && job.Value.StartedAt.HasValue)
                                                 {
-                                                    var elapsed = now - job.Value.StartedAt.Value;
-                                                    var remaining = expectedEnd.Value - now;
+                                                    TimeSpan elapsed = now - job.Value.StartedAt.Value;
+                                                    TimeSpan remaining = expectedEnd.Value - now;
                                                     etaLate = elapsed.TotalMilliseconds > Math.Max(jobInsight!.P95Ms, jobInsight.MedianMs * 2);
                                                     etaPercent = (int)Math.Min(97, Math.Max(2, 100.0 * elapsed.Ticks / Math.Max(1, (expectedEnd.Value - job.Value.StartedAt.Value).Ticks)));
                                                     etaText = etaLate

@@ -3,6 +3,7 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.ScheduledJobsPage_Title);
@@ -12,9 +13,9 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.ScheduledCount());
-    var scheduledJobs = monitor.ScheduledJobs(pager.FromRecord, pager.RecordsPerPage);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.ScheduledCount());
+    JobList<ScheduledJobDto?> scheduledJobs = monitor.ScheduledJobs(pager.FromRecord, pager.RecordsPerPage);
 }
 
 <div class="row">
@@ -85,7 +86,7 @@
                                 <th class="align-right">@Strings.ScheduledJobsPage_Table_Scheduled</th>
                             </tr>
                         </thead>
-                        @foreach (var job in scheduledJobs)
+                        @foreach (KeyValuePair<string, ScheduledJobDto?> job in scheduledJobs)
                         {
                             <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InScheduledState ? "obsolete-data" : null) @(job.Value != null && job.Value.InScheduledState ? "hover" : null)">
                                 @if (!IsReadOnly)

@@ -64,7 +64,7 @@ public sealed class LatencyTimeoutAttribute : JobFilterAttribute, IElectStateFil
             return;
         }
 
-        var elapsedTime = JobClock.UtcNow - context.BackgroundJob.CreatedAt;
+        TimeSpan elapsedTime = JobClock.UtcNow - context.BackgroundJob.CreatedAt;
 
         if (elapsedTime.TotalSeconds > TimeoutInSeconds)
         {

@@ -24,7 +24,7 @@ using NightShiftSamples;
 const string DefaultConnectionString =
     @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
 
-var host = new HostBuilder()
+IHost host = new HostBuilder()
     .ConfigureAppConfiguration(x => x.AddEnvironmentVariables().AddCommandLine(args))
     .ConfigureLogging(x => x.AddConsole().SetMinimumLevel(LogLevel.Information))
     .ConfigureServices((hostContext, services) =>
@@ -53,7 +53,7 @@ var host = new HostBuilder()
         services.TryAddSingleton<IBackgroundJobStateChanger>(x => new CustomBackgroundJobStateChanger(
                 new BackgroundJobStateChanger(x.GetRequiredService<IJobFilterProvider>())));
 
-        var connectionString = hostContext.Configuration.GetConnectionString("NightShift") ?? DefaultConnectionString;
+        string connectionString = hostContext.Configuration.GetConnectionString("NightShift") ?? DefaultConnectionString;
 
         // The storage creates its tables but not the database; the sample creates it on a fresh machine
         SampleDatabase.EnsureExists(connectionString);

@@ -79,7 +79,7 @@ public sealed class JobBatch
 
     public long Count(string state)
     {
-        return Counts.TryGetValue(state, out var count) ? Math.Max(0, count) : 0;
+        return Counts.TryGetValue(state, out long count) ? Math.Max(0, count) : 0;
     }
 }
 
@@ -159,11 +159,11 @@ public static class BatchJob
         ArgumentNullException.ThrowIfNull(createJobs);
         if (description != null && description.Length > MaxDescriptionLength) throw new ArgumentException($"The description can't be longer than {MaxDescriptionLength} characters.", nameof(description));
 
-        var batchId = Guid.NewGuid().ToString("N")[..12];
-        var now = Clock();
+        string batchId = Guid.NewGuid().ToString("N")[..12];
+        DateTime now = Clock();
 
-        using (var connection = storage.GetConnection())
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(GetHashKey(batchId),
             [
@@ -182,7 +182,7 @@ public static class BatchJob
             transaction.Commit();
         }
 
-        var previous = CurrentBatchId.Value;
+        string? previous = CurrentBatchId.Value;
         CurrentBatchId.Value = batchId;
         try
         {
@@ -207,8 +207,8 @@ public static class BatchJob
 
         try
         {
-            using var connection = storage.GetConnection();
-            using var transaction = connection.CreateWriteTransaction();
+            using IStorageConnection connection = storage.GetConnection();
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             if (transaction is JobStorageTransaction storageTransaction)
             {
                 storageTransaction.ExpireSet(GetJobsKey(batchId), ExpireIn);
@@ -227,7 +227,7 @@ public static class BatchJob
     {
         if (now - DateTime.MinValue <= ExpireIn) return;
 
-        var expiredBefore = JobHelper.ToTimestamp(now - ExpireIn);
+        long expiredBefore = JobHelper.ToTimestamp(now - ExpireIn);
         if (expiredBefore <= 0) return;
 
         IEnumerable<string> expired;
@@ -238,11 +238,11 @@ public static class BatchJob
         }
         else
         {
-            var oldest = connection.GetFirstByLowestScoreFromSet(IndexKey, 0, expiredBefore);
+            string? oldest = connection.GetFirstByLowestScoreFromSet(IndexKey, 0, expiredBefore);
             expired = oldest != null ? new[] { oldest } : [];
         }
 
-        foreach (var id in expired)
+        foreach (string id in expired)
         {
             transaction.RemoveFromSet(IndexKey, id);
         }
@@ -286,7 +286,7 @@ public static class BatchJob
         ArgumentNullException.ThrowIfNull(job);
 
         IReadOnlyList<string> jobIds;
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
             if (connection.GetAllEntriesFromHash(GetHashKey(batchId)) == null)
             {
@@ -301,7 +301,7 @@ public static class BatchJob
             throw new InvalidOperationException($"Batch '{batchId}' has no jobs to wait for.");
         }
 
-        var previous = CurrentContinuationOf.Value;
+        string? previous = CurrentContinuationOf.Value;
         CurrentContinuationOf.Value = batchId;
         try
         {
@@ -399,25 +399,25 @@ public static class BatchJob
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(batchId);
 
-        var hash = connection.GetAllEntriesFromHash(GetHashKey(batchId));
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetHashKey(batchId));
         if (hash == null) return null;
 
         // Counters need the extended API; without it the total comes from the job list and counts are unknown
-        var counts = ExtendedStorage.Read(
+        Dictionary<string, long> counts = ExtendedStorage.Read(
             connection,
             storageConnection => ReadCounts(storageConnection, batchId),
             static _ => new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase));
-        var total = ExtendedStorage.Read(
+        long total = ExtendedStorage.Read(
             connection,
             storageConnection => storageConnection.GetCounter(GetTotalKey(batchId)),
             basicConnection => (long)(basicConnection.GetAllItemsFromSet(GetJobsKey(batchId))?.Count ?? 0));
 
-        var continuations = (connection.GetAllItemsFromSet(GetContinuationsKey(batchId)) ?? []).OrderBy(static x => x, StringComparer.Ordinal).ToList();
+        List<string> continuations = [.. (connection.GetAllItemsFromSet(GetContinuationsKey(batchId)) ?? []).OrderBy(static x => x, StringComparer.Ordinal)];
 
         return new JobBatch(
             batchId,
-            hash.TryGetValue("Description", out var description) && description.Length > 0 ? description : null,
-            hash.TryGetValue("CreatedAt", out var createdAt) ? JobHelper.DeserializeNullableDateTime(createdAt) : null,
+            hash.TryGetValue("Description", out string? description) && description.Length > 0 ? description : null,
+            hash.TryGetValue("CreatedAt", out string? createdAt) ? JobHelper.DeserializeNullableDateTime(createdAt) : null,
             total,
             counts,
             continuations);
@@ -425,11 +425,11 @@ public static class BatchJob
 
     private static Dictionary<string, long> ReadCounts(JobStorageConnection connection, string batchId)
     {
-        var counts = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, long> counts = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var state in TrackedStates)
+        foreach (string state in TrackedStates)
         {
-            var count = connection.GetCounter(GetStateKey(batchId, state));
+            long count = connection.GetCounter(GetStateKey(batchId, state));
             if (count != 0) counts[state] = count;
         }
 
@@ -442,7 +442,7 @@ public static class BatchJob
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(batchId);
 
-        var key = GetJobsKey(batchId);
+        string key = GetJobsKey(batchId);
 
         return ExtendedStorage.Read<IReadOnlyList<string>>(
             connection,
@@ -475,26 +475,26 @@ public static class BatchJob
         ArgumentOutOfRangeException.ThrowIfNegative(from);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
-        var ids = ExtendedStorage.Read(
+        List<string> ids = ExtendedStorage.Read(
             connection,
             storageConnection =>
             {
-                var total = storageConnection.GetSetCount(IndexKey);
-                var endingAt = total - 1 - from;
+                long total = storageConnection.GetSetCount(IndexKey);
+                long endingAt = total - 1 - from;
                 if (endingAt < 0) return [];
 
-                var startingFrom = Math.Max(0, endingAt - count + 1);
-                var range = storageConnection.GetRangeFromSet(IndexKey, (int)startingFrom, (int)endingAt) ?? [];
+                long startingFrom = Math.Max(0, endingAt - count + 1);
+                List<string> range = storageConnection.GetRangeFromSet(IndexKey, (int)startingFrom, (int)endingAt) ?? [];
                 range.Reverse();
                 return range;
             },
             basicConnection => [.. (basicConnection.GetAllItemsFromSet(IndexKey) ?? []).Reverse().Skip(from).Take(count)]);
 
-        var result = new List<JobBatch>(ids.Count);
+        List<JobBatch> result = new(ids.Count);
 
-        foreach (var id in ids)
+        foreach (string? id in ids)
         {
-            var batch = Get(connection, id);
+            JobBatch? batch = Get(connection, id);
             if (batch != null) result.Add(batch);
         }
 
@@ -547,13 +547,13 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var batchId = BatchJob.Current;
+        string? batchId = BatchJob.Current;
         if (batchId != null)
         {
             context.SetJobParameter(BatchJob.ParameterName, batchId);
         }
 
-        var continuationOf = BatchJob.CurrentContinuation;
+        string? continuationOf = BatchJob.CurrentContinuation;
         if (continuationOf != null)
         {
             context.SetJobParameter(BatchJob.ContinuationParameterName, continuationOf);
@@ -607,7 +607,7 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
 
     private static bool IsRegistered()
     {
-        foreach (var filter in GlobalJobFilters.Filters)
+        foreach (JobFilter filter in GlobalJobFilters.Filters)
         {
             if (filter.Instance is BatchSupportAttribute) return true;
         }
@@ -622,10 +622,10 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
             RecordContinuation(context, transaction);
         }
 
-        var batchId = GetParameter(context, BatchJob.ParameterName);
+        string? batchId = GetParameter(context, BatchJob.ParameterName);
         if (string.IsNullOrEmpty(batchId)) return;
 
-        var expireIn = BatchJob.ExpireIn;
+        TimeSpan expireIn = BatchJob.ExpireIn;
 
         if (context.OldStateName == null)
         {
@@ -645,7 +645,7 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
 
     private static bool IsTracked(string state)
     {
-        foreach (var tracked in BatchJob.TrackedStates)
+        foreach (string tracked in BatchJob.TrackedStates)
         {
             if (string.Equals(tracked, state, StringComparison.OrdinalIgnoreCase)) return true;
         }
@@ -661,10 +661,10 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
     /// </summary>
     private static void RecordContinuation(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
-        var continuationOf = GetParameter(context, BatchJob.ContinuationParameterName);
+        string? continuationOf = GetParameter(context, BatchJob.ContinuationParameterName);
         if (string.IsNullOrEmpty(continuationOf)) return;
 
-        var key = BatchJob.GetContinuationsKey(continuationOf);
+        string key = BatchJob.GetContinuationsKey(continuationOf);
         transaction.AddToSet(key, context.BackgroundJob.Id);
 
         // After adding: on SQL Server, expiring a set only reaches the rows it already has
@@ -679,7 +679,7 @@ public sealed class BatchSupportAttribute : JobFilterAttribute, IClientFilter, I
     {
         try
         {
-            var snapshot = context.BackgroundJob.ParametersSnapshot;
+            IReadOnlyDictionary<string, string>? snapshot = context.BackgroundJob.ParametersSnapshot;
             string? serialized = null;
 
             if (snapshot != null)

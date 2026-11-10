@@ -2,6 +2,7 @@
 @using System
 @using System.Collections.Generic
 @using System.Linq
+@using System.Reflection
 @using Masterly.NightShift
 @using Masterly.NightShift.Common
 @using Masterly.NightShift.Dashboard
@@ -13,10 +14,10 @@
 @using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
-    var monitor = Storage.GetMonitoringApi();
-    var job = monitor.JobDetails(JobId);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    JobDetailsDto? job = monitor.JobDetails(JobId);
     RenderedJob = job?.Job;
-    var dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
+    JobDetailsRendererDto? dto = job != null ? new JobDetailsRendererDto(this, JobId, job) : null;
     
     string? title = null;
 
@@ -24,7 +25,7 @@
     {
         title = job.Job != null ? Html.JobName(job.Job) : null;
 
-        var historyList = new List<StateHistoryDto>(job.History);
+        List<StateHistoryDto> historyList = new(job.History);
         historyList.Add(new StateHistoryDto { StateName = "Created", CreatedAt = job.CreatedAt ?? default(DateTime) });
 
         job.History = historyList;
@@ -46,10 +47,10 @@
         }
         else
         {
-            var currentState = job.History[0];
+            StateHistoryDto currentState = job.History[0];
             if (currentState.StateName == ProcessingState.StateName)
             {
-                var server = monitor.Servers().FirstOrDefault(x => x.Name == currentState.Data["ServerId"]);
+                ServerDto? server = monitor.Servers().FirstOrDefault(x => x.Name == currentState.Data["ServerId"]);
                 if (server == null)
                 {
                     <div class="alert alert-danger">
@@ -71,20 +72,20 @@
                 </div>
             }
 
-            if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineMissedParameter, out var deadlineMissedValue))
+            if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineMissedParameter, out string? deadlineMissedValue))
             {
-                var deadlineMissed = SerializationHelper.Deserialize<TimeSpan?>(deadlineMissedValue, SerializationOption.User);
+                TimeSpan? deadlineMissed = SerializationHelper.Deserialize<TimeSpan?>(deadlineMissedValue, SerializationOption.User);
                 <div class="alert alert-danger">
                     <span class="glyphicon glyphicon-time"></span>
                     @String.Format(Strings.JobDetailsPage_DeadlineMissed, Html.ToHumanDuration(deadlineMissed, false))
                 </div>
             }
-            else if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineAtParameter, out var deadlineAtValue) && !currentState.StateName.Equals(SucceededState.StateName))
+            else if (job.Properties.TryGetValue(DeadlineAttribute.DeadlineAtParameter, out string? deadlineAtValue) && !currentState.StateName.Equals(SucceededState.StateName))
             {
-                var deadlineAt = SerializationHelper.Deserialize<DateTime?>(deadlineAtValue, SerializationOption.User);
+                DateTime? deadlineAt = SerializationHelper.Deserialize<DateTime?>(deadlineAtValue, SerializationOption.User);
                 if (deadlineAt.HasValue)
                 {
-                    var overdue = deadlineAt.Value < (StorageUtcNow ?? ApplicationUtcNow);
+                    bool overdue = deadlineAt.Value < (StorageUtcNow ?? ApplicationUtcNow);
                     <div class="alert @(overdue ? "alert-danger" : "alert-info")">
                         <span class="glyphicon glyphicon-time"></span>
                         @Strings.Common_Deadline: @Html.RelativeTime(deadlineAt.Value)
@@ -99,16 +100,16 @@
             if (job.Job != null)
             {
                 @* "Run again with changes": the run form, pre-filled with this job's arguments *@
-                var runParameters = new List<object>();
+                List<object> runParameters = [];
                 if (!IsReadOnly)
                 {
-                    var runEntry = JobCatalog.CreateEntry(job.Job);
-                    var runArguments = JobCatalog.FormatArguments(job.Job);
-                    var methodParameters = job.Job.Method.GetParameters();
+                    JobCatalogEntry runEntry = JobCatalog.CreateEntry(job.Job);
+                    IReadOnlyList<string?> runArguments = JobCatalog.FormatArguments(job.Job);
+                    ParameterInfo[] methodParameters = job.Job.Method.GetParameters();
 
-                    for (var i = 0; i < runEntry.Parameters.Count; i++)
+                    for (int i = 0; i < runEntry.Parameters.Count; i++)
                     {
-                        var parameter = runEntry.Parameters[i];
+                        JobCatalogParameter parameter = runEntry.Parameters[i];
                         if (parameter.Injected) continue;
 
                         runParameters.Add(JobCatalog.GetFormField(parameter, runArguments[i], RedactedAttribute.IsRedacted(methodParameters[i])));
@@ -154,7 +155,7 @@
             else
             {
                 @* Without the method, [Redacted] can't be read, so the raw arguments are only shown to users who can change jobs *@
-                var dbgParameters = job.Properties
+                KeyValuePair<string, string>[] dbgParameters = job.Properties
                     .Where(x => x.Key.StartsWith("DBG_") && (!IsReadOnly || Array.IndexOf(JobExportDispatcher.RawArgumentParameters, x.Key) < 0))
                     .ToArray();
 
@@ -165,7 +166,7 @@
                             <td>@Strings.JobDetailsPage_JobId</td>
                             <td><pre><code>@Html.JobId(JobId, false)</code></pre></td>
                         </tr>
-                        @foreach (var parameter in dbgParameters)
+                        @foreach (KeyValuePair<string, string> parameter in dbgParameters)
                         {
                             <tr>
                                 <td class="width-15">@parameter.Key.Substring(4)</td>
@@ -177,9 +178,9 @@
             }
 
             @* Tags and batch membership, from job parameters *@
-            var tags = job.Properties.TryGetValue(JobTags.ParameterName, out var tagsJson) ? JobTags.Parse(tagsJson) : new List<string>();
-            var batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out var batchJson) ? BatchJob.ParseParameter(batchJson) : null;
-            var batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out var batchContinuationJson) ? BatchJob.ParseParameter(batchContinuationJson) : null;
+            List<string> tags = job.Properties.TryGetValue(JobTags.ParameterName, out string? tagsJson) ? JobTags.Parse(tagsJson) : new List<string>();
+            string? batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out string? batchJson) ? BatchJob.ParseParameter(batchJson) : null;
+            string? batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out string? batchContinuationJson) ? BatchJob.ParseParameter(batchContinuationJson) : null;
             if (tags.Count > 0 || batchId != null || batchContinuationOf != null)
             {
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
@@ -195,7 +196,7 @@
                     {
                         <span class="glyphicon glyphicon-tag text-muted"></span>
                     }
-                    @foreach (var tag in tags)
+                    @foreach (string tag in tags)
                     {
                         <a class="hf-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag))">@tag</a>
                     }
@@ -203,7 +204,7 @@
             }
 
             @* Diagnosis: why the job is in its current state and what would move it *@
-            var findings = JobDiagnostics.Diagnose(this, JobId, job);
+            IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(this, JobId, job);
             if (findings.Count > 0)
             {
                 <section class="hf-card hf-diagnosis" aria-labelledby="job-details-diagnosis">
@@ -211,9 +212,9 @@
                         <h3 id="job-details-diagnosis"><span class="glyphicon glyphicon-search"></span> @Strings.Diagnostics_Title <small class="text-muted">@Strings.Diagnostics_Hint</small></h3>
                     </div>
                     <ul class="hf-diagnosis-list">
-                        @foreach (var finding in findings)
+                        @foreach (JobDiagnostic finding in findings)
                         {
-                            var icon = finding.Severity == JobDiagnosticSeverity.Problem ? "remove-sign" : finding.Severity == JobDiagnosticSeverity.Warning ? "warning-sign" : "info-sign";
+                            string icon = finding.Severity == JobDiagnosticSeverity.Problem ? "remove-sign" : finding.Severity == JobDiagnosticSeverity.Warning ? "warning-sign" : "info-sign";
                             <li class="hf-diagnosis-item hf-diagnosis-@finding.Severity.ToString().ToLowerInvariant()" data-code="@finding.Code">
                                 <span class="hf-diagnosis-icon glyphicon glyphicon-@icon" aria-hidden="true"></span>
                                 <span class="hf-diagnosis-text">
@@ -230,8 +231,8 @@
             }
 
             @* Notes and acknowledgements *@
-            var notes = job.Properties.TryGetValue(JobNotes.ParameterName, out var notesJson) ? JobNotes.Parse(notesJson) : (IReadOnlyList<JobNote>)new List<JobNote>();
-            var acknowledgement = JobNotes.GetAcknowledgement(notes);
+            IReadOnlyList<JobNote> notes = job.Properties.TryGetValue(JobNotes.ParameterName, out string? notesJson) ? JobNotes.Parse(notesJson) : (IReadOnlyList<JobNote>)new List<JobNote>();
+            JobNote? acknowledgement = JobNotes.GetAcknowledgement(notes);
             <section class="hf-card hf-notes" aria-labelledby="job-details-notes">
                 <div class="hf-card-header">
                     <h3 id="job-details-notes">
@@ -247,7 +248,7 @@
                     {
                         <li class="hf-note hf-note-empty text-muted">@Strings.JobDetailsPage_Notes_Empty</li>
                     }
-                    @foreach (var note in notes)
+                    @foreach (JobNote note in notes)
                     {
                         <li class="hf-note @(note.Acknowledges ? "hf-note-ack" : null)">
                             <div class="hf-note-meta">
@@ -285,7 +286,7 @@
             </section>
 
             @* Lineage: the continuation graph around this job *@
-            var lineage = JobLineage.Build(monitor, JobId, job);
+            JobLineage lineage = JobLineage.Build(monitor, JobId, job);
             if (lineage.HasRelatives)
             {
                 <section class="hf-card hf-lineage" aria-labelledby="job-details-lineage">
@@ -306,21 +307,21 @@
             IReadOnlyList<JobConsoleEntry> consoleEntries;
             JobProgress? progress;
 
-            using (var connection = Storage.GetReadOnlyConnection())
+            using (IStorageConnection connection = Storage.GetReadOnlyConnection())
             {
                 consoleEntries = JobConsole.ReadEntries(connection, JobId);
                 progress = JobConsole.ReadProgress(connection, JobId);
             }
 
-            var isProcessing = currentState.StateName == ProcessingState.StateName;
-            var liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out var startedAtValue)
+            bool isProcessing = currentState.StateName == ProcessingState.StateName;
+            DateTime? liveStartedAt = isProcessing && currentState.Data.TryGetValue("StartedAt", out string? startedAtValue)
                 ? JobHelper.DeserializeNullableDateTime(startedAtValue)
                 : null;
 
             if (isProcessing || progress != null || consoleEntries.Count > 0)
             {
-                var percent = progress != null ? progress.Percent : (currentState.StateName == SucceededState.StateName ? 100 : 0);
-                var barClass = currentState.StateName == FailedState.StateName ? "progress-bar-danger"
+                double percent = progress != null ? progress.Percent : (currentState.StateName == SucceededState.StateName ? 100 : 0);
+                string barClass = currentState.StateName == FailedState.StateName ? "progress-bar-danger"
                     : currentState.StateName == SucceededState.StateName ? "progress-bar-success"
                     : isProcessing ? "progress-bar-striped active" : "";
 
@@ -354,9 +355,9 @@
                                 {
                                     <div class="job-console-empty text-muted js-live-console-empty">@Strings.JobDetailsPage_NoConsoleOutput</div>
                                 }
-                                @foreach (var entry in consoleEntries)
+                                @foreach (JobConsoleEntry entry in consoleEntries)
                                 {
-                                    var entryTime = JobConsole.FromTimestamp(entry.Timestamp);
+                                    DateTime entryTime = JobConsole.FromTimestamp(entry.Timestamp);
                                     if (entry.Checkpoint != null)
                                     {
                                         <div class="job-console-line job-console-checkpoint"><span class="job-console-time" data-live-time="@entry.Timestamp">@entryTime.ToString("HH:mm:ss")</span><span class="glyphicon glyphicon-flag"></span> @entry.Checkpoint</div>
@@ -373,9 +374,9 @@
                             <ol class="job-checkpoints js-live-checkpoints">
                                 @{
                                     long? previousCheckpoint = null;
-                                    foreach (var entry in consoleEntries.Where(x => x.Checkpoint != null))
+                                    foreach (JobConsoleEntry entry in consoleEntries.Where(x => x.Checkpoint != null))
                                     {
-                                        var delta = previousCheckpoint.HasValue ? TimeSpan.FromMilliseconds(entry.Timestamp - previousCheckpoint.Value) : (TimeSpan?)null;
+                                        TimeSpan? delta = previousCheckpoint.HasValue ? TimeSpan.FromMilliseconds(entry.Timestamp - previousCheckpoint.Value) : (TimeSpan?)null;
                                         <li><span class="job-checkpoint-name">@entry.Checkpoint</span><span class="text-muted job-checkpoint-delta">@(delta.HasValue ? "+" + Html.ToHumanDuration(delta, false) : JobConsole.FromTimestamp(entry.Timestamp).ToString("HH:mm:ss"))</span></li>
                                         previousCheckpoint = entry.Timestamp;
                                     }
@@ -386,14 +387,14 @@
                 </div>
             }
 
-            var displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != FanInContinuationsSupportAttribute.ParameterName && x.Key != JobConsole.ProgressParameter && x.Key != JobConsole.MarkerParameter && x.Key != JobTags.ParameterName && x.Key != BatchJob.ParameterName && x.Key != BatchJob.ContinuationParameterName && x.Key != JobNotes.ParameterName
+            KeyValuePair<string, string>[] displayParameters = job.Properties.Where(x => !x.Key.StartsWith("DBG_") && x.Key != "Continuations" && x.Key != FanInContinuationsSupportAttribute.ParameterName && x.Key != JobConsole.ProgressParameter && x.Key != JobConsole.MarkerParameter && x.Key != JobTags.ParameterName && x.Key != BatchJob.ParameterName && x.Key != BatchJob.ContinuationParameterName && x.Key != JobNotes.ParameterName
                 && x.Key != DeadlineAttribute.DeadlineAtParameter && x.Key != DeadlineAttribute.DeadlineMissedParameter).ToArray();
 
             if (displayParameters.Length > 0)
             {
                 <h3 id="job-details-parameters">@Strings.JobDetailsPage_Parameters</h3>
                 <table class="table table-condensed job-snippet-properties" aria-describedby="job-details-parameters">
-                    @foreach (var parameter in displayParameters)
+                    @foreach (KeyValuePair<string, string> parameter in displayParameters)
                     {
                         <tr>
                             <td class="width-20 word-break">@parameter.Key</td>
@@ -403,9 +404,9 @@
                 </table>
             }
 
-            if (job.Properties.TryGetValue("Continuations", out var serializedContinuations))
+            if (job.Properties.TryGetValue("Continuations", out string? serializedContinuations))
             {
-                var continuations = ContinuationsSupportAttribute.DeserializeContinuations(serializedContinuations);
+                List<ContinuationsSupportAttribute.Continuation> continuations = ContinuationsSupportAttribute.DeserializeContinuations(serializedContinuations);
 
                 if (continuations.Count > 0)
                 {
@@ -422,11 +423,11 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach (var continuation in continuations)
+                            @foreach (ContinuationsSupportAttribute.Continuation continuation in continuations)
                             {
                                 JobData? jobData;
 
-                                using (var connection = Storage.GetReadOnlyConnection())
+                                using (IStorageConnection connection = Storage.GetReadOnlyConnection())
                                 {
                                     jobData = connection.GetJobData(continuation.JobId);
                                 }
@@ -452,9 +453,9 @@
                 }
             }
 
-            if (job.Properties.TryGetValue(FanInContinuationsSupportAttribute.ParameterName, out var serializedFanIn))
+            if (job.Properties.TryGetValue(FanInContinuationsSupportAttribute.ParameterName, out string? serializedFanIn))
             {
-                var fanInChildren = FanInContinuationsSupportAttribute.Parse(serializedFanIn);
+                List<string> fanInChildren = FanInContinuationsSupportAttribute.Parse(serializedFanIn);
 
                 if (fanInChildren.Count > 0)
                 {
@@ -470,11 +471,11 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach (var childId in fanInChildren)
+                            @foreach (string childId in fanInChildren)
                             {
                                 JobData? childData;
 
-                                using (var connection = Storage.GetReadOnlyConnection())
+                                using (IStorageConnection connection = Storage.GetReadOnlyConnection())
                                 {
                                     childData = connection.GetJobData(childId);
                                 }
@@ -501,7 +502,7 @@
 
             if (dto != null)
             {
-                foreach (var renderer in JobDetailsRenderer.GetRenderers())
+                foreach (Tuple<int, Func<JobDetailsRendererDto, NonEscapedString>> renderer in JobDetailsRenderer.GetRenderers())
                 {
                     try
                     {
@@ -517,9 +518,9 @@
             }
 
             @* Time in each state, oldest first; the current state runs until now unless it is final *@
-            var chronological = job.History.Reverse().ToList();
-            var segments = new List<KeyValuePair<string, TimeSpan>>();
-            for (var s = 0; s < chronological.Count - 1; s++)
+            List<StateHistoryDto> chronological = job.History.Reverse().ToList();
+            List<KeyValuePair<string, TimeSpan>> segments = [];
+            for (int s = 0; s < chronological.Count - 1; s++)
             {
                 segments.Add(new KeyValuePair<string, TimeSpan>(chronological[s].StateName, chronological[s + 1].CreatedAt - chronological[s].CreatedAt));
             }
@@ -527,14 +528,14 @@
             {
                 segments.Add(new KeyValuePair<string, TimeSpan>(currentState.StateName, (StorageUtcNow ?? ApplicationUtcNow) - currentState.CreatedAt));
             }
-            var segmentTotal = segments.Sum(x => Math.Max(0, x.Value.TotalMilliseconds));
+            double segmentTotal = segments.Sum(x => Math.Max(0, x.Value.TotalMilliseconds));
             if (segments.Count > 1 && segmentTotal > 0)
             {
                 <div class="hf-state-bar" title="@Strings.JobDetailsPage_StateTimeline">
-                    @foreach (var segment in segments)
+                    @foreach (KeyValuePair<string, TimeSpan> segment in segments)
                     {
-                        var share = Math.Max(1.5, 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal);
-                        var color = JobHistoryRenderer.GetForegroundStateColor(segment.Key);
+                        double share = Math.Max(1.5, 100.0 * Math.Max(0, segment.Value.TotalMilliseconds) / segmentTotal);
+                        string color = JobHistoryRenderer.GetForegroundStateColor(segment.Key);
                         // A state without a color (Created, or a custom state without a CSS suffix) sits on the bar's neutral track
                         <span class="hf-state-seg@(color == "inherit" ? " hf-state-seg-neutral" : null)" style="width: @share.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%; background: @color" title="@segment.Key: @Html.ToHumanDuration(segment.Value, false)"><em>@segment.Key</em></span>
                     }
@@ -568,12 +569,12 @@
                 @Strings.JobDetailsPage_State
             </h3>
 
-            var index = 0;
+            int index = 0;
 
-            foreach (var entry in job.History)
+            foreach (StateHistoryDto entry in job.History)
             {
                 // The current state uses its CSS suffix, else the neutral card
-                var cardCss = index == 0 ? JobHistoryRenderer.GetStateCssSuffix(entry.StateName) : null;
+                string? cardCss = index == 0 ? JobHistoryRenderer.GetStateCssSuffix(entry.StateName) : null;
 
                 <div class="state-card @(cardCss != null ? "state-card-state-" + cardCss : null)">
                     <h4 class="state-card-title">
@@ -584,7 +585,7 @@
                             }
                             else
                             {
-                                var duration = Html.ToHumanDuration(entry.CreatedAt - job.History[index + 1].CreatedAt);
+                                string? duration = Html.ToHumanDuration(entry.CreatedAt - job.History[index + 1].CreatedAt);
 
                                 if (index == 0)
                                 {
@@ -606,7 +607,7 @@
                     }
 
                     @{
-                        var rendered = Html.RenderHistory(entry.StateName, entry.Data);
+                        NonEscapedString? rendered = Html.RenderHistory(entry.StateName, entry.Data);
                     }
 
                     @if (rendered != null)

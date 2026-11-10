@@ -54,10 +54,10 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         {
             _storage.UseTransaction(_connection.DedicatedConnection, static (storage, connection, transaction, ctx) =>
             {
-                using var commandBatch = new SqlCommandBatch(connection, transaction, preferBatching: storage.CommandBatchMaxTimeout.HasValue);
+                using SqlCommandBatch commandBatch = new(connection, transaction, preferBatching: storage.CommandBatchMaxTimeout.HasValue);
                 commandBatch.Append(connection.Create("set xact_abort on;set nocount on;"));
 
-                foreach (var lockedResource in ctx._lockedResources)
+                foreach (string lockedResource in ctx._lockedResources)
                 {
                     commandBatch.Append(connection
                         .Create("exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive'")
@@ -71,7 +71,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                 AppendBatch(ctx._setCommands, commandBatch);
                 AppendBatch(ctx._queueCommands, commandBatch);
 
-                foreach (var command in ctx._lockCommands)
+                foreach (Tuple<DbCommand, DbParameter, string> command in ctx._lockCommands)
                 {
                     commandBatch.Append(command.Item1);
                 }
@@ -80,21 +80,21 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                 commandBatch.CommandBatchMaxTimeout = storage.CommandBatchMaxTimeout;
 
                 commandBatch.ExecuteNonQuery();
-                foreach (var acquiredLock in ctx._acquiredLocks)
+                foreach (SqlServerConnection.DisposableLock acquiredLock in ctx._acquiredLocks)
                 {
                     acquiredLock.TryReportReleased();
                 }
 
-                foreach (var lockCommand in ctx._lockCommands)
+                foreach (Tuple<DbCommand, DbParameter, string> lockCommand in ctx._lockCommands)
                 {
-                    var releaseResult = lockCommand.Item2.GetParameterValue<int?>();
+                    int? releaseResult = lockCommand.Item2.GetParameterValue<int?>();
                     if (releaseResult.HasValue && releaseResult.Value < 0)
                     {
                         throw new SqlServerDistributedLockException($"Could not release a lock on the resource '{lockCommand.Item3}': Server returned the '{releaseResult}' error.");
                     }
                 }
 
-                foreach (var queueCommand in ctx._queueCommandQueue)
+                foreach (Action<DbConnection, DbTransaction> queueCommand in ctx._queueCommandQueue)
                 {
                     queueCommand(connection, transaction);
                 }
@@ -104,7 +104,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         }
         finally
         {
-            foreach (var acquiredLock in _acquiredLocks)
+            foreach (SqlServerConnection.DisposableLock acquiredLock in _acquiredLocks)
             {
                 acquiredLock.Dispose();
             }
@@ -115,7 +115,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
     public override void Dispose()
     {
-        foreach (var acquiredLock in _acquiredLocks)
+        foreach (SqlServerConnection.DisposableLock acquiredLock in _acquiredLocks)
         {
             acquiredLock.Dispose();
         }
@@ -127,13 +127,13 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
 
-        var disposableLock = _connection.AcquireLock($"{_storage.SchemaName}:{resource}", timeout);
+        SqlServerConnection.DisposableLock disposableLock = _connection.AcquireLock($"{_storage.SchemaName}:{resource}", timeout);
         if (disposableLock.OwnLock)
         {
-            var command = SqlServerDistributedLock.CreateReleaseCommand(
+            DbCommand command = SqlServerDistributedLock.CreateReleaseCommand(
                 _connection.DedicatedConnection!, // A lock owned here holds a dedicated connection
                 disposableLock.Resource,
-                out var resultParameter);
+                out DbParameter? resultParameter);
 
             _lockCommands.Add(Tuple.Create(command, resultParameter, disposableLock.Resource));
         }
@@ -145,10 +145,10 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     {
         ArgumentNullException.ThrowIfNull(jobId);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime)
@@ -159,10 +159,10 @@ $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) 
     {
         ArgumentNullException.ThrowIfNull(jobId);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@id", longId, DbType.Int64));
@@ -174,14 +174,14 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         ArgumentNullException.ThrowIfNull(state);
         SqlServerLimits.EnsureStateNameFits(state.Name);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
             values (@jobId, @name, @reason, @createdAt, @data);
             update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name where Id = @jobId;
             """);
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
@@ -197,13 +197,13 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         ArgumentNullException.ThrowIfNull(state);
         SqlServerLimits.EnsureStateNameFits(state.Name);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             insert into [{schemaName}].State (JobId, Name, Reason, CreatedAt, Data)
             values (@jobId, @name, @reason, @createdAt, @data)
             """);
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
@@ -218,15 +218,15 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(jobId);
 
-        var provider = _storage.QueueProviders.GetProvider(queue);
-        var persistentQueue = provider.GetJobQueue();
+        IPersistentJobQueueProvider provider = _storage.QueueProviders.GetProvider(queue);
+        IPersistentJobQueue persistentQueue = provider.GetJobQueue();
 
         if (persistentQueue.GetType() == typeof(SqlServerJobQueue))
         {
             SqlServerLimits.EnsureQueueNameFits(queue);
-            if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+            if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
-            var query = _storage.GetQueryFromTemplate(static schemaName =>
+            string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
             AddCommand(_queueCommands, queue, batch => batch.Create(query)
@@ -250,7 +250,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         ArgumentNullException.ThrowIfNull(key);
         SqlServerLimits.EnsureKeyFits(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
 
         AddCommand(_counterCommands, key, batch => batch.Create(query)
@@ -263,7 +263,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
         ArgumentNullException.ThrowIfNull(key);
         SqlServerLimits.EnsureKeyFits(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key, @value, @expireAt)");
 
         AddCommand(_counterCommands, key, batch => batch.Create(query)
@@ -277,7 +277,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
         ArgumentNullException.ThrowIfNull(key);
         SqlServerLimits.EnsureKeyFits(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
 
         AddCommand(_counterCommands, key, batch => batch.Create(query)
@@ -290,7 +290,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value]) values (@key, @value)");
         ArgumentNullException.ThrowIfNull(key);
         SqlServerLimits.EnsureKeyFits(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key, @value, @expireAt)");
 
         AddCommand(_counterCommands, key, batch => batch.Create(query)
@@ -311,7 +311,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
         SqlServerLimits.EnsureKeyFits(key);
         SqlServerLimits.EnsureSetValueFits(key, value);
 
-        var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
+        string query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
             ? static schemaName => $"""
                 insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, @score);
                 if @@ROWCOUNT = 0 update [{schemaName}].[Set] set Score = @score where [Key] = @key and Value = @value;
@@ -340,7 +340,7 @@ $@"insert into [{schemaName}].Counter ([Key], [Value], [ExpireAt]) values (@key,
         // The value parameter is sized to the column, so a longer value would be cut and match another one
         SqlServerLimits.EnsureSetValueFits(key, value);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and Value = @value");
 
         AcquireSetLock(key);
@@ -361,7 +361,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and 
         // (one seek on [Key], [Id]) keeps the cost and the locks independent of the list's size, where reading
         // every row escalated to an exclusive lock on the whole table for long lists. Its xlock still
         // serializes concurrent inserts to the same list
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             insert into [{schemaName}].List ([Key], Value, ExpireAt)
             select @key, @value, (
                 select top (1) ExpireAt from [{schemaName}].List with (xlock, forceseek)
@@ -380,7 +380,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key and 
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(value);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and Value = @value");
 
         AcquireListLock(key);
@@ -393,7 +393,7 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             ;with cte as (
                 select row_number() over (order by Id desc) as row_num
@@ -417,13 +417,13 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
         SqlServerLimits.EnsureKeyFits(key);
 
         // Checked before any command is queued, so a bad field doesn't leave half of the fields behind
-        var pairs = new List<KeyValuePair<string, string>>(keyValuePairs);
-        foreach (var pair in pairs)
+        List<KeyValuePair<string, string>> pairs = [.. keyValuePairs];
+        foreach (KeyValuePair<string, string> pair in pairs)
         {
             SqlServerLimits.EnsureHashFieldFits(key, pair.Key);
         }
 
-        var query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
+        string query = _storage.GetQueryFromTemplate(_storage.UseIgnoreDupKeyOption
             ? static schemaName => $"""
                 insert into [{schemaName}].Hash ([Key], Field, Value) values (@key, @field, @value);
                 if @@ROWCOUNT = 0 update [{schemaName}].Hash set Value = @value where [Key] = @key and Field = @field;
@@ -439,7 +439,7 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
 
         AcquireHashLock(key);
 
-        foreach (var pair in pairs)
+        foreach (KeyValuePair<string, string> pair in pairs)
         {
             AddCommand(_hashCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
@@ -452,7 +452,7 @@ $@"delete L from [{schemaName}].List L with (forceseek) where [Key] = @key and V
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
 
         AcquireHashLock(key);
@@ -466,18 +466,18 @@ $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
         ArgumentNullException.ThrowIfNull(items);
         SqlServerLimits.EnsureKeyFits(key);
 
-        foreach (var item in items)
+        foreach (string item in items)
         {
             if (item == null) throw new ArgumentException("The items can't contain null.", nameof(items));
             SqlServerLimits.EnsureSetValueFits(key, item, nameof(items));
         }
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, 0.0)");
 
         AcquireSetLock(key);
 
-        foreach (var item in items)
+        foreach (string item in items)
         {
             AddCommand(_setCommands, key, batch => batch.Create(query)
                 .AddParameter("@key", key, DbType.String)
@@ -489,7 +489,7 @@ $@"insert into [{schemaName}].[Set] ([Key], Value, Score) values (@key, @value, 
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
 
         AcquireSetLock(key);
@@ -500,7 +500,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].[Hash] set ExpireAt = @expireAt where [Key] = @key
             """);
 
@@ -514,7 +514,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].[Set] set ExpireAt = @expireAt where [Key] = @key
             """);
 
@@ -528,7 +528,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].[List] set ExpireAt = @expireAt where [Key] = @key
             """);
 
@@ -542,7 +542,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].Hash set ExpireAt = null where [Key] = @key
             """);
 
@@ -554,7 +554,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].[Set] set ExpireAt = null where [Key] = @key
             """);
 
@@ -566,7 +566,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             update [{schemaName}].[List] set ExpireAt = null where [Key] = @key
             """);
 
@@ -580,7 +580,7 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
 
         if (fetchedJob is SqlServerTimeoutJob timeoutJob)
         {
-            var query = _storage.GetQueryFromTemplate(static schemaName =>
+            string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Queue = @queue and Id = @id and FetchedAt = @fetchedAt");
 
             AddCommand(_queueCommands, timeoutJob.Queue, batch => batch.Create(query)
@@ -602,11 +602,11 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
         SqlCommandBatch batch)
         where TKey : notnull
     {
-        foreach (var pair in collection)
+        foreach (KeyValuePair<TKey, List<Func<DbConnection, DbCommand>>> pair in collection)
         {
-            foreach (var command in pair.Value)
+            foreach (Func<DbConnection, DbCommand> command in pair.Value)
             {
-                var dbCommand = command(batch.Connection);
+                DbCommand dbCommand = command(batch.Connection);
                 batch.Append(dbCommand);
             }
         }
@@ -618,7 +618,7 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
         Func<DbConnection, DbCommand> command)
         where TKey : notnull
     {
-        if (!collection.TryGetValue(key, out var commands))
+        if (!collection.TryGetValue(key, out List<Func<DbConnection, DbCommand>>? commands))
         {
             commands = [];
             collection.Add(key, commands);
@@ -652,9 +652,9 @@ $@"delete JQ from [{schemaName}].JobQueue JQ with (forceseek, rowlock) where Que
 
     private void TrySignalListeningWorkers()
     {
-        foreach (var queue in _queuesToSignal)
+        foreach (string queue in _queuesToSignal)
         {
-            if (SqlServerJobQueue.NewItemInQueueEvents.TryGetValue(Tuple.Create(_storage, queue), out var signal))
+            if (SqlServerJobQueue.NewItemInQueueEvents.TryGetValue(Tuple.Create(_storage, queue), out AutoResetEvent? signal))
             {
                 signal.Set();
             }

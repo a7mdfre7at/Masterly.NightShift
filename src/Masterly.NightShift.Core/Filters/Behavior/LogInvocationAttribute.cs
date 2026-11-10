@@ -14,9 +14,9 @@ public sealed class LogInvocationAttribute : AsyncJobInterceptorAttribute
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
-        var console = invocation.Context.Console;
-        var invoker = invocation.Invoker;
-        var stopwatch = Stopwatch.StartNew();
+        IJobConsole console = invocation.Context.Console;
+        JobInvoker invoker = invocation.Invoker;
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         console.WriteLine(JobConsoleLevel.Debug, $"Starting {invocation.Job.Type.ToGenericTypeString()}.{invoker.MethodName} ({invoker.Kind} invoker)");
 

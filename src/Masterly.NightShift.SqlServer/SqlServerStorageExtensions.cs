@@ -45,7 +45,7 @@ public static class SqlServerStorageExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(connectionString);
 
-            var storage = new SqlServerStorage(connectionString);
+            SqlServerStorage storage = new(connectionString);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
 
@@ -65,7 +65,7 @@ public static class SqlServerStorageExtensions
             ArgumentNullException.ThrowIfNull(connectionString);
             ArgumentNullException.ThrowIfNull(options);
 
-            var storage = new SqlServerStorage(connectionString, options);
+            SqlServerStorage storage = new(connectionString, options);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
 
@@ -83,7 +83,7 @@ public static class SqlServerStorageExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(connectionFactory);
 
-            var storage = new SqlServerStorage(connectionFactory);
+            SqlServerStorage storage = new(connectionFactory);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
 
@@ -103,7 +103,7 @@ public static class SqlServerStorageExtensions
             ArgumentNullException.ThrowIfNull(connectionFactory);
             ArgumentNullException.ThrowIfNull(options);
 
-            var storage = new SqlServerStorage(connectionFactory, options);
+            SqlServerStorage storage = new(connectionFactory, options);
             return configuration.UseStorage(storage).UseSqlServerStorageCommonMetrics();
         }
     }

@@ -42,7 +42,7 @@ internal sealed class SqlServerHeartbeatProcess : IBackgroundProcess
 
     public void Execute(CancellationToken cancellationToken)
     {
-        foreach (var item in _items)
+        foreach (KeyValuePair<SqlServerTimeoutJob, object> item in _items)
         {
             item.Key.ExecuteKeepAliveQueryIfRequired();
         }

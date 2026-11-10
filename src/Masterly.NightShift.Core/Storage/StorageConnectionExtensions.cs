@@ -72,7 +72,7 @@ public static class StorageConnectionExtensions
         {
             ArgumentNullException.ThrowIfNull(connection);
 
-            var ids = connection.GetRecurringJobIds(startingFrom, endingAt);
+            List<string> ids = connection.GetRecurringJobIds(startingFrom, endingAt);
             return GetRecurringJobDtos(connection, ids);
         }
     }
@@ -83,7 +83,7 @@ public static class StorageConnectionExtensions
         {
             ArgumentNullException.ThrowIfNull(connection);
 
-            var ids = connection.GetAllItemsFromSet("recurring-jobs");
+            HashSet<string> ids = connection.GetAllItemsFromSet("recurring-jobs");
             return GetRecurringJobDtos(connection, ids);
         }
 
@@ -96,10 +96,10 @@ public static class StorageConnectionExtensions
 
     private static List<RecurringJobDto> GetRecurringJobDtos(IStorageConnection connection, IEnumerable<string> ids)
     {
-        var result = new List<RecurringJobDto>();
-        foreach (var id in ids)
+        List<RecurringJobDto> result = [];
+        foreach (string id in ids)
         {
-            var hash = connection.GetAllEntriesFromHash($"recurring-job:{id}");
+            Dictionary<string, string>? hash = connection.GetAllEntriesFromHash($"recurring-job:{id}");
 
             // TODO: Remove this in 2.0 (breaking change)
             if (hash == null)
@@ -108,18 +108,18 @@ public static class StorageConnectionExtensions
                 continue;
             }
 
-            var dto = new RecurringJobDto { Id = id };
+            RecurringJobDto dto = new() { Id = id };
 
-            if (hash.TryGetValue("Cron", out var cron) && !string.IsNullOrWhiteSpace(cron))
+            if (hash.TryGetValue("Cron", out string? cron) && !string.IsNullOrWhiteSpace(cron))
             {
                 dto.Cron = cron;
             }
 
             try
             {
-                if (hash.TryGetValue("Job", out var payload) && !string.IsNullOrWhiteSpace(payload))
+                if (hash.TryGetValue("Job", out string? payload) && !string.IsNullOrWhiteSpace(payload))
                 {
-                    var invocationData = InvocationData.DeserializePayload(payload);
+                    InvocationData invocationData = InvocationData.DeserializePayload(payload);
                     dto.Job = invocationData.DeserializeJob();
                 }
             }
@@ -128,49 +128,49 @@ public static class StorageConnectionExtensions
                 dto.LoadException = ex;
             }
 
-            if (hash.TryGetValue("NextExecution", out var nextExecution))
+            if (hash.TryGetValue("NextExecution", out string? nextExecution))
             {
                 dto.NextExecution = JobHelper.DeserializeNullableDateTime(nextExecution);
             }
 
-            if (hash.TryGetValue("LastJobId", out var lastJobId) && !string.IsNullOrWhiteSpace(lastJobId))
+            if (hash.TryGetValue("LastJobId", out string? lastJobId) && !string.IsNullOrWhiteSpace(lastJobId))
             {
                 dto.LastJobId = lastJobId;
 
-                var stateData = connection.GetStateData(dto.LastJobId);
+                StateData? stateData = connection.GetStateData(dto.LastJobId);
                 if (stateData != null)
                 {
                     dto.LastJobState = stateData.Name;
                 }
             }
 
-            if (hash.TryGetValue("Queue", out var queue))
+            if (hash.TryGetValue("Queue", out string? queue))
             {
                 dto.Queue = queue;
             }
 
-            if (hash.TryGetValue("LastExecution", out var lastExecution))
+            if (hash.TryGetValue("LastExecution", out string? lastExecution))
             {
                 dto.LastExecution = JobHelper.DeserializeNullableDateTime(lastExecution);
             }
 
-            if (hash.TryGetValue("TimeZoneId", out var timeZoneId))
+            if (hash.TryGetValue("TimeZoneId", out string? timeZoneId))
             {
                 dto.TimeZoneId = timeZoneId;
             }
 
-            if (hash.TryGetValue("CreatedAt", out var createdAt))
+            if (hash.TryGetValue("CreatedAt", out string? createdAt))
             {
                 dto.CreatedAt = JobHelper.DeserializeNullableDateTime(createdAt);
             }
 
-            if (hash.TryGetValue("Error", out var error) && !string.IsNullOrEmpty(error))
+            if (hash.TryGetValue("Error", out string? error) && !string.IsNullOrEmpty(error))
             {
                 dto.Error = error;
             }
 
-            if (hash.TryGetValue("RetryAttempt", out var attemptString) &&
-                int.TryParse(attemptString, out var retryAttempt))
+            if (hash.TryGetValue("RetryAttempt", out string? attemptString) &&
+                int.TryParse(attemptString, out int retryAttempt))
             {
                 dto.RetryAttempt = retryAttempt;
             }
@@ -179,12 +179,12 @@ public static class StorageConnectionExtensions
                 dto.RetryAttempt = 0;
             }
 
-            if (hash.TryGetValue("Paused", out var paused) && paused == "1")
+            if (hash.TryGetValue("Paused", out string? paused) && paused == "1")
             {
                 dto.Paused = true;
             }
 
-            if (hash.TryGetValue("Misfire", out var misfire) && int.TryParse(misfire, out var misfireValue) &&
+            if (hash.TryGetValue("Misfire", out string? misfire) && int.TryParse(misfire, out int misfireValue) &&
                 Enum.IsDefined(typeof(MisfireHandlingMode), misfireValue))
             {
                 dto.MisfireHandling = (MisfireHandlingMode)misfireValue;
@@ -202,7 +202,7 @@ public static class StorageConnectionExtensions
     // A damaged value reads as no value here: the list must still show the job, and the scheduler reports it
     private static DateTime? GetWindowValue(Dictionary<string, string> hash, string field)
     {
-        if (!hash.TryGetValue(field, out var value) || string.IsNullOrWhiteSpace(value)) return null;
+        if (!hash.TryGetValue(field, out string? value) || string.IsNullOrWhiteSpace(value)) return null;
 
         try
         {

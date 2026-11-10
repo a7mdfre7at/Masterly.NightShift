@@ -19,9 +19,9 @@ internal static class JobCodeRenderer
     {
         if (job == null) return "// The job could not be loaded.";
 
-        var builder = new StringBuilder();
-        var method = job.Method;
-        var parameters = method.GetParameters();
+        StringBuilder builder = new();
+        MethodInfo method = job.Method;
+        ParameterInfo[] parameters = method.GetParameters();
 
         builder.Append("BackgroundJob.Enqueue");
 
@@ -43,10 +43,10 @@ internal static class JobCodeRenderer
 
         builder.Append('(');
 
-        var arguments = new List<string>(parameters.Length);
-        for (var i = 0; i < parameters.Length; i++)
+        List<string> arguments = new(parameters.Length);
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
+            ParameterInfo parameter = parameters[i];
 
             if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType))
             {
@@ -60,11 +60,11 @@ internal static class JobCodeRenderer
                 continue;
             }
 
-            var raw = i < job.Args.Count ? job.Args[i] : null;
+            object? raw = i < job.Args.Count ? job.Args[i] : null;
             arguments.Add(Literal(raw, parameter.ParameterType));
         }
 
-        var inline = string.Join(", ", arguments);
+        string inline = string.Join(", ", arguments);
         if (inline.Length > 80)
         {
             builder.AppendLine();
@@ -86,7 +86,7 @@ internal static class JobCodeRenderer
         ArgumentNullException.ThrowIfNull(type);
         if (value == null) return "null";
 
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
         switch (value)
         {
@@ -152,7 +152,7 @@ internal static class JobCodeRenderer
 
     internal static string TypeName(Type type)
     {
-        var underlying = Nullable.GetUnderlyingType(type);
+        Type? underlying = Nullable.GetUnderlyingType(type);
         if (underlying != null) return TypeName(underlying) + "?";
 
         if (type == typeof(string)) return "string";
@@ -166,7 +166,7 @@ internal static class JobCodeRenderer
 
         if (type.GetTypeInfo().IsGenericType)
         {
-            var name = type.Name[..type.Name.IndexOf('`')];
+            string name = type.Name[..type.Name.IndexOf('`')];
             return $"{name}<{string.Join(", ", type.GetTypeInfo().GetGenericArguments().Select(TypeName))}>";
         }
 

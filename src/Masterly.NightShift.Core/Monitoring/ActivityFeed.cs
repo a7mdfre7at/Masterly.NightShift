@@ -93,9 +93,9 @@ public static class ActivityFeed
             return [];
         }
 
-        var result = new List<ActivityEntry>(items.Count);
+        List<ActivityEntry> result = new(items.Count);
 
-        foreach (var serialized in items)
+        foreach (string serialized in items)
         {
             ActivityEntry? entry;
             try
@@ -128,7 +128,7 @@ public static class ActivityFeed
 
     internal static ActivityEntry Create(BackgroundJob backgroundJob, IState newState, string? oldStateName)
     {
-        var entry = new ActivityEntry
+        ActivityEntry entry = new()
         {
             Timestamp = (long)(Clock() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds,
             JobId = backgroundJob.Id,
@@ -167,8 +167,8 @@ public sealed class ActivityFeedFilter : JobFilterAttribute, IApplyStateFilter
         ArgumentNullException.ThrowIfNull(transaction);
         if (!ActivityFeed.Enabled) return;
 
-        var entry = ActivityFeed.Create(context.BackgroundJob, context.NewState, context.OldStateName);
-        var storage = context.Storage;
+        ActivityEntry entry = ActivityFeed.Create(context.BackgroundJob, context.NewState, context.OldStateName);
+        JobStorage storage = context.Storage;
 
         context.RunAfterCommit(() => ActivityFeed.Record(storage, entry));
     }

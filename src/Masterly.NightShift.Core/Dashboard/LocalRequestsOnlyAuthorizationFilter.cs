@@ -58,7 +58,7 @@ public class LocalRequestsOnlyAuthorizationFilter : IDashboardAuthorizationFilte
 
     private static bool IsForwarded(DashboardRequest request)
     {
-        foreach (var header in ForwardingHeaders)
+        foreach (string header in ForwardingHeaders)
         {
             if (!string.IsNullOrWhiteSpace(request.GetHeader(header)))
             {

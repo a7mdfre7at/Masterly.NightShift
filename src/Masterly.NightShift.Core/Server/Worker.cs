@@ -103,23 +103,23 @@ public class Worker : IBackgroundProcess
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        using var connection = context.Storage.GetConnection();
-        using var fetchedJob = connection.FetchNextJob([.. _queues], context.StoppingToken);
-        var requeueOnException = true;
-        var disposeAfterStateChange = new List<IDisposable>();
+        using IStorageConnection connection = context.Storage.GetConnection();
+        using IFetchedJob fetchedJob = connection.FetchNextJob([.. _queues], context.StoppingToken);
+        bool requeueOnException = true;
+        List<IDisposable> disposeAfterStateChange = [];
 
         try
         {
             BackgroundJob? backgroundJob = null;
 
-            using (var timeoutCts = new CancellationTokenSource(_jobInitializationWaitTimeout))
-            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            using (CancellationTokenSource timeoutCts = new(_jobInitializationWaitTimeout))
+            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 context.StoppingToken,
                 timeoutCts.Token))
             {
-                var processingState = new ProcessingState(context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()));
+                ProcessingState processingState = new(context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()));
 
-                var appliedState = TryChangeState(
+                IState? appliedState = TryChangeState(
                     context,
                     connection,
                     fetchedJob.JobId,
@@ -147,8 +147,8 @@ public class Worker : IBackgroundProcess
             // it was performed to guarantee that it was performed AT LEAST once.
             // It will be re-queued after the JobTimeout was expired.
 
-            var state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob!, disposeAfterStateChange, out var customData); // Loaded by the change to Processing above
-            var transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
+            IState? state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob!, disposeAfterStateChange, out IReadOnlyDictionary<string, object>? customData); // Loaded by the change to Processing above
+            bool transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
 
             if (state != null)
             {
@@ -181,7 +181,7 @@ public class Worker : IBackgroundProcess
         {
             if (context.IsStopping)
             {
-                var action = requeueOnException ? "It will be re-queued" : "It will be removed from queue later";
+                string action = requeueOnException ? "It will be re-queued" : "It will be removed from queue later";
                 _logger.Warn($"Worker stop requested while processing background job '{fetchedJob.JobId}'. {action}.");
             }
 
@@ -201,7 +201,7 @@ public class Worker : IBackgroundProcess
     private void DisposeAfterStateChange(List<IDisposable> disposables)
     {
         // In reverse order, like nested using blocks
-        for (var i = disposables.Count - 1; i >= 0; i--)
+        for (int i = disposables.Count - 1; i >= 0; i--)
         {
             try
             {
@@ -233,13 +233,13 @@ public class Worker : IBackgroundProcess
         abortToken.ThrowIfCancellationRequested();
 
         // At least one retry attempt should always be performed.
-        var maxRetryAttempts = _maxStateChangeAttempts > 0 ? _maxStateChangeAttempts : 1;
+        int maxRetryAttempts = _maxStateChangeAttempts > 0 ? _maxStateChangeAttempts : 1;
 
-        for (var retryAttempt = 0; retryAttempt < maxRetryAttempts; retryAttempt++)
+        for (int retryAttempt = 0; retryAttempt < maxRetryAttempts; retryAttempt++)
         {
             try
             {
-                var stateChangeContext = new StateChangeContext(
+                StateChangeContext stateChangeContext = new(
                     context.Storage,
                     connection,
                     null,
@@ -253,7 +253,7 @@ public class Worker : IBackgroundProcess
                     context.ServerId,
                     customData);
 
-                var resultingState = _stateChanger.ChangeState(stateChangeContext);
+                IState? resultingState = _stateChanger.ChangeState(stateChangeContext);
 
                 backgroundJob = stateChangeContext.ProcessedJob;
                 return resultingState;
@@ -274,7 +274,7 @@ public class Worker : IBackgroundProcess
             $"{_maxStateChangeAttempts} state change attempt(s) failed due to an exception, moving job to the FailedState",
             exception);
 
-        var failedStateContext = new StateChangeContext(
+        StateChangeContext failedStateContext = new(
             context.Storage,
             connection,
             null,
@@ -287,7 +287,7 @@ public class Worker : IBackgroundProcess
             _profiler,
             context.ServerId);
 
-        var failedResult = _stateChanger.ChangeState(failedStateContext);
+        IState? failedResult = _stateChanger.ChangeState(failedStateContext);
         backgroundJob = failedStateContext.ProcessedJob;
         return failedResult;
     }
@@ -318,7 +318,7 @@ public class Worker : IBackgroundProcess
         {
             if (backgroundJob == null)
             {
-                var jobData = connection.GetJobData(jobId);
+                JobData? jobData = connection.GetJobData(jobId);
                 if (jobData == null)
                 {
                     // Job expired just after moving to a processing state. This is an
@@ -332,20 +332,20 @@ public class Worker : IBackgroundProcess
                 backgroundJob = new BackgroundJob(jobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
             }
 
-            using var jobToken = new ServerJobCancellationToken(connection, backgroundJob.Id, context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()), context.StoppedToken);
+            using ServerJobCancellationToken jobToken = new(connection, backgroundJob.Id, context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()), context.StoppedToken);
             // Filters that change the job's state themselves (Throttle, RateLimit, CircuitBreaker) use this
             // worker's state changer, and with it the server's filter provider
-            var items = new Dictionary<string, object>
-                {
+            Dictionary<string, object> items = new()
+            {
                     { ConcurrencyControl.StateChangerItem, _stateChanger },
                     { DisposeAfterStateChangeItem, disposeAfterStateChange },
                 };
-            var performContext = new PerformContext(context.Storage, connection, backgroundJob, jobToken, _profiler, context.ServerId, items);
+            PerformContext performContext = new(context.Storage, connection, backgroundJob, jobToken, _profiler, context.ServerId, items);
 
-            var latency = (JobClock.UtcNow - backgroundJob.CreatedAt).TotalMilliseconds;
-            var duration = Stopwatch.StartNew();
+            double latency = (JobClock.UtcNow - backgroundJob.CreatedAt).TotalMilliseconds;
+            Stopwatch duration = Stopwatch.StartNew();
 
-            var result = _performer.Perform(performContext);
+            object? result = _performer.Perform(performContext);
             duration.Stop();
 
             // A thread the job started may still use the items (PerformContext.Console adds to them under
@@ -367,7 +367,7 @@ public class Worker : IBackgroundProcess
             data.Remove(DisposeAfterStateChangeItem);
             customData = data;
 
-            return !data.TryGetValue(BackgroundJobPerformer.ContextCanceledKey, out var filter)
+            return !data.TryGetValue(BackgroundJobPerformer.ContextCanceledKey, out object? filter)
                 ? (IState)new SucceededState(result, (long)latency, duration.ElapsedMilliseconds)
                 : new DeletedState { Reason = $"Canceled by filter '{filter}'" };
         }

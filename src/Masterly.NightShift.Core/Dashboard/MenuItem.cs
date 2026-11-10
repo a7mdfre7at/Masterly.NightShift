@@ -36,7 +36,7 @@ public class MenuItem(string text, string url)
 
     public IEnumerable<DashboardMetric> GetAllMetrics()
     {
-        var metrics = new List<DashboardMetric> { Metric! }; // Nulls are removed below
+        List<DashboardMetric> metrics = [Metric!]; // Nulls are removed below
 
         if (Metrics != null)
         {

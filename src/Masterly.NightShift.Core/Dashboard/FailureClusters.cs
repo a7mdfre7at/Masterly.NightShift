@@ -1,3 +1,5 @@
+using Masterly.NightShift.Storage.Monitoring;
+
 namespace Masterly.NightShift.Dashboard;
 
 /// <summary>Failed jobs that share an exception type and a method.</summary>
@@ -46,23 +48,23 @@ internal static class FailureClusters
     {
         ArgumentNullException.ThrowIfNull(monitor);
 
-        var clusters = new Dictionary<string, FailureCluster>(StringComparer.Ordinal);
+        Dictionary<string, FailureCluster> clusters = new(StringComparer.Ordinal);
 
-        for (var from = 0; from < sampleSize; from += PageSize)
+        for (int from = 0; from < sampleSize; from += PageSize)
         {
-            var page = monitor.FailedJobs(from, Math.Min(PageSize, sampleSize - from));
+            JobList<FailedJobDto?> page = monitor.FailedJobs(from, Math.Min(PageSize, sampleSize - from));
             if (page == null || page.Count == 0) break;
 
-            foreach (var pair in page)
+            foreach (KeyValuePair<string, FailedJobDto?> pair in page)
             {
-                var job = pair.Value;
+                FailedJobDto? job = pair.Value;
                 if (job == null || !job.InFailedState) continue;
 
-                var exceptionType = string.IsNullOrEmpty(job.ExceptionType) ? "?" : job.ExceptionType;
-                var method = job.Job != null ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)}.{job.Job.Method.Name}" : "?";
-                var key = exceptionType + "|" + method;
+                string exceptionType = string.IsNullOrEmpty(job.ExceptionType) ? "?" : job.ExceptionType;
+                string method = job.Job != null ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)}.{job.Job.Method.Name}" : "?";
+                string key = exceptionType + "|" + method;
 
-                if (!clusters.TryGetValue(key, out var cluster))
+                if (!clusters.TryGetValue(key, out FailureCluster? cluster))
                 {
                     clusters[key] = cluster = new FailureCluster(exceptionType, method)
                     {

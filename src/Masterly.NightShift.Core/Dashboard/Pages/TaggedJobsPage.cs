@@ -11,15 +11,15 @@ internal partial class TaggedJobsPage(string tag)
     /// </summary>
     internal static bool ForgetExpired(DashboardContext context)
     {
-        var tag = RouteValues.Get(context, "Tag");
-        var from = int.TryParse(context.Request.GetQuery("from"), out var fromValue) ? fromValue : 0;
-        var perPage = int.TryParse(context.Request.GetQuery("count"), out var countValue) ? countValue : 0;
+        string tag = RouteValues.Get(context, "Tag");
+        int from = int.TryParse(context.Request.GetQuery("from"), out int fromValue) ? fromValue : 0;
+        int perPage = int.TryParse(context.Request.GetQuery("count"), out int countValue) ? countValue : 0;
 
         try
         {
-            using var connection = context.Storage.GetConnection();
-            var pager = new Pager(from, perPage, context.Options.DefaultRecordsPerPage, JobTags.Count(connection, tag));
-            var expired = new List<string>();
+            using IStorageConnection connection = context.Storage.GetConnection();
+            Pager pager = new(from, perPage, context.Options.DefaultRecordsPerPage, JobTags.Count(connection, tag));
+            List<string> expired = [];
 
             ReadJobs(connection, tag, pager, expired);
             JobTags.Forget(connection, tag, expired);
@@ -35,11 +35,11 @@ internal partial class TaggedJobsPage(string tag)
     /// <summary>Reads the jobs of one page of a tag. Ids of jobs that no longer exist go to <paramref name="expired"/>.</summary>
     internal static List<KeyValuePair<string, JobData>> ReadJobs(IStorageConnection connection, string tag, Pager pager, ICollection<string> expired)
     {
-        var jobs = new List<KeyValuePair<string, JobData>>();
+        List<KeyValuePair<string, JobData>> jobs = [];
 
-        foreach (var jobId in JobTags.GetJobIds(connection, tag, pager.FromRecord, pager.RecordsPerPage))
+        foreach (string jobId in JobTags.GetJobIds(connection, tag, pager.FromRecord, pager.RecordsPerPage))
         {
-            var data = connection.GetJobData(jobId);
+            JobData? data = connection.GetJobData(jobId);
             if (data == null)
             {
                 expired.Add(jobId);

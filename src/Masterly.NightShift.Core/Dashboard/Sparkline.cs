@@ -15,14 +15,14 @@ internal static class Sparkline
             return new NonEscapedString(string.Empty);
         }
 
-        var max = Math.Max(1, values.Max());
-        var count = values.Length;
-        var step = count > 1 ? (double)(width - 2) / (count - 1) : 0;
+        long max = Math.Max(1, values.Max());
+        int count = values.Length;
+        double step = count > 1 ? (double)(width - 2) / (count - 1) : 0;
 
-        var points = new StringBuilder();
+        StringBuilder points = new();
         double lastX = 1, lastY = height - 1;
 
-        for (var i = 0; i < count; i++)
+        for (int i = 0; i < count; i++)
         {
             lastX = 1 + i * step;
             lastY = height - 1 - (double)values[i] / max * (height - 2);
@@ -31,7 +31,7 @@ internal static class Sparkline
             points.Append(lastX.ToString("0.#", CultureInfo.InvariantCulture)).Append(',').Append(lastY.ToString("0.#", CultureInfo.InvariantCulture));
         }
 
-        var svg = new StringBuilder();
+        StringBuilder svg = new();
         svg.Append("<svg class=\"sparkline\" width=\"").Append(width).Append("\" height=\"").Append(height)
             .Append("\" viewBox=\"0 0 ").Append(width).Append(' ').Append(height).Append("\" aria-hidden=\"true\">");
         svg.Append("<polyline fill=\"none\" stroke-width=\"1.5\" points=\"").Append(points).Append("\"/>");

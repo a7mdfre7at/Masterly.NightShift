@@ -44,7 +44,7 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
 
         if (context.CandidateState is not ProcessingState processingState) return;
 
-        var reason = GetHoldReason(context, processingState, out var queue);
+        string? reason = GetHoldReason(context, processingState, out string? queue);
         if (reason == null) return;
 
         HeldQueue.Remember(context, queue);
@@ -54,11 +54,11 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
     private static string? GetHoldReason(ElectStateContext context, ProcessingState processingState, out string? queue)
     {
         queue = null;
-        var status = DrainMode.GetStatus(context.Storage, context.Connection);
+        DrainModeStatus status = DrainMode.GetStatus(context.Storage, context.Connection);
 
         if (status.Active) return HeldReason;
 
-        var serverId = processingState.ServerId;
+        string serverId = processingState.ServerId;
         if (status.PausedServers.Count > 0 && serverId != null && status.PausedServers.ContainsKey(serverId))
         {
             return string.Format(CultureInfo.InvariantCulture, ServerHeldReasonFormat, serverId);

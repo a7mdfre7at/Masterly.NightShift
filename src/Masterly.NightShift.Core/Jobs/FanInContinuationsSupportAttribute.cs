@@ -90,24 +90,24 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     private void RegisterChild(ElectStateContext context, AwaitingJobsState awaiting)
     {
-        var connection = context.Connection;
-        var childId = context.BackgroundJob.Id;
+        IStorageConnection connection = context.Connection;
+        string childId = context.BackgroundJob.Id;
 
         // Every parent is checked before the child is registered on any, so a missing parent doesn't leave the
         // child's id on the parents before it, which would then wait for a job that is never created
-        foreach (var parentId in awaiting.ParentIds)
+        foreach (string parentId in awaiting.ParentIds)
         {
             EnsureParentExists(connection, parentId);
         }
 
-        foreach (var parentId in awaiting.ParentIds)
+        foreach (string parentId in awaiting.ParentIds)
         {
             using (connection.AcquireDistributedJobLock(parentId, LockTimeout))
             {
                 // Checked again under the lock: the parent may have expired since
                 EnsureParentExists(connection, parentId);
 
-                var children = Parse(connection.GetJobParameter(parentId, ParameterName));
+                List<string> children = Parse(connection.GetJobParameter(parentId, ParameterName));
                 if (!children.Contains(childId, StringComparer.Ordinal))
                 {
                     children.Add(childId);
@@ -117,7 +117,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
 
         // A parent may have finished before our registration became visible to it: decide right away.
-        var decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
+        Decision decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
 
         if (decision != Decision.Undecided)
         {
@@ -134,7 +134,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             // and give up on it after a short wait. Decide again once the Awaiting state is committed: either
             // that parent saw it, or this check sees that parent finished. Also when the commit throws: it may
             // have gone through (a lost reply), and a retry finds the state stored and doesn't come back here.
-            var storage = context.Storage;
+            JobStorage storage = context.Storage;
             context.AfterCommit.AddRegardless(() => DecideChildAfterItsCommit(storage, connection, childId));
         }
     }
@@ -151,13 +151,13 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     private void DecideChildAfterItsCommit(JobStorage storage, IStorageConnection connection, string childId)
     {
         // Without a state, the commit failed: nothing to decide, the creation is retried or abandoned
-        var childState = connection.GetStateData(childId);
+        StateData? childState = connection.GetStateData(childId);
         if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase)) return;
 
-        var awaiting = AwaitingJobsState.FromStateData(childState.Data);
+        AwaitingJobsState? awaiting = AwaitingJobsState.FromStateData(childState.Data);
         if (awaiting == null) return;
 
-        var decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
+        Decision decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
         if (decision == Decision.Undecided) return;
 
         ChangeChildState(storage, connection, childId, awaiting, decision);
@@ -170,7 +170,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         // snapshot is read under the same lock, so a snapshot without the parameter means there are no children.
         string? serialized = null;
 
-        var snapshot = context.BackgroundJob.ParametersSnapshot;
+        IReadOnlyDictionary<string, string>? snapshot = context.BackgroundJob.ParametersSnapshot;
         if (snapshot != null)
         {
             snapshot.TryGetValue(ParameterName, out serialized);
@@ -180,12 +180,12 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, ParameterName);
         }
 
-        var children = Parse(serialized).Distinct(StringComparer.Ordinal).ToList();
+        List<string> children = [.. Parse(serialized).Distinct(StringComparer.Ordinal)];
         if (children.Count == 0) return;
 
-        var storage = context.Storage;
-        var connection = context.Connection;
-        var parentId = context.BackgroundJob.Id;
+        JobStorage storage = context.Storage;
+        IStorageConnection connection = context.Connection;
+        string parentId = context.BackgroundJob.Id;
 
         if (context.AfterCommit != null)
         {
@@ -200,14 +200,14 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
         // Nobody runs actions after this commit (the transaction belongs to the caller, or a custom state
         // changer applies the state): decide now, counting this job in its candidate state.
-        var states = new Dictionary<string, string?>(StringComparer.Ordinal)
+        Dictionary<string, string?> states = new(StringComparer.Ordinal)
         {
             { parentId, context.CandidateState.Name },
         };
 
-        var round = Stopwatch.StartNew();
+        Stopwatch round = Stopwatch.StartNew();
 
-        foreach (var childId in children)
+        foreach (string childId in children)
         {
             DecideChild(storage, connection, parentId, childId, states, round);
         }
@@ -215,18 +215,18 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     private void DecideChildrenAfterCommit(JobStorage storage, IStorageConnection connection, string parentId, List<string> children)
     {
-        var states = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var round = Stopwatch.StartNew();
+        Dictionary<string, string?> states = new(StringComparer.Ordinal);
+        Stopwatch round = Stopwatch.StartNew();
 
         // When the commit failed, or the job was requeued meanwhile, it isn't finished in storage: every child
         // would be undecided, so don't wait for their states
         if (!IsFinishedInStorage(connection, parentId, states)) return;
 
-        foreach (var childId in children)
+        foreach (string childId in children)
         {
             // The parent's state change is committed, so nothing retries this: retry a failing child a few
             // times, within the round's time budget, and don't let it stop the other children.
-            for (var attempt = 1; ; attempt++)
+            for (int attempt = 1; ; attempt++)
             {
                 try
                 {
@@ -235,7 +235,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
-                    var delay = TimeSpan.FromMilliseconds(500 * attempt);
+                    TimeSpan delay = TimeSpan.FromMilliseconds(500 * attempt);
 
                     if (attempt >= MaxDecideAttempts || round.Elapsed + delay > DecisionRoundBudget)
                     {
@@ -260,7 +260,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     {
         try
         {
-            var state = GetParentState(connection, parentId, states);
+            string? state = GetParentState(connection, parentId, states);
             return state != null && _knownFinalStates.Contains(state);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -274,13 +274,13 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     private void DecideChild(JobStorage storage, IStorageConnection connection, string parentId, string childId, Dictionary<string, string?> states, Stopwatch round)
     {
-        var childState = GetChildState(connection, parentId, childId, round);
+        StateData? childState = GetChildState(connection, parentId, childId, round);
         if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase)) return;
 
-        var awaiting = AwaitingJobsState.FromStateData(childState.Data);
+        AwaitingJobsState? awaiting = AwaitingJobsState.FromStateData(childState.Data);
         if (awaiting == null) return;
 
-        var decision = Evaluate(awaiting, id => GetParentState(connection, id, states), parentId);
+        Decision decision = Evaluate(awaiting, id => GetParentState(connection, id, states), parentId);
         if (decision == Decision.Undecided) return;
 
         ChangeChildState(storage, connection, childId, awaiting, decision);
@@ -304,7 +304,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     /// <summary>Reads a parent's state once per decision round; children often share parents.</summary>
     private static string? GetParentState(IStorageConnection connection, string parentId, Dictionary<string, string?> states)
     {
-        if (!states.TryGetValue(parentId, out var state))
+        if (!states.TryGetValue(parentId, out string? state))
         {
             state = GetParentState(connection, parentId);
             states[parentId] = state;
@@ -316,7 +316,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     /// <summary>A parent that no longer exists counts as deleted, so it can't block the continuation forever.</summary>
     private static string? GetParentState(IStorageConnection connection, string parentId)
     {
-        var state = connection.GetStateData(parentId);
+        StateData? state = connection.GetStateData(parentId);
         if (state != null) return state.Name;
 
         return connection.GetJobData(parentId) == null ? DeletedState.StateName : null;
@@ -324,18 +324,18 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     private StateData? GetChildState(IStorageConnection connection, string parentId, string childId, Stopwatch round)
     {
-        var firstAttempt = true;
+        bool firstAttempt = true;
 
         while (true)
         {
-            var childData = connection.GetJobData(childId);
+            JobData? childData = connection.GetJobData(childId);
             if (childData == null)
             {
                 _logger.Warn($"Can not start fan-in continuation '{childId}' for background job '{parentId}': continuation does not exist.");
                 return null;
             }
 
-            var state = connection.GetStateData(childId);
+            StateData? state = connection.GetStateData(childId);
             if (state != null) return state;
 
             if (JobClock.UtcNow - childData.CreatedAt > ContinuationInvalidTimeout)
@@ -375,12 +375,12 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     {
         if (finishedParentId != null)
         {
-            foreach (var parentId in FinishedParentFirst(awaiting.ParentIds, finishedParentId))
+            foreach (string parentId in FinishedParentFirst(awaiting.ParentIds, finishedParentId))
             {
-                var stateName = getParentState(parentId);
+                string? stateName = getParentState(parentId);
                 if (stateName == null || !_knownFinalStates.Contains(stateName)) return Decision.Undecided;
 
-                var ok = Satisfies(stateName, awaiting.Options);
+                bool ok = Satisfies(stateName, awaiting.Options);
                 if (awaiting.Mode == FanInMode.Any && ok) return Decision.Start;
                 if (awaiting.Mode == FanInMode.All && !ok) return Decision.Skip;
             }
@@ -389,16 +389,16 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             return awaiting.Mode == FanInMode.All ? Decision.Start : Decision.Skip;
         }
 
-        var finished = 0;
-        var satisfied = 0;
+        int finished = 0;
+        int satisfied = 0;
 
-        foreach (var parentId in awaiting.ParentIds)
+        foreach (string parentId in awaiting.ParentIds)
         {
-            var stateName = getParentState(parentId);
+            string? stateName = getParentState(parentId);
             if (stateName == null || !_knownFinalStates.Contains(stateName)) continue;
 
             finished++;
-            var ok = Satisfies(stateName, awaiting.Options);
+            bool ok = Satisfies(stateName, awaiting.Options);
             if (ok) satisfied++;
 
             if (awaiting.Mode == FanInMode.Any && ok) return Decision.Start;
@@ -414,15 +414,15 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     private static IEnumerable<string> FinishedParentFirst(IReadOnlyList<string> parentIds, string finishedParentId)
     {
-        var found = false;
-        for (var i = 0; i < parentIds.Count && !found; i++)
+        bool found = false;
+        for (int i = 0; i < parentIds.Count && !found; i++)
         {
             found = string.Equals(parentIds[i], finishedParentId, StringComparison.Ordinal);
         }
 
         if (found) yield return finishedParentId;
 
-        for (var i = parentIds.Count - 1; i >= 0; i--)
+        for (int i = parentIds.Count - 1; i >= 0; i--)
         {
             if (!string.Equals(parentIds[i], finishedParentId, StringComparison.Ordinal)) yield return parentIds[i];
         }

@@ -23,7 +23,7 @@ public static class GlobalJobInterceptors
 
         lock (SyncRoot)
         {
-            var updated = new IJobInterceptor[_interceptors.Length + 1];
+            IJobInterceptor[] updated = new IJobInterceptor[_interceptors.Length + 1];
             Array.Copy(_interceptors, updated, _interceptors.Length);
             updated[_interceptors.Length] = interceptor;
             _interceptors = updated;

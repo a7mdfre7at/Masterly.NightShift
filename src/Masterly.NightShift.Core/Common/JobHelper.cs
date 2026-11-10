@@ -63,7 +63,7 @@ public static class JobHelper
 
     public static DateTime DeserializeDateTime(string value)
     {
-        if (long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var timestamp))
+        if (long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out long timestamp))
         {
             return timestamp > MillisecondTimestampBoundary
                 ? FromMillisecondTimestamp(timestamp)

@@ -33,17 +33,17 @@ internal static class TaskExtensions
 
             token.ThrowIfCancellationRequested();
 
-            using var ev = token.GetCancellationEvent();
+            using CancellationTokenExtensions.CancellationEvent ev = token.GetCancellationEvent();
 
-            var waitHandles = new[] { waitHandle, ev.WaitHandle };
+            WaitHandle[] waitHandles = [waitHandle, ev.WaitHandle];
 
-            var stopwatch = Stopwatch.StartNew();
-            var waitResult = WaitHandle.WaitAny(waitHandles, timeout);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            int waitResult = WaitHandle.WaitAny(waitHandles, timeout);
             stopwatch.Stop();
 
-            var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
-            var elapsedThreshold = TimeSpan.FromMilliseconds(500);
-            var protectionTime = TimeSpan.FromSeconds(1);
+            TimeSpan timeoutThreshold = TimeSpan.FromMilliseconds(1000);
+            TimeSpan elapsedThreshold = TimeSpan.FromMilliseconds(500);
+            TimeSpan protectionTime = TimeSpan.FromSeconds(1);
 
             if (waitResult == 0)
             {
@@ -56,7 +56,7 @@ internal static class TaskExtensions
             {
                 try
                 {
-                    var logger = LogProvider.GetLogger(typeof(TaskExtensions));
+                    ILog logger = LogProvider.GetLogger(typeof(TaskExtensions));
                     logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
                 }
                 finally
@@ -81,8 +81,8 @@ internal static class TaskExtensions
                 return true;
             }
 
-            var tcs = CreateCompletionSource<bool>();
-            var registration = ThreadPool.RegisterWaitForSingleObject(waitHandle, CallBack, tcs, timeout, executeOnlyOnce: true);
+            TaskCompletionSource<bool> tcs = CreateCompletionSource<bool>();
+            RegisteredWaitHandle registration = ThreadPool.RegisterWaitForSingleObject(waitHandle, CallBack, tcs, timeout, executeOnlyOnce: true);
 
             if (token.CanBeCanceled)
             {
@@ -97,7 +97,7 @@ internal static class TaskExtensions
     {
         public bool IsTaskLike([NotNullWhen(true)] out Func<object, Task>? getTaskFunc)
         {
-            var typeInfo = type.GetTypeInfo();
+            TypeInfo typeInfo = type.GetTypeInfo();
 
             // There are no primitive types that behave as Task
             if (!typeInfo.IsPrimitive)
@@ -119,7 +119,7 @@ internal static class TaskExtensions
                 if (typeInfo.FullName != null &&
                     typeInfo.FullName.StartsWith("System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
                 {
-                    var asTask = type.GetRuntimeMethod("AsTask", EmptyTypes);
+                    MethodInfo? asTask = type.GetRuntimeMethod("AsTask", EmptyTypes);
 
                     if (asTask != null && asTask.IsPublic && !asTask.IsStatic &&
                         typeof(Task).GetTypeInfo().IsAssignableFrom(asTask.ReturnType.GetTypeInfo()))
@@ -158,16 +158,16 @@ internal static class TaskExtensions
             // original result object.
 
             // Awaitable type must have a public parameterless GetAwaiter instance method, ...
-            var getAwaiter = returnType.GetRuntimeMethod("GetAwaiter", EmptyTypes);
+            MethodInfo? getAwaiter = returnType.GetRuntimeMethod("GetAwaiter", EmptyTypes);
             if (getAwaiter == null || getAwaiter.IsStatic || !getAwaiter.IsPublic) return null;
 
-            var awaiterType = getAwaiter.ReturnType;
+            Type awaiterType = getAwaiter.ReturnType;
 
             // ... and also have a public parameterless GetResult instance method
-            var getResult = awaiterType.GetRuntimeMethod("GetResult", EmptyTypes);
+            MethodInfo? getResult = awaiterType.GetRuntimeMethod("GetResult", EmptyTypes);
             if (getResult == null || getResult.IsStatic || !getResult.IsPublic) return null;
 
-            var awaiter = getAwaiter.Invoke(obj, null);
+            object? awaiter = getAwaiter.Invoke(obj, null);
             return getResult.Invoke(awaiter, null);
         }
     }
@@ -185,7 +185,7 @@ internal static class TaskExtensions
         // We need to ensure there's no race condition, where wait handle was
         // set, but callback wasn't fully completed. In this case handle is
         // acquired, but task is cancelled.
-        var ctx = (Tuple<RegisteredWaitHandle, TaskCompletionSource<bool>, CancellationToken>)state!; // The tuple passed when registering
+        Tuple<RegisteredWaitHandle, TaskCompletionSource<bool>, CancellationToken> ctx = (Tuple<RegisteredWaitHandle, TaskCompletionSource<bool>, CancellationToken>)state!; // The tuple passed when registering
 
         ctx.Item1.Unregister(InvalidWaitHandleInstance);
         TrySetCanceled(ctx.Item2, ctx.Item3);

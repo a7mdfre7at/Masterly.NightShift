@@ -70,7 +70,7 @@ public static class RouteCollectionExtensions
 
             routes.AddBatchCommand(pathTemplate, (context, jobId) =>
             {
-                var client = context.GetBackgroundJobClient();
+                IBackgroundJobClient client = context.GetBackgroundJobClient();
                 command(client, jobId);
             });
         }
@@ -83,7 +83,7 @@ public static class RouteCollectionExtensions
 
             routes.AddBatchCommand(pathTemplate, (context, jobId) =>
             {
-                var manager = context.GetRecurringJobManager();
+                IRecurringJobManager manager = context.GetRecurringJobManager();
                 command(manager, jobId);
             });
         }

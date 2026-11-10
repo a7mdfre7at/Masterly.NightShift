@@ -207,7 +207,7 @@ public class AwaitingState : IState
     /// </remarks>
     public Dictionary<string, string> SerializeData()
     {
-        var result = new Dictionary<string, string>
+        Dictionary<string, string> result = new()
         {
             { "ParentId", ParentId },
             { "NextState", SerializationHelper.Serialize(NextState, SerializationOption.TypedInternal) }

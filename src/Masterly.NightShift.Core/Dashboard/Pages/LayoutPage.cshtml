@@ -28,8 +28,8 @@
         }
     }
     @{
-        var version = GetType().GetTypeInfo().Assembly.GetName().Version!;
-        var storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version!;
+        Version version = GetType().GetTypeInfo().Assembly.GetName().Version!;
+        Version storageVersion = Storage.GetType().GetTypeInfo().Assembly.GetName().Version!;
     }
 
     @if(!string.IsNullOrWhiteSpace(DashboardOptions.FaviconPath))
@@ -119,7 +119,7 @@
                     IList<string> pausedServers = new List<string>();
                     try
                     {
-                        using (var drainConnection = Storage.GetReadOnlyConnection())
+                        using (IStorageConnection drainConnection = Storage.GetReadOnlyConnection())
                         {
                             drainStatus = DrainMode.Read(drainConnection);
                         }
@@ -128,7 +128,7 @@
                         pausedServers = drainStatus.PausedServers.Keys.ToList();
                         if (pausedServers.Count > 0)
                         {
-                            var stale = DashboardHealth.GetStalePausedServers(drainStatus, Storage.GetMonitoringApi().Servers());
+                            IReadOnlyList<string> stale = DashboardHealth.GetStalePausedServers(drainStatus, Storage.GetMonitoringApi().Servers());
                             pausedServers = pausedServers.Where(id => !stale.Contains(id, StringComparer.OrdinalIgnoreCase)).ToList();
                         }
                     }

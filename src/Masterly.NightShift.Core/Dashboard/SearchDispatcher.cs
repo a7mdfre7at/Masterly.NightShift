@@ -12,20 +12,20 @@ internal sealed class SearchDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var query = (context.Request.GetQuery("q") ?? string.Empty).Trim();
+        string query = (context.Request.GetQuery("q") ?? string.Empty).Trim();
 
         if (query.Length == 0)
         {
             return DashboardJson.WriteAsync(context, 200, new { jobs = Array.Empty<object>(), recurringJobs = Array.Empty<object>(), tags = Array.Empty<object>() });
         }
 
-        var jobs = new List<object>();
-        var recurringJobs = new List<object>();
-        var tags = new List<object>();
+        List<object> jobs = [];
+        List<object> recurringJobs = [];
+        List<object> tags = [];
 
-        using (var connection = context.Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
         {
-            var jobData = TryGetJobData(connection, query);
+            JobData? jobData = TryGetJobData(connection, query);
             if (jobData != null)
             {
                 jobs.Add(new
@@ -38,14 +38,13 @@ internal sealed class SearchDispatcher : IDashboardDispatcher
                 });
             }
 
-            var recurringIds = connection.GetAllItemsFromSet("recurring-jobs")
+            List<string> recurringIds = [.. connection.GetAllItemsFromSet("recurring-jobs")
                 .Where(id => id.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(id => id.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(static id => id, StringComparer.OrdinalIgnoreCase)
-                .Take(MaxRecurringJobs)
-                .ToList();
+                .Take(MaxRecurringJobs)];
 
-            foreach (var dto in connection.GetRecurringJobs(recurringIds))
+            foreach (RecurringJobDto dto in connection.GetRecurringJobs(recurringIds))
             {
                 recurringJobs.Add(new
                 {
@@ -60,9 +59,9 @@ internal sealed class SearchDispatcher : IDashboardDispatcher
 
             // "tag:" narrows the search to tags; otherwise tags containing the text come along. Names are
             // filtered first and only the ones shown are counted, so many tags don't slow every search down.
-            var tagQuery = query.StartsWith("tag:", StringComparison.OrdinalIgnoreCase) ? query[4..].Trim() : query;
+            string tagQuery = query.StartsWith("tag:", StringComparison.OrdinalIgnoreCase) ? query[4..].Trim() : query;
 
-            foreach (var tag in JobTags.GetNames(connection)
+            foreach (string? tag in JobTags.GetNames(connection)
                 .Where(name => tagQuery.Length == 0 || name.Contains(tagQuery, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(name => name.StartsWith(tagQuery, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .Take(MaxTags))

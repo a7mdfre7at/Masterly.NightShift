@@ -36,8 +36,8 @@ internal static class JobListCommands
         Func<IMonitoringApi, long> count,
         string expectedState)
     {
-        var client = context.GetBackgroundJobClient();
-        var monitor = context.Storage.GetMonitoringApi();
+        IBackgroundJobClient client = context.GetBackgroundJobClient();
+        IMonitoringApi monitor = context.Storage.GetMonitoringApi();
 
         return Run(
             id => client.ChangeState(id, new DeletedState { Reason = DeleteReason }, expectedState),
@@ -52,8 +52,8 @@ internal static class JobListCommands
         Func<IMonitoringApi, long> count,
         string expectedState)
     {
-        var client = context.GetBackgroundJobClient();
-        var monitor = context.Storage.GetMonitoringApi();
+        IBackgroundJobClient client = context.GetBackgroundJobClient();
+        IMonitoringApi monitor = context.Storage.GetMonitoringApi();
 
         return Run(
             id => client.ChangeState(id, new EnqueuedState { Reason = RequeueReason }, expectedState),
@@ -72,9 +72,9 @@ internal static class JobListCommands
             return null;
         }
 
-        var client = context.GetBackgroundJobClient();
+        IBackgroundJobClient client = context.GetBackgroundJobClient();
 
-        using var connection = context.Storage.GetConnection();
+        using IStorageConnection connection = context.Storage.GetConnection();
         if (connection is not JobStorageConnection storageConnection)
         {
             return null;
@@ -92,10 +92,10 @@ internal static class JobListCommands
     /// </summary>
     public static BulkJobResult RemoveAllRecurringJobs(DashboardContext context)
     {
-        var manager = context.GetRecurringJobManager();
+        IRecurringJobManager manager = context.GetRecurringJobManager();
         List<string> ids;
 
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
             ids = [.. (connection.GetAllItemsFromSet("recurring-jobs") ?? []).OrderBy(static id => id, StringComparer.Ordinal)];
         }
@@ -179,12 +179,12 @@ internal sealed class JobListCommandDispatcher(Func<DashboardContext, BulkJobRes
 
     private static List<string> Targets(DashboardContext context)
     {
-        var targets = new List<string>();
+        List<string> targets = [];
         if (context.UriMatch == null) return targets;
 
-        for (var i = 1; i < context.UriMatch.Groups.Count; i++)
+        for (int i = 1; i < context.UriMatch.Groups.Count; i++)
         {
-            var value = context.UriMatch.Groups[i].Value;
+            string value = context.UriMatch.Groups[i].Value;
             if (!string.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
         }
 

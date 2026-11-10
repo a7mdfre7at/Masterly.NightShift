@@ -41,8 +41,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _properties = properties ?? throw new ArgumentNullException(nameof(properties));
 
-        var builders = new List<IBackgroundProcessDispatcherBuilder>();
-        builders.AddRange(GetRequiredProcesses());
+        List<IBackgroundProcessDispatcherBuilder> builders = [.. GetRequiredProcesses()];
         if (!options.ExcludeStorageProcesses)
         {
             builders.AddRange(GetStorageComponents());
@@ -55,7 +54,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
     public void Execute(Guid executionId, BackgroundExecution execution, CancellationToken stoppingToken,
         CancellationToken stoppedToken, CancellationToken shutdownToken)
     {
-        var serverId = GetServerId();
+        string serverId = GetServerId();
         Stopwatch? stoppedAt = null;
 
         void HandleStopRestartSignal() => Interlocked.CompareExchange(ref stoppedAt, Stopwatch.StartNew(), null);
@@ -72,17 +71,17 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         }
 
         //using (LogProvider.OpenMappedContext("ServerId", serverId.ToString()))
-        using (var restartCts = new CancellationTokenSource())
-        using (var restartStoppingCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, restartCts.Token))
-        using (var restartStoppedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppedToken, restartCts.Token))
-        using (var restartShutdownCts = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken, restartCts.Token))
+        using (CancellationTokenSource restartCts = new())
+        using (CancellationTokenSource restartStoppingCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, restartCts.Token))
+        using (CancellationTokenSource restartStoppedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppedToken, restartCts.Token))
+        using (CancellationTokenSource restartShutdownCts = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken, restartCts.Token))
         using (restartStoppingCts.Token.Register(HandleStopRestartSignal))
         using (stoppingToken.Register(HandleStoppingSignal))
         using (stoppedToken.Register(HandleStoppedSignal))
         using (shutdownToken.Register(HandleShutdownSignal))
         using (restartCts.Token.Register(HandleRestartSignal))
         {
-            var context = new BackgroundServerContext(
+            BackgroundServerContext context = new(
                 serverId,
                 _storage,
                 _properties,
@@ -90,14 +89,14 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
                 restartStoppedCts.Token,
                 restartShutdownCts.Token);
 
-            var dispatchers = new List<IBackgroundDispatcher>();
+            List<IBackgroundDispatcher> dispatchers = [];
 
             CreateServer(context);
 
             try
             {
                 // ReSharper disable once AccessToDisposedClosure
-                using var heartbeat = CreateHeartbeatProcess(context, restartCts.Cancel);
+                using IBackgroundDispatcher heartbeat = CreateHeartbeatProcess(context, restartCts.Cancel);
                 StartDispatchers(context, dispatchers);
                 execution.NotifySucceeded();
 
@@ -123,7 +122,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         // We need to ensure that heartbeats are sent until server shutdown. Otherwise our server
         // can be considered as dead before completing all the background jobs on a graceful
         // shutdown.
-        var heartbeatContext = new BackgroundServerContext(
+        BackgroundServerContext heartbeatContext = new(
             context.ServerId,
             context.Storage,
             context.Properties,
@@ -143,7 +142,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         yield return new ServerWatchdog(_options.ServerCheckInterval, _options.ServerTimeout).UseBackgroundPool(threadCount: 1);
         yield return new ServerJobCancellationWatcher(_options.CancellationCheckInterval).UseBackgroundPool(threadCount: 1);
 
-        foreach (var serverProcess in _storage.GetServerRequiredProcesses())
+        foreach (IBackgroundProcess serverProcess in _storage.GetServerRequiredProcesses())
         {
             yield return serverProcess.UseBackgroundPool(threadCount: 1);
         }
@@ -156,13 +155,13 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
     private string GetServerId()
     {
-        var serverName = _options.ServerName
+        string serverName = _options.ServerName
              ?? Environment.GetEnvironmentVariable("COMPUTERNAME")
              ?? Environment.GetEnvironmentVariable("HOSTNAME")
              ?? Environment.MachineName
             ;
 
-        var guid = Guid.NewGuid().ToString();
+        string guid = Guid.NewGuid().ToString();
 
         if (!string.IsNullOrWhiteSpace(serverName))
         {
@@ -176,9 +175,9 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
     {
         _logger.Trace($"{GetServerTemplate(context.ServerId)} is announcing itself...");
 
-        var stopwatch = Stopwatch.StartNew();
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
-        using (var connection = _storage.GetConnection())
+        using (IStorageConnection connection = _storage.GetConnection())
         {
             connection.AnnounceServer(context.ServerId, GetServerContext(_properties));
         }
@@ -196,9 +195,9 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
             _logger.Trace($"{GetServerTemplate(context.ServerId)} is reporting itself as stopped...");
             ServerJobCancellationToken.RemoveServer(context.ServerId);
 
-            var stopwatch = Stopwatch.StartNew();
+            Stopwatch stopwatch = Stopwatch.StartNew();
 
-            using (var connection = _storage.GetConnection())
+            using (IStorageConnection connection = _storage.GetConnection())
             {
                 connection.RemoveServer(context.ServerId);
             }
@@ -223,7 +222,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
         _logger.Info($"{GetServerTemplate(context.ServerId)} is starting the registered dispatchers: {string.Join(", ", _dispatcherBuilders.Select(static builder => $"{builder}"))}...");
 
-        foreach (var dispatcherBuilder in _dispatcherBuilders)
+        foreach (IBackgroundProcessDispatcherBuilder dispatcherBuilder in _dispatcherBuilders)
         {
             dispatchers.Add(dispatcherBuilder.Create(context, _options));
         }
@@ -237,14 +236,14 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
     {
         if (dispatchers.Count == 0) return;
 
-        var waitTasks = new Task[dispatchers.Count];
+        Task[] waitTasks = new Task[dispatchers.Count];
 
-        for (var i = 0; i < dispatchers.Count; i++)
+        for (int i = 0; i < dispatchers.Count; i++)
         {
             waitTasks[i] = dispatchers[i].WaitAsync(Timeout.InfiniteTimeSpan, CancellationToken.None);
         }
 
-        var nonStopped = new List<IBackgroundDispatcher>();
+        List<IBackgroundDispatcher> nonStopped = [];
 
         try
         {
@@ -252,7 +251,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         }
         catch (OperationCanceledException)
         {
-            for (var i = 0; i < dispatchers.Count; i++)
+            for (int i = 0; i < dispatchers.Count; i++)
             {
                 if (waitTasks[i].Status != TaskStatus.RanToCompletion)
                 {
@@ -263,7 +262,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
         if (nonStopped.Count > 0)
         {
-            var nonStoppedNames = nonStopped.Select(static dispatcher => $"{dispatcher}").ToArray();
+            string[] nonStoppedNames = [.. nonStopped.Select(static dispatcher => $"{dispatcher}")];
             _logger.Warn($"{GetServerTemplate(context.ServerId)} stopped non-gracefully due to {string.Join(", ", nonStoppedNames)}. Outstanding work on those dispatchers could be aborted, and there can be delays in background processing. This server instance will be incorrectly shown as active for a while. To avoid non-graceful shutdowns, investigate what prevents from stopping gracefully and add CancellationToken support for those methods.");
         }
         else
@@ -274,7 +273,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
     private static void DisposeDispatchers(IEnumerable<IBackgroundDispatcher> dispatchers)
     {
-        foreach (var dispatcher in dispatchers)
+        foreach (IBackgroundDispatcher dispatcher in dispatchers)
         {
             dispatcher.Dispose();
         }
@@ -282,14 +281,14 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
     private static ServerContext GetServerContext(IDictionary<string, object> properties)
     {
-        var serverContext = new ServerContext();
+        ServerContext serverContext = new();
 
-        if (properties.TryGetValue("Queues", out var queues) && queues is string[] array)
+        if (properties.TryGetValue("Queues", out object? queues) && queues is string[] array)
         {
             serverContext.Queues = array;
         }
 
-        if (properties.TryGetValue("WorkerCount", out var workerCount))
+        if (properties.TryGetValue("WorkerCount", out object? workerCount))
         {
             serverContext.WorkerCount = (int)workerCount;
         }
@@ -303,7 +302,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
 
         try
         {
-            var split = serverId.Split(ColonSeparator, StringSplitOptions.RemoveEmptyEntries);
+            string[] split = serverId.Split(ColonSeparator, StringSplitOptions.RemoveEmptyEntries);
             if (split.Length == 3 && split[2].Length > 8)
             {
                 name = $"{split[0]}:{split[1]}:{split[2][..8]}";

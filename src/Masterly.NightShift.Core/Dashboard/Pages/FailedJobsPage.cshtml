@@ -6,6 +6,7 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.FailedJobsPage_Title);
@@ -15,20 +16,20 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FailedCount());
-    var failedJobs = monitor.FailedJobs(pager.FromRecord, pager.RecordsPerPage);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.FailedCount());
+    JobList<FailedJobDto?> failedJobs = monitor.FailedJobs(pager.FromRecord, pager.RecordsPerPage);
 
     // Acknowledgements left on the listed jobs. There is no API to read the notes of many jobs at once, so only
     // the first rows of a long page are checked, one read per job.
     const int MaxAcknowledgementReads = 100;
-    var acknowledgements = new Dictionary<string, JobNote>();
-    using (var connection = Storage.GetReadOnlyConnection())
+    Dictionary<string, JobNote> acknowledgements = [];
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
-        foreach (var failedJob in failedJobs.Take(MaxAcknowledgementReads))
+        foreach (KeyValuePair<string, FailedJobDto?> failedJob in failedJobs.Take(MaxAcknowledgementReads))
         {
             if (failedJob.Value == null || !failedJob.Value.InFailedState) continue;
-            var ack = JobNotes.GetAcknowledgement(JobNotes.Read(connection, failedJob.Key));
+            JobNote? ack = JobNotes.GetAcknowledgement(JobNotes.Read(connection, failedJob.Key));
             if (ack != null) acknowledgements[failedJob.Key] = ack;
         }
     }
@@ -51,7 +52,7 @@
             </div>
 
             @* A live refresh only uses the list: the clusters read five pages of failed jobs *@
-            var clusters = IsListRefresh ? (IReadOnlyList<FailureCluster>)new List<FailureCluster>() : FailureClusters.Build(monitor);
+            IReadOnlyList<FailureCluster> clusters = IsListRefresh ? (IReadOnlyList<FailureCluster>)new List<FailureCluster>() : FailureClusters.Build(monitor);
             if (clusters.Count > 0)
             {
                 <section class="hf-card hf-clusters" aria-labelledby="failed-clusters">
@@ -59,7 +60,7 @@
                         <h3 id="failed-clusters"><span class="glyphicon glyphicon-th-large"></span> @Strings.FailedJobsPage_Clusters <small class="text-muted">@String.Format(Strings.FailedJobsPage_Clusters_Hint, FailureClusters.SampleSize)</small></h3>
                     </div>
                     <div class="hf-cluster-list">
-                        @foreach (var cluster in clusters)
+                        @foreach (FailureCluster cluster in clusters)
                         {
                             <div class="hf-cluster" data-cluster="@cluster.Key">
                                 <div class="hf-cluster-count" title="@String.Format(Strings.FailedJobsPage_Clusters_Jobs, cluster.Count)">@cluster.Count</div>
@@ -159,8 +160,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @{ var index = 0; }
-                            @foreach (var job in failedJobs)
+                            @{ int index = 0; }
+                            @foreach (KeyValuePair<string, FailedJobDto?> job in failedJobs)
                             {
                                 <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InFailedState ? "obsolete-data" : null) @(job.Value != null && job.Value.InFailedState ? "hover" : null)">
                                     @if (!IsReadOnly)
@@ -190,7 +191,7 @@
                                         <td>
                                             <div class="word-break">
                                                 @Html.JobNameLink(job.Key, job.Value.Job)
-                                                @if (acknowledgements.TryGetValue(job.Key, out var acknowledgement))
+                                                @if (acknowledgements.TryGetValue(job.Key, out JobNote? acknowledgement))
                                                 {
                                                     <span class="label label-info hf-ack" title="@((acknowledgement.User ?? Strings.Common_Anonymous) + (acknowledgement.Text.Length > 0 ? ": " + acknowledgement.Text : String.Empty))"><span class="glyphicon glyphicon-ok"></span> @Strings.FailedJobsPage_Acknowledged</span>
                                                 }
@@ -215,8 +216,8 @@
                                     <tr>
                                         <td colspan="2" class="failed-job-details">
                                             @{
-                                                var displayCss = index++ == 0 ? "display-block" : null;
-                                                var serverId = job.Value.StateData != null && job.Value.StateData.ContainsKey("ServerId") ? $" ({Html.ServerId(job.Value.StateData["ServerId"])})" : null;
+                                                string? displayCss = index++ == 0 ? "display-block" : null;
+                                                string? serverId = job.Value.StateData != null && job.Value.StateData.ContainsKey("ServerId") ? $" ({Html.ServerId(job.Value.StateData["ServerId"])})" : null;
                                             }
                                             <div class="expandable @displayCss">
                                                 <h4>@job.Value.ExceptionType@Html.Raw(serverId)</h4>

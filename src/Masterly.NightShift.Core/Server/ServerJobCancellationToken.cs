@@ -133,11 +133,11 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
         IStorageConnection connection,
         CancellationToken cancellationToken)
     {
-        if (WatchedServers.TryGetValue(serverId, out var watchedTokens))
+        if (WatchedServers.TryGetValue(serverId, out ConcurrentDictionary<ServerJobCancellationToken, object?>? watchedTokens))
         {
-            var result = new List<Tuple<string, string>>();
+            List<Tuple<string, string>> result = [];
 
-            foreach (var token in watchedTokens)
+            foreach (KeyValuePair<ServerJobCancellationToken, object?> token in watchedTokens)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -185,19 +185,19 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
 
     private bool IsJobStateChanged(IStorageConnection connection)
     {
-        var state = connection.GetStateData(_jobId);
+        StateData? state = connection.GetStateData(_jobId);
 
         if (state == null || !state.Name.Equals(ProcessingState.StateName, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (!state.Data.TryGetValue("ServerId", out var serverId) || !serverId.Equals(_serverId, StringComparison.OrdinalIgnoreCase))
+        if (!state.Data.TryGetValue("ServerId", out string? serverId) || !serverId.Equals(_serverId, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (!state.Data.TryGetValue("WorkerId", out var workerId) || !workerId.Equals(_workerId, StringComparison.OrdinalIgnoreCase))
+        if (!state.Data.TryGetValue("WorkerId", out string? workerId) || !workerId.Equals(_workerId, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

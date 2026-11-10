@@ -73,18 +73,18 @@ public class BackgroundJobFactory : IBackgroundJobFactory
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var filterInfo = GetFilters(context.Job);
+        JobFilterInfo filterInfo = GetFilters(context.Job);
 
         try
         {
             context.Factory = this;
 
-            var createdContext = CreateWithFilters(context, filterInfo.ClientFilters);
+            CreatedContext createdContext = CreateWithFilters(context, filterInfo.ClientFilters);
             return createdContext.BackgroundJob;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            var exceptionContext = new ClientExceptionContext(context, ex);
+            ClientExceptionContext exceptionContext = new(context, ex);
 
             InvokeExceptionFilters(exceptionContext, filterInfo.ClientExceptionFiltersReversed);
             if (!exceptionContext.ExceptionHandled)
@@ -109,8 +109,8 @@ public class BackgroundJobFactory : IBackgroundJobFactory
         CreateContext context,
         JobFilterInfo.FilterCollection<IClientFilter> filters)
     {
-        var preContext = new CreatingContext(context);
-        var enumerator = filters.GetEnumerator();
+        CreatingContext preContext = new(context);
+        JobFilterInfo.FilterCollection<IClientFilter>.Enumerator enumerator = filters.GetEnumerator();
 
         return InvokeNextClientFilter(ref enumerator, _innerFactory, context, preContext);
     }
@@ -126,7 +126,7 @@ public class BackgroundJobFactory : IBackgroundJobFactory
             return InvokeClientFilter(ref enumerator, innerFactory, context, preContext);
         }
 
-        var backgroundJob = innerFactory.Create(context);
+        BackgroundJob? backgroundJob = innerFactory.Create(context);
         return new CreatedContext(context, backgroundJob, false, null);
     }
 
@@ -136,7 +136,7 @@ public class BackgroundJobFactory : IBackgroundJobFactory
         CreateContext context,
         CreatingContext preContext)
     {
-        var filter = enumerator.Current;
+        IClientFilter filter = enumerator.Current;
 
         preContext.Profiler.InvokeMeasured(
             new KeyValuePair<IClientFilter, CreatingContext>(filter, preContext),
@@ -148,7 +148,7 @@ public class BackgroundJobFactory : IBackgroundJobFactory
             return new CreatedContext(preContext, null, true, null);
         }
 
-        var wasError = false;
+        bool wasError = false;
         CreatedContext postContext;
         try
         {
@@ -210,7 +210,7 @@ public class BackgroundJobFactory : IBackgroundJobFactory
     private static void InvokeExceptionFilters(
         ClientExceptionContext context, JobFilterInfo.ReversedFilterCollection<IClientExceptionFilter> filters)
     {
-        foreach (var filter in filters)
+        foreach (IClientExceptionFilter filter in filters)
         {
             context.Profiler.InvokeMeasured(
                 new KeyValuePair<IClientExceptionFilter, ClientExceptionContext>(filter, context),

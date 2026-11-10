@@ -9,7 +9,7 @@
 @using Masterly.NightShift.Storage
 @inherits RazorPage
 @{
-    var title = String.Format(Strings.TaggedJobsPage_Title, Tag);
+    string title = String.Format(Strings.TaggedJobsPage_Title, Tag);
     Layout = new LayoutPage(title);
 
     int from, perPage;
@@ -17,18 +17,18 @@
     int.TryParse(Query("count"), out perPage);
 
     List<KeyValuePair<string, JobData>> jobs;
-    var expired = new List<string>();
+    List<string> expired = [];
     Pager finalPager;
 
     // Expired jobs leave their ids behind in the tag. A page must not write, so they are only hidden here;
     // the button below removes them with a POST.
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         finalPager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, JobTags.Count(connection, Tag));
         jobs = ReadJobs(connection, Tag, finalPager, expired);
     }
 
-    var total = finalPager.TotalRecordCount;
+    long total = finalPager.TotalRecordCount;
 }
 
 <div class="row">
@@ -76,7 +76,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var job in jobs)
+                            @foreach (KeyValuePair<string, JobData> job in jobs)
                             {
                                 <tr class="js-jobs-list-row hover">
                                     <td class="min-width">@Html.JobIdLink(job.Key)</td>

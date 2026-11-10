@@ -37,7 +37,7 @@ internal static class TaskShapeAdapter
 
     private static Func<Task<object?>, object> CreateAdapter(Type returnType)
     {
-        var typeInfo = returnType.GetTypeInfo();
+        TypeInfo typeInfo = returnType.GetTypeInfo();
 
         if (returnType == typeof(Task) || returnType == typeof(Task<object?>))
         {
@@ -46,9 +46,9 @@ internal static class TaskShapeAdapter
 
         if (typeInfo.IsGenericType && typeInfo.GetGenericTypeDefinition() == typeof(Task<>))
         {
-            var resultType = typeInfo.GenericTypeArguments[0];
-            var toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
-            var converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
+            Type resultType = typeInfo.GenericTypeArguments[0];
+            MethodInfo toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
+            Func<Task<object?>, Task> converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
 
             return source => converter(source);
         }
@@ -56,21 +56,21 @@ internal static class TaskShapeAdapter
         // ValueTask and ValueTask<T>: both have a constructor taking the corresponding Task.
         if (typeInfo.IsGenericType)
         {
-            var resultType = typeInfo.GenericTypeArguments[0];
-            var taskOfResult = typeof(Task<>).MakeGenericType(resultType);
-            var constructor = typeInfo.GetConstructor([taskOfResult]);
+            Type resultType = typeInfo.GenericTypeArguments[0];
+            Type taskOfResult = typeof(Task<>).MakeGenericType(resultType);
+            ConstructorInfo? constructor = typeInfo.GetConstructor([taskOfResult]);
 
             if (constructor != null)
             {
-                var toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
-                var converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
+                MethodInfo toTaskOf = ToTaskOfMethod.MakeGenericMethod(resultType);
+                Func<Task<object?>, Task> converter = toTaskOf.CreateDelegate<Func<Task<object?>, Task>>();
 
                 return source => constructor.Invoke([converter(source)]);
             }
         }
         else
         {
-            var constructor = typeInfo.GetConstructor([typeof(Task)]);
+            ConstructorInfo? constructor = typeInfo.GetConstructor([typeof(Task)]);
             if (constructor != null)
             {
                 return source => constructor.Invoke([source]);
@@ -82,7 +82,7 @@ internal static class TaskShapeAdapter
 
     private static async Task<T> ToTaskOf<T>(Task<object?> source)
     {
-        var result = await source.ConfigureAwait(false);
+        object? result = await source.ConfigureAwait(false);
         return result == null ? default! : (T)result;
     }
 }

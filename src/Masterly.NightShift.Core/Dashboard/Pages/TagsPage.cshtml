@@ -12,7 +12,7 @@
     int from, perPage;
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
-    var filter = (Query("filter") ?? String.Empty).Trim();
+    string filter = (Query("filter") ?? String.Empty).Trim();
 
     System.Collections.Generic.IReadOnlyList<JobTagSummary> tags;
     Pager pager;
@@ -20,9 +20,9 @@
 
     // Tags in name order, a page at a time: only the tags shown are counted, which stays fast with many tags. The
     // filter applies to every name before paging, so it finds tags on any page.
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
-        var names = JobTags.GetNames(connection);
+        IReadOnlyList<string> names = JobTags.GetNames(connection);
         allTags = names.Count;
 
         if (filter.Length > 0)
@@ -37,7 +37,7 @@
         tags = names.Skip(pager.FromRecord).Take(pager.RecordsPerPage).Select(name => new JobTagSummary(name, JobTags.Count(connection, name))).ToList();
     }
 
-    var largest = tags.Count > 0 ? Math.Max(1, tags.Max(x => x.Count)) : 1;
+    long largest = tags.Count > 0 ? Math.Max(1, tags.Max(x => x.Count)) : 1;
 }
 
 <div class="row">
@@ -65,7 +65,7 @@
             }
 
             <div class="hf-tags-cloud">
-                @foreach (var tag in tags)
+                @foreach (JobTagSummary tag in tags)
                 {
                     <a class="hf-tag hf-tag-lg js-tag" href="@Url.To("/tags/" + Uri.EscapeDataString(tag.Tag))" data-tag="@tag.Tag" style="--hf-weight: @(((double)tag.Count / largest).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))">
                         <span class="glyphicon glyphicon-tag"></span> @tag.Tag <span class="hf-tag-count">@tag.Count</span>
@@ -86,7 +86,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var tag in tags)
+                        @foreach (JobTagSummary tag in tags)
                         {
                             <tr class="js-tag-row" data-tag="@tag.Tag">
                                 <td><a href="@Url.To("/tags/" + Uri.EscapeDataString(tag.Tag))" class="hf-tag"><span class="glyphicon glyphicon-tag"></span> @tag.Tag</a></td>

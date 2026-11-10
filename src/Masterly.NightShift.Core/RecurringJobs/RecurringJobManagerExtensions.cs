@@ -179,7 +179,7 @@ public static class RecurringJobManagerExtensions
         {
             ArgumentNullException.ThrowIfNull(manager);
 
-            var job = Job.FromExpression(methodCall);
+            Job job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -202,7 +202,7 @@ public static class RecurringJobManagerExtensions
             ArgumentNullException.ThrowIfNull(manager);
             ArgumentNullException.ThrowIfNull(queue);
 
-            var job = Job.FromExpression(methodCall, queue);
+            Job job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -222,7 +222,7 @@ public static class RecurringJobManagerExtensions
         {
             ArgumentNullException.ThrowIfNull(manager);
 
-            var job = Job.FromExpression(methodCall);
+            Job job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -245,7 +245,7 @@ public static class RecurringJobManagerExtensions
             ArgumentNullException.ThrowIfNull(manager);
             ArgumentNullException.ThrowIfNull(queue);
 
-            var job = Job.FromExpression(methodCall, queue);
+            Job job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -345,7 +345,7 @@ public static class RecurringJobManagerExtensions
         {
             ArgumentNullException.ThrowIfNull(manager);
 
-            var job = Job.FromExpression(methodCall);
+            Job job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -368,7 +368,7 @@ public static class RecurringJobManagerExtensions
             ArgumentNullException.ThrowIfNull(manager);
             ArgumentNullException.ThrowIfNull(queue);
 
-            var job = Job.FromExpression(methodCall, queue);
+            Job job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -388,7 +388,7 @@ public static class RecurringJobManagerExtensions
         {
             ArgumentNullException.ThrowIfNull(manager);
 
-            var job = Job.FromExpression(methodCall);
+            Job job = Job.FromExpression(methodCall);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
 
@@ -411,7 +411,7 @@ public static class RecurringJobManagerExtensions
             ArgumentNullException.ThrowIfNull(manager);
             ArgumentNullException.ThrowIfNull(queue);
 
-            var job = Job.FromExpression(methodCall, queue);
+            Job job = Job.FromExpression(methodCall, queue);
             manager.AddOrUpdate(recurringJobId, job, cronExpression, options);
         }
     }

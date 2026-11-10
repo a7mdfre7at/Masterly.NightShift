@@ -6,16 +6,17 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.QueuesPage_Title);
 
-    var monitor = Storage.GetMonitoringApi();
-    var queues = monitor.Queues();
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    IList<QueueWithTopEnqueuedJobsDto> queues = monitor.Queues();
 
     IReadOnlyDictionary<string, QueueHealth> health;
     DrainModeStatus drain;
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         health = QueueInsights.ReadAll(connection);
         drain = DrainMode.Read(connection);
@@ -52,12 +53,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var queue in queues)
+                        @foreach (QueueWithTopEnqueuedJobsDto queue in queues)
                         {
-                            var queueHealth = health.TryGetValue(queue.Name, out var h) ? h : null;
-                            var paused = drain.PausedQueues.TryGetValue(queue.Name, out var pauseReason);
-                            var drainEstimate = queueHealth != null ? queueHealth.EstimateDrain(queue.Length) : null;
-                            var stalled = queueHealth != null && queueHealth.IsStalled(queue.Length) && !paused && !drain.Active;
+                            QueueHealth? queueHealth = health.TryGetValue(queue.Name, out QueueHealth? h) ? h : null;
+                            bool paused = drain.PausedQueues.TryGetValue(queue.Name, out string? pauseReason);
+                            TimeSpan? drainEstimate = queueHealth != null ? queueHealth.EstimateDrain(queue.Length) : null;
+                            bool stalled = queueHealth != null && queueHealth.IsStalled(queue.Length) && !paused && !drain.Active;
                             <tr class="@(paused ? "hf-queue-paused" : null)">
                                 <td>
                                     @Html.QueueLabel(queue.Name)
@@ -140,7 +141,7 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach (var job in queue.FirstJobs)
+                                                @foreach (KeyValuePair<string, EnqueuedJobDto?> job in queue.FirstJobs)
                                                 {
                                                     <tr class="@(job.Value == null || !job.Value.InEnqueuedState ? "obsolete-data" : null)">
                                                         <td class="min-width">

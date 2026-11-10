@@ -48,7 +48,7 @@ internal sealed class SqlCommandBatch : IDisposable
 
     public void Dispose()
     {
-        foreach (var command in _commandList)
+        foreach (DbCommand command in _commandList)
         {
             command.Dispose();
         }
@@ -75,7 +75,7 @@ internal sealed class SqlCommandBatch : IDisposable
             _commandSet.Connection = Connection;
             _commandSet.Transaction = Transaction;
 
-            var batchTimeout = CommandTimeout ?? _defaultTimeout;
+            int batchTimeout = CommandTimeout ?? _defaultTimeout;
 
             if (batchTimeout > 0)
             {
@@ -91,7 +91,7 @@ internal sealed class SqlCommandBatch : IDisposable
             _commandSet.ExecuteNonQuery();
         }
 
-        foreach (var command in _commandList)
+        foreach (DbCommand command in _commandList)
         {
             command.Connection = Connection;
             command.Transaction = Transaction;

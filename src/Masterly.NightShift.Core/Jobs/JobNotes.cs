@@ -65,7 +65,7 @@ public static class JobNotes
         if (text.Length == 0 && !acknowledges) throw new ArgumentException("A note needs some text.", nameof(text));
         if (text.Length > MaxLength) text = text[..MaxLength];
 
-        var note = new JobNote
+        JobNote note = new()
         {
             Timestamp = JobHelper.ToTimestamp(Clock()),
             User = string.IsNullOrWhiteSpace(user) ? null : user.Trim(),
@@ -76,7 +76,7 @@ public static class JobNotes
         // Read, change and write under a lock, so two notes written at once don't lose one of them
         using (connection.AcquireDistributedLock($"job:{jobId}:notes-lock", LockTimeout))
         {
-            var notes = Read(connection, jobId).ToList();
+            List<JobNote> notes = [.. Read(connection, jobId)];
             notes.Add(note);
             if (notes.Count > MaxNotes) notes.RemoveRange(0, notes.Count - MaxNotes);
 

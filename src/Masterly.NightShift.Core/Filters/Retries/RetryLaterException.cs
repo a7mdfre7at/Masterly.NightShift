@@ -74,7 +74,7 @@ public class RetryLaterException : Exception
     {
         if (RetryAt.HasValue) return RetryAt.Value;
 
-        var target = utcNow.Add(Delay ?? TimeSpan.Zero);
+        DateTime target = utcNow.Add(Delay ?? TimeSpan.Zero);
         return target < utcNow ? utcNow : target;
     }
 }

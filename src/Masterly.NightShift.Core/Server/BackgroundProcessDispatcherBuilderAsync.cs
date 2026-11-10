@@ -45,7 +45,7 @@ internal sealed class BackgroundProcessDispatcherBuilderAsync : IBackgroundProce
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options);
 
-        var execution = new BackgroundExecution(
+        BackgroundExecution execution = new(
             new BackgroundExecutionOptions
             {
                 Name = _process.GetType().Name,
@@ -69,10 +69,10 @@ internal sealed class BackgroundProcessDispatcherBuilderAsync : IBackgroundProce
 
     private static async Task ExecuteProcess(Guid executionId, object? state)
     {
-        var tuple = (Tuple<IBackgroundProcessAsync, BackgroundServerContext, BackgroundExecution>)state!; // The tuple passed when creating the dispatcher
-        var serverContext = tuple.Item2;
+        Tuple<IBackgroundProcessAsync, BackgroundServerContext, BackgroundExecution> tuple = (Tuple<IBackgroundProcessAsync, BackgroundServerContext, BackgroundExecution>)state!; // The tuple passed when creating the dispatcher
+        BackgroundServerContext serverContext = tuple.Item2;
 
-        var context = new BackgroundProcessContext(
+        BackgroundProcessContext context = new(
             serverContext.ServerId,
             serverContext.Storage,
             serverContext.Properties.ToDictionary(static x => x.Key, static x => x.Value),

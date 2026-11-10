@@ -34,7 +34,7 @@ internal static class ActivityHeatmap
     {
         ArgumentNullException.ThrowIfNull(storage);
 
-        var cached = Cache.GetValue(storage, static _ => new CachedGrid());
+        CachedGrid cached = Cache.GetValue(storage, static _ => new CachedGrid());
         lock (cached)
         {
             if (cached.Rows != null && cached.ReadAt <= utcNow && utcNow - cached.ReadAt < CacheDuration && Hour(cached.ReadAt) == Hour(utcNow))
@@ -44,7 +44,7 @@ internal static class ActivityHeatmap
         }
 
         IReadOnlyList<IReadOnlyList<HeatmapCell>> rows;
-        using (var connection = storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = storage.GetReadOnlyConnection())
         {
             // Counters need the extended API; without it the grid is empty
             rows = Read(storage.HasFeature(JobStorageFeatures.ExtendedApi) ? connection as JobStorageConnection : null, utcNow);
@@ -80,24 +80,24 @@ internal static class ActivityHeatmap
 
     private static IReadOnlyList<IReadOnlyList<HeatmapCell>> Read(JobStorageConnection? storageConnection, DateTime utcNow)
     {
-        var rows = new List<IReadOnlyList<HeatmapCell>>(Days);
-        var currentHour = Hour(utcNow);
+        List<IReadOnlyList<HeatmapCell>> rows = new(Days);
+        DateTime currentHour = Hour(utcNow);
 
-        for (var day = Days - 1; day >= 0; day--)
+        for (int day = Days - 1; day >= 0; day--)
         {
-            var date = currentHour.Date.AddDays(-day);
-            var cells = new List<HeatmapCell>(24);
+            DateTime date = currentHour.Date.AddDays(-day);
+            List<HeatmapCell> cells = new(24);
 
-            for (var hour = 0; hour < 24; hour++)
+            for (int hour = 0; hour < 24; hour++)
             {
-                var moment = date.AddHours(hour);
+                DateTime moment = date.AddHours(hour);
                 if (moment > currentHour || storageConnection == null)
                 {
                     cells.Add(new HeatmapCell(moment, 0, 0));
                     continue;
                 }
 
-                var suffix = moment.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture);
+                string suffix = moment.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture);
                 cells.Add(new HeatmapCell(moment, storageConnection.GetCounter("stats:succeeded:" + suffix), storageConnection.GetCounter("stats:failed:" + suffix)));
             }
 

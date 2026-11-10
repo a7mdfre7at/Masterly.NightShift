@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard;
 
@@ -24,8 +25,8 @@ internal sealed class JobExportDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var jobId = RouteValues.Get(context, "JobId");
-        var details = context.Storage.GetMonitoringApi().JobDetails(jobId);
+        string jobId = RouteValues.Get(context, "JobId");
+        JobDetailsDto? details = context.Storage.GetMonitoringApi().JobDetails(jobId);
 
         if (details == null)
         {
@@ -34,13 +35,13 @@ internal sealed class JobExportDispatcher : IDashboardDispatcher
         }
 
         IReadOnlyList<JobConsoleEntry> console;
-        using (var connection = context.Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
         {
             console = JobConsole.ReadEntries(connection, jobId);
         }
 
-        var parameters = details.Properties ?? new Dictionary<string, string>();
-        var notes = parameters.TryGetValue(JobNotes.ParameterName, out var serializedNotes) ? JobNotes.Parse(serializedNotes) : [];
+        IDictionary<string, string> parameters = details.Properties ?? new Dictionary<string, string>();
+        IReadOnlyList<JobNote> notes = parameters.TryGetValue(JobNotes.ParameterName, out string? serializedNotes) ? JobNotes.Parse(serializedNotes) : [];
 
         var report = new
         {
@@ -99,17 +100,17 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
 
     public async Task Dispatch(DashboardContext context)
     {
-        var monitor = context.Storage.GetMonitoringApi();
-        var queue = context.UriMatch.Groups["Queue"].Success ? RouteValues.Get(context, "Queue") : null;
+        IMonitoringApi monitor = context.Storage.GetMonitoringApi();
+        string? queue = context.UriMatch.Groups["Queue"].Success ? RouteValues.Get(context, "Queue") : null;
 
         // The first page is read before anything is sent, so a storage error still gives an error status
-        var page = Fetch(monitor, queue, 0, PageSize);
+        List<Row> page = Fetch(monitor, queue, 0, PageSize);
 
         context.Response.StatusCode = 200;
         context.Response.ContentType = "text/csv; charset=utf-8";
         await context.Response.WriteAsync("Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage\r\n").ConfigureAwait(false);
 
-        var from = 0;
+        int from = 0;
         while (page.Count > 0)
         {
             await context.Response.WriteAsync(FormatRows(page)).ConfigureAwait(false);
@@ -123,9 +124,9 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
 
     private static string FormatRows(List<Row> page)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
 
-        foreach (var row in page)
+        foreach (Row row in page)
         {
             builder.Append(Csv(row.Id)).Append(',').Append(Csv(row.State)).Append(',').Append(Csv(row.Job)).Append(',')
                 .Append(Csv(row.Time?.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture))).Append(',')
@@ -162,8 +163,8 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
 
-        var needsQuotes = value.AsSpan().ContainsAny(CsvSpecialCharacters);
-        var escaped = value.Replace("\"", "\"\"");
+        bool needsQuotes = value.AsSpan().ContainsAny(CsvSpecialCharacters);
+        string escaped = value.Replace("\"", "\"\"");
 
         // A leading formula character would be executed by spreadsheets; some also read one after a tab or a CR
         if (escaped.Length > 0 && (escaped[0] == '=' || escaped[0] == '+' || escaped[0] == '-' || escaped[0] == '@' || escaped[0] == '\t' || escaped[0] == '\r'))

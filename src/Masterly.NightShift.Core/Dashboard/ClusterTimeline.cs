@@ -66,22 +66,22 @@ internal sealed class ClusterTimeline
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        var ordered = entries.Where(static e => e.JobId != null).OrderBy(static e => e.Timestamp).ToList();
-        var open = new Dictionary<string, (ActivityEntry Entry, TimelineLane Lane)>(StringComparer.Ordinal);
-        var lanes = new Dictionary<string, TimelineLane>(StringComparer.Ordinal);
-        var runs = 0;
+        List<ActivityEntry> ordered = [.. entries.Where(static e => e.JobId != null).OrderBy(static e => e.Timestamp)];
+        Dictionary<string, (ActivityEntry Entry, TimelineLane Lane)> open = new(StringComparer.Ordinal);
+        Dictionary<string, TimelineLane> lanes = new(StringComparer.Ordinal);
+        int runs = 0;
 
-        foreach (var entry in ordered)
+        foreach (ActivityEntry entry in ordered)
         {
             if (entry.State == ProcessingState.StateName)
             {
-                var serverId = entry.ServerId ?? "?";
-                var workerId = entry.WorkerId ?? "?";
-                var key = serverId + "\u0001" + workerId;
-                if (!lanes.TryGetValue(key, out var lane)) lanes[key] = lane = new TimelineLane(serverId, workerId);
+                string serverId = entry.ServerId ?? "?";
+                string workerId = entry.WorkerId ?? "?";
+                string key = serverId + "\u0001" + workerId;
+                if (!lanes.TryGetValue(key, out TimelineLane? lane)) lanes[key] = lane = new TimelineLane(serverId, workerId);
 
                 // A job fetched twice (retry) ends its previous span where the new one starts
-                if (open.TryGetValue(entry.JobId!, out var previous))
+                if (open.TryGetValue(entry.JobId!, out (ActivityEntry Entry, TimelineLane Lane) previous))
                 {
                     previous.Lane.Spans.Add(new TimelineSpan(entry.JobId!, previous.Entry.Method, previous.Entry.Timestamp, entry.Timestamp, ProcessingState.StateName));
                 }
@@ -91,29 +91,28 @@ internal sealed class ClusterTimeline
                 continue;
             }
 
-            if (open.TryGetValue(entry.JobId!, out var started))
+            if (open.TryGetValue(entry.JobId!, out (ActivityEntry Entry, TimelineLane Lane) started))
             {
                 started.Lane.Spans.Add(new TimelineSpan(entry.JobId!, started.Entry.Method ?? entry.Method, started.Entry.Timestamp, Math.Max(entry.Timestamp, started.Entry.Timestamp), entry.State));
                 open.Remove(entry.JobId!);
             }
         }
 
-        foreach (var (Entry, Lane) in open.Values)
+        foreach ((ActivityEntry? Entry, TimelineLane? Lane) in open.Values)
         {
             Lane.Spans.Add(new TimelineSpan(Entry.JobId!, Entry.Method, Entry.Timestamp, nowMs, null));
         }
 
-        var result = lanes.Values
+        List<TimelineLane> result = [.. lanes.Values
             .Where(static l => l.Spans.Count > 0)
             .OrderBy(static l => l.ServerId, StringComparer.Ordinal)
-            .ThenBy(static l => l.WorkerId, StringComparer.Ordinal)
-            .ToList();
+            .ThenBy(static l => l.WorkerId, StringComparer.Ordinal)];
 
-        var fromMs = result.Count == 0 ? nowMs : result.SelectMany(static l => l.Spans).Min(static s => s.StartMs);
+        long fromMs = result.Count == 0 ? nowMs : result.SelectMany(static l => l.Spans).Min(static s => s.StartMs);
         if (maxWindow.HasValue && nowMs - fromMs > maxWindow.Value.TotalMilliseconds)
         {
             fromMs = nowMs - (long)maxWindow.Value.TotalMilliseconds;
-            foreach (var lane in result) lane.Spans.RemoveAll(s => s.EndMs < fromMs);
+            foreach (TimelineLane lane in result) lane.Spans.RemoveAll(s => s.EndMs < fromMs);
             result = [.. result.Where(static l => l.Spans.Count > 0)];
         }
 

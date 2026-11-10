@@ -31,7 +31,7 @@ public static class NightShiftKeepAliveServiceCollectionExtensions
 
             services.AddSingleton<IBackgroundProcess>(provider =>
             {
-                var options = new KeepAliveOptions();
+                KeepAliveOptions options = new();
                 configure?.Invoke(options);
 
                 if (options.Url == null && options.UrlFactory == null)
@@ -48,8 +48,8 @@ public static class NightShiftKeepAliveServiceCollectionExtensions
 
     private static string? ResolveFromServer(IServiceProvider provider, string path)
     {
-        var server = provider.GetService<IServer>();
-        var address = server?.Features.Get<IServerAddressesFeature>()?.Addresses
+        IServer? server = provider.GetService<IServer>();
+        string? address = server?.Features.Get<IServerAddressesFeature>()?.Addresses
             .OrderBy(static x => x.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .FirstOrDefault();
 
@@ -59,7 +59,7 @@ public static class NightShiftKeepAliveServiceCollectionExtensions
         }
 
         // "http://*:80", "http://+:80" and "http://0.0.0.0:80" mean "any address": use the loopback for the request
-        var normalized = address
+        string normalized = address
             .Replace("://*", "://localhost")
             .Replace("://+", "://localhost")
             .Replace("://0.0.0.0", "://localhost")

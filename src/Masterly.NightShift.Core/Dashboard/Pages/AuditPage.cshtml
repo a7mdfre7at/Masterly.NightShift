@@ -17,14 +17,14 @@
     IReadOnlyList<AuditEntry> entries;
     long total;
 
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         entries = AuditLog.Read(connection, count);
         total = AuditLog.Count(connection);
     }
 
     // Addresses are personal data: read-only users see them only when the options say so
-    var showIpAddresses = !IsReadOnly || DashboardOptions.DisplayAuditIpAddressesToReadOnlyUsers;
+    bool showIpAddresses = !IsReadOnly || DashboardOptions.DisplayAuditIpAddressesToReadOnlyUsers;
 }
 
 <div class="row">
@@ -45,7 +45,7 @@
             <div class="btn-toolbar btn-toolbar-top">
                 <span class="hf-catalog-summary text-muted">@entries.Count / @total</span>
                 <div class="btn-group pull-right">
-                    @foreach (var size in new[] { 50, 100, 250, 1000 })
+                    @foreach (int size in new[] { 50, 100, 250, 1000 })
                     {
                         <a class="btn btn-sm @(size == count ? "btn-primary active" : "btn-default")" href="@Url.To("/audit?count=" + size)">@size</a>
                     }
@@ -64,7 +64,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var entry in entries)
+                        @foreach (AuditEntry entry in entries)
                         {
                             <tr>
                                 <td class="min-width">@Html.RelativeTime(entry.OccurredAt)</td>
@@ -89,7 +89,7 @@
                                 <td class="word-break">
                                     @if (entry.Targets != null)
                                     {
-                                        foreach (var target in entry.Targets)
+                                        foreach (string target in entry.Targets)
                                         {
                                             if (target.All(Char.IsDigit) && entry.Action.StartsWith("/jobs", StringComparison.OrdinalIgnoreCase) || entry.Action.StartsWith("/catalog", StringComparison.OrdinalIgnoreCase) && target.All(Char.IsDigit))
                                             {

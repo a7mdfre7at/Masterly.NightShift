@@ -42,8 +42,8 @@ public class HtmlHelper
             DisplayNameType = typeof(DisplayNameAttribute);
             if (DisplayNameType == null) return;
 
-            var p = Expression.Parameter(typeof(object));
-            var converted = Expression.Convert(p, DisplayNameType);
+            ParameterExpression p = Expression.Parameter(typeof(object));
+            UnaryExpression converted = Expression.Convert(p, DisplayNameType);
 
             GetDisplayName = Expression.Lambda<Func<object, string>>(Expression.Call(converted, "get_DisplayName", null), p).Compile();
         }
@@ -132,7 +132,7 @@ public class HtmlHelper
             return Strings.Common_CannotFindTargetMethod;
         }
 
-        var jobDisplayNameAttribute = job.Method.GetCustomAttribute<JobDisplayNameAttribute>();
+        JobDisplayNameAttribute? jobDisplayNameAttribute = job.Method.GetCustomAttribute<JobDisplayNameAttribute>();
         if (jobDisplayNameAttribute != null)
         {
             try
@@ -147,7 +147,7 @@ public class HtmlHelper
 
         if (DisplayNameType != null && GetDisplayName != null)
         {
-            var attribute = job.Method.GetCustomAttribute(DisplayNameType);
+            Attribute? attribute = job.Method.GetCustomAttribute(DisplayNameType);
             if (attribute != null)
             {
                 try
@@ -164,7 +164,7 @@ public class HtmlHelper
             }
         }
 
-        var displayNameProvider = Page.DashboardOptions.DisplayNameFunc;
+        Func<DashboardContext, Job, string>? displayNameProvider = Page.DashboardOptions.DisplayNameFunc;
         if (displayNameProvider != null)
         {
             try
@@ -192,8 +192,8 @@ public class HtmlHelper
             return Raw($"<em>{HtmlEncode(Strings.Common_NoState)}</em>");
         }
 
-        var cssSuffix = JobHistoryRenderer.GetStateCssSuffix(stateName);
-        var cssHover = hover ? "label-hover" : null;
+        string? cssSuffix = JobHistoryRenderer.GetStateCssSuffix(stateName);
+        string? cssHover = hover ? "label-hover" : null;
 
         if (cssSuffix != null)
         {
@@ -238,7 +238,7 @@ public class HtmlHelper
     {
         if (duration == null) return null;
 
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         if (displaySign)
         {
             builder.Append(duration.Value.TotalMilliseconds < 0 ? "-" : "+");
@@ -294,7 +294,7 @@ public class HtmlHelper
 
     public NonEscapedString QueueLabel(string queue)
     {
-        var label = queue != null 
+        string label = queue != null 
             ? $"<a href=\"{HtmlEncode(Page.Url.Queue(queue))}\">{HtmlEncode(queue)}</a>" 
             : $"<span class=\"label label-danger\"><i>{HtmlEncode(Strings.Common_Unknown)}</i></span>";
 
@@ -303,8 +303,8 @@ public class HtmlHelper
 
     public NonEscapedString ServerId(string serverId)
     {
-        var parts = serverId.Split(':');
-        var shortenedId = parts.Length > 1
+        string[] parts = serverId.Split(':');
+        string shortenedId = parts.Length > 1
             ? string.Join(":", parts.Take(parts.Length - 1))
             : serverId;
 
@@ -328,7 +328,7 @@ public class HtmlHelper
     {
         try
         {
-            var html = StackTraceFormatter.FormatHtml(stackTrace, StackTraceHtmlFragments);
+            string html = StackTraceFormatter.FormatHtml(stackTrace, StackTraceHtmlFragments);
 
             // Text without any stack frame, such as a bare error message, comes back empty: show it as it is
             return new NonEscapedString(string.IsNullOrWhiteSpace(html) ? HtmlEncode(stackTrace) : html);

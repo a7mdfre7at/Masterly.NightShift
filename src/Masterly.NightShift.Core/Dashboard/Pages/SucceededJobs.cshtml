@@ -4,6 +4,7 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.SucceededJobsPage_Title);
@@ -13,9 +14,9 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.SucceededListCount());
-    var succeededJobs = monitor.SucceededJobs(pager.FromRecord, pager.RecordsPerPage);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.SucceededListCount());
+    JobList<SucceededJobDto?> succeededJobs = monitor.SucceededJobs(pager.FromRecord, pager.RecordsPerPage);
 }
 
 <div class="row">
@@ -84,7 +85,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var job in succeededJobs)
+                            @foreach (KeyValuePair<string, SucceededJobDto?> job in succeededJobs)
                             {
                                 <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InSucceededState ? "obsolete-data" : null) @(job.Value != null && job.Value.InSucceededState ? "hover" : null)">
                                     @if (!IsReadOnly)
@@ -123,13 +124,13 @@
                                         if (job.Value.StateData != null)
                                         {
                                             <td class="min-width align-right">
-                                                @if (job.Value.StateData.TryGetValue("PerformanceDuration", out var duration))
+                                                @if (job.Value.StateData.TryGetValue("PerformanceDuration", out string? duration))
                                                 {
                                                     @Html.ToHumanDuration(TimeSpan.FromMilliseconds(long.Parse(duration, System.Globalization.CultureInfo.InvariantCulture)), false)
                                                 }
                                             </td>
                                             <td class="min-width align-right">
-                                                @if (job.Value.StateData.TryGetValue("Latency", out var latency))
+                                                @if (job.Value.StateData.TryGetValue("Latency", out string? latency))
                                                 {
                                                     @Html.ToHumanDuration(TimeSpan.FromMilliseconds(long.Parse(latency, System.Globalization.CultureInfo.InvariantCulture)), false)
                                                 }

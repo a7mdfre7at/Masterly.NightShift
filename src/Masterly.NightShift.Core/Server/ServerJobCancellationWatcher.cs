@@ -28,16 +28,16 @@ internal sealed class ServerJobCancellationWatcher(TimeSpan checkInterval) : IBa
     {
         _logger.Trace("Checking for aborted jobs...");
 
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
-            var abortedJobIds = ServerJobCancellationToken.CheckAllCancellationTokens(
+            IEnumerable<Tuple<string, string>> abortedJobIds = ServerJobCancellationToken.CheckAllCancellationTokens(
                 context.ServerId,
                 connection,
                 context.StoppedToken);
 
-            var aborted = false;
+            bool aborted = false;
 
-            foreach (var abortedJobId in abortedJobIds)
+            foreach (Tuple<string, string> abortedJobId in abortedJobIds)
             {
                 _logger.Debug($"Job {abortedJobId.Item1} was aborted on worker {abortedJobId.Item2}.");
                 aborted = true;

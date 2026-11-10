@@ -29,20 +29,20 @@ internal sealed class JsonStats : IDashboardDispatcher
             return;
         }
 
-        var requestedMetrics = await context.Request.GetFormValuesAsync("metrics[]").ConfigureAwait(false);
-        var page = new StubPage();
+        IList<string> requestedMetrics = await context.Request.GetFormValuesAsync("metrics[]").ConfigureAwait(false);
+        StubPage page = new();
         page.Assign(context);
 
-        var metrics = DashboardMetrics.GetMetrics().Where(x => requestedMetrics.Contains(x.Name));
-        var result = new Dictionary<string, Metric?>();
+        IEnumerable<DashboardMetric> metrics = DashboardMetrics.GetMetrics().Where(x => requestedMetrics.Contains(x.Name));
+        Dictionary<string, Metric?> result = [];
 
-        foreach (var metric in metrics)
+        foreach (DashboardMetric? metric in metrics)
         {
-            var value = metric.Func(page);
+            Metric? value = metric.Func(page);
             result.Add(metric.Name, value);
         }
 
-        var serialized = JsonSerializer.Serialize(result, Options);
+        string serialized = JsonSerializer.Serialize(result, Options);
 
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsync(serialized).ConfigureAwait(false);

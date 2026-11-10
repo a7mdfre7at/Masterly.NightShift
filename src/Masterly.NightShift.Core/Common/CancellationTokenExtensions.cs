@@ -59,15 +59,15 @@ public static class CancellationTokenExtensions
         /// </summary>
         public bool Wait(TimeSpan timeout)
         {
-            using var cancellationEvent = GetCancellationEvent(cancellationToken);
+            using CancellationEvent cancellationEvent = GetCancellationEvent(cancellationToken);
 
-            var stopwatch = Stopwatch.StartNew();
-            var waitResult = cancellationEvent.WaitHandle.WaitOne(timeout);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            bool waitResult = cancellationEvent.WaitHandle.WaitOne(timeout);
             stopwatch.Stop();
 
-            var timeoutThreshold = TimeSpan.FromMilliseconds(1000);
-            var elapsedThreshold = TimeSpan.FromMilliseconds(500);
-            var protectionTime = TimeSpan.FromSeconds(1);
+            TimeSpan timeoutThreshold = TimeSpan.FromMilliseconds(1000);
+            TimeSpan elapsedThreshold = TimeSpan.FromMilliseconds(500);
+            TimeSpan protectionTime = TimeSpan.FromSeconds(1);
 
             // There was a precedent of the following message logged when CancellationToken.WaitHandle
             // was used directly, instead of having our custom CancellationEvent class used, please see
@@ -78,7 +78,7 @@ public static class CancellationTokenExtensions
             {
                 try
                 {
-                    var logger = LogProvider.GetLogger(typeof(CancellationTokenExtensions));
+                    ILog logger = LogProvider.GetLogger(typeof(CancellationTokenExtensions));
                     logger.Error($"Actual wait time for non-canceled token was '{stopwatch.Elapsed.TotalMilliseconds}' ms instead of '{timeout.TotalMilliseconds}' ms, wait result: {waitResult}, using protective wait. Please report this to Masterly.NightShift developers.");
                 }
                 finally

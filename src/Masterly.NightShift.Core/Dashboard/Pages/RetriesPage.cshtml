@@ -19,9 +19,9 @@
     Pager? pager = null;
     List<string>? jobIds = null;
 
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
-        var storageConnection = connection as JobStorageConnection;
+        JobStorageConnection? storageConnection = connection as JobStorageConnection;
 
         // Paging through the "retries" set needs the extended API
         if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
@@ -106,12 +106,12 @@ else
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var jobId in jobIds)
+                                @foreach (string jobId in jobIds)
                                 {
                                     JobData? jobData;
                                     StateData? stateData;
 
-                                    using (var connection = Storage.GetReadOnlyConnection())
+                                    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
                                     {
                                         jobData = connection.GetJobData(jobId);
                                         stateData = connection.GetStateData(jobId);

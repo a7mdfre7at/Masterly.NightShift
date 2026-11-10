@@ -55,11 +55,11 @@ public sealed class TagAttribute : JobFilterAttribute, IClientFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var tag = GetTag(context.Job);
+        string? tag = GetTag(context.Job);
         if (tag == null) return;
 
         // Before creation the parameters are still objects: an earlier TagAttribute leaves a string[]
-        var tags = context.Parameters.TryGetValue(JobTags.ParameterName, out var existing)
+        string[] tags = context.Parameters.TryGetValue(JobTags.ParameterName, out object? existing)
             ? existing as string[] ?? [.. JobTags.Parse(existing as string)]
             : [];
 
@@ -75,7 +75,7 @@ public sealed class TagAttribute : JobFilterAttribute, IClientFilter
         ArgumentNullException.ThrowIfNull(context);
         if (context.Canceled || context.Exception != null || context.BackgroundJob == null) return;
 
-        var tag = GetTag(context.Job);
+        string? tag = GetTag(context.Job);
         if (tag == null) return;
 
         try
@@ -146,7 +146,7 @@ public static class JobTags
     /// <exception cref="ArgumentException">The tag is empty or longer than <see cref="MaxLength"/>.</exception>
     public static string Normalize([NotNull] string tag)
     {
-        var normalized = NormalizeName(tag);
+        string normalized = NormalizeName(tag);
         if (normalized.Length > MaxLength) throw new ArgumentException($"A tag can't be longer than {MaxLength} characters.", nameof(tag));
 
         return normalized;
@@ -158,11 +158,11 @@ public static class JobTags
     /// </summary>
     internal static string? FromText([NotNull] string text)
     {
-        var normalized = Collapse(text);
+        string normalized = Collapse(text);
         if (normalized.Length == 0) return null;
         if (normalized.Length <= MaxLength) return normalized;
 
-        var prefixLength = MaxLength - HashLength - 1;
+        int prefixLength = MaxLength - HashLength - 1;
         if (char.IsHighSurrogate(normalized[prefixLength - 1])) prefixLength--;
 
         return $"{normalized[..prefixLength].TrimEnd()}~{RedactedAttribute.Hash(normalized)}";
@@ -176,7 +176,7 @@ public static class JobTags
     {
         ArgumentNullException.ThrowIfNull(tag);
 
-        var normalized = Collapse(tag);
+        string normalized = Collapse(tag);
         if (normalized.Length == 0) throw new ArgumentException("A tag can't be empty.", nameof(tag));
 
         return normalized;
@@ -190,7 +190,7 @@ public static class JobTags
     /// <summary>Tags an existing job in <see cref="JobStorage.Current"/>.</summary>
     public static void Add([NotNull] string jobId, [NotNull] params string[] tags)
     {
-        using var connection = JobStorage.Current.GetConnection();
+        using IStorageConnection connection = JobStorage.Current.GetConnection();
         Add(connection, jobId, tags);
     }
 
@@ -201,14 +201,14 @@ public static class JobTags
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(tags);
 
-        var normalized = tags.Select(Normalize).Distinct(StringComparer.Ordinal).ToList();
+        List<string> normalized = [.. tags.Select(Normalize).Distinct(StringComparer.Ordinal)];
         if (normalized.Count == 0) return;
 
         // Read, change and write under a lock, so two changes at once don't lose each other's tags
         using (AcquireLock(connection, jobId))
         {
-            var existing = Parse(connection.GetJobParameter(jobId, ParameterName));
-            var added = normalized.Where(tag => !existing.Contains(tag, StringComparer.Ordinal)).ToList();
+            List<string> existing = Parse(connection.GetJobParameter(jobId, ParameterName));
+            List<string> added = [.. normalized.Where(tag => !existing.Contains(tag, StringComparer.Ordinal))];
             if (added.Count == 0) return;
 
             existing.AddRange(added);
@@ -224,18 +224,18 @@ public static class JobTags
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(jobId);
 
-        var normalized = NormalizeName(tag);
+        string normalized = NormalizeName(tag);
 
         using (AcquireLock(connection, jobId))
         {
-            var existing = Parse(connection.GetJobParameter(jobId, ParameterName));
+            List<string> existing = Parse(connection.GetJobParameter(jobId, ParameterName));
 
             if (existing.Remove(normalized))
             {
                 connection.SetJobParameter(jobId, ParameterName, Serialize([.. existing]));
             }
 
-            using var transaction = connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             transaction.RemoveFromSet(GetKey(normalized), jobId);
             transaction.Commit();
         }
@@ -297,19 +297,19 @@ public static class JobTags
         ArgumentOutOfRangeException.ThrowIfNegative(from);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
-        var key = GetKey(NormalizeName(tag));
+        string key = GetKey(NormalizeName(tag));
 
         return ExtendedStorage.Read<IReadOnlyList<string>>(
             connection,
             storageConnection =>
             {
                 // Sets come back oldest first; the page wants the newest, so read from the end
-                var total = storageConnection.GetSetCount(key);
-                var endingAt = total - 1 - from;
+                long total = storageConnection.GetSetCount(key);
+                long endingAt = total - 1 - from;
                 if (endingAt < 0) return [];
 
-                var startingFrom = Math.Max(0, endingAt - count + 1);
-                var range = storageConnection.GetRangeFromSet(key, (int)startingFrom, (int)endingAt) ?? [];
+                long startingFrom = Math.Max(0, endingAt - count + 1);
+                List<string> range = storageConnection.GetRangeFromSet(key, (int)startingFrom, (int)endingAt) ?? [];
                 range.Reverse();
                 return range;
             },
@@ -330,12 +330,12 @@ public static class JobTags
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(jobIds);
 
-        var key = GetKey(NormalizeName(tag));
-        var ids = jobIds.ToList();
+        string key = GetKey(NormalizeName(tag));
+        List<string> ids = [.. jobIds];
         if (ids.Count == 0) return;
 
-        using var transaction = connection.CreateWriteTransaction();
-        foreach (var jobId in ids)
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        foreach (string jobId in ids)
         {
             transaction.RemoveFromSet(key, jobId);
         }
@@ -348,13 +348,13 @@ public static class JobTags
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var normalized = NormalizeName(tag);
-        var key = GetKey(normalized);
+        string normalized = NormalizeName(tag);
+        string key = GetKey(normalized);
 
-        using var transaction = connection.CreateWriteTransaction();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         if (!TryRemoveSet(transaction, key))
         {
-            foreach (var jobId in connection.GetAllItemsFromSet(key) ?? [])
+            foreach (string jobId in connection.GetAllItemsFromSet(key) ?? [])
             {
                 transaction.RemoveFromSet(key, jobId);
             }
@@ -406,10 +406,10 @@ public static class JobTags
 
     internal static void Index(IStorageConnection connection, string jobId, IEnumerable<string> tags, DateTime now)
     {
-        var score = JobHelper.ToTimestamp(now);
+        long score = JobHelper.ToTimestamp(now);
 
-        using var transaction = connection.CreateWriteTransaction();
-        foreach (var tag in tags)
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        foreach (string tag in tags)
         {
             transaction.AddToSet(IndexKey, tag);
             transaction.AddToSet(GetKey(tag), jobId, score);

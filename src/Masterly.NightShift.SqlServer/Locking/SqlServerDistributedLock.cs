@@ -51,7 +51,7 @@ internal static class SqlServerDistributedLock
             throw new InvalidOperationException("Connection must be open before acquiring a distributed lock.");
         }
 
-        var started = Stopwatch.StartNew();
+        Stopwatch started = Stopwatch.StartNew();
 
         // We can't pass our timeout directly to the sp_getapplock stored procedure, because
         // high values, such as minute or more, may cause SQL Server's thread pool starvation,
@@ -62,23 +62,23 @@ internal static class SqlServerDistributedLock
         //
         // So we are trying to acquire a lock multiple times instead, with timeout that's equal
         // to seconds, not minutes.
-        var lockTimeout = (long)Math.Min(LockTimeout.TotalMilliseconds, timeout.TotalMilliseconds);
-        var lockResource = SqlServerLimits.GetLockResource(resource);
+        long lockTimeout = (long)Math.Min(LockTimeout.TotalMilliseconds, timeout.TotalMilliseconds);
+        string lockResource = SqlServerLimits.GetLockResource(resource);
 
         do
         {
-            using var command = connection
+            using DbCommand command = connection
                 .Create("sp_getapplock", CommandType.StoredProcedure, timeout: (int)(lockTimeout / 1000) + 5)
                 .AddParameter("@Resource", lockResource, DbType.String, size: SqlServerLimits.LockResourceLength)
                 .AddParameter("@DbPrincipal", "public", DbType.String, size: 32)
                 .AddParameter("@LockMode", LockMode, DbType.String, size: 32)
                 .AddParameter("@LockOwner", LockOwner, DbType.String, size: 32)
                 .AddParameter("@LockTimeout", lockTimeout, DbType.Int32)
-                .AddReturnParameter("@Result", out var resultParameter, DbType.Int32);
+                .AddReturnParameter("@Result", out DbParameter? resultParameter, DbType.Int32);
 
             command.ExecuteNonQuery();
 
-            var lockResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
+            int lockResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
 
             if (lockResult >= 0)
             {
@@ -89,7 +89,7 @@ internal static class SqlServerDistributedLock
             if (lockResult == -999 /* Indicates a parameter validation or other call error. */)
             {
                 throw new SqlServerDistributedLockException(
-                    $"Could not place a lock on the resource '{resource}': {(LockErrorMessages.TryGetValue(lockResult, out var message) ? message : $"Server returned the '{lockResult}' error.")}.");
+                    $"Could not place a lock on the resource '{resource}': {(LockErrorMessages.TryGetValue(lockResult, out string? message) ? message : $"Server returned the '{lockResult}' error.")}.");
             }
         } while (started.Elapsed < timeout);
 
@@ -98,10 +98,10 @@ internal static class SqlServerDistributedLock
 
     internal static void Release(DbConnection connection, string resource)
     {
-        using var command = CreateReleaseCommand(connection, resource, out var resultParameter);
+        using DbCommand command = CreateReleaseCommand(connection, resource, out DbParameter? resultParameter);
         command.ExecuteNonQuery();
 
-        var releaseResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
+        int releaseResult = (int)resultParameter.Value!; // An output parameter the procedure always sets
 
         if (releaseResult < 0)
         {

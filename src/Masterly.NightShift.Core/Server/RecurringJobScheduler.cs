@@ -186,7 +186,7 @@ public class RecurringJobScheduler : IBackgroundProcess
         }
         else
         {
-            var now = _nowFactory();
+            DateTime now = _nowFactory();
             context.Wait(now.AddMilliseconds(-now.Millisecond).AddSeconds(-now.Second).AddMinutes(1) - now);
         }
     }
@@ -201,9 +201,9 @@ public class RecurringJobScheduler : IBackgroundProcess
     {
         return UseConnectionDistributedLock(context.Storage, connection =>
         {
-            var jobsProcessed = 0;
+            int jobsProcessed = 0;
 
-            var now = DateTime.SpecifyKind(
+            DateTime now = DateTime.SpecifyKind(
                 !context.Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)
                     ? _nowFactory()
                     : ((JobStorageConnection)connection).GetUtcDateTime(),
@@ -211,8 +211,8 @@ public class RecurringJobScheduler : IBackgroundProcess
 
             if (IsBatchingAvailable(context.Storage, connection))
             {
-                var timestamp = JobHelper.ToTimestamp(now);
-                var recurringJobIds = ((JobStorageConnection)connection).GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp, BatchSize);
+                long timestamp = JobHelper.ToTimestamp(now);
+                List<string> recurringJobIds = ((JobStorageConnection)connection).GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp, BatchSize);
 
                 if (recurringJobIds != null)
                 {
@@ -228,7 +228,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                             },
                             (recurringJobId, state) =>
                             {
-                                using (var dedicated = context.Storage.GetConnection())
+                                using (IStorageConnection dedicated = context.Storage.GetConnection())
                                 {
                                     TryEnqueueBackgroundJob(context, dedicated, recurringJobId, now);
                                 }
@@ -238,7 +238,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                     }
                     else
                     {
-                        foreach (var recurringJobId in recurringJobIds)
+                        foreach (string recurringJobId in recurringJobIds)
                         {
                             if (context.IsStopping) break;
 
@@ -256,13 +256,13 @@ public class RecurringJobScheduler : IBackgroundProcess
                     _parallelismIssueLogged = true;
                 }
 
-                for (var i = 0; i < BatchSize; i++)
+                for (int i = 0; i < BatchSize; i++)
                 {
                     if (context.IsStopping) break;
 
-                    var timestamp = JobHelper.ToTimestamp(now);
+                    long timestamp = JobHelper.ToTimestamp(now);
 
-                    var recurringJobId = connection.GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp);
+                    string? recurringJobId = connection.GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp);
                     if (recurringJobId == null) break;
 
                     TryEnqueueBackgroundJob(context, connection, recurringJobId, now);
@@ -282,7 +282,7 @@ public class RecurringJobScheduler : IBackgroundProcess
     {
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, LockTimeout))
         {
-            var hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+            Dictionary<string, string>? hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
 
             if (hash == null || hash.Count == 0)
             {
@@ -316,12 +316,12 @@ public class RecurringJobScheduler : IBackgroundProcess
         Exception error)
     {
         // The same retries as any other scheduling error, written field by field, as the entity can't be built
-        var retryAttempt = hash.TryGetValue("RetryAttempt", out var attemptString) &&
-                           int.TryParse(attemptString, NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempt)
+        int retryAttempt = hash.TryGetValue("RetryAttempt", out string? attemptString) &&
+                           int.TryParse(attemptString, NumberStyles.Integer, CultureInfo.InvariantCulture, out int attempt)
             ? attempt
             : 0;
 
-        var fields = new Dictionary<string, string>
+        Dictionary<string, string> fields = new()
         {
             { "Error", error.ToStringWithOriginalStackTrace(States.FailedState.MaxLinesInExceptionDetails, includeFileInfo: false) },
         };
@@ -330,7 +330,7 @@ public class RecurringJobScheduler : IBackgroundProcess
 
         if (retryAttempt < MaxRetryAttemptCount)
         {
-            var nextAttempt = now.Add(PollingInterval);
+            DateTime nextAttempt = now.Add(PollingInterval);
 
             _logger.WarnException(
                 $"Recurring job '{recurringJobId}' can't be read and will be retried in {PollingInterval}.",
@@ -350,7 +350,7 @@ public class RecurringJobScheduler : IBackgroundProcess
             score = -1.0D;
         }
 
-        using var transaction = connection.CreateWriteTransaction();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         transaction.SetRangeInHash($"recurring-job:{recurringJobId}", fields);
         transaction.AddToSet("recurring-jobs", recurringJobId, score);
         transaction.Commit();
@@ -363,18 +363,18 @@ public class RecurringJobScheduler : IBackgroundProcess
         // to prevent from infinite loop, when there's an old processing server (pre-1.7.0)
         // in our environment that doesn't know it should modify the score for entries in
         // the recurring jobs set.
-        var afterCommit = new PostCommitActions();
+        PostCommitActions afterCommit = new();
 
         try
         {
-            using var transaction = connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             Exception? exception = null;
 
             // The last run that is created and enqueued in this transaction (or canceled by a filter). When a
             // run fails, the job's last execution goes back to it, so the next pass creates the failed run and
             // the ones after it again instead of skipping them
-            var lastHandledExecution = recurringJob.LastExecution;
-            var lastHandledJobId = recurringJob.LastJobId;
+            DateTime? lastHandledExecution = recurringJob.LastExecution;
+            string? lastHandledJobId = recurringJob.LastJobId;
 
             try
             {
@@ -387,20 +387,20 @@ public class RecurringJobScheduler : IBackgroundProcess
                     throw new NotSupportedException($"Server '{context.ServerId}' can't process recurring job '{recurringJobId}' of version '{recurringJob.Version ?? 1}'. Max supported version of this server is '{MaxSupportedVersion}'.");
                 }
 
-                var runs = new List<KeyValuePair<DateTime, BackgroundJob?>>();
+                List<KeyValuePair<DateTime, BackgroundJob?>> runs = [];
 
                 // How late an Ignorable run may be noticed and still be created
-                var precision = PollingInterval + PollingInterval;
+                TimeSpan precision = PollingInterval + PollingInterval;
 
-                var executions = recurringJob.ScheduleNext(
+                IEnumerable<DateTime> executions = recurringJob.ScheduleNext(
                     _timeZoneResolver,
                     recurringJob.ScheduleFrom ?? recurringJob.CreatedAt?.AddSeconds(-1) ?? now.AddSeconds(-1),
                     now,
                     precision);
 
-                foreach (var execution in executions)
+                foreach (DateTime execution in executions)
                 {
-                    var backgroundJob = _factory.TriggerRecurringJob(
+                    BackgroundJob? backgroundJob = _factory.TriggerRecurringJob(
                         context.Storage,
                         connection,
                         _profiler,
@@ -416,7 +416,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                     runs.Add(new KeyValuePair<DateTime, BackgroundJob?>(execution, backgroundJob));
                 }
 
-                foreach (var run in runs)
+                foreach (KeyValuePair<DateTime, BackgroundJob?> run in runs)
                 {
                     if (run.Value != null)
                     {
@@ -450,7 +450,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                 RetryRecurringJob(recurringJobId, recurringJob, now, exception);
             }
 
-            recurringJob.IsChanged(now, out var changedFields);
+            recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields);
             transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
 
             // We should commit transaction outside of the internal try/catch block, because these
@@ -471,11 +471,11 @@ public class RecurringJobScheduler : IBackgroundProcess
 
     private void RetryRecurringJob(string recurringJobId, RecurringJobEntity recurringJob, DateTime now, Exception error)
     {
-        var errorString = error.ToStringWithOriginalStackTrace(States.FailedState.MaxLinesInExceptionDetails, includeFileInfo: false);
+        string errorString = error.ToStringWithOriginalStackTrace(States.FailedState.MaxLinesInExceptionDetails, includeFileInfo: false);
 
         if (recurringJob.RetryAttempt < MaxRetryAttemptCount)
         {
-            var delay = PollingInterval;
+            TimeSpan delay = PollingInterval;
 
             _logger.WarnException(
                 $"Recurring job '{recurringJobId}' can't be scheduled due to an error and will be retried in {delay}.",
@@ -494,17 +494,17 @@ public class RecurringJobScheduler : IBackgroundProcess
     {
         _logger.Debug($"Recurring job '{recurringJobId}' doesn't exist and will be removed from schedule.");
 
-        using var transaction = connection.CreateWriteTransaction();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         transaction.RemoveFromSet("recurring-jobs", recurringJobId);
         transaction.Commit();
     }
 
     private T? UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
     {
-        var resource = "recurring-jobs:lock";
+        string resource = "recurring-jobs:lock";
         try
         {
-            using (var connection = storage.GetConnection())
+            using (IStorageConnection connection = storage.GetConnection())
             using (connection.AcquireDistributedLock(resource, LockTimeout))
             {
                 return action(connection);

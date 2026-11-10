@@ -157,7 +157,7 @@ public static class RecurringJob
         [NotNull] string cronExpression,
         [NotNull] RecurringJobOptions options)
     {
-        var job = Job.FromExpression(methodCall);
+        Job job = Job.FromExpression(methodCall);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -179,7 +179,7 @@ public static class RecurringJob
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var job = Job.FromExpression(methodCall, queue);
+        Job job = Job.FromExpression(methodCall, queue);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -197,7 +197,7 @@ public static class RecurringJob
         [NotNull] string cronExpression,
         [NotNull] RecurringJobOptions options)
     {
-        var job = Job.FromExpression(methodCall);
+        Job job = Job.FromExpression(methodCall);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -219,7 +219,7 @@ public static class RecurringJob
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var job = Job.FromExpression(methodCall, queue);
+        Job job = Job.FromExpression(methodCall, queue);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -313,7 +313,7 @@ public static class RecurringJob
         [NotNull] string cronExpression,
         [NotNull] RecurringJobOptions options)
     {
-        var job = Job.FromExpression(methodCall);
+        Job job = Job.FromExpression(methodCall);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -335,7 +335,7 @@ public static class RecurringJob
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var job = Job.FromExpression(methodCall, queue);
+        Job job = Job.FromExpression(methodCall, queue);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -353,7 +353,7 @@ public static class RecurringJob
         [NotNull] string cronExpression,
         [NotNull] RecurringJobOptions options)
     {
-        var job = Job.FromExpression(methodCall);
+        Job job = Job.FromExpression(methodCall);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 
@@ -375,7 +375,7 @@ public static class RecurringJob
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var job = Job.FromExpression(methodCall, queue);
+        Job job = Job.FromExpression(methodCall, queue);
         ManagerFactory().AddOrUpdate(recurringJobId, job, cronExpression, options);
     }
 

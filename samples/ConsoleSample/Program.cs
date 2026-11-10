@@ -17,7 +17,7 @@ using Masterly.NightShift.States;
 using NightShiftSamples;
 
 // Set ConnectionStrings__NightShift to use another database
-var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
+string connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__NightShift")
     ?? @"Server=(localdb)\MSSQLLocalDB;Database=Masterly.NightShift.Sample;Integrated Security=True;TrustServerCertificate=True;";
 
 // The storage creates its tables but not the database; the sample creates it on a fresh machine
@@ -41,7 +41,7 @@ GlobalConfiguration.Configuration
 
 Console.WriteLine(SerializationHelper.Serialize(new ExceptionInfo(new OperationCanceledException()), SerializationOption.Internal));
 
-var backgroundJobs = new BackgroundJobClient
+BackgroundJobClient backgroundJobs = new()
 {
     RetryAttempts = 5
 };
@@ -49,11 +49,11 @@ var backgroundJobs = new BackgroundJobClient
 NewFeatures.Test(throwException: false);
 NewFeatures.Test(throwException: true);
 
-var job1 = BackgroundJob.Enqueue<Services>(x => x.WriteIndex(0));
-var job2 = BackgroundJob.ContinueJobWith<Services>(job1!, "default", x => x.WriteIndex(default));
-var job3 = BackgroundJob.ContinueJobWith<Services>(job2!, "critical", x => x.WriteIndex(default));
-var job4 = BackgroundJob.ContinueJobWith<Services>(job3!, "default", x => x.WriteIndex(default));
-var job5 = BackgroundJob.ContinueJobWith<Services>(job4!, "critical", x => x.WriteIndex(default));
+string? job1 = BackgroundJob.Enqueue<Services>(x => x.WriteIndex(0));
+string? job2 = BackgroundJob.ContinueJobWith<Services>(job1!, "default", x => x.WriteIndex(default));
+string? job3 = BackgroundJob.ContinueJobWith<Services>(job2!, "critical", x => x.WriteIndex(default));
+string? job4 = BackgroundJob.ContinueJobWith<Services>(job3!, "default", x => x.WriteIndex(default));
+string? job5 = BackgroundJob.ContinueJobWith<Services>(job4!, "critical", x => x.WriteIndex(default));
 
 // Features from docs/whats-new-next.md: a live console, throttling, rate limits, a circuit breaker
 BackgroundJob.Enqueue<NextFeatures>(x => x.Import(40, null!, CancellationToken.None));
@@ -81,7 +81,7 @@ RecurringJob.AddOrUpdate("Russian", () => Console.WriteLine("Russian"), "15 21 *
     TimeZone = TimeZoneInfo.Local
 });
 
-var serverOptions = new BackgroundJobServerOptions
+BackgroundJobServerOptions serverOptions = new()
 {
     Queues = ["critical", "default"],
     TaskScheduler = null,
@@ -90,11 +90,11 @@ var serverOptions = new BackgroundJobServerOptions
 
 using (new BackgroundJobServer(serverOptions))
 {
-    var count = 1;
+    int count = 1;
 
     while (true)
     {
-        var command = Console.ReadLine();
+        string? command = Console.ReadLine();
 
         if (command == null || command.Equals("stop", StringComparison.OrdinalIgnoreCase))
         {
@@ -105,10 +105,10 @@ using (new BackgroundJobServer(serverOptions))
         {
             try
             {
-                var workCount = int.Parse(command[4..]);
-                for (var i = 0; i < workCount; i++)
+                int workCount = int.Parse(command[4..]);
+                for (int i = 0; i < workCount; i++)
                 {
-                    var number = i;
+                    int number = i;
                     BackgroundJob.Enqueue<Services>(x => x.Random(number));
                 }
                 Console.WriteLine("Jobs enqueued.");
@@ -123,8 +123,8 @@ using (new BackgroundJobServer(serverOptions))
         {
             try
             {
-                var workCount = int.Parse(command[6..]);
-                for (var i = 0; i < workCount; i++)
+                int workCount = int.Parse(command[6..]);
+                for (int i = 0; i < workCount; i++)
                 {
                     BackgroundJob.Enqueue<Services>(x => x.Async(CancellationToken.None));
                 }
@@ -140,8 +140,8 @@ using (new BackgroundJobServer(serverOptions))
         {
             try
             {
-                var workCount = int.Parse(command[7..]);
-                for (var i = 0; i < workCount; i++)
+                int workCount = int.Parse(command[7..]);
+                for (int i = 0; i < workCount; i++)
                 {
                     BackgroundJob.Enqueue(() => Console.WriteLine("Hello, {0}!", "world"));
                 }
@@ -155,8 +155,8 @@ using (new BackgroundJobServer(serverOptions))
 
         if (command.StartsWith("error", StringComparison.OrdinalIgnoreCase))
         {
-            var workCount = int.Parse(command[6..]);
-            for (var i = 0; i < workCount; i++)
+            int workCount = int.Parse(command[6..]);
+            for (int i = 0; i < workCount; i++)
             {
                 BackgroundJob.Enqueue<Services>(x => x.Error());
             }
@@ -164,8 +164,8 @@ using (new BackgroundJobServer(serverOptions))
 
         if (command.StartsWith("args", StringComparison.OrdinalIgnoreCase))
         {
-            var workCount = int.Parse(command[5..]);
-            for (var i = 0; i < workCount; i++)
+            int workCount = int.Parse(command[5..]);
+            for (int i = 0; i < workCount; i++)
             {
                 BackgroundJob.Enqueue<Services>(x => x.Args(Guid.NewGuid().ToString(), 14442, DateTime.UtcNow));
             }
@@ -173,8 +173,8 @@ using (new BackgroundJobServer(serverOptions))
 
         if (command.StartsWith("custom", StringComparison.OrdinalIgnoreCase))
         {
-            var workCount = int.Parse(command[7..]);
-            for (var i = 0; i < workCount; i++)
+            int workCount = int.Parse(command[7..]);
+            for (int i = 0; i < workCount; i++)
             {
                 BackgroundJob.Enqueue<Services>(x => x.Custom(
                     new Random().Next(),
@@ -187,8 +187,8 @@ using (new BackgroundJobServer(serverOptions))
 
         if (command.StartsWith("fullargs", StringComparison.OrdinalIgnoreCase))
         {
-            var workCount = int.Parse(command[9..]);
-            for (var i = 0; i < workCount; i++)
+            int workCount = int.Parse(command[9..]);
+            for (int i = 0; i < workCount; i++)
             {
                 BackgroundJob.Enqueue<Services>(x => x.FullArgs(
                     false,
@@ -209,22 +209,22 @@ using (new BackgroundJobServer(serverOptions))
 
         if (command.StartsWith("in", StringComparison.OrdinalIgnoreCase))
         {
-            var seconds = int.Parse(command[2..]);
-            var number = count++;
+            int seconds = int.Parse(command[2..]);
+            int number = count++;
             BackgroundJob.Schedule<Services>("default", x => x.Random(number), TimeSpan.FromSeconds(seconds));
         }
 
         if (command.StartsWith("cancelable", StringComparison.OrdinalIgnoreCase))
         {
-            var iterations = int.Parse(command[11..]);
+            int iterations = int.Parse(command[11..]);
             BackgroundJob.Enqueue<Services>(x => x.Cancelable(iterations, JobCancellationToken.Null));
         }
 
         if (command.StartsWith("delete", StringComparison.OrdinalIgnoreCase))
         {
-            var workCount = int.Parse(command[7..]);
-            var client = new BackgroundJobClient();
-            for (var i = 0; i < workCount; i++)
+            int workCount = int.Parse(command[7..]);
+            BackgroundJobClient client = new();
+            for (int i = 0; i < workCount; i++)
             {
                 client.Create<Services>(x => x.EmptyDefault(), new DeletedState(new ExceptionInfo(new OperationCanceledException())));
             }
@@ -234,7 +234,7 @@ using (new BackgroundJobServer(serverOptions))
         {
             try
             {
-                var workCount = int.Parse(command[5..]);
+                int workCount = int.Parse(command[5..]);
                 Parallel.For(0, workCount, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
                 {
                     BackgroundJob.Enqueue<Services>(
@@ -268,9 +268,9 @@ public static class ConsoleJobs
 {
     public static void WriteString(string value)
     {
-        var lastId = BackgroundJob.Enqueue<Services>(x => x.Write(value[0]));
+        string? lastId = BackgroundJob.Enqueue<Services>(x => x.Write(value[0]));
 
-        for (var i = 1; i < value.Length; i++)
+        for (int i = 1; i < value.Length; i++)
         {
             lastId = BackgroundJob.ContinueJobWith<Services>(lastId!, x => x.Write(value[i]));
         }

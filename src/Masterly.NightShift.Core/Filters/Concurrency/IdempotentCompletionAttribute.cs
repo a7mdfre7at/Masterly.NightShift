@@ -57,8 +57,8 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
         ArgumentNullException.ThrowIfNull(context);
         if (string.IsNullOrEmpty(context.CurrentState)) return;
 
-        var serializedState = context.GetJobParameter<string>(CompletionParameter, allowStale: true);
-        var completed = !string.IsNullOrEmpty(serializedState);
+        string? serializedState = context.GetJobParameter<string>(CompletionParameter, allowStale: true);
+        bool completed = !string.IsNullOrEmpty(serializedState);
 
         // A worker picked the job up again. An election filter with a lower order may already have replaced the
         // Processing state (LatencyTimeout with Deleted, for example); the recorded completion still wins.
@@ -102,7 +102,7 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
 
         try
         {
-            var serializedState = SerializationHelper.Serialize(WithoutResult(context.NewState), SerializationOption.TypedInternal);
+            string serializedState = SerializationHelper.Serialize(WithoutResult(context.NewState), SerializationOption.TypedInternal);
             context.Connection.SetJobParameter(
                 context.BackgroundJob.Id,
                 CompletionParameter,
@@ -138,7 +138,7 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
         }
 
         // A custom final state is recognized when it is the recorded one
-        var recorded = SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal);
+        IState? recorded = SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal);
         return recorded != null && recorded.Name.Equals(currentState, StringComparison.OrdinalIgnoreCase);
     }
 }

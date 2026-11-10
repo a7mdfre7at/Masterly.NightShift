@@ -243,7 +243,7 @@ public partial class Job
 
     public string ToString(bool includeQueue)
     {
-        var sb = new StringBuilder()
+        StringBuilder sb = new StringBuilder()
             .Append(Type.ToGenericTypeString())
             .Append('.')
             .Append(Method.Name);
@@ -415,9 +415,9 @@ public partial class Job
     {
         ArgumentNullException.ThrowIfNull(methodCall);
 
-        var callExpression = methodCall.Body as MethodCallExpression ?? throw new ArgumentException("Expression body should be of type `MethodCallExpression`", nameof(methodCall));
-        var type = explicitType ?? callExpression.Method.DeclaringType;
-        var method = callExpression.Method;
+        MethodCallExpression callExpression = methodCall.Body as MethodCallExpression ?? throw new ArgumentException("Expression body should be of type `MethodCallExpression`", nameof(methodCall));
+        Type? type = explicitType ?? callExpression.Method.DeclaringType;
+        MethodInfo? method = callExpression.Method;
 
         if (explicitType == null && callExpression.Object != null)
         {
@@ -427,7 +427,7 @@ public partial class Job
             // TODO: BREAKING: Consider removing this special case entirely.
             // People consider that the whole object is serialized, this is not true.
 
-            var objectValue = GetExpressionValue(callExpression.Object) ?? throw new InvalidOperationException("Expression object should be not null.");
+            object objectValue = GetExpressionValue(callExpression.Object) ?? throw new InvalidOperationException("Expression object should be not null.");
 
             // TODO: BREAKING: Consider using `callExpression.Object.Type` expression instead.
             type = objectValue.GetType();
@@ -485,7 +485,7 @@ public partial class Job
             throw new NotSupportedException("Async void methods are not supported. Use async Task instead.");
         }
 
-        var parameters = method.GetParameters();
+        ParameterInfo[] parameters = method.GetParameters();
 
         if (parameters.Length != argumentCount)
         {
@@ -494,7 +494,7 @@ public partial class Job
                 argumentParameterName);
         }
 
-        foreach (var parameter in parameters)
+        foreach (ParameterInfo parameter in parameters)
         {
             // There is no guarantee that specified method will be invoked
             // in the same process. Therefore, output parameters and parameters
@@ -512,7 +512,7 @@ public partial class Job
                     "Parameters, passed by reference, are not supported: there is no guarantee that specified method will be invoked inside the same process.");
             }
 
-            var parameterTypeInfo = parameter.ParameterType.GetTypeInfo();
+            TypeInfo parameterTypeInfo = parameter.ParameterType.GetTypeInfo();
 
             if (parameterTypeInfo.IsSubclassOf(typeof(Delegate)) || parameterTypeInfo.IsSubclassOf(typeof(Expression)))
             {
@@ -524,10 +524,10 @@ public partial class Job
 
     private static object[] GetExpressionValues(ReadOnlyCollection<Expression> expressions)
     {
-        var result = expressions.Count > 0 ? new object[expressions.Count] : [];
-        var index = 0;
+        object[] result = expressions.Count > 0 ? new object[expressions.Count] : [];
+        int index = 0;
 
-        foreach (var expression in expressions)
+        foreach (Expression expression in expressions)
         {
             result[index++] = GetExpressionValue(expression)!; // Job arguments may be null
         }

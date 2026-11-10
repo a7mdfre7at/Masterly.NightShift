@@ -2,8 +2,8 @@
 @using Masterly.NightShift.Dashboard
 @inherits RazorPage
 @{
-    var metric = DashboardMetric.Func(this);
-    var className = metric == null ? "metric-null" : metric.Style.ToClassName();
-    var highlighted = metric != null && metric.Highlighted ? "highlighted" : null;
+    Metric? metric = DashboardMetric.Func(this);
+    string className = metric == null ? "metric-null" : metric.Style.ToClassName();
+    string? highlighted = metric != null && metric.Highlighted ? "highlighted" : null;
 }
 <span data-metric="@DashboardMetric.Name" class="metric @className @highlighted">@(metric?.Value)</span>

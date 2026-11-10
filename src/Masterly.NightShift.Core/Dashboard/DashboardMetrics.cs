@@ -89,7 +89,7 @@ public static class DashboardMetrics
             }
             else
             {
-                using var connection = page.Storage.GetReadOnlyConnection();
+                using IStorageConnection connection = page.Storage.GetReadOnlyConnection();
                 if (connection is not JobStorageConnection storageConnection || !page.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
                 {
                     return null;
@@ -185,7 +185,7 @@ public static class DashboardMetrics
             }
             else
             {
-                using var connection = page.Storage.GetReadOnlyConnection();
+                using IStorageConnection connection = page.Storage.GetReadOnlyConnection();
                 if (connection is JobStorageConnection storageConnection && page.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
                 {
                     awaitingCount = storageConnection.GetSetCount("awaiting");

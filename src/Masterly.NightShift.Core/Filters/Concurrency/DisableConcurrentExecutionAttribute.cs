@@ -57,21 +57,21 @@ public class DisableConcurrentExecutionAttribute : JobFilterAttribute, IServerFi
 
     public void OnPerforming(PerformingContext context)
     {
-        var resource = GetResource(context.BackgroundJob.Job!); // A job being performed was loaded
-        var timeout = TimeSpan.FromSeconds(TimeoutSec);
+        string resource = GetResource(context.BackgroundJob.Job!); // A job being performed was loaded
+        TimeSpan timeout = TimeSpan.FromSeconds(TimeoutSec);
 
-        var distributedLock = context.Connection.AcquireDistributedLock(resource, timeout);
+        IDisposable distributedLock = context.Connection.AcquireDistributedLock(resource, timeout);
         context.Items["DistributedLock"] = distributedLock;
     }
 
     public void OnPerformed(PerformedContext context)
     {
-        if (!context.Items.TryGetValue("DistributedLock", out var value))
+        if (!context.Items.TryGetValue("DistributedLock", out object? value))
         {
             throw new InvalidOperationException("Can not release a distributed lock: it was not acquired.");
         }
 
-        var distributedLock = (IDisposable)value;
+        IDisposable distributedLock = (IDisposable)value;
 
         // The job has run: a failure to release doesn't change its outcome. A storage lets go of a lock whose
         // connection is closed (SQL Server does), so the lock isn't held forever.

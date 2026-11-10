@@ -183,7 +183,7 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
 
     private IBackgroundDispatcher CreateDispatcher()
     {
-        var execution = new BackgroundExecution(
+        BackgroundExecution execution = new(
             new BackgroundExecutionOptions
             {
                 Name = nameof(BackgroundServerProcess),

@@ -26,7 +26,7 @@ internal sealed class InlineSynchronizationContext : SynchronizationContext, IDi
 
     public Tuple<SendOrPostCallback, object?>? Dequeue()
     {
-        _queue.TryDequeue(out var tuple);
+        _queue.TryDequeue(out Tuple<SendOrPostCallback, object?>? tuple);
         return tuple;
     }
 

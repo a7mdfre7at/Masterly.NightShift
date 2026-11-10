@@ -94,7 +94,7 @@ public abstract class JobInvoker
     {
         get
         {
-            var method = Volatile.Read(ref field);
+            MethodInfo? method = Volatile.Read(ref field);
             if (method != null) return method;
 
             method = ResolveMethod();
@@ -128,7 +128,7 @@ public abstract class JobInvoker
 
     private MethodInfo ResolveMethod()
     {
-        var method = Type.GetNonOpenMatchingMethod(MethodName, ParameterTypes) ?? throw new InvalidOperationException(
+        MethodInfo method = Type.GetNonOpenMatchingMethod(MethodName, ParameterTypes) ?? throw new InvalidOperationException(
                 $"The type `{Type.FullName}` does not contain a method with signature `{MethodName}({string.Join(", ", ParameterTypes.Select(static x => x.Name))})`.");
         if (GenericArguments.Length > 0 && method.IsGenericMethodDefinition)
         {

@@ -59,19 +59,19 @@ public static class NightShiftEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
             ArgumentNullException.ThrowIfNull(pattern);
 
-            var app = endpoints.CreateApplicationBuilder();
+            IApplicationBuilder app = endpoints.CreateApplicationBuilder();
 
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
 
-            var services = app.ApplicationServices;
+            IServiceProvider services = app.ApplicationServices;
 
             storage ??= services.GetRequiredService<JobStorage>();
             options ??= services.GetService<DashboardOptions>() ?? new DashboardOptions();
             options.TimeZoneResolver ??= services.GetService<ITimeZoneResolver>();
 
-            var routes = app.ApplicationServices.GetRequiredService<Dashboard.RouteCollection>();
+            Dashboard.RouteCollection routes = app.ApplicationServices.GetRequiredService<Dashboard.RouteCollection>();
 
-            var pipeline = app
+            RequestDelegate pipeline = app
                 .UsePathBase(pattern)
                 .UseMiddleware<AspNetCoreDashboardMiddleware>(storage, options, routes, true)
                 .Build();
@@ -134,7 +134,7 @@ public static class NightShiftEndpointRouteBuilderExtensions
 
     internal static DashboardOptions CopyOptions(DashboardOptions source)
     {
-        var copy = new DashboardOptions
+        DashboardOptions copy = new()
         {
             AppPath = source.AppPath,
             PrefixPath = source.PrefixPath,

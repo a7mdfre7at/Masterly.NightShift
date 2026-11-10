@@ -48,7 +48,7 @@ internal sealed class BackgroundDispatcherAsync : IBackgroundDispatcher
 
         _stopped = new CountdownEvent(maxConcurrency);
 
-        for (var i = 0; i < maxConcurrency; i++)
+        for (int i = 0; i < maxConcurrency; i++)
         {
             Task.Factory.StartNew(
                 DispatchLoop,

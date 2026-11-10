@@ -146,7 +146,7 @@ public sealed class JobConsole : IJobConsole
 
         lock (_syncRoot)
         {
-            var last = _lastProgress;
+            JobProgress? last = _lastProgress;
             if (last != null && Math.Abs(last.Percent - percent) < 0.05 && string.Equals(last.Message, message, StringComparison.Ordinal))
             {
                 return;
@@ -154,8 +154,8 @@ public sealed class JobConsole : IJobConsole
 
             if (!IsRunning()) return;
 
-            var progress = new JobProgress { Percent = percent, Message = message, Timestamp = Now() };
-            var value = SerializationHelper.Serialize(progress, SerializationOption.Internal);
+            JobProgress progress = new() { Percent = percent, Message = message, Timestamp = Now() };
+            string value = SerializationHelper.Serialize(progress, SerializationOption.Internal);
 
             try
             {
@@ -200,12 +200,12 @@ public sealed class JobConsole : IJobConsole
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var checkpoint = Truncate(name)!;
+        string checkpoint = Truncate(name)!;
 
         lock (_syncRoot)
         {
-            var checkpoints = LoadCheckpoints();
-            var isNew = !checkpoints.Contains(checkpoint, StringComparer.Ordinal);
+            List<string> checkpoints = LoadCheckpoints();
+            bool isNew = !checkpoints.Contains(checkpoint, StringComparer.Ordinal);
 
             if (IsRunning())
             {
@@ -261,7 +261,7 @@ public sealed class JobConsole : IJobConsole
 
         try
         {
-            var value = connection.GetJobParameter(jobId, ProgressParameter);
+            string? value = connection.GetJobParameter(jobId, ProgressParameter);
             return value == null ? null : SerializationHelper.Deserialize<JobProgress>(value, SerializationOption.Internal);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -292,9 +292,9 @@ public sealed class JobConsole : IJobConsole
     {
         if (_checkpoints != null) return _checkpoints;
 
-        var loaded = new List<string>();
+        List<string> loaded = [];
 
-        foreach (var entry in UseConnection(ReadCheckpointEntries))
+        foreach (JobConsoleEntry? entry in UseConnection(ReadCheckpointEntries))
         {
             if (!loaded.Contains(entry.Checkpoint!, StringComparer.Ordinal)) loaded.Add(entry.Checkpoint!);
         }
@@ -307,8 +307,8 @@ public sealed class JobConsole : IJobConsole
     {
         if (connection is not JobStorageConnection storageConnection) return [];
 
-        var jobId = _context.BackgroundJob.Id;
-        var recorded = ReadList(storageConnection, GetCheckpointsKey(jobId));
+        string jobId = _context.BackgroundJob.Id;
+        List<JobConsoleEntry> recorded = ReadList(storageConnection, GetCheckpointsKey(jobId));
 
         if (recorded.Count > 0)
         {
@@ -316,11 +316,10 @@ public sealed class JobConsole : IJobConsole
             return [.. recorded.Where(static x => x.Checkpoint != null)];
         }
 
-        var consoleKey = GetConsoleKey(jobId);
-        var legacy = ReadList(storageConnection, consoleKey)
+        string consoleKey = GetConsoleKey(jobId);
+        List<JobConsoleEntry> legacy = [.. ReadList(storageConnection, consoleKey)
             .Where(static x => x.Checkpoint != null)
-            .DistinctBy(static x => x.Checkpoint, StringComparer.Ordinal)
-            .ToList();
+            .DistinctBy(static x => x.Checkpoint, StringComparer.Ordinal)];
 
         // An expiring console list belongs to a run that finished, and the job was requeued since: start over
         if (legacy.Count == 0 || IsExpiring(storageConnection, consoleKey)) return [];
@@ -356,13 +355,13 @@ public sealed class JobConsole : IJobConsole
             return [];
         }
 
-        var entries = new List<JobConsoleEntry>(items.Count);
+        List<JobConsoleEntry> entries = new(items.Count);
 
-        foreach (var item in items)
+        foreach (string item in items)
         {
             try
             {
-                var entry = SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal);
+                JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal);
                 if (entry != null) entries.Add(entry);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -379,9 +378,9 @@ public sealed class JobConsole : IJobConsole
         entry.Timestamp = Now();
         entry.Sequence = ++_sequence;
 
-        var jobId = _context.BackgroundJob.Id;
-        var serialized = SerializationHelper.Serialize(entry, SerializationOption.Internal);
-        var earlier = newCheckpoint ? _legacyCheckpoints : null;
+        string jobId = _context.BackgroundJob.Id;
+        string serialized = SerializationHelper.Serialize(entry, SerializationOption.Internal);
+        List<JobConsoleEntry>? earlier = newCheckpoint ? _legacyCheckpoints : null;
 
         UseConnection(connection =>
         {
@@ -392,8 +391,8 @@ public sealed class JobConsole : IJobConsole
                 _marked = true;
             }
 
-            using var transaction = connection.CreateWriteTransaction();
-            var consoleKey = GetConsoleKey(jobId);
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            string consoleKey = GetConsoleKey(jobId);
 
             transaction.InsertToList(consoleKey, serialized);
 
@@ -404,11 +403,11 @@ public sealed class JobConsole : IJobConsole
 
             if (newCheckpoint)
             {
-                var checkpointsKey = GetCheckpointsKey(jobId);
+                string checkpointsKey = GetCheckpointsKey(jobId);
 
                 if (earlier != null)
                 {
-                    foreach (var legacy in earlier)
+                    foreach (JobConsoleEntry legacy in earlier)
                     {
                         transaction.InsertToList(checkpointsKey, SerializationHelper.Serialize(legacy, SerializationOption.Internal));
                     }
@@ -431,11 +430,11 @@ public sealed class JobConsole : IJobConsole
     {
         _droppedWrites++;
 
-        var now = Clock();
+        DateTime now = Clock();
         if (_nextDroppedWriteWarning.HasValue && now < _nextDroppedWriteWarning.Value) return;
 
         _nextDroppedWriteWarning = now + DroppedWriteWarningInterval;
-        var dropped = _droppedWrites;
+        int dropped = _droppedWrites;
         _droppedWrites = 0;
 
         Logger.WarnException(
@@ -472,7 +471,7 @@ public sealed class JobConsole : IJobConsole
     {
         // The worker's connection may be pinned to a distributed lock, where calls from the job's other
         // threads would run on one database connection at once, so each call gets a connection of its own
-        var owned = _context.Storage?.GetConnection();
+        IStorageConnection? owned = _context.Storage?.GetConnection();
 
         try
         {

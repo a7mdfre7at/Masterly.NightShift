@@ -7,7 +7,7 @@
     @if (_pager.TotalPageCount > 1)
     {
         <div class="btn-group paginator">
-            @foreach (var page in _pager.PagerItems)
+            @foreach (Pager.Item page in _pager.PagerItems)
             {
                 switch (page.Type)
                 {

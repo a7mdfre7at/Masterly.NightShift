@@ -27,7 +27,7 @@ public sealed class JobConsoleStateFilter : JobFilterAttribute, IApplyStateFilte
             return;
         }
 
-        var hasConsole = HasConsole(context);
+        bool hasConsole = HasConsole(context);
 
         // Consoles written by builds before the marker existed still go when the job is deleted
         if (!hasConsole && !DeletedState.StateName.Equals(context.NewState.Name, StringComparison.OrdinalIgnoreCase))
@@ -35,9 +35,9 @@ public sealed class JobConsoleStateFilter : JobFilterAttribute, IApplyStateFilte
             return;
         }
 
-        var jobId = context.BackgroundJob.Id;
-        var consoleKey = JobConsole.GetConsoleKey(jobId);
-        var checkpointsKey = JobConsole.GetCheckpointsKey(jobId);
+        string jobId = context.BackgroundJob.Id;
+        string consoleKey = JobConsole.GetConsoleKey(jobId);
+        string checkpointsKey = JobConsole.GetCheckpointsKey(jobId);
 
         // Failed job retention expires a failed job too: its console goes with it
         if (context.JobExpires)
@@ -65,14 +65,14 @@ public sealed class JobConsoleStateFilter : JobFilterAttribute, IApplyStateFilte
 
     private static bool HasConsole(ApplyStateContext context)
     {
-        var parameters = context.BackgroundJob.ParametersSnapshot;
+        IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
 
         // Without a snapshot there is no telling, so the lists follow the job as they always did
         if (parameters == null || parameters.ContainsKey(JobConsole.MarkerParameter)) return true;
 
         // The performance that just ended wrote to its console
         return context.CustomData != null &&
-               context.CustomData.TryGetValue(PerformContext.ConsoleItemKey, out var console) &&
+               context.CustomData.TryGetValue(PerformContext.ConsoleItemKey, out object? console) &&
                console is JobConsole { HasStorageData: true };
     }
 

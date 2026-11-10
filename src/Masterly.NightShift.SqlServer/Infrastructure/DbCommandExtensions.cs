@@ -32,7 +32,7 @@ internal static class DbCommandExtensions
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(text);
 
-            var command = connection.CreateCommand();
+            DbCommand command = connection.CreateCommand();
             command.CommandType = type;
             command.CommandText = text;
 
@@ -56,7 +56,7 @@ internal static class DbCommandExtensions
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(parameterName);
 
-            var parameter = AddParameterInternal(command, parameterName, dbType, size);
+            DbParameter parameter = AddParameterInternal(command, parameterName, dbType, size);
             parameter.Value = value ?? DBNull.Value;
 
             return command;
@@ -97,9 +97,9 @@ internal static class DbCommandExtensions
                         "(" + string.Join(",", Enumerable.Range(0, pair.Value.Value).Select(i => pair.Value.Key + i.ToString(CultureInfo.InvariantCulture))) + ")");
                 });
 
-            for (var i = 0; i < parameterValues.Length; i++)
+            for (int i = 0; i < parameterValues.Length; i++)
             {
-                var parameter = AddParameterInternal(command, parameterName + i.ToString(CultureInfo.InvariantCulture), parameterType, parameterSize);
+                DbParameter parameter = AddParameterInternal(command, parameterName + i.ToString(CultureInfo.InvariantCulture), parameterType, parameterSize);
                 parameter.Value = (object?)parameterValues[i] ?? DBNull.Value;
             }
 
@@ -118,7 +118,7 @@ internal static class DbCommandExtensions
                 case null or DBNull: return default;
                 case T typed: return typed;
                 default:
-                    var type = typeof(T);
+                    Type type = typeof(T);
                     type = Nullable.GetUnderlyingType(type) ?? type;
                     return (T)Convert.ChangeType(parameter.Value, type, CultureInfo.InvariantCulture);
             }
@@ -131,7 +131,7 @@ internal static class DbCommandExtensions
         DbType dbType,
         int? size)
     {
-        var parameter = command.CreateParameter();
+        DbParameter parameter = command.CreateParameter();
         parameter.ParameterName = parameterName;
         parameter.DbType = dbType;
 

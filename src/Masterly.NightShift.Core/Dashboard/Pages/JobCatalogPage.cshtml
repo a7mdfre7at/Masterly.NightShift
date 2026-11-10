@@ -12,25 +12,25 @@
 @{
     Layout = new LayoutPage(Strings.CatalogPage_Title);
 
-    var entries = JobCatalog.GetEntries();
-    var insightsByKey = new Dictionary<string, JobInsight>(StringComparer.Ordinal);
+    IReadOnlyList<JobCatalogEntry> entries = JobCatalog.GetEntries();
+    Dictionary<string, JobInsight> insightsByKey = new(StringComparer.Ordinal);
 
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         if (connection is JobStorageConnection storageConnection)
         {
             // Only the methods JobInsightsAttribute has recorded (one read of its index), not four reads per method
-            var recorded = connection.GetAllItemsFromSet(JobInsightsAttribute.IndexKey) ?? new HashSet<string>();
+            HashSet<string> recorded = connection.GetAllItemsFromSet(JobInsightsAttribute.IndexKey) ?? new HashSet<string>();
 
-            foreach (var key in entries.Select(e => e.InsightsKey).Distinct(StringComparer.Ordinal).Where(recorded.Contains))
+            foreach (string key in entries.Select(e => e.InsightsKey).Distinct(StringComparer.Ordinal).Where(recorded.Contains))
             {
-                var insight = JobInsightsAttribute.Read(storageConnection, key);
+                JobInsight? insight = JobInsightsAttribute.Read(storageConnection, key);
                 if (insight != null) insightsByKey[key] = insight;
             }
         }
     }
 
-    var typeCount = entries.Select(e => e.Type).Distinct().Count();
+    int typeCount = entries.Select(e => e.Type).Distinct().Count();
 }
 
 <div class="row">
@@ -48,7 +48,7 @@
                 <span class="text-muted hf-catalog-summary">@entries.Count @Strings.CatalogPage_Summary_Methods &middot; @typeCount @Strings.CatalogPage_Summary_Types</span>
             </div>
 
-            foreach (var group in entries.GroupBy(e => e.Type))
+            foreach (IGrouping<Type, JobCatalogEntry> group in entries.GroupBy(e => e.Type))
             {
                 <section class="hf-card hf-catalog-group js-catalog-group" data-type="@group.Key.FullName">
                     <div class="hf-card-header">
@@ -70,10 +70,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var entry in group)
+                                @foreach (JobCatalogEntry entry in group)
                                 {
-                                    var insight = insightsByKey.TryGetValue(entry.InsightsKey, out var found) ? found : null;
-                                    var userParameters = entry.UserParameters.ToList();
+                                    JobInsight? insight = insightsByKey.TryGetValue(entry.InsightsKey, out JobInsight? found) ? found : null;
+                                    List<JobCatalogParameter> userParameters = entry.UserParameters.ToList();
 
                                     <tr class="js-catalog-entry" data-search="@(entry.Type.FullName + " " + entry.Method.Name + " " + String.Join(" ", userParameters.Select(p => p.Name)))">
                                         <td class="word-break">
@@ -88,7 +88,7 @@
                                             {
                                                 <span class="text-muted">&ndash;</span>
                                             }
-                                            @foreach (var parameter in entry.Parameters)
+                                            @foreach (JobCatalogParameter parameter in entry.Parameters)
                                             {
                                                 <span class="hf-param @(parameter.Injected ? "hf-param-injected" : null)" title="@(parameter.Injected ? Strings.CatalogPage_Injected : parameter.TypeName)">
                                                     <span class="hf-param-type">@parameter.TypeName</span> @parameter.Name
@@ -96,7 +96,7 @@
                                             }
                                         </td>
                                         <td class="word-break">
-                                            @foreach (var filter in entry.Filters)
+                                            @foreach (string filter in entry.Filters)
                                             {
                                                 <span class="label label-info">@filter</span>
                                             }

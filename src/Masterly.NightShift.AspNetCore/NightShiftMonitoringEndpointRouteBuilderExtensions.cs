@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using Masterly.NightShift.Dashboard;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 
@@ -57,18 +59,18 @@ public static class NightShiftMonitoringEndpointRouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(pattern);
 
-        var services = endpoints.ServiceProvider;
+        IServiceProvider services = endpoints.ServiceProvider;
         NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(services);
 
-        var resolvedStorage = storage ?? services.GetRequiredService<JobStorage>();
-        var resolvedOptions = options ?? services.GetService<DashboardOptions>() ?? new DashboardOptions();
-        var routes = services.GetRequiredService<Dashboard.RouteCollection>();
-        var route = routes.FindDispatcher(dashboardPath)
+        JobStorage resolvedStorage = storage ?? services.GetRequiredService<JobStorage>();
+        DashboardOptions resolvedOptions = options ?? services.GetService<DashboardOptions>() ?? new DashboardOptions();
+        Dashboard.RouteCollection routes = services.GetRequiredService<Dashboard.RouteCollection>();
+        Tuple<IDashboardDispatcher, Match> route = routes.FindDispatcher(dashboardPath)
                     ?? throw new InvalidOperationException($"The dashboard has no '{dashboardPath}' route.");
 
         return endpoints.MapGet(pattern, httpContext =>
         {
-            var context = new Dashboard.AspNetCoreDashboardContext(resolvedStorage, resolvedOptions, httpContext)
+            AspNetCoreDashboardContext context = new(resolvedStorage, resolvedOptions, httpContext)
             {
                 UriMatch = route.Item2,
             };

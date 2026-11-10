@@ -39,7 +39,7 @@ internal static class RecurringJobExtensions
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(recurringJobId);
 
-            var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+            Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) return null;
 
             return new RecurringJobEntity(recurringJobId, recurringJob);
@@ -51,7 +51,7 @@ internal static class RecurringJobExtensions
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(recurringJobId);
 
-            var recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+            Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) recurringJob = [];
 
             return new RecurringJobEntity(recurringJobId, recurringJob);
@@ -74,7 +74,7 @@ internal static class RecurringJobExtensions
                 transaction.SetRangeInHash($"recurring-job:{recurringJob.RecurringJobId}", changedFields);
             }
 
-            var score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
+            double score = recurringJob.NextExecution.HasValue ? JobHelper.ToTimestamp(recurringJob.NextExecution.Value) : -1.0D;
 
             if (logger != null && logger.IsTraceEnabled())
             {
@@ -108,13 +108,13 @@ internal static class RecurringJobExtensions
                 throw new InvalidOperationException("The 'Job' field has a null or empty value");
             }
 
-            var job = InvocationData.DeserializePayload(recurringJob.Job).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(recurringJob.Job).DeserializeJob();
 
-            var context = new CreateContext(storage, connection, job, null, null, profiler, null);
+            CreateContext context = new(storage, connection, job, null, null, profiler, null);
             context.Parameters["RecurringJobId"] = recurringJob.RecurringJobId;
             context.Parameters["Time"] = JobHelper.ToTimestamp(now);
 
-            var backgroundJob = factory.Create(context);
+            BackgroundJob? backgroundJob = factory.Create(context);
 
             recurringJob.LastExecution = now;
             recurringJob.LastJobId = backgroundJob?.Id;
@@ -156,7 +156,7 @@ internal static class RecurringJobExtensions
             ArgumentNullException.ThrowIfNull(backgroundJob);
             ArgumentNullException.ThrowIfNull(profiler);
 
-            var state = new EnqueuedState { Reason = reason };
+            EnqueuedState state = new() { Reason = reason };
 
             if (recurringJob.Queue != null)
             {

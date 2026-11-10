@@ -41,27 +41,27 @@ internal sealed class BatchCommandDispatcher(Action<DashboardContext, string> co
             return;
         }
 
-        var jobIds = await context.Request.GetFormValuesAsync("jobs[]").ConfigureAwait(false);
+        IList<string> jobIds = await context.Request.GetFormValuesAsync("jobs[]").ConfigureAwait(false);
         if (jobIds.Count == 0)
         {
             context.Response.StatusCode = 422;
             return;
         }
 
-        var failures = new List<string>();
-        var done = 0;
-        var status = (int)HttpStatusCode.InternalServerError;
+        List<string> failures = [];
+        int done = 0;
+        int status = (int)HttpStatusCode.InternalServerError;
 
         try
         {
-            foreach (var jobId in jobIds)
+            foreach (string jobId in jobIds)
             {
                 try
                 {
                     _command(context, jobId);
                     done++;
                 }
-                catch (Exception ex) when (TryGetLoadFailure(ex, out var reason))
+                catch (Exception ex) when (TryGetLoadFailure(ex, out string? reason))
                 {
                     // "Trigger now" builds the job, so it needs its type; the other ids may not
                     failures.Add($"{jobId} ({reason})");
@@ -91,7 +91,7 @@ internal sealed class BatchCommandDispatcher(Action<DashboardContext, string> co
     /// <summary>Whether the exception says a job's type or method couldn't be loaded, and why.</summary>
     internal static bool TryGetLoadFailure(Exception exception, out string? reason)
     {
-        var load = exception as JobLoadException
+        JobLoadException? load = exception as JobLoadException
             ?? (exception as AggregateException)?.Flatten().InnerExceptions.OfType<JobLoadException>().FirstOrDefault();
 
         reason = load?.InnerException?.Message ?? load?.Message;

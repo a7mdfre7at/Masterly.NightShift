@@ -33,7 +33,7 @@ internal static class CachedExpressionCompiler
 
     private static Func<object, object> Wrap(Expression arg)
     {
-        var lambdaExpr = Expression.Lambda<Func<object, object>>(Expression.Convert(arg, typeof(object)), UnusedParameterExpr);
+        Expression<Func<object, object>> lambdaExpr = Expression.Lambda<Func<object, object>>(Expression.Convert(arg, typeof(object)), UnusedParameterExpr);
         return ExpressionUtil.CachedExpressionCompiler.Process(lambdaExpr);
     }
 }

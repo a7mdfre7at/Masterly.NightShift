@@ -77,12 +77,12 @@ internal static class CachedExpressionCompiler
 
             if (fingerprint != null)
             {
-                var del = _fingerprintedCache.GetOrAdd(fingerprint, _ =>
+                Hoisted<TIn, TOut> del = _fingerprintedCache.GetOrAdd(fingerprint, _ =>
                 {
                     // Fingerprinting succeeded, but there was a cache miss. Rewrite the expression
                     // and add the rewritten expression to the cache.
 
-                    var hoistedExpr = HoistingExpressionVisitor<TIn, TOut>.Hoist(expr);
+                    Expression<Hoisted<TIn, TOut>> hoistedExpr = HoistingExpressionVisitor<TIn, TOut>.Hoist(expr);
                     return hoistedExpr.Compile();
                 });
                 return model => del(model, capturedConstants);
@@ -111,13 +111,13 @@ internal static class CachedExpressionCompiler
                 if (memberExpr.Expression is ConstantExpression constExpr)
                 {
                     // model => {const}.Member (captured local variable)
-                    var del = _constMemberAccessDict.GetOrAdd(memberExpr.Member, _ =>
+                    Func<object, TOut> del = _constMemberAccessDict.GetOrAdd(memberExpr.Member, _ =>
                     {
                         // rewrite as capturedLocal => ((TDeclaringType)capturedLocal).Member
-                        var constParamExpr = Expression.Parameter(typeof(object), "capturedLocal");
-                        var constCastExpr = Expression.Convert(constParamExpr, memberExpr.Member.DeclaringType);
-                        var newMemberAccessExpr = memberExpr.Update(constCastExpr);
-                        var newLambdaExpr = Expression.Lambda<Func<object, TOut>>(newMemberAccessExpr, constParamExpr);
+                        ParameterExpression constParamExpr = Expression.Parameter(typeof(object), "capturedLocal");
+                        UnaryExpression constCastExpr = Expression.Convert(constParamExpr, memberExpr.Member.DeclaringType);
+                        MemberExpression newMemberAccessExpr = memberExpr.Update(constCastExpr);
+                        Expression<Func<object, TOut>> newLambdaExpr = Expression.Lambda<Func<object, TOut>>(newMemberAccessExpr, constParamExpr);
                         return newLambdaExpr.Compile();
                     });
 

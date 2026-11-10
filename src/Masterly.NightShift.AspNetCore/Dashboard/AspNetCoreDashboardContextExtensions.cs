@@ -31,7 +31,7 @@ public static class AspNetCoreDashboardContextExtensions
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            var aspNetCoreContext = context as AspNetCoreDashboardContext ?? throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
+            AspNetCoreDashboardContext aspNetCoreContext = context as AspNetCoreDashboardContext ?? throw new ArgumentException($"Context argument should be of type `{nameof(AspNetCoreDashboardContext)}`!", nameof(context));
             return aspNetCoreContext.HttpContext;
         }
     }

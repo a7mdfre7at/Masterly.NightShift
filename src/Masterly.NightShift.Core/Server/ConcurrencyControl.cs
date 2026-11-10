@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Masterly.NightShift.Logging;
@@ -28,13 +29,6 @@ internal static class ConcurrencyControl
     /// state, so the worker doesn't change its state again.
     /// </summary>
     internal const string RescheduledItem = "X_NS_Rescheduled";
-
-    /// <summary>
-    /// <see cref="PerformContext.Items"/> entry set by the performer just before it calls the job method, so a
-    /// filter's <c>OnPerformed</c> can tell a method that ran (and maybe threw) from a later filter that threw
-    /// before the method was called.
-    /// </summary>
-    internal const string MethodInvokedItem = "X_NS_MethodInvoked";
 
     private const int HashLength = 32;
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(ConcurrencyControl));
@@ -89,20 +83,20 @@ internal static class ConcurrencyControl
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         AppendTypeName(builder, job.Type);
         builder.Append('.').Append(job.Method.Name);
 
         if (job.Method.IsGenericMethod)
         {
-            var arguments = job.Method.GetGenericArguments();
+            Type[] arguments = job.Method.GetGenericArguments();
             AppendTypeArguments(builder, arguments, 0, arguments.Length);
         }
 
         builder.Append('(');
 
-        var parameters = job.Method.GetParameters();
-        for (var i = 0; i < parameters.Length; i++)
+        ParameterInfo[] parameters = job.Method.GetParameters();
+        for (int i = 0; i < parameters.Length; i++)
         {
             if (i > 0) builder.Append(',');
             AppendTypeName(builder, parameters[i].ParameterType);
@@ -142,12 +136,12 @@ internal static class ConcurrencyControl
         }
 
         // "Namespace.Outer`1+Inner`2": each part's arguments take the place of its "`n"
-        var definition = type.GetGenericTypeDefinition();
-        var name = definition.FullName ?? definition.Name;
-        var arguments = type.GetGenericArguments();
-        var position = 0;
+        Type definition = type.GetGenericTypeDefinition();
+        string name = definition.FullName ?? definition.Name;
+        Type[] arguments = type.GetGenericArguments();
+        int position = 0;
 
-        for (var i = 0; i < name.Length; i++)
+        for (int i = 0; i < name.Length; i++)
         {
             if (name[i] != '`')
             {
@@ -155,7 +149,7 @@ internal static class ConcurrencyControl
                 continue;
             }
 
-            var count = 0;
+            int count = 0;
             while (i + 1 < name.Length && name[i + 1] >= '0' && name[i + 1] <= '9')
             {
                 count = (count * 10) + (name[++i] - '0');
@@ -171,7 +165,7 @@ internal static class ConcurrencyControl
     {
         builder.Append('<');
 
-        for (var i = 0; i < count; i++)
+        for (int i = 0; i < count; i++)
         {
             if (i > 0) builder.Append(',');
             AppendTypeName(builder, arguments[start + i]);
@@ -205,14 +199,14 @@ internal static class ConcurrencyControl
         if (resource.Length <= maxLength) return resource;
 
         // "{prefix}~{hash}" is exactly maxLength characters long; a surrogate pair is never cut in two
-        var prefixLength = maxLength - HashLength - 1;
+        int prefixLength = maxLength - HashLength - 1;
         if (char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
-        var builder = new StringBuilder(maxLength);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
+        StringBuilder builder = new(maxLength);
         builder.Append(resource, 0, prefixLength).Append('~');
 
-        for (var i = 0; i < HashLength / 2; i++)
+        for (int i = 0; i < HashLength / 2; i++)
         {
             builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
         }
@@ -228,7 +222,7 @@ internal static class ConcurrencyControl
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return context.Items.TryGetValue(StateChangerItem, out var value) && value is IBackgroundJobStateChanger stateChanger
+        return context.Items.TryGetValue(StateChangerItem, out object? value) && value is IBackgroundJobStateChanger stateChanger
             ? stateChanger
             : StateChanger;
     }
@@ -255,7 +249,7 @@ internal static class ConcurrencyControl
     /// </summary>
     public static bool TryParseMember(string member, out long timestamp, out string jobId)
     {
-        var separator = member.IndexOf(':');
+        int separator = member.IndexOf(':');
 
         if (separator > 0 && long.TryParse(member.AsSpan(0, separator), NumberStyles.Integer, CultureInfo.InvariantCulture, out timestamp))
         {
@@ -282,9 +276,9 @@ internal static class ConcurrencyControl
         live = [];
         stale = [];
 
-        foreach (var member in members)
+        foreach (string member in members)
         {
-            if (!TryParseMember(member, out var timestamp, out var jobId)
+            if (!TryParseMember(member, out long timestamp, out string? jobId)
                 || timestamp < staleBefore
                 || (ownJobId != null && string.Equals(jobId, ownJobId, StringComparison.Ordinal)))
             {
@@ -319,7 +313,7 @@ internal static class ConcurrencyControl
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(reason);
 
-        var storage = context.Storage ?? JobStorage.Current;
+        JobStorage storage = context.Storage ?? JobStorage.Current;
 
         WithRetries(context, $"reschedule background job '{context.BackgroundJob.Id}'", () =>
         {
@@ -327,7 +321,7 @@ internal static class ConcurrencyControl
             // state
             HeldQueue.Remember(context);
 
-            var stateChangeContext = new StateChangeContext(
+            StateChangeContext stateChangeContext = new(
                 storage,
                 context.Connection,
                 context.BackgroundJob.Id,
@@ -350,9 +344,9 @@ internal static class ConcurrencyControl
     /// </summary>
     public static void WithRetries([NotNull] PerformContext context, [NotNull] string description, [NotNull] Action write)
     {
-        var delays = StorageRetryDelays;
+        TimeSpan[] delays = StorageRetryDelays;
 
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             try
             {

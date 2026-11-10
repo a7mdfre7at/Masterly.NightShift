@@ -19,6 +19,7 @@ using System.Reflection;
 using System.Text.Json;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
+using Masterly.NightShift.Diagnostics;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Logging.LogProviders;
 using Masterly.NightShift.Server;
@@ -77,7 +78,7 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             FailedJobRetentionFilter.Validate(retention, nameof(retention));
 
-            var filter = (FailedJobRetentionFilter)AddGlobalFilterOnce(
+            FailedJobRetentionFilter filter = (FailedJobRetentionFilter)AddGlobalFilterOnce(
                 static registered => registered is FailedJobRetentionFilter,
                 () => new FailedJobRetentionFilter(retention));
 
@@ -238,7 +239,7 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(metrics);
 
-            foreach (var metric in metrics)
+            foreach (DashboardMetric metric in metrics)
             {
                 DashboardMetrics.AddMetric(metric);
                 HomePage.Metrics.Add(metric);
@@ -389,7 +390,7 @@ public static class GlobalConfigurationExtensions
         public IGlobalConfiguration UseResultsInContinuations()
         {
             AddGlobalFilterOnce(static filter => filter is JobParameterInjectionFilter, static () => new JobParameterInjectionFilter());
-            var continuations = (ContinuationsSupportAttribute)AddGlobalFilterOnce(
+            ContinuationsSupportAttribute continuations = (ContinuationsSupportAttribute)AddGlobalFilterOnce(
                 static filter => filter is ContinuationsSupportAttribute registered && registered.PushResults,
                 static () => new ContinuationsSupportAttribute(pushResults: true));
 
@@ -405,12 +406,12 @@ public static class GlobalConfigurationExtensions
     {
         lock (GlobalFiltersLock)
         {
-            foreach (var filter in GlobalJobFilters.Filters)
+            foreach (JobFilter filter in GlobalJobFilters.Filters)
             {
                 if (isRegistered(filter.Instance)) return filter.Instance;
             }
 
-            var created = create();
+            object created = create();
             GlobalJobFilters.Filters.Add(created);
             return created;
         }
@@ -483,7 +484,7 @@ public static class GlobalConfigurationExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            var telemetry = (Diagnostics.TelemetryFilter)AddGlobalFilterOnce(static filter => filter is Diagnostics.TelemetryFilter, static () => new Diagnostics.TelemetryFilter());
+            TelemetryFilter telemetry = (Diagnostics.TelemetryFilter)AddGlobalFilterOnce(static filter => filter is Diagnostics.TelemetryFilter, static () => new Diagnostics.TelemetryFilter());
             return configuration.Use(telemetry, static _ => { });
         }
 
@@ -514,7 +515,7 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
 
             AddGlobalFilterOnce(static filter => filter is JobInsightsAttribute, static () => new JobInsightsAttribute());
-            var queueInsights = (QueueInsightsFilter)AddGlobalFilterOnce(static filter => filter is QueueInsightsFilter, static () => new QueueInsightsFilter());
+            QueueInsightsFilter queueInsights = (QueueInsightsFilter)AddGlobalFilterOnce(static filter => filter is QueueInsightsFilter, static () => new QueueInsightsFilter());
             return configuration.Use(queueInsights, static _ => { });
         }
 
@@ -566,7 +567,7 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(url);
 
-            var options = new WebhookAlertOptions { Url = url };
+            WebhookAlertOptions options = new() { Url = url };
             configure?.Invoke(options);
 
             return configuration.UseAlerts(new WebhookAlertSink(options));

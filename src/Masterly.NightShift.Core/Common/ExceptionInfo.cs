@@ -60,8 +60,8 @@ public sealed class ExceptionInfo
 
     public override string ToString()
     {
-        var sb = new StringBuilder();
-        var commaIndex = Type.IndexOf(',');
+        StringBuilder sb = new();
+        int commaIndex = Type.IndexOf(',');
         sb.Append(commaIndex >= 0 ? Type[..commaIndex] : Type);
         sb.Append(": ");
         sb.Append(Message);

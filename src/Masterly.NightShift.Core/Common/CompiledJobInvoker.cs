@@ -63,15 +63,15 @@ internal sealed class CompiledJobInvoker : JobInvoker
         if (method.DeclaringType == null) throw new NotSupportedException("Global methods are not supported.");
         if (method.ContainsGenericParameters) throw new NotSupportedException("Open generic methods are not supported.");
 
-        var instance = Expression.Parameter(typeof(object), "instance");
-        var arguments = Expression.Parameter(typeof(object[]), "arguments");
+        ParameterExpression instance = Expression.Parameter(typeof(object), "instance");
+        ParameterExpression arguments = Expression.Parameter(typeof(object[]), "arguments");
 
-        var parameters = method.GetParameters();
-        var callArguments = new Expression[parameters.Length];
+        ParameterInfo[] parameters = method.GetParameters();
+        Expression[] callArguments = new Expression[parameters.Length];
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameterType = parameters[i].ParameterType;
+            Type parameterType = parameters[i].ParameterType;
 
             if (parameterType.IsByRef || parameterType.IsPointer)
             {

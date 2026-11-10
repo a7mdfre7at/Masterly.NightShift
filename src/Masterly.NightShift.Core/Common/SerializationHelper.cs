@@ -133,7 +133,7 @@ public static class SerializationHelper
     {
         if (value == null) return null;
 
-        var options = GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170)
+        JsonSerializerOptions options = GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170)
             ? GetSerializerOptions(option)
             // Previously almost all the data was serialized with the user settings, except
             // when the type information had to be persisted.
@@ -191,7 +191,7 @@ public static class SerializationHelper
 
     private static string SerializeWith(object value, Type type, SerializationOption option, JsonSerializerOptions options)
     {
-        var abstractTypeInfo = GetAbstractTypeInfo(type, options);
+        JsonTypeInfo? abstractTypeInfo = GetAbstractTypeInfo(type, options);
         if (NeedsTypeName(abstractTypeInfo))
         {
             return JsonSerializer.Serialize(new TypeNamedValue(value), options);
@@ -268,7 +268,7 @@ public static class SerializationHelper
     public static T? Deserialize<T>([CanBeNull] string? value, SerializationOption option)
     {
         if (value == null) return default;
-        var result = Deserialize(value, typeof(T), option);
+        object? result = Deserialize(value, typeof(T), option);
         return result == null ? default : (T)result;
     }
 
@@ -307,7 +307,7 @@ public static class SerializationHelper
     /// </summary>
     internal static JsonSerializerOptions GetInternalSettings()
     {
-        var options = CreateBaseOptions();
+        JsonSerializerOptions options = CreateBaseOptions();
         options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         return options;
     }
@@ -325,7 +325,7 @@ public static class SerializationHelper
     /// </summary>
     internal static void SetRecommendedSerializerSettings([CanBeNull] Action<JsonSerializerOptions>? configure)
     {
-        var options = GetInternalSettings();
+        JsonSerializerOptions options = GetInternalSettings();
         configure?.Invoke(options);
 
         Volatile.Write(ref _userSerializerOptions, new UserSerializerOptions(WithCompatibilityConverters(options, typeNames: true)));
@@ -339,14 +339,14 @@ public static class SerializationHelper
     /// </summary>
     private static JsonSerializerOptions WithCompatibilityConverters(JsonSerializerOptions options, bool typeNames)
     {
-        var copy = new JsonSerializerOptions(options);
+        JsonSerializerOptions copy = new(options);
 
-        foreach (var converter in CreateCompatibilityConverters(typeNames))
+        foreach (JsonConverter converter in CreateCompatibilityConverters(typeNames))
         {
             if (options.ReferenceHandler != null && converter is LegacyTypedArrayConverterFactory) continue;
 
-            var exists = false;
-            foreach (var existing in copy.Converters)
+            bool exists = false;
+            foreach (JsonConverter existing in copy.Converters)
             {
                 if (existing.GetType() == converter.GetType()) { exists = true; break; }
             }
@@ -364,7 +364,7 @@ public static class SerializationHelper
     /// </summary>
     private static JsonSerializerOptions WithLenientReading(JsonSerializerOptions options)
     {
-        var numberHandling = options.NumberHandling | LenientNumberHandling;
+        JsonNumberHandling numberHandling = options.NumberHandling | LenientNumberHandling;
 
         if (options.PropertyNameCaseInsensitive && options.NumberHandling == numberHandling && options.IncludeFields &&
             options.AllowTrailingCommas && options.ReadCommentHandling == JsonCommentHandling.Skip)
@@ -390,7 +390,7 @@ public static class SerializationHelper
     /// </summary>
     private static JsonSerializerOptions ForReading(JsonSerializerOptions options)
     {
-        var copy = new JsonSerializerOptions(options)
+        JsonSerializerOptions copy = new(options)
         {
             TypeInfoResolver = (options.TypeInfoResolver ?? new DefaultJsonTypeInfoResolver())
                 .WithAddedModifier(JsonConstructorOnlyStructModifier.Apply)
@@ -453,18 +453,18 @@ public static class SerializationHelper
 
     private static object? DeserializeTypeNamed(string value, Type type, JsonSerializerOptions options)
     {
-        var documentOptions = new JsonDocumentOptions
+        JsonDocumentOptions documentOptions = new()
         {
             AllowTrailingCommas = options.AllowTrailingCommas,
             CommentHandling = options.ReadCommentHandling,
             MaxDepth = options.MaxDepth
         };
 
-        using var document = JsonDocument.Parse(value, documentOptions);
-        var root = document.RootElement;
+        using JsonDocument document = JsonDocument.Parse(value, documentOptions);
+        JsonElement root = document.RootElement;
 
         if (root.ValueKind == JsonValueKind.Null) return null;
-        if (!TypeNamedJson.TryGetTypeName(root, out var typeName))
+        if (!TypeNamedJson.TryGetTypeName(root, out string? typeName))
         {
             throw new JsonException(
                 $"A value of the interface or abstract type '{type}' must be a JSON object with a \"{TypeNamedJson.TypeProperty}\" property naming its actual type.");
@@ -507,7 +507,7 @@ public static class SerializationHelper
     private static JsonSerializerOptions CreateInternalOptions()
     {
         // Values declared as object keep their type (what TypeNameHandling.Auto did before)
-        var options = GetInternalSettings();
+        JsonSerializerOptions options = GetInternalSettings();
         AddCompatibilityConverters(options, typeNames: true);
         options.MakeReadOnly();
         return options;
@@ -515,14 +515,14 @@ public static class SerializationHelper
 
     private static JsonSerializerOptions CreateDefaultUserOptions()
     {
-        var options = CreateBaseOptions();
+        JsonSerializerOptions options = CreateBaseOptions();
         AddCompatibilityConverters(options, typeNames: false);
         return options;
     }
 
     private static JsonSerializerOptions CreateBaseOptions()
     {
-        var resolver = new DefaultJsonTypeInfoResolver();
+        DefaultJsonTypeInfoResolver resolver = new();
         resolver.Modifiers.Add(JsonDefaultValueModifier.Apply);
 
         return new JsonSerializerOptions
@@ -542,7 +542,7 @@ public static class SerializationHelper
 
     private static void AddCompatibilityConverters(JsonSerializerOptions options, bool typeNames)
     {
-        foreach (var converter in CreateCompatibilityConverters(typeNames))
+        foreach (JsonConverter converter in CreateCompatibilityConverters(typeNames))
         {
             options.Converters.Add(converter);
         }
@@ -637,11 +637,11 @@ public static class SerializationHelper
 
         private static JsonSerializerOptions ForInput(JsonSerializerOptions options)
         {
-            var copy = new JsonSerializerOptions(options);
-            var converter = new InferredObjectJsonConverter(typeNames: false, rejectTypeNames: true);
-            var replaced = false;
+            JsonSerializerOptions copy = new(options);
+            InferredObjectJsonConverter converter = new(typeNames: false, rejectTypeNames: true);
+            bool replaced = false;
 
-            for (var i = 0; i < copy.Converters.Count; i++)
+            for (int i = 0; i < copy.Converters.Count; i++)
             {
                 if (copy.Converters[i] is InferredObjectJsonConverter)
                 {

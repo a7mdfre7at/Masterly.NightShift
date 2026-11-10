@@ -36,7 +36,7 @@ public abstract class AsyncJobInterceptorAttribute : JobInterceptorAttribute
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
-        var task = InterceptAsync(invocation) ?? throw new InvalidOperationException($"{GetType().Name}.InterceptAsync returned null instead of a task.");
+        Task<object?> task = InterceptAsync(invocation) ?? throw new InvalidOperationException($"{GetType().Name}.InterceptAsync returned null instead of a task.");
         return TaskShapeAdapter.Adapt(task, invocation.ReturnType);
     }
 

@@ -109,10 +109,10 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
 
         // The full type name and the parameter types, so same-named types in other namespaces, and overloads that
         // get the same serialized arguments, don't share a fingerprint
-        var invocation = InvocationData.SerializeJob(job);
-        var text = $"{ConcurrencyControl.GetMethodIdentity(job)}:{invocation.Arguments}";
+        InvocationData invocation = InvocationData.SerializeJob(job);
+        string text = $"{ConcurrencyControl.GetMethodIdentity(job)}:{invocation.Arguments}";
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
     }
 
@@ -128,8 +128,8 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var hash = connection.GetAllEntriesFromHash(GetKey(fingerprint));
-        return hash != null && hash.TryGetValue("JobId", out var jobId) && !string.IsNullOrEmpty(jobId) ? jobId : null;
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetKey(fingerprint));
+        return hash != null && hash.TryGetValue("JobId", out string? jobId) && !string.IsNullOrEmpty(jobId) ? jobId : null;
     }
 
     /// <inheritdoc />
@@ -138,19 +138,19 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
         ArgumentNullException.ThrowIfNull(context);
         if (context.Canceled) return;
 
-        var fingerprint = GetFingerprint(context.Job);
-        var key = GetKey(fingerprint);
-        var reservation = Guid.NewGuid().ToString("N");
+        string fingerprint = GetFingerprint(context.Job);
+        string key = GetKey(fingerprint);
+        string reservation = Guid.NewGuid().ToString("N");
         string? replacedJobId = null;
 
         using (context.Connection.AcquireDistributedLock(key, LockTimeout))
         {
-            var hash = context.Connection.GetAllEntriesFromHash(key);
+            Dictionary<string, string>? hash = context.Connection.GetAllEntriesFromHash(key);
 
-            if (hash != null && IsPending(context, hash, out var ownerId, out var ownerState))
+            if (hash != null && IsPending(context, hash, out string? ownerId, out string? ownerState))
             {
                 // Only a job that hasn't started yet is replaced: a running one, or one still being created, stays
-                var replace = OnDuplicate == DuplicateHandling.ReplaceExisting && ownerId != null && IsReplaceable(ownerState);
+                bool replace = OnDuplicate == DuplicateHandling.ReplaceExisting && ownerId != null && IsReplaceable(ownerState);
 
                 if (!replace)
                 {
@@ -179,7 +179,7 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Items.TryGetValue(ReservationItem, out var value) || value is not Reservation reservation) return;
+        if (!context.Items.TryGetValue(ReservationItem, out object? value) || value is not Reservation reservation) return;
         context.Items.Remove(ReservationItem);
 
         if (context.Canceled || context.Exception != null || context.BackgroundJob == null)
@@ -227,7 +227,7 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
                 return;
             }
 
-            using var transaction = context.Connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
             transaction.RemoveHash(reservation.Key);
             transaction.Commit();
         }
@@ -243,22 +243,22 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(transaction);
 
-        var release = context.NewState.IsFinal || IsReleasing(context.NewState.Name);
-        var storageTransaction = ConcurrencyControl.GetExpiringTransaction(context.Storage, transaction);
+        bool release = context.NewState.IsFinal || IsReleasing(context.NewState.Name);
+        JobStorageTransaction? storageTransaction = ConcurrencyControl.GetExpiringTransaction(context.Storage, transaction);
 
         // A rescheduled owner (a retry, for example) keeps its fingerprint until its new time plus the window
-        var extendTo = !release && storageTransaction != null && context.NewState is ScheduledState
+        TimeSpan? extendTo = !release && storageTransaction != null && context.NewState is ScheduledState
             ? GetExpiration(context.NewState)
             : null;
 
         if (!release && extendTo == null) return;
 
-        var parameter = context.Connection.GetJobParameter(context.BackgroundJob.Id, FingerprintParameter);
+        string? parameter = context.Connection.GetJobParameter(context.BackgroundJob.Id, FingerprintParameter);
         if (parameter == null || parameter.Length == 0) return;
 
-        var fingerprint = SerializationHelper.Deserialize<string>(parameter) ?? parameter;
+        string fingerprint = SerializationHelper.Deserialize<string>(parameter) ?? parameter;
 
-        var owner = ReadOwner(context.Connection, fingerprint);
+        string? owner = ReadOwner(context.Connection, fingerprint);
         if (!string.Equals(owner, context.BackgroundJob.Id, StringComparison.Ordinal)) return;
 
         if (release)
@@ -320,17 +320,17 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
 
     private bool IsPending(CreateContext context, Dictionary<string, string> hash, out string? ownerId, out string? ownerState)
     {
-        ownerId = hash.TryGetValue("JobId", out var jobId) && !string.IsNullOrEmpty(jobId) ? jobId : null;
+        ownerId = hash.TryGetValue("JobId", out string? jobId) && !string.IsNullOrEmpty(jobId) ? jobId : null;
         ownerState = null;
 
         if (ownerId == null)
         {
             // Reserved by a creation in progress, unless the reservation is stale.
-            var reservedAt = hash.TryGetValue("ReservedAt", out var value) ? JobHelper.DeserializeNullableDateTime(value) : null;
+            DateTime? reservedAt = hash.TryGetValue("ReservedAt", out string? value) ? JobHelper.DeserializeNullableDateTime(value) : null;
             return reservedAt.HasValue && Clock() - reservedAt.Value < ReservationTimeout;
         }
 
-        var state = context.Connection.GetStateData(ownerId);
+        StateData? state = context.Connection.GetStateData(ownerId);
         if (state != null)
         {
             ownerState = state.Name;
@@ -358,11 +358,11 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     {
         if (ExpirationHours <= 0) return null;
 
-        var expiration = TimeSpan.FromHours(ExpirationHours);
+        TimeSpan expiration = TimeSpan.FromHours(ExpirationHours);
 
         if (state is ScheduledState scheduled)
         {
-            var wait = scheduled.EnqueueAt - Clock();
+            TimeSpan wait = scheduled.EnqueueAt - Clock();
             if (wait > TimeSpan.Zero) expiration += wait;
         }
 
@@ -371,11 +371,11 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
 
     private void WriteRecord(JobStorage storage, IStorageConnection connection, string key, IState? initialState, Dictionary<string, string> fields)
     {
-        using var transaction = connection.CreateWriteTransaction();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         transaction.SetRangeInHash(key, fields);
 
-        var expiration = GetExpiration(initialState);
-        var storageTransaction = ConcurrencyControl.GetExpiringTransaction(storage, transaction);
+        TimeSpan? expiration = GetExpiration(initialState);
+        JobStorageTransaction? storageTransaction = ConcurrencyControl.GetExpiringTransaction(storage, transaction);
         if (expiration != null && storageTransaction != null)
         {
             storageTransaction.ExpireHash(key, expiration.Value);

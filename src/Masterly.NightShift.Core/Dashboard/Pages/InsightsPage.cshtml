@@ -13,10 +13,10 @@
     Layout = new LayoutPage(Strings.InsightsPage_Title);
 
     IReadOnlyList<JobInsight> insights = new List<JobInsight>();
-    var circuits = new List<CircuitBreakerAttribute.CircuitState>();
+    List<CircuitBreakerAttribute.CircuitState> circuits = [];
     bool supported;
 
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         // Insights are kept in lists and counters, which only storages with the extended API can read
         supported = connection is JobStorageConnection && Storage.HasFeature(JobStorageFeatures.ExtendedApi);
@@ -32,10 +32,10 @@
         }
     }
 
-    var invokers = JobInvokerRegistry.GetStatistics();
-    var totalRuns = insights.Sum(x => x.Total);
-    var totalFailed = insights.Sum(x => x.Failed);
-    var now = StorageUtcNow ?? ApplicationUtcNow;
+    JobInvokerStatistics invokers = JobInvokerRegistry.GetStatistics();
+    long totalRuns = insights.Sum(x => x.Total);
+    long totalFailed = insights.Sum(x => x.Failed);
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
 }
 
 <div class="row">
@@ -79,7 +79,7 @@
                 </div>
             </div>
 
-            var anomalies = insights.Where(x => x.IsAnomalous).ToList();
+            List<JobInsight> anomalies = insights.Where(x => x.IsAnomalous).ToList();
             if (insights.Count > 0)
             {
                 <h3 id="insights-anomalies">@Strings.InsightsPage_Anomalies <small class="text-muted">@Strings.InsightsPage_Anomalies_Hint</small></h3>
@@ -90,7 +90,7 @@
                 else
                 {
                     <div class="hf-card hf-anomalies" aria-describedby="insights-anomalies">
-                        @foreach (var anomaly in anomalies)
+                        @foreach (JobInsight anomaly in anomalies)
                         {
                             <div class="hf-anomaly">
                                 <span class="glyphicon glyphicon-exclamation-sign text-warning"></span>
@@ -121,9 +121,9 @@
 
             {
                 @* Activity heatmap: seven days, hour by hour *@
-                var heatNow = StorageUtcNow ?? ApplicationUtcNow;
-                var heatRows = ActivityHeatmap.Read(Storage, heatNow);
-                var heatMax = ActivityHeatmap.Max(heatRows);
+                DateTime heatNow = StorageUtcNow ?? ApplicationUtcNow;
+                IReadOnlyList<IReadOnlyList<HeatmapCell>> heatRows = ActivityHeatmap.Read(Storage, heatNow);
+                long heatMax = ActivityHeatmap.Max(heatRows);
 
                 <h3 id="insights-heatmap">@Strings.InsightsPage_Heatmap <small class="text-muted">@Strings.InsightsPage_Heatmap_Hint</small></h3>
                 <div class="hf-card hf-heatmap-card" aria-describedby="insights-heatmap">
@@ -133,17 +133,17 @@
                     }
                     <div class="hf-heatmap">
                         <div class="hf-heatmap-corner"></div>
-                        @for (var hour = 0; hour < 24; hour++)
+                        @for (int hour = 0; hour < 24; hour++)
                         {
                             <div class="hf-heatmap-hour">@(hour % 3 == 0 ? hour.ToString("00", System.Globalization.CultureInfo.InvariantCulture) : "")</div>
                         }
-                        @foreach (var row in heatRows)
+                        @foreach (IReadOnlyList<HeatmapCell> row in heatRows)
                         {
                             <div class="hf-heatmap-day">@row[0].HourUtc.ToString("ddd", System.Globalization.CultureInfo.CurrentCulture)</div>
-                            foreach (var cell in row)
+                            foreach (HeatmapCell cell in row)
                             {
-                                var intensity = cell.Total == 0 ? 0 : Math.Max(0.15, Math.Sqrt((double)cell.Total / heatMax));
-                                var future = cell.HourUtc > heatNow;
+                                double intensity = cell.Total == 0 ? 0 : Math.Max(0.15, Math.Sqrt((double)cell.Total / heatMax));
+                                bool future = cell.HourUtc > heatNow;
                                 <div class="hf-heatmap-cell @(future ? "hf-heatmap-future" : cell.Failed > cell.Succeeded ? "hf-heatmap-bad" : null)"
                                      style="--hf-heat: @intensity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
                                      title="@String.Format(Strings.InsightsPage_Heatmap_Cell, cell.HourUtc.ToString("ddd HH:00", System.Globalization.CultureInfo.CurrentCulture), cell.Succeeded, cell.Failed)"></div>
@@ -171,9 +171,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var circuit in circuits)
+                            @foreach (CircuitBreakerAttribute.CircuitState circuit in circuits)
                             {
-                                var labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "label-danger"
+                                string labelClass = circuit.State == CircuitBreakerAttribute.OpenState ? "label-danger"
                                     : circuit.State == CircuitBreakerAttribute.HalfOpenState ? "label-warning"
                                     : "label-success";
 
@@ -228,9 +228,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var insight in insights)
+                            @foreach (JobInsight insight in insights)
                             {
-                                var failureClass = insight.FailureRate >= 0.25 ? "label-danger" : insight.FailureRate > 0 ? "label-warning" : "label-default";
+                                string failureClass = insight.FailureRate >= 0.25 ? "label-danger" : insight.FailureRate > 0 ? "label-warning" : "label-default";
 
                                 <tr>
                                     <td class="word-break">
@@ -251,7 +251,7 @@
                                     <td class="min-width">
                                         @if (insight.Invoker != null)
                                         {
-                                            var invokerClass = insight.Invoker == "Generated" ? "label-success" : insight.Invoker == "Compiled" ? "label-info" : "label-default";
+                                            string invokerClass = insight.Invoker == "Generated" ? "label-success" : insight.Invoker == "Compiled" ? "label-info" : "label-default";
                                             <span class="label @invokerClass">@insight.Invoker</span>
                                         }
                                     </td>

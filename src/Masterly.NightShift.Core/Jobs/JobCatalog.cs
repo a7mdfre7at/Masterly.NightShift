@@ -119,7 +119,7 @@ public static partial class JobCatalog
         {
             if (Array.IndexOf(_additionalTypes, type) >= 0) return;
 
-            var types = new Type[_additionalTypes.Length + 1];
+            Type[] types = new Type[_additionalTypes.Length + 1];
             Array.Copy(_additionalTypes, types, _additionalTypes.Length);
             types[_additionalTypes.Length] = type;
             _additionalTypes = types;
@@ -138,9 +138,9 @@ public static partial class JobCatalog
     /// <summary>Lists the catalog, ordered by type and method name.</summary>
     public static IReadOnlyList<JobCatalogEntry> GetEntries()
     {
-        var entries = new Dictionary<string, JobCatalogEntry>(StringComparer.Ordinal);
+        Dictionary<string, JobCatalogEntry> entries = new(StringComparer.Ordinal);
 
-        foreach (var invoker in JobInvokerRegistry.GetGeneratedInvokers())
+        foreach (JobInvoker invoker in JobInvokerRegistry.GetGeneratedInvokers())
         {
             MethodInfo method;
             try
@@ -154,17 +154,17 @@ public static partial class JobCatalog
 
             if (!IsRunnable(method)) continue;
 
-            var entry = TryCreateEntry(invoker.Type, method, invoker.Kind);
+            JobCatalogEntry? entry = TryCreateEntry(invoker.Type, method, invoker.Kind);
             if (entry != null) entries[entry.Id] = entry;
         }
 
-        foreach (var type in Volatile.Read(ref _additionalTypes))
+        foreach (Type? type in Volatile.Read(ref _additionalTypes))
         {
-            foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             {
                 if (!IsRunnable(method)) continue;
 
-                var entry = TryCreateEntry(type, method, null);
+                JobCatalogEntry? entry = TryCreateEntry(type, method, null);
                 if (entry != null && !entries.ContainsKey(entry.Id))
                 {
                     entries[entry.Id] = entry;
@@ -194,7 +194,7 @@ public static partial class JobCatalog
         ArgumentNullException.ThrowIfNull(job);
 
         // Only a lookup: resolving an invoker here would register a compiled one as a side effect
-        var invoker = JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var generated) && generated != null ? generated.Kind : (JobInvokerKind?)null;
+        JobInvokerKind? invoker = JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? generated) && generated != null ? generated.Kind : (JobInvokerKind?)null;
 
         return new JobCatalogEntry(job.Type, job.Method, invoker);
     }
@@ -209,15 +209,15 @@ public static partial class JobCatalog
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var parameters = job.Method.GetParameters();
-        var result = new string?[parameters.Length];
+        ParameterInfo[] parameters = job.Method.GetParameters();
+        string?[] result = new string?[parameters.Length];
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
+            ParameterInfo parameter = parameters[i];
             if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType) || RedactedAttribute.IsRedacted(parameter)) continue;
 
-            var value = i < job.Args.Count ? job.Args[i] : null;
+            object? value = i < job.Args.Count ? job.Args[i] : null;
             result[i] = FormatArgument(value, parameter.ParameterType);
         }
 
@@ -226,7 +226,7 @@ public static partial class JobCatalog
 
     internal static string? FormatArgument(object? value, Type type)
     {
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
         if (value is DateTime dateTime)
         {
@@ -270,14 +270,14 @@ public static partial class JobCatalog
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(arguments);
 
-        var values = new object?[entry.Parameters.Count];
+        object?[] values = new object?[entry.Parameters.Count];
 
-        for (var i = 0; i < entry.Parameters.Count; i++)
+        for (int i = 0; i < entry.Parameters.Count; i++)
         {
-            var parameter = entry.Parameters[i];
+            JobCatalogParameter parameter = entry.Parameters[i];
             if (parameter.Injected) continue;
 
-            arguments.TryGetValue(parameter.Name, out var text);
+            arguments.TryGetValue(parameter.Name, out string? text);
             values[i] = ConvertArgument(parameter, text);
         }
 
@@ -286,7 +286,7 @@ public static partial class JobCatalog
 
     internal static object? ConvertArgument(JobCatalogParameter parameter, string? text)
     {
-        var type = parameter.Type;
+        Type type = parameter.Type;
 
         if (text == null || text.Length == 0)
         {
@@ -300,7 +300,7 @@ public static partial class JobCatalog
 
         if (type == typeof(string)) return text;
 
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
         // The "(null)" choice of a bool? or nullable enum select, and the JSON null of other nullable types
         if (underlying != type && text.Trim() == "null") return null;
@@ -341,7 +341,7 @@ public static partial class JobCatalog
             {
                 // A date and time without an offset, as the datetime-local input gives it, is read as UTC, so
                 // the server's own time zone never decides which moment it is
-                var wallClock = (DateTime)SerializationHelper.DeserializeInput(text, typeof(DateTime))!; // Throws on text that isn't a date
+                DateTime wallClock = (DateTime)SerializationHelper.DeserializeInput(text, typeof(DateTime))!; // Throws on text that isn't a date
                 return new DateTimeOffset(DateTime.SpecifyKind(wallClock, DateTimeKind.Unspecified), TimeSpan.Zero);
             }
 
@@ -365,7 +365,7 @@ public static partial class JobCatalog
         if (values == null || values.Count == 0) return null;
         if (values is [var only]) return only;
 
-        var underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
+        Type underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
 
         if (underlying == typeof(bool))
         {
@@ -374,7 +374,7 @@ public static partial class JobCatalog
 
         if (IsFlagsEnum(underlying))
         {
-            var names = values.Where(static v => !string.IsNullOrWhiteSpace(v) && v!.Trim() != "0").Select(static v => v!.Trim()).ToList();
+            List<string> names = [.. values.Where(static v => !string.IsNullOrWhiteSpace(v) && v!.Trim() != "0").Select(static v => v!.Trim())];
             if (names.Count > 1) names.RemoveAll(static v => v == "null");
 
             return names.Count == 0 ? "0" : string.Join(", ", names);
@@ -389,8 +389,8 @@ public static partial class JobCatalog
     /// </summary>
     internal static object GetFormField([NotNull] JobCatalogParameter parameter, [CanBeNull] string? value, bool redacted)
     {
-        var underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
-        var input = parameter.InputKind;
+        Type underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
+        string input = parameter.InputKind;
 
         return new
         {
@@ -474,13 +474,13 @@ public static partial class JobCatalog
 
     internal static string GetId(Type type, MethodInfo method)
     {
-        var parameters = string.Join(",", method.GetParameters().Select(static p => p.ParameterType.FullName ?? p.ParameterType.Name));
+        string parameters = string.Join(",", method.GetParameters().Select(static p => p.ParameterType.FullName ?? p.ParameterType.Name));
         return $"{type.FullName}|{method.Name}|{parameters}";
     }
 
     internal static string GetFriendlyName(Type type)
     {
-        var underlying = Nullable.GetUnderlyingType(type);
+        Type? underlying = Nullable.GetUnderlyingType(type);
         if (underlying != null) return GetFriendlyName(underlying) + "?";
 
         if (type == typeof(string)) return "string";
@@ -495,7 +495,7 @@ public static partial class JobCatalog
 
         if (type.GetTypeInfo().IsGenericType)
         {
-            var name = type.Name[..type.Name.IndexOf('`')];
+            string name = type.Name[..type.Name.IndexOf('`')];
             return $"{name}<{string.Join(", ", type.GetTypeInfo().GetGenericArguments().Select(GetFriendlyName))}>";
         }
 
@@ -504,7 +504,7 @@ public static partial class JobCatalog
 
     internal static string GetInputKind(Type type)
     {
-        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
         if (underlying == typeof(bool)) return underlying == type ? "checkbox" : "select";
         if (underlying.GetTypeInfo().IsEnum) return "select";

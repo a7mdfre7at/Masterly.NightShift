@@ -31,12 +31,12 @@ internal sealed class DrainModeDispatcher(bool enable) : IDashboardDispatcher
             return;
         }
 
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
             if (_enable)
             {
-                var reasons = await context.Request.GetFormValuesAsync("reason").ConfigureAwait(false);
-                var reason = reasons?.FirstOrDefault()?.Trim();
+                IList<string> reasons = await context.Request.GetFormValuesAsync("reason").ConfigureAwait(false);
+                string? reason = reasons?.FirstOrDefault()?.Trim();
                 if (!string.IsNullOrEmpty(reason) && reason.Length > MaxReasonLength)
                 {
                     reason = reason[..MaxReasonLength];
@@ -58,7 +58,7 @@ internal sealed class DrainModeDispatcher(bool enable) : IDashboardDispatcher
     private static Task WriteStatusAsync(DashboardContext context)
     {
         DrainModeStatus status;
-        using (var connection = context.Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
         {
             status = DrainMode.Read(connection);
         }

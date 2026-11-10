@@ -57,7 +57,7 @@ public class JobDisplayNameAttribute : Attribute
     /// <returns>The display name.</returns>
     public virtual string Format(DashboardContext context, Job job)
     {
-        var format = DisplayName;
+        string? format = DisplayName;
 
         if (ResourceType != null)
         {
@@ -78,7 +78,7 @@ public class JobDisplayNameAttribute : Attribute
 
     private static ResourceManager InitResourceManager(Type type)
     {
-        var prop = type.GetTypeInfo().GetDeclaredProperty("ResourceManager");
+        PropertyInfo? prop = type.GetTypeInfo().GetDeclaredProperty("ResourceManager");
         if (prop != null && prop.PropertyType == typeof(ResourceManager) && prop.CanRead && prop.GetMethod!.IsStatic) // CanRead: it has a getter
         {
             // use existing resource manager if possible

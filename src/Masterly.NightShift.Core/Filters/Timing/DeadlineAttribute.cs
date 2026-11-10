@@ -66,13 +66,13 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
         ArgumentNullException.ThrowIfNull(context);
         if (context.CandidateState is not SucceededState) return;
 
-        var deadline = ReadDeadline(context.Connection, context.BackgroundJob.Id);
+        DateTime? deadline = ReadDeadline(context.Connection, context.BackgroundJob.Id);
         if (deadline == null) return;
 
-        var now = Clock();
+        DateTime now = Clock();
         if (now > deadline.Value)
         {
-            var missedBy = now - deadline.Value;
+            TimeSpan missedBy = now - deadline.Value;
 
             // Only a record: a storage error must not fail the state change of a job that succeeded
             try
@@ -88,10 +88,10 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
 
             if (Alerts.HasSinks)
             {
-                var job = context.BackgroundJob.Job;
-                var method = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;
+                Job? job = context.BackgroundJob.Job;
+                string? method = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;
 
-                var alert = new Alert(
+                Alert alert = new(
                     AlertKind.DeadlineMissed,
                     $"Job {context.BackgroundJob.Id} missed its deadline{(method != null ? $": {method}" : string.Empty)}",
                     $"Finished {(int)missedBy.TotalSeconds} seconds after the deadline of {Timeout}.")
@@ -114,7 +114,7 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
 
         try
         {
-            var value = connection.GetJobParameter(jobId, DeadlineAtParameter);
+            string? value = connection.GetJobParameter(jobId, DeadlineAtParameter);
             return value == null ? null : SerializationHelper.Deserialize<DateTime?>(value, SerializationOption.User);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())

@@ -33,7 +33,7 @@ internal static class JobMethodCallRenderer
     {
         if (job == null) { return new NonEscapedString($"<em>{Encode(Strings.Common_CannotFindTargetMethod)}</em>"); }
 
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
 
         builder.Append(WrapKeyword("using"));
         builder.Append(' ');
@@ -77,29 +77,27 @@ internal static class JobMethodCallRenderer
 
         if (job.Method.IsGenericMethod)
         {
-            var genericArgumentTypes = job.Method.GetGenericArguments()
-                .Select(static x => WrapType(x.Name))
-                .ToArray();
+            string[] genericArgumentTypes = [.. job.Method.GetGenericArguments().Select(static x => WrapType(x.Name))];
 
             builder.Append(FormattableString.Invariant($"&lt;{string.Join(", ", genericArgumentTypes)}&gt;"));
         }
 
         builder.Append('(');
 
-        var parameters = job.Method.GetParameters();
-        var arguments = InvocationData.SerializeArguments(job.Method, job.Args);
-        var renderedArguments = new List<string>(parameters.Length);
-        var renderedArgumentsTotalLength = 0;
+        ParameterInfo[] parameters = job.Method.GetParameters();
+        string[] arguments = InvocationData.SerializeArguments(job.Method, job.Args);
+        List<string> renderedArguments = new(parameters.Length);
+        int renderedArgumentsTotalLength = 0;
 
         const int splitStringMinLength = 100;
 
-        for (var i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
+            ParameterInfo parameter = parameters[i];
 
             if (RedactedAttribute.IsRedacted(parameter))
             {
-                var redacted = $"<span class=\"hf-redacted\" title=\"{Encode(Strings.Common_Redacted)}\">{WrapString(Encode("\"" + RedactedAttribute.Mask + "\""))}</span>";
+                string redacted = $"<span class=\"hf-redacted\" title=\"{Encode(Strings.Common_Redacted)}\">{WrapString(Encode("\"" + RedactedAttribute.Mask + "\""))}</span>";
                 renderedArguments.Add(redacted);
                 renderedArgumentsTotalLength += redacted.Length;
                 continue;
@@ -107,7 +105,7 @@ internal static class JobMethodCallRenderer
 
             if (i < arguments.Length)
             {
-                var argument = arguments[i];
+                string? argument = arguments[i];
 
                 if (argument != null && argument.Length > MaxArgumentToRenderSize)
                 {
@@ -117,7 +115,7 @@ internal static class JobMethodCallRenderer
 
                 string renderedArgument;
 
-                var enumerableArgument = GetIEnumerableGenericArgument(parameter.ParameterType);
+                Type? enumerableArgument = GetIEnumerableGenericArgument(parameter.ParameterType);
 
                 object? argumentValue;
                 bool isJson = true;
@@ -136,17 +134,17 @@ internal static class JobMethodCallRenderer
 
                 if (enumerableArgument == null || argumentValue == null)
                 {
-                    var argumentRenderer = ArgumentRenderer.GetRenderer(parameter.ParameterType);
+                    ArgumentRenderer argumentRenderer = ArgumentRenderer.GetRenderer(parameter.ParameterType);
                     renderedArgument = argumentRenderer.Render(isJson, argumentValue?.ToString(), argument);
                 }
                 else
                 {
-                    var renderedItems = new List<string>();
+                    List<string> renderedItems = [];
 
                     // ReSharper disable once LoopCanBeConvertedToQuery
-                    foreach (var item in (IEnumerable)argumentValue) // Checked to be enumerable above
+                    foreach (object? item in (IEnumerable)argumentValue) // Checked to be enumerable above
                     {
-                        var argumentRenderer = ArgumentRenderer.GetRenderer(enumerableArgument);
+                        ArgumentRenderer argumentRenderer = ArgumentRenderer.GetRenderer(enumerableArgument);
                         renderedItems.Add(argumentRenderer.Render(isJson, item?.ToString(),
                             SerializationHelper.Serialize(item, SerializationOption.User)));
                     }
@@ -172,10 +170,10 @@ internal static class JobMethodCallRenderer
         for (int i = 0; i < renderedArguments.Count; i++)
         {
             // TODO: be aware of out of range
-            var parameter = parameters[i];
-            var tooltipPosition = "top";
+            ParameterInfo parameter = parameters[i];
+            string tooltipPosition = "top";
 
-            var renderedArgument = renderedArguments[i];
+            string renderedArgument = renderedArguments[i];
             if (renderedArgumentsTotalLength > splitStringMinLength)
             {
                 builder.AppendLine();
@@ -265,7 +263,7 @@ internal static class JobMethodCallRenderer
 
         public string Render(bool isJson, string? deserializedValue, string? rawValue)
         {
-            var builder = new StringBuilder();
+            StringBuilder builder = new();
 
             if (rawValue == null)
             {

@@ -56,12 +56,12 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var typeName = job.Type.ToGenericTypeString();
-        var key = $"{typeName}.{job.Method.Name}";
+        string typeName = job.Type.ToGenericTypeString();
+        string key = $"{typeName}.{job.Method.Name}";
         if (key.Length <= MaxKeyLength) return key;
 
-        var hash = GetShortHash(key);
-        var suffix = $"~{hash}.{job.Method.Name}";
+        string hash = GetShortHash(key);
+        string suffix = $"~{hash}.{job.Method.Name}";
 
         return suffix.Length <= MaxKeyLength - 10
             ? string.Concat(typeName.AsSpan(0, MaxKeyLength - suffix.Length), suffix)
@@ -70,10 +70,10 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
 
     private static string GetShortHash(string value)
     {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        var hash = SHA256.HashData(bytes);
-        var text = new StringBuilder(8);
-        for (var i = 0; i < 4; i++)
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        byte[] hash = SHA256.HashData(bytes);
+        StringBuilder text = new(8);
+        for (int i = 0; i < 4; i++)
         {
             text.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
         }
@@ -97,17 +97,17 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
         // A canceled run (a filter canceled it, a state change aborted it, the server shut down), a run that
         // asked to be retried later, and a run whose method never ran because a concurrency filter gave up
         // waiting for a slot or a lock, are neither a success nor a failure of the method
-        var outcome = JobOutcomes.Classify(context);
+        JobOutcome outcome = JobOutcomes.Classify(context);
         if (outcome is not JobOutcome.Succeeded and not JobOutcome.Failed) return;
 
-        var durationMs = GetDurationMs(context);
-        var key = GetKey(context.BackgroundJob.Job);
-        var failed = outcome == JobOutcome.Failed;
-        var invoker = JobInvokerRegistry.GetInvoker(context.BackgroundJob.Job.Method).Kind;
+        long durationMs = GetDurationMs(context);
+        string key = GetKey(context.BackgroundJob.Job);
+        bool failed = outcome == JobOutcome.Failed;
+        JobInvokerKind invoker = JobInvokerRegistry.GetInvoker(context.BackgroundJob.Job.Method).Kind;
 
         try
         {
-            using var transaction = context.Connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
             transaction.AddToSet(IndexKey, key);
             transaction.IncrementCounter(failed ? GetFailedKey(key) : GetSucceededKey(key));
             transaction.InsertToList(GetDurationsKey(key), durationMs.ToString(CultureInfo.InvariantCulture));
@@ -137,13 +137,13 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
     /// </summary>
     private static long GetDurationMs(PerformedContext context)
     {
-        var invokedAt = JobOutcomes.GetMethodInvokedTimestamp(context);
+        long? invokedAt = JobOutcomes.GetMethodInvokedTimestamp(context);
         if (invokedAt.HasValue)
         {
             return Math.Max(0, (Stopwatch.GetTimestamp() - invokedAt.Value) * 1000 / Stopwatch.Frequency);
         }
 
-        var stopwatch = context.Items.TryGetValue(StartedAtItem, out var value) ? value as Stopwatch : null;
+        Stopwatch? stopwatch = context.Items.TryGetValue(StartedAtItem, out object? value) ? value as Stopwatch : null;
         return stopwatch?.ElapsedMilliseconds ?? 0;
     }
 
@@ -160,11 +160,11 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
             return [];
         }
 
-        var result = new List<JobInsight>();
+        List<JobInsight> result = [];
 
-        foreach (var key in connection.GetAllItemsFromSet(IndexKey) ?? [])
+        foreach (string key in connection.GetAllItemsFromSet(IndexKey) ?? [])
         {
-            var insight = Read(storageConnection, key);
+            JobInsight? insight = Read(storageConnection, key);
             if (insight != null) result.Add(insight);
         }
 
@@ -180,7 +180,7 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(key);
 
-        var hash = connection.GetAllEntriesFromHash(GetHashKey(key));
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetHashKey(key));
         if (hash == null || hash.Count == 0) return null;
 
         List<string> durationItems;
@@ -197,23 +197,22 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
             return null;
         }
 
-        var durations = durationItems
-            .Select(static x => long.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms) ? ms : -1)
+        long[] durations = [.. durationItems
+            .Select(static x => long.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms) ? ms : -1)
             .Where(static x => x >= 0)
-            .Reverse() // lists come back newest first
-            .ToArray();
+            .Reverse()]; // lists come back newest first
 
         return new JobInsight(
             key,
             succeeded: succeeded,
             failed: failed,
             durations: durations,
-            lastRunAt: hash.TryGetValue("LastRunAt", out var lastRunAt) ? JobHelper.DeserializeNullableDateTime(lastRunAt) : null,
-            lastDurationMs: hash.TryGetValue("LastDurationMs", out var lastDuration) && long.TryParse(lastDuration, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lastMs) ? lastMs : 0,
-            lastJobId: hash.TryGetValue("LastJobId", out var lastJobId) ? lastJobId : null,
-            lastServerId: hash.TryGetValue("LastServerId", out var lastServerId) && lastServerId.Length > 0 ? lastServerId : null,
-            lastFailed: hash.TryGetValue("LastFailed", out var lastFailed) && lastFailed == "1",
-            invoker: hash.TryGetValue("Invoker", out var invoker) ? invoker : null);
+            lastRunAt: hash.TryGetValue("LastRunAt", out string? lastRunAt) ? JobHelper.DeserializeNullableDateTime(lastRunAt) : null,
+            lastDurationMs: hash.TryGetValue("LastDurationMs", out string? lastDuration) && long.TryParse(lastDuration, NumberStyles.Integer, CultureInfo.InvariantCulture, out long lastMs) ? lastMs : 0,
+            lastJobId: hash.TryGetValue("LastJobId", out string? lastJobId) ? lastJobId : null,
+            lastServerId: hash.TryGetValue("LastServerId", out string? lastServerId) && lastServerId.Length > 0 ? lastServerId : null,
+            lastFailed: hash.TryGetValue("LastFailed", out string? lastFailed) && lastFailed == "1",
+            invoker: hash.TryGetValue("Invoker", out string? invoker) ? invoker : null);
     }
 
     private static string GetHashKey(string key) => $"insights:{key}";
@@ -250,7 +249,7 @@ public sealed class JobInsight
 
         if (durations.Length > 0)
         {
-            var sorted = durations.OrderBy(static x => x).ToArray();
+            long[] sorted = [.. durations.OrderBy(static x => x)];
             AverageMs = (long)sorted.Average();
             MaxMs = sorted[^1];
             P95Ms = Percentile(sorted, 0.95);
@@ -265,8 +264,8 @@ public sealed class JobInsight
 
         if (durations.Length >= RecentSampleSize * 2)
         {
-            var recent = durations.Skip(durations.Length - RecentSampleSize).OrderBy(static x => x).ToArray();
-            var earlier = durations.Take(durations.Length - RecentSampleSize).OrderBy(static x => x).ToArray();
+            long[] recent = [.. durations.Skip(durations.Length - RecentSampleSize).OrderBy(static x => x)];
+            long[] earlier = [.. durations.Take(durations.Length - RecentSampleSize).OrderBy(static x => x)];
 
             RecentMedianMs = recent[recent.Length / 2];
             EarlierMedianMs = earlier[earlier.Length / 2];

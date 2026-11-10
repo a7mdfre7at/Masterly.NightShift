@@ -10,19 +10,19 @@ internal partial class RecurringJobsPage
     // The schedule editor sends the job's start and end with its preview requests, to the millisecond
     private static string ToUnixMilliseconds(DateTime value)
     {
-        var utc = ScheduleForecast.ToUtc(value) ?? value;
+        DateTime utc = ScheduleForecast.ToUtc(value) ?? value;
         return JobHelper.ToMillisecondTimestamp(utc).ToString(CultureInfo.InvariantCulture);
     }
 
     // The job /recurring?edit={id} names, when it isn't on this page
     private RecurringJobDto? FindJobToEdit(IStorageConnection connection, List<RecurringJobDto> shown)
     {
-        var id = IsReadOnly ? null : Query("edit");
+        string? id = IsReadOnly ? null : Query("edit");
         if (string.IsNullOrEmpty(id) || shown.Exists(job => job.Id == id)) return null;
 
         try
         {
-            var found = connection.GetRecurringJobs([id]);
+            List<RecurringJobDto> found = connection.GetRecurringJobs([id]);
             return found.Count == 1 && !found[0].Removed ? found[0] : null;
         }
         catch (ArgumentException)
@@ -36,7 +36,7 @@ internal partial class RecurringJobsPage
     // /recurring?edit={id} adds for a job of another page are the same.
     private static NonEscapedString EditButton(RecurringJobDto job, bool hidden)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append("<button type=\"button\" class=\"btn btn-xs btn-default js-recurring-edit").Append(hidden ? " hidden" : null).Append('"');
         AppendAttribute(builder, "title", Strings.RecurringJobsPage_EditSchedule);
         AppendAttribute(builder, "data-id", job.Id);

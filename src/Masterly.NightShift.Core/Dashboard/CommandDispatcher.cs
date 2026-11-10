@@ -29,8 +29,8 @@ internal sealed class CommandDispatcher(Func<DashboardContext, bool> command) : 
             return Task.FromResult(false);
         }
 
-        var request = context.Request;
-        var response = context.Response;
+        DashboardRequest request = context.Request;
+        DashboardResponse response = context.Response;
 
         if (!"POST".Equals(request.Method, StringComparison.OrdinalIgnoreCase))
         {
@@ -48,12 +48,12 @@ internal sealed class CommandDispatcher(Func<DashboardContext, bool> command) : 
         }
 
         // The route's named groups (a job id, a resource, a tag) are what the action was about
-        var targets = new System.Collections.Generic.List<string>();
+        List<string> targets = [];
         if (context.UriMatch != null)
         {
-            for (var i = 1; i < context.UriMatch.Groups.Count; i++)
+            for (int i = 1; i < context.UriMatch.Groups.Count; i++)
             {
-                var value = context.UriMatch.Groups[i].Value;
+                string value = context.UriMatch.Groups[i].Value;
                 if (!string.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
             }
         }

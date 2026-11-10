@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift;
 
@@ -123,12 +124,12 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var hash = connection.GetAllEntriesFromHash(HashKey);
+        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(HashKey);
         if (hash == null) return DrainModeStatus.Inactive;
 
-        var pausedQueues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        var pausedServers = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in hash)
+        Dictionary<string, string?> pausedQueues = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string?> pausedServers = new(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, string> pair in hash)
         {
             if (pair.Value is ResumedMarker or LegacyResumedMarker) continue;
 
@@ -138,16 +139,16 @@ public static class DrainMode
             }
             else if (pair.Key.StartsWith(ServerFieldPrefix, StringComparison.Ordinal) && pair.Key.Length > ServerFieldPrefix.Length)
             {
-                var serverId = ReadServerPause(pair.Key, pair.Value, out var serverReason);
+                string serverId = ReadServerPause(pair.Key, pair.Value, out string? serverReason);
                 pausedServers[serverId] = serverReason;
             }
         }
 
-        var active = hash.TryGetValue("Drain", out var drain) && drain == "1";
+        bool active = hash.TryGetValue("Drain", out string? drain) && drain == "1";
         if (!active && pausedQueues.Count == 0 && pausedServers.Count == 0) return DrainModeStatus.Inactive;
 
-        var since = active && hash.TryGetValue("DrainSince", out var sinceValue) ? JobHelper.DeserializeNullableDateTime(sinceValue) : null;
-        var reason = active && hash.TryGetValue("DrainReason", out var reasonValue) && reasonValue.Length > 0 ? reasonValue : null;
+        DateTime? since = active && hash.TryGetValue("DrainSince", out string? sinceValue) ? JobHelper.DeserializeNullableDateTime(sinceValue) : null;
+        string? reason = active && hash.TryGetValue("DrainReason", out string? reasonValue) && reasonValue.Length > 0 ? reasonValue : null;
 
         return new DrainModeStatus(active, since, reason, pausedQueues, pausedServers);
     }
@@ -171,13 +172,13 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(connection);
         if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
 
-        var id = serverId.Trim();
-        var field = GetServerField(id);
+        string id = serverId.Trim();
+        string field = GetServerField(id);
 
         // A hashed field doesn't hold the ID, so the value starts with it
-        var value = IsHashedServerField(field) ? id + HashedServerIdSeparator + reason : ToStoredReason(reason);
+        string value = IsHashedServerField(field) ? id + HashedServerIdSeparator + reason : ToStoredReason(reason);
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(field, value)]);
             transaction.Commit();
@@ -195,7 +196,7 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(connection);
         if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(GetServerField(serverId.Trim()), ResumedMarker)]);
             transaction.Commit();
@@ -216,20 +217,20 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(storage);
 
-        using var connection = storage.GetConnection();
+        using IStorageConnection connection = storage.GetConnection();
         // The pauses are read before the servers: a server paused after this read is never cleared by mistake
-        var pausedServers = Read(connection).PausedServers;
+        IReadOnlyDictionary<string, string?> pausedServers = Read(connection).PausedServers;
         if (pausedServers.Count == 0) return [];
 
-        var runningServers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var server in storage.GetMonitoringApi().Servers())
+        HashSet<string> runningServers = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ServerDto server in storage.GetMonitoringApi().Servers())
         {
             runningServers.Add(server.Name);
         }
 
-        var stale = new List<string>();
-        var fields = new List<KeyValuePair<string, string>>();
-        foreach (var serverId in pausedServers.Keys)
+        List<string> stale = [];
+        List<KeyValuePair<string, string>> fields = [];
+        foreach (string serverId in pausedServers.Keys)
         {
             if (runningServers.Contains(serverId)) continue;
 
@@ -239,7 +240,7 @@ public static class DrainMode
 
         if (stale.Count == 0) return stale;
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey, fields);
             transaction.Commit();
@@ -277,8 +278,8 @@ public static class DrainMode
 
     private static DrainModeStatus GetStatus(CacheSlot slot, IStorageConnection connection)
     {
-        var generation = Interlocked.Read(ref _cacheGeneration);
-        var cached = Volatile.Read(ref slot.Entry);
+        long generation = Interlocked.Read(ref _cacheGeneration);
+        CacheEntry? cached = Volatile.Read(ref slot.Entry);
 
         if (cached != null && cached.Generation == generation && CacheDuration > TimeSpan.Zero &&
             Stopwatch.GetTimestamp() - cached.Timestamp < CacheDuration.TotalSeconds * Stopwatch.Frequency)
@@ -286,7 +287,7 @@ public static class DrainMode
             return cached.Status;
         }
 
-        var status = Read(connection);
+        DrainModeStatus status = Read(connection);
 
         // Tagged with the generation seen before the read, so a change made meanwhile isn't hidden
         Volatile.Write(ref slot.Entry, new CacheEntry(status, Stopwatch.GetTimestamp(), generation));
@@ -299,7 +300,7 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(connection);
         if (string.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey,
             [
@@ -317,9 +318,9 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(connection);
         if (string.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
 
-        var field = QueueFieldPrefix + queue.Trim().ToLowerInvariant();
+        string field = QueueFieldPrefix + queue.Trim().ToLowerInvariant();
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             // Hash fields can't be removed one by one, so a resumed queue keeps a marker that reads as "not paused"
             transaction.SetRangeInHash(HashKey, [new KeyValuePair<string, string>(field, ResumedMarker)]);
@@ -351,7 +352,7 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey,
             [
@@ -370,7 +371,7 @@ public static class DrainMode
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash(HashKey,
             [
@@ -395,17 +396,17 @@ public static class DrainMode
     /// </summary>
     internal static string GetServerField([NotNull] string serverId)
     {
-        var field = ServerFieldPrefix + serverId;
+        string field = ServerFieldPrefix + serverId;
         if (field.Length <= MaxFieldLength) return field;
 
-        var bytes = Encoding.UTF8.GetBytes(serverId.ToLowerInvariant());
-        var hash = SHA256.HashData(bytes);
+        byte[] bytes = Encoding.UTF8.GetBytes(serverId.ToLowerInvariant());
+        byte[] hash = SHA256.HashData(bytes);
 
         const string digits = "0123456789abcdef";
-        var builder = new StringBuilder(HashedServerFieldLength);
+        StringBuilder builder = new(HashedServerFieldLength);
         builder.Append(ServerFieldPrefix).Append(HashedServerMarker);
 
-        foreach (var value in hash)
+        foreach (byte value in hash)
         {
             builder.Append(digits[value >> 4]).Append(digits[value & 0xF]);
         }
@@ -428,7 +429,7 @@ public static class DrainMode
         if (IsHashedServerField(field) && value != null)
         {
             // A long ID is kept at the start of the value, before the reason
-            var separator = value.IndexOf(HashedServerIdSeparator);
+            int separator = value.IndexOf(HashedServerIdSeparator);
             if (separator > 0)
             {
                 reason = separator + 1 < value.Length ? value[(separator + 1)..] : null;

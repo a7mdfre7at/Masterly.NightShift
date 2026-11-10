@@ -84,7 +84,7 @@ public sealed class QueueAttribute : JobFilterAttribute, IElectStateFilter
             return;
         }
 
-        var job = context.BackgroundJob.Job;
+        Job? job = context.BackgroundJob.Job;
         if (job == null) return; // The arguments can't be read, so the template can't be applied
 
         string queue;

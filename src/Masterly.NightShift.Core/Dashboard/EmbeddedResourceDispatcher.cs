@@ -51,7 +51,7 @@ internal class EmbeddedResourceDispatcher : IDashboardDispatcher
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Context can be potentially accessed in derived classes.")]
     protected async Task WriteResource(DashboardResponse response, Assembly assembly, string resourceName)
     {
-        using var inputStream = assembly.GetManifestResourceStream(resourceName) ?? throw new ArgumentException($@"Resource with name {resourceName} not found in assembly {assembly}.");
+        using Stream inputStream = assembly.GetManifestResourceStream(resourceName) ?? throw new ArgumentException($@"Resource with name {resourceName} not found in assembly {assembly}.");
         await inputStream.CopyToAsync(response.Body).ConfigureAwait(false);
     }
 }

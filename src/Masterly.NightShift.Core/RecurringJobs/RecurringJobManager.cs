@@ -105,16 +105,16 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
         }
 
-        using (var connection = Storage.GetConnection())
+        using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
         {
-            var now = _nowFactory();
-            var recurringJob = connection.GetOrCreateRecurringJob(recurringJobId);
-            var scheduleChanged = false;
+            DateTime now = _nowFactory();
+            RecurringJobEntity recurringJob = connection.GetOrCreateRecurringJob(recurringJobId);
+            bool scheduleChanged = false;
 
             recurringJob.Job = InvocationData.SerializeJob(job).SerializePayload();
 
-            var meaningChanged = false;
+            bool meaningChanged = false;
 
             if (!cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
             {
@@ -152,9 +152,9 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
                 recurringJob.ScheduleNext(TimeZoneResolver, now.AddSeconds(-1));
             }
 
-            if (recurringJob.IsChanged(now, out var changedFields))
+            if (recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields))
             {
-                using var transaction = connection.CreateWriteTransaction();
+                using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
                 transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
                 transaction.Commit();
             }
@@ -187,7 +187,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
         try
         {
-            var stored = TimeZoneResolver.GetTimeZoneById(storedId);
+            TimeZoneInfo stored = TimeZoneResolver.GetTimeZoneById(storedId);
             return stored != null && stored.HasSameRules(timeZone);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -198,7 +198,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
     private static string ToIanaId(string id)
     {
-        return TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var ianaId) ? ianaId : id;
+        return TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out string? ianaId) ? ianaId : id;
     }
 
     private static void ValidateCronExpression(string cronExpression)
@@ -263,12 +263,12 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     {
         ArgumentNullException.ThrowIfNull(recurringJobId);
 
-        using (var connection = Storage.GetConnection())
+        using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
         {
-            var now = _nowFactory();
+            DateTime now = _nowFactory();
 
-            var recurringJob = connection.GetRecurringJob(recurringJobId);
+            RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
             if (recurringJob == null) return null;
 
             BackgroundJob? backgroundJob;
@@ -284,14 +284,14 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
                 throw new AggregateException(ex);
             }
 
-            if (recurringJob.IsChanged(now, out var changedFields))
+            if (recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields))
             {
                 // Work that waits for the commit, such as the activity feed entry, runs only once the run is stored
-                var afterCommit = new PostCommitActions();
+                PostCommitActions afterCommit = new();
 
                 try
                 {
-                    using var transaction = connection.CreateWriteTransaction();
+                    using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
                     if (backgroundJob != null)
                     {
                         _factory.StateMachine.EnqueueBackgroundJob(
@@ -370,13 +370,13 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             ValidateMisfireHandling(misfireHandling.Value, nameof(misfireHandling));
         }
 
-        var jobQueues = queue != null && Storage.HasFeature(JobStorageFeatures.JobQueueProperty);
+        bool jobQueues = queue != null && Storage.HasFeature(JobStorageFeatures.JobQueueProperty);
 
         return UpdateExisting(recurringJobId, (recurringJob, now) =>
         {
-            var scheduleChanged = false;
+            bool scheduleChanged = false;
 
-            var meaningChanged = false;
+            bool meaningChanged = false;
 
             if (cronExpression != null && !cronExpression.Equals(recurringJob.Cron, StringComparison.OrdinalIgnoreCase))
             {
@@ -431,9 +431,9 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
         try
         {
-            var invocationData = InvocationData.DeserializePayload(recurringJob.Job);
-            var current = GetExplicitQueue(invocationData.Queue);
-            var target = GetExplicitQueue(queue);
+            InvocationData invocationData = InvocationData.DeserializePayload(recurringJob.Job);
+            string? current = GetExplicitQueue(invocationData.Queue);
+            string? target = GetExplicitQueue(queue);
 
             if (string.Equals(current, target, StringComparison.Ordinal)) return;
             if (target == null && !string.Equals(current, GetExplicitQueue(recurringJob.Queue), StringComparison.Ordinal)) return;
@@ -463,18 +463,18 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
     private bool UpdateExisting(string recurringJobId, Action<RecurringJobEntity, DateTime> update)
     {
-        using (var connection = Storage.GetConnection())
+        using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
         {
-            var now = _nowFactory();
-            var recurringJob = connection.GetRecurringJob(recurringJobId);
+            DateTime now = _nowFactory();
+            RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
             if (recurringJob == null) return false;
 
             update(recurringJob, now);
 
-            if (recurringJob.IsChanged(now, out var changedFields))
+            if (recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields))
             {
-                using var transaction = connection.CreateWriteTransaction();
+                using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
                 transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
                 transaction.Commit();
             }
@@ -487,9 +487,9 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     {
         ArgumentNullException.ThrowIfNull(recurringJobId);
 
-        using (var connection = Storage.GetConnection())
+        using (IStorageConnection connection = Storage.GetConnection())
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, DefaultTimeout))
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.RemoveHash($"recurring-job:{recurringJobId}");
             transaction.RemoveFromSet("recurring-jobs", recurringJobId);

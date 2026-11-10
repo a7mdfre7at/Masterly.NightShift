@@ -40,6 +40,13 @@ dotnet_diagnostic.IDE0320.severity = warning
 # Internal types nothing derives from are sealed
 dotnet_diagnostic.CA1852.severity = warning
 
+# Explicit types, not var (anonymous types are the only exception)
+csharp_style_var_for_built_in_types = false:warning
+csharp_style_var_when_type_is_apparent = false:warning
+csharp_style_var_elsewhere = false:warning
+dotnet_diagnostic.IDE0007.severity = none
+dotnet_diagnostic.IDE0008.severity = warning
+
 # Object creation and collections
 csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
 dotnet_diagnostic.IDE0090.severity = warning

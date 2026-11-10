@@ -66,7 +66,7 @@ public class Services
     {
         try
         {
-            for (var i = 1; i <= iterationCount; i++)
+            for (int i = 1; i <= iterationCount; i++)
             {
                 await Task.Delay(1000);
                 Console.WriteLine("Performing step {0} of {1}...", i, iterationCount);

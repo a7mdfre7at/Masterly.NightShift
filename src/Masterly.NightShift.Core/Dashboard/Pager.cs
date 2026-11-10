@@ -95,7 +95,7 @@ public class Pager
         if (_endPageIndex > TotalPageCount)
             _endPageIndex = TotalPageCount;
 
-        var pagerItems = new List<Item>();
+        List<Item> pagerItems = [];
         if (TotalPageCount == 0) return pagerItems;
 
         AddPrevious(pagerItems);
@@ -125,7 +125,7 @@ public class Pager
 
     private void AddPrevious(ICollection<Item> results)
     {
-        var item = new Item(CurrentPage - 1, CurrentPage == 1, ItemType.PrevPage);
+        Item item = new(CurrentPage - 1, CurrentPage == 1, ItemType.PrevPage);
         results.Add(item);
     }
 
@@ -133,8 +133,8 @@ public class Pager
     {
         if (_startPageIndex > 2)
         {
-            var index = _startPageIndex - 1;
-            var item = new Item(index, false, ItemType.MorePage);
+            int index = _startPageIndex - 1;
+            Item item = new(index, false, ItemType.MorePage);
             results.Add(item);
         }
     }
@@ -143,25 +143,25 @@ public class Pager
     {
         if (_endPageIndex < TotalPageCount - 1)
         {
-            var index = _startPageIndex + PageItemsCount;
+            int index = _startPageIndex + PageItemsCount;
             if (index > TotalPageCount) { index = TotalPageCount; }
-            var item = new Item(index, false, ItemType.MorePage);
+            Item item = new(index, false, ItemType.MorePage);
             results.Add(item);
         }
     }
 
     private void AddPageNumbers(ICollection<Item> results)
     {
-        for (var pageIndex = _startPageIndex; pageIndex <= _endPageIndex; pageIndex++)
+        for (int pageIndex = _startPageIndex; pageIndex <= _endPageIndex; pageIndex++)
         {
-            var item = new Item(pageIndex, false, ItemType.Page);
+            Item item = new(pageIndex, false, ItemType.Page);
             results.Add(item);
         }
     }
 
     private void AddNext(ICollection<Item> results)
     {
-        var item = new Item(CurrentPage + 1, CurrentPage >= TotalPageCount, ItemType.NextPage);
+        Item item = new(CurrentPage + 1, CurrentPage >= TotalPageCount, ItemType.NextPage);
         results.Add(item);
     }
 

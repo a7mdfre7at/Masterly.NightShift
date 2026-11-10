@@ -56,7 +56,7 @@ public static class SqlServerObjectsInstaller
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var script = GetInstallScript(schema, enableHeavyMigrations);
+        string script = GetInstallScript(schema, enableHeavyMigrations);
 
         connection.Execute(script, commandTimeout: 0);
     }
@@ -76,7 +76,7 @@ public static class SqlServerObjectsInstaller
         // both, so names that would need escaping are refused, as the SchemaName option does
         SqlServerStorageOptions.ValidateSchemaName(schema, nameof(schema));
 
-        var script = GetStringResource(
+        string script = GetStringResource(
             typeof(SqlServerObjectsInstaller).GetTypeInfo().Assembly,
             "Masterly.NightShift.SqlServer.Install.sql");
 
@@ -92,9 +92,9 @@ public static class SqlServerObjectsInstaller
 
     private static string GetStringResource(Assembly assembly, string resourceName)
     {
-        using var stream = assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException(
+        using Stream stream = assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException(
                 $"Requested resource `{resourceName}` was not found in the assembly `{assembly}`.");
-        using var reader = new StreamReader(stream);
+        using StreamReader reader = new(stream);
         return reader.ReadToEnd();
     }
 }

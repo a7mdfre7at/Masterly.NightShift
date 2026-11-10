@@ -18,10 +18,10 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var text = context.Request.GetQuery("cron");
-        var timeZoneId = context.Request.GetQuery("timezone");
-        var startAt = ParseInstant(context.Request.GetQuery("start"));
-        var endAt = ParseInstant(context.Request.GetQuery("end"));
+        string? text = context.Request.GetQuery("cron");
+        string? timeZoneId = context.Request.GetQuery("timezone");
+        DateTime? startAt = ParseInstant(context.Request.GetQuery("start"));
+        DateTime? endAt = ParseInstant(context.Request.GetQuery("end"));
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -30,21 +30,20 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
 
         try
         {
-            var cron = Cron.FromText(text.Trim());
-            var timeZone = string.IsNullOrWhiteSpace(timeZoneId)
+            string cron = Cron.FromText(text.Trim());
+            TimeZoneInfo timeZone = string.IsNullOrWhiteSpace(timeZoneId)
                 ? TimeZoneInfo.Utc
                 : RecurringJobUpdateDispatcher.GetTimeZoneResolver(context).GetTimeZoneById(timeZoneId.Trim());
 
             // An occurrence exactly at the start runs, so the search begins just before it
-            var now = JobClock.UtcNow;
-            var from = startAt.HasValue && startAt.Value > now ? startAt.Value.AddTicks(-1) : now;
+            DateTime now = JobClock.UtcNow;
+            DateTime from = startAt.HasValue && startAt.Value > now ? startAt.Value.AddTicks(-1) : now;
 
-            var next = Cron.GetNextOccurrences(cron, timeZone, from, OccurrenceCount)
+            long[] next = [.. Cron.GetNextOccurrences(cron, timeZone, from, OccurrenceCount)
                 .Where(x => !endAt.HasValue || x <= endAt.Value)
-                .Select(static x => JobHelper.ToTimestamp(x))
-                .ToArray();
+                .Select(static x => JobHelper.ToTimestamp(x))];
 
-            var hasSeconds = cron.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries).Length == 6;
+            bool hasSeconds = cron.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries).Length == 6;
 
             return DashboardJson.WriteAsync(context, 200, new { cron, description = Cron.TryDescribe(cron), hasSeconds, timeZone = timeZone.Id, next });
         }
@@ -57,7 +56,7 @@ internal sealed class CronPreviewDispatcher : IDashboardDispatcher
     private static DateTime? ParseInstant(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) ||
-            !long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var milliseconds))
+            !long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long milliseconds))
         {
             return null;
         }

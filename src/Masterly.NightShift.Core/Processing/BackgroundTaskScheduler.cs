@@ -120,7 +120,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
             throw new ArgumentException("All the threads should be non-null and in the ThreadState.Unstarted state.", nameof(threadFactory));
         }
 
-        foreach (var thread in _threads)
+        foreach (Thread thread in _threads)
         {
             thread.Start();
         }
@@ -200,9 +200,9 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
     private static IEnumerable<Thread> DefaultThreadFactory(ThreadStart threadStart, int threadCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
-        var threads = new Thread[threadCount];
+        Thread[] threads = new Thread[threadCount];
 
-        for (var i = 0; i < threadCount; i++)
+        for (int i = 0; i < threadCount; i++)
         {
             threads[i] = new Thread(threadStart)
             {
@@ -282,7 +282,7 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
     {
         try
         {
-            var handler = _exceptionHandler;
+            Action<Exception>? handler = _exceptionHandler;
             handler?.Invoke(exception);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())

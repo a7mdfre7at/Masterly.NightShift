@@ -73,7 +73,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         {
             using (distributedLock)
             {
-                var jobData = GetJobData(context);
+                JobData? jobData = GetJobData(context);
 
                 if (jobData == null)
                 {
@@ -85,7 +85,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     return null;
                 }
 
-                var stateToApply = context.NewState;
+                IState stateToApply = context.NewState;
 
                 try
                 {
@@ -126,11 +126,11 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     disposableTransaction = null;
                 }
 
-                var backgroundJob = new BackgroundJob(context.BackgroundJobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
+                BackgroundJob backgroundJob = new(context.BackgroundJobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
 
                 using (disposableTransaction)
                 {
-                    var applyContext = new ApplyStateContext(
+                    ApplyStateContext applyContext = new(
                         context.Storage,
                         context.Connection,
                         transaction,
@@ -152,7 +152,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     // In this case all the filters are ignored, which may lead to confusion, so it's
                     // highly recommended to use the DisableFilters property only when changing state
                     // to the FailedState.
-                    var stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
+                    IStateMachine stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
                     appliedState = stateMachine.ApplyState(applyContext);
 
                     if (context.CompleteJob != null)
@@ -240,9 +240,9 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         // the operations inside a transaction; or make all the reads linearizable and
         // execute queueing operations after all the other ones in a transaction.
 
-        for (var retryAttempt = 0; retryAttempt < 5; retryAttempt++)
+        for (int retryAttempt = 0; retryAttempt < 5; retryAttempt++)
         {
-            var jobData = context.Connection.GetJobData(context.BackgroundJobId);
+            JobData? jobData = context.Connection.GetJobData(context.BackgroundJobId);
 
             // Empty state means our job wasn't moved to any state after its creation.
             // Such a jobs may be created by internal logic, and those jobs have very

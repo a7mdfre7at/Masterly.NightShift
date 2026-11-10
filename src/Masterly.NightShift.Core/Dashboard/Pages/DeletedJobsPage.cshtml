@@ -3,6 +3,7 @@
 @using Masterly.NightShift.Dashboard
 @using Masterly.NightShift.Dashboard.Pages
 @using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.DeletedJobsPage_Title);
@@ -12,9 +13,9 @@
     int.TryParse(Query("from"), out from);
     int.TryParse(Query("count"), out perPage);
 
-    var monitor = Storage.GetMonitoringApi();
-    var pager = new Pager(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.DeletedListCount());
-    var jobs = monitor.DeletedJobs(pager.FromRecord, pager.RecordsPerPage);
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    Pager pager = new(from, perPage, DashboardOptions.DefaultRecordsPerPage, monitor.DeletedListCount());
+    JobList<DeletedJobDto?> jobs = monitor.DeletedJobs(pager.FromRecord, pager.RecordsPerPage);
 }
 
 <div class="row">
@@ -67,7 +68,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var job in jobs)
+                            @foreach (KeyValuePair<string, DeletedJobDto?> job in jobs)
                             {
                                 <tr class="js-jobs-list-row @(job.Value == null || !job.Value.InDeletedState ? "obsolete-data" : null) @(job.Value != null && job.Value.InDeletedState && job.Value != null ? "hover" : null)">
                                     @if (!IsReadOnly)
@@ -107,11 +108,11 @@
                                         {
                                             ExceptionInfo? exception = null;
                                             string? typeName = null;
-                                            if (job.Value.StateData.TryGetValue("Exception", out var serializedException) &&
+                                            if (job.Value.StateData.TryGetValue("Exception", out string? serializedException) &&
                                                 !String.IsNullOrWhiteSpace(serializedException))
                                             {
                                                 exception = Common.SerializationHelper.Deserialize<ExceptionInfo>(serializedException, Common.SerializationOption.Internal);
-                                                var commaIndex = exception!.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
+                                                int commaIndex = exception!.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
                                                 typeName = commaIndex > 0 
                                                     ? exception.Type.Substring(0, commaIndex)
                                                     : exception.Type;

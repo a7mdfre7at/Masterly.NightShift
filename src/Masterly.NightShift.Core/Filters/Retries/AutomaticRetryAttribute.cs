@@ -273,10 +273,10 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
 
         if (_onlyOn != null && _onlyOn.Length > 0)
         {
-            var exceptionType = failedState.Exception.GetType();
-            var satisfied = false;
+            Type exceptionType = failedState.Exception.GetType();
+            bool satisfied = false;
 
-            foreach (var onlyOn in _onlyOn)
+            foreach (Type onlyOn in _onlyOn)
             {
                 if (onlyOn.GetTypeInfo().IsAssignableFrom(exceptionType.GetTypeInfo()))
                 {
@@ -290,10 +290,10 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
 
         if (_exceptOn != null && _exceptOn.Length > 0)
         {
-            var exceptionType = failedState.Exception.GetType();
-            var satisfied = true;
+            Type exceptionType = failedState.Exception.GetType();
+            bool satisfied = true;
 
-            foreach (var exceptOn in _exceptOn)
+            foreach (Type exceptOn in _exceptOn)
             {
                 if (exceptOn.GetTypeInfo().IsAssignableFrom(exceptionType.GetTypeInfo()))
                 {
@@ -305,7 +305,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
             if (!satisfied) return;
         }
 
-        var retryAttempt = context.GetJobParameter<int>("RetryCount", allowStale: true) + 1;
+        int retryAttempt = context.GetJobParameter<int>("RetryCount", allowStale: true) + 1;
 
         if (retryAttempt <= Attempts)
         {
@@ -360,17 +360,17 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     /// </summary>
     private bool TryRetryLater(ElectStateContext context, RetryLaterException exception)
     {
-        var maxRequests = MaxRetryLaterRequests;
+        int maxRequests = MaxRetryLaterRequests;
         if (maxRequests == 0) return false;
 
-        var requests = context.GetJobParameter<int>(RetryLaterCountParameter, allowStale: true) + 1;
+        int requests = context.GetJobParameter<int>(RetryLaterCountParameter, allowStale: true) + 1;
         if (requests > maxRequests) return false;
 
         context.SetJobParameter(RetryLaterCountParameter, requests);
 
-        var now = Clock();
-        var retryAt = exception.GetRetryAt(now);
-        var reason = $"{RetryLaterReasonPrefix} ({requests} of {maxRequests}): {TruncateMessage(exception.Reason ?? exception.Message)}";
+        DateTime now = Clock();
+        DateTime retryAt = exception.GetRetryAt(now);
+        string reason = $"{RetryLaterReasonPrefix} ({requests} of {maxRequests}): {TruncateMessage(exception.Reason ?? exception.Message)}";
 
         context.CandidateState = retryAt <= now
             ? (IState)new EnqueuedState { Reason = reason }
@@ -403,7 +403,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
         int delayInSeconds;
 
         // Read once, under the lock, so a concurrent set can't change the array between the checks
-        var delaysInSeconds = DelaysInSeconds;
+        int[]? delaysInSeconds = DelaysInSeconds;
 
         if (delaysInSeconds != null)
         {
@@ -416,17 +416,17 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
             delayInSeconds = DelayInSecondsByAttemptFunc(retryAttempt);
         }
 
-        var delay = TimeSpan.FromSeconds(delayInSeconds);
+        TimeSpan delay = TimeSpan.FromSeconds(delayInSeconds);
 
         const int maxMessageLength = 50;
-        var exceptionMessage = failedState.Exception.Message.Length > maxMessageLength
+        string exceptionMessage = failedState.Exception.Message.Length > maxMessageLength
             ? string.Concat(failedState.Exception.Message.AsSpan(0, maxMessageLength - 1), "…")
             : failedState.Exception.Message;
 
         // If attempt number is less than max attempts, we should
         // schedule the job to run again later.
 
-        var reason = $"Retry attempt {retryAttempt} of {Attempts}: {exceptionMessage}";
+        string reason = $"Retry attempt {retryAttempt} of {Attempts}: {exceptionMessage}";
 
         context.CandidateState = delay == TimeSpan.Zero
             ? (IState)new EnqueuedState { Reason = reason }

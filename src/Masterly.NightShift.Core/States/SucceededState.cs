@@ -153,7 +153,7 @@ public class SucceededState(object? result, long latency, long performanceDurati
     /// </remarks>
     public Dictionary<string, string> SerializeData()
     {
-        var data = new Dictionary<string, string>
+        Dictionary<string, string> data = new()
         {
             { "SucceededAt",  JobHelper.SerializeDateTime(SucceededAt) },
             { "PerformanceDuration", PerformanceDuration.ToString(CultureInfo.InvariantCulture) },

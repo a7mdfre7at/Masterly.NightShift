@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using Microsoft.Extensions.Primitives;
+
 namespace Masterly.NightShift.Dashboard;
 
 internal sealed class AspNetCoreDashboardRequest : DashboardRequest
@@ -60,7 +62,7 @@ internal sealed class AspNetCoreDashboardRequest : DashboardRequest
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        return _context.Request.Headers.TryGetValue(name, out var values) && values.Count > 0
+        return _context.Request.Headers.TryGetValue(name, out StringValues values) && values.Count > 0
             ? values.ToString()
             : null;
     }

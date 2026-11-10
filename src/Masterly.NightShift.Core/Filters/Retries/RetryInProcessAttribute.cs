@@ -74,9 +74,9 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
-        var shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
+        CancellationToken shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
 
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             try
             {
@@ -84,7 +84,7 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
             }
             catch (Exception ex) when (attempt < Attempts && ShouldRetry(ex))
             {
-                var delay = GetDelay(attempt);
+                TimeSpan delay = GetDelay(attempt);
 
                 Logger.WarnException(
                     $"Background job '{invocation.Context.BackgroundJob.Id}' failed on in-process attempt {attempt + 1} of {Attempts + 1} and will be retried in {delay}.",
@@ -113,7 +113,7 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
     /// </summary>
     internal TimeSpan GetDelay(int attempt)
     {
-        var milliseconds = (double)DelayMilliseconds * (Math.Max(attempt, 0) + 1.0);
+        double milliseconds = (double)DelayMilliseconds * (Math.Max(attempt, 0) + 1.0);
         return milliseconds >= MaxWait.TotalMilliseconds ? MaxWait : TimeSpan.FromMilliseconds(milliseconds);
     }
 
@@ -130,7 +130,7 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
             return exception is not (RetryLaterException or ConcurrencyLimitException);
         }
 
-        var exceptionType = exception.GetType();
+        Type exceptionType = exception.GetType();
         return ExceptionTypes.Any(type => type.IsAssignableFrom(exceptionType));
     }
 }

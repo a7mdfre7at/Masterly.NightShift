@@ -42,7 +42,7 @@ internal static class JobOutcomes
 
         if (context.Canceled) return JobOutcome.Canceled;
 
-        var exception = context.Exception;
+        Exception? exception = context.Exception;
         if (exception == null || context.ExceptionHandled) return JobOutcome.Succeeded;
 
         // A state change (deletion, requeue, ...) aborted the job while it ran
@@ -56,7 +56,7 @@ internal static class JobOutcomes
             return JobOutcome.Canceled;
         }
 
-        var thrown = Unwrap(exception);
+        Exception thrown = Unwrap(exception);
         if (thrown is RetryLaterException) return JobOutcome.RetryLater;
 
         // A wait for a slot or a lock that timed out before the performer called the method. The same exception
@@ -89,22 +89,12 @@ internal static class JobOutcomes
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        object? value;
-
-        // A thread the job started may still add items (PerformContext.Console does, under this lock)
-        lock (context.Items)
-        {
-            context.Items.TryGetValue(ConcurrencyControl.MethodInvokedItem, out value);
-        }
-
-        return value is long timestamp ? timestamp : null;
+        long timestamp = context.BackgroundJob.MethodInvokedTimestamp;
+        return timestamp != 0 ? timestamp : null;
     }
 
     private static bool MethodInvoked(PerformContext context)
     {
-        lock (context.Items)
-        {
-            return context.Items.ContainsKey(ConcurrencyControl.MethodInvokedItem);
-        }
+        return context.BackgroundJob.MethodInvokedTimestamp != 0;
     }
 }

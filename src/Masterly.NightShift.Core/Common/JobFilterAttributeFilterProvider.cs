@@ -21,7 +21,7 @@ namespace Masterly.NightShift.Common;
 /// <param name="cacheAttributeInstances">Whether the attribute instances read from a job type and method are cached.</param>
 public class JobFilterAttributeFilterProvider(bool cacheAttributeInstances) : IJobFilterProvider
 {
-    private readonly bool _cacheAttributeInstances = cacheAttributeInstances;
+    internal bool CachesAttributeInstances { get; } = cacheAttributeInstances;
 
     /// <summary>
     /// Initializes a new instance of the  <see cref="JobFilterAttributeFilterProvider"/>
@@ -34,29 +34,29 @@ public class JobFilterAttributeFilterProvider(bool cacheAttributeInstances) : IJ
 
     protected virtual IEnumerable<JobFilterAttribute> GetTypeAttributes(Job job)
     {
-        return job.GetTypeFilterAttributes(_cacheAttributeInstances);
+        return job.GetTypeFilterAttributes(CachesAttributeInstances);
     }
 
     protected virtual IEnumerable<JobFilterAttribute> GetMethodAttributes(Job job)
     {
-        return job.GetMethodFilterAttributes(_cacheAttributeInstances);
+        return job.GetMethodFilterAttributes(CachesAttributeInstances);
     }
 
     public virtual IEnumerable<JobFilter> GetFilters(Job? job)
     {
         if (job == null) return [];
 
-        var typeAttributes = GetTypeAttributes(job);
-        var methodAttributes = GetMethodAttributes(job);
+        IEnumerable<JobFilterAttribute> typeAttributes = GetTypeAttributes(job);
+        IEnumerable<JobFilterAttribute> methodAttributes = GetMethodAttributes(job);
 
         List<JobFilter>? combined = null;
 
-        foreach (var typeAttribute in typeAttributes)
+        foreach (JobFilterAttribute typeAttribute in typeAttributes)
         {
             (combined ??= []).Add(new JobFilter(typeAttribute, JobFilterScope.Type, null));
         }
 
-        foreach (var methodAttribute in methodAttributes)
+        foreach (JobFilterAttribute methodAttribute in methodAttributes)
         {
             (combined ??= []).Add(new JobFilter(methodAttribute, JobFilterScope.Method, null));
         }

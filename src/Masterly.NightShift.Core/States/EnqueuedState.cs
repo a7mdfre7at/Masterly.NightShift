@@ -242,7 +242,7 @@ public class EnqueuedState : IState
 
     private static bool ValidateQueueNameInner(string value)
     {
-        foreach (var ch in value)
+        foreach (char ch in value)
         {
             // ^[a-z0-9_-]+$
             if (ch is not (>= 'a' and <= 'z' or >= '0' and <= '9' or '-' or '_'))
@@ -258,7 +258,7 @@ public class EnqueuedState : IState
     {
         public void Apply(ApplyStateContext context, IWriteOnlyTransaction transaction)
         {
-            var enqueuedState = context.NewState as EnqueuedState ?? throw new InvalidOperationException(
+            EnqueuedState enqueuedState = context.NewState as EnqueuedState ?? throw new InvalidOperationException(
                     $"`{typeof(Handler).FullName}` state handler can be registered only for the Enqueued state.");
             if (context.BackgroundJob.Job?.Queue != null && !context.Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
             {

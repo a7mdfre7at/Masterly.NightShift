@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Security.Principal;
 using Microsoft.AspNetCore.Antiforgery;
 
 namespace Masterly.NightShift.Dashboard;
@@ -52,8 +53,8 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     {
         if (Options.IgnoreAntiforgeryToken) return;
 
-        var antiforgery = HttpContext.RequestServices?.GetService<IAntiforgery>();
-        var tokenSet = antiforgery?.GetAndStoreTokens(HttpContext);
+        IAntiforgery? antiforgery = HttpContext.RequestServices?.GetService<IAntiforgery>();
+        AntiforgeryTokenSet? tokenSet = antiforgery?.GetAndStoreTokens(HttpContext);
 
         if (tokenSet != null)
         {
@@ -65,7 +66,7 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     /// <inheritdoc />
     public override string? GetUserName()
     {
-        var identity = HttpContext.User?.Identity;
+        IIdentity? identity = HttpContext.User?.Identity;
         return identity != null && identity.IsAuthenticated ? identity.Name : null;
     }
 
@@ -76,7 +77,7 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     /// </summary>
     public override IBackgroundJobClient GetBackgroundJobClient()
     {
-        var factory = HttpContext.RequestServices.GetService<IBackgroundJobClientFactory>();
+        IBackgroundJobClientFactory? factory = HttpContext.RequestServices.GetService<IBackgroundJobClientFactory>();
         if (factory != null)
         {
             return factory.GetClient(Storage);
@@ -92,7 +93,7 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     /// </summary>
     public override IRecurringJobManager GetRecurringJobManager()
     {
-        var factory = HttpContext.RequestServices.GetService<IRecurringJobManagerFactory>();
+        IRecurringJobManagerFactory? factory = HttpContext.RequestServices.GetService<IRecurringJobManagerFactory>();
         if (factory != null)
         {
             return factory.GetManager(Storage);

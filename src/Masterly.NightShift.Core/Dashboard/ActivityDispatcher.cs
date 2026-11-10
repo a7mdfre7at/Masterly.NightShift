@@ -13,8 +13,8 @@ internal sealed class ActivityDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var count = DefaultCount;
-        if (int.TryParse(context.Request.GetQuery("count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var requested))
+        int count = DefaultCount;
+        if (int.TryParse(context.Request.GetQuery("count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int requested))
         {
             count = Math.Min(Math.Max(1, requested), MaxCount);
         }
@@ -22,15 +22,15 @@ internal sealed class ActivityDispatcher : IDashboardDispatcher
         long.TryParse(context.Request.GetQuery("since"), NumberStyles.Integer, CultureInfo.InvariantCulture, out long since);
 
         IReadOnlyList<ActivityEntry> entries;
-        using (var connection = context.Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
         {
             entries = ActivityFeed.Read(connection, count);
         }
 
         if (since > 0)
         {
-            var fresh = new List<ActivityEntry>();
-            foreach (var entry in entries)
+            List<ActivityEntry> fresh = [];
+            foreach (ActivityEntry entry in entries)
             {
                 if (entry.Timestamp > since) fresh.Add(entry);
             }

@@ -148,7 +148,7 @@ public static class RecurringJobManifest
 
     private static JsonSerializerOptions CreateSettings()
     {
-        var options = new JsonSerializerOptions
+        JsonSerializerOptions options = new()
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -165,7 +165,7 @@ public static class RecurringJobManifest
     /// <summary>Exports the recurring jobs of <see cref="JobStorage.Current"/>.</summary>
     public static string Export()
     {
-        using var connection = JobStorage.Current.GetReadOnlyConnection();
+        using IStorageConnection connection = JobStorage.Current.GetReadOnlyConnection();
         return Export(connection);
     }
 
@@ -190,12 +190,12 @@ public static class RecurringJobManifest
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var logger = LogProvider.GetLogger(typeof(RecurringJobManifest));
-        var entries = new List<RecurringJobManifestEntry>();
+        ILog logger = LogProvider.GetLogger(typeof(RecurringJobManifest));
+        List<RecurringJobManifestEntry> entries = [];
 
-        foreach (var dto in connection.GetRecurringJobs().Where(static dto => !dto.Removed).OrderBy(static dto => dto.Id, StringComparer.Ordinal))
+        foreach (RecurringJobDto? dto in connection.GetRecurringJobs().Where(static dto => !dto.Removed).OrderBy(static dto => dto.Id, StringComparer.Ordinal))
         {
-            var entry = ToEntry(connection, dto, logger, maskRedacted);
+            RecurringJobManifestEntry? entry = ToEntry(connection, dto, logger, maskRedacted);
             if (entry != null) entries.Add(entry);
         }
 
@@ -249,7 +249,7 @@ public static class RecurringJobManifest
     /// </param>
     public static RecurringJobManifestResult Apply([NotNull] string json, bool prune, bool allowAnyMethod)
     {
-        using var connection = JobStorage.Current.GetConnection();
+        using IStorageConnection connection = JobStorage.Current.GetConnection();
         return Apply(new RecurringJobManager(JobStorage.Current), connection, json, prune, allowAnyMethod);
     }
 
@@ -294,21 +294,21 @@ public static class RecurringJobManifest
         ArgumentNullException.ThrowIfNull(manager);
         ArgumentNullException.ThrowIfNull(connection);
 
-        var entries = Parse(json);
-        var recurringJobs = connection.GetRecurringJobs().Where(static dto => !dto.Removed).ToList();
-        var existing = new HashSet<string>(recurringJobs.Select(static dto => dto.Id), StringComparer.Ordinal);
-        var knownJobMethods = allowAnyMethod ? null : new KnownJobMethods(recurringJobs);
-        var resolver = (manager as RecurringJobManager)?.TimeZoneResolver ?? GlobalTimeZoneResolver.Current;
-        var storage = (manager as IRecurringJobManagerV2)?.Storage;
-        var jobQueues = storage == null || storage.HasFeature(JobStorageFeatures.JobQueueProperty);
+        IReadOnlyList<RecurringJobManifestEntry> entries = Parse(json);
+        List<RecurringJobDto> recurringJobs = [.. connection.GetRecurringJobs().Where(static dto => !dto.Removed)];
+        HashSet<string> existing = new(recurringJobs.Select(static dto => dto.Id), StringComparer.Ordinal);
+        KnownJobMethods? knownJobMethods = allowAnyMethod ? null : new KnownJobMethods(recurringJobs);
+        ITimeZoneResolver resolver = (manager as RecurringJobManager)?.TimeZoneResolver ?? GlobalTimeZoneResolver.Current;
+        JobStorage? storage = (manager as IRecurringJobManagerV2)?.Storage;
+        bool jobQueues = storage == null || storage.HasFeature(JobStorageFeatures.JobQueueProperty);
 
-        var added = new List<string>();
-        var updated = new List<string>();
-        var removed = new List<string>();
-        var errors = new List<RecurringJobManifestError>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        List<string> added = [];
+        List<string> updated = [];
+        List<string> removed = [];
+        List<RecurringJobManifestError> errors = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
 
-        foreach (var entry in entries)
+        foreach (RecurringJobManifestEntry entry in entries)
         {
             if (entry == null) continue;
 
@@ -318,7 +318,7 @@ public static class RecurringJobManifest
                 continue;
             }
 
-            var id = entry.Id.Trim();
+            string id = entry.Id.Trim();
 
             if (!seen.Add(id))
             {
@@ -334,8 +334,8 @@ public static class RecurringJobManifest
 
             try
             {
-                var queue = GetExplicitQueue(entry.Queue);
-                var job = ToJob(entry, jobQueues ? queue : null);
+                string? queue = GetExplicitQueue(entry.Queue);
+                Job job = ToJob(entry, jobQueues ? queue : null);
 
                 if (knownJobMethods != null && !knownJobMethods.Contains(job))
                 {
@@ -345,7 +345,7 @@ public static class RecurringJobManifest
                     continue;
                 }
 
-                var options = new RecurringJobOptions
+                RecurringJobOptions options = new()
                 {
                     TimeZone = string.IsNullOrWhiteSpace(entry.TimeZone) ? TimeZoneInfo.Utc : resolver.GetTimeZoneById(entry.TimeZone.Trim()),
                     MisfireHandling = entry.MisfireHandling,
@@ -378,7 +378,7 @@ public static class RecurringJobManifest
 
         if (prune)
         {
-            foreach (var id in existing.Where(id => !seen.Contains(id)).OrderBy(static id => id, StringComparer.Ordinal))
+            foreach (string? id in existing.Where(id => !seen.Contains(id)).OrderBy(static id => id, StringComparer.Ordinal))
             {
                 manager.RemoveIfExists(id);
                 removed.Add(id);
@@ -412,7 +412,7 @@ public static class RecurringJobManifest
         }
 
         // The queue the runs go to: the recurring job's own queue wins over the job's, unless it is the default one
-        var queue = GetExplicitQueue(dto.Queue) ?? GetExplicitQueue(invocationData.Queue);
+        string? queue = GetExplicitQueue(dto.Queue) ?? GetExplicitQueue(invocationData.Queue);
 
         return new RecurringJobManifestEntry
         {
@@ -441,14 +441,14 @@ public static class RecurringJobManifest
 
     private static Job MaskRedacted(Job job)
     {
-        var parameters = job.Method.GetParameters();
-        var arguments = job.Args.ToArray();
+        ParameterInfo[] parameters = job.Method.GetParameters();
+        object[] arguments = [.. job.Args];
 
-        for (var i = 0; i < parameters.Length && i < arguments.Length; i++)
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
         {
             if (RedactedAttribute.IsRedacted(parameters[i]))
             {
-                var type = parameters[i].ParameterType;
+                Type type = parameters[i].ParameterType;
                 arguments[i] = (type.GetTypeInfo().IsValueType ? Activator.CreateInstance(type) : null)!; // Reference types are redacted to null
             }
         }
@@ -460,10 +460,10 @@ public static class RecurringJobManifest
     {
         try
         {
-            var hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (hash == null || !hash.TryGetValue("Job", out var payload) || string.IsNullOrWhiteSpace(payload)) return null;
+            Dictionary<string, string>? hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+            if (hash == null || !hash.TryGetValue("Job", out string? payload) || string.IsNullOrWhiteSpace(payload)) return null;
 
-            var stored = InvocationData.DeserializePayload(payload);
+            InvocationData stored = InvocationData.DeserializePayload(payload);
             if (string.IsNullOrWhiteSpace(stored.Type) || string.IsNullOrWhiteSpace(stored.Method)) return null;
 
             // A compact payload of a method without parameters has no arrays, which read back as "null"
@@ -486,7 +486,7 @@ public static class RecurringJobManifest
     {
         if (string.IsNullOrWhiteSpace(queue)) return null;
 
-        var trimmed = queue.Trim();
+        string trimmed = queue.Trim();
         return EnqueuedState.DefaultQueue.Equals(trimmed, StringComparison.OrdinalIgnoreCase) ? null : trimmed;
     }
 
@@ -502,7 +502,7 @@ public static class RecurringJobManifest
             throw new FormatException("The entry needs a \"cron\" expression.");
         }
 
-        var invocationData = new InvocationData(entry.Job.Type, entry.Job.Method, entry.Job.ParameterTypes ?? "[]", entry.Job.Arguments ?? "[]", queue);
+        InvocationData invocationData = new(entry.Job.Type, entry.Job.Method, entry.Job.ParameterTypes ?? "[]", entry.Job.Arguments ?? "[]", queue);
 
         return invocationData.DeserializeJob();
     }
@@ -524,7 +524,7 @@ public static class RecurringJobManifest
                 return true;
             }
 
-            foreach (var recurringJob in _recurringJobs)
+            foreach (RecurringJobDto recurringJob in _recurringJobs)
             {
                 if (recurringJob.Job != null && recurringJob.Job.Type == job.Type && IsSameMethod(recurringJob.Job.Method, job.Method))
                 {
@@ -535,7 +535,7 @@ public static class RecurringJobManifest
             // Read once, and only when needed: it reflects over every catalog type
             _catalog ??= JobCatalog.GetEntries();
 
-            foreach (var entry in _catalog)
+            foreach (JobCatalogEntry entry in _catalog)
             {
                 if (entry.Type == job.Type && IsSameMethod(entry.Method, job.Method)) return true;
             }
@@ -552,10 +552,10 @@ public static class RecurringJobManifest
                 return false;
             }
 
-            var leftTypes = left.GetParameters().Select(static p => p.ParameterType);
-            var rightTypes = right.GetParameters().Select(static p => p.ParameterType);
-            var leftArguments = left.IsGenericMethod ? left.GetGenericArguments() : Type.EmptyTypes;
-            var rightArguments = right.IsGenericMethod ? right.GetGenericArguments() : Type.EmptyTypes;
+            IEnumerable<Type> leftTypes = left.GetParameters().Select(static p => p.ParameterType);
+            IEnumerable<Type> rightTypes = right.GetParameters().Select(static p => p.ParameterType);
+            Type[] leftArguments = left.IsGenericMethod ? left.GetGenericArguments() : Type.EmptyTypes;
+            Type[] rightArguments = right.IsGenericMethod ? right.GetGenericArguments() : Type.EmptyTypes;
 
             return leftTypes.SequenceEqual(rightTypes) && leftArguments.SequenceEqual(rightArguments);
         }
@@ -569,10 +569,10 @@ public static class RecurringJobManifest
 
         public override DateTimeOffset Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            var text = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+            string? text = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
 
             if (string.IsNullOrWhiteSpace(text) ||
-                !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value))
+                !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset value))
             {
                 throw new JsonException($"'{text}' is not a date. Use ISO 8601, for example \"2026-12-31T23:00:00Z\".");
             }

@@ -32,9 +32,9 @@ internal sealed class ServerWatchdog(TimeSpan checkInterval, TimeSpan serverTime
 
     public void Execute(BackgroundProcessContext context)
     {
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
-            var serversRemoved = connection.RemoveTimedOutServers(_serverTimeout);
+            int serversRemoved = connection.RemoveTimedOutServers(_serverTimeout);
             if (serversRemoved != 0)
             {
                 _logger.Info($"{serversRemoved} servers were removed due to timeout");

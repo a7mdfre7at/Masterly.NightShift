@@ -51,13 +51,13 @@ public static class NightShiftApplicationBuilderExtensions
 
             NightShiftServiceCollectionExtensions.ThrowIfNotConfigured(app.ApplicationServices);
 
-            var services = app.ApplicationServices;
+            IServiceProvider services = app.ApplicationServices;
 
             storage ??= services.GetRequiredService<JobStorage>();
             options ??= services.GetService<DashboardOptions>() ?? new DashboardOptions();
             options.TimeZoneResolver ??= services.GetService<ITimeZoneResolver>();
 
-            var routes = app.ApplicationServices.GetRequiredService<RouteCollection>();
+            RouteCollection routes = app.ApplicationServices.GetRequiredService<RouteCollection>();
 
             app.Map(new PathString(pathMatch), x => x.UseMiddleware<AspNetCoreDashboardMiddleware>(storage, options, routes));
 
@@ -95,7 +95,7 @@ public static class NightShiftApplicationBuilderExtensions
         public IServiceProvider RegisterNightShiftServer(
             [NotNull] IBackgroundProcessingServer server)
         {
-            var lifetime = services.GetRequiredService<IHostApplicationLifetime>();
+            IHostApplicationLifetime lifetime = services.GetRequiredService<IHostApplicationLifetime>();
 
             lifetime.ApplicationStopping.Register(server.SendStop);
             lifetime.ApplicationStopped.Register(server.Dispose);

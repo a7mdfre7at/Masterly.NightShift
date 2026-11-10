@@ -56,7 +56,7 @@ public static class JobStorageExtensions
             ArgumentNullException.ThrowIfNull(client);
             if (timeBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeBudget), "The time budget can't be negative.");
 
-            var monitor = storage.GetMonitoringApi();
+            IMonitoringApi monitor = storage.GetMonitoringApi();
 
             return BulkStateChange.RunOnPages(
                 id => client.ChangeState(id, new EnqueuedState { Reason = RequeueReason }, FailedState.StateName),
@@ -79,17 +79,17 @@ public static class JobStorageExtensions
             ArgumentNullException.ThrowIfNull(storage);
             ArgumentNullException.ThrowIfNull(jobId);
 
-            using var connection = storage.GetReadOnlyConnection();
-            var jobData = connection.GetJobData(jobId);
+            using IStorageConnection connection = storage.GetReadOnlyConnection();
+            JobData? jobData = connection.GetJobData(jobId);
             if (jobData == null) return null;
 
-            var stateData = connection.GetStateData(jobId);
+            StateData? stateData = connection.GetStateData(jobId);
             if (stateData == null) return null;
 
-            var data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> data = new(StringComparer.OrdinalIgnoreCase);
             if (stateData.Data != null)
             {
-                foreach (var entry in stateData.Data)
+                foreach (KeyValuePair<string, string> entry in stateData.Data)
                 {
                     data[entry.Key] = entry.Value;
                 }
@@ -120,7 +120,7 @@ public static class JobStorageExtensions
             result = default;
             StateData? stateData;
 
-            using (var connection = storage.GetReadOnlyConnection())
+            using (IStorageConnection connection = storage.GetReadOnlyConnection())
             {
                 stateData = connection.GetStateData(jobId);
             }
@@ -130,7 +130,7 @@ public static class JobStorageExtensions
                 return false;
             }
 
-            var serialized = stateData.Data.TryGetValue(ResultKey, out var value)
+            string serialized = stateData.Data.TryGetValue(ResultKey, out string? value)
                 ? value
                 : stateData.Data.FirstOrDefault(static entry => ResultKey.Equals(entry.Key, StringComparison.OrdinalIgnoreCase)).Value;
 

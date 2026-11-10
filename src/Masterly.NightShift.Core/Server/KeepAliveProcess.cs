@@ -137,7 +137,7 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
         {
             try
             {
-                var name = Process.GetCurrentProcess().ProcessName;
+                string name = Process.GetCurrentProcess().ProcessName;
                 return name.Equals("w3wp", StringComparison.OrdinalIgnoreCase) || name.Equals("iisexpress", StringComparison.OrdinalIgnoreCase);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -160,8 +160,8 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
     /// <summary>Sends one keep-alive request now. Returns whether the host answered, with any status code.</summary>
     public bool Ping(CancellationToken cancellationToken)
     {
-        var url = ResolveUrl();
-        var now = JobClock.UtcNow;
+        string? url = ResolveUrl();
+        DateTime now = JobClock.UtcNow;
 
         if (url == null)
         {
@@ -171,9 +171,9 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
 
         try
         {
-            using var response = _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
+            using HttpResponseMessage response = _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
             // Any answer proves the host handled a request; a non-success code is only noted
-            var note = response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
+            string? note = response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
 
             Volatile.Write(ref _status, new KeepAliveStatus(url, now, true, note, _options.Interval));
 

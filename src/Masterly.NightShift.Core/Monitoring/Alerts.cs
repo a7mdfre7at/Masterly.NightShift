@@ -80,7 +80,7 @@ public static class Alerts
 
         lock (SyncRoot)
         {
-            var sinks = new List<IAlertSink>(_sinks) { sink };
+            List<IAlertSink> sinks = [.. _sinks, sink];
             _sinks = [.. sinks];
         }
     }
@@ -99,7 +99,7 @@ public static class Alerts
     {
         ArgumentNullException.ThrowIfNull(alert);
 
-        foreach (var sink in _sinks)
+        foreach (IAlertSink sink in _sinks)
         {
             try
             {
@@ -131,10 +131,10 @@ public sealed class AlertsFilter : JobFilterAttribute, IApplyStateFilter
         if (!Alerts.HasSinks) return;
         if (context.NewState is not FailedState failed) return;
 
-        var job = context.BackgroundJob.Job;
-        var method = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;
+        Job? job = context.BackgroundJob.Job;
+        string? method = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;
 
-        var alert = new Alert(
+        Alert alert = new(
             AlertKind.JobFailed,
             $"Job {context.BackgroundJob.Id} failed{(method != null ? $": {method}" : string.Empty)}",
             $"{failed.Exception.GetType().Name}: {failed.Exception.Message}")

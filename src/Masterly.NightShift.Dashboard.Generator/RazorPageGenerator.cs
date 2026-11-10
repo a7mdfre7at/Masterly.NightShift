@@ -39,7 +39,7 @@ public sealed class RazorPageGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var pages = context.AdditionalTextsProvider
+        IncrementalValuesProvider<(string Path, string Text)> pages = context.AdditionalTextsProvider
             .Where(static file => file.Path.EndsWith(".cshtml", StringComparison.OrdinalIgnoreCase))
             .Select(static (file, cancellationToken) => (file.Path, Text: file.GetText(cancellationToken)?.ToString() ?? string.Empty));
 
@@ -51,17 +51,17 @@ public sealed class RazorPageGenerator : IIncrementalGenerator
         // Pages have always been compiled with Windows line endings: keep the HTML identical on every OS
         text = NormalizeLineEndings(text.TrimStart('﻿'));
 
-        var options = text.Split('\n')[0];
+        string options = text.Split('\n')[0];
 
         // RazorGenerator kept the indentation and line break of a line holding only a Razor comment,
         // while Razor removes the whole line. Drop just the comments to keep the HTML identical.
         text = CommentOnlyLine.Replace(text, "$1");
-        var className = GetClassName(path, options);
-        var visibility = string.Equals(VisibilityOption.Match(options).Groups[1].Value, "Public", StringComparison.OrdinalIgnoreCase)
+        string className = GetClassName(path, options);
+        string visibility = string.Equals(VisibilityOption.Match(options).Groups[1].Value, "Public", StringComparison.OrdinalIgnoreCase)
             ? "public"
             : "internal";
 
-        var engine = RazorProjectEngine.Create(RazorConfiguration.Default, RazorProjectFileSystem.Create("/"), builder =>
+        RazorProjectEngine engine = RazorProjectEngine.Create(RazorConfiguration.Default, RazorProjectFileSystem.Create("/"), builder =>
         {
             builder.SetNamespace(PagesNamespace);
             builder.SetBaseType(BaseType);
@@ -78,15 +78,15 @@ public sealed class RazorPageGenerator : IIncrementalGenerator
             builder.Features.Add(new ExecuteMethodPass());
         });
 
-        var document = engine.Process(
+        RazorCodeDocument document = engine.Process(
             RazorSourceDocument.Create(text, path),
             FileKinds.Legacy,
             [RazorSourceDocument.Create(DefaultImports, "_DefaultImports.cshtml")],
             []);
 
-        var csharp = document.GetCSharpDocument();
+        RazorCSharpDocument csharp = document.GetCSharpDocument();
 
-        foreach (var diagnostic in csharp.Diagnostics.Where(static x => x.Severity == RazorDiagnosticSeverity.Error))
+        foreach (RazorDiagnostic? diagnostic in csharp.Diagnostics.Where(static x => x.Severity == RazorDiagnosticSeverity.Error))
         {
             output.ReportDiagnostic(Diagnostic.Create(RazorError, Location.None, $"{path}: {diagnostic.GetMessage(CultureInfo.InvariantCulture)}"));
         }
@@ -96,8 +96,8 @@ public sealed class RazorPageGenerator : IIncrementalGenerator
 
     private static string GetClassName(string path, string options)
     {
-        var name = Path.GetFileNameWithoutExtension(path);
-        var trimUnderscores = string.Equals(TrimUnderscoresOption.Match(options).Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
+        string name = Path.GetFileNameWithoutExtension(path);
+        bool trimUnderscores = string.Equals(TrimUnderscoresOption.Match(options).Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
 
         return trimUnderscores ? name.TrimStart('_') : name;
     }
@@ -115,7 +115,7 @@ public sealed class RazorPageGenerator : IIncrementalGenerator
     {
         protected override void ExecuteCore(RazorCodeDocument codeDocument, DocumentIntermediateNode documentNode)
         {
-            var method = documentNode.FindPrimaryMethod();
+            MethodDeclarationIntermediateNode method = documentNode.FindPrimaryMethod();
 
             method.MethodName = "Execute";
             method.ReturnType = "void";

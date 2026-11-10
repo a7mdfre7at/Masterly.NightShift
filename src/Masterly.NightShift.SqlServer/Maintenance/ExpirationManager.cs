@@ -71,9 +71,9 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
     private void ExecuteCore(SqlServerStorage storage, CancellationToken cancellationToken)
     {
-        var numberOfRecordsInSinglePass = storage.EffectiveDeleteBatchSize;
+        int numberOfRecordsInSinglePass = storage.EffectiveDeleteBatchSize;
 
-        foreach (var table in ProcessedTables)
+        foreach (string table in ProcessedTables)
         {
             try
             {
@@ -111,7 +111,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
     // isn't known (auto-detection is off, or the version couldn't be read yet), the cleanup is tried.
     private bool CanCleanUpStates(SqlServerStorage storage)
     {
-        var version = storage.DetectedSchemaVersion;
+        int? version = storage.DetectedSchemaVersion;
         if (!(version < StateCleanupSchemaVersion)) return true;
 
         if (Interlocked.Exchange(ref _oldSchemaWarningLogged, 1) == 0)
@@ -154,7 +154,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
 
     private T? UseConnectionDistributedLock<T>(SqlServerStorage storage, Func<DbConnection, T> action)
     {
-        var lockKey = GetDistributedLockKey(storage);
+        string lockKey = GetDistributedLockKey(storage);
 
         try
         {
@@ -242,7 +242,7 @@ internal sealed class ExpirationManager : IBackgroundProcess
         Action<DbCommand>? additionalActions,
         CancellationToken cancellationToken)
     {
-        using var command = connection.Create(commandText, timeout: 0)
+        using DbCommand command = connection.Create(commandText, timeout: 0)
             .AddParameter("@count", numberOfRecordsInSinglePass, DbType.Int32)
             .AddParameter("@now", JobClock.UtcNow, DbType.DateTime);
 

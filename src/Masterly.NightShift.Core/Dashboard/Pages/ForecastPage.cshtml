@@ -13,22 +13,22 @@
 @{
     Layout = new LayoutPage(Strings.ForecastPage_Title);
 
-    var windowQuery = Query("window");
-    var week = "7d".Equals(windowQuery, StringComparison.OrdinalIgnoreCase);
-    var window = week ? TimeSpan.FromDays(7) : TimeSpan.FromHours(24);
-    var now = StorageUtcNow ?? ApplicationUtcNow;
+    string? windowQuery = Query("window");
+    bool week = "7d".Equals(windowQuery, StringComparison.OrdinalIgnoreCase);
+    TimeSpan window = week ? TimeSpan.FromDays(7) : TimeSpan.FromHours(24);
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
 
     ScheduleForecast forecast;
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         forecast = ScheduleForecast.Build(connection, now, window, DashboardOptions.TimeZoneResolver);
     }
 
-    var ticks = week ? 7 : 12;
-    var tickFormat = week ? "shortDate" : "time";
+    int ticks = week ? 7 : 12;
+    string tickFormat = week ? "shortDate" : "time";
     const int denseThreshold = 300;
-    var busiest = forecast.BusiestHour;
-    var hotSlots = new HashSet<DateTime>(forecast.HotSpots.Select(h => h.Slot));
+    DateTime? busiest = forecast.BusiestHour;
+    HashSet<DateTime> hotSlots = new(forecast.HotSpots.Select(h => h.Slot));
 }
 
 <div class="row">
@@ -80,14 +80,14 @@
                 <div class="hf-forecast-axis">
                     <div class="hf-forecast-label"></div>
                     <div class="hf-forecast-ticks">
-                        @for (var i = 0; i <= ticks; i++)
+                        @for (int i = 0; i <= ticks; i++)
                         {
-                            var tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
+                            DateTime tickTime = forecast.From.AddTicks(window.Ticks * i / ticks);
                             <span class="hf-forecast-tick" style="left: @((100.0 * i / ticks).ToString("F2", CultureInfo.InvariantCulture))%" data-moment-local="@JobHelper.ToTimestamp(tickTime)" data-moment-local-format="@tickFormat">@tickTime.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
                         }
                     </div>
                 </div>
-                @foreach (var row in forecast.Rows)
+                @foreach (ScheduleForecast.Row row in forecast.Rows)
                 {
                     <div class="hf-forecast-row @(row.Dto.Paused ? "hf-forecast-row-paused" : null)">
                         <div class="hf-forecast-label" title="@row.Dto.Cron">
@@ -117,20 +117,20 @@
                             }
                             @if (row.Occurrences.Count > denseThreshold)
                             {
-                                var firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
+                                double firstLeft = 100.0 * (row.Occurrences[0] - forecast.From).Ticks / window.Ticks;
                                 // A truncated row keeps running after its last projected run, until RunsUntil
-                                var lastLeft = 100.0 * ((row.RunsUntil ?? row.Occurrences[row.Occurrences.Count - 1]) - forecast.From).Ticks / window.Ticks;
+                                double lastLeft = 100.0 * ((row.RunsUntil ?? row.Occurrences[row.Occurrences.Count - 1]) - forecast.From).Ticks / window.Ticks;
                                 <span class="hf-forecast-run hf-forecast-run-dense @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
                                       style="left: @(firstLeft.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Max(0.5, lastLeft - firstLeft).ToString("F3", CultureInfo.InvariantCulture))%"
                                       title="@(row.Truncated ? String.Format(Strings.ForecastPage_Truncated, ScheduleForecast.MaxOccurrencesPerJob) : String.Format(Strings.ForecastPage_Dense, row.Occurrences.Count))"></span>
                             }
                             else
                             {
-                                foreach (var occurrence in row.Occurrences)
+                                foreach (DateTime occurrence in row.Occurrences)
                                 {
-                                    var left = 100.0 * (occurrence - forecast.From).Ticks / window.Ticks;
-                                    var width = Math.Max(0.25, 100.0 * row.ExpectedDuration.Ticks / window.Ticks);
-                                    var slot = new DateTime(occurrence.Ticks - occurrence.Ticks % ScheduleForecast.SlotSize.Ticks, DateTimeKind.Utc);
+                                    double left = 100.0 * (occurrence - forecast.From).Ticks / window.Ticks;
+                                    double width = Math.Max(0.25, 100.0 * row.ExpectedDuration.Ticks / window.Ticks);
+                                    DateTime slot = new(occurrence.Ticks - occurrence.Ticks % ScheduleForecast.SlotSize.Ticks, DateTimeKind.Utc);
 
                                     <span class="hf-forecast-run @(hotSlots.Contains(slot) ? "hf-forecast-run-hot" : null) @(row.DurationKnown ? null : "hf-forecast-run-estimated")"
                                           style="left: @(left.ToString("F3", CultureInfo.InvariantCulture))%; width: @(Math.Min(width, 100 - left).ToString("F3", CultureInfo.InvariantCulture))%"
@@ -160,13 +160,13 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var hotSpot in forecast.HotSpots)
+                            @foreach (ScheduleForecast.HotSpot hotSpot in forecast.HotSpots)
                             {
                                 <tr>
                                     <td class="min-width">@Html.LocalTime(hotSpot.Slot) <span class="text-muted">@Html.RelativeTime(hotSpot.Slot)</span></td>
                                     <td class="min-width"><span class="label label-danger">@hotSpot.JobIds.Count</span></td>
                                     <td class="word-break">
-                                        @foreach (var id in hotSpot.JobIds)
+                                        @foreach (string id in hotSpot.JobIds)
                                         {
                                             <a class="hf-chip" href="@Url.To("/recurring?edit=" + Uri.EscapeDataString(id))">@id</a>
                                         }

@@ -39,7 +39,7 @@ internal sealed class CombinedResourceDispatcher : EmbeddedResourceDispatcher
             copy = [.. _resources];
         }
 
-        foreach (var resource in copy)
+        foreach (Tuple<Assembly, string> resource in copy)
         {
             await WriteResource(
                 response,

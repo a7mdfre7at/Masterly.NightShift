@@ -28,7 +28,7 @@ internal static class ExceptionTypeHelper
     {
         internal bool IsCatchableExceptionType()
         {
-            var type = e.GetType();
+            Type type = e.GetType();
             return type != OutOfMemoryType &&
                    type != StackOverflowType &&
                    type != AccessViolationType &&

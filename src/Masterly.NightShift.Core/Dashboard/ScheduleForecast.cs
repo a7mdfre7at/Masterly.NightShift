@@ -1,4 +1,6 @@
-﻿namespace Masterly.NightShift.Dashboard;
+﻿using Cronos;
+
+namespace Masterly.NightShift.Dashboard;
 
 /// <summary>
 /// Projects every recurring job's upcoming runs over a window, with the expected duration of each run taken
@@ -52,13 +54,13 @@ internal sealed class ScheduleForecast
     {
         get
         {
-            var hours = new Dictionary<DateTime, int>();
-            foreach (var row in Rows)
+            Dictionary<DateTime, int> hours = [];
+            foreach (Row row in Rows)
             {
-                foreach (var occurrence in row.Occurrences)
+                foreach (DateTime occurrence in row.Occurrences)
                 {
-                    var hour = new DateTime(occurrence.Year, occurrence.Month, occurrence.Day, occurrence.Hour, 0, 0, DateTimeKind.Utc);
-                    hours[hour] = hours.TryGetValue(hour, out var count) ? count + 1 : 1;
+                    DateTime hour = new(occurrence.Year, occurrence.Month, occurrence.Day, occurrence.Hour, 0, 0, DateTimeKind.Utc);
+                    hours[hour] = hours.TryGetValue(hour, out int count) ? count + 1 : 1;
                 }
             }
 
@@ -71,12 +73,12 @@ internal sealed class ScheduleForecast
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var recurringJobs = connection.GetRecurringJobs();
-        var resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
+        List<RecurringJobDto> recurringJobs = connection.GetRecurringJobs();
+        ITimeZoneResolver resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
 
         return Build(recurringJobs, fromUtc, window, key =>
         {
-            var insight = connection is JobStorageConnection storageConnection ? JobInsightsAttribute.Read(storageConnection, key) : null;
+            JobInsight? insight = connection is JobStorageConnection storageConnection ? JobInsightsAttribute.Read(storageConnection, key) : null;
             return insight != null && insight.Durations.Length >= 3 ? TimeSpan.FromMilliseconds(insight.MedianMs) : (TimeSpan?)null;
         }, resolver);
     }
@@ -93,19 +95,19 @@ internal sealed class ScheduleForecast
         ArgumentNullException.ThrowIfNull(expectedDuration);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(window, TimeSpan.Zero);
 
-        var resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
-        var from = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
-        var to = from.Add(window);
-        var rows = new List<Row>();
+        ITimeZoneResolver resolver = timeZoneResolver ?? GlobalTimeZoneResolver.Current;
+        DateTime from = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
+        DateTime to = from.Add(window);
+        List<Row> rows = [];
 
-        foreach (var dto in recurringJobs)
+        foreach (RecurringJobDto dto in recurringJobs)
         {
             if (dto.Removed) continue;
 
-            var insightsKey = dto.Job != null ? JobInsightsAttribute.GetKey(dto.Job) : null;
-            var duration = insightsKey != null ? expectedDuration(insightsKey) : null;
-            var occurrences = new List<DateTime>();
-            var truncated = false;
+            string? insightsKey = dto.Job != null ? JobInsightsAttribute.GetKey(dto.Job) : null;
+            TimeSpan? duration = insightsKey != null ? expectedDuration(insightsKey) : null;
+            List<DateTime> occurrences = [];
+            bool truncated = false;
             DateTime? runsUntil = null;
             string? error = dto.Error;
 
@@ -113,15 +115,15 @@ internal sealed class ScheduleForecast
             {
                 try
                 {
-                    var expression = RecurringJobEntity.ParseCronExpression(dto.Cron);
-                    var timeZone = string.IsNullOrEmpty(dto.TimeZoneId) ? TimeZoneInfo.Utc : resolver.GetTimeZoneById(dto.TimeZoneId);
+                    CronExpression expression = RecurringJobEntity.ParseCronExpression(dto.Cron);
+                    TimeZoneInfo timeZone = string.IsNullOrEmpty(dto.TimeZoneId) ? TimeZoneInfo.Utc : resolver.GetTimeZoneById(dto.TimeZoneId);
 
                     // Like the scheduler: nothing before the job's start (an occurrence at the start runs),
                     // and nothing after its end (an occurrence at the end runs)
-                    var startAt = ToUtc(dto.StartAt);
-                    var endAt = ToUtc(dto.EndAt);
+                    DateTime? startAt = ToUtc(dto.StartAt);
+                    DateTime? endAt = ToUtc(dto.EndAt);
 
-                    var next = startAt.HasValue && startAt.Value > from
+                    DateTime? next = startAt.HasValue && startAt.Value > from
                         ? expression.GetNextOccurrence(startAt.Value, timeZone, inclusive: true)
                         : expression.GetNextOccurrence(from, timeZone, inclusive: false);
 
@@ -153,7 +155,7 @@ internal sealed class ScheduleForecast
 
         rows.Sort(static (x, y) =>
         {
-            var byCount = y.Occurrences.Count.CompareTo(x.Occurrences.Count);
+            int byCount = y.Occurrences.Count.CompareTo(x.Occurrences.Count);
             return byCount != 0 ? byCount : string.CompareOrdinal(x.Id, y.Id);
         });
 
@@ -171,20 +173,20 @@ internal sealed class ScheduleForecast
 
     private static IReadOnlyList<HotSpot> FindHotSpots(IReadOnlyList<Row> rows, TimeSpan window)
     {
-        var slots = new Dictionary<DateTime, HashSet<string>>();
+        Dictionary<DateTime, HashSet<string>> slots = [];
 
         // Jobs that run more than once per slot would mark every slot hot and hide the real collisions
-        var maxOccurrences = (long)(window.Ticks / SlotSize.Ticks);
+        long maxOccurrences = (long)(window.Ticks / SlotSize.Ticks);
 
-        foreach (var row in rows)
+        foreach (Row row in rows)
         {
             // A truncated job runs more often than the cap, which is about one per slot over a week
             if (row.Truncated || row.Occurrences.Count > maxOccurrences) continue;
 
-            foreach (var occurrence in row.Occurrences)
+            foreach (DateTime occurrence in row.Occurrences)
             {
-                var slot = new DateTime(occurrence.Ticks - occurrence.Ticks % SlotSize.Ticks, DateTimeKind.Utc);
-                if (!slots.TryGetValue(slot, out var jobs))
+                DateTime slot = new(occurrence.Ticks - occurrence.Ticks % SlotSize.Ticks, DateTimeKind.Utc);
+                if (!slots.TryGetValue(slot, out HashSet<string>? jobs))
                 {
                     jobs = new HashSet<string>(StringComparer.Ordinal);
                     slots[slot] = jobs;

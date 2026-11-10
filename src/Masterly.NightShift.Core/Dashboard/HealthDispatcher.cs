@@ -15,8 +15,8 @@ internal sealed class HealthDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var report = DashboardHealth.GetReport(context.Storage, context.Options, Clock());
-        var statusCode = report.Status == HealthStatus.Unhealthy ? 503 : 200;
+        HealthReport report = DashboardHealth.GetReport(context.Storage, context.Options, Clock());
+        int statusCode = report.Status == HealthStatus.Unhealthy ? 503 : 200;
 
         return DashboardJson.WriteAsync(context, statusCode, report.ToJson());
     }

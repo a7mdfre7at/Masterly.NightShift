@@ -32,14 +32,14 @@ internal sealed class CoreStateMachine : IStateMachine
 
     public IState ApplyState(ApplyStateContext context)
     {
-        foreach (var handler in _stateHandlersThunk(context.Storage, context.OldStateName))
+        foreach (IStateHandler handler in _stateHandlersThunk(context.Storage, context.OldStateName))
         {
             handler.Unapply(context, context.Transaction);
         }
 
         context.Transaction.SetJobState(context.BackgroundJob.Id, context.NewState);
 
-        foreach (var handler in _stateHandlersThunk(context.Storage, context.NewState.Name))
+        foreach (IStateHandler handler in _stateHandlersThunk(context.Storage, context.NewState.Name))
         {
             handler.Apply(context, context.Transaction);
         }
@@ -63,7 +63,7 @@ internal sealed class CoreStateMachine : IStateMachine
 
     private static StateHandlersCollection GetStateHandlers(JobStorage storage, string? stateName)
     {
-        var globalHandlers = GlobalStateHandlers.Handlers;
+        ICollection<IStateHandler> globalHandlers = GlobalStateHandlers.Handlers;
 
         return new StateHandlersCollection(
             globalHandlers as List<IStateHandler> ?? [.. globalHandlers],
@@ -88,7 +88,7 @@ internal sealed class CoreStateMachine : IStateMachine
             {
                 while (_globalEnumerator.MoveNext())
                 {
-                    var current = _globalEnumerator.Current;
+                    IStateHandler current = _globalEnumerator.Current;
                     if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
                     {
                         Current = current;
@@ -98,7 +98,7 @@ internal sealed class CoreStateMachine : IStateMachine
 
                 while (_storageEnumerator.MoveNext())
                 {
-                    var current = _storageEnumerator.Current;
+                    IStateHandler current = _storageEnumerator.Current;
                     if (current.StateName.Equals(_stateName, StringComparison.OrdinalIgnoreCase))
                     {
                         Current = current;

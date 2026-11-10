@@ -159,26 +159,26 @@ public class DelayedJobScheduler : IBackgroundProcess
     {
         return UseConnectionDistributedLock(context.Storage, connection =>
         {
-            var jobsProcessed = 0;
+            int jobsProcessed = 0;
 
-            var now = !context.Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)
+            DateTime now = !context.Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)
                 ? JobClock.UtcNow
                 : ((JobStorageConnection)connection).GetUtcDateTime();
 
             if (IsBatchingAvailable(context.Storage, connection))
             {
-                var timestamp = JobHelper.ToTimestamp(now);
-                var entries = ((JobStorageConnection)connection).GetFirstByLowestScoreFromSet("schedule", 0, timestamp, BatchSize);
-                var toBeTransactionallyEnqueued = new List<Tuple<string, int>>();
-                var toBeSequentiallyEnqueued = new List<string>();
+                long timestamp = JobHelper.ToTimestamp(now);
+                List<string> entries = ((JobStorageConnection)connection).GetFirstByLowestScoreFromSet("schedule", 0, timestamp, BatchSize);
+                List<Tuple<string, int>> toBeTransactionallyEnqueued = [];
+                List<string> toBeSequentiallyEnqueued = [];
 
                 if (entries != null)
                 {
-                    foreach (var entry in entries)
+                    foreach (string entry in entries)
                     {
                         if (context.IsStopping) break;
 
-                        var colonIndex = entry.IndexOf(':');
+                        int colonIndex = entry.IndexOf(':');
 
                         if (colonIndex < 0) toBeSequentiallyEnqueued.Add(entry);
                         else toBeTransactionallyEnqueued.Add(Tuple.Create(entry, colonIndex));
@@ -198,13 +198,13 @@ public class DelayedJobScheduler : IBackgroundProcess
                             },
                             (jobId, state) =>
                             {
-                                using var dedicated = context.Storage.GetConnection();
+                                using IStorageConnection dedicated = context.Storage.GetConnection();
                                 EnqueueBackgroundJob(context, dedicated, jobId);
                             });
                     }
                     else
                     {
-                        foreach (var jobId in toBeSequentiallyEnqueued)
+                        foreach (string jobId in toBeSequentiallyEnqueued)
                         {
                             EnqueueBackgroundJob(context, connection, jobId);
                         }
@@ -212,8 +212,8 @@ public class DelayedJobScheduler : IBackgroundProcess
 
                     if (toBeTransactionallyEnqueued.Count > 0)
                     {
-                        using var transaction = connection.CreateWriteTransaction();
-                        foreach (var tuple in toBeTransactionallyEnqueued)
+                        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+                        foreach (Tuple<string, int> tuple in toBeTransactionallyEnqueued)
                         {
                             EnqueueEntry(tuple.Item1, tuple.Item2, transaction);
                         }
@@ -230,16 +230,16 @@ public class DelayedJobScheduler : IBackgroundProcess
                     _parallelismIssueLogged = true;
                 }
 
-                for (var i = 0; i < BatchSize; i++)
+                for (int i = 0; i < BatchSize; i++)
                 {
                     if (context.IsStopping) break;
 
-                    var timestamp = JobHelper.ToTimestamp(now);
+                    long timestamp = JobHelper.ToTimestamp(now);
 
-                    var entry = connection.GetFirstByLowestScoreFromSet("schedule", 0, timestamp);
+                    string? entry = connection.GetFirstByLowestScoreFromSet("schedule", 0, timestamp);
                     if (entry == null) break;
 
-                    var colonIndex = entry.IndexOf(':');
+                    int colonIndex = entry.IndexOf(':');
 
                     if (colonIndex < 0)
                     {
@@ -247,7 +247,7 @@ public class DelayedJobScheduler : IBackgroundProcess
                     }
                     else
                     {
-                        using var transaction = connection.CreateWriteTransaction();
+                        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
                         EnqueueEntry(entry, colonIndex, transaction);
                         transaction.Commit();
                     }
@@ -264,8 +264,8 @@ public class DelayedJobScheduler : IBackgroundProcess
     {
         ArgumentOutOfRangeException.ThrowIfNegative(colonIndex);
 
-        var queue = entry[..colonIndex];
-        var jobId = entry[(colonIndex + 1)..];
+        string queue = entry[..colonIndex];
+        string jobId = entry[(colonIndex + 1)..];
 
         transaction.RemoveFromSet("schedule", entry);
         transaction.AddToQueue(queue, jobId);
@@ -276,13 +276,13 @@ public class DelayedJobScheduler : IBackgroundProcess
         Exception? exception = null;
 
         // At least one retry attempt should always be performed.
-        var maxRetryAttempts = MaxStateChangeAttempts > 0 ? MaxStateChangeAttempts : 1;
+        int maxRetryAttempts = MaxStateChangeAttempts > 0 ? MaxStateChangeAttempts : 1;
 
-        for (var retryAttempt = 0; retryAttempt < maxRetryAttempts; retryAttempt++)
+        for (int retryAttempt = 0; retryAttempt < maxRetryAttempts; retryAttempt++)
         {
             try
             {
-                var appliedState = _stateChanger.ChangeState(new StateChangeContext(
+                IState? appliedState = _stateChanger.ChangeState(new StateChangeContext(
                     context.Storage,
                     connection,
                     jobId,
@@ -303,10 +303,10 @@ public class DelayedJobScheduler : IBackgroundProcess
                     // This might happen when someone modifies the storage bypassing Masterly.NightShift API.
                     using (connection.AcquireDistributedJobLock(jobId, TimeSpan.FromSeconds(5)))
                     {
-                        var jobData = connection.GetJobData(jobId);
+                        JobData? jobData = connection.GetJobData(jobId);
                         if (jobData == null || !ScheduledState.StateName.Equals(jobData.State, StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var transaction = connection.CreateWriteTransaction())
+                            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
                             {
                                 transaction.RemoveFromSet("schedule", jobId);
                                 transaction.Commit();
@@ -389,10 +389,10 @@ public class DelayedJobScheduler : IBackgroundProcess
 
     private T? UseConnectionDistributedLock<T>(JobStorage storage, Func<IStorageConnection, T> action)
     {
-        var resource = "locks:schedulepoller";
+        string resource = "locks:schedulepoller";
         try
         {
-            using (var connection = storage.GetConnection())
+            using (IStorageConnection connection = storage.GetConnection())
             using (connection.AcquireDistributedLock(resource, DefaultLockTimeout))
             {
                 return action(connection);

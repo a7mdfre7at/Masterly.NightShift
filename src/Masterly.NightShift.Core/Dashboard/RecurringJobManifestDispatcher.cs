@@ -22,7 +22,7 @@ internal sealed class RecurringJobManifestDispatcher(bool import) : IDashboardDi
     private static Task ExportAsync(DashboardContext context)
     {
         string manifest;
-        using (var connection = context.Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = context.Storage.GetReadOnlyConnection())
         {
             // Read-only users don't see the values of [Redacted] parameters
             manifest = RecurringJobManifest.Export(connection, maskRedacted: context.IsReadOnly);
@@ -47,9 +47,9 @@ internal sealed class RecurringJobManifestDispatcher(bool import) : IDashboardDi
             return;
         }
 
-        var manifest = (await context.Request.GetFormValuesAsync("manifest").ConfigureAwait(false))?.FirstOrDefault();
-        var pruneValue = (await context.Request.GetFormValuesAsync("prune").ConfigureAwait(false))?.FirstOrDefault();
-        var prune = pruneValue is "true" or "on" or "1";
+        string? manifest = (await context.Request.GetFormValuesAsync("manifest").ConfigureAwait(false))?.FirstOrDefault();
+        string? pruneValue = (await context.Request.GetFormValuesAsync("prune").ConfigureAwait(false))?.FirstOrDefault();
+        bool prune = pruneValue is "true" or "on" or "1";
 
         if (string.IsNullOrWhiteSpace(manifest))
         {
@@ -61,7 +61,7 @@ internal sealed class RecurringJobManifestDispatcher(bool import) : IDashboardDi
         try
         {
             RecurringJobManifestResult result;
-            using (var connection = context.Storage.GetConnection())
+            using (IStorageConnection connection = context.Storage.GetConnection())
             {
                 result = RecurringJobManifest.Apply(context.GetRecurringJobManager(), connection, manifest, prune, context.Options.AllowAnyMethodInManifestImport);
             }

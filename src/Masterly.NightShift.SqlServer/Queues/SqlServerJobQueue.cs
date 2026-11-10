@@ -63,12 +63,12 @@ internal sealed class SqlServerJobQueue : IPersistentJobQueue
     public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
     {
         SqlServerLimits.EnsureQueueNameFits(queue);
-        if (!SqlServerConnection.TryParseJobId(jobId, out var longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
-        using var command = connection.Create(query, timeout: _storage.CommandTimeout);
+        using DbCommand command = connection.Create(query, timeout: _storage.CommandTimeout);
         command.AddParameter("@jobId", longId, DbType.Int64);
         command.AddParameter("@queue", queue, DbType.String);
 
@@ -87,20 +87,20 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         // First we will check if our queues has any background jobs in it and
         // return if any. In this case we don't need any additional logic like
         // semaphores or waiting.
-        var fetchedJob = FetchJob(queues);
+        SqlServerTimeoutJob? fetchedJob = FetchJob(queues);
         if (fetchedJob != null) return fetchedJob;
 
         // Then we determine whether we should use the long polling feature,
         // where only a single worker acquires a semaphore for each queue set
         // to avoid excessive load on a database.
-        var configuredPollInterval = _options.QueuePollInterval;
-        var useLongPolling = configuredPollInterval < LongPollingThreshold;
+        TimeSpan configuredPollInterval = _options.QueuePollInterval;
+        bool useLongPolling = configuredPollInterval < LongPollingThreshold;
 
         // Then we determine a delay between attempts. For long-polling we use constrained
         // sub-second intervals within the [MinPollingDelayMs, PollingQuantumMs] interval.
         // For regular polling we just use the interval defined in the QueuePollInterval
         // option.
-        var pollingDelayMs = useLongPolling
+        TimeSpan pollingDelayMs = useLongPolling
             ? TimeSpan.FromMilliseconds(
                 Math.Min(
                     Math.Max(
@@ -109,11 +109,11 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
                     PollingQuantumMs))
             : configuredPollInterval;
 
-        var queuesString = string.Join("_", queues.OrderBy(static x => x));
-        var resource = Tuple.Create(_storage, queuesString);
+        string queuesString = string.Join("_", queues.OrderBy(static x => x));
+        Tuple<SqlServerStorage, string> resource = Tuple.Create(_storage, queuesString);
 
-        using var cancellationEvent = cancellationToken.GetCancellationEvent();
-        var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
+        using CancellationTokenExtensions.CancellationEvent cancellationEvent = cancellationToken.GetCancellationEvent();
+        WaitHandle[] waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
 
         SemaphoreSlim? semaphore = null;
 
@@ -163,12 +163,12 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
                 throw new InvalidOperationException("This method should be called only when SlidingInvisibilityTimeout is set.");
             }
 
-            var invisibilityTimeout = (int)storage.Options.SlidingInvisibilityTimeout.Value.Negate().TotalSeconds;
+            int invisibilityTimeout = (int)storage.Options.SlidingInvisibilityTimeout.Value.Negate().TotalSeconds;
 
-            using var command = CreateNonBlockingFetchCommand(storage, connection, queues, invisibilityTimeout);
+            using DbCommand command = CreateNonBlockingFetchCommand(storage, connection, queues, invisibilityTimeout);
 
             // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
-            using var reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
+            using DbDataReader reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
 
             return ReadTimeoutJob(storage, reader);
         }, queues);
@@ -176,7 +176,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
     internal static SqlServerTimeoutJob? ReadTimeoutJob(SqlServerStorage storage, DbDataReader reader)
     {
-        var row = ReadSingleRow(reader, static current => Tuple.Create(
+        Tuple<long, long, string, DateTime>? row = ReadSingleRow(reader, static current => Tuple.Create(
             Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
             Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
             current.GetString(current.GetOrdinal("Queue")),
@@ -196,7 +196,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         DbTransaction transaction,
         DbDataReader reader)
     {
-        var row = ReadSingleRow(reader, static current => Tuple.Create(
+        Tuple<long, string>? row = ReadSingleRow(reader, static current => Tuple.Create(
             Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
             current.GetString(current.GetOrdinal("Queue"))));
 
@@ -229,7 +229,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         string[] queues,
         int invisibilityTimeout)
     {
-        var template = storage.GetQueryFromTemplate(static schemaName => $"""
+        string template = storage.GetQueryFromTemplate(static schemaName => $"""
             set nocount on;set xact_abort on;set tran isolation level read committed;
 
             update top (1) JQ
@@ -249,28 +249,28 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
     {
         DbTransaction? transaction = null;
 
-        var pollInterval = _options.QueuePollInterval > TimeSpan.Zero
+        TimeSpan pollInterval = _options.QueuePollInterval > TimeSpan.Zero
             ? _options.QueuePollInterval
             : TimeSpan.FromSeconds(1);
 
-        using var cancellationEvent = cancellationToken.GetCancellationEvent();
-        var waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
+        using CancellationTokenExtensions.CancellationEvent cancellationEvent = cancellationToken.GetCancellationEvent();
+        WaitHandle[] waitArray = GetWaitArrayForQueueSignals(_storage, queues, cancellationEvent);
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var connection = _storage.CreateAndOpenConnection();
+            DbConnection? connection = _storage.CreateAndOpenConnection();
 
             try
             {
                 transaction = connection.BeginTransaction(IsolationLevel.ReadCommitted);
 
-                using var command = CreateTransactionalFetchCommand(_storage, connection, queues, (int)_options.InvisibilityTimeout.Negate().TotalSeconds);
+                using DbCommand command = CreateTransactionalFetchCommand(_storage, connection, queues, (int)_options.InvisibilityTimeout.Negate().TotalSeconds);
                 command.Transaction = transaction;
 
                 // SequentialAccess - https://stackoverflow.com/a/42210774, as in Dapper
-                using (var reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
+                using (DbDataReader reader = command.ExecuteReader(CommandBehavior.SequentialAccess))
                 {
-                    var result = ReadTransactionJob(_storage, connection, transaction, reader);
+                    SqlServerTransactionJob? result = ReadTransactionJob(_storage, connection, transaction, reader);
 
                     if (result != null)
                     {
@@ -313,7 +313,7 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         string[] queues,
         int invisibilityTimeout)
     {
-        var template = storage.GetQueryFromTemplate(static schemaName =>
+        string template = storage.GetQueryFromTemplate(static schemaName =>
             $"""
             delete top (1) JQ
             output DELETED.Id, DELETED.JobId, DELETED.Queue
@@ -333,13 +333,13 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
 
     private static WaitHandle[] GetWaitArrayForQueueSignals(SqlServerStorage storage, string[] queues, CancellationTokenExtensions.CancellationEvent cancellationEvent)
     {
-        var signalledQueues = Math.Min(queues.Length, MaxQueueSignals);
-        var waitList = new List<WaitHandle>(capacity: signalledQueues + 1)
+        int signalledQueues = Math.Min(queues.Length, MaxQueueSignals);
+        List<WaitHandle> waitList = new(capacity: signalledQueues + 1)
         {
             cancellationEvent.WaitHandle
         };
 
-        for (var i = 0; i < signalledQueues; i++)
+        for (int i = 0; i < signalledQueues; i++)
         {
             waitList.Add(NewItemInQueueEvents.GetOrAdd(Tuple.Create(storage, queues[i]), static _ => new AutoResetEvent(initialState: false)));
         }

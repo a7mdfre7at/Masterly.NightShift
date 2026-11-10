@@ -54,7 +54,7 @@ public static class NewFeatures
 
     public static void Test(bool throwException)
     {
-        var exceptionalId = BackgroundJob.Enqueue(() => TryExceptional(throwException));
+        string? exceptionalId = BackgroundJob.Enqueue(() => TryExceptional(throwException));
 
         BackgroundJob.ContinueJobWith(exceptionalId!, () => Continuation(default!), JobContinuationOptions.OnlyOnSucceededState);
         BackgroundJob.ContinueJobWith(exceptionalId!, () => CatchExceptional(default!), JobContinuationOptions.OnlyOnDeletedState);

@@ -24,7 +24,7 @@ internal static class TimestampHelper
 
     public static TimeSpan Elapsed(long timestamp)
     {
-        var now = GetTimestamp();
+        long now = GetTimestamp();
         return Elapsed(now, timestamp);
     }
 

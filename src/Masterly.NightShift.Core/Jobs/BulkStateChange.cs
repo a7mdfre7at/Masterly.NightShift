@@ -35,18 +35,16 @@ internal static class BulkStateChange
         int maxReads,
         TimeSpan? timeBudget)
     {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var from = 0;
-        var processed = 0;
-        var complete = false;
-        var outOfTime = false;
-        var elapsed = Stopwatch.StartNew();
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        int from = 0;
+        int processed = 0;
+        bool complete = false;
+        bool outOfTime = false;
+        Stopwatch elapsed = Stopwatch.StartNew();
 
-        for (var read = 0; read < maxReads && !outOfTime; read++)
+        for (int read = 0; read < maxReads && !outOfTime; read++)
         {
-            var items = (page(from, PageSize) ?? [])
-                .Where(static item => item.Key != null)
-                .ToList();
+            List<KeyValuePair<string, bool>> items = [.. (page(from, PageSize) ?? []).Where(static item => item.Key != null)];
 
             if (items.Count == 0)
             {
@@ -54,9 +52,9 @@ internal static class BulkStateChange
                 break;
             }
 
-            var changedOnThisPage = 0;
+            int changedOnThisPage = 0;
 
-            foreach (var item in items)
+            foreach (KeyValuePair<string, bool> item in items)
             {
                 // Seen before: changed by this call, or skipped because it wasn't in the list's state
                 if (!seen.Add(item.Key) || !item.Value) continue;
@@ -105,15 +103,15 @@ internal static class BulkStateChange
     /// </summary>
     public static BulkJobResult RunOnIds(IReadOnlyList<string> ids, Func<string, bool> change, int maxReads, TimeSpan? timeBudget)
     {
-        var processed = 0;
-        var limit = MaxJobs(maxReads);
-        var elapsed = Stopwatch.StartNew();
+        int processed = 0;
+        long limit = MaxJobs(maxReads);
+        Stopwatch elapsed = Stopwatch.StartNew();
 
-        for (var i = 0; i < ids.Count; i++)
+        for (int i = 0; i < ids.Count; i++)
         {
             if (change(ids[i])) processed++;
 
-            var done = i + 1;
+            int done = i + 1;
             if (done < ids.Count && (done >= limit || IsOutOfTime(elapsed, timeBudget)))
             {
                 return new BulkJobResult(processed, ids.Count - done, Complete: false);
@@ -139,37 +137,37 @@ internal static class BulkStateChange
     {
         IReadOnlyList<string> jobIds;
 
-        using (var connection = storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = storage.GetReadOnlyConnection())
         {
             if (connection.GetAllEntriesFromHash(BatchJob.GetHashKey(batchId)) == null) return null;
             jobIds = BatchJob.GetJobIds(connection, batchId);
         }
 
-        var limit = MaxJobs(maxReads);
-        var elapsed = Stopwatch.StartNew();
-        var processed = 0;
+        long limit = MaxJobs(maxReads);
+        Stopwatch elapsed = Stopwatch.StartNew();
+        int processed = 0;
 
-        for (var from = 0; from < jobIds.Count; from += PageSize)
+        for (int from = 0; from < jobIds.Count; from += PageSize)
         {
-            var chunk = jobIds.Skip(from).Take(PageSize).ToList();
-            var states = new List<KeyValuePair<string, string?>?>(chunk.Count);
+            List<string> chunk = [.. jobIds.Skip(from).Take(PageSize)];
+            List<KeyValuePair<string, string?>?> states = new(chunk.Count);
 
-            using (var connection = storage.GetReadOnlyConnection())
+            using (IStorageConnection connection = storage.GetReadOnlyConnection())
             {
-                foreach (var jobId in chunk)
+                foreach (string jobId in chunk)
                 {
-                    var data = connection.GetJobData(jobId);
+                    JobData? data = connection.GetJobData(jobId);
                     states.Add(data != null && select(data.State) ? new KeyValuePair<string, string?>(jobId, data.State) : null);
                 }
             }
 
-            for (var i = 0; i < chunk.Count; i++)
+            for (int i = 0; i < chunk.Count; i++)
             {
-                var job = states[i];
+                KeyValuePair<string, string?>? job = states[i];
                 if (job.HasValue && action(client, job.Value.Key, job.Value.Value)) processed++;
 
                 // Jobs already handled aren't selected again, so another call goes on where this one stopped
-                var done = from + i + 1;
+                int done = from + i + 1;
                 if (done < jobIds.Count && (done >= limit || IsOutOfTime(elapsed, timeBudget)))
                 {
                     return new BulkJobResult(processed, jobIds.Count - done, Complete: false);

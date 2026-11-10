@@ -137,7 +137,7 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
 
     internal void ExecuteKeepAliveQueryIfRequired()
     {
-        var now = TimestampHelper.GetTimestamp();
+        long now = TimestampHelper.GetTimestamp();
 
         if (TimestampHelper.Elapsed(now, Interlocked.Read(ref _lastHeartbeat)) >= _interval)
         {

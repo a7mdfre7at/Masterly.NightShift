@@ -86,7 +86,7 @@ public class JobActivator
 
         public override object? Resolve(Type type)
         {
-            var instance = _activator.ActivateJob(type);
+            object? instance = _activator.ActivateJob(type);
 
             if (instance is IDisposable disposable)
             {
@@ -98,7 +98,7 @@ public class JobActivator
 
         public override void DisposeScope()
         {
-            foreach (var disposable in _disposables)
+            foreach (IDisposable disposable in _disposables)
             {
                 disposable.Dispose();
             }

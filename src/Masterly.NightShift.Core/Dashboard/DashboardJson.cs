@@ -19,7 +19,7 @@ internal static class DashboardJson
 
     public static JsonSerializerOptions Create(bool camelCaseDictionaryKeys, bool ignoreNulls, bool utcDates, bool indented)
     {
-        var options = new JsonSerializerOptions
+        JsonSerializerOptions options = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DictionaryKeyPolicy = camelCaseDictionaryKeys ? JsonNamingPolicy.CamelCase : null,

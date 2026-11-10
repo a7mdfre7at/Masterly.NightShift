@@ -166,7 +166,7 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         if (Options.Format == WebhookFormat.Slack)
         {
             // Slack reads <...> as links and mentions (<!channel>, <https://evil|click here>) and &...; as entities
-            var text = new StringBuilder();
+            StringBuilder text = new();
             text.Append('*').Append(EscapeSlack(alert.Title)).Append('*');
             text.Append('\n').Append(EscapeSlack(alert.Message));
             if (alert.JobId != null) text.Append("\nJob: ").Append(EscapeSlack(alert.JobId));
@@ -185,14 +185,14 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         {
             // Discord renders Markdown in the content: a job's text could otherwise add masked links
             // ([text](https://evil)), headings or code blocks
-            var text = new StringBuilder();
+            StringBuilder text = new();
             text.Append("**").Append(EscapeDiscord(alert.Title)).Append("**");
             text.Append('\n').Append(EscapeDiscord(alert.Message));
             if (alert.JobId != null) text.Append("\nJob: ").Append(EscapeDiscord(alert.JobId));
             if (alert.Resource != null) text.Append("\nResource: ").Append(EscapeDiscord(alert.Resource));
             if (alert.ServerId != null) text.Append("\nServer: ").Append(EscapeDiscord(alert.ServerId));
 
-            var content = text.Length <= DiscordMaxContentLength ? text.ToString() : text.ToString(0, DiscordMaxContentLength - 1) + "…";
+            string content = text.Length <= DiscordMaxContentLength ? text.ToString() : text.ToString(0, DiscordMaxContentLength - 1) + "…";
 
             // An empty "parse" list turns off @everyone, @here, user and role mentions in the content
             return JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() } }, JsonSettings);
@@ -230,20 +230,20 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     /// </summary>
     internal static string GetLoggableUrl(string? url)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return "(invalid URL)";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return "(invalid URL)";
 
-        var server = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
-        var hasSecretParts = uri.UserInfo.Length > 0 || uri.PathAndQuery != "/" || uri.Fragment.Length > 0;
+        string server = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
+        bool hasSecretParts = uri.UserInfo.Length > 0 || uri.PathAndQuery != "/" || uri.Fragment.Length > 0;
 
         return hasSecretParts ? $"{server}/... (hash {GetShortHash(uri.OriginalString)})" : server;
     }
 
     private static string GetShortHash(string value)
     {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        var hash = SHA256.HashData(bytes);
-        var text = new StringBuilder(6);
-        for (var i = 0; i < 3; i++)
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        byte[] hash = SHA256.HashData(bytes);
+        StringBuilder text = new(6);
+        for (int i = 0; i < 3; i++)
         {
             text.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
         }
@@ -253,8 +253,8 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
     private static string CreateTeamsBody(Alert alert)
     {
-        using var stream = new System.IO.MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Encoder = JsonSettings.Encoder }))
+        using MemoryStream stream = new();
+        using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Encoder = JsonSettings.Encoder }))
         {
             writer.WriteStartObject();
             writer.WriteString("type", "message");
@@ -318,8 +318,8 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     {
         if (value.Length > TeamsMaxTextLength) value = string.Concat(value.AsSpan(0, TeamsMaxTextLength - 1), "…");
 
-        var text = new StringBuilder(value.Length + 16);
-        foreach (var character in value)
+        StringBuilder text = new(value.Length + 16);
+        foreach (char character in value)
         {
             if (TeamsMarkdownCharacters.Contains(character)) text.Append('\\');
             text.Append(character);
@@ -330,8 +330,8 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
     private static string EscapeDiscord(string value)
     {
-        var text = new StringBuilder(value.Length + 16);
-        foreach (var character in value)
+        StringBuilder text = new(value.Length + 16);
+        foreach (char character in value)
         {
             if (DiscordMarkdownCharacters.Contains(character)) text.Append('\\');
             text.Append(character);
@@ -367,22 +367,22 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
     private async Task<bool> SendCoreAsync(Alert alert)
     {
-        var timeout = Options.Timeout;
+        TimeSpan timeout = Options.Timeout;
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
+        using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, Options.Url);
+            using HttpRequestMessage request = new(HttpMethod.Post, Options.Url);
             request.Content = new StringContent(CreateBody(alert), Encoding.UTF8, "application/json");
 
-            foreach (var header in Options.Headers)
+            foreach (KeyValuePair<string, string> header in Options.Headers)
             {
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
 
             timeoutCts.CancelAfter(timeout);
 
-            using var response = await _httpClient.SendAsync(request, timeoutCts.Token).ConfigureAwait(false);
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, timeoutCts.Token).ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
                 Interlocked.Increment(ref _sent);
@@ -427,13 +427,13 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
         // Holding every slot means every request Publish started has released its own. The semaphore isn't
         // disposed: a SemaphoreSlim that never handed out its wait handle holds nothing that needs disposing.
-        var wait = Options.Timeout == System.Threading.Timeout.InfiniteTimeSpan || Options.Timeout > MaxDisposeWait ? MaxDisposeWait : Options.Timeout;
-        var stopwatch = Stopwatch.StartNew();
-        var drained = true;
+        TimeSpan wait = Options.Timeout == System.Threading.Timeout.InfiniteTimeSpan || Options.Timeout > MaxDisposeWait ? MaxDisposeWait : Options.Timeout;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool drained = true;
 
-        for (var i = 0; i < _maxConcurrentRequests; i++)
+        for (int i = 0; i < _maxConcurrentRequests; i++)
         {
-            var remaining = wait - stopwatch.Elapsed;
+            TimeSpan remaining = wait - stopwatch.Elapsed;
             if (remaining <= TimeSpan.Zero || !_inFlight.Wait(remaining))
             {
                 drained = false;

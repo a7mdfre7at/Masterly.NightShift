@@ -65,7 +65,7 @@ public partial class TypeHelper
     {
         return SimpleAssemblyTypeSerializerCache.GetOrAdd(type, static value =>
         {
-            var builder = new StringBuilder();
+            StringBuilder builder = new();
             SerializeType(value, true, builder);
 
             return builder.ToString();
@@ -112,7 +112,7 @@ public partial class TypeHelper
 
         if (type.IsArray && type.HasElementType)
         {
-            var elementType = type.GetElementType();
+            Type? elementType = type.GetElementType();
             SerializeType(elementType!, false, typeNameBuilder); // An array type has an element type
             typeNameBuilder.Append("[]");
         }
@@ -138,18 +138,18 @@ public partial class TypeHelper
 
         if (!withAssemblyName) return;
 
-        var typeInfo = type.GetTypeInfo();
+        TypeInfo typeInfo = type.GetTypeInfo();
 
         if (type != typeof(object) && type != typeof(string) && !typeInfo.IsPrimitive)
         {
             string? assemblyName;
 
-            var typeForwardedFrom = typeInfo.GetCustomAttribute<TypeForwardedFromAttribute>();
+            TypeForwardedFromAttribute? typeForwardedFrom = typeInfo.GetCustomAttribute<TypeForwardedFromAttribute>();
             if (typeForwardedFrom != null)
             {
                 assemblyName = typeForwardedFrom.AssemblyFullName;
 
-                var delimiterIndex = assemblyName.IndexOf(",", StringComparison.OrdinalIgnoreCase);
+                int delimiterIndex = assemblyName.IndexOf(",", StringComparison.OrdinalIgnoreCase);
 
                 assemblyName = delimiterIndex >= 0 ? assemblyName[..delimiterIndex] : assemblyName;
             }
@@ -173,7 +173,7 @@ public partial class TypeHelper
 
         typeNamesBuilder.Append('[');
 
-        for (var i = 0; i < types.Length; i++)
+        for (int i = 0; i < types.Length; i++)
         {
             typeNamesBuilder.Append('[');
             SerializeType(types[i], true, typeNamesBuilder);
@@ -218,7 +218,7 @@ public partial class TypeHelper
 
     private static Assembly? AssemblyResolver(string assemblyString)
     {
-        var assemblyName = new AssemblyName(assemblyString);
+        AssemblyName assemblyName = new(assemblyString);
 
         if (IsLegacyAssembly(assemblyName.Name!)) // Loaded assemblies have names
         {
@@ -237,7 +237,7 @@ public partial class TypeHelper
             assemblyName = new AssemblyName("System.Xml.Linq, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
         }
 
-        var publicKeyToken = assemblyName.GetPublicKeyToken();
+        byte[]? publicKeyToken = assemblyName.GetPublicKeyToken();
 
         if (assemblyName.Version == null && assemblyName.CultureInfo == null && publicKeyToken == null)
         {
@@ -258,7 +258,7 @@ public partial class TypeHelper
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            var shortName = new AssemblyName(assemblyName.Name!); // Loaded assemblies have names
+            AssemblyName shortName = new(assemblyName.Name!); // Loaded assemblies have names
             if (publicKeyToken != null)
             {
                 shortName.SetPublicKeyToken(publicKeyToken);
@@ -289,7 +289,7 @@ public partial class TypeHelper
             // .NET Framework and .NET Core. Most of the types have the proper forwarding,
             // but newer types like DateOnly or TimeOnly don't. So for types from `mscorlib`
             // we perform the first search in the current core library.
-            var type = CoreLibrary.GetType(typeName, false, ignoreCase);
+            Type? type = CoreLibrary.GetType(typeName, false, ignoreCase);
             if (type != null) return type;
         }
 

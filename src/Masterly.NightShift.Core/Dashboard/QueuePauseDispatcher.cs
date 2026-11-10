@@ -25,7 +25,7 @@ internal sealed class QueuePauseDispatcher(bool pause) : IDashboardDispatcher
             return;
         }
 
-        var queue = RouteValues.Get(context, "Queue").Trim();
+        string queue = RouteValues.Get(context, "Queue").Trim();
         if (queue.Length == 0)
         {
             context.Response.StatusCode = 422;
@@ -33,7 +33,7 @@ internal sealed class QueuePauseDispatcher(bool pause) : IDashboardDispatcher
         }
 
         string? reason = null;
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
             if (_pause)
             {

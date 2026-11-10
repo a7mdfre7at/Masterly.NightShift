@@ -25,21 +25,21 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
             return;
         }
 
-        var recurringJobId = RouteValues.Get(context, "JobId");
-        var cronText = await GetFormValueAsync(context, "cron").ConfigureAwait(false);
-        var timeZoneId = await GetFormValueAsync(context, "timezone").ConfigureAwait(false);
-        var queue = await GetQueueAsync(context).ConfigureAwait(false);
-        var misfireText = await GetFormValueAsync(context, "misfire").ConfigureAwait(false);
+        string recurringJobId = RouteValues.Get(context, "JobId");
+        string? cronText = await GetFormValueAsync(context, "cron").ConfigureAwait(false);
+        string? timeZoneId = await GetFormValueAsync(context, "timezone").ConfigureAwait(false);
+        string? queue = await GetQueueAsync(context).ConfigureAwait(false);
+        string? misfireText = await GetFormValueAsync(context, "misfire").ConfigureAwait(false);
 
         try
         {
-            var cron = cronText != null ? Cron.FromText(cronText) : null;
-            var timeZone = timeZoneId != null ? GetTimeZoneResolver(context).GetTimeZoneById(timeZoneId) : null;
+            string? cron = cronText != null ? Cron.FromText(cronText) : null;
+            TimeZoneInfo? timeZone = timeZoneId != null ? GetTimeZoneResolver(context).GetTimeZoneById(timeZoneId) : null;
 
             MisfireHandlingMode? misfire = null;
             if (misfireText != null)
             {
-                if (!Enum.TryParse<MisfireHandlingMode>(misfireText, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                if (!Enum.TryParse<MisfireHandlingMode>(misfireText, ignoreCase: true, out MisfireHandlingMode parsed) || !Enum.IsDefined(parsed))
                 {
                     throw new ArgumentException($"Unknown misfire handling mode '{misfireText}'.");
                 }
@@ -47,7 +47,7 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
                 misfire = parsed;
             }
 
-            var updated = context.GetRecurringJobManager().UpdateSchedule(recurringJobId, cron, timeZone, queue, misfire);
+            bool updated = context.GetRecurringJobManager().UpdateSchedule(recurringJobId, cron, timeZone, queue, misfire);
 
             // Recorded with the status the request answers, so an unknown job isn't logged as a change
             AuditLog.Record(context, [recurringJobId], cron != null ? $"cron {cron}" : null, updated ? (int)HttpStatusCode.OK : (int)HttpStatusCode.NotFound);
@@ -84,17 +84,17 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
     // stored in the job itself, so its retries leave the old queue too.
     private static async Task<string?> GetQueueAsync(DashboardContext context)
     {
-        var values = await context.Request.GetFormValuesAsync("queue").ConfigureAwait(false);
+        IList<string> values = await context.Request.GetFormValuesAsync("queue").ConfigureAwait(false);
         if (values == null || values.Count == 0) return null;
 
-        var value = values[0];
+        string value = values[0];
         return string.IsNullOrWhiteSpace(value) ? EnqueuedState.DefaultQueue : value.Trim();
     }
 
     private static async Task<string?> GetFormValueAsync(DashboardContext context, string key)
     {
-        var values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
-        var value = values?.FirstOrDefault();
+        IList<string> values = await context.Request.GetFormValuesAsync(key).ConfigureAwait(false);
+        string? value = values?.FirstOrDefault();
 
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }

@@ -53,7 +53,7 @@ public static partial class TimeText
     /// </exception>
     public static DateTime Parse([NotNull] string text, DateTime utcNow, [CanBeNull] TimeZoneInfo? timeZone = null)
     {
-        if (!TryParse(text, utcNow, timeZone, out var result, out var error))
+        if (!TryParse(text, utcNow, timeZone, out DateTime result, out string? error))
         {
             throw new FormatException(error ?? $"Unable to understand the time '{text}'. Try \"in 20 minutes\", \"tomorrow at 9am\" or \"2026-12-24 08:00\".");
         }
@@ -94,7 +94,7 @@ public static partial class TimeText
         result = default;
         error = null;
 
-        var phrase = WhitespaceRegex().Replace(text.Trim(), " ").ToLowerInvariant();
+        string phrase = WhitespaceRegex().Replace(text.Trim(), " ").ToLowerInvariant();
         if (phrase.Length == 0) return false;
 
         if (phrase is "now" or "immediately" or "asap")
@@ -103,11 +103,11 @@ public static partial class TimeText
             return true;
         }
 
-        var relative = RelativeRegex().Match(phrase);
+        Match relative = RelativeRegex().Match(phrase);
         if (relative.Success)
         {
-            var amount = relative.Groups[1].Value is "a" or "an" ? 1 : double.Parse(relative.Groups[1].Value, CultureInfo.InvariantCulture);
-            var unit = relative.Groups[2].Value;
+            double amount = relative.Groups[1].Value is "a" or "an" ? 1 : double.Parse(relative.Groups[1].Value, CultureInfo.InvariantCulture);
+            string unit = relative.Groups[2].Value;
             double seconds;
 
             if (unit.StartsWith('s')) seconds = amount;
@@ -139,9 +139,9 @@ public static partial class TimeText
         // Absolute dates: "2026-12-24", "2026-12-24 08:00", "2026-12-24T08:00:00Z"
         if (char.IsDigit(phrase[0]) && phrase.Length >= 8 && phrase.Contains('-'))
         {
-            if (DateTime.TryParse(phrase, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var absolute))
+            if (DateTime.TryParse(phrase, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTime absolute))
             {
-                var hasZone = phrase.EndsWith('z') || phrase.Contains('+') || phrase.LastIndexOf('-') > 9;
+                bool hasZone = phrase.EndsWith('z') || phrase.Contains('+') || phrase.LastIndexOf('-') > 9;
                 result = hasZone ? DateTime.SpecifyKind(absolute, DateTimeKind.Utc) : ToUtc(DateTime.SpecifyKind(absolute, DateTimeKind.Unspecified), timeZone);
                 if (result >= utcNow) return true;
 
@@ -152,12 +152,12 @@ public static partial class TimeText
             return false;
         }
 
-        var local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, timeZone);
-        var tokens = phrase.Split(' ').Where(static t => t is not "on" and not "the").ToList();
+        DateTime local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, timeZone);
+        List<string> tokens = [.. phrase.Split(' ').Where(static t => t is not "on" and not "the")];
         DateTime? date = null;
         TimeSpan? time = null;
-        var nextWeek = false;
-        var todayByName = false;
+        bool nextWeek = false;
+        bool todayByName = false;
 
         // "tonight" and "this evening" mean today, like "today at 20:00": once that time has passed they are
         // refused, while a time of day without a day ("evening", "at 18:00") moves to tomorrow
@@ -169,11 +169,11 @@ public static partial class TimeText
         string? partOfDay = null;
 
         // "midnight" ends the day, or the evening the phrase names (settled after the loop)
-        var midnight = false;
+        bool midnight = false;
 
-        for (var i = 0; i < tokens.Count; i++)
+        for (int i = 0; i < tokens.Count; i++)
         {
-            var token = tokens[i];
+            string token = tokens[i];
 
             switch (token)
             {
@@ -198,7 +198,7 @@ public static partial class TimeText
                 case "end":
                     if (i + 2 < tokens.Count && tokens[i + 1] == "of")
                     {
-                        var what = tokens[i + 2];
+                        string what = tokens[i + 2];
                         i += 2;
                         bareHour = null;
                         if (what is "day" or "today") { date = local.Date; time = new TimeSpan(23, 59, 0); continue; }
@@ -223,11 +223,11 @@ public static partial class TimeText
                 continue;
             }
 
-            if (Days.TryGetValue(token, out var day))
+            if (Days.TryGetValue(token, out DayOfWeek day))
             {
                 // "friday" and "next friday" both mean the coming Friday. Today's name is settled after the loop,
                 // because the time that decides it can come before or after the name
-                var ahead = ((int)day - (int)local.DayOfWeek + 7) % 7;
+                int ahead = ((int)day - (int)local.DayOfWeek + 7) % 7;
                 if (ahead == 0 && nextWeek) ahead = 7;
                 date = local.Date.AddDays(ahead);
                 todayByName = ahead == 0;
@@ -235,19 +235,19 @@ public static partial class TimeText
             }
 
             // "9", "9:30", "9am", "17:30"; "9 pm" arrives as two tokens
-            var timeText = token;
+            string timeText = token;
             if (i + 1 < tokens.Count && (tokens[i + 1] == "am" || tokens[i + 1] == "pm"))
             {
                 timeText += tokens[i + 1];
                 i++;
             }
 
-            var match = TimeOfDayRegex().Match(timeText);
+            Match match = TimeOfDayRegex().Match(timeText);
             if (!match.Success) return false;
 
-            var hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-            var minute = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
-            var meridiem = match.Groups[3].Value;
+            int hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            int minute = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
+            string meridiem = match.Groups[3].Value;
 
             if (hour > 23 || minute > 59) return false;
             if (meridiem == "pm" && hour < 12) hour += 12;
@@ -288,7 +288,7 @@ public static partial class TimeText
             date = local.Date.AddDays(7);
         }
 
-        var when = (date ?? local.Date) + (time ?? TimeSpan.FromHours(9));
+        DateTime when = (date ?? local.Date) + (time ?? TimeSpan.FromHours(9));
 
         // "at 15:00" with no date means the next 15:00
         if (date == null && when <= local) when = when.AddDays(1);
@@ -331,7 +331,7 @@ public static partial class TimeText
 
     private static DateTime AddMonths(DateTime utcNow, int months, TimeZoneInfo timeZone)
     {
-        var local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, timeZone).AddMonths(months);
+        DateTime local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, timeZone).AddMonths(months);
         return ToUtc(local, timeZone);
     }
 }

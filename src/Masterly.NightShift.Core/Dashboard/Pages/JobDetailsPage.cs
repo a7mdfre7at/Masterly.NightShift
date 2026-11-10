@@ -17,8 +17,8 @@ internal partial class JobDetailsPage(string jobId)
     {
         if (details?.Job?.Queue != null) return details.Job.Queue;
 
-        var enqueued = details?.History?.FirstOrDefault(static x => x.StateName == EnqueuedState.StateName);
-        if (enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out var queue) &&
+        StateHistoryDto? enqueued = details?.History?.FirstOrDefault(static x => x.StateName == EnqueuedState.StateName);
+        if (enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out string? queue) &&
             !string.IsNullOrEmpty(queue) && !EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase))
         {
             return queue;

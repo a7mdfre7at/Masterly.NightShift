@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.Dashboard;
 
@@ -22,7 +23,7 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
 
     public Task Dispatch(DashboardContext context)
     {
-        var text = RenderCached(context.Storage, context.Options, Clock());
+        string text = RenderCached(context.Storage, context.Options, Clock());
 
         context.Response.StatusCode = 200;
         context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
@@ -42,13 +43,13 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
 
     private static string Render(JobStorage storage, HealthReport report)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
 
         Gauge(builder, "nightshift_health_status", "0 healthy, 1 degraded, 2 unhealthy", (int)report.Status);
         Gauge(builder, "nightshift_servers", "Servers that reported a heartbeat recently", report.Servers);
         Gauge(builder, "nightshift_processing_paused", "1 while processing is paused from the dashboard", report.Paused ? 1 : 0);
 
-        var statistics = report.Statistics;
+        StatisticsDto? statistics = report.Statistics;
         if (statistics != null)
         {
             Help(builder, "nightshift_jobs", "Jobs by state", "gauge");
@@ -71,13 +72,13 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
         if (report.Queues.Count > 0)
         {
             Help(builder, "nightshift_queue_length", "Jobs waiting in each queue", "gauge");
-            foreach (var queue in report.Queues)
+            foreach (QueueWithTopEnqueuedJobsDto queue in report.Queues)
             {
                 Sample(builder, "nightshift_queue_length", $"queue=\"{Escape(queue.Name)}\"", queue.Length);
             }
 
             Help(builder, "nightshift_queue_fetched", "Jobs fetched from each queue and not yet acknowledged", "gauge");
-            foreach (var queue in report.Queues.Where(static q => q.Fetched.HasValue))
+            foreach (QueueWithTopEnqueuedJobsDto? queue in report.Queues.Where(static q => q.Fetched.HasValue))
             {
                 Sample(builder, "nightshift_queue_fetched", $"queue=\"{Escape(queue.Name)}\"", queue.Fetched!.Value);
             }
@@ -91,40 +92,40 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
 
         try
         {
-            using var connection = storage.GetReadOnlyConnection();
+            using IStorageConnection connection = storage.GetReadOnlyConnection();
             // Every family is written as one group, HELP and TYPE first: strict parsers reject interleaved families
-            var queues = QueueInsights.ReadAll(connection).Values.OrderBy(static q => q.Queue, StringComparer.Ordinal).ToList();
+            List<QueueHealth> queues = [.. QueueInsights.ReadAll(connection).Values.OrderBy(static q => q.Queue, StringComparer.Ordinal)];
             if (queues.Count > 0)
             {
                 Help(builder, "nightshift_queue_latency_seconds", "Time jobs waited in the queue before a worker took them, over the last 200 starts", "gauge");
-                foreach (var health in queues)
+                foreach (QueueHealth health in queues)
                 {
                     Sample(builder, "nightshift_queue_latency_seconds", $"queue=\"{Escape(health.Queue)}\",quantile=\"0.5\"", health.MedianLatencyMs / 1000.0);
                     Sample(builder, "nightshift_queue_latency_seconds", $"queue=\"{Escape(health.Queue)}\",quantile=\"0.95\"", health.P95LatencyMs / 1000.0);
                 }
 
                 Help(builder, "nightshift_queue_started_per_minute", "Jobs taken from the queue per minute over the last five minutes", "gauge");
-                foreach (var health in queues)
+                foreach (QueueHealth health in queues)
                 {
                     Sample(builder, "nightshift_queue_started_per_minute", $"queue=\"{Escape(health.Queue)}\"", health.PerMinute);
                 }
             }
 
-            var insights = JobInsightsAttribute.ReadAll(connection).OrderBy(static i => i.Key, StringComparer.Ordinal).ToList();
+            List<JobInsight> insights = [.. JobInsightsAttribute.ReadAll(connection).OrderBy(static i => i.Key, StringComparer.Ordinal)];
             if (insights.Count > 0)
             {
                 Help(builder, "nightshift_method_runs_total", "Runs per job method and outcome", "counter");
-                foreach (var insight in insights)
+                foreach (JobInsight insight in insights)
                 {
-                    var method = Escape(insight.Key);
+                    string method = Escape(insight.Key);
                     Sample(builder, "nightshift_method_runs_total", $"method=\"{method}\",result=\"succeeded\"", insight.Succeeded);
                     Sample(builder, "nightshift_method_runs_total", $"method=\"{method}\",result=\"failed\"", insight.Failed);
                 }
 
                 Help(builder, "nightshift_method_duration_seconds", "Run duration per job method, over the last 200 runs", "gauge");
-                foreach (var insight in insights.Where(static i => i.Durations.Length > 0))
+                foreach (JobInsight? insight in insights.Where(static i => i.Durations.Length > 0))
                 {
-                    var method = Escape(insight.Key);
+                    string method = Escape(insight.Key);
                     Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.5\"", insight.MedianMs / 1000.0);
                     Sample(builder, "nightshift_method_duration_seconds", $"method=\"{method}\",quantile=\"0.95\"", insight.P95Ms / 1000.0);
                 }

@@ -15,7 +15,7 @@ public sealed class QueueHealth
 
         if (latenciesMs.Length > 0)
         {
-            var sorted = latenciesMs.OrderBy(static x => x).ToArray();
+            long[] sorted = [.. latenciesMs.OrderBy(static x => x)];
             MedianLatencyMs = sorted[sorted.Length / 2];
             P95LatencyMs = sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * 0.95) - 1)];
         }
@@ -91,7 +91,7 @@ public static class QueueInsights
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(queue);
 
-        var ms = Math.Max(0, (long)latency.TotalMilliseconds);
+        long ms = Math.Max(0, (long)latency.TotalMilliseconds);
 
         transaction.AddToSet(IndexKey, queue);
         transaction.InsertToList(GetLatencyKey(queue), ms.ToString(CultureInfo.InvariantCulture));
@@ -108,7 +108,7 @@ public static class QueueInsights
 
         if (connection is not JobStorageConnection storageConnection) return null;
 
-        var hash = storageConnection.GetAllEntriesFromHash(GetHashKey(queue));
+        Dictionary<string, string>? hash = storageConnection.GetAllEntriesFromHash(GetHashKey(queue));
         if (hash == null) return null;
 
         List<string> latencyItems;
@@ -119,8 +119,8 @@ public static class QueueInsights
 
             // Only whole minutes: adding the current, partial one would count more than five minutes of starts
             // while PerMinute divides by five
-            var minute = Truncate(Clock());
-            for (var i = 1; i <= 5; i++)
+            DateTime minute = Truncate(Clock());
+            for (int i = 1; i <= 5; i++)
             {
                 started += storageConnection.GetCounter(GetStartedKey(queue, minute.AddMinutes(-i)));
             }
@@ -131,12 +131,11 @@ public static class QueueInsights
             return null;
         }
 
-        var latencies = latencyItems
-            .Select(static x => long.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms) ? ms : -1)
-            .Where(static x => x >= 0)
-            .ToArray();
+        long[] latencies = [.. latencyItems
+            .Select(static x => long.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms) ? ms : -1)
+            .Where(static x => x >= 0)];
 
-        var lastStartedAt = hash.TryGetValue("LastStartedAt", out var last) ? JobHelper.DeserializeNullableDateTime(last) : null;
+        DateTime? lastStartedAt = hash.TryGetValue("LastStartedAt", out string? last) ? JobHelper.DeserializeNullableDateTime(last) : null;
 
         return new QueueHealth(queue, latencies, started, lastStartedAt);
     }
@@ -146,12 +145,12 @@ public static class QueueInsights
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        var result = new Dictionary<string, QueueHealth>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, QueueHealth> result = new(StringComparer.OrdinalIgnoreCase);
         if (connection is not JobStorageConnection) return result;
 
-        foreach (var queue in connection.GetAllItemsFromSet(IndexKey) ?? [])
+        foreach (string queue in connection.GetAllItemsFromSet(IndexKey) ?? [])
         {
-            var health = Read(connection, queue);
+            QueueHealth? health = Read(connection, queue);
             if (health != null) result[queue] = health;
         }
 
@@ -191,17 +190,17 @@ public sealed class QueueInsightsFilter : JobFilterAttribute, IApplyStateFilter
             return;
         }
 
-        if (previous?.Data == null || !previous.Data.TryGetValue("Queue", out var stateQueue) || string.IsNullOrEmpty(stateQueue)) return;
+        if (previous?.Data == null || !previous.Data.TryGetValue("Queue", out string? stateQueue) || string.IsNullOrEmpty(stateQueue)) return;
 
         // The queue the job really waited in, picked like EnqueuedState's handler does: the job's own queue
         // (Enqueue("emails", ...)) wins over the state's "default"
-        var queue = GetActualQueue(stateQueue, context.BackgroundJob.Job);
+        string queue = GetActualQueue(stateQueue, context.BackgroundJob.Job);
 
-        var now = QueueInsights.Clock();
-        var enqueuedAt = previous.Data.TryGetValue("EnqueuedAt", out var enqueued) ? JobHelper.DeserializeNullableDateTime(enqueued) : null;
-        var latency = enqueuedAt.HasValue ? now - enqueuedAt.Value : TimeSpan.Zero;
-        var connection = context.Connection;
-        var jobId = context.BackgroundJob.Id;
+        DateTime now = QueueInsights.Clock();
+        DateTime? enqueuedAt = previous.Data.TryGetValue("EnqueuedAt", out string? enqueued) ? JobHelper.DeserializeNullableDateTime(enqueued) : null;
+        TimeSpan latency = enqueuedAt.HasValue ? now - enqueuedAt.Value : TimeSpan.Zero;
+        IStorageConnection connection = context.Connection;
+        string jobId = context.BackgroundJob.Id;
 
         context.RunAfterCommit(() => Write(connection, jobId, queue, latency, now));
     }
@@ -217,7 +216,7 @@ public sealed class QueueInsightsFilter : JobFilterAttribute, IApplyStateFilter
     {
         try
         {
-            using var transaction = connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             QueueInsights.Record(transaction, queue, latency, now);
             transaction.Commit();
         }

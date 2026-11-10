@@ -27,7 +27,7 @@ internal static class BackgroundJobServerOptionsBinder
 
     private static void Read<T>(IConfiguration configuration, string key, Func<string, T> parse, Action<T> assign)
     {
-        var section = configuration.GetSection(key);
+        IConfigurationSection section = configuration.GetSection(key);
         if (string.IsNullOrWhiteSpace(section.Value)) return;
 
         try
@@ -47,12 +47,12 @@ internal static class BackgroundJobServerOptionsBinder
     // it, and that is the form used to override an array.
     private static void ReadQueues(IConfiguration configuration, BackgroundJobServerOptions options)
     {
-        var section = configuration.GetSection(nameof(options.Queues));
+        IConfigurationSection section = configuration.GetSection(nameof(options.Queues));
         IEnumerable<string?> values = !string.IsNullOrWhiteSpace(section.Value)
             ? section.Value.Split(',')
             : section.GetChildren().Select(static child => child.Value);
 
-        var queues = values.Where(static value => !string.IsNullOrWhiteSpace(value)).Select(static value => value!.Trim()).ToArray();
+        string[] queues = [.. values.Where(static value => !string.IsNullOrWhiteSpace(value)).Select(static value => value!.Trim())];
         if (queues.Length == 0) return;
 
         options.Queues = queues;

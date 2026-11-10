@@ -74,14 +74,14 @@ internal static class SqlServerLimits
         if (resource.Length <= LockResourceLength) return resource;
 
         // "{prefix}~{hash}" is exactly LockResourceLength characters long; a surrogate pair is never cut in two
-        var prefixLength = LockResourceLength - LockResourceHashLength - 1;
+        int prefixLength = LockResourceLength - LockResourceHashLength - 1;
         if (char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
-        var builder = new StringBuilder(LockResourceLength);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
+        StringBuilder builder = new(LockResourceLength);
         builder.Append(resource, 0, prefixLength).Append('~');
 
-        for (var i = 0; i < LockResourceHashLength / 2; i++)
+        for (int i = 0; i < LockResourceHashLength / 2; i++)
         {
             builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
         }

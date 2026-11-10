@@ -38,7 +38,7 @@ public sealed class ExpireAfterAttribute : JobFilterAttribute, IApplyStateFilter
     public ExpireAfterAttribute([NotNull] string timeSpan)
     {
         ArgumentNullException.ThrowIfNull(timeSpan);
-        if (!TimeSpan.TryParse(timeSpan, CultureInfo.InvariantCulture, out var parsed) || parsed <= TimeSpan.Zero)
+        if (!TimeSpan.TryParse(timeSpan, CultureInfo.InvariantCulture, out TimeSpan parsed) || parsed <= TimeSpan.Zero)
         {
             throw new ArgumentException($"'{timeSpan}' is not a positive time span.", nameof(timeSpan));
         }

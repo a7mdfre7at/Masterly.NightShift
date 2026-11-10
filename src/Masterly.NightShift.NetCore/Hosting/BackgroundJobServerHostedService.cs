@@ -145,7 +145,7 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     /// <param name="cancellationToken">Stops waiting.</param>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        var server = _processingServer;
+        IBackgroundProcessingServer? server = _processingServer;
         if (server == null) return;
 
         try

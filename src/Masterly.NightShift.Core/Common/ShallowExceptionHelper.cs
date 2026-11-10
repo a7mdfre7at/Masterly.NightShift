@@ -43,7 +43,7 @@ internal static class ShallowExceptionHelper
 
     private static string ToStringHelper(Exception exception, bool isInner, bool includeFileInfo)
     {
-        var sb = new StringBuilder();
+        StringBuilder sb = new();
         sb.Append(exception.GetType().FullName);
         sb.Append(": ");
         sb.Append(exception.Message);
@@ -55,7 +55,7 @@ internal static class ShallowExceptionHelper
         }
         else sb.Append('\n');
 
-        var stackTrace = exception.Data.Contains(DataKey) ? (string?)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
+        string? stackTrace = exception.Data.Contains(DataKey) ? (string?)exception.Data[DataKey] : GetStackTrace(exception, includeFileInfo);
         if (!string.IsNullOrWhiteSpace(stackTrace))
         {
             sb.Append(stackTrace);
@@ -72,12 +72,12 @@ internal static class ShallowExceptionHelper
         if (text == null) return null;
         if (!numLines.HasValue || numLines.Value < 0) return text;
 
-        using var reader = new StringReader(text);
-        var builder = new StringBuilder();
+        using StringReader reader = new(text);
+        StringBuilder builder = new();
 
         while (numLines-- > 0)
         {
-            var line = reader.ReadLine();
+            string? line = reader.ReadLine();
             if (line == null) break;
 
             if (builder.Length > 0) builder.AppendLine();

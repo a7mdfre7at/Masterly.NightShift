@@ -15,6 +15,7 @@
 
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Masterly.NightShift.Dashboard.Resources;
 
 namespace Masterly.NightShift.Dashboard;
@@ -110,7 +111,7 @@ public static class JobHistoryRenderer
     [CanBeNull]
     public static string? GetStateCssSuffix(string stateName)
     {
-        if (stateName == null || !StateCssSuffixes.TryGetValue(stateName, out var suffix))
+        if (stateName == null || !StateCssSuffixes.TryGetValue(stateName, out string? suffix))
         {
             return null;
         }
@@ -136,12 +137,12 @@ public static class JobHistoryRenderer
     private static string? FindStateColor(string stateName, IDictionary<string, string> colors)
     {
         if (stateName == null) return null;
-        if (colors.TryGetValue(stateName, out var color)) return color;
-        if (!StateCssSuffixes.TryGetValue(stateName, out var suffix)) return null;
+        if (colors.TryGetValue(stateName, out string? color)) return color;
+        if (!StateCssSuffixes.TryGetValue(stateName, out string? suffix)) return null;
 
-        foreach (var builtIn in colors)
+        foreach (KeyValuePair<string, string> builtIn in colors)
         {
-            if (StateCssSuffixes.TryGetValue(builtIn.Key, out var builtInSuffix)
+            if (StateCssSuffixes.TryGetValue(builtIn.Key, out string? builtInSuffix)
                 && string.Equals(builtInSuffix, suffix, StringComparison.Ordinal))
             {
                 return builtIn.Value;
@@ -173,7 +174,7 @@ public static class JobHistoryRenderer
         public NonEscapedString? RenderHistory(
             string state, IDictionary<string, string> properties)
         {
-            if (!Renderers.TryGetValue(state, out var renderer))
+            if (!Renderers.TryGetValue(state, out Func<HtmlHelper, IDictionary<string, string>, NonEscapedString?>? renderer))
             {
                 return DefaultRenderer(helper, properties);
             }
@@ -202,10 +203,10 @@ public static class JobHistoryRenderer
     {
         if (stateData == null || stateData.Count == 0) return null;
 
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append("<dl class=\"dl-horizontal\">");
 
-        foreach (var item in stateData)
+        foreach (KeyValuePair<string, string> item in stateData)
         {
             builder.Append(FormattableString.Invariant($"<dt>{helper.HtmlEncode(item.Key)}</dt>"));
             builder.Append(FormattableString.Invariant($"<dd>{helper.HtmlEncode(item.Value)}</dd>"));
@@ -218,32 +219,32 @@ public static class JobHistoryRenderer
 
     public static NonEscapedString? SucceededRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append("<dl class=\"dl-horizontal\">");
 
-        var itemsAdded = false;
+        bool itemsAdded = false;
 
-        if (stateData.TryGetValue("Latency", out var latencyString))
+        if (stateData.TryGetValue("Latency", out string? latencyString))
         {
-            var latency = TimeSpan.FromMilliseconds(long.Parse(latencyString, CultureInfo.InvariantCulture));
+            TimeSpan latency = TimeSpan.FromMilliseconds(long.Parse(latencyString, CultureInfo.InvariantCulture));
 
             builder.Append(FormattableString.Invariant($"<dt>Latency:</dt><dd>{html.HtmlEncode(html.ToHumanDuration(latency, false))}</dd>"));
 
             itemsAdded = true;
         }
 
-        if (stateData.TryGetValue("PerformanceDuration", out var durationString))
+        if (stateData.TryGetValue("PerformanceDuration", out string? durationString))
         {
-            var duration = TimeSpan.FromMilliseconds(long.Parse(durationString, CultureInfo.InvariantCulture));
+            TimeSpan duration = TimeSpan.FromMilliseconds(long.Parse(durationString, CultureInfo.InvariantCulture));
             builder.Append(FormattableString.Invariant($"<dt>Duration:</dt><dd>{html.HtmlEncode(html.ToHumanDuration(duration, false))}</dd>"));
 
             itemsAdded = true;
         }
 
 
-        if (stateData.TryGetValue("Result", out var resultString) && !string.IsNullOrWhiteSpace(resultString))
+        if (stateData.TryGetValue("Result", out string? resultString) && !string.IsNullOrWhiteSpace(resultString))
         {
-            var result = stateData["Result"];
+            string result = stateData["Result"];
             builder.Append(FormattableString.Invariant($"<dt>Result:</dt><dd>{html.HtmlEncode(result)}</dd>"));
 
             itemsAdded = true;
@@ -258,15 +259,15 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString FailedRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
-        var builder = new StringBuilder();
-        var serverId = stateData.TryGetValue("ServerId", out var value) ? $" ({html.ServerId(value)})" : null;
+        StringBuilder builder = new();
+        string? serverId = stateData.TryGetValue("ServerId", out string? value) ? $" ({html.ServerId(value)})" : null;
 
         builder.Append(
             FormattableString.Invariant($"<h4 class=\"exception-type\">{html.HtmlEncode(stateData["ExceptionType"])}{serverId}</h4><p class=\"text-muted\">{html.HtmlEncode(stateData["ExceptionMessage"])}</p>"));
 
-        if (stateData.TryGetValue("ExceptionDetails", out var details) && !string.IsNullOrWhiteSpace(details))
+        if (stateData.TryGetValue("ExceptionDetails", out string? details) && !string.IsNullOrWhiteSpace(details))
         {
-            var stackTrace = html.StackTrace(details).ToString();
+            string stackTrace = html.StackTrace(details).ToString();
             builder.Append(FormattableString.Invariant($"<pre class=\"stack-trace\">{stackTrace}</pre>"));
         }
 
@@ -275,10 +276,10 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString ProcessingRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append("<dl class=\"dl-horizontal\">");
 
-        if (!stateData.TryGetValue("ServerId", out var serverId))
+        if (!stateData.TryGetValue("ServerId", out string? serverId))
         {
             stateData.TryGetValue("ServerName", out serverId);
         }
@@ -289,12 +290,12 @@ public static class JobHistoryRenderer
             builder.Append(FormattableString.Invariant($"<dd>{helper.ServerId(serverId)}</dd>"));
         }
 
-        if (stateData.TryGetValue("WorkerId", out var workerId))
+        if (stateData.TryGetValue("WorkerId", out string? workerId))
         {
             builder.Append("<dt>Worker:</dt>");
             builder.Append(FormattableString.Invariant($"<dd>{helper.HtmlEncode(workerId[..8])}</dd>"));
         }
-        else if (stateData.TryGetValue("WorkerNumber", out var workerNumber))
+        else if (stateData.TryGetValue("WorkerNumber", out string? workerNumber))
         {
             builder.Append("<dt>Worker:</dt>");
             builder.Append(FormattableString.Invariant($"<dd>#{helper.HtmlEncode(workerNumber)}</dd>"));
@@ -307,11 +308,11 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString? EnqueuedRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
-        stateData.TryGetValue("Queue", out var queue);
+        stateData.TryGetValue("Queue", out string? queue);
 
         // The state says "default" for a job with its own queue (Enqueue("emails", ...)), which is where it
         // really went, as EnqueuedState's handler picks it
-        var jobQueue = (helper.Page as Pages.JobDetailsPage)?.RenderedJob?.Queue;
+        string? jobQueue = (helper.Page as Pages.JobDetailsPage)?.RenderedJob?.Queue;
         if (jobQueue != null && (string.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase)))
         {
             queue = jobQueue;
@@ -328,10 +329,10 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString ScheduledRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
-        var enqueueAt = JobHelper.DeserializeDateTime(stateData["EnqueueAt"]);
-        stateData.TryGetValue("Queue", out var queue);
+        DateTime enqueueAt = JobHelper.DeserializeDateTime(stateData["EnqueueAt"]);
+        stateData.TryGetValue("Queue", out string? queue);
 
-        var sb = new StringBuilder();
+        StringBuilder sb = new();
         sb.Append("<dl class=\"dl-horizontal\">");
         sb.Append(FormattableString.Invariant($"<dt>Enqueue at:</dt><dd data-moment=\"{helper.HtmlEncode(JobHelper.ToTimestamp(enqueueAt).ToString(CultureInfo.InvariantCulture))}\">{helper.HtmlEncode(enqueueAt.ToString(CultureInfo.CurrentCulture))}</dd>"));
 
@@ -347,33 +348,33 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString AwaitingRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
 
         builder.Append("<dl class=\"dl-horizontal\">");
 
-        if (stateData.TryGetValue("ParentIds", out var parentIds) && !string.IsNullOrEmpty(parentIds))
+        if (stateData.TryGetValue("ParentIds", out string? parentIds) && !string.IsNullOrEmpty(parentIds))
         {
             // A batch continuation has a parent per job of the batch: link the first ones only
-            var ids = parentIds.Split(',');
-            var links = ids.Take(MaxParentLinks).Select(id => helper.JobIdLink(id).ToString());
-            var more = ids.Length > MaxParentLinks
+            string[] ids = parentIds.Split(',');
+            IEnumerable<string> links = ids.Take(MaxParentLinks).Select(id => helper.JobIdLink(id).ToString());
+            string more = ids.Length > MaxParentLinks
                 ? " " + helper.HtmlEncode(string.Format(CultureInfo.CurrentCulture, Strings.JobHistory_MoreParents, (ids.Length - MaxParentLinks).ToString(CultureInfo.CurrentCulture)))
                 : string.Empty;
-            var mode = stateData.TryGetValue("Mode", out var modeValue) ? modeValue : "All";
+            string mode = stateData.TryGetValue("Mode", out string? modeValue) ? modeValue : "All";
 
             builder.Append(FormattableString.Invariant($"<dt>Parents</dt><dd>{string.Join(" ", links)}{more} <span class=\"label label-default\">{helper.HtmlEncode(mode)}</span></dd>"));
         }
-        else if (stateData.TryGetValue("ParentId", out var parentId))
+        else if (stateData.TryGetValue("ParentId", out string? parentId))
         {
             builder.Append(FormattableString.Invariant($"<dt>Parent</dt><dd>{helper.JobIdLink(parentId)}</dd>"));
         }
 
-        if (stateData.TryGetValue("NextState", out var nextStateString))
+        if (stateData.TryGetValue("NextState", out string? nextStateString))
         {
             builder.Append(FormattableString.Invariant($"<dt>Next State</dt><dd>{RenderNextState(helper, nextStateString)}</dd>"));
         }
 
-        if (stateData.TryGetValue("Options", out var optionsDescription))
+        if (stateData.TryGetValue("Options", out string? optionsDescription))
         {
             if (Enum.TryParse(optionsDescription, out JobContinuationOptions options))
             {
@@ -392,7 +393,7 @@ public static class JobHistoryRenderer
     {
         try
         {
-            var nextState = SerializationHelper.Deserialize<IState>(nextStateString, SerializationOption.TypedInternal);
+            IState? nextState = SerializationHelper.Deserialize<IState>(nextStateString, SerializationOption.TypedInternal);
             return helper.StateLabel(nextState?.Name ?? "(no state)").ToString();
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -410,13 +411,13 @@ public static class JobHistoryRenderer
 
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(serializedState);
+            using JsonDocument document = System.Text.Json.JsonDocument.Parse(serializedState);
             if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                document.RootElement.TryGetProperty("$type", out var type) &&
+                document.RootElement.TryGetProperty("$type", out JsonElement type) &&
                 type.ValueKind == System.Text.Json.JsonValueKind.String)
             {
-                var name = type.GetString();
-                var comma = name?.IndexOf(',') ?? -1;
+                string? name = type.GetString();
+                int comma = name?.IndexOf(',') ?? -1;
                 return comma > 0 ? name![..comma] : name; // comma > 0: name is not null
             }
         }
@@ -429,13 +430,13 @@ public static class JobHistoryRenderer
 
     private static NonEscapedString? DeletedRenderer(HtmlHelper html, IDictionary<string, string> stateData)
     {
-        if (stateData.TryGetValue("Exception", out var exception))
+        if (stateData.TryGetValue("Exception", out string? exception))
         {
-            var exceptionInfo = SerializationHelper.Deserialize<ExceptionInfo>(exception);
+            ExceptionInfo? exceptionInfo = SerializationHelper.Deserialize<ExceptionInfo>(exception);
             if (exceptionInfo != null)
             {
-                var commaIndex = exceptionInfo.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
-                var typeName = commaIndex > 0
+                int commaIndex = exceptionInfo.Type.IndexOf(",", StringComparison.OrdinalIgnoreCase);
+                string typeName = commaIndex > 0
                     ? exceptionInfo.Type[..commaIndex]
                     : exceptionInfo.Type;
 

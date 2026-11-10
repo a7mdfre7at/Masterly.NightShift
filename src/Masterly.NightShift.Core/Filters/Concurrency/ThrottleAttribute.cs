@@ -131,14 +131,14 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
         ArgumentNullException.ThrowIfNull(context);
         if (MaxConcurrency <= 0) throw new InvalidOperationException("MaxConcurrency should be greater than zero.");
 
-        var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
-        var key = GetKey(resource);
-        var waitUntil = ConcurrencyControl.Clock().Add(TimeSpan.FromSeconds(WaitTimeoutSeconds));
-        var attempt = 0;
+        string resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
+        string key = GetKey(resource);
+        DateTime waitUntil = ConcurrencyControl.Clock().Add(TimeSpan.FromSeconds(WaitTimeoutSeconds));
+        int attempt = 0;
 
         while (true)
         {
-            if (TryAcquire(context, key, out var inUse))
+            if (TryAcquire(context, key, out int inUse))
             {
                 ResetRescheduleCount(context);
                 return;
@@ -151,7 +151,7 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                     return;
 
                 case ConcurrencyAction.Wait:
-                    var remaining = waitUntil - ConcurrencyControl.Clock();
+                    TimeSpan remaining = waitUntil - ConcurrencyControl.Clock();
                     if (remaining <= TimeSpan.Zero)
                     {
                         throw new ConcurrencyLimitException(resource, $"All {MaxConcurrency} slot(s) of resource '{resource}' stayed in use for {WaitTimeoutSeconds} seconds.");
@@ -161,8 +161,8 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                     continue;
 
                 default:
-                    var reschedules = context.GetJobParameter<int>(RescheduleCountParameter, allowStale: true);
-                    var enqueueAt = ConcurrencyControl.Clock().Add(GetRetryDelay(reschedules)).Add(ConcurrencyControl.GetJitter());
+                    int reschedules = context.GetJobParameter<int>(RescheduleCountParameter, allowStale: true);
+                    DateTime enqueueAt = ConcurrencyControl.Clock().Add(GetRetryDelay(reschedules)).Add(ConcurrencyControl.GetJitter());
 
                     CountReschedule(context, reschedules + 1);
                     ConcurrencyControl.Reschedule(context, enqueueAt, $"Throttled: {inUse} of {MaxConcurrency} slot(s) of '{resource}' in use");
@@ -194,9 +194,9 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var itemKey = GetItemKey(context.BackgroundJob.Job!);
+        string itemKey = GetItemKey(context.BackgroundJob.Job!);
 
-        if (!context.Items.TryGetValue(itemKey, out var value) || value is not ValueTuple<string, string> slot)
+        if (!context.Items.TryGetValue(itemKey, out object? value) || value is not ValueTuple<string, string> slot)
         {
             return;
         }
@@ -207,11 +207,11 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
         // slot still left behind is reclaimed by the next job that finds the resource full once this job is no
         // longer Processing, after StaleTimeoutMinutes in any case, or as soon as the same job runs again, and
         // Release frees it at once.
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             try
             {
-                using var transaction = context.Connection.CreateWriteTransaction();
+                using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
                 transaction.RemoveFromSet(slot.Item1, slot.Item2);
                 transaction.Commit();
 
@@ -249,14 +249,14 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(resource);
 
-        var slots = new List<ThrottleSlot>();
-        var members = connection.GetAllItemsFromSet(GetKey(NormalizeResource(resource)));
+        List<ThrottleSlot> slots = [];
+        HashSet<string> members = connection.GetAllItemsFromSet(GetKey(NormalizeResource(resource)));
 
         if (members != null)
         {
-            foreach (var member in members)
+            foreach (string member in members)
             {
-                if (ConcurrencyControl.TryParseMember(member, out var timestamp, out var jobId))
+                if (ConcurrencyControl.TryParseMember(member, out long timestamp, out string? jobId))
                 {
                     slots.Add(new ThrottleSlot(jobId, ConcurrencyControl.FromUnixSeconds(timestamp)));
                 }
@@ -285,19 +285,19 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(jobId);
 
-        var key = GetKey(NormalizeResource(resource));
+        string key = GetKey(NormalizeResource(resource));
 
         // The lock the filter takes slots under, so a slot isn't freed while a job is counting them
         using (connection.AcquireDistributedLock($"{key}:lock", LockTimeout))
         {
-            var held = new List<string>();
-            var members = connection.GetAllItemsFromSet(key);
+            List<string> held = [];
+            HashSet<string> members = connection.GetAllItemsFromSet(key);
 
             if (members != null)
             {
-                foreach (var member in members)
+                foreach (string member in members)
                 {
-                    if (ConcurrencyControl.TryParseMember(member, out _, out var holder) && string.Equals(holder, jobId, StringComparison.Ordinal))
+                    if (ConcurrencyControl.TryParseMember(member, out _, out string? holder) && string.Equals(holder, jobId, StringComparison.Ordinal))
                     {
                         held.Add(member);
                     }
@@ -306,9 +306,9 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
 
             if (held.Count == 0) return false;
 
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
-                foreach (var member in held)
+                foreach (string member in held)
                 {
                     transaction.RemoveFromSet(key, member);
                 }
@@ -327,8 +327,8 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
     /// </summary>
     internal TimeSpan GetRetryDelay(int reschedules)
     {
-        var cap = Math.Max(RetryDelaySeconds, MaxRetryDelaySeconds);
-        var seconds = RetryDelaySeconds * Math.Pow(2, Math.Min(Math.Max(reschedules, 0), 30));
+        int cap = Math.Max(RetryDelaySeconds, MaxRetryDelaySeconds);
+        double seconds = RetryDelaySeconds * Math.Pow(2, Math.Min(Math.Max(reschedules, 0), 30));
 
         return TimeSpan.FromSeconds(Math.Min(seconds, cap));
     }
@@ -339,7 +339,7 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
     /// </summary>
     internal static TimeSpan GetWaitDelay(int attempt, TimeSpan remaining)
     {
-        var backoff = TimeSpan.FromMilliseconds(Math.Min(250 * (1 << Math.Min(Math.Max(attempt, 0), 4)), 4000));
+        TimeSpan backoff = TimeSpan.FromMilliseconds(Math.Min(250 * (1 << Math.Min(Math.Max(attempt, 0), 4)), 4000));
         return backoff < remaining ? backoff : remaining;
     }
 
@@ -376,28 +376,28 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
 
     private bool TryAcquire(PerformingContext context, string key, out int inUse)
     {
-        var now = ConcurrencyControl.Clock();
-        var timestamp = ConcurrencyControl.ToUnixSeconds(now);
-        var staleBefore = timestamp - (long)TimeSpan.FromMinutes(StaleTimeoutMinutes).TotalSeconds;
+        DateTime now = ConcurrencyControl.Clock();
+        long timestamp = ConcurrencyControl.ToUnixSeconds(now);
+        long staleBefore = timestamp - (long)TimeSpan.FromMinutes(StaleTimeoutMinutes).TotalSeconds;
 
         using (context.Connection.AcquireDistributedLock($"{key}:lock", LockTimeout))
         {
-            var members = context.Connection.GetAllItemsFromSet(key);
-            ConcurrencyControl.Partition(members, staleBefore, context.BackgroundJob.Id, out var live, out var stale);
+            HashSet<string> members = context.Connection.GetAllItemsFromSet(key);
+            ConcurrencyControl.Partition(members, staleBefore, context.BackgroundJob.Id, out List<(long Timestamp, string JobId)>? live, out List<string>? stale);
 
             inUse = live.Count;
-            var acquired = live.Count < MaxConcurrency;
+            bool acquired = live.Count < MaxConcurrency;
 
             if (!acquired)
             {
                 // A slot is held only while its job is Processing: one whose job finished, moved on or is gone was
                 // left behind (a release that failed), and is reclaimed. Only read when the resource is full
-                var finished = FindFinishedHolders(context.Connection, live);
+                HashSet<string> finished = FindFinishedHolders(context.Connection, live);
                 if (finished.Count > 0)
                 {
-                    foreach (var member in members)
+                    foreach (string member in members)
                     {
-                        if (ConcurrencyControl.TryParseMember(member, out var acquiredAt, out var holder) &&
+                        if (ConcurrencyControl.TryParseMember(member, out long acquiredAt, out string? holder) &&
                             acquiredAt >= staleBefore &&
                             finished.Contains(holder) &&
                             !stale.Contains(member))
@@ -407,7 +407,7 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                     }
 
                     inUse = 0;
-                    foreach (var (Timestamp, JobId) in live)
+                    foreach ((long Timestamp, string? JobId) in live)
                     {
                         if (!finished.Contains(JobId)) inUse++;
                     }
@@ -421,9 +421,9 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                 return false;
             }
 
-            using (var transaction = context.Connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction())
             {
-                foreach (var member in stale)
+                foreach (string member in stale)
                 {
                     Logger.Debug($"Reclaiming stale or own slot '{member}' of throttled resource '{key}'.");
                     transaction.RemoveFromSet(key, member);
@@ -431,7 +431,7 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
 
                 if (acquired)
                 {
-                    var member = ConcurrencyControl.CreateMember(timestamp, context.BackgroundJob.Id);
+                    string member = ConcurrencyControl.CreateMember(timestamp, context.BackgroundJob.Id);
                     transaction.AddToSet(key, member, timestamp);
                     context.Items[GetItemKey(context.BackgroundJob.Job!)] = (key, member);
 
@@ -452,19 +452,19 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
     /// </summary>
     private static HashSet<string> FindFinishedHolders(IStorageConnection connection, List<(long Timestamp, string JobId)> live)
     {
-        var finished = new HashSet<string>(StringComparer.Ordinal);
-        var checkedHolders = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> finished = new(StringComparer.Ordinal);
+        HashSet<string> checkedHolders = new(StringComparer.Ordinal);
 
-        foreach (var (Timestamp, JobId) in live)
+        foreach ((long Timestamp, string? JobId) in live)
         {
             if (!checkedHolders.Add(JobId)) continue;
 
             try
             {
-                var state = connection.GetStateData(JobId);
+                StateData? state = connection.GetStateData(JobId);
                 if (state == null || !string.Equals(state.Name, ProcessingState.StateName, StringComparison.OrdinalIgnoreCase))
                 {
-                    var where = state == null ? "gone" : $"in the {state.Name} state";
+                    string where = state == null ? "gone" : $"in the {state.Name} state";
                     Logger.Debug($"Background job '{JobId}' holds a throttle slot but is {where}; reclaiming the slot.");
                     finished.Add(JobId);
                 }

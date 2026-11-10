@@ -36,14 +36,14 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
 
     public object? Perform(PerformContext context)
     {
-        using var scope = _activator.BeginScope(context);
+        using JobActivatorScope scope = _activator.BeginScope(context);
         object? instance = null;
 
-        var job = context.BackgroundJob.Job ?? throw new InvalidOperationException("Can't perform a background job with a null job.");
+        Job job = context.BackgroundJob.Job ?? throw new InvalidOperationException("Can't perform a background job with a null job.");
 
         // The invoker is resolved once per method and cached: a generated one when the job's assembly
         // was compiled with the Masterly.NightShift source generator, a compiled delegate otherwise, reflection last.
-        var invoker = JobInvokerRegistry.GetInvoker(job.Method);
+        JobInvoker invoker = JobInvokerRegistry.GetInvoker(job.Method);
 
         if (!invoker.IsStatic)
         {
@@ -51,18 +51,14 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
                     $"JobActivator returned NULL instance of the '{job.Type}' type.");
         }
 
-        var arguments = SubstituteArguments(context, job, invoker.ParameterTypes);
-        var interceptors = JobInterceptorPipeline.GetInterceptors(job);
+        object[] arguments = SubstituteArguments(context, job, invoker.ParameterTypes);
+        IReadOnlyList<IJobInterceptor> interceptors = JobInterceptorPipeline.GetInterceptors(job);
 
         // Tells server filters that the method was called (RateLimit keeps its start only then), and when
-        // (Insights measures the run from here, without the waits of the concurrency filters). Locked like
-        // the console's entry: Items is shared by every context of the performance.
-        lock (context.Items)
-        {
-            context.Items[ConcurrencyControl.MethodInvokedItem] = Stopwatch.GetTimestamp();
-        }
+        // (Insights measures the run from here, without the waits of the concurrency filters)
+        context.BackgroundJob.MethodInvokedTimestamp = Stopwatch.GetTimestamp();
 
-        var result = InvokeMethod(context, invoker, instance, arguments, interceptors);
+        object? result = InvokeMethod(context, invoker, instance, arguments, interceptors);
 
         return result;
     }
@@ -110,10 +106,10 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
     {
         try
         {
-            var method = new BackgroundJobMethod(context, invoker, instance, arguments, interceptors);
-            var returnType = invoker.ReturnType;
+            BackgroundJobMethod method = new(context, invoker, instance, arguments, interceptors);
+            Type returnType = invoker.ReturnType;
 
-            if (returnType.IsTaskLike(out var getTaskFunc))
+            if (returnType.IsTaskLike(out Func<object, Task>? getTaskFunc))
             {
                 if (_taskScheduler != null)
                 {
@@ -149,14 +145,14 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
 
     private object? InvokeOnTaskScheduler(PerformContext context, BackgroundJobMethod method, Func<object, Task> getTaskFunc)
     {
-        var scheduledTask = Task.Factory.StartNew(
+        Task<object?> scheduledTask = Task.Factory.StartNew(
             InvokeOnTaskSchedulerInternal,
             method,
             CancellationToken.None,
             TaskCreationOptions.None,
             _taskScheduler!); // Only called when a scheduler was given
 
-        var result = scheduledTask.GetAwaiter().GetResult();
+        object? result = scheduledTask.GetAwaiter().GetResult();
         if (result == null) return null;
 
         return getTaskFunc(result).GetTaskLikeResult(result, method.ReturnType);
@@ -181,25 +177,25 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
         // be used. It's also great to preserve backward compatibility for those who are
         // using Parallel.For(Each), since we aren't changing the TaskScheduler.Current.
 
-        var oldSyncContext = SynchronizationContext.Current;
+        SynchronizationContext? oldSyncContext = SynchronizationContext.Current;
 
         try
         {
-            using var syncContext = new InlineSynchronizationContext();
-            using var cancellationEvent = context.CancellationToken.ShutdownToken.GetCancellationEvent();
+            using InlineSynchronizationContext syncContext = new();
+            using CancellationTokenExtensions.CancellationEvent cancellationEvent = context.CancellationToken.ShutdownToken.GetCancellationEvent();
             SynchronizationContext.SetSynchronizationContext(syncContext);
 
-            var result = InvokeSynchronously(method);
+            object? result = InvokeSynchronously(method);
             if (result == null) return null;
 
-            var task = getTaskFunc(result);
-            var asyncResult = (IAsyncResult)task;
+            Task task = getTaskFunc(result);
+            IAsyncResult asyncResult = (IAsyncResult)task;
 
-            var waitHandles = new[] { syncContext.WaitHandle, asyncResult.AsyncWaitHandle, cancellationEvent.WaitHandle };
+            WaitHandle[] waitHandles = [syncContext.WaitHandle, asyncResult.AsyncWaitHandle, cancellationEvent.WaitHandle];
 
             while (!asyncResult.IsCompleted && WaitHandle.WaitAny(waitHandles) == 0)
             {
-                var workItem = syncContext.Dequeue();
+                Tuple<SendOrPostCallback, object?>? workItem = syncContext.Dequeue();
                 workItem!.Item1(workItem.Item2); // The wait above returned because an item was queued
             }
 
@@ -213,8 +209,8 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
 
     private static object? InvokeSynchronously(object state)
     {
-        var method = (BackgroundJobMethod)state;
-        var executionContext = ExecutionContext.Capture();
+        BackgroundJobMethod method = (BackgroundJobMethod)state;
+        ExecutionContext? executionContext = ExecutionContext.Capture();
 
         if (executionContext != null)
         {
@@ -250,13 +246,13 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
 
     private static object[] SubstituteArguments(PerformContext context, Job job, Type[] parameterTypes)
     {
-        var result = new object[parameterTypes.Length];
+        object[] result = new object[parameterTypes.Length];
 
-        for (var i = 0; i < parameterTypes.Length; i++)
+        for (int i = 0; i < parameterTypes.Length; i++)
         {
-            var argument = job.Args[i];
+            object argument = job.Args[i];
 
-            result[i] = Substitutions.TryGetValue(parameterTypes[i], out var substitution)
+            result[i] = Substitutions.TryGetValue(parameterTypes[i], out Func<PerformContext, object>? substitution)
                 ? substitution(context)
                 : argument;
         }

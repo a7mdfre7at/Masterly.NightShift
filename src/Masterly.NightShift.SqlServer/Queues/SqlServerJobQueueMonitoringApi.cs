@@ -41,9 +41,9 @@ internal sealed class SqlServerJobQueueMonitoringApi : IPersistentJobQueueMonito
         {
             if (_queuesCache.Count == 0 || _cacheUpdated!.Elapsed > QueuesCacheTimeout) // Set whenever the cache has items
             {
-                var result = _storage.UseConnection(null, static (storage, connection) =>
+                List<string> result = _storage.UseConnection(null, static (storage, connection) =>
                 {
-                    var query = storage.GetQueryFromTemplate(static schemaName =>
+                    string query = storage.GetQueryFromTemplate(static schemaName =>
 $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
 
                     return connection.Query(query, commandTimeout: storage.CommandTimeout).Select(static x => (string)x.Queue).ToList();
@@ -61,7 +61,7 @@ $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
     {
         return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName =>
+            string query = storage.GetQueryFromTemplate(static schemaName =>
                 $"""
                 select r.JobId from (
                   select jq.JobId, row_number() over (order by jq.Id) as row_num 
@@ -85,7 +85,7 @@ $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
     {
         return _storage.UseConnection(null, static (storage, connection, ctx) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+            string query = storage.GetQueryFromTemplate(static schemaName => $"""
                 select r.JobId from (
                   select jq.JobId, jq.FetchedAt, row_number() over (order by jq.Id) as row_num 
                   from [{schemaName}].JobQueue jq with (nolock, forceseek)
@@ -114,7 +114,7 @@ $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
     {
         return _storage.UseConnection(null, static (storage, connection, q) =>
         {
-            var query = storage.GetQueryFromTemplate(static schemaName => $"""
+            string query = storage.GetQueryFromTemplate(static schemaName => $"""
                 select sum(Enqueued) as EnqueuedCount, sum(Fetched) as FetchedCount 
                 from (
                     select 
@@ -125,7 +125,7 @@ $@"select distinct(Queue) from [{schemaName}].JobQueue with (nolock)");
                 ) q
                 """);
 
-            var result = connection.QuerySingle(query, new { queue = q });
+            dynamic result = connection.QuerySingle(query, new { queue = q });
 
             return new EnqueuedAndFetchedCountDto
             {

@@ -67,7 +67,10 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var filterInfo = GetFilters(context.BackgroundJob.Job);
+        JobFilterInfo filterInfo = GetFilters(context.BackgroundJob.Job);
+
+        // A BackgroundJob performed again starts as not called
+        context.BackgroundJob.MethodInvokedTimestamp = 0;
 
         try
         {
@@ -87,7 +90,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
                 throw;
             }
 
-            var exceptionContext = new ServerExceptionContext(context, ex);
+            ServerExceptionContext exceptionContext = new(context, ex);
             InvokeServerExceptionFilters(exceptionContext, filterInfo.ServerExceptionFiltersReversed);
 
             if (!exceptionContext.ExceptionHandled)
@@ -110,8 +113,8 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
 
     private object? PerformJobWithFilters(PerformContext context, JobFilterInfo.FilterCollection<IServerFilter> filters)
     {
-        var preContext = new PerformingContext(context);
-        var enumerator = filters.GetEnumerator();
+        PerformingContext preContext = new(context);
+        JobFilterInfo.FilterCollection<IServerFilter>.Enumerator enumerator = filters.GetEnumerator();
 
         return InvokeNextServerFilter(ref enumerator, _innerPerformer, context, preContext).Result;
     }
@@ -127,7 +130,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
             return InvokeServerFilter(ref enumerator, innerPerformer, context, preContext);
         }
 
-        var result = innerPerformer.Perform(context);
+        object? result = innerPerformer.Perform(context);
         return new PerformedContext(context, result, false, null);
     }
 
@@ -137,7 +140,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
         PerformContext context,
         PerformingContext preContext)
     {
-        var filter = enumerator.Current;
+        IServerFilter filter = enumerator.Current;
 
         preContext.Profiler.InvokeMeasured(
             new KeyValuePair<IServerFilter, PerformingContext>(filter, preContext),
@@ -154,7 +157,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
             return new PerformedContext(preContext, null, true, null);
         }
 
-        var wasError = false;
+        bool wasError = false;
         PerformedContext postContext;
         try
         {
@@ -220,7 +223,7 @@ public class BackgroundJobPerformer : IBackgroundJobPerformer
         ServerExceptionContext context,
         JobFilterInfo.ReversedFilterCollection<IServerExceptionFilter> filters)
     {
-        foreach (var filter in filters)
+        foreach (IServerExceptionFilter filter in filters)
         {
             context.Profiler.InvokeMeasured(
                 new KeyValuePair<IServerExceptionFilter, ServerExceptionContext>(filter, context),

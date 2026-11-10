@@ -48,4 +48,12 @@ public partial class BackgroundJob
     /// <exclude />
     [CanBeNull]
     public IReadOnlyDictionary<string, string>? ParametersSnapshot { get; }
+
+    // When the performer called the job method, as a Stopwatch timestamp; 0 until then. It is here, and not in
+    // PerformContext.Items, because every context of a performance shares this object and a field costs nothing.
+    internal long MethodInvokedTimestamp
+    {
+        get => Volatile.Read(ref field);
+        set => Volatile.Write(ref field, value);
+    }
 }

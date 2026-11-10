@@ -13,9 +13,9 @@
     IDictionary<DateTime, long>? failed = null;
     IDictionary<DateTime, long>? deleted = null;
 
-    var period = Query("period") ?? "day";
+    string period = Query("period") ?? "day";
 
-    var monitor = Storage.GetMonitoringApi();
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
     if ("week".Equals(period, StringComparison.OrdinalIgnoreCase))
     {
         succeeded = monitor.SucceededByDatesCount();
@@ -44,7 +44,7 @@
         @if (Metrics.Count > 0)
         {
             <div class="hf-kpi-grid">
-                @foreach (var metric in Metrics)
+                @foreach (DashboardMetric metric in Metrics)
                 {
                     @Html.BlockMetric(metric)
                 }

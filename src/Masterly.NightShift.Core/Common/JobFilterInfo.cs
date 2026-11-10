@@ -29,7 +29,8 @@ internal readonly struct JobFilterInfo
     /// <param name="filters">The filters collection.</param>
     public JobFilterInfo(IEnumerable<JobFilter> filters)
     {
-        var filtersList = filters as List<JobFilter> ?? [.. filters];
+        // The provider collection hands out its cached array, which is used as it is
+        JobFilter[] filtersList = filters as JobFilter[] ?? [.. filters];
         ClientFilters = new FilterCollection<IClientFilter>(filtersList);
         ServerFilters = new FilterCollection<IServerFilter>(filtersList);
         ElectStateFilters = new FilterCollection<IElectStateFilter>(filtersList);
@@ -92,20 +93,20 @@ internal readonly struct JobFilterInfo
     /// </returns>
     public ReversedFilterCollection<IServerExceptionFilter> ServerExceptionFiltersReversed { get; }
 
-    public readonly struct FilterCollection<T>(List<JobFilter> filters)
+    public readonly struct FilterCollection<T>(JobFilter[] filters)
     {
         public Enumerator GetEnumerator() => new(filters);
 
-        public ref struct Enumerator(List<JobFilter> filters)
+        public ref struct Enumerator(JobFilter[] filters)
         {
-            private readonly List<JobFilter> _filters = filters;
+            private readonly JobFilter[] _filters = filters;
             private int _index = 0;
 
             public bool MoveNext()
             {
-                List<JobFilter> localFilters = _filters;
+                JobFilter[] localFilters = _filters;
 
-                while (_index < localFilters.Count)
+                while (_index < localFilters.Length)
                 {
                     if (localFilters[_index++].Instance is T instance)
                     {
@@ -121,25 +122,25 @@ internal readonly struct JobFilterInfo
 
             private bool MoveNextRare()
             {
-                _index = _filters.Count + 1;
+                _index = _filters.Length + 1;
                 Current = default!; // Read only after MoveNext returned true
                 return false;
             }
         }
     }
 
-    public readonly struct ReversedFilterCollection<T>(List<JobFilter> filters)
+    public readonly struct ReversedFilterCollection<T>(JobFilter[] filters)
     {
         public ReversedEnumerator GetEnumerator() => new(filters);
 
-        public ref struct ReversedEnumerator(List<JobFilter> filters)
+        public ref struct ReversedEnumerator(JobFilter[] filters)
         {
-            private readonly List<JobFilter> _filters = filters;
-            private int _index = filters.Count - 1;
+            private readonly JobFilter[] _filters = filters;
+            private int _index = filters.Length - 1;
 
             public bool MoveNext()
             {
-                List<JobFilter> localFilters = _filters;
+                JobFilter[] localFilters = _filters;
 
                 while (_index >= 0)
                 {

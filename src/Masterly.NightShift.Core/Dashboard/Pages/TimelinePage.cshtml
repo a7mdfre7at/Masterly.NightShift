@@ -13,17 +13,17 @@
 @{
     Layout = new LayoutPage(Strings.TimelinePage_Title);
 
-    var now = StorageUtcNow ?? ApplicationUtcNow;
-    var nowMs = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
+    long nowMs = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
 
     IReadOnlyList<ActivityEntry> entries;
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         entries = ActivityFeed.Read(connection, ActivityFeed.MaxEntries);
     }
 
-    var timeline = ClusterTimeline.Build(entries, nowMs, TimeSpan.FromMinutes(15));
-    var windowMs = Math.Max(1, timeline.ToMs - timeline.FromMs);
+    ClusterTimeline timeline = ClusterTimeline.Build(entries, nowMs, TimeSpan.FromMinutes(15));
+    long windowMs = Math.Max(1, timeline.ToMs - timeline.FromMs);
     const int ticks = 6;
 }
 
@@ -52,16 +52,16 @@
                 <div class="hf-tl-row hf-tl-axis">
                     <div class="hf-tl-label"></div>
                     <div class="hf-tl-track">
-                        @for (var t = 0; t <= ticks; t++)
+                        @for (int t = 0; t <= ticks; t++)
                         {
-                            var tickMs = timeline.FromMs + windowMs * t / ticks;
+                            long tickMs = timeline.FromMs + windowMs * t / ticks;
                             @* Server-side UTC with seconds: windows are often shorter than a minute *@
                             <span class="hf-tl-tick @(t == ticks ? "hf-tl-tick-last" : t == 0 ? "hf-tl-tick-first" : null)" style="left: @((100.0 * t / ticks).ToString("0.##", CultureInfo.InvariantCulture))%">@JobHelper.FromTimestamp(tickMs / 1000).ToString("HH:mm:ss", CultureInfo.InvariantCulture)@(t == ticks ? " UTC" : "")</span>
                         }
                     </div>
                 </div>
                 @{ string? lastServer = null; }
-                @foreach (var lane in timeline.Lanes)
+                @foreach (TimelineLane lane in timeline.Lanes)
                 {
                     if (lane.ServerId != lastServer)
                     {
@@ -71,16 +71,16 @@
                     <div class="hf-tl-row">
                         <div class="hf-tl-label" title="@lane.WorkerId"><code>@lane.ShortWorkerId</code></div>
                         <div class="hf-tl-track">
-                            @foreach (var span in lane.Spans)
+                            @foreach (TimelineSpan span in lane.Spans)
                             {
-                                var left = 100.0 * (Math.Max(span.StartMs, timeline.FromMs) - timeline.FromMs) / windowMs;
-                                var width = Math.Max(0.25, 100.0 * (span.EndMs - Math.Max(span.StartMs, timeline.FromMs)) / windowMs);
-                                var css = span.IsRunning ? "hf-tl-running"
+                                double left = 100.0 * (Math.Max(span.StartMs, timeline.FromMs) - timeline.FromMs) / windowMs;
+                                double width = Math.Max(0.25, 100.0 * (span.EndMs - Math.Max(span.StartMs, timeline.FromMs)) / windowMs);
+                                string css = span.IsRunning ? "hf-tl-running"
                                     : span.Outcome == SucceededState.StateName ? "hf-tl-succeeded"
                                     : span.Outcome == FailedState.StateName ? "hf-tl-failed"
                                     : span.Outcome == DeletedState.StateName ? "hf-tl-deleted"
                                     : "hf-tl-held";
-                                var title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : span.Outcome) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
+                                string title = (span.Method ?? span.JobId) + " · " + (span.IsRunning ? Strings.TimelinePage_Running : span.Outcome) + " · " + Html.ToHumanDuration(TimeSpan.FromMilliseconds(span.DurationMs), false);
                                 <a class="hf-tl-span @css" href="@Url.JobDetails(span.JobId)" style="left: @left.ToString("0.###", CultureInfo.InvariantCulture)%; width: @width.ToString("0.###", CultureInfo.InvariantCulture)%" title="@title"></a>
                             }
                         </div>

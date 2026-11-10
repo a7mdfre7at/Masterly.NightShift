@@ -26,9 +26,9 @@ internal sealed class HoistingExpressionVisitor<TIn, TOut> : ExpressionVisitor
     {
         // rewrite Expression<Func<TIn, TOut>> as Expression<Hoisted<TIn, TOut>>
 
-        var visitor = new HoistingExpressionVisitor<TIn, TOut>();
-        var rewrittenBodyExpr = visitor.Visit(expr.Body);
-        var rewrittenLambdaExpr = Expression.Lambda<Hoisted<TIn, TOut>>(rewrittenBodyExpr, expr.Parameters[0], _hoistedConstantsParamExpr);
+        HoistingExpressionVisitor<TIn, TOut> visitor = new();
+        Expression rewrittenBodyExpr = visitor.Visit(expr.Body);
+        Expression<Hoisted<TIn, TOut>> rewrittenLambdaExpr = Expression.Lambda<Hoisted<TIn, TOut>>(rewrittenBodyExpr, expr.Parameters[0], _hoistedConstantsParamExpr);
         return rewrittenLambdaExpr;
     }
 

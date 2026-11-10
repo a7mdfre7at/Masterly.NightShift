@@ -10,8 +10,8 @@ internal static class SampleDatabase
 {
     public static void EnsureExists(string connectionString)
     {
-        var builder = new SqlConnectionStringBuilder(connectionString);
-        var database = builder.InitialCatalog;
+        SqlConnectionStringBuilder builder = new(connectionString);
+        string database = builder.InitialCatalog;
 
         if (string.IsNullOrEmpty(database)) return;
 
@@ -19,10 +19,10 @@ internal static class SampleDatabase
 
         try
         {
-            using var connection = new SqlConnection(builder.ConnectionString);
+            using SqlConnection connection = new(builder.ConnectionString);
             connection.Open();
 
-            using var command = connection.CreateCommand();
+            using SqlCommand command = connection.CreateCommand();
             command.CommandText =
                 "IF DB_ID(@name) IS NULL BEGIN DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@name); EXEC(@sql); END";
             command.Parameters.AddWithValue("@name", database);

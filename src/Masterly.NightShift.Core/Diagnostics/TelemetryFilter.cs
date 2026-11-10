@@ -38,8 +38,8 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var jobName = GetJobName(context.Job);
-        var activity = NightShiftTelemetry.ActivitySource.StartActivity($"create {jobName}", ActivityKind.Producer);
+        string? jobName = GetJobName(context.Job);
+        Activity? activity = NightShiftTelemetry.ActivitySource.StartActivity($"create {jobName}", ActivityKind.Producer);
 
         if (activity != null)
         {
@@ -53,7 +53,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         }
 
         // Propagate even when nobody listens to Masterly.NightShift, so the job still joins the caller's trace
-        var traceContext = activity ?? Activity.Current;
+        Activity? traceContext = activity ?? Activity.Current;
         if (traceContext != null && traceContext.IdFormat == ActivityIdFormat.W3C)
         {
             context.SetJobParameter(TraceParentParameter, traceContext.Id!); // A started activity has an id
@@ -69,7 +69,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var failed = context.Exception != null && !context.ExceptionHandled;
+        bool failed = context.Exception != null && !context.ExceptionHandled;
 
         if (NightShiftTelemetry.JobsCreated.Enabled && !context.Canceled)
         {
@@ -80,7 +80,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
                 Tag("error.type", failed ? GetErrorType(context.Exception) : null));
         }
 
-        if (context.Items.TryGetValue(CreateActivityKey, out var value) && value is Activity activity)
+        if (context.Items.TryGetValue(CreateActivityKey, out object? value) && value is Activity activity)
         {
             if (activity.IsAllDataRequested)
             {
@@ -106,18 +106,18 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var job = context.BackgroundJob.Job;
-        var jobName = GetJobName(job);
+        Job? job = context.BackgroundJob.Job;
+        string? jobName = GetJobName(job);
 
         if (NightShiftTelemetry.ActivitySource.HasListeners())
         {
             // Reading parameters may query the storage, so do it only when someone listens
-            var traceParent = context.GetJobParameter<string>(TraceParentParameter, allowStale: true);
-            var traceState = context.GetJobParameter<string>(TraceStateParameter, allowStale: true);
+            string? traceParent = context.GetJobParameter<string>(TraceParentParameter, allowStale: true);
+            string? traceState = context.GetJobParameter<string>(TraceStateParameter, allowStale: true);
 
-            ActivityContext.TryParse(traceParent, traceState, isRemote: true, out var parentContext);
+            ActivityContext.TryParse(traceParent, traceState, isRemote: true, out ActivityContext parentContext);
 
-            var activity = NightShiftTelemetry.ActivitySource.StartActivity(
+            Activity? activity = NightShiftTelemetry.ActivitySource.StartActivity(
                 $"process {jobName}",
                 ActivityKind.Consumer,
                 parentContext);
@@ -128,7 +128,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 
                 if (activity.IsAllDataRequested)
                 {
-                    var queue = FetchedQueues.TryGetValue(context.BackgroundJob, out var fetched) ? fetched : job?.Queue;
+                    string? queue = FetchedQueues.TryGetValue(context.BackgroundJob, out string? fetched) ? fetched : job?.Queue;
 
                     SetCommonTags(activity, "process", job, queue);
                     activity.SetTag("messaging.message.id", context.BackgroundJob.Id);
@@ -156,17 +156,17 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var outcome = GetOutcome(context);
-        var errorType = outcome == OutcomeFailed ? GetErrorType(context.Exception) : null;
+        string outcome = GetOutcome(context);
+        string? errorType = outcome == OutcomeFailed ? GetErrorType(context.Exception) : null;
 
-        var jobName = GetJobName(context.BackgroundJob.Job);
+        string? jobName = GetJobName(context.BackgroundJob.Job);
 
         if (context.Items.ContainsKey(ActiveCountedKey))
         {
             NightShiftTelemetry.ActiveJobs.Add(-1, Tag("nightshift.job.name", jobName));
         }
 
-        if (context.Items.TryGetValue(ProcessStartedKey, out var started) && started is long startedAt)
+        if (context.Items.TryGetValue(ProcessStartedKey, out object? started) && started is long startedAt)
         {
             NightShiftTelemetry.JobDuration.Record(
                 Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
@@ -175,7 +175,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
                 Tag("error.type", errorType));
         }
 
-        if (context.Items.TryGetValue(ProcessActivityKey, out var value) && value is Activity activity)
+        if (context.Items.TryGetValue(ProcessActivityKey, out object? value) && value is Activity activity)
         {
             if (activity.IsAllDataRequested)
             {
@@ -201,7 +201,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         // Reading the Enqueued state queries the storage, so do it only when someone listens
         if (!NightShiftTelemetry.ActivitySource.HasListeners()) return;
 
-        var queue = ReadFetchedQueue(context);
+        string? queue = ReadFetchedQueue(context);
         if (queue != null)
         {
             FetchedQueues.AddOrUpdate(context.BackgroundJob, queue);
@@ -241,7 +241,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 
     private static void SetError(Activity activity, Exception exception)
     {
-        var error = Unwrap(exception);
+        Exception error = Unwrap(exception);
         activity.SetStatus(ActivityStatusCode.Error, error.Message);
 
         if (!activity.IsAllDataRequested) return;
@@ -290,8 +290,8 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         try
         {
             // The transition isn't committed yet, so the current state is still the Enqueued one
-            var enqueued = context.Connection.GetStateData(context.BackgroundJob.Id);
-            var stateQueue = enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out var value) ? value : null;
+            StateData? enqueued = context.Connection.GetStateData(context.BackgroundJob.Id);
+            string? stateQueue = enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out string? value) ? value : null;
 
             return GetEnqueuedQueue(context.BackgroundJob.Job, stateQueue);
         }

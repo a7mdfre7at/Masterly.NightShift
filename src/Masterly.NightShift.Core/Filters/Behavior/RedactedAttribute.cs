@@ -63,9 +63,9 @@ public sealed class RedactedAttribute : Attribute
     /// <summary>The first 16 hexadecimal digits of the SHA-256 of the value's invariant text.</summary>
     internal static string Hash([CanBeNull] object? value)
     {
-        var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+        string text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash, 0, HashBytes).ToLowerInvariant();
     }
 
@@ -73,12 +73,12 @@ public sealed class RedactedAttribute : Attribute
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var arguments = job.Args.ToArray<object?>();
-        var positions = RedactedPositions.GetOrAdd(
+        object?[] arguments = [.. job.Args];
+        int[] positions = RedactedPositions.GetOrAdd(
             job.Method,
             static method => [.. method.GetParameters().Where(IsRedacted).Select(static parameter => parameter.Position)]);
 
-        foreach (var position in positions)
+        foreach (int position in positions)
         {
             if (position < arguments.Length)
             {

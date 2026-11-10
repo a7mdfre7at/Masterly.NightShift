@@ -296,8 +296,8 @@ public static class BackgroundJobClientFanInExtensions
         ArgumentNullException.ThrowIfNull(parentIds);
         ArgumentNullException.ThrowIfNull(nextState);
 
-        var parents = new List<string>();
-        foreach (var parentId in parentIds)
+        List<string> parents = [];
+        foreach (string? parentId in parentIds)
         {
             if (!string.IsNullOrWhiteSpace(parentId)) parents.Add(parentId);
         }

@@ -61,21 +61,21 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
             throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
         }
 
-        var parameters = context.Parameters.ToDictionary(
+        Dictionary<string, string?> parameters = context.Parameters.ToDictionary(
             static x => x.Key,
             static x => InternalParameters.Contains(x.Key)
                 ? SerializationHelper.SerializeInternal(x.Value)
                 : SerializationHelper.Serialize(x.Value, SerializationOption.User));
 
-        var createdAt = JobClock.UtcNow;
-        var expireIn = TimeSpan.FromDays(30);
+        DateTime createdAt = JobClock.UtcNow;
+        TimeSpan expireIn = TimeSpan.FromDays(30);
 
         return CreateBackgroundJobTwoSteps(context, parameters, createdAt, expireIn);
     }
 
     private BackgroundJob? CreateBackgroundJobTwoSteps(CreateContext context, Dictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
-        var attemptsLeft = Math.Max(RetryAttempts, 0);
+        int attemptsLeft = Math.Max(RetryAttempts, 0);
 
         // Retry may cause multiple background jobs to be created, especially when there's
         // a timeout-related exception. But initialization attempt will be performed only
@@ -84,7 +84,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
         // identifiers. Since they also will be eventually expired leaving no trace, we can
         // consider that only one background job is created, regardless of retry attempts
         // number.
-        var jobId = RetryOnException(
+        string? jobId = RetryOnException(
             ref attemptsLeft,
             static (_, ctx) => ctx.Context.Connection.CreateExpiredJob(
                 ctx.Context.Job,
@@ -98,7 +98,7 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
             return null;
         }
 
-        var backgroundJob = new BackgroundJob(jobId, context.Job, createdAt, parameters!); // A parameter set to null reads back as null
+        BackgroundJob backgroundJob = new(jobId, context.Job, createdAt, parameters!); // A parameter set to null reads back as null
 
         if (context.InitialState != null)
         {
@@ -112,17 +112,17 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                     // its state is null, and since only the current thread knows the job's identifier
                     // when its state is null, and since we shouldn't do anything when it's non-null,
                     // there will be no any race conditions.
-                    var data = ctx.Context.Connection.GetJobData(ctx.BackgroundJob.Id) ?? throw new InvalidOperationException($"Was unable to initialize a background job '{ctx.BackgroundJob.Id}', because it doesn't exist.");
+                    JobData data = ctx.Context.Connection.GetJobData(ctx.BackgroundJob.Id) ?? throw new InvalidOperationException($"Was unable to initialize a background job '{ctx.BackgroundJob.Id}', because it doesn't exist.");
                     if (!string.IsNullOrEmpty(data.State)) return;
                 }
 
                 // Work that waits for the commit, such as an activity feed entry, runs only once it succeeded
-                var afterCommit = new PostCommitActions();
+                PostCommitActions afterCommit = new();
 
                 try
                 {
-                    using var transaction = ctx.Context.Connection.CreateWriteTransaction();
-                    var applyContext = new ApplyStateContext(
+                    using IWriteOnlyTransaction transaction = ctx.Context.Connection.CreateWriteTransaction();
+                    ApplyStateContext applyContext = new(
                         ctx.Context.Storage,
                         ctx.Context.Connection,
                         transaction,
@@ -165,8 +165,8 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
     private TResult RetryOnException<TContext, TResult>(ref int attemptsLeft, Func<int, TContext, TResult> action, TContext context)
     {
         List<Exception>? exceptions = null;
-        var attempt = 0;
-        var delay = TimeSpan.Zero;
+        int attempt = 0;
+        TimeSpan delay = TimeSpan.Zero;
 
         do
         {

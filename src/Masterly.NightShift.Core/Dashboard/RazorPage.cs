@@ -133,7 +133,7 @@ public abstract class RazorPage
 
         _statisticsLazy = new Lazy<StatisticsDto>(() =>
         {
-            var monitoring = Storage.GetMonitoringApi();
+            IMonitoringApi monitoring = Storage.GetMonitoringApi();
             return monitoring.GetStatistics();
         });
 
@@ -144,11 +144,11 @@ public abstract class RazorPage
 
             if (Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime))
             {
-                using var connection = Storage.GetReadOnlyConnection() as JobStorageConnection;
+                using JobStorageConnection? connection = Storage.GetReadOnlyConnection() as JobStorageConnection;
                 storageUtcNow = connection?.GetUtcDateTime();
             }
 
-            var applicationUtcNow = JobClock.UtcNow;
+            DateTime applicationUtcNow = JobClock.UtcNow;
 
             if (storageUtcNow.HasValue)
             {
@@ -172,7 +172,7 @@ public abstract class RazorPage
     {
         if (value == null)
             return;
-        var html = value as NonEscapedString;
+        NonEscapedString? html = value as NonEscapedString;
         WriteLiteral(html?.ToString() ?? Encode(value.ToString()));
     }
 

@@ -144,9 +144,9 @@ public class BackgroundJobClient : IBackgroundJobClient, IBackgroundJobClientV2
 
         try
         {
-            using var connection = Storage.GetConnection();
-            var context = new CreateContext(Storage, connection, job, state, parameters);
-            var backgroundJob = _factory.Create(context);
+            using IStorageConnection connection = Storage.GetConnection();
+            CreateContext context = new(Storage, connection, job, state, parameters);
+            BackgroundJob? backgroundJob = _factory.Create(context);
 
             return backgroundJob?.Id;
         }
@@ -164,8 +164,8 @@ public class BackgroundJobClient : IBackgroundJobClient, IBackgroundJobClientV2
 
         try
         {
-            using var connection = Storage.GetConnection();
-            var appliedState = _stateChanger.ChangeState(new StateChangeContext(
+            using IStorageConnection connection = Storage.GetConnection();
+            IState? appliedState = _stateChanger.ChangeState(new StateChangeContext(
                 Storage,
                 connection,
                 jobId,

@@ -102,7 +102,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
     internal static List<Continuation> DeserializeContinuations(string? serialized)
     {
-        var continuations = SerializationHelper.Deserialize<List<Continuation>>(serialized);
+        List<Continuation>? continuations = SerializationHelper.Deserialize<List<Continuation>>(serialized);
 
         if (continuations != null && continuations.TrueForAll(static x => x.JobId == null))
         {
@@ -114,8 +114,8 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
     private void AddContinuation(ElectStateContext context, AwaitingState awaitingState)
     {
-        var connection = context.Connection;
-        var parentId = awaitingState.ParentId;
+        IStorageConnection connection = context.Connection;
+        string parentId = awaitingState.ParentId;
 
         // We store continuations as a json array in a job parameter. Since there 
         // is no way to add a continuation in an atomic way, we are placing a 
@@ -126,9 +126,9 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             // When we try to add a continuation for a removed job,
             // the system should throw an exception instead of creating
             // corrupted state.
-            var jobData = connection.GetJobData(parentId) ?? throw new InvalidOperationException(
+            JobData jobData = connection.GetJobData(parentId) ?? throw new InvalidOperationException(
                 $"Can not add a continuation: parent background job '{parentId}' does not exist.");
-            var continuations = GetContinuations(context, parentId);
+            List<Continuation> continuations = GetContinuations(context, parentId);
 
             // Continuation may be already added. This may happen, when outer transaction
             // was failed after adding a continuation last time, since the addition is
@@ -143,24 +143,24 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
                 SetContinuations(connection, parentId, continuations);
             }
 
-            var currentState = connection.GetStateData(parentId);
+            StateData? currentState = connection.GetStateData(parentId);
 
             if (currentState != null && _knownFinalStates.Contains(currentState.Name))
             {
-                var startImmediately = ShouldStartContinuation(currentState.Name, awaitingState.Options);
+                bool startImmediately = ShouldStartContinuation(currentState.Name, awaitingState.Options);
 
                 if (PushResults && startImmediately)
                 {
                     if (SucceededState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (currentState.Data.TryGetValue("Result", out var antecedentResult))
+                        if (currentState.Data.TryGetValue("Result", out string? antecedentResult))
                         {
                             context.Connection.SetJobParameter(context.BackgroundJob.Id, "AntecedentResult", antecedentResult);
                         }
                     }
                     else if (DeletedState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (!currentState.Data.TryGetValue("Exception", out var antecedentException))
+                        if (!currentState.Data.TryGetValue("Exception", out string? antecedentException))
                         {
                             antecedentException = JobParameterInjectionFilter.DefaultException;
                         }
@@ -180,16 +180,16 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
     {
         // The following lines are executed inside a distributed job lock,
         // so it is safe to get continuation list here.
-        var continuations = GetContinuations(context, null);
-        var nextStates = new Dictionary<string, IState>();
+        List<Continuation> continuations = GetContinuations(context, null);
+        Dictionary<string, IState> nextStates = [];
 
         // Getting continuation data for all continuations – state they are waiting 
         // for and their next state.
-        foreach (var continuation in continuations)
+        foreach (Continuation continuation in continuations)
         {
             if (string.IsNullOrWhiteSpace(continuation.JobId)) continue;
 
-            var currentState = GetContinuationState(context, continuation.JobId, ContinuationStateFetchTimeout);
+            StateData? currentState = GetContinuationState(context, continuation.JobId, ContinuationStateFetchTimeout);
             if (currentState == null)
             {
                 continue;
@@ -232,12 +232,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         {
             if (context.CandidateState is SucceededState)
             {
-                var serializedData = context.CandidateState.SerializeData();
+                Dictionary<string, string> serializedData = context.CandidateState.SerializeData();
                 serializedData.TryGetValue("Result", out antecedentResult);
             }
             else if (context.CandidateState is DeletedState)
             {
-                var serializedData = context.CandidateState.SerializeData();
+                Dictionary<string, string> serializedData = context.CandidateState.SerializeData();
                 if (!serializedData.TryGetValue("Exception", out antecedentException))
                 {
                     antecedentException = JobParameterInjectionFilter.DefaultException;
@@ -245,7 +245,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             }
         }
 
-        foreach (var tuple in nextStates)
+        foreach (KeyValuePair<string, IState> tuple in nextStates)
         {
             if (antecedentResult != null)
             {
@@ -270,12 +270,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
     {
         StateData? currentState = null;
 
-        var started = Stopwatch.StartNew();
-        var firstAttempt = true;
+        Stopwatch started = Stopwatch.StartNew();
+        bool firstAttempt = true;
 
         while (true)
         {
-            var continuationData = context.Connection.GetJobData(continuationJobId);
+            JobData? continuationData = context.Connection.GetJobData(continuationJobId);
             if (continuationData == null)
             {
                 _logger.Warn(

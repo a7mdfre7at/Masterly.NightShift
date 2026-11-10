@@ -73,15 +73,15 @@ public static class JobInvokerRegistry
     {
         EnsureAssembliesScanned();
 
-        var result = new List<JobInvoker>(Generated.Count);
-        foreach (var invoker in Generated.Values)
+        List<JobInvoker> result = new(Generated.Count);
+        foreach (JobInvoker invoker in Generated.Values)
         {
             result.Add(invoker);
         }
 
         result.Sort(static (x, y) =>
         {
-            var byType = string.CompareOrdinal(x.Type.FullName, y.Type.FullName);
+            int byType = string.CompareOrdinal(x.Type.FullName, y.Type.FullName);
             return byType != 0 ? byType : string.CompareOrdinal(x.MethodName, y.MethodName);
         });
 
@@ -97,7 +97,7 @@ public static class JobInvokerRegistry
     {
         ArgumentNullException.ThrowIfNull(invoker);
 
-        var signature = new JobMethodSignature(invoker.Type, invoker.MethodName, invoker.ParameterTypes, invoker.GenericArguments);
+        JobMethodSignature signature = new(invoker.Type, invoker.MethodName, invoker.ParameterTypes, invoker.GenericArguments);
         Generated[signature] = invoker;
     }
 
@@ -110,7 +110,7 @@ public static class JobInvokerRegistry
     {
         ArgumentNullException.ThrowIfNull(method);
 
-        if (Resolved.TryGetValue(method, out var invoker))
+        if (Resolved.TryGetValue(method, out JobInvoker? invoker))
         {
             return invoker;
         }
@@ -138,7 +138,7 @@ public static class JobInvokerRegistry
             return false;
         }
 
-        var signature = JobMethodSignature.FromMethod(method);
+        JobMethodSignature signature = JobMethodSignature.FromMethod(method);
         return Generated.TryGetValue(signature, out invoker);
     }
 
@@ -168,9 +168,9 @@ public static class JobInvokerRegistry
 
         try
         {
-            foreach (var provider in assembly.GetCustomAttributes<JobInvokersProviderAttribute>())
+            foreach (JobInvokersProviderAttribute provider in assembly.GetCustomAttributes<JobInvokersProviderAttribute>())
             {
-                var register = provider.ProviderType.GetTypeInfo()
+                MethodInfo? register = provider.ProviderType.GetTypeInfo()
                     .GetDeclaredMethod(JobInvokersProviderAttribute.RegisterMethodName);
 
                 if (register == null || !register.IsStatic || register.GetParameters().Length != 0)
@@ -210,9 +210,9 @@ public static class JobInvokerRegistry
             throw new ArgumentException("Global methods are not supported.", nameof(method));
         }
 
-        var signature = JobMethodSignature.FromMethod(method);
+        JobMethodSignature signature = JobMethodSignature.FromMethod(method);
 
-        if (Generated.TryGetValue(signature, out var generated))
+        if (Generated.TryGetValue(signature, out JobInvoker? generated))
         {
             Interlocked.Increment(ref _generatedCount);
             return generated;
@@ -225,7 +225,7 @@ public static class JobInvokerRegistry
     {
         if (UseCompiledInvokers && CompiledJobInvoker.IsSupported)
         {
-            var compiled = CompiledJobInvoker.TryCreate(method);
+            CompiledJobInvoker? compiled = CompiledJobInvoker.TryCreate(method);
             if (compiled != null)
             {
                 Interlocked.Increment(ref _compiledCount);
@@ -246,7 +246,7 @@ public static class JobInvokerRegistry
             AppDomain.CurrentDomain.AssemblyLoad += static (_, args) => RegisterAssembly(args.LoadedAssembly);
         }
 
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             RegisterAssembly(assembly);
         }
@@ -285,16 +285,16 @@ public static class JobInvokerRegistry
         {
             unchecked
             {
-                var hash = _type.GetHashCode();
+                int hash = _type.GetHashCode();
                 hash = hash * 31 + StringComparer.Ordinal.GetHashCode(_name);
                 hash = hash * 31 + _parameterTypes.Length;
 
-                foreach (var parameterType in _parameterTypes)
+                foreach (Type parameterType in _parameterTypes)
                 {
                     hash = hash * 31 + parameterType.GetHashCode();
                 }
 
-                foreach (var genericArgument in _genericArguments)
+                foreach (Type genericArgument in _genericArguments)
                 {
                     hash = hash * 31 + genericArgument.GetHashCode();
                 }
@@ -307,7 +307,7 @@ public static class JobInvokerRegistry
         {
             if (left.Count != right.Count) return false;
 
-            for (var i = 0; i < left.Count; i++)
+            for (int i = 0; i < left.Count; i++)
             {
                 if (left[i] != right[i]) return false;
             }

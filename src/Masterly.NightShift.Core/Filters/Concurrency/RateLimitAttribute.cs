@@ -87,20 +87,20 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
-        var key = GetKey(resource);
-        var waitUntil = ConcurrencyControl.Clock().AddSeconds(WaitTimeoutSeconds);
+        string resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
+        string key = GetKey(resource);
+        DateTime waitUntil = ConcurrencyControl.Clock().AddSeconds(WaitTimeoutSeconds);
 
         // Another limit of this job with the same resource and window already recorded this run's start
-        var sharedStart = context.Items.ContainsKey(GetRecordedItemKey(key));
+        bool sharedStart = context.Items.ContainsKey(GetRecordedItemKey(key));
 
         // A start another limit recorded would age while this one waits, so the job could start after it left
         // that limit's window: this limit doesn't wait then, it reschedules the job, which gives the starts back
-        var holdsStart = HoldsAnyStart(context);
+        bool holdsStart = HoldsAnyStart(context);
 
         while (true)
         {
-            if (TryRecordStart(context, key, sharedStart, out var slotFreesAt))
+            if (TryRecordStart(context, key, sharedStart, out DateTime slotFreesAt))
             {
                 return;
             }
@@ -112,8 +112,8 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
                     return;
 
                 case ConcurrencyAction.Wait when !holdsStart:
-                    var now = ConcurrencyControl.Clock();
-                    var remaining = waitUntil - now;
+                    DateTime now = ConcurrencyControl.Clock();
+                    TimeSpan remaining = waitUntil - now;
 
                     if (remaining <= TimeSpan.Zero)
                     {
@@ -121,7 +121,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
                     }
 
                     // Sleep until the next slot frees up, but never past the wait timeout
-                    var delay = slotFreesAt - now;
+                    TimeSpan delay = slotFreesAt - now;
                     if (delay <= TimeSpan.Zero) delay = TimeSpan.FromMilliseconds(250);
                     if (delay > remaining) delay = remaining;
 
@@ -161,9 +161,9 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var itemKey = GetItemKey(context.BackgroundJob.Job!);
+        string itemKey = GetItemKey(context.BackgroundJob.Job!);
 
-        if (!context.Items.TryGetValue(itemKey, out var value) || value is not ValueTuple<string, string> start)
+        if (!context.Items.TryGetValue(itemKey, out object? value) || value is not ValueTuple<string, string> start)
         {
             return;
         }
@@ -173,7 +173,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         // The job didn't start when a later filter canceled the run, or threw (a lock timeout, for example) before
         // the performer was about to call the job method: it gives its start back. A job whose method was called
         // keeps it, whether it succeeded or failed.
-        var methodCalled = context.Items.ContainsKey(ConcurrencyControl.MethodInvokedItem);
+        bool methodCalled = context.BackgroundJob.MethodInvokedTimestamp != 0;
         if (!context.Canceled && (context.Exception == null || methodCalled)) return;
 
         context.Items.Remove(GetRecordedItemKey(start.Item1));
@@ -182,7 +182,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         // limit until it leaves the window.
         try
         {
-            using var transaction = context.Connection.CreateWriteTransaction();
+            using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
             transaction.RemoveFromSet(start.Item1, start.Item2);
             transaction.Commit();
         }
@@ -197,7 +197,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
     // Whether this run holds a start that a limit (on any resource or window) recorded
     private static bool HoldsAnyStart(PerformingContext context)
     {
-        foreach (var itemKey in context.Items.Keys)
+        foreach (string itemKey in context.Items.Keys)
         {
             if (itemKey.StartsWith(RecordedItemPrefix, StringComparison.Ordinal)) return true;
         }
@@ -207,16 +207,16 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
 
     private bool TryRecordStart(PerformingContext context, string key, bool sharedStart, out DateTime slotFreesAt)
     {
-        var now = ConcurrencyControl.Clock();
-        var timestamp = ConcurrencyControl.ToUnixSeconds(now);
-        var windowStart = timestamp - PerSeconds;
+        DateTime now = ConcurrencyControl.Clock();
+        long timestamp = ConcurrencyControl.ToUnixSeconds(now);
+        long windowStart = timestamp - PerSeconds;
 
         using (context.Connection.AcquireDistributedLock($"{key}:lock", LockTimeout))
         {
-            if (!TryCountByScore(context, key, windowStart, out var liveCount, out var stale, out var oldestLive))
+            if (!TryCountByScore(context, key, windowStart, out int liveCount, out List<string>? stale, out long oldestLive))
             {
                 // The whole set: every member is parsed, and the stale ones are all removed
-                ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(key), windowStart, ownJobId: null, out var live, out stale);
+                ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(key), windowStart, ownJobId: null, out List<(long Timestamp, string JobId)>? live, out stale);
                 liveCount = live.Count;
                 oldestLive = live.Count > 0 ? live.Min(static x => x.Timestamp) : timestamp;
             }
@@ -224,7 +224,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
             // The run's own start, which another limit on this set recorded, is never removed as stale (another
             // filter may have held the run since): it still counts, and it is the one given back if the run stops
             if (sharedStart &&
-                context.Items.TryGetValue(GetRecordedItemKey(key), out var recorded) &&
+                context.Items.TryGetValue(GetRecordedItemKey(key), out object? recorded) &&
                 recorded is string ownMember &&
                 stale.Remove(ownMember))
             {
@@ -232,20 +232,20 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
             }
 
             // A start already recorded by another limit on this set is one of the live ones
-            var allowed = sharedStart ? liveCount <= Limit : liveCount < Limit;
-            var record = allowed && !sharedStart;
+            bool allowed = sharedStart ? liveCount <= Limit : liveCount < Limit;
+            bool record = allowed && !sharedStart;
 
             if (record || stale.Count > 0)
             {
-                using var transaction = context.Connection.CreateWriteTransaction();
-                foreach (var member in stale)
+                using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
+                foreach (string member in stale)
                 {
                     transaction.RemoveFromSet(key, member);
                 }
 
                 if (record)
                 {
-                    var member = ConcurrencyControl.CreateMember(timestamp, context.BackgroundJob.Id);
+                    string member = ConcurrencyControl.CreateMember(timestamp, context.BackgroundJob.Id);
                     transaction.AddToSet(key, member, timestamp);
                     context.Items[GetItemKey(context.BackgroundJob.Job!)] = (key, member);
                     context.Items[GetRecordedItemKey(key)] = member;
@@ -280,7 +280,7 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         stale = [];
         oldestLive = 0;
 
-        var storage = context.Storage;
+        JobStorage? storage = context.Storage;
         if (storage == null
             || context.Connection is not JobStorageConnection connection
             || !storage.HasFeature(JobStorageFeatures.ExtendedApi)
@@ -296,14 +296,14 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
             if (stale.Count >= StaleBatchSize) return false;
         }
 
-        var count = connection.GetSetCount(key) - stale.Count;
+        long count = connection.GetSetCount(key) - stale.Count;
         if (count <= 0) return true;
 
         liveCount = (int)Math.Min(count, int.MaxValue);
 
         // Only needed to know when the next start is allowed, and the set holds only parsable members, unless
         // something else wrote to it: then the whole set is read and cleaned up
-        var oldest = connection.GetFirstByLowestScoreFromSet(key, windowStart, MaxScore);
+        string? oldest = connection.GetFirstByLowestScoreFromSet(key, windowStart, MaxScore);
         if (oldest == null || !ConcurrencyControl.TryParseMember(oldest, out oldestLive, out _)) return false;
 
         return true;

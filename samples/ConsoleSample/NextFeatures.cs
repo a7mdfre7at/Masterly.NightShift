@@ -20,7 +20,7 @@ public class NextFeatures
         await Task.Delay(500, cancellationToken);
 
         console.Checkpoint("parse");
-        for (var i = 1; i <= rows; i++)
+        for (int i = 1; i <= rows; i++)
         {
             await Task.Delay(100, cancellationToken);
 

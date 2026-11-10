@@ -25,7 +25,7 @@ internal sealed class RazorPageDispatcher(Func<Match, RazorPage> pageFunc) : IDa
     {
         context.Response.ContentType = "text/html";
 
-        var page = _pageFunc(context.UriMatch);
+        RazorPage page = _pageFunc(context.UriMatch);
         page.Assign(context);
 
         return context.Response.WriteAsync(page.ToString());

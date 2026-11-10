@@ -44,8 +44,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var queueApi = GetQueueApi(queue);
-        var counters = queueApi.GetEnqueuedAndFetchedCount(queue);
+        IPersistentJobQueueMonitoringApi queueApi = GetQueueApi(queue);
+        EnqueuedAndFetchedCountDto counters = queueApi.GetEnqueuedAndFetchedCount(queue);
 
         return counters.EnqueuedCount ?? 0;
     }
@@ -54,8 +54,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var queueApi = GetQueueApi(queue);
-        var counters = queueApi.GetEnqueuedAndFetchedCount(queue);
+        IPersistentJobQueueMonitoringApi queueApi = GetQueueApi(queue);
+        EnqueuedAndFetchedCountDto counters = queueApi.GetEnqueuedAndFetchedCount(queue);
 
         return counters.FetchedCount ?? 0;
     }
@@ -85,7 +85,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 LoadException = loadException,
                 InvocationData = invocationData,
                 InProcessingState = ProcessingState.StateName.Equals(sqlJob.StateName, StringComparison.OrdinalIgnoreCase),
-                ServerId = stateData.TryGetValue("ServerId", out var serverId) ? serverId : stateData["ServerName"],
+                ServerId = stateData.TryGetValue("ServerId", out string? serverId) ? serverId : stateData["ServerName"],
                 StartedAt = sqlJob.StateChanged,
                 StateData = stateData
             }));
@@ -132,18 +132,17 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         return UseConnection<IList<ServerDto>>(connection =>
         {
-            var servers = connection.Query<Entities.Server>(
+            List<Entities.Server> servers = [.. connection.Query<Entities.Server>(
                 _storage.GetQueryFromTemplate(static schemaName =>
                     $@"select * from [{schemaName}].Server with (nolock)"),
-                commandTimeout: _storage.CommandTimeout)
-                .ToList();
+                commandTimeout: _storage.CommandTimeout)];
 
-            var result = new List<ServerDto>();
+            List<ServerDto> result = [];
 
             // ReSharper disable once LoopCanBeConvertedToQuery
-            foreach (var server in servers)
+            foreach (Entities.Server server in servers)
             {
-                var data = SerializationHelper.Deserialize<ServerData>(server.Data);
+                ServerData? data = SerializationHelper.Deserialize<ServerData>(server.Data);
 
                 if (data!.Queues == null && data.StartedAt == null && data.WorkerCount == 0) // Server data is never the JSON null
                 {
@@ -202,7 +201,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 InvocationData = invocationData,
                 InSucceededState = SucceededState.StateName.Equals(sqlJob.StateName, StringComparison.OrdinalIgnoreCase),
                 Result = stateData["Result"],
-                TotalDuration = stateData.TryGetValue("PerformanceDuration", out var duration) && stateData.TryGetValue("Latency", out var latency)
+                TotalDuration = stateData.TryGetValue("PerformanceDuration", out string? duration) && stateData.TryGetValue("Latency", out string? latency)
                     ? (long?)long.Parse(duration, CultureInfo.InvariantCulture) + (long?)long.Parse(latency, CultureInfo.InvariantCulture)
                     : null,
                 SucceededAt = sqlJob.StateChanged,
@@ -231,7 +230,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     public override JobList<AwaitingJobDto?> AwaitingJobs(int @from, int count)
     {
-        var awaitingJobs = UseConnection(connection => GetJobs(
+        JobList<AwaitingJobDto?> awaitingJobs = UseConnection(connection => GetJobs(
             connection,
             from,
             count,
@@ -247,12 +246,11 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 StateData = stateData
             }));
 
-        var parentIds = awaitingJobs
+        long[] parentIds = [.. awaitingJobs
             .Where(static x => x.Value != null && x.Value.InAwaitingState && x.Value.StateData!.ContainsKey("ParentId")) // A job in the Awaiting state has its data
-            .Select(static x => long.Parse(x.Value!.StateData!["ParentId"]!, CultureInfo.InvariantCulture)) // Filtered above
-            .ToArray();
+            .Select(static x => long.Parse(x.Value!.StateData!["ParentId"]!, CultureInfo.InvariantCulture))]; // Filtered above
 
-        var parentStates = UseConnection(connection =>
+        Dictionary<long, string?> parentStates = UseConnection(connection =>
         {
             return connection.Query<ParentStateDto>(
                 _storage.GetQueryFromTemplate(static schemaName =>
@@ -262,12 +260,12 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             .ToDictionary(static x => x.Id, static x => x.StateName);
         });
 
-        foreach (var awaitingJob in awaitingJobs)
+        foreach (KeyValuePair<string, AwaitingJobDto?> awaitingJob in awaitingJobs)
         {
-            if (awaitingJob.Value != null && awaitingJob.Value.InAwaitingState && awaitingJob.Value.StateData!.TryGetValue("ParentId", out var parentIdString)) // A job in the Awaiting state has its data
+            if (awaitingJob.Value != null && awaitingJob.Value.InAwaitingState && awaitingJob.Value.StateData!.TryGetValue("ParentId", out string? parentIdString)) // A job in the Awaiting state has its data
             {
-                var parentId = long.Parse(parentIdString, CultureInfo.InvariantCulture);
-                if (parentStates.TryGetValue(parentId, out var parentStateName))
+                long parentId = long.Parse(parentIdString, CultureInfo.InvariantCulture);
+                if (parentStates.TryGetValue(parentId, out string? parentStateName))
                 {
                     awaitingJob.Value.ParentStateName = parentStateName;
                 }
@@ -305,15 +303,15 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             .OrderBy(static x => x.Queue)
             .ToArray();
 
-        var result = new List<QueueWithTopEnqueuedJobsDto>(tuples.Length);
+        List<QueueWithTopEnqueuedJobsDto> result = new(tuples.Length);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var tuple in tuples)
         {
-            var enqueuedJobIds = withFirstJobs ? tuple.Monitoring.GetEnqueuedJobIds(tuple.Queue, 0, 5) : null;
-            var counters = tuple.Monitoring.GetEnqueuedAndFetchedCount(tuple.Queue);
+            IEnumerable<long>? enqueuedJobIds = withFirstJobs ? tuple.Monitoring.GetEnqueuedJobIds(tuple.Queue, 0, 5) : null;
+            EnqueuedAndFetchedCountDto counters = tuple.Monitoring.GetEnqueuedAndFetchedCount(tuple.Queue);
 
-            var firstJobs = enqueuedJobIds != null
+            JobList<EnqueuedJobDto?> firstJobs = enqueuedJobIds != null
                 ? UseConnection(connection => EnqueuedJobs(connection, [.. enqueuedJobIds]))
                 : new JobList<EnqueuedJobDto?>([]);
 
@@ -333,8 +331,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var queueApi = GetQueueApi(queue);
-        var enqueuedJobIds = queueApi.GetEnqueuedJobIds(queue, from, perPage);
+        IPersistentJobQueueMonitoringApi queueApi = GetQueueApi(queue);
+        IEnumerable<long> enqueuedJobIds = queueApi.GetEnqueuedJobIds(queue, from, perPage);
 
         return UseConnection(connection => EnqueuedJobs(connection, [.. enqueuedJobIds]));
     }
@@ -343,8 +341,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        var queueApi = GetQueueApi(queue);
-        var fetchedJobIds = queueApi.GetFetchedJobIds(queue, from, perPage);
+        IPersistentJobQueueMonitoringApi queueApi = GetQueueApi(queue);
+        IEnumerable<long> fetchedJobIds = queueApi.GetFetchedJobIds(queue, from, perPage);
 
         return UseConnection(connection => FetchedJobs(connection, [.. fetchedJobIds]));
     }
@@ -373,28 +371,28 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
         // Ids are bigint here, so any other string names no job (as in GetJobData), rather than
         // failing the conversion in SQL Server
-        if (!long.TryParse(jobId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
+        if (!long.TryParse(jobId, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsedId))
         {
             return null;
         }
 
         return UseConnection(connection =>
         {
-            var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            string query = _storage.GetQueryFromTemplate(static schemaName => $"""
                 select * from [{schemaName}].Job with (nolock, forceseek) where Id = @id
                 select * from [{schemaName}].JobParameter with (nolock, forceseek) where JobId = @id
                 select * from [{schemaName}].State with (nolock, forceseek) where JobId = @id order by Id desc
                 """);
 
-            using var multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: _storage.CommandTimeout);
-            var job = multi.ReadSingleOrDefault<SqlJob>();
+            using SqlMapper.GridReader multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: _storage.CommandTimeout);
+            SqlJob? job = multi.ReadSingleOrDefault<SqlJob>();
             if (job == null) return null;
 
-            var parameters = multi.Read<JobParameter>()
+            Dictionary<string, string?> parameters = multi.Read<JobParameter>()
                 .DistinctBy(static x => x.Name)
                 .ToDictionary(static x => x.Name, static x => x.Value);
 
-            var deserializedJob = DeserializeJob(job.InvocationData, job.Arguments, out var payload, out var exception);
+            Job? deserializedJob = DeserializeJob(job.InvocationData, job.Arguments, out InvocationData? payload, out JobLoadException? exception);
 
             if (deserializedJob == null)
             {
@@ -416,8 +414,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                 parameters.Add("DBG_Exception", (exception.InnerException ?? exception).Message);
             }
 
-            var history =
-                multi.Read<SqlState>()
+            List<StateHistoryDto> history =
+                [.. multi.Read<SqlState>()
                     .ToList()
                     .Select(static x => new StateHistoryDto
                     {
@@ -427,8 +425,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
                         Data = new SafeDictionary<string, string>(
                             SerializationHelper.Deserialize<Dictionary<string, string>>(x.Data)!, // Every state is written with its data
                             StringComparer.OrdinalIgnoreCase),
-                    })
-                    .ToList();
+                    })];
 
             return new JobDetailsDto
             {
@@ -457,7 +454,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     public override StatisticsDto GetStatistics()
     {
-        var query = _storage.GetQueryFromTemplate(static schemaName => $"""
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
             set transaction isolation level read committed;
             select count(Id) from [{schemaName}].Job with (nolock, forceseek) where StateName = N'Enqueued';
             select count(Id) from [{schemaName}].Job with (nolock, forceseek) where StateName = N'Failed';
@@ -480,10 +477,10 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             select count(*) from [{schemaName}].[Set] with (nolock, forceseek) where [Key] = N'retries';
             """);
 
-        var statistics = UseConnection(connection =>
+        StatisticsDto statistics = UseConnection(connection =>
         {
-            var stats = new StatisticsDto();
-            using (var multi = connection.QueryMultiple(query, commandTimeout: _storage.CommandTimeout))
+            StatisticsDto stats = new();
+            using (SqlMapper.GridReader multi = connection.QueryMultiple(query, commandTimeout: _storage.CommandTimeout))
             {
                 stats.Enqueued = multi.ReadSingle<int>();
                 stats.Failed = multi.ReadSingle<int>();
@@ -511,30 +508,30 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private Dictionary<DateTime, long> GetHourlyTimelineStats(DbConnection connection, string type)
     {
-        var endDate = JobClock.UtcNow;
-        var dates = new List<DateTime>();
-        for (var i = 0; i < 24; i++)
+        DateTime endDate = JobClock.UtcNow;
+        List<DateTime> dates = [];
+        for (int i = 0; i < 24; i++)
         {
             dates.Add(endDate);
             endDate = endDate.AddHours(-1);
         }
 
-        var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}", static x => x);
+        Dictionary<string, DateTime> keyMaps = dates.ToDictionary(x => $"stats:{type}:{x.ToString("yyyy-MM-dd-HH", CultureInfo.InvariantCulture)}", static x => x);
 
         return GetTimelineStats(connection, keyMaps);
     }
 
     private Dictionary<DateTime, long> GetTimelineStats(DbConnection connection, string type)
     {
-        var endDate = JobClock.UtcNow.Date;
-        var dates = new List<DateTime>();
-        for (var i = 0; i < 7; i++)
+        DateTime endDate = JobClock.UtcNow.Date;
+        List<DateTime> dates = [];
+        for (int i = 0; i < 7; i++)
         {
             dates.Add(endDate);
             endDate = endDate.AddDays(-1);
         }
 
-        var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}", static x => x);
+        Dictionary<string, DateTime> keyMaps = dates.ToDictionary(x => $"stats:{type}:{x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}", static x => x);
 
         return GetTimelineStats(connection, keyMaps);
     }
@@ -543,27 +540,27 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         DbConnection connection,
         IDictionary<string, DateTime> keyMaps)
     {
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             select [Key], [Value] as [Count] from [{schemaName}].AggregatedCounter with (nolock, forceseek)
             where [Key] in @keys
             """);
 
-        var valuesMap = connection.Query(
+        Dictionary<string, long> valuesMap = connection.Query(
             query,
             new { keys = keyMaps.Keys },
             commandTimeout: _storage.CommandTimeout)
             .ToDictionary(static x => (string)x.Key, static x => (long)x.Count);
 
-        foreach (var key in keyMaps.Keys)
+        foreach (string key in keyMaps.Keys)
         {
             if (!valuesMap.ContainsKey(key)) valuesMap.Add(key, 0);
         }
 
-        var result = new Dictionary<DateTime, long>();
-        for (var i = 0; i < keyMaps.Count; i++)
+        Dictionary<DateTime, long> result = [];
+        for (int i = 0; i < keyMaps.Count; i++)
         {
-            var value = valuesMap[keyMaps.ElementAt(i).Key];
+            long value = valuesMap[keyMaps.ElementAt(i).Key];
             result.Add(keyMaps.ElementAt(i).Value, value);
         }
 
@@ -572,8 +569,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private IPersistentJobQueueMonitoringApi GetQueueApi(string queueName)
     {
-        var provider = _storage.QueueProviders.GetProvider(queueName);
-        var monitoringApi = provider.GetJobQueueMonitoringApi();
+        IPersistentJobQueueProvider provider = _storage.QueueProviders.GetProvider(queueName);
+        IPersistentJobQueueMonitoringApi monitoringApi = provider.GetJobQueueMonitoringApi();
 
         return monitoringApi;
     }
@@ -585,7 +582,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private JobList<EnqueuedJobDto?> EnqueuedJobs(DbConnection connection, long[] jobIds)
     {
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             select j.*, s.Reason as StateReason, s.Data as StateData, s.CreatedAt as StateChanged
             from [{schemaName}].Job j with (nolock, forceseek)
@@ -593,15 +590,13 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             where j.Id in @jobIds
             """);
 
-        var jobs = connection.Query<SqlJob>(
+        Dictionary<long, SqlJob> jobs = connection.Query<SqlJob>(
             query,
             new { jobIds },
             commandTimeout: _storage.CommandTimeout)
             .ToDictionary(static x => x.Id, static x => x);
 
-        var sortedSqlJobs = jobIds
-            .Select(jobId => jobs.TryGetValue(jobId, out var job) ? job : new SqlJob { Id = jobId })
-            .ToList();
+        List<SqlJob> sortedSqlJobs = [.. jobIds.Select(jobId => jobs.TryGetValue(jobId, out SqlJob? job) ? job : new SqlJob { Id = jobId })];
 
         return DeserializeJobs(
             sortedSqlJobs,
@@ -621,11 +616,11 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private long GetNumberOfJobsByStateName(DbConnection connection, string stateName)
     {
-        var query = _storage.GetQueryFromTemplate(_jobListLimit.HasValue
+        string query = _storage.GetQueryFromTemplate(_jobListLimit.HasValue
             ? static schemaName => $@"select count(j.Id) from (select top (@limit) Id from [{schemaName}].Job with (nolock, forceseek) where StateName = @state) as j"
             : static schemaName => $@"select count(Id) from [{schemaName}].Job with (nolock, forceseek) where StateName = @state");
 
-        var count = connection.ExecuteScalar<int>(
+        int count = connection.ExecuteScalar<int>(
              query,
              new { state = stateName, limit = _jobListLimit },
              commandTimeout: _storage.CommandTimeout);
@@ -662,8 +657,8 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         bool descending,
         Func<SqlJob, Job?, InvocationData, JobLoadException?, SafeDictionary<string, string>, TDto> selector)
     {
-        var order = descending ? "desc" : "asc";
-        var query = string.Format(CultureInfo.InvariantCulture, _storage.GetQueryFromTemplate(static schemaName =>
+        string order = descending ? "desc" : "asc";
+        string query = string.Format(CultureInfo.InvariantCulture, _storage.GetQueryFromTemplate(static schemaName =>
             $$"""
             ;with cte as
             (
@@ -678,11 +673,10 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             where cte.row_num between @start and @end
             """), order);
 
-        var jobs = connection.Query<SqlJob>(
+        List<SqlJob> jobs = [.. connection.Query<SqlJob>(
                     query,
                     new { stateName, start = @from + 1, end = @from + count },
-                    commandTimeout: _storage.CommandTimeout)
-                    .ToList();
+                    commandTimeout: _storage.CommandTimeout)];
 
         return DeserializeJobs(jobs, selector);
     }
@@ -691,21 +685,21 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
         ICollection<SqlJob> jobs,
         Func<SqlJob, Job?, InvocationData, JobLoadException?, SafeDictionary<string, string>, TDto> selector)
     {
-        var result = new List<KeyValuePair<string, TDto?>>(jobs.Count);
+        List<KeyValuePair<string, TDto?>> result = new(jobs.Count);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var job in jobs)
+        foreach (SqlJob job in jobs)
         {
-            var dto = default(TDto);
+            TDto? dto = default;
 
             if (job.InvocationData != null)
             {
-                var deserializedData = SerializationHelper.Deserialize<Dictionary<string, string>>(job.StateData);
-                var stateData = deserializedData != null
+                Dictionary<string, string>? deserializedData = SerializationHelper.Deserialize<Dictionary<string, string>>(job.StateData);
+                SafeDictionary<string, string>? stateData = deserializedData != null
                     ? new SafeDictionary<string, string>(deserializedData, StringComparer.OrdinalIgnoreCase)
                     : null;
 
-                dto = selector(job, DeserializeJob(job.InvocationData, job.Arguments, out var invocationData, out var loadException), invocationData, loadException, stateData!); // A job listed by state has its data
+                dto = selector(job, DeserializeJob(job.InvocationData, job.Arguments, out InvocationData? invocationData, out JobLoadException? loadException), invocationData, loadException, stateData!); // A job listed by state has its data
             }
 
             result.Add(new KeyValuePair<string, TDto?>(
@@ -717,7 +711,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
     private JobList<FetchedJobDto?> FetchedJobs(DbConnection connection, IEnumerable<long> jobIds)
     {
-        var query = _storage.GetQueryFromTemplate(static schemaName =>
+        string query = _storage.GetQueryFromTemplate(static schemaName =>
             $"""
             select j.*, s.Reason as StateReason, s.Data as StateData 
             from [{schemaName}].Job j with (nolock, forceseek)
@@ -725,16 +719,15 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
             where j.Id in @jobIds
             """);
 
-        var jobs = connection.Query<SqlJob>(
+        List<SqlJob> jobs = [.. connection.Query<SqlJob>(
             query,
             new { jobIds },
-            commandTimeout: _storage.CommandTimeout)
-            .ToList();
+            commandTimeout: _storage.CommandTimeout)];
 
-        var result = new List<KeyValuePair<string, FetchedJobDto?>>(jobs.Count);
+        List<KeyValuePair<string, FetchedJobDto?>> result = new(jobs.Count);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var job in jobs)
+        foreach (SqlJob job in jobs)
         {
             result.Add(new KeyValuePair<string, FetchedJobDto?>(
                 job.Id.ToString(CultureInfo.InvariantCulture),
@@ -756,7 +749,7 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
     {
         public new TValue? this[TKey i]
         {
-            get => TryGetValue(i, out var value) ? value : default;
+            get => TryGetValue(i, out TValue? value) ? value : default;
             set => base[i] = value!; // Written as given, as the base class does
         }
     }

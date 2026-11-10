@@ -25,7 +25,7 @@
 
     if (Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs))
     {
-        var monitor = Storage.GetMonitoringApi() as JobStorageMonitor;
+        JobStorageMonitor? monitor = Storage.GetMonitoringApi() as JobStorageMonitor;
         if (monitor == null) 
         {
             throw new NotSupportedException("MonitoringApi should inherit the `JobStorageMonitor` class");
@@ -37,9 +37,9 @@
     }
     else
     {
-        using (var connection = Storage.GetReadOnlyConnection())
+        using (IStorageConnection connection = Storage.GetReadOnlyConnection())
         {
-            var storageConnection = connection as JobStorageConnection;
+            JobStorageConnection? storageConnection = connection as JobStorageConnection;
 
             // Paging through the "awaiting" set needs the extended API
             if (storageConnection != null && Storage.HasFeature(JobStorageFeatures.ExtendedApi))
@@ -117,9 +117,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @for (var i = 0; i < jobCount; i++)
+                            @for (int i = 0; i < jobCount; i++)
                             {
-                                var jobId = jobIds != null ? jobIds[i] : jobs![i].Key;
+                                string jobId = jobIds != null ? jobIds[i] : jobs![i].Key;
 
                                 Job? job = null;
                                 bool inAwaitingState = true;
@@ -142,10 +142,10 @@
                                 }
                                 else
                                 {
-                                    using (var connection = Storage.GetReadOnlyConnection())
+                                    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
                                     {
-                                        var jobData = connection.GetJobData(jobId);
-                                        var state = connection.GetStateData(jobId);
+                                        JobData? jobData = connection.GetJobData(jobId);
+                                        StateData? state = connection.GetStateData(jobId);
                                         inAwaitingState = AwaitingState.StateName.Equals(state?.Name);
 
                                         // An expired job has no data, a fan-in continuation has no single parent,
@@ -190,7 +190,7 @@
                                         <td class="min-width">
                                             @if (stateData != null && stateData.ContainsKey("Options") && !String.IsNullOrWhiteSpace(stateData["Options"]))
                                             {
-                                                var optionsDescription = stateData["Options"];
+                                                string optionsDescription = stateData["Options"];
                                                 if (Enum.TryParse(optionsDescription, out JobContinuationOptions options))
                                                 {
                                                     optionsDescription = options.ToString("G");

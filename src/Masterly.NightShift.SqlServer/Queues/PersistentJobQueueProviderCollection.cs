@@ -55,7 +55,7 @@ public class PersistentJobQueueProviderCollection : IEnumerable<IPersistentJobQu
 
         _providers.Add(provider);
 
-        foreach (var queue in queues)
+        foreach (string queue in queues)
         {
             _providersByQueue.Add(queue, provider);
         }
@@ -67,7 +67,7 @@ public class PersistentJobQueueProviderCollection : IEnumerable<IPersistentJobQu
     /// <param name="queue">The queue name.</param>
     public IPersistentJobQueueProvider GetProvider(string queue)
     {
-        return _providersByQueue.TryGetValue(queue, out var provider)
+        return _providersByQueue.TryGetValue(queue, out IPersistentJobQueueProvider? provider)
             ? provider
             : _defaultProvider;
     }

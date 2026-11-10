@@ -105,18 +105,18 @@ public static class NightShiftServiceCollectionExtensions
 
             services.AddSingleton<IGlobalConfiguration>(serviceProvider =>
             {
-                var configurationInstance = GlobalConfiguration.Configuration;
+                IGlobalConfiguration configurationInstance = GlobalConfiguration.Configuration;
 
                 // init defaults for log provider and job activator
                 // they may be overwritten by the configuration callback later
 
-                var loggerFactory = serviceProvider.GetService<ILoggerFactory>();
+                ILoggerFactory? loggerFactory = serviceProvider.GetService<ILoggerFactory>();
                 if (loggerFactory != null)
                 {
                     configurationInstance.UseLogProvider(new AspNetCoreLogProvider(loggerFactory));
                 }
 
-                var scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
+                IServiceScopeFactory? scopeFactory = serviceProvider.GetService<IServiceScopeFactory>();
                 if (scopeFactory != null)
                 {
                     configurationInstance.UseActivator(new AspNetCoreJobActivator(scopeFactory));
@@ -126,7 +126,7 @@ public static class NightShiftServiceCollectionExtensions
                 // else created without one; the default registered above leaves the global resolver as it is
                 try
                 {
-                    var timeZoneResolver = serviceProvider.GetService<ITimeZoneResolver>();
+                    ITimeZoneResolver? timeZoneResolver = serviceProvider.GetService<ITimeZoneResolver>();
                     if (timeZoneResolver != null && timeZoneResolver.GetType() != typeof(DefaultTimeZoneResolver))
                     {
                         configurationInstance.UseTimeZoneResolver(timeZoneResolver);
@@ -316,7 +316,7 @@ public static class NightShiftServiceCollectionExtensions
     {
         services.AddTransient<IHostedService, BackgroundJobServerHostedService>(provider =>
         {
-            var options = provider.GetService<BackgroundJobServerOptions>() ?? new BackgroundJobServerOptions();
+            BackgroundJobServerOptions options = provider.GetService<BackgroundJobServerOptions>() ?? new BackgroundJobServerOptions();
             return CreateBackgroundJobServerHostedService(provider, storage, additionalProcesses, options);
         });
 
@@ -331,7 +331,7 @@ public static class NightShiftServiceCollectionExtensions
     {
         services.AddTransient<IHostedService, BackgroundJobServerHostedService>(provider =>
         {
-            var options = new BackgroundJobServerOptions();
+            BackgroundJobServerOptions options = new();
             optionsAction(provider, options);
 
             return CreateBackgroundJobServerHostedService(provider, storage, additionalProcesses, options);
@@ -380,10 +380,10 @@ public static class NightShiftServiceCollectionExtensions
         options.FilterProvider = JobLoggingScope.AddTo(options.FilterProvider, provider);
         options.TimeZoneResolver ??= provider.GetService<ITimeZoneResolver>();
 
-        GetInternalServices(provider, out var factory, out var stateChanger, out var performer);
+        GetInternalServices(provider, out IBackgroundJobFactory? factory, out IBackgroundJobStateChanger? stateChanger, out IBackgroundJobPerformer? performer);
 
         // Hosts that don't register it start the server at once
-        var lifetime = provider.GetService<IHostApplicationLifetime>();
+        IHostApplicationLifetime? lifetime = provider.GetService<IHostApplicationLifetime>();
 
         return new BackgroundJobServerHostedService(
             storage, options, additionalProcesses, factory, performer, stateChanger, lifetime);
@@ -450,7 +450,7 @@ public static class NightShiftServiceCollectionExtensions
     /// <exception cref="InvalidOperationException">The Masterly.NightShift services weren't added.</exception>
     public static void ThrowIfNotConfigured([NotNull] IServiceProvider serviceProvider)
     {
-        var configuration = serviceProvider.GetService<IGlobalConfiguration>() ?? throw new InvalidOperationException(
+        IGlobalConfiguration configuration = serviceProvider.GetService<IGlobalConfiguration>() ?? throw new InvalidOperationException(
                 "Unable to find the required services. Please add all the required services by calling 'IServiceCollection.AddNightShift' inside the call to 'ConfigureServices(...)' in the application startup code.");
     }
 }

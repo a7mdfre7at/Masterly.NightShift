@@ -33,7 +33,7 @@ internal sealed class AspNetCoreLog : ILog
 
     public bool Log(Logging.LogLevel logLevel, Func<string> messageFunc, Exception? exception = null)
     {
-        var targetLogLevel = ToTargetLogLevel(logLevel);
+        LogLevel targetLogLevel = ToTargetLogLevel(logLevel);
 
         // When messageFunc is null, Masterly.NightShift.Logging
         // just determines is logging enabled.

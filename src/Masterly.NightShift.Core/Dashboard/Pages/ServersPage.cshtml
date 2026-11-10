@@ -8,27 +8,28 @@
 @using Masterly.NightShift.Server
 @using Masterly.NightShift.Storage
 @using System.Diagnostics
+@using Masterly.NightShift.Storage.Monitoring
 @inherits RazorPage
 @{
     Layout = new LayoutPage(Strings.ServersPage_Title);
-    var invokers = JobInvokerRegistry.GetStatistics();
-    var keepAlive = KeepAliveProcess.Status;
-    var hostedByIis = KeepAliveProcess.IsHostedByIis;
-    var currentProcess = Process.GetCurrentProcess();
-    var uptime = ApplicationUtcNow - currentProcess.StartTime.ToUniversalTime();
+    JobInvokerStatistics invokers = JobInvokerRegistry.GetStatistics();
+    KeepAliveStatus? keepAlive = KeepAliveProcess.Status;
+    bool hostedByIis = KeepAliveProcess.IsHostedByIis;
+    Process currentProcess = Process.GetCurrentProcess();
+    TimeSpan uptime = ApplicationUtcNow - currentProcess.StartTime.ToUniversalTime();
     
-    var monitor = Storage.GetMonitoringApi();
-    var servers = monitor.Servers();
+    IMonitoringApi monitor = Storage.GetMonitoringApi();
+    IList<ServerDto> servers = monitor.Servers();
 
     DrainModeStatus drain;
-    using (var connection = Storage.GetReadOnlyConnection())
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
     {
         drain = DrainMode.Read(connection);
     }
-    var staleServerPauses = DashboardHealth.GetStalePausedServers(drain, servers);
-    var now = StorageUtcNow ?? ApplicationUtcNow;
+    IReadOnlyList<string> staleServerPauses = DashboardHealth.GetStalePausedServers(drain, servers);
+    DateTime now = StorageUtcNow ?? ApplicationUtcNow;
     // The same threshold as the job pages, the diagnostics and /health: no heartbeat for that long
-    var possiblyAbortedThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
+    TimeSpan possiblyAbortedThreshold = DashboardOptions.ServerPossiblyAbortedThreshold;
 }
 
 <div class="row">
@@ -67,7 +68,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var server in servers)
+                        @foreach (ServerDto server in servers)
                         {
                             <tr>
                                 <td>
@@ -82,7 +83,7 @@
                                 </td>
                                 <td>
                                     @server.WorkersCount
-                                    @if (drain.PausedServers.TryGetValue(server.Name, out var serverPauseReason))
+                                    @if (drain.PausedServers.TryGetValue(server.Name, out string? serverPauseReason))
                                     {
                                         <span class="label label-warning text-uppercase" title="@serverPauseReason">@Strings.ServersPage_Paused</span>
                                     }
@@ -125,7 +126,7 @@
                 <h4>@Strings.ServersPage_StalePauses_Title</h4>
                 <p>@Strings.ServersPage_StalePauses_Text</p>
                 <ul class="list-unstyled">
-                    @foreach (var serverId in staleServerPauses)
+                    @foreach (string serverId in staleServerPauses)
                     {
                         <li>
                             <code>@serverId</code>

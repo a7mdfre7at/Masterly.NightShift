@@ -64,8 +64,8 @@ public sealed class CaptureCultureAttribute(
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var currentCulture = CultureInfo.CurrentCulture;
-        var currentUICulture = CultureInfo.CurrentUICulture;
+        CultureInfo currentCulture = CultureInfo.CurrentCulture;
+        CultureInfo currentUICulture = CultureInfo.CurrentUICulture;
 
         if (!CaptureDefault && currentCulture.Name.Equals(DefaultCultureName, StringComparison.Ordinal))
         {
@@ -98,8 +98,8 @@ public sealed class CaptureCultureAttribute(
 
     public void OnPerforming(PerformingContext context)
     {
-        var cultureName = context.GetJobParameter<string>("CurrentCulture", allowStale: true);
-        var uiCultureName = context.GetJobParameter<string>("CurrentUICulture", allowStale: true) ?? cultureName;
+        string? cultureName = context.GetJobParameter<string>("CurrentCulture", allowStale: true);
+        string? uiCultureName = context.GetJobParameter<string>("CurrentUICulture", allowStale: true) ?? cultureName;
 
         cultureName ??= DefaultCultureName;
         uiCultureName ??= DefaultUICultureName;
@@ -137,11 +137,11 @@ public sealed class CaptureCultureAttribute(
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.Items.TryGetValue("PreviousCulture", out var culture))
+        if (context.Items.TryGetValue("PreviousCulture", out object? culture))
         {
             SetCurrentCulture((CultureInfo)culture);
         }
-        if (context.Items.TryGetValue("PreviousUICulture", out var uiCulture))
+        if (context.Items.TryGetValue("PreviousUICulture", out object? uiCulture))
         {
             SetCurrentUICulture((CultureInfo)uiCulture);
         }

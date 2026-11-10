@@ -61,7 +61,7 @@ public class CreatingContext(CreateContext context) : CreateContext(context)
 
         try
         {
-            return Parameters.TryGetValue(name, out var parameter)
+            return Parameters.TryGetValue(name, out object? parameter)
                 ? (T)parameter
                 : default;
         }

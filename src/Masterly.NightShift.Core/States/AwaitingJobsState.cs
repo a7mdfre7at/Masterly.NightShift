@@ -105,21 +105,21 @@ public sealed class AwaitingJobsState : IState
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        if (!data.TryGetValue("ParentIds", out var parentIds) || string.IsNullOrEmpty(parentIds))
+        if (!data.TryGetValue("ParentIds", out string? parentIds) || string.IsNullOrEmpty(parentIds))
         {
             return null;
         }
 
-        var mode = data.TryGetValue("Mode", out var modeValue) && Enum.TryParse(modeValue, out FanInMode parsedMode)
+        FanInMode mode = data.TryGetValue("Mode", out string? modeValue) && Enum.TryParse(modeValue, out FanInMode parsedMode)
             ? parsedMode
             : FanInMode.All;
 
-        var options = data.TryGetValue("Options", out var optionsValue) && Enum.TryParse(optionsValue, out JobContinuationOptions parsedOptions)
+        JobContinuationOptions options = data.TryGetValue("Options", out string? optionsValue) && Enum.TryParse(optionsValue, out JobContinuationOptions parsedOptions)
             ? parsedOptions
             : JobContinuationOptions.OnlyOnSucceededState;
 
         IState? nextState = null;
-        if (data.TryGetValue("NextState", out var serializedNextState))
+        if (data.TryGetValue("NextState", out string? serializedNextState))
         {
             nextState = SerializationHelper.Deserialize<IState>(serializedNextState, SerializationOption.TypedInternal);
         }

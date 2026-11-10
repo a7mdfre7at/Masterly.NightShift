@@ -203,7 +203,7 @@ public class SqlServerStorage : JobStorage
     {
         get
         {
-            var version = DetectedSchemaVersion;
+            int? version = DetectedSchemaVersion;
             return !(version < 8) && (Options.UseIgnoreDupKeyOptionIfSet ?? version >= 8);
         }
     }
@@ -230,7 +230,7 @@ public class SqlServerStorage : JobStorage
     {
         get
         {
-            var batchSize = DeleteExpiredBatchSize;
+            int batchSize = DeleteExpiredBatchSize;
             return batchSize is <= 0 or > 100_000 ? DefaultDeleteBatchSize : batchSize;
         }
     }
@@ -283,7 +283,7 @@ public class SqlServerStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(featureId);
 
-        return _features.TryGetValue(featureId, out var isSupported)
+        return _features.TryGetValue(featureId, out bool isSupported)
             ? isSupported
             : base.HasFeature(featureId);
     }
@@ -301,10 +301,10 @@ public class SqlServerStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var log = LogProvider.GetLogger(typeof(SqlServerStorage));
+        ILog log = LogProvider.GetLogger(typeof(SqlServerStorage));
         log.Info("Purging the SQL Server job storage...");
 
-        var deleted = UseConnection(null, static (storage, connection, ctx) =>
+        long deleted = UseConnection(null, static (storage, connection, ctx) =>
         {
             long total = 0;
 
@@ -317,7 +317,7 @@ public class SqlServerStorage : JobStorage
             total += storage.PurgeTable(connection, "List", ctx.KeepAuditLog ? "[Key] <> @auditLogKey" : null);
             total += storage.PurgeTable(connection, "Set", ctx.KeepRecurringJobs ? "[Key] <> N'recurring-jobs'" : null);
 
-            var hashConditions = new List<string>();
+            List<string> hashConditions = [];
             if (ctx.KeepRecurringJobs) hashConditions.Add("[Key] not like N'recurring-job:%'");
             if (ctx.KeepDrainMode) hashConditions.Add("[Key] <> @drainModeKey");
 
@@ -336,11 +336,11 @@ public class SqlServerStorage : JobStorage
 
     private long PurgeTable(DbConnection connection, string table, string? condition)
     {
-        var batchSize = EffectiveDeleteBatchSize;
+        int batchSize = EffectiveDeleteBatchSize;
 
         // The row count is selected rather than taken from the command's result, which is -1 when the
         // session has NOCOUNT on (an existing connection keeps the settings of earlier commands)
-        var query = FormattableString.Invariant(
+        string query = FormattableString.Invariant(
             $"delete top (@count) T from [{SchemaName}].[{table}] T{(condition != null ? " where " + condition : string.Empty)}; select @@ROWCOUNT;");
         var parameters = new { count = batchSize, auditLogKey = AuditLog.ListKey, drainModeKey = DrainMode.HashKey };
 
@@ -373,17 +373,17 @@ public class SqlServerStorage : JobStorage
                 return "SQL Server (custom)";
             }
 
-            var parts = _connectionString.Split(SemicolonSeparator, StringSplitOptions.RemoveEmptyEntries)
+            Dictionary<string, string> parts = _connectionString.Split(SemicolonSeparator, StringSplitOptions.RemoveEmptyEntries)
                 .Select(static x => x.Split(EqualSignSeparator, StringSplitOptions.RemoveEmptyEntries))
                 .Select(static x => new { Key = x[0].Trim(), Value = x[1].Trim() })
                 .GroupBy(static x => x.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(static x => x.Key, static x => x.Last().Value, StringComparer.OrdinalIgnoreCase);
 
-            var builder = new StringBuilder();
+            StringBuilder builder = new();
 
-            foreach (var alias in new[] { "Data Source", "Server", "Address", "Addr", "Network Address" })
+            foreach (string? alias in new[] { "Data Source", "Server", "Address", "Addr", "Network Address" })
             {
-                if (parts.TryGetValue(alias, out var part))
+                if (parts.TryGetValue(alias, out string? part))
                 {
                     builder.Append(part);
                     break;
@@ -392,9 +392,9 @@ public class SqlServerStorage : JobStorage
 
             if (builder.Length != 0) builder.Append('@');
 
-            foreach (var alias in new[] { "Database", "Initial Catalog" })
+            foreach (string? alias in new[] { "Database", "Initial Catalog" })
             {
-                if (parts.TryGetValue(alias, out var part))
+                if (parts.TryGetValue(alias, out string? part))
                 {
                     builder.Append(part);
                     break;
@@ -479,7 +479,7 @@ public class SqlServerStorage : JobStorage
 
         return UseConnection(dedicatedConnection, static (storage, connection, ctx) =>
         {
-            using var transaction = connection.BeginTransaction(ctx.Value.Value ?? IsolationLevel.ReadCommitted);
+            using DbTransaction transaction = connection.BeginTransaction(ctx.Value.Value ?? IsolationLevel.ReadCommitted);
             TResult result;
 
             try
@@ -569,7 +569,7 @@ public class SqlServerStorage : JobStorage
 
     private DbConnection DefaultConnectionFactory()
     {
-        var connection = Options.SqlClientFactory.CreateConnection() ?? throw new InvalidOperationException($"The provider factory ({Options.SqlClientFactory}) returned a null DbConnection.");
+        DbConnection connection = Options.SqlClientFactory.CreateConnection() ?? throw new InvalidOperationException($"The provider factory ({Options.SqlClientFactory}) returned a null DbConnection.");
         connection.ConnectionString = _connectionString;
         return connection;
     }
@@ -599,13 +599,13 @@ public class SqlServerStorage : JobStorage
 
     private bool InstallSchema()
     {
-        var log = LogProvider.GetLogger(typeof(SqlServerObjectsInstaller));
+        ILog log = LogProvider.GetLogger(typeof(SqlServerObjectsInstaller));
 
         log.Info("Start installing Masterly.NightShift SQL objects...");
 
         Exception? lastException = null;
 
-        for (var attempt = 0; attempt <= InstallRetryDelays.Length; attempt++)
+        for (int attempt = 0; attempt <= InstallRetryDelays.Length; attempt++)
         {
             if (attempt > 0)
             {
@@ -648,7 +648,7 @@ public class SqlServerStorage : JobStorage
 
     private void InstallSchemaOnce(bool clearPoolOnOpenFailure)
     {
-        var connection = CreateAndOpenConnection(clearPoolOnOpenFailure);
+        DbConnection connection = CreateAndOpenConnection(clearPoolOnOpenFailure);
 
         try
         {
@@ -680,11 +680,11 @@ public class SqlServerStorage : JobStorage
 
     private bool TryDetectSchemaVersion(bool afterStartup)
     {
-        var log = LogProvider.GetLogger(typeof(SqlServerStorage));
+        ILog log = LogProvider.GetLogger(typeof(SqlServerStorage));
 
         try
         {
-            var version = UseConnection(null, static (storage, connection) =>
+            int version = UseConnection(null, static (storage, connection) =>
                 connection.ExecuteScalar<int>($"select top (1) [Version] from [{storage.SchemaName}].[Schema]", commandTimeout: storage.CommandTimeout));
 
             _detectedSchemaVersion = version;
@@ -729,11 +729,11 @@ public class SqlServerStorage : JobStorage
     // retry interval. Cheap when nothing is pending, so it runs whenever the storage is used.
     private void RetryPendingSchemaWork()
     {
-        var installDue = _schemaInstallRetryPending;
-        var detectionDue = _schemaVersionRetryPending && !_schemaVersionDetected;
+        bool installDue = _schemaInstallRetryPending;
+        bool detectionDue = _schemaVersionRetryPending && !_schemaVersionDetected;
         if (!installDue && !detectionDue) return;
 
-        var now = JobClock.UtcNow.Ticks;
+        long now = JobClock.UtcNow.Ticks;
         installDue = installDue && now >= Interlocked.Read(ref _nextSchemaInstallRetryTicks);
         detectionDue = detectionDue && now >= Interlocked.Read(ref _nextSchemaVersionRetryTicks);
         if (!installDue && !detectionDue) return;
@@ -745,7 +745,7 @@ public class SqlServerStorage : JobStorage
         {
             if (_schemaInstallRetryPending && now >= Interlocked.Read(ref _nextSchemaInstallRetryTicks))
             {
-                var error = RetryInstallSchema();
+                Exception? error = RetryInstallSchema();
 
                 if (error == null)
                 {
@@ -760,7 +760,7 @@ public class SqlServerStorage : JobStorage
                 else
                 {
                     // A database that refuses for longer (missing permissions, for example) isn't asked as often
-                    var interval = Math.Min(Interlocked.Read(ref _schemaInstallRetryIntervalTicks) * 2, MaxSchemaInstallRetryInterval.Ticks);
+                    long interval = Math.Min(Interlocked.Read(ref _schemaInstallRetryIntervalTicks) * 2, MaxSchemaInstallRetryInterval.Ticks);
                     Interlocked.Exchange(ref _schemaInstallRetryIntervalTicks, interval);
                     Interlocked.Exchange(ref _nextSchemaInstallRetryTicks, JobClock.UtcNow.Ticks + interval);
 
@@ -788,7 +788,7 @@ public class SqlServerStorage : JobStorage
 
     private void InitializeQueueProviders()
     {
-        var defaultQueueProvider = Options.DefaultQueueProvider ?? new SqlServerJobQueueProvider(this, Options);
+        IPersistentJobQueueProvider defaultQueueProvider = Options.DefaultQueueProvider ?? new SqlServerJobQueueProvider(this, Options);
         QueueProviders = new PersistentJobQueueProviderCollection(defaultQueueProvider);
     }
 
@@ -802,12 +802,12 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = """
+                string sqlQuery = """
                     select count(*) from sys.sysprocesses
                     where dbid = db_id(@name) and status != 'background' and status != 'sleeping'
                     """;
 
-                var value = connection
+                int value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
 
                 return new Metric(value);
@@ -824,12 +824,12 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = """
+                string sqlQuery = """
                     select count(*) from sys.sysprocesses
                     where dbid = db_id(@name) and status != 'background'
                     """;
 
-                var value = connection
+                int value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
 
                 return new Metric(value);
@@ -846,12 +846,12 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = """
+                string sqlQuery = """
                     select count(*) from sys.sysprocesses
                     where dbid = db_id(@name) and status != 'background' and open_tran = 1
                     """;
 
-                var value = connection
+                int value = connection
                     .QuerySingle<int>(sqlQuery, new { name = connection.Database });
 
                 return new Metric(value);
@@ -868,12 +868,12 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = """
+                string sqlQuery = """
                     select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as RowsSizeMB from sys.database_files
                     where type = 0;
                     """;
 
-                var value = connection.QuerySingle<double>(sqlQuery);
+                double value = connection.QuerySingle<double>(sqlQuery);
 
                 return new Metric(value.ToString("F", CultureInfo.CurrentCulture));
             });
@@ -889,12 +889,12 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
-                var sqlQuery = """
+                string sqlQuery = """
                     select SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS INT)/128.0) as LogSizeMB from sys.database_files
                     where type = 1;
                     """;
 
-                var value = connection.QuerySingle<double>(sqlQuery);
+                double value = connection.QuerySingle<double>(sqlQuery);
 
                 return new Metric(value.ToString("F", CultureInfo.CurrentCulture));
             });
@@ -910,8 +910,8 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (storage, connection) =>
             {
-                var sqlQuery = $@"select top(1) [Version] from [{storage.SchemaName}].[Schema]";
-                var version = connection.QuerySingleOrDefault<int?>(sqlQuery);
+                string sqlQuery = $@"select top(1) [Version] from [{storage.SchemaName}].[Schema]";
+                int? version = connection.QuerySingleOrDefault<int?>(sqlQuery);
 
                 if (!version.HasValue)
                 {
@@ -949,7 +949,7 @@ public class SqlServerStorage : JobStorage
 
             return sqlStorage.UseConnection(null, static (_, connection, ctx) =>
             {
-                var sqlQuery = $@"SELECT cntr_value FROM sys.dm_os_performance_counters where object_name = @objectName and instance_name = @instanceName and counter_name = @counterName";
+                string sqlQuery = $@"SELECT cntr_value FROM sys.dm_os_performance_counters where object_name = @objectName and instance_name = @instanceName and counter_name = @counterName";
                 long? value;
 
                 try

@@ -141,9 +141,9 @@ public static class BackgroundProcessExtensions
         ArgumentNullException.ThrowIfNull(threadStart);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
 
-        for (var i = 0; i < threadCount; i++)
+        for (int i = 0; i < threadCount; i++)
         {
-            var thread = new Thread(threadStart)
+            Thread thread = new(threadStart)
             {
                 IsBackground = true,
                 Name = $"{threadName} #{i + 1}"

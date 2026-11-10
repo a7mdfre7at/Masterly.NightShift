@@ -40,7 +40,7 @@ internal sealed class BackgroundDispatcher : IBackgroundDispatcher
         _action = action ?? throw new ArgumentNullException(nameof(action));
         _state = state;
 
-        var threads = threadFactory(DispatchLoop)?.ToArray();
+        Thread[]? threads = threadFactory(DispatchLoop)?.ToArray();
 
         if (threads == null || threads.Length == 0)
         {
@@ -54,7 +54,7 @@ internal sealed class BackgroundDispatcher : IBackgroundDispatcher
 
         _stopped = new CountdownEvent(threads.Length);
 
-        foreach (var thread in threads)
+        foreach (Thread? thread in threads)
         {
             thread.Start();
         }

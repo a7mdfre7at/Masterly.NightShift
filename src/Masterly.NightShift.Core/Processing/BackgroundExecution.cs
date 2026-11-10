@@ -63,11 +63,11 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        var executionId = Guid.NewGuid();
+        Guid executionId = Guid.NewGuid();
 
         // ExecutionId correlates the log entries of one execution loop. Thread.ManagedThreadId can't, because
         // the async loop runs its continuations on different threads.
-        HandleStarted(executionId, out var nextDelay);
+        HandleStarted(executionId, out TimeSpan nextDelay);
 
         // Every exception is handled inside the loop, so only the stop token ends it
         while (!StopRequested)
@@ -98,9 +98,9 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     {
         ArgumentNullException.ThrowIfNull(callback);
 
-        var executionId = Guid.NewGuid();
+        Guid executionId = Guid.NewGuid();
 
-        HandleStarted(executionId, out var nextDelay);
+        HandleStarted(executionId, out TimeSpan nextDelay);
 
         // Every exception is handled inside the loop, so only the stop token ends it
         while (!StopRequested)
@@ -271,7 +271,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
 
     private void HandleStop(Guid executionId)
     {
-        var stoppedAt = Volatile.Read(ref _stoppedAt);
+        Stopwatch? stoppedAt = Volatile.Read(ref _stoppedAt);
         _logger.Debug($"{GetExecutionLoopTemplate(executionId)} stopped in {stoppedAt?.Elapsed.TotalMilliseconds ?? 0} ms");
     }
 
@@ -317,7 +317,7 @@ internal sealed class BackgroundExecution : IBackgroundExecution
             _exceptionsCount++;
             _lastException = Stopwatch.StartNew();
 
-            var optionsRetryDelay = _options.RetryDelay;
+            Func<int, TimeSpan> optionsRetryDelay = _options.RetryDelay;
             if (optionsRetryDelay != null)
             {
                 retryDelay = optionsRetryDelay(_exceptionsCount);

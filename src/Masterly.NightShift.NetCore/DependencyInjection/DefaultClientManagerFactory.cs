@@ -13,7 +13,9 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.States;
 
 namespace Masterly.NightShift;
 
@@ -23,7 +25,7 @@ internal sealed class DefaultClientManagerFactory([NotNull] IServiceProvider ser
 
     public IBackgroundJobClientV2 GetClientV2(JobStorage storage)
     {
-        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out var stateChanger, out _))
+        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out IBackgroundJobFactory? factory, out IBackgroundJobStateChanger? stateChanger, out _))
         {
             return new BackgroundJobClient(storage, factory, stateChanger);
         }
@@ -40,7 +42,7 @@ internal sealed class DefaultClientManagerFactory([NotNull] IServiceProvider ser
 
     public IRecurringJobManagerV3 GetManagerV3(JobStorage storage)
     {
-        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out var factory, out _, out _))
+        if (NightShiftServiceCollectionExtensions.GetInternalServices(_serviceProvider, out IBackgroundJobFactory? factory, out _, out _))
         {
             return new RecurringJobManager(
                 storage,

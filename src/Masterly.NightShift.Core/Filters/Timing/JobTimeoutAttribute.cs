@@ -60,21 +60,21 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
-        var shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
+        CancellationToken shutdownToken = invocation.Context.CancellationToken.ShutdownToken;
 
         // The timer is this attribute's own, so it knows whether it timed out itself or an outer one did. The
         // token the method gets is linked to the tokens already in place (those of an outer JobTimeout, for
         // example), so every timeout applies and the shortest wins.
-        using var timer = new CancellationTokenSource();
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(GetTokensToLink(invocation, shutdownToken, timer.Token));
-        var originalArguments = ReplaceTokens(invocation, timeoutSource.Token);
-        var startedAt = JobClock.UtcNow;
+        using CancellationTokenSource timer = new();
+        using CancellationTokenSource timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(GetTokensToLink(invocation, shutdownToken, timer.Token));
+        object?[]? originalArguments = ReplaceTokens(invocation, timeoutSource.Token);
+        DateTime startedAt = JobClock.UtcNow;
 
         timer.CancelAfter(Timeout);
 
         try
         {
-            var result = await invocation.ProceedAsync().ConfigureAwait(false);
+            object? result = await invocation.ProceedAsync().ConfigureAwait(false);
 
             if (originalArguments == null && JobClock.UtcNow - startedAt > Timeout)
             {
@@ -106,7 +106,7 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     {
         lock (context.Items)
         {
-            if (context.Items.TryGetValue(ExceededItem, out var recorded) && recorded is TimeSpan shorter && shorter <= Timeout) return;
+            if (context.Items.TryGetValue(ExceededItem, out object? recorded) && recorded is TimeSpan shorter && shorter <= Timeout) return;
             context.Items[ExceededItem] = Timeout;
         }
 
@@ -126,10 +126,10 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     // parameter, each once.
     private static CancellationToken[] GetTokensToLink(JobInvocation invocation, CancellationToken shutdownToken, CancellationToken timerToken)
     {
-        var tokens = new List<CancellationToken> { shutdownToken, timerToken };
-        var parameterTypes = invocation.Invoker.ParameterTypes;
+        List<CancellationToken> tokens = [shutdownToken, timerToken];
+        Type[] parameterTypes = invocation.Invoker.ParameterTypes;
 
-        for (var i = 0; i < parameterTypes.Length; i++)
+        for (int i = 0; i < parameterTypes.Length; i++)
         {
             CancellationToken token;
 
@@ -166,9 +166,9 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     private static object?[]? ReplaceTokens(JobInvocation invocation, CancellationToken token)
     {
         object?[]? originalArguments = null;
-        var parameterTypes = invocation.Invoker.ParameterTypes;
+        Type[] parameterTypes = invocation.Invoker.ParameterTypes;
 
-        for (var i = 0; i < parameterTypes.Length; i++)
+        for (int i = 0; i < parameterTypes.Length; i++)
         {
             if (parameterTypes[i] == typeof(CancellationToken))
             {
@@ -187,9 +187,9 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
 
     private static void RestoreTokens(JobInvocation invocation, object?[] originalArguments)
     {
-        var parameterTypes = invocation.Invoker.ParameterTypes;
+        Type[] parameterTypes = invocation.Invoker.ParameterTypes;
 
-        for (var i = 0; i < parameterTypes.Length; i++)
+        for (int i = 0; i < parameterTypes.Length; i++)
         {
             if (parameterTypes[i] == typeof(CancellationToken) || parameterTypes[i] == typeof(IJobCancellationToken))
             {

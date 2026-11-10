@@ -50,7 +50,7 @@ internal sealed class PostCommitActions
     {
         // The state change is committed already, or failed for another reason: a failing action must not make
         // the caller retry it, nor hide the original error
-        foreach (var action in _actions)
+        foreach (KeyValuePair<Action, bool> action in _actions)
         {
             if (onlyRegardless && !action.Value) continue;
 

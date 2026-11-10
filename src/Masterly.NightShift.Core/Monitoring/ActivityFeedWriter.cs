@@ -94,8 +94,8 @@ internal sealed class ActivityFeedWriter
 
     private void WriteBatch()
     {
-        var batch = new List<string>(BatchSize);
-        while (batch.Count < BatchSize && _pending.TryDequeue(out var entry))
+        List<string> batch = new(BatchSize);
+        while (batch.Count < BatchSize && _pending.TryDequeue(out string? entry))
         {
             batch.Add(entry);
             Interlocked.Decrement(ref _pendingCount);
@@ -104,14 +104,14 @@ internal sealed class ActivityFeedWriter
         if (batch.Count == 0) return;
 
         _sinceTrim += batch.Count;
-        var trim = _sinceTrim >= TrimInterval;
+        bool trim = _sinceTrim >= TrimInterval;
 
         try
         {
-            using (var connection = _storage.GetConnection())
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IStorageConnection connection = _storage.GetConnection())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
-                foreach (var entry in batch)
+                foreach (string entry in batch)
                 {
                     transaction.InsertToList(ActivityFeed.ListKey, entry);
                 }

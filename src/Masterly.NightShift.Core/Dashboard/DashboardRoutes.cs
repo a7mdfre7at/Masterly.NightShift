@@ -56,7 +56,7 @@ public static class DashboardRoutes
         Routes.Add("/health", new HealthDispatcher());
         Routes.Add("/metrics", new PrometheusDispatcher());
 
-        var executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
+        Assembly executingAssembly = typeof(DashboardRoutes).GetTypeInfo().Assembly;
 
         AddStylesheet(executingAssembly, GetContentResourceName("css", "bootstrap.min.css"));
         AddStylesheet(executingAssembly, GetContentResourceName("css", "Chart.min.css"));
@@ -106,7 +106,7 @@ public static class DashboardRoutes
             GetContentResourceName("fonts", "glyphicons-halflings-regular.woff2")));
 
         // The documentation site's fonts, referenced by the @font-face rules of nightshift-ui.css
-        foreach (var font in Fonts)
+        foreach (string font in Fonts)
         {
             Routes.Add($"/fonts/{font}/woff2", new EmbeddedResourceDispatcher(
                 "font/woff2",
@@ -130,7 +130,7 @@ public static class DashboardRoutes
         // patterns would also match these paths. Each answers { processed, remaining, complete }.
         Routes.Add("/jobs/enqueued/delete-all/(?<Queue>.+)", new JobListCommandDispatcher(static context =>
         {
-            var queue = RouteValues.Get(context, "Queue");
+            string queue = RouteValues.Get(context, "Queue");
             return JobListCommands.DeleteAll(
                 context,
                 (monitor, from, count) => monitor.EnqueuedJobs(queue, from, count).Select(static x => ListItem(x.Key, x.Value?.InEnqueuedState)),
@@ -254,7 +254,7 @@ public static class DashboardRoutes
             "/jobs/actions/requeue/(?<JobId>.+)",
             static context =>
             {
-                var client = context.GetBackgroundJobClient();
+                IBackgroundJobClient client = context.GetBackgroundJobClient();
                 return client.ChangeState(RouteValues.Get(context, "JobId"), CreateEnqueuedState());
             });
 
@@ -262,7 +262,7 @@ public static class DashboardRoutes
             "/jobs/actions/delete/(?<JobId>.+)",
             static context =>
             {
-                var client = context.GetBackgroundJobClient();
+                IBackgroundJobClient client = context.GetBackgroundJobClient();
                 return client.ChangeState(RouteValues.Get(context, "JobId"), CreateDeletedState());
             });
 
@@ -303,7 +303,7 @@ public static class DashboardRoutes
         Routes.AddRazorPage("/tags", static _ => new TagsPage());
         Routes.AddCommand("/tags/forget/(?<Tag>.+)", static context =>
         {
-            using var connection = context.Storage.GetConnection();
+            using IStorageConnection connection = context.Storage.GetConnection();
             JobTags.Delete(connection, RouteValues.Get(context, "Tag"));
 
             return true;
@@ -326,7 +326,7 @@ public static class DashboardRoutes
             "/insights/circuits/reset/(?<Resource>.+)",
             static context =>
             {
-                using var connection = context.Storage.GetConnection();
+                using IStorageConnection connection = context.Storage.GetConnection();
                 CircuitBreakerAttribute.Reset(connection, RouteValues.Get(context, "Resource"));
 
                 return true;
@@ -421,9 +421,9 @@ public static class DashboardRoutes
     {
         unchecked
         {
-            var hash = (uint)current;
+            uint hash = (uint)current;
 
-            foreach (var ch in $"{moduleVersionId:N}/{resource}")
+            foreach (char ch in $"{moduleVersionId:N}/{resource}")
             {
                 hash ^= ch;
                 hash *= FnvPrime;

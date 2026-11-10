@@ -17,15 +17,15 @@ internal static class JobInterceptorPipeline
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        var declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
-        var global = GlobalJobInterceptors.Interceptors;
+        IJobInterceptor[] declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
+        IReadOnlyList<IJobInterceptor> global = GlobalJobInterceptors.Interceptors;
 
         if (global.Count == 0) return declared;
         if (declared.Length == 0) return global;
 
-        var combined = new IJobInterceptor[global.Count + declared.Length];
+        IJobInterceptor[] combined = new IJobInterceptor[global.Count + declared.Length];
 
-        for (var i = 0; i < global.Count; i++)
+        for (int i = 0; i < global.Count; i++)
         {
             combined[i] = global[i];
         }
@@ -36,17 +36,16 @@ internal static class JobInterceptorPipeline
 
     private static IJobInterceptor[] GetDeclaredInterceptors(Type type, MethodInfo method)
     {
-        var typeAttributes = type.GetTypeInfo().GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
-        var methodAttributes = method.GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
+        IEnumerable<JobInterceptorAttribute> typeAttributes = type.GetTypeInfo().GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
+        IEnumerable<JobInterceptorAttribute> methodAttributes = method.GetCustomAttributes<JobInterceptorAttribute>(inherit: true);
 
-        var all = typeAttributes
+        IJobInterceptor[] all = [.. typeAttributes
             .Select(static (attribute, index) => (Attribute: attribute, Scope: 0, Index: index))
             .Concat(methodAttributes.Select(static (attribute, index) => (Attribute: attribute, Scope: 1, Index: index)))
             .OrderBy(static x => x.Attribute.Order)
             .ThenBy(static x => x.Scope)
             .ThenBy(static x => x.Index)
-            .Select(static x => (IJobInterceptor)x.Attribute)
-            .ToArray();
+            .Select(static x => (IJobInterceptor)x.Attribute)];
 
         return all.Length == 0 ? Empty : all;
     }

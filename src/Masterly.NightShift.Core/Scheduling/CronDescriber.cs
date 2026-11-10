@@ -32,37 +32,37 @@ internal static class CronDescriber
     {
         ArgumentNullException.ThrowIfNull(expression);
 
-        var text = expression.Trim();
-        if (Presets.TryGetValue(text, out var preset)) text = preset;
+        string text = expression.Trim();
+        if (Presets.TryGetValue(text, out string? preset)) text = preset;
 
-        var parts = text.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = text.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length is not 5 and not 6)
         {
             throw new FormatException("A CRON expression has 5 or 6 fields.");
         }
 
-        var offset = parts.Length == 6 ? 1 : 0;
-        var second = parts.Length == 6 ? Field.Parse(parts[0], 0, 59, null) : Field.Fixed(0);
-        var minute = Field.Parse(parts[offset], 0, 59, null);
-        var hour = Field.Parse(parts[offset + 1], 0, 23, null);
-        var dayOfMonth = Field.Parse(parts[offset + 2], 1, 31, null, allowSpecial: true);
-        var month = Field.Parse(parts[offset + 3], 1, 12, [.. MonthNames.Skip(1).Select(static x => x[..3])]);
-        var dayOfWeek = Field.Parse(parts[offset + 4], 0, 7, [.. DayNames.Select(static x => x[..3])], allowSpecial: true);
+        int offset = parts.Length == 6 ? 1 : 0;
+        Field second = parts.Length == 6 ? Field.Parse(parts[0], 0, 59, null) : Field.Fixed(0);
+        Field minute = Field.Parse(parts[offset], 0, 59, null);
+        Field hour = Field.Parse(parts[offset + 1], 0, 23, null);
+        Field dayOfMonth = Field.Parse(parts[offset + 2], 1, 31, null, allowSpecial: true);
+        Field month = Field.Parse(parts[offset + 3], 1, 12, [.. MonthNames.Skip(1).Select(static x => x[..3])]);
+        Field dayOfWeek = Field.Parse(parts[offset + 4], 0, 7, [.. DayNames.Select(static x => x[..3])], allowSpecial: true);
 
-        var time = DescribeTime(second, minute, hour, parts.Length == 6);
-        var date = DescribeDate(dayOfMonth, month, dayOfWeek);
+        string time = DescribeTime(second, minute, hour, parts.Length == 6);
+        string date = DescribeDate(dayOfMonth, month, dayOfWeek);
 
-        var result = date.Length > 0 ? $"{time}, {date}" : time;
+        string result = date.Length > 0 ? $"{time}, {date}" : time;
         return char.ToUpperInvariant(result[0]) + result[1..];
     }
 
     private static string DescribeTime(Field second, Field minute, Field hour, bool hasSeconds)
     {
-        var hourSuffix = DescribeHourQualifier(hour);
+        string? hourSuffix = DescribeHourQualifier(hour);
 
         if (hasSeconds && (second.IsEvery || second.Step > 1))
         {
-            var every = DescribeEvery(second, "second", "minute");
+            string every = DescribeEvery(second, "second", "minute");
 
             if (minute.IsEvery) return Join(every, hourSuffix);
             if (hour.IsSpecific && minute.IsSpecific && TryDescribeTimes(hour, minute, null) is { } times) return Join(every, $"at {times}");
@@ -72,8 +72,8 @@ internal static class CronDescriber
 
         if (minute.IsEvery || minute.Step > 1)
         {
-            var every = DescribeEvery(minute, "minute", "hour");
-            var seconds = hasSeconds && second.IsSpecific && !second.IsZero
+            string every = DescribeEvery(minute, "minute", "hour");
+            string? seconds = hasSeconds && second.IsSpecific && !second.IsZero
                 ? $"at second{(second.Values.Count > 1 ? "s" : "")} {second.Describe()}"
                 : null;
 
@@ -83,14 +83,14 @@ internal static class CronDescriber
         // Specific minutes
         if (hour.IsSpecific)
         {
-            var seconds = hasSeconds && !second.IsZero ? second : null;
+            Field? seconds = hasSeconds && !second.IsZero ? second : null;
 
-            var times = TryDescribeTimes(hour, minute, seconds);
+            string? times = TryDescribeTimes(hour, minute, seconds);
             if (times != null) return $"at {times}";
 
             if (!hour.IsRange)
             {
-                var minutes = minute.Values.Count == 1 ? $"minute {minute.Values[0]}" : $"minutes {minute.Describe()}";
+                string minutes = minute.Values.Count == 1 ? $"minute {minute.Values[0]}" : $"minutes {minute.Describe()}";
                 return $"at {minutes} past hours {hour.Describe()}";
             }
 
@@ -101,8 +101,8 @@ internal static class CronDescriber
             }
         }
 
-        var atStart = minute.Values.Count == 1 && minute.Values[0] == 0;
-        var past = atStart ? "at the start of"
+        bool atStart = minute.Values.Count == 1 && minute.Values[0] == 0;
+        string past = atStart ? "at the start of"
             : minute.Values.Count == 1 ? $"at {minute.Values[0]} minute{(minute.Values[0] == 1 ? "" : "s")} past"
             : $"at minutes {minute.Describe()} past";
 
@@ -149,14 +149,14 @@ internal static class CronDescriber
     {
         if (hour.Values.Count * minute.Values.Count > 6) return null;
 
-        var times = new List<string>();
-        foreach (var h in hour.Values)
-        foreach (var m in minute.Values)
+        List<string> times = [];
+        foreach (int h in hour.Values)
+        foreach (int m in minute.Values)
         {
             times.Add(FormatTime(h, m, second));
         }
 
-        var text = JoinList(times);
+        string text = JoinList(times);
         return second != null && second.Values.Count > 1 ? $"{text} (seconds {second.Describe()})" : text;
     }
 
@@ -169,10 +169,10 @@ internal static class CronDescriber
 
     private static string DescribeDate(Field dayOfMonth, Field month, Field dayOfWeek)
     {
-        var parts = new List<string>();
+        List<string> parts = [];
 
-        var domText = DescribeDayOfMonth(dayOfMonth);
-        var dowText = DescribeDayOfWeek(dayOfWeek);
+        string? domText = DescribeDayOfMonth(dayOfMonth);
+        string? dowText = DescribeDayOfWeek(dayOfWeek);
 
         // Cronos runs only on days that match both fields (unlike Vixie cron, which takes either), so say "if"
         if (domText != null && dowText != null) parts.Add($"{domText} if it is {DescribeDayOfWeekCondition(dayOfWeek)}");
@@ -246,8 +246,8 @@ internal static class CronDescriber
 
         if (field.Special != null)
         {
-            var hash = field.Special.IndexOf('#');
-            if (hash > 0 && int.TryParse(field.Special.AsSpan(hash + 1), out var nth) && nth >= 1 && nth <= 5)
+            int hash = field.Special.IndexOf('#');
+            if (hash > 0 && int.TryParse(field.Special.AsSpan(hash + 1), out int nth) && nth >= 1 && nth <= 5)
             {
                 return $"on the {Ordinals[nth]} {DayName(field.Special[..hash], field.Names)} of the month";
             }
@@ -261,7 +261,7 @@ internal static class CronDescriber
         }
 
         // A step is a list here: no step fits the week evenly (see Field.NormalizeStep)
-        var days = field.Values.Select(static x => x % 7).Distinct().ToList();
+        List<int> days = [.. field.Values.Select(static x => x % 7).Distinct()];
 
         if (days.Count == 5 && !days.Contains(0) && !days.Contains(6)) return "Monday to Friday";
         if (days.Count == 2 && days.Contains(0) && days.Contains(6)) return "on weekends";
@@ -279,16 +279,16 @@ internal static class CronDescriber
     {
         if (field.Special != null)
         {
-            var text = DescribeDayOfWeek(field)!;
+            string text = DescribeDayOfWeek(field)!;
             return text.StartsWith("on ", StringComparison.Ordinal) ? text[3..] : text;
         }
 
-        var days = field.Values.Select(static x => x % 7).Distinct().OrderBy(static x => x).ToList();
+        List<int> days = [.. field.Values.Select(static x => x % 7).Distinct().OrderBy(static x => x)];
 
         if (days.Count == 5 && !days.Contains(0) && !days.Contains(6)) return "a weekday";
         if (days.Count == 2 && days.Contains(0) && days.Contains(6)) return "a Saturday or Sunday";
 
-        var names = days.Select(static x => DayNames[x]).ToList();
+        List<string> names = [.. days.Select(static x => DayNames[x])];
         return names.Count == 1
             ? $"a {names[0]}"
             : $"a {string.Join(", ", names.Take(names.Count - 1))} or {names[^1]}";
@@ -296,11 +296,11 @@ internal static class CronDescriber
 
     private static string DayName(string token, string[]? names)
     {
-        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)) return DayNames[number % 7];
+        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)) return DayNames[number % 7];
 
         if (names != null)
         {
-            var index = Array.FindIndex(names, x => x.Equals(token, StringComparison.OrdinalIgnoreCase));
+            int index = Array.FindIndex(names, x => x.Equals(token, StringComparison.OrdinalIgnoreCase));
             if (index >= 0) return DayNames[index];
         }
 
@@ -354,7 +354,7 @@ internal static class CronDescriber
 
         public static Field Fixed(int value)
         {
-            var field = new Field();
+            Field field = new();
             field.Values.Add(value);
             return field;
         }
@@ -362,9 +362,9 @@ internal static class CronDescriber
         public static Field Parse(string text, int min, int max, string[]? names, bool allowSpecial = false)
         {
             // The day of week wraps around as 0-6, where 7 is Sunday like 0
-            var field = new Field { Names = names, _min = min, _size = max == 7 && min == 0 ? 7 : max - min + 1 };
-            var token = text.Trim();
-            var wraps = false;
+            Field field = new() { Names = names, _min = min, _size = max == 7 && min == 0 ? 7 : max - min + 1 };
+            string token = text.Trim();
+            bool wraps = false;
 
             if (token is "*" or "?")
             {
@@ -379,11 +379,11 @@ internal static class CronDescriber
                 return field;
             }
 
-            foreach (var item in token.Split(','))
+            foreach (string item in token.Split(','))
             {
-                var stepIndex = item.IndexOf('/');
-                var rangePart = stepIndex >= 0 ? item[..stepIndex] : item;
-                var step = stepIndex >= 0 ? int.Parse(item.AsSpan(stepIndex + 1), CultureInfo.InvariantCulture) : 1;
+                int stepIndex = item.IndexOf('/');
+                string rangePart = stepIndex >= 0 ? item[..stepIndex] : item;
+                int step = stepIndex >= 0 ? int.Parse(item.AsSpan(stepIndex + 1), CultureInfo.InvariantCulture) : 1;
 
                 int start, end;
 
@@ -399,7 +399,7 @@ internal static class CronDescriber
                 }
                 else
                 {
-                    var dash = rangePart.IndexOf('-');
+                    int dash = rangePart.IndexOf('-');
                     if (dash > 0)
                     {
                         start = ParseValue(rangePart[..dash], names);
@@ -435,16 +435,16 @@ internal static class CronDescriber
                     // A range that ends before it starts wraps around, like Cronos: 22-2 is 22, 23, 0, 1 and 2,
                     // and the step carries on across the end (22-6/2 is 22, 0, 2, 4 and 6)
                     wraps = true;
-                    for (var offset = 0; offset <= field.Distance(start, end); offset += step)
+                    for (int offset = 0; offset <= field.Distance(start, end); offset += step)
                     {
-                        var value = field._min + ((start - field._min + offset) % field._size);
+                        int value = field._min + ((start - field._min + offset) % field._size);
                         if (!field.Values.Contains(value)) field.Values.Add(value);
                     }
 
                     continue;
                 }
 
-                for (var value = start; value <= end; value += step)
+                for (int value = start; value <= end; value += step)
                 {
                     if (!field.Values.Contains(value)) field.Values.Add(value);
                 }
@@ -466,8 +466,8 @@ internal static class CronDescriber
         /// </summary>
         private void NormalizeStep()
         {
-            var evenlySpaced = true;
-            for (var i = 1; i < Values.Count; i++)
+            bool evenlySpaced = true;
+            for (int i = 1; i < Values.Count; i++)
             {
                 if (Distance(Values[i - 1], Values[i]) != Step) evenlySpaced = false;
             }
@@ -508,17 +508,17 @@ internal static class CronDescriber
         // Steps from one value to another, going around the end when the second is smaller
         private int Distance(int from, int to)
         {
-            var size = _size > 0 ? _size : 1;
+            int size = _size > 0 ? _size : 1;
             return (((to - from) % size) + size) % size;
         }
 
         private static int ParseValue(string text, string[]? names)
         {
-            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)) return number;
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)) return number;
 
             if (names != null)
             {
-                var index = Array.FindIndex(names, x => x.Equals(text, StringComparison.OrdinalIgnoreCase));
+                int index = Array.FindIndex(names, x => x.Equals(text, StringComparison.OrdinalIgnoreCase));
                 if (index >= 0) return index + (names.Length == 12 ? 1 : 0);
             }
 

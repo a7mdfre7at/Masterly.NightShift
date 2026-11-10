@@ -82,9 +82,9 @@ public static class AuditLog
         ArgumentNullException.ThrowIfNull(context);
         if (!Enabled) return;
 
-        var targetList = targets?.Where(static t => !string.IsNullOrEmpty(t)).ToList();
+        List<string>? targetList = targets?.Where(static t => !string.IsNullOrEmpty(t)).ToList();
 
-        var entry = new AuditEntry
+        AuditEntry entry = new()
         {
             Timestamp = JobHelper.ToTimestamp(Clock()),
             User = Truncate(context.GetUserName(), 200),
@@ -101,8 +101,8 @@ public static class AuditLog
 
         try
         {
-            using var connection = context.Storage.GetConnection();
-            using var transaction = connection.CreateWriteTransaction();
+            using IStorageConnection connection = context.Storage.GetConnection();
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             transaction.InsertToList(ListKey, MonitoringJson.Serialize(entry));
             transaction.TrimList(ListKey, 0, Math.Max(0, MaxEntries - 1));
             transaction.Commit();
@@ -136,13 +136,13 @@ public static class AuditLog
             return [];
         }
 
-        var result = new List<AuditEntry>(items.Count);
+        List<AuditEntry> result = new(items.Count);
 
-        foreach (var item in items)
+        foreach (string item in items)
         {
             try
             {
-                var entry = MonitoringJson.Deserialize<AuditEntry>(item);
+                AuditEntry? entry = MonitoringJson.Deserialize<AuditEntry>(item);
                 if (entry != null) result.Add(entry);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -176,8 +176,8 @@ public static class AuditLog
     {
         ArgumentNullException.ThrowIfNull(action);
 
-        var path = action.Trim('/');
-        foreach (var pair in Descriptions)
+        string path = action.Trim('/');
+        foreach (KeyValuePair<string, string> pair in Descriptions)
         {
             if (path.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase)) return pair.Value;
         }
@@ -238,7 +238,7 @@ public static class AuditLog
 
     private static string FormatForLog(AuditEntry entry)
     {
-        var text = new StringBuilder("Dashboard action ").Append(entry.Action)
+        StringBuilder text = new StringBuilder("Dashboard action ").Append(entry.Action)
             .Append(" by ").Append(entry.User ?? "an anonymous user")
             .Append(" from ").Append(entry.RemoteIpAddress ?? "an unknown address");
 
@@ -254,7 +254,7 @@ public static class AuditLog
         // The user name, the targets and the detail (a note's text, a pause reason) come from requests: a line
         // break in them would start what looks like another entry in a plain-text log. Only the log line is
         // changed; the stored entry keeps the text as it was.
-        for (var i = 0; i < text.Length; i++)
+        for (int i = 0; i < text.Length; i++)
         {
             if (char.IsControl(text[i]) || text[i] == LineSeparator || text[i] == ParagraphSeparator) text[i] = ' ';
         }

@@ -26,7 +26,7 @@ internal sealed class ServerPauseDispatcher(bool pause) : IDashboardDispatcher
             return;
         }
 
-        var serverId = RouteValues.Get(context, "Id").Trim();
+        string serverId = RouteValues.Get(context, "Id").Trim();
         if (serverId.Length == 0)
         {
             context.Response.StatusCode = 422;
@@ -34,7 +34,7 @@ internal sealed class ServerPauseDispatcher(bool pause) : IDashboardDispatcher
         }
 
         string? reason = null;
-        using (var connection = context.Storage.GetConnection())
+        using (IStorageConnection connection = context.Storage.GetConnection())
         {
             if (_pause)
             {
