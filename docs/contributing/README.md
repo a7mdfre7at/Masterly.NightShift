@@ -162,7 +162,7 @@ Job IDs returned by `Create`, `Enqueue`, `Schedule` and `ContinueJobWith` are `s
 
 ### Code style
 
-- The build enforces the code style in [`.editorconfig`](../../.editorconfig). Use C# 8 to 14 features: file-scoped namespaces, primary constructors, records for read-only data, collection expressions, pattern matching, `extension` blocks and raw string literals. `var` is fine, and parameters carry `[NotNull]`/`[CanBeNull]` (from `Masterly.NightShift.Annotations`).
+- The build enforces the code style in [`.editorconfig`](../../.editorconfig). Use C# 8 to 14 features: file-scoped namespaces, primary constructors, records for read-only data, collection expressions, pattern matching, `extension` blocks and raw string literals. Use explicit types with target-typed `new()` (`Foo foo = new();`) instead of `var`, which stays only for anonymous types. Parameters carry `[NotNull]`/`[CanBeNull]` (from `Masterly.NightShift.Annotations`).
 - In library code, read the time from `JobClock.UtcNow`, not `DateTime.UtcNow`.
 - Four spaces, no tabs ([`.editorconfig`](../../.editorconfig)).
 - Most public types are in the `Masterly.NightShift` namespace no matter which folder they live in. Keep a moved or new type in the namespace its neighbours use. See [Architecture](architecture.md#source-tree).

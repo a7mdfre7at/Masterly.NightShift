@@ -5,6 +5,7 @@ A background job is a method call that Masterly.NightShift stores and runs later
 | Page | What it covers |
 |---|---|
 | [Fire-and-forget jobs](fire-and-forget.md) | `Enqueue` in all its forms, queues, `Create` with an explicit state, `BackgroundJobClient`, why a job ID can be `null` |
+| [Job classes](typed-handlers.md) | `IJob` and `IJobHandler<TArgs>`: jobs created from a class or an arguments object, with the work in a class of its own |
 | [Delayed jobs](delayed-jobs.md) | `Schedule` with a `TimeSpan`, a `DateTimeOffset` or a plain-English phrase such as `"tomorrow at 9am"` (`TimeText`) |
 | [Continuations](continuations.md) | `ContinueJobWith`, `JobContinuationOptions`, passing a parent's result or exception with `[FromResult]` / `[FromException]` |
 | [Fan-in and batches](fan-in-and-batches.md) | `ContinueJobWithAll` / `ContinueJobWithAny`, and `BatchJob` for groups of jobs with progress and a continuation |

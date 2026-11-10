@@ -188,7 +188,9 @@ function Hero() {
           <p className={styles.heroLead}>
             Fire-and-forget, delayed, recurring and continuation jobs for .NET, stored in a database you already run.
             Jobs survive restarts and deploys, failures are retried for you, and a built-in dashboard shows what is
-            happening. No Windows Service or Task Scheduler needed.
+            happening. No Windows Service or Task Scheduler needed. It is a remastered fork of Hangfire that calls your
+            jobs through source-generated code instead of reflection.{' '}
+            <Link to="/docs/compared-with-hangfire">See how they compare</Link>.
           </p>
           <div className={styles.heroActions}>
             <Link

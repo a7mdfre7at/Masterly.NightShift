@@ -37,6 +37,26 @@ app.Run();
 
 `AddNightShift` configures the storage, `AddNightShiftServer` starts the workers that run jobs, and `Enqueue` stores a call to `EmailService.SendWelcome(id)` that a worker runs as soon as it is free. If it throws, it is retried automatically.
 
+## Remastered from Hangfire
+
+Masterly.NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/) 1.8.25. It keeps Hangfire's programming model and reads your existing Hangfire SQL Server data. It was refactored for .NET 8 and later, and a source generator writes direct calls to your job methods instead of calling them through reflection. It is an independent project, not affiliated with or endorsed by Hangfire OÜ.
+
+| | Hangfire 1.8.25 | NightShift 1.0 |
+|---|---|---|
+| Platforms | .NET Framework 4.5.1 and later, .NET Standard | .NET 8 and later only |
+| Calling your job method | `MethodInfo.Invoke` | Source-generated direct call, with compiled and reflection fallbacks |
+| JSON | Newtonsoft.Json | System.Text.Json |
+| Batches and fan-in | Paid (Hangfire Pro) | Included |
+| Semaphores and rate limits | Paid (Hangfire Ace) | Included |
+| Circuit breaker, duplicate prevention | Not included | Included |
+| Timeouts, deadlines, run windows | `[LatencyTimeout]` only | Included |
+| Progress, console, resume after failure | Community packages | Included |
+| OpenTelemetry, Prometheus, health checks, alerts | Community packages | Included |
+| Storage | SQL Server, paid Redis, many community storages | SQL Server; other storages have to be written or ported |
+| Support and track record | Paid support available; more than a decade in production | Community support through GitHub; 1.0 is the first release |
+
+In benchmarks, calling a job method is about 4 times faster, running a job through its filters allocates about 60% less memory, and serializing a job allocates over 80% less. End-to-end throughput on SQL Server is about the same. [NightShift compared with Hangfire](compared-with-hangfire.md) has the full comparison, the numbers, and when to stay on Hangfire.
+
 ## Find what you need
 
 ### [Getting started](getting-started/README.md)
@@ -138,6 +158,7 @@ app.Run();
 | Page | What it covers |
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common problems, their causes and fixes |
+| [NightShift compared with Hangfire](compared-with-hangfire.md) | Differences, benefits, when to stay on Hangfire, benchmarks |
 | [Migrating from Hangfire](migrating-from-hangfire.md) | Package and API mapping, what changed, a step-by-step checklist |
 | [What's new](whats-new-next.md) | Features added on top of Hangfire, with examples |
 | [Breaking changes](breaking-changes.md) | Everything that behaves differently, and why |

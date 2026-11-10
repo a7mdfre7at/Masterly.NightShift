@@ -8,6 +8,7 @@ A recurring job is a method call stored together with a schedule. You register i
 | [CRON and schedules](cron-and-schedules.md) | The CRON format, every `Cron.*` helper, `Cron.Builder()`, plain-English schedules with `Cron.FromText`, `Cron.Describe` and previews |
 | [Pausing and updating](pausing-and-updating.md) | `Pause`, `Resume` and `UpdateSchedule`: change when and where a job runs without redeploying |
 | [Time zones and misfires](time-zones-and-misfires.md) | Running a schedule in a time zone, daylight saving changes, server downtime, `MisfireHandlingMode`, how start and end dates bound the schedule, `ITimeZoneResolver` |
+| [Recurring jobs declared in code](recurring-jobs-in-code.md) | `AddNightShiftRecurringJobs` and `RecurringJobSet`: declare schedules with the services, apply them at start-up, remove old ones |
 | [Recurring job manifest](recurring-job-manifest.md) | Export every recurring job to JSON and apply it back, to keep schedules in source control and move them between environments |
 
 The most common case: register a job at application start-up, using the `IRecurringJobManager` that `AddNightShift` puts in the service container.

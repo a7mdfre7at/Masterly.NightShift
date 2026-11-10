@@ -7,11 +7,11 @@ Most features are opt-in: an attribute on a job method, a configuration call, or
 | Area | Features |
 |---|---|
 | [Running jobs](#running-jobs) | Reflection-free invocation, interceptors, retry later, progress and console, resumable jobs, redacted arguments |
-| [Creating and finding jobs](#creating-and-finding-jobs) | Fan-in continuations, batches, duplicate prevention, tags and notes, plain-English times, job state from code |
+| [Creating and finding jobs](#creating-and-finding-jobs) | Job classes, fan-in continuations, batches, duplicate prevention, tags and notes, plain-English times, job state from code |
 | [Controlling when jobs run](#controlling-when-jobs-run) | Throttle, rate limit, circuit breaker, timeouts, deadlines, run windows, retention, drain mode |
-| [Recurring jobs](#recurring-jobs) | Pause, resume and edit, start and end dates, CRON builder and plain English, manifests |
+| [Recurring jobs](#recurring-jobs) | Pause, resume and edit, start and end dates, CRON builder and plain English, exact intervals, manifests, jobs declared in code |
 | [Monitoring](#monitoring) | Insights, queue health, Prometheus, health checks, OpenTelemetry, alerts, activity feed, audit log, logging scope |
-| [Dashboard](#dashboard) | New shell and pages, job catalog, job diagnosis, lineage, failure clusters, wallboard, timeline, exports, maintenance |
+| [Dashboard](#dashboard) | New shell and pages, Basic authentication, job catalog, job diagnosis, lineage, failure clusters, wallboard, timeline, exports, maintenance |
 | [Hosting](#hosting) | Keep-alive, server options from configuration |
 | [For developers](#for-developers) | Testing guide, web sample |
 
@@ -115,6 +115,27 @@ public Task Connect(string host, [Redacted] string password) { ... }
 A parameter marked `[Redacted]` is shown as `"••••••"` wherever the dashboard renders arguments, **Copy as C#** leaves it out, and **Run again with changes** asks for it anew. The value is still stored with the job: redaction protects dashboard viewers, not the storage. See [RedactedAttribute](filters/behavior.md#redactedattribute).
 
 ## Creating and finding jobs
+
+### Job classes
+
+```csharp
+public sealed class NightlyCleanup : IJob
+{
+    public Task RunAsync(PerformContext context, CancellationToken cancellationToken) { ... }
+}
+
+public sealed class SendInvoiceHandler : IJobHandler<SendInvoice>
+{
+    public Task HandleAsync(SendInvoice args, PerformContext context, CancellationToken cancellationToken) { ... }
+}
+
+builder.Services.AddNightShiftJobHandlers(typeof(Program).Assembly);
+
+jobs.Enqueue<NightlyCleanup>();
+jobs.Enqueue(new SendInvoice(42));
+```
+
+The caller only names the class or passes the arguments. The stored job is an ordinary call of the class, so attributes on it apply and the dashboard shows its name. See [Job classes](jobs/typed-handlers.md).
 
 ### Fan-in continuations
 
@@ -255,6 +276,20 @@ var description = Cron.Describe("*/15 9-17 * * 1-5");
 
 `CronBuilder` builds and validates expressions; its calls can come in any order, and conflicting calls throw. `Cron.FromText` turns plain English into CRON, and `Cron.Describe` turns CRON into plain English; the dashboard shows the description under the schedule editor and as tooltips. See [CRON and schedules](recurring-jobs/cron-and-schedules.md).
 
+### Exact intervals
+
+`Cron.Every(TimeSpan.FromMinutes(15))` returns the expression for an interval CRON can keep evenly, and throws for one it can't, such as 7 or 90 minutes. See [An exact interval](recurring-jobs/cron-and-schedules.md#an-exact-interval).
+
+### Recurring jobs declared in code
+
+```csharp
+builder.Services.AddNightShiftRecurringJobs(jobs => jobs
+    .Add<ReportService>("daily-report", service => service.BuildDaily(), Cron.Daily(2))
+    .AddHandler("purge-sessions", new PurgeSessions(Days: 30), Cron.Daily(3)));
+```
+
+The jobs are registered when the host starts, and a declaration that can't work stops the start. `RemoveUndeclared` cleans up the ones that left the code. See [Recurring jobs declared in code](recurring-jobs/recurring-jobs-in-code.md).
+
 ### Recurring job manifests
 
 ```csharp
@@ -343,6 +378,10 @@ The dashboard is redesigned, in light and dark, with a left sidebar that shows l
 | Maintenance | Servers page | **Clear all jobs** and **Reset storage**, through the new `JobStorage.Purge`, on storages that support it |
 
 Dashboard extensions can give their navigation items an icon with `MenuItem.Icon`. See [Dashboard customization](dashboard/customization.md).
+
+### Basic authentication
+
+`new BasicAuthDashboardAuthorizationFilter(userName, password)` protects the dashboard of a host with no sign-in of its own. It answers the browser's prompt, compares in constant time and refuses plain HTTP outside loopback. See [Basic authentication](dashboard/authorization.md#basic-authentication).
 
 ## Hosting
 
