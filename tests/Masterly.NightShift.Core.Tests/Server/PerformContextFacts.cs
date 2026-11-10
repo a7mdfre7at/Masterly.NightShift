@@ -22,14 +22,14 @@ public class PerformContextFacts
     [Fact]
     public void Ctor_DoesNotThrowAnException_WhenStorageIsNull()
     {
-        var context = new PerformContext(null, _connection.Object, _backgroundJob.Object, _cancellationToken.Object);
+        PerformContext context = new(null, _connection.Object, _backgroundJob.Object, _cancellationToken.Object);
         Assert.NotNull(context);
     }
 
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new PerformContext(_storage.Object, null, _backgroundJob.Object, _cancellationToken.Object));
 
         Assert.Equal("connection", exception.ParamName);
@@ -38,7 +38,7 @@ public class PerformContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenBackgroundJobIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new PerformContext(_storage.Object, _connection.Object, null, _cancellationToken.Object));
 
         Assert.Equal("backgroundJob", exception.ParamName);
@@ -47,7 +47,7 @@ public class PerformContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenCancellationTokenIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new PerformContext(_storage.Object, _connection.Object, _backgroundJob.Object, null));
 
         Assert.Equal("cancellationToken", exception.ParamName);
@@ -56,7 +56,7 @@ public class PerformContextFacts
     [Fact]
     public void Ctor_CorrectlySets_AllInstanceProperties()
     {
-        var context = CreateContext();
+        PerformContext context = CreateContext();
 
         Assert.Same(_storage.Object, context.Storage);
         Assert.Equal(_backgroundJob.Object, context.BackgroundJob);
@@ -75,8 +75,8 @@ public class PerformContextFacts
     [Fact]
     public void CopyCtor_CopiesAllPropertyValues()
     {
-        var context = CreateContext();
-        var contextCopy = new PerformContext(context);
+        PerformContext context = CreateContext();
+        PerformContext contextCopy = new(context);
 
         Assert.Same(context.Items, contextCopy.Items);
         Assert.Same(context.Storage, contextCopy.Storage);
@@ -88,9 +88,9 @@ public class PerformContextFacts
     [Fact]
     public void SetJobParameter_ThrowsAnException_WhenParameterNameIsNullOrEmpty()
     {
-        var context = CreateContext();
+        PerformContext context = CreateContext();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => context.SetJobParameter(null, null));
 
         Assert.Equal("name", exception.ParamName);
@@ -99,7 +99,7 @@ public class PerformContextFacts
     [Fact]
     public void SetJobParameter_ConvertsValueToJson_AndSetsItUsingConnection()
     {
-        var context = CreateContext();
+        PerformContext context = CreateContext();
 
         context.SetJobParameter("name", "value");
 
@@ -109,7 +109,7 @@ public class PerformContextFacts
     [Fact]
     public void GetJobParameter_ThrowsAnException_WhenNameIsNullOrEmpty()
     {
-        var context = CreateContext();
+        PerformContext context = CreateContext();
 
         Assert.Throws<ArgumentNullException>(
             () => context.GetJobParameter<string>(null));
@@ -119,10 +119,27 @@ public class PerformContextFacts
     public void GetJobParameter_ThrowsAnException_WhenParameterCouldNotBeDeserialized()
     {
         _connection.Setup(x => x.GetJobParameter(_backgroundJob.Id, "name")).Returns("value");
-        var context = CreateContext();
+        PerformContext context = CreateContext();
 
         Assert.Throws<InvalidOperationException>(
             () => context.GetJobParameter<int>("name"));
+    }
+
+    [Fact]
+    public void RetryCount_IsZero_WhenTheJobHasNotBeenRetried()
+    {
+        PerformContext context = CreateContext();
+
+        Assert.Equal(0, context.RetryCount);
+    }
+
+    [Fact]
+    public void RetryCount_ReadsTheParameterTheRetryFilterWrites()
+    {
+        _connection.Setup(x => x.GetJobParameter(_backgroundJob.Id, "RetryCount")).Returns("2");
+        PerformContext context = CreateContext();
+
+        Assert.Equal(2, context.RetryCount);
     }
 
     private PerformContext CreateContext()

@@ -46,39 +46,49 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var disabled = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
-            options.GlobalOptions.TryGetValue(DisableProperty, out var value)
+        IncrementalValueProvider<bool> disabled = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+            options.GlobalOptions.TryGetValue(DisableProperty, out string? value)
             && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
 
-        var fromLambdas = context.SyntaxProvider
+        IncrementalValuesProvider<InvokerModel> fromLambdas = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => node is LambdaExpressionSyntax { Body: InvocationExpressionSyntax },
                 static (ctx, cancellationToken) => TryCreateFromLambda(ctx, cancellationToken))
             .Where(static model => model != null)
             .Select(static (model, _) => model!);
 
-        var fromAttributes = context.SyntaxProvider
+        IncrementalValuesProvider<InvokerModel> fromAttributes = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 GenerateAttributeName,
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (ctx, cancellationToken) => CreateFromMarkedType(ctx, cancellationToken))
             .SelectMany(static (models, _) => models);
 
-        var environment = context.CompilationProvider.Select(static (compilation, _) => new EnvironmentModel(
+        IncrementalValuesProvider<InvokerModel> fromHandlers = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is ClassDeclarationSyntax { BaseList: not null },
+                static (ctx, cancellationToken) => CreateFromHandler(ctx, cancellationToken))
+            .SelectMany(static (models, _) => models);
+
+        IncrementalValueProvider<ImmutableArray<InvokerModel>> declared = fromAttributes.Collect()
+            .Combine(fromHandlers.Collect())
+            .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
+
+        IncrementalValueProvider<EnvironmentModel> environment = context.CompilationProvider.Select(static (compilation, _) => new EnvironmentModel(
             assemblyName: compilation.AssemblyName ?? "Assembly",
             hasModuleInitializer: compilation.GetTypeByMetadataName(ModuleInitializerMetadataName) != null
                 && compilation is CSharpCompilation csharp
                 && csharp.LanguageVersion >= LanguageVersion.CSharp9,
             hasNightShift: compilation.GetTypeByMetadataName("Masterly.NightShift.Common.JobInvokerRegistry") != null));
 
-        var all = fromLambdas.Collect()
-            .Combine(fromAttributes.Collect())
+        IncrementalValueProvider<(((ImmutableArray<InvokerModel> Left, ImmutableArray<InvokerModel> Right) Left, EnvironmentModel Right) Left, bool Right)> all = fromLambdas.Collect()
+            .Combine(declared)
             .Combine(environment)
             .Combine(disabled);
 
         context.RegisterSourceOutput(all, static (output, source) =>
         {
-            var (((lambdas, marked), env), isDisabled) = source;
+            (((ImmutableArray<InvokerModel> lambdas, ImmutableArray<InvokerModel> marked), EnvironmentModel? env), bool isDisabled) = source;
             if (isDisabled || !env.HasNightShift) return;
 
             try
@@ -94,14 +104,14 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
     private static InvokerModel? TryCreateFromLambda(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
-        var lambda = (LambdaExpressionSyntax)context.Node;
+        LambdaExpressionSyntax lambda = (LambdaExpressionSyntax)context.Node;
 
         if (lambda.AsyncKeyword != default || lambda.Body is not InvocationExpressionSyntax invocation)
         {
             return null;
         }
 
-        var semanticModel = context.SemanticModel;
+        SemanticModel semanticModel = context.SemanticModel;
 
         // Only lambdas converted to expression trees can be jobs
         if (semanticModel.GetTypeInfo(lambda, cancellationToken).ConvertedType is not INamedTypeSymbol { Name: "Expression" } convertedType
@@ -133,12 +143,12 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             return false;
         }
 
-        var symbolInfo = semanticModel.GetSymbolInfo(call, cancellationToken);
-        var candidates = symbolInfo.Symbol != null ? ImmutableArray.Create(symbolInfo.Symbol) : symbolInfo.CandidateSymbols;
+        SymbolInfo symbolInfo = semanticModel.GetSymbolInfo(call, cancellationToken);
+        ImmutableArray<ISymbol> candidates = symbolInfo.Symbol != null ? ImmutableArray.Create(symbolInfo.Symbol) : symbolInfo.CandidateSymbols;
 
-        foreach (var candidate in candidates)
+        foreach (ISymbol candidate in candidates)
         {
-            var ns = candidate.ContainingNamespace?.ToDisplayString();
+            string? ns = candidate.ContainingNamespace?.ToDisplayString();
             if (ns != null && (ns == "Masterly.NightShift" || ns.StartsWith("Masterly.NightShift.", StringComparison.Ordinal)))
             {
                 return true;
@@ -155,9 +165,9 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             return ImmutableArray<InvokerModel>.Empty;
         }
 
-        var builder = ImmutableArray.CreateBuilder<InvokerModel>();
+        ImmutableArray<InvokerModel>.Builder builder = ImmutableArray.CreateBuilder<InvokerModel>();
 
-        foreach (var member in type.GetMembers())
+        foreach (ISymbol member in type.GetMembers())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -166,7 +176,7 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
                 && !method.IsGenericMethod
                 && !OverridesObjectMember(method))
             {
-                var model = TryCreateModel(method, context.SemanticModel.Compilation);
+                InvokerModel? model = TryCreateModel(method, context.SemanticModel.Compilation);
                 if (model != null)
                 {
                     builder.Add(model);
@@ -175,6 +185,37 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
         }
 
         return builder.ToImmutable();
+    }
+
+    // Jobs for a job class are created from its type or an arguments object, so no lambda names its method
+    private static ImmutableArray<InvokerModel> CreateFromHandler(GeneratorSyntaxContext context, CancellationToken cancellationToken)
+    {
+        if (context.SemanticModel.GetDeclaredSymbol(context.Node, cancellationToken) is not INamedTypeSymbol type)
+        {
+            return ImmutableArray<InvokerModel>.Empty;
+        }
+
+        ImmutableArray<InvokerModel>.Builder builder = ImmutableArray.CreateBuilder<InvokerModel>();
+
+        foreach (INamedTypeSymbol handlerInterface in type.AllInterfaces.Where(IsJobClassInterface))
+        {
+            foreach (ISymbol member in handlerInterface.GetMembers())
+            {
+                if (type.FindImplementationForInterfaceMember(member) is IMethodSymbol method
+                    && TryCreateModel(method, context.SemanticModel.Compilation) is { } model)
+                {
+                    builder.Add(model);
+                }
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static bool IsJobClassInterface(INamedTypeSymbol candidate)
+    {
+        return candidate is { Name: "IJobHandler", Arity: 1 } or { Name: "IJob", Arity: 0 }
+            && candidate.ContainingNamespace?.ToDisplayString() == "Masterly.NightShift";
     }
 
     private static InvokerModel? TryCreateModel(IMethodSymbol method, Compilation compilation)
@@ -200,7 +241,7 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
         if (ContainsTypeParameter(method.ContainingType)) return null;
         if (method.IsGenericMethod && method.TypeArguments.Any(ContainsTypeParameter)) return null;
 
-        var within = compilation.Assembly;
+        IAssemblySymbol within = compilation.Assembly;
 
         if (!compilation.IsSymbolAccessibleWithin(method, within) || !IsTypeUsable(method.ContainingType, compilation, within))
         {
@@ -212,12 +253,12 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             return null;
         }
 
-        var parameterTypes = new string[method.Parameters.Length];
-        var parameterDefaults = new bool[method.Parameters.Length];
+        string[] parameterTypes = new string[method.Parameters.Length];
+        bool[] parameterDefaults = new bool[method.Parameters.Length];
 
-        for (var i = 0; i < method.Parameters.Length; i++)
+        for (int i = 0; i < method.Parameters.Length; i++)
         {
-            var parameter = method.Parameters[i];
+            IParameterSymbol parameter = method.Parameters[i];
 
             if (parameter.RefKind != RefKind.None || !IsTypeUsable(parameter.Type, compilation, within))
             {
@@ -228,9 +269,9 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             parameterDefaults[i] = parameter.Type.IsValueType && !IsNullableValueType(parameter.Type);
         }
 
-        var genericArguments = method.IsGenericMethod
+        string[] genericArguments = method.IsGenericMethod
             ? [.. method.TypeArguments.Select(x => x.ToDisplayString(TypeFormat))]
-            : Array.Empty<string>();
+            : [];
 
         return new InvokerModel(
             declaringType: method.ContainingType.ToDisplayString(TypeFormat),
@@ -246,7 +287,7 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
     {
         if (!method.IsOverride) return false;
 
-        var current = method;
+        IMethodSymbol current = method;
         while (current.OverriddenMethod != null)
         {
             current = current.OverriddenMethod;
@@ -304,10 +345,10 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
     private static void Emit(SourceProductionContext output, IEnumerable<InvokerModel> models, EnvironmentModel env)
     {
-        var distinct = new List<InvokerModel>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        List<InvokerModel> distinct = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
 
-        foreach (var model in models.OrderBy(static x => x.Key, StringComparer.Ordinal))
+        foreach (InvokerModel? model in models.OrderBy(static x => x.Key, StringComparer.Ordinal))
         {
             if (seen.Add(model.Key))
             {
@@ -317,8 +358,8 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
         if (distinct.Count == 0) return;
 
-        var className = "NightShiftJobInvokers_" + Sanitize(env.AssemblyName);
-        var sb = new StringBuilder();
+        string className = "NightShiftJobInvokers_" + Sanitize(env.AssemblyName);
+        StringBuilder sb = new();
 
         // No #nullable directive: the compiler treats generated code as nullable-oblivious, so the invokers compile
         // the same whatever the consumer's nullable settings and language version.
@@ -346,14 +387,14 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
         sb.AppendLine("        {");
         sb.AppendLine("            if (global::System.Threading.Interlocked.Exchange(ref _registered, 1) != 0) return;");
 
-        for (var i = 0; i < distinct.Count; i++)
+        for (int i = 0; i < distinct.Count; i++)
         {
             sb.Append("            ").Append(RegistryType).Append(".Register(new Invoker").Append(i).AppendLine("());");
         }
 
         sb.AppendLine("        }");
 
-        for (var i = 0; i < distinct.Count; i++)
+        for (int i = 0; i < distinct.Count; i++)
         {
             sb.AppendLine();
             EmitInvoker(sb, distinct[i], i);
@@ -414,11 +455,11 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
         sb.Append('(');
 
-        for (var i = 0; i < model.ParameterTypes.Length; i++)
+        for (int i = 0; i < model.ParameterTypes.Length; i++)
         {
             if (i > 0) sb.Append(", ");
 
-            var type = model.ParameterTypes[i];
+            string type = model.ParameterTypes[i];
 
             if (model.ParameterDefaults[i])
             {
@@ -460,7 +501,7 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
         sb.Append("new global::System.Type[] { ");
 
-        for (var i = 0; i < types.Length; i++)
+        for (int i = 0; i < types.Length; i++)
         {
             if (i > 0) sb.Append(", ");
             sb.Append("typeof(").Append(types[i]).Append(')');
@@ -471,9 +512,9 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
     private static string Sanitize(string assemblyName)
     {
-        var sb = new StringBuilder(assemblyName.Length);
+        StringBuilder sb = new(assemblyName.Length);
 
-        foreach (var ch in assemblyName)
+        foreach (char ch in assemblyName)
         {
             sb.Append(char.IsLetterOrDigit(ch) ? ch : '_');
         }

@@ -23,7 +23,7 @@ public class ReportJobs
 }
 ```
 
-Every public method of `ReportJobs` now gets an invoker, in the assembly that declares the class.
+Every public method of `ReportJobs` now gets an invoker, in the assembly that declares the class. A class implementing [`IJob` or `IJobHandler<TArgs>`](typed-handlers.md) needs no attribute: its `RunAsync` and `HandleAsync` methods get invokers on their own.
 
 ## How it works
 

@@ -87,6 +87,11 @@ public class PerformContext
     public string? ServerId { get; }
 
     /// <summary>
+    /// Gets how many times the job has been retried by <see cref="AutomaticRetryAttribute"/>: 0 on its first run.
+    /// </summary>
+    public int RetryCount => GetJobParameter<int>("RetryCount", allowStale: true);
+
+    /// <summary>
     /// Gets the console the job reports progress, lines and checkpoints to. Shared by every context created
     /// for this performance, so filters and interceptors write to the same console as the job. Safe to use
     /// from several threads.
@@ -99,12 +104,12 @@ public class PerformContext
             // Items is shared by every context of the performance, and the job may ask from several threads
             lock (Items)
             {
-                if (Items.TryGetValue(ConsoleItemKey, out var existing) && existing is IJobConsole console)
+                if (Items.TryGetValue(ConsoleItemKey, out object? existing) && existing is IJobConsole console)
                 {
                     return console;
                 }
 
-                var created = new JobConsole(this);
+                JobConsole created = new(this);
                 Items[ConsoleItemKey] = created;
                 return created;
             }

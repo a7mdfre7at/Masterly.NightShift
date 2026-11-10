@@ -103,6 +103,7 @@ The members of `PerformContext` a job uses most:
 | Member | Meaning |
 |---|---|
 | `BackgroundJob` (`BackgroundJob`) | The running job: `Id`, `CreatedAt` (UTC) and `Job`, its type, method, arguments and queue |
+| `RetryCount` (`int`) | How many times [`[AutomaticRetry]`](../filters/retries.md) has retried the job; 0 on its first run |
 | `GetJobParameter<T>(string name)` | Reads a job parameter with your serializer options; `default` when it isn't set |
 | `SetJobParameter(string name, object value)` | Writes a job parameter right away |
 | `Console` (`IJobConsole`) | The same console an `IJobConsole` parameter receives |
