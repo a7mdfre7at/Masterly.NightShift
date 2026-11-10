@@ -15,7 +15,7 @@ const iconByDocId = {
   'troubleshooting': 'help',
   'migrating-from-hangfire': 'shuffle',
   'whats-new-next': 'zap',
-  'breaking-changes': 'layers',
+  'changes-from-hangfire': 'layers',
   'roadmap': 'flag',
 };
 

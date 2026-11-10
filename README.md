@@ -34,6 +34,7 @@ jobs.ContinueJobWith<EmailService>(chargeId, x => x.SendReceipt(orderId));    //
 **Everything it can do**
 
 - Run a method in the background now, later, on a CRON schedule, or after other jobs finish. See [Jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs) and [Recurring jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs).
+- Create thousands of jobs in a few database round trips with `EnqueueMany`. See [Fire-and-forget jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/fire-and-forget#many-jobs-at-once).
 - Wait for a whole set of jobs, or create jobs as a group. See [Fan-in and batches](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/fan-in-and-batches).
 - Write times and schedules in plain English, such as `"tomorrow at 9am"` or `"every 10 minutes from 9am to 5pm on weekdays"`. See [Delayed jobs](https://a7mdfre7at.github.io/Masterly.NightShift/docs/jobs/delayed-jobs) and [CRON and schedules](https://a7mdfre7at.github.io/Masterly.NightShift/docs/recurring-jobs/cron-and-schedules).
 - Retry with back-off, retry later, or stop calling a dependency that is down with a circuit breaker. See [Retries](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/retries).
@@ -78,10 +79,12 @@ NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/) 1.8.25. 
 | Serialize a job | 2.38 µs, 10.97 KB | 1.59 µs, 1.84 KB |
 | Deserialize a job | 3.34 µs, 17.32 KB | 3.04 µs, 2.08 KB |
 | Run an empty job through all filters | 0.58 µs, 1.62 KB | 0.27 µs, 0.63 KB |
-| Enqueue into SQL Server | 1,300 jobs/s | 1,383 jobs/s |
-| Process from SQL Server | 1,710 jobs/s | 1,583 jobs/s |
+| `Enqueue` in a loop, SQL Server | 174 jobs/s | 218 jobs/s |
+| `Enqueue` from 64 callers at once | 1,523 jobs/s | 3,179 jobs/s |
+| Create many jobs at once | No bulk API | 4,116 jobs/s with `EnqueueMany` |
+| Process from SQL Server | 562 to 648 jobs/s | 606 to 794 jobs/s; 974 to 1,000 with `AllowDelayedDurability` |
 
-Expect about the same throughput: a job spends its time in the database and in your own code, and the end-to-end results overlap from run to run. NightShift's clearest gain is memory: running a job allocates about 60% less and serializing one over 80% less. See [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire) for the full comparison, the .NET 8 numbers and how to run the benchmarks yourself.
+The SQL Server rows were measured against SQL Server 2022 in a container, where a round trip takes about 0.7 ms. NightShift needs half the round trips to create a job, shares them between concurrent callers, and creates many jobs at once with `EnqueueMany`. A loop of single `Enqueue` calls gains the least, because each call waits for the database to store its job. NightShift's other gain is memory: running a job allocates about 60% less and serializing one over 80% less. See [Benchmarks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/benchmarks) for the .NET 8 numbers, what they mean and how to run them yourself, and [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire) for the full comparison.
 
 ---
 
@@ -173,7 +176,7 @@ app.Run();
 | Filters | [Retries](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/retries), [Concurrency](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/concurrency), [Timing](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/timing), [Behavior](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/behavior), [Custom filters](https://a7mdfre7at.github.io/Masterly.NightShift/docs/filters/custom-filters) |
 | Running | [Server options](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/server-options), [Queues and workers](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/queues-and-workers), [Drain mode](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/drain-mode), [Dependency injection](https://a7mdfre7at.github.io/Masterly.NightShift/docs/server/dependency-injection), [SQL Server storage](https://a7mdfre7at.github.io/Masterly.NightShift/docs/storage/sql-server) |
 | Operating | [Dashboard](https://a7mdfre7at.github.io/Masterly.NightShift/docs/dashboard), [OpenTelemetry](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/opentelemetry), [Alerts and webhooks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/alerts-and-webhooks), [Health checks](https://a7mdfre7at.github.io/Masterly.NightShift/docs/monitoring/health-checks), [Configuration](https://a7mdfre7at.github.io/Masterly.NightShift/docs/configuration) |
-| Reference | [Troubleshooting](https://a7mdfre7at.github.io/Masterly.NightShift/docs/troubleshooting), [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire), [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire), [Breaking changes](https://a7mdfre7at.github.io/Masterly.NightShift/docs/breaking-changes), [Roadmap](https://a7mdfre7at.github.io/Masterly.NightShift/docs/roadmap), [Changelog](https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md) |
+| Reference | [Troubleshooting](https://a7mdfre7at.github.io/Masterly.NightShift/docs/troubleshooting), [NightShift compared with Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/compared-with-hangfire), [Migrating from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/migrating-from-hangfire), [Changes from Hangfire](https://a7mdfre7at.github.io/Masterly.NightShift/docs/changes-from-hangfire), [Roadmap](https://a7mdfre7at.github.io/Masterly.NightShift/docs/roadmap), [Changelog](https://github.com/a7mdfre7at/Masterly.NightShift/blob/master/CHANGELOG.md) |
 
 The same pages are in [docs/](docs/README.md) in this repository.
 

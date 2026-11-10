@@ -13,7 +13,7 @@ Hard constraints every section respects:
   extension methods, so third-party storages keep compiling.
 - No new runtime package dependencies for `Masterly.NightShift.Core` beyond what it already needed: Cronos, Microsoft.CSharp and, on `netstandard2.0` only, System.Text.Json.
 - Public API breaks are caught by package validation; intentional ones go to `CompatibilitySuppressions.xml` and
-  `docs/breaking-changes.md`.
+  `docs/changes-from-hangfire.md`.
 - All new storage data lives in the existing primitives (hash, set, list, counter, job parameters), so every storage
   supports every feature out of the box. Richer behaviour is unlocked when `JobStorageConnection` /
   `JobStorageTransaction` members are available (expiry of lists/hashes, set ranges).

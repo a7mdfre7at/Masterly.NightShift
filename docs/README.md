@@ -55,7 +55,24 @@ Masterly.NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/)
 | Storage | SQL Server, paid Redis, many community storages | SQL Server; other storages have to be written or ported |
 | Support and track record | Paid support available; more than a decade in production | Community support through GitHub; 1.0 is the first release |
 
-In benchmarks, calling a job method is about 4 times faster, running a job through its filters allocates about 60% less memory, and serializing a job allocates over 80% less. End-to-end throughput on SQL Server is about the same. [NightShift compared with Hangfire](compared-with-hangfire.md) has the full comparison, the numbers, and when to stay on Hangfire.
+[NightShift compared with Hangfire](compared-with-hangfire.md) has the full comparison and when to stay on Hangfire.
+
+### Benchmarks
+
+Measured on .NET 10 against Hangfire 1.8.25. The SQL Server rows used SQL Server 2022 in a container.
+
+| Operation | Hangfire | NightShift |
+|---|---|---|
+| Call the job method | 17.0 ns | 3.5 ns |
+| Serialize a job | 2.38 µs, 10.97 KB | 1.59 µs, 1.84 KB |
+| Deserialize a job | 3.34 µs, 17.32 KB | 3.04 µs, 2.08 KB |
+| Run an empty job through all filters | 0.58 µs, 1.62 KB | 0.27 µs, 0.63 KB |
+| `Enqueue` in a loop, SQL Server | 174 jobs/s | 218 jobs/s |
+| `Enqueue` from 64 callers at once | 1,523 jobs/s | 3,179 jobs/s |
+| Create many jobs at once | No bulk API | 4,116 jobs/s with `EnqueueMany` |
+| Process from SQL Server | 562 to 648 jobs/s | 606 to 794 jobs/s; 974 to 1,000 with `AllowDelayedDurability` |
+
+NightShift needs half the round trips to create a job, shares them between concurrent callers, and creates many jobs at once with `EnqueueMany`. A loop of single `Enqueue` calls gains the least, because each call waits for the database to store its job. Running a job allocates about 60% less memory, and serializing one over 80% less. [Benchmarks](benchmarks.md) has the .NET 8 numbers, what they mean, and how to run them yourself.
 
 ## Find what you need
 
@@ -158,10 +175,11 @@ In benchmarks, calling a job method is about 4 times faster, running a job throu
 | Page | What it covers |
 |---|---|
 | [Troubleshooting](troubleshooting.md) | Common problems, their causes and fixes |
-| [NightShift compared with Hangfire](compared-with-hangfire.md) | Differences, benefits, when to stay on Hangfire, benchmarks |
+| [NightShift compared with Hangfire](compared-with-hangfire.md) | Differences, benefits, when to stay on Hangfire |
+| [Benchmarks](benchmarks.md) | Speed and memory use next to Hangfire, and how to measure them yourself |
 | [Migrating from Hangfire](migrating-from-hangfire.md) | Package and API mapping, what changed, a step-by-step checklist |
 | [What's new](whats-new-next.md) | Features added on top of Hangfire, with examples |
-| [Breaking changes](breaking-changes.md) | Everything that behaves differently, and why |
+| [Changes from Hangfire](changes-from-hangfire.md) | Everything that behaves differently, and why |
 | [Roadmap](roadmap.md) | Planned work that isn't in 1.0 yet |
 
 ### Working on the library

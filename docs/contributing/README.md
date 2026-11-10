@@ -144,7 +144,7 @@ The library is consumed by many old and new runtimes, and other repositories imp
 
 - **Never add a member to `IStorageConnection`, `IWriteOnlyTransaction`, `IMonitoringApi` or the other public interfaces.** It breaks every third-party implementation. Add a virtual member to `JobStorageConnection`/`JobStorageTransaction`/`JobStorageMonitor` and advertise it through `JobStorage.HasFeature(...)` and `JobStorageFeatures`, or add a new interface. See [Architecture](architecture.md#storage-abstraction).
 - **Respect the compatibility level** in any change to stored data (`InvocationData`, state data, `SerializationHelper`): older servers may read what you write.
-- **Record consumer-visible changes** in [`docs/breaking-changes.md`](../breaking-changes.md) and user-facing changes in `CHANGELOG.md`.
+- **Record what differs from Hangfire** in [`docs/changes-from-hangfire.md`](../changes-from-hangfire.md) and user-facing changes in `CHANGELOG.md`.
 
 ### Nullable annotations
 
@@ -198,8 +198,8 @@ npm run build    # fails on any broken link or anchor
 Pushing a raised version to `master` is the release. Every package ships with the same version.
 
 1. Raise `<Version>` in [`src/Directory.Build.props`](../../src/Directory.Build.props). The assembly versions and the version the documentation site shows are derived from it.
-2. Add a `## [x.y.z] - yyyy-mm-dd` section to [`CHANGELOG.md`](../../CHANGELOG.md) that opens with a one-line summary. If the section was kept as `## [x.y.z] - Unreleased` while work went on, replace `Unreleased` with the date. The section, without its heading, becomes the GitHub Release's description, and the Publish workflow stops before pushing anything when no `## [x.y.z]` section exists for the version.
-3. Record consumer-visible changes in [Breaking changes](../breaking-changes.md) if there are any.
+2. Add a `## [x.y.z] - yyyy-mm-dd` section to [`CHANGELOG.md`](../../CHANGELOG.md) that opens with a one-line summary. If the section was kept as `## [x.y.z]` while work went on, add the date: the Publish workflow publishes nothing while the heading has no date. The section, without its heading, becomes the GitHub Release's description, and the Publish workflow stops before pushing anything when no `## [x.y.z]` section exists for the version.
+3. Record anything that newly differs from Hangfire in [Changes from Hangfire](../changes-from-hangfire.md).
 4. Merge to `master`. After the Build workflow succeeds for that push, the Publish workflow builds and packs the tested commit, pushes the packages to nuget.org (Core, SqlServer, NetCore, AspNetCore, then the meta-package, so no package arrives before one it depends on) and creates the GitHub Release `vx.y.z` from that commit, with the packages attached.
 5. After the first release, set `PackageValidationBaselineVersion` in `src/Directory.Build.props` to it (see [Build and pack](#build-and-pack)).
 
@@ -223,4 +223,4 @@ The workflows are in `.github/workflows/`:
 - [Architecture](architecture.md)
 - [Compatibility levels](../configuration/compatibility-levels.md)
 - [Custom storage](../storage/custom-storage.md)
-- [Breaking changes](../breaking-changes.md)
+- [Changes from Hangfire](../changes-from-hangfire.md)

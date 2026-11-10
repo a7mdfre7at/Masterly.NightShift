@@ -189,7 +189,7 @@ const config = {
             items: [
               {label: 'Troubleshooting', to: '/docs/troubleshooting'},
               {label: 'Migrating from Hangfire', to: '/docs/migrating-from-hangfire'},
-              {label: 'Breaking changes', to: '/docs/breaking-changes'},
+              {label: 'Changes from Hangfire', to: '/docs/changes-from-hangfire'},
               {label: 'Changelog', href: `${repositoryUrl}/blob/${branch}/CHANGELOG.md`},
             ],
           },

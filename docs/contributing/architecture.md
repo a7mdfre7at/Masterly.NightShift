@@ -179,7 +179,7 @@ The generator never fails a build: a method it can't call safely is skipped, and
 
 | You want to add | Put it in | Also |
 |---|---|---|
-| A filter attribute | `Filters/Retries`, `Concurrency`, `Timing` or `Behavior` (namespace `Masterly.NightShift`) | Add it to `GlobalJobFilters` only if every job needs it; list new default filters in `docs/breaking-changes.md` |
+| A filter attribute | `Filters/Retries`, `Concurrency`, `Timing` or `Behavior` (namespace `Masterly.NightShift`) | Add it to `GlobalJobFilters` only if every job needs it; list new default filters in `docs/changes-from-hangfire.md` |
 | A state | `States/`, with an `IStateHandler` registered in `GlobalStateHandlers` if it has storage side effects | Make `SerializeData` respect the compatibility level |
 | A configuration method | `Configuration/GlobalConfigurationExtensions.cs` | Document it in [Global configuration](../configuration/global-configuration.md) |
 | A storage capability | A virtual member on `JobStorageConnection`/`JobStorageTransaction`/`JobStorageMonitor` and an ID in `JobStorageFeatures` | Implement it in `Masterly.NightShift.SqlServer` and report the feature; check `HasFeature` in callers and fall back |

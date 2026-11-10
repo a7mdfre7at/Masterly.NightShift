@@ -121,6 +121,7 @@ So:
 
 | Member | Behavior |
 |---|---|
+| `CreateExpiredJobs(jobs, parameters, createdAt, expireIn)` (on `JobStorageConnection`, optional) | Store several jobs at once and return their identifiers in the same order. The default calls `CreateExpiredJob` for each; override it to use fewer round trips. `EnqueueMany` calls it |
 | `CreateExpiredJob(job, parameters, createdAt, expireIn)` | Store the job (`InvocationData.SerializeJob(job)`; `SerializePayload()` gives one string, or store `SerializePayload(excludeArguments: true)` and `Arguments` separately) with its parameters, no current state, and an expiration time of `createdAt + expireIn`. Return its id as a string. `null` or empty means "not created". Parameter values may be `null`. |
 | `GetJobData(jobId)` | The job, or `null` when the id is unknown or malformed. Set `InvocationData`, `State` (current state name), `CreatedAt`, and `Job` from `InvocationData.DeserializeJob()`; when that throws `JobLoadException`, put the exception in `LoadException` instead of throwing. `ParametersSnapshot` (all parameters) is optional and saves round trips. |
 | `GetStateData(jobId)` | The current state's `Name`, `Reason` and `Data`, or `null`. |
@@ -172,7 +173,7 @@ Keys are strings such as `schedule`, `recurring-job:nightly-report` or `stats:su
 
 #### Monitoring
 
-Derive from `JobStorageMonitor` and implement every abstract member; add `AwaitingJobs`/`AwaitingCount` and `DeletedByDatesCount`/`HourlyDeletedJobs` with their features, and `QueueCounts` with `Monitoring.QueueCounts` when your storage can count the queues without loading their first jobs. Job lists are `JobList<TDto?>`, a list of id/DTO pairs; an entry's DTO is `null` when the job expired between queries. Some DTO fields must never be `null` because the dashboard uses them without checks: see [For storage implementers](../breaking-changes.md#for-storage-implementers).
+Derive from `JobStorageMonitor` and implement every abstract member; add `AwaitingJobs`/`AwaitingCount` and `DeletedByDatesCount`/`HourlyDeletedJobs` with their features, and `QueueCounts` with `Monitoring.QueueCounts` when your storage can count the queues without loading their first jobs. Job lists are `JobList<TDto?>`, a list of id/DTO pairs; an entry's DTO is `null` when the job expired between queries. Some DTO fields must never be `null` because the dashboard uses them without checks: see [For storage implementers](../changes-from-hangfire.md#for-storage-implementers).
 
 The DTOs are in `Masterly.NightShift.Storage.Monitoring`. Every job DTO has `Job` (from `InvocationData.DeserializeJob()`), `LoadException` (set instead of `Job` when that throws) and `InvocationData`; the table lists the other fields. `In{State}State` is `true` when the job is still in the list's state (a job can change state between the list query and the read of its details), and `StateData` is the current state's data.
 
@@ -516,4 +517,4 @@ The SQL Server storage's tests describe the expected behavior method by method: 
 - [Core concepts](../getting-started/core-concepts.md)
 - [Custom filters](../filters/custom-filters.md)
 - [Architecture for contributors](../contributing/architecture.md)
-- [Breaking changes](../breaking-changes.md)
+- [Changes from Hangfire](../changes-from-hangfire.md)

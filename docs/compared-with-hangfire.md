@@ -14,6 +14,8 @@ This page helps you choose between them. To move an existing app, read [Migratin
 | **Calling your job method** | `MethodInfo.Invoke` | Source-generated direct call. A compiled delegate when the generator can't see the method, reflection as a last resort |
 | **JSON** | Newtonsoft.Json | System.Text.Json, with no Newtonsoft.Json dependency |
 | **Batches** | Paid (Hangfire Pro) | Included: `BatchJob` |
+| **Creating many jobs at once** | Through paid batches | Included: `EnqueueMany` |
+| **Round trips to SQL Server** | Four to create a job, three for every commit | Two to create a job, one for every commit; concurrent callers share them |
 | **Waiting for a set of jobs (fan-in)** | Through paid batches | Included: `ContinueJobWithAll`, `ContinueJobWithAny` |
 | **Concurrency limits and rate limits** | `[DisableConcurrentExecution]`. Semaphores and rate limiters are paid (Hangfire Ace) | Included: `[Throttle]`, `[RateLimit]` |
 | **Circuit breaker** | Not included | Included: `[CircuitBreaker]` |
@@ -50,76 +52,19 @@ Hangfire's paid features are described on its [pricing](https://www.hangfire.io/
 
 ## Benchmarks
 
-The benchmarks compare Hangfire 1.8.25, from NuGet, with NightShift. Both ran in the same process with the same settings and the same SQL client (`Microsoft.Data.SqlClient`), each against its own database.
+Measured against Hangfire 1.8.25 on .NET 10 and SQL Server 2022:
 
-### Results
+- **Creating jobs:** a loop of `Enqueue` calls is about 1.25 times faster, 64 callers at once about twice as fast, and `EnqueueMany` creates jobs over 20 times faster than a loop.
+- **Processing:** about the same by default, and about 1.7 times faster with `AllowDelayedDurability`.
+- **Memory:** running a job allocates about 60% less, and serializing one over 80% less.
+- **Calling the job method:** about 4 times faster, which saves a few nanoseconds per job.
 
-Lower is better in the first two tables.
-
-| Operation (.NET 10) | Hangfire | NightShift | Difference |
-|---|---|---|---|
-| Call the job method | 17.0 ns | 3.5 ns | 79% less time |
-| Serialize a job with an object argument | 2.38 µs, 10.97 KB | 1.59 µs, 1.84 KB | 33% less time, 83% less memory |
-| Deserialize that job | 3.34 µs, 17.32 KB | 3.04 µs, 2.08 KB | 9% less time, 88% less memory |
-| Create a job from a lambda | 0.70 µs, 2.08 KB | 0.74 µs, 2.08 KB | About the same |
-| Run a sync job through all filters | 0.58 µs, 1.62 KB | 0.27 µs, 0.63 KB | 53% less time, 61% less memory |
-| Run an async job through all filters | 1.82 µs, 1.69 KB | 1.47 µs, 0.70 KB | 19% less time, 58% less memory |
-| Enqueue into SQL Server | 808 µs, 31.89 KB | 865 µs, 25.78 KB | 19% less memory, time within the noise |
-| Read a job from SQL Server | 178 µs, 21.64 KB | 183 µs, 7.73 KB | 64% less memory, time about the same |
-
-| Operation (.NET 8) | Hangfire | NightShift | Difference |
-|---|---|---|---|
-| Call the job method | 16.6 ns | 4.2 ns | 75% less time |
-| Serialize a job with an object argument | 2.60 µs, 10.95 KB | 1.84 µs, 1.84 KB | 29% less time, 83% less memory |
-| Deserialize that job | 3.61 µs, 17.30 KB | 3.07 µs, 2.08 KB | 15% less time, 88% less memory |
-| Create a job from a lambda | 0.89 µs, 2.20 KB | 0.89 µs, 2.20 KB | About the same |
-| Run a sync job through all filters | 0.55 µs, 1.70 KB | 0.37 µs, 0.75 KB | 33% less time, 56% less memory |
-| Run an async job through all filters | 1.96 µs, 1.77 KB | 1.63 µs, 0.82 KB | 17% less time, 54% less memory |
-| Enqueue into SQL Server | 861 µs, 31.95 KB | 818 µs, 25.91 KB | 19% less memory, time within the noise |
-| Read a job from SQL Server | 207 µs, 22.25 KB | 165 µs, 8.34 KB | 21% less time, 63% less memory |
-
-End to end on SQL Server: 5,000 empty jobs, 20 workers, the median of 5 rounds with the range in brackets. Higher is better.
-
-| Jobs per second | Hangfire | NightShift |
-|---|---|---|
-| Enqueue, .NET 10 | 1,300 (1,174 to 1,466) | 1,383 (874 to 1,434) |
-| Process, .NET 10 | 1,710 (1,460 to 1,909) | 1,583 (1,348 to 1,875) |
-| Enqueue, .NET 8 | 1,187 (967 to 1,399) | 1,359 (980 to 1,445) |
-| Process, .NET 8 | 1,520 (1,206 to 1,820) | 1,301 (1,256 to 1,785) |
-
-### What the numbers mean
-
-- **Expect about the same throughput.** A job spends its time in the database and in your own code. NightShift's median was 6% to 14% higher for enqueueing and 7% to 14% lower for processing, and the ranges overlap in all four rows.
-- **NightShift's clearest gain is memory.** Serializing and deserializing a job allocates 83% to 88% less, because it uses System.Text.Json, running a job allocates over 50% less, and reading a job from SQL Server allocates over 60% less. That means less garbage collection on busy servers.
-- **The source generator speeds up the call, not the whole job.** The call itself is about 4 times faster, but that saves about 13 ns in a job run that takes 0.7 to 2 µs before any database work. A generated call and NightShift's compiled fallback are close to each other, and both are faster than reflection.
-- **The generator's other gain is the first call of each method.** NightShift's fallback compiles a delegate on first use, which took 138 µs to 173 µs, against about 0.5 µs for a generated invoker. It happens once per method, and Hangfire has no such step, because it uses reflection.
-- **A full job run is faster and lighter.** Running a job through its filters takes 17% to 53% less time and allocates 54% to 61% less memory, because NightShift keeps each job method's filter list instead of building and sorting it on every run. The saving is a fraction of a microsecond, so it shows in memory use more than in throughput.
-
-### How they were measured
-
-| | |
-|---|---|
-| Date | 2026-11-09; the two "run a job" rows on 2026-11-10 |
-| Hardware | Intel Core Ultra 7 255H, 16 cores, Windows 11 |
-| Database | SQL Server LocalDB 17.0, a separate instance on the same machine |
-| Tools | BenchmarkDotNet 0.15.8, and a timed end-to-end run |
-| Runtimes | .NET 8.0 and .NET 10.0 |
-
-The in-memory benchmarks use an empty job and a storage connection that does nothing, so they show library overhead alone. Results on other hardware will differ, and LocalDB isn't a production database, so run them against your own setup before relying on them.
-
-The code is in [benchmarks/Masterly.NightShift.Benchmarks](../benchmarks/Masterly.NightShift.Benchmarks). It isn't part of the solution. To run it:
-
-```bash
-cd benchmarks/Masterly.NightShift.Benchmarks
-dotnet run -c Release -f net10.0 -- --filter '*'             # all BenchmarkDotNet benchmarks, on .NET 8 and .NET 10
-dotnet run -c Release -f net10.0 -- throughput 5000 6 20     # end to end: jobs, rounds, workers
-```
-
-The SQL Server benchmarks use LocalDB unless `NightShift_SqlServer_ConnectionStringTemplate` is set, and create the databases `NightShiftBench_Hangfire` and `NightShiftBench_NightShift`.
+[Benchmarks](benchmarks.md) has every number, what it means, and how to run the benchmarks yourself.
 
 ## See also
 
+- [Benchmarks](benchmarks.md)
 - [Migrating from Hangfire](migrating-from-hangfire.md)
 - [What's new](whats-new-next.md)
 - [Source-generated invokers](jobs/source-generated-invokers.md)
-- [Breaking changes](breaking-changes.md)
+- [Changes from Hangfire](changes-from-hangfire.md)

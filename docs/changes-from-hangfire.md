@@ -1,10 +1,10 @@
-# Breaking changes in Masterly.NightShift 1.0
+# Changes from Hangfire
 
 This page lists every difference from Hangfire 1.8.25, the release Masterly.NightShift 1.0 is based on, that code or operations built for Hangfire could notice. Each entry says what changed, why, and what to do. For a step-by-step migration, start with [Migrating from Hangfire](migrating-from-hangfire.md); for what was added, see [What's new](whats-new-next.md).
 
 The public API part of this list was produced by two tools, so it is complete:
 
-- **Package validation** against 1.8.25, which ran on every build and `dotnet pack` until the rename, with each intentional break recorded in a `CompatibilitySuppressions.xml` file.
+- **Package validation** against 1.8.25, which ran on every build and `dotnet pack` until the rename, with each intentional difference recorded in a `CompatibilitySuppressions.xml` file.
 - **A one-time ApiCompat comparison** of the 1.8.25 .NET Framework builds against the new builds. Package validation can't show these differences, because the .NET Framework builds no longer exist.
 
 There is no published Masterly.NightShift release yet, so package validation now checks only that each package's API agrees across its target frameworks.
@@ -17,7 +17,7 @@ There is no published Masterly.NightShift release yet, so package validation now
 | [Removed obsolete APIs](#removed-obsolete-apis) | Your code calls a member Hangfire marked obsolete |
 | [Who is affected and what to use instead](#who-is-affected-and-what-to-use-instead) | Your code uses an API that was removed |
 | [Nullable reference type annotations](#nullable-reference-type-annotations-source-level-only) | Your projects have `<Nullable>enable</Nullable>`, or you write a storage |
-| [Behaviour changes that are not API breaks](#behaviour-changes-that-are-not-api-breaks) | Your code compiles but you want to know what behaves differently |
+| [Behaviour changes](#behaviour-changes) | Your code compiles but you want to know what behaves differently |
 | [Behaviour that Hangfire got wrong](#behaviour-that-hangfire-got-wrong) | Your code relied on a Hangfire bug or on a value Hangfire accepted |
 | [Dependency changes](#dependency-changes) | You care about the packages your app pulls in |
 
@@ -209,7 +209,7 @@ Override signatures that use non-nullable types where the contract is nullable g
 
 `BulkJobResult`, `JobStateInfo`, `BackgroundServerContext` and `JobDetailsRendererDto` are records, so they compare by value and support `with` and deconstruction. Their constructor parameters are named after their properties: write `new BulkJobResult(1, 0, Complete: true)`, not `complete: true`.
 
-## Behaviour changes that are not API breaks
+## Behaviour changes
 
 Code that compiles against Masterly.NightShift can still behave differently. The sections below are grouped by area.
 
@@ -350,4 +350,4 @@ Cronos and Dapper are no longer hidden inside the assemblies, so NuGet unifies t
 
 ## After 1.0.0 ships
 
-Set `PackageValidationBaselineVersion` in `src/Directory.Build.props` to `1.0.0`. From then on, `dotnet pack` fails on any break against 1.0. Record each intentional break in a `CompatibilitySuppressions.xml` file next to the project (`dotnet pack -p:GenerateCompatibilitySuppressionFile=true` writes it) and list it on this page.
+Set `PackageValidationBaselineVersion` in `src/Directory.Build.props` to `1.0.0`. From then on, `dotnet pack` fails on any API change that breaks code built against 1.0. Record each intentional one in a `CompatibilitySuppressions.xml` file next to the project (`dotnet pack -p:GenerateCompatibilitySuppressionFile=true` writes it) and list it in `CHANGELOG.md`.

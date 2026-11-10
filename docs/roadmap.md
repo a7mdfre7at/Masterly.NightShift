@@ -65,7 +65,7 @@ What 1.0 already has on top of Hangfire is in [What's new](whats-new-next.md).
 **What it involves.**
 - Ignore a second `UseWebhookAlerts` call with the same URL and format.
 - Make `UseDefaultCulture` replace the culture filter it added before.
-- Record both behaviour changes in [Breaking changes](breaking-changes.md).
+- Record both behaviour changes in [Changes from Hangfire](changes-from-hangfire.md).
 
 **Until then.** Call each method once.
 

@@ -1,6 +1,6 @@
 # What's new in Masterly.NightShift
 
-Masterly.NightShift 1.0 is Hangfire 1.8.25, renamed, plus the features on this page. Use it to see what you get on top of Hangfire, with a short example of each feature and a link to its full page. Coming from Hangfire, read [Migrating from Hangfire](migrating-from-hangfire.md) first; for what behaves differently, see [Breaking changes](breaking-changes.md).
+Masterly.NightShift 1.0 is Hangfire 1.8.25, renamed, plus the features on this page. Use it to see what you get on top of Hangfire, with a short example of each feature and a link to its full page. Coming from Hangfire, read [Migrating from Hangfire](migrating-from-hangfire.md) first; for what behaves differently, see [Changes from Hangfire](changes-from-hangfire.md).
 
 Most features are opt-in: an attribute on a job method, a configuration call, or a button on the dashboard. All of them work with any storage, because they store their data in the hash, set, list, counter and job-parameter primitives every storage already implements. A few need the storage's extended API, which SQL Server has; their pages say so. The design and storage layout of each feature are in the [architecture blueprint](architecture/blueprints/nightshift-next.md).
 
@@ -136,6 +136,14 @@ jobs.Enqueue(new SendInvoice(42));
 ```
 
 The caller only names the class or passes the arguments. The stored job is an ordinary call of the class, so attributes on it apply and the dashboard shows its name. See [Job classes](jobs/typed-handlers.md).
+
+### Bulk enqueue
+
+```csharp
+IReadOnlyList<string?> ids = jobs.EnqueueMany<EmailService, int>(userIds, (x, id) => x.SendWelcome(id));
+```
+
+`EnqueueMany` creates a set of jobs in a few storage round trips instead of two per job, with client filters still running for every job. In the [benchmarks](benchmarks.md), against SQL Server 2022, it created jobs over 20 times faster than a loop of `Enqueue` calls. See [Many jobs at once](jobs/fire-and-forget.md#many-jobs-at-once).
 
 ### Fan-in continuations
 
@@ -412,5 +420,5 @@ Reads `ServerName`, `WorkerCount`, `Queues` and the intervals from `appsettings.
 ## See also
 
 - [Migrating from Hangfire](migrating-from-hangfire.md)
-- [Breaking changes](breaking-changes.md)
+- [Changes from Hangfire](changes-from-hangfire.md)
 - [Roadmap](roadmap.md)

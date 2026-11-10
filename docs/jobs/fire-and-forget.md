@@ -144,6 +144,33 @@ jobs.Enqueue<ImageService>("images", x => x.ResizeAsync(imageId, 800));
 
 Only servers that list `images` in `BackgroundJobServerOptions.Queues` process this job. If no server does, it waits on the queue forever.
 
+### Many jobs at once
+
+`EnqueueMany` creates a set of jobs in a few storage round trips instead of two per job. Against SQL Server 2022 it was over 20 times faster than calling `Enqueue` in a loop.
+
+```csharp
+// One job per item: the second lambda parameter stands for the item
+IReadOnlyList<string?> ids = jobs.EnqueueMany<EmailService, int>(userIds, (x, id) => x.SendWelcome(id));
+
+// Or one job per method call, or per Job
+jobs.EnqueueMany<ReportService>([x => x.BuildDaily(), x => x.BuildWeekly()]);
+jobs.EnqueueMany(preparedJobs);
+```
+
+| Overload | Creates |
+|---|---|
+| `EnqueueMany<T, TItem>(items, (x, item) => x.Method(item))` | One job per item, for a sync or an async method |
+| `EnqueueMany<T>(methodCalls)` | One job per method call expression |
+| `EnqueueMany(jobs)` | One job per `Job` |
+
+It returns the job IDs in the order given, with `null` for a job a filter canceled.
+
+- **Filters run for every job,** so `[Queue]`, `[PreventDuplicates]`, tags and batches work as with `Enqueue`. `OnCreating` is called for each job first, then the jobs are created, then `OnCreated` is called for each job.
+- **Jobs are created in groups** of `BackgroundJobClient.BulkSize` (250 by default). A group is created as a whole or not at all. When a group fails, the exception is thrown and the groups before it stay created.
+- **A filter that throws in `OnCreating` stops its group** before anything in it is created.
+- **Creation isn't retried,** whatever `RetryAttempts` says.
+- **Other storages** create the job records one by one unless they override `JobStorageConnection.CreateExpiredJobs`, and still write every state in one transaction.
+
 ### Handling a canceled creation
 
 ```csharp

@@ -64,7 +64,7 @@ Written data is not migrated in place: new jobs are written with the new type na
 - **Old and new servers don't mix.** A Hangfire server can't load jobs whose stored data names Masterly.NightShift types, such as a job that takes a cancellation token or a continuation's next state, and it doesn't know the new state data and job parameters. No compatibility level changes that. Stop every Hangfire server before Masterly.NightShift servers start against the same database. The rolling upgrade in [Compatibility levels](configuration/compatibility-levels.md#rolling-upgrade-old-and-new-servers-side-by-side) is for moving between Masterly.NightShift versions.
 - **.NET 8 or later only.** The packages target `net8.0` and `net10.0`. Apps on .NET Framework or .NET 7 or earlier must move to .NET 8 first, or stay on Hangfire.
 - **Removed APIs.** OWIN and classic ASP.NET integration, the MSMQ queue package, `System.Data.SqlClient` support and every API Hangfire marked obsolete are gone (see [Removed features](#removed-features)).
-- **Some behaviour changed.** The ones you are most likely to notice are listed in [Behaviour you may notice](#behaviour-you-may-notice). The full list is in [Breaking changes](breaking-changes.md).
+- **Some behaviour changed.** The ones you are most likely to notice are listed in [Behaviour you may notice](#behaviour-you-may-notice). The full list is in [Changes from Hangfire](changes-from-hangfire.md).
 
 ## Options / API
 
@@ -81,7 +81,7 @@ Written data is not migrated in place: new jobs are written with the new type na
 
 Assembly names are the same as the package IDs. `Masterly.NightShift.SqlServer` brings its SQL Server driver, `Microsoft.Data.SqlClient`, so remove your own `System.Data.SqlClient` or `Microsoft.Data.SqlClient` reference unless other code needs it (see [Installation](getting-started/installation.md#the-sql-server-driver)).
 
-Dependencies changed too. Newtonsoft.Json is no longer one. Cronos and Dapper, which Hangfire merged into its own assemblies, are ordinary package dependencies now, so NuGet unifies them with any other version your app references. The full list is in [Breaking changes](breaking-changes.md#dependency-changes).
+Dependencies changed too. Newtonsoft.Json is no longer one. Cronos and Dapper, which Hangfire merged into its own assemblies, are ordinary package dependencies now, so NuGet unifies them with any other version your app references. The full list is in [Changes from Hangfire](changes-from-hangfire.md#dependency-changes).
 
 ### Namespaces
 
@@ -144,7 +144,7 @@ The `IGlobalConfiguration` methods (`UseSqlServerStorage`, `UseSerializerSetting
 | `IRequestDispatcher`, `RequestDispatcherContext` | `IDashboardDispatcher` and `DashboardContext` |
 | `SqlServerStorageOptions.TransactionIsolationLevel`, `UseRecommendedIsolationLevel`, `TransactionTimeout`, `DisableTransactionScope`, `UsePageLocksOnDequeue` | Nothing: transactions always run as `READ COMMITTED`, and the others had no effect |
 | `System.Data.SqlClient` | `Microsoft.Data.SqlClient`, which the storage references |
-| Members Hangfire marked obsolete (`ContinueWith`, recurring job overloads without an ID, `BackgroundJobServer.Stop()`, `JobStorage.GetComponents()`, `PerformContext.JobId` and others) | See [Removed obsolete APIs](breaking-changes.md#removed-obsolete-apis) for each replacement |
+| Members Hangfire marked obsolete (`ContinueWith`, recurring job overloads without an ID, `BackgroundJobServer.Stop()`, `JobStorage.GetComponents()`, `PerformContext.JobId` and others) | See [Removed obsolete APIs](changes-from-hangfire.md#removed-obsolete-apis) for each replacement |
 | `JobHelper.SetSerializerSettings(...)` | `UseSerializerSettings(...)` |
 | `TypeHelperSerializationBinder` | `TypeHelper.CurrentTypeResolver` and `TypeHelper.CurrentTypeSerializer` |
 | `Cron.GetDescription(string)` (.NET Framework only) | `Cron.Describe(string)` or `Cron.TryDescribe(string)`; the wording differs and is always English |
@@ -184,7 +184,7 @@ See [Serialization](configuration/serialization.md) for the details.
 
 ### Behaviour you may notice
 
-These changes affect code or operations that worked with Hangfire. Each is explained in [Breaking changes](breaking-changes.md).
+These changes affect code or operations that worked with Hangfire. Each is explained in [Changes from Hangfire](changes-from-hangfire.md).
 
 - **A dashboard behind a reverse proxy refuses requests** when it relies on the default `LocalRequestsOnlyAuthorizationFilter`: requests with `X-Forwarded-For` and similar headers are no longer treated as local. Configure real authorization (see [Dashboard authorization](dashboard/authorization.md)).
 - **Scripts that POST to dashboard URLs** need an `X-Requested-With` header and the dashboard's own origin when antiforgery isn't registered.
@@ -319,7 +319,7 @@ Do the code changes first, test them against a copy of your data, and switch the
 5. **Port serializer settings.** Rewrite `UseSerializerSettings` and custom converters for System.Text.Json. Check every job argument type against [Serialization changes](#serialization-changes), and test deserializing real `Arguments` values from your database.
 6. **Update log filters.** Change `Hangfire` categories to `Masterly.NightShift` (see [Keep your log filters working](#keep-your-log-filters-working)).
 7. **Decide on the dashboard path.** Keep `/hangfire` by passing it to `MapNightShiftDashboard`, or move to `/nightshift` and update links, health checks, keep-alive URLs and reverse proxy rules.
-8. **Update dashboard customizations.** Scripts that use `window.Hangfire` or the global `moment`, and custom pages or routes, need changes. New built-in routes may clash with paths you registered (see [Breaking changes](breaking-changes.md#new-dashboard-routes)). Check the dashboard's authorization behind your proxy (see [Behaviour you may notice](#behaviour-you-may-notice)).
+8. **Update dashboard customizations.** Scripts that use `window.Hangfire` or the global `moment`, and custom pages or routes, need changes. New built-in routes may clash with paths you registered (see [Changes from Hangfire](changes-from-hangfire.md#new-dashboard-routes)). Check the dashboard's authorization behind your proxy (see [Behaviour you may notice](#behaviour-you-may-notice)).
 9. **Test against a copy of production data.** Start the app on a restored copy. Check the log for the schema installation, open the dashboard, look at old succeeded, failed, scheduled and recurring jobs, trigger a recurring job, and requeue a failed job.
 10. **Back up the database.** Nothing in the migration rewrites existing rows, but new servers write to it from their first minute.
 11. **Stop all Hangfire servers.** Before the first Masterly.NightShift server starts, stop every process that runs a Hangfire server against the database: web apps, workers and Windows Services. Ideally wait until nothing is in **Processing**; a job interrupted by the shutdown is not lost, the new servers pick it up again. Apps that only create jobs can be switched in the same deploy.
@@ -335,7 +335,7 @@ Do the code changes first, test them against a copy of your data, and switch the
 
 ## See also
 
-- [Breaking changes](breaking-changes.md)
+- [Changes from Hangfire](changes-from-hangfire.md)
 - [What's new](whats-new-next.md)
 - [Installation](getting-started/installation.md)
 - [Serialization](configuration/serialization.md)
