@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Text;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.SqlServer.Entities;
 
@@ -70,6 +71,175 @@ internal sealed class SqlServerConnection : JobStorageConnection
         return persistentQueue.Dequeue(queues, cancellationToken);
     }
 
+    // SQL Server allows 2100 parameters in a command; a group of jobs stays well below it
+    private const int MaxBulkParameters = 2000;
+
+    // A job with more parameters than this is created on its own, so that a group of concurrent callers
+    // always fits into one command
+    private const int MaxParametersToCreateTogether = 8;
+
+    public override IReadOnlyList<string?> CreateExpiredJobs(
+        IReadOnlyList<Job> jobs,
+        IReadOnlyList<IDictionary<string, string?>> parameters,
+        DateTime createdAt,
+        TimeSpan expireIn)
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        JobInsert[] inserts = new JobInsert[jobs.Count];
+        DateTime expireAt = SqlServerLimits.GetExpireAt(createdAt, expireIn);
+
+        for (int i = 0; i < inserts.Length; i++)
+        {
+            Job job = jobs[i] ?? throw new ArgumentException("The jobs can't contain null.", nameof(jobs));
+            EnsureParameterNamesFit(parameters[i]);
+            inserts[i] = new JobInsert(job, parameters[i], createdAt, expireAt);
+        }
+
+        InsertJobs(Storage, DedicatedConnection, inserts);
+
+        string?[] ids = new string?[inserts.Length];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ids[i] = inserts[i].Id;
+        }
+
+        return ids;
+    }
+
+    private static void EnsureParameterNamesFit(IDictionary<string, string?> parameters)
+    {
+        foreach (KeyValuePair<string, string?> parameter in parameters)
+        {
+            SqlServerLimits.EnsureJobParameterNameFits(parameter.Key);
+        }
+    }
+
+    /// <summary>
+    /// Inserts the jobs with their parameters, as many per command as fit, and sets the identifier of each.
+    /// The names of the parameters are checked by the caller.
+    /// </summary>
+    internal static void InsertJobs(SqlServerStorage storage, DbConnection? dedicatedConnection, IReadOnlyList<JobInsert> inserts)
+    {
+        int start = 0;
+
+        while (start < inserts.Count)
+        {
+            int count = 0;
+            int parameterCount = 0;
+
+            while (start + count < inserts.Count)
+            {
+                int needed = 4 + (inserts[start + count].Parameters.Count * 2);
+                if (count > 0 && parameterCount + needed > MaxBulkParameters) break;
+
+                parameterCount += needed;
+                count++;
+            }
+
+            InsertJobs(storage, dedicatedConnection, inserts, start, count);
+            start += count;
+        }
+    }
+
+    private static void InsertJobs(SqlServerStorage storage, DbConnection? dedicatedConnection, IReadOnlyList<JobInsert> inserts, int start, int count)
+    {
+        // One command that inserts every job with its parameters in a transaction, and returns the new
+        // identifiers in the order of the jobs
+        StringBuilder query = new();
+        List<Action<DbCommand>> addParameters = [];
+        string schema = storage.SchemaName;
+
+        // A single job needs no table for its identifier: a table variable is created in tempdb, which many
+        // callers creating jobs at the same time would contend for
+        bool single = count == 1;
+
+        query.Append(single
+            ? "set xact_abort on; set nocount on; declare @jobId bigint; begin tran; "
+            : "set xact_abort on; set nocount on; declare @jobId bigint; declare @ids table (Seq int not null, Id bigint not null); begin tran; ");
+
+        for (int i = 0; i < count; i++)
+        {
+            JobInsert insert = inserts[start + i];
+
+            InvocationData invocationData = InvocationData.SerializeJob(insert.Job);
+            string? payload = invocationData.SerializePayload(excludeArguments: true);
+            string? arguments = invocationData.Arguments;
+            string suffix = i.ToString(CultureInfo.InvariantCulture);
+
+            query.Append(CultureInfo.InvariantCulture, $"insert into [{schema}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) values (@i{suffix}, @a{suffix}, @c{suffix}, @e{suffix}); ");
+            query.Append(single
+                ? "set @jobId = scope_identity(); "
+                : $"set @jobId = scope_identity(); insert into @ids (Seq, Id) values ({suffix}, @jobId); ");
+
+            addParameters.Add(cmd => cmd
+                .AddParameter("@i" + suffix, payload, DbType.String, size: -1)
+                .AddParameter("@a" + suffix, arguments, DbType.String, size: -1)
+                .AddParameter("@c" + suffix, insert.CreatedAt, DbType.DateTime)
+                .AddParameter("@e" + suffix, insert.ExpireAt, DbType.DateTime));
+
+            int index = 0;
+            foreach (KeyValuePair<string, string?> parameter in insert.Parameters)
+            {
+                string name = $"@n{suffix}_{index.ToString(CultureInfo.InvariantCulture)}";
+                string value = $"@v{suffix}_{index.ToString(CultureInfo.InvariantCulture)}";
+
+                query.Append(index == 0
+                    ? $"insert into [{schema}].JobParameter (JobId, Name, Value) values "
+                    : ", ");
+                query.Append(CultureInfo.InvariantCulture, $"(@jobId, {name}, {value})");
+
+                addParameters.Add(cmd => cmd
+                    .AddParameter(name, parameter.Key, DbType.String, size: 40)
+                    .AddParameter(value, parameter.Value, DbType.String, size: -1));
+
+                index++;
+            }
+
+            if (index > 0) query.Append("; ");
+        }
+
+        // A job without a state is invisible, and the commit of its first state stores it too
+        query.Append(storage.UseDelayedDurability ? "commit tran with (delayed_durability = on); " : "commit tran; ");
+        query.Append(single ? "select @jobId;" : "select Id from @ids order by Seq;");
+
+        storage.UseConnection(dedicatedConnection, static (storage, connection, ctx) =>
+        {
+            using DbCommand command = connection.Create(ctx.Query, timeout: storage.CommandTimeout);
+
+            foreach (Action<DbCommand> add in ctx.AddParameters)
+            {
+                add(command);
+            }
+
+            using DbDataReader reader = command.ExecuteReader();
+            int position = ctx.Start;
+
+            while (reader.Read())
+            {
+                ctx.Inserts[position++].Id = reader.GetInt64(0).ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (position != ctx.Start + ctx.Count)
+            {
+                throw new InvalidOperationException($"Expected {ctx.Count} new job identifiers, but got {position - ctx.Start}.");
+            }
+
+            return true;
+        }, (Query: query.ToString(), AddParameters: addParameters, Start: start, Count: count, Inserts: inserts));
+    }
+
+    /// <summary>A job to insert, and its identifier once it is inserted.</summary>
+    internal sealed class JobInsert(Job job, IDictionary<string, string?> parameters, DateTime createdAt, DateTime expireAt)
+    {
+        public Job Job { get; } = job;
+        public IDictionary<string, string?> Parameters { get; } = parameters;
+        public DateTime CreatedAt { get; } = createdAt;
+        public DateTime ExpireAt { get; } = expireAt;
+        public string? Id { get; set; }
+    }
+
     public override string CreateExpiredJob(
         Job job,
         IDictionary<string, string?> parameters,
@@ -79,9 +249,36 @@ internal sealed class SqlServerConnection : JobStorageConnection
         ArgumentNullException.ThrowIfNull(job);
         ArgumentNullException.ThrowIfNull(parameters);
 
-        foreach (KeyValuePair<string, string?> parameter in parameters)
+        EnsureParameterNamesFit(parameters);
+
+        if (Storage.Options.MaxConcurrentWriters > 0 && DedicatedConnection == null && parameters.Count <= MaxParametersToCreateTogether)
         {
-            SqlServerLimits.EnsureJobParameterNameFits(parameter.Key);
+            // Callers that create jobs at the same time share a round trip; a caller on its own goes straight on
+            JobInsert insert = new(job, parameters, createdAt, SqlServerLimits.GetExpireAt(createdAt, expireIn));
+
+            Storage.JobInserts.Write(insert, alone =>
+                alone.Id = CreateExpiredJobAlone(alone.Job, alone.Parameters, alone.CreatedAt, expireIn));
+
+            return insert.Id!; // Set by either way of writing
+        }
+
+        return CreateExpiredJobAlone(job, parameters, createdAt, expireIn);
+    }
+
+    private string CreateExpiredJobAlone(
+
+        Job job,
+        IDictionary<string, string?> parameters,
+        DateTime createdAt,
+        TimeSpan expireIn)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        if (Storage.UseDelayedDurability)
+        {
+            // The command for several jobs ends with a commit that doesn't wait for the disk
+            return CreateExpiredJobs([job], [parameters], createdAt, expireIn)[0]!; // One identifier per job
         }
 
         string queryString = Storage.GetQueryFromTemplate(static schemaName =>

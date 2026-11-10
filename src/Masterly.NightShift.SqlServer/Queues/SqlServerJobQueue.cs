@@ -229,7 +229,22 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         string[] queues,
         int invisibilityTimeout)
     {
-        string template = storage.GetQueryFromTemplate(static schemaName => $"""
+        // Marking a job as fetched doesn't have to wait for the disk: if the mark is lost, the job is fetched again
+        string template = storage.GetQueryFromTemplate(storage.UseDelayedDurability
+            ? static schemaName => $"""
+            set nocount on;set xact_abort on;set tran isolation level read committed;
+            begin tran;
+
+            update top (1) JQ
+            set FetchedAt = GETUTCDATE()
+            output INSERTED.Id, INSERTED.JobId, INSERTED.Queue, INSERTED.FetchedAt
+            from [{schemaName}].JobQueue JQ with (forceseek, readpast, updlock, rowlock)
+            where Queue in @queues and
+            (FetchedAt is null or FetchedAt < DATEADD(second, @timeoutSs, GETUTCDATE()));
+
+            commit tran with (delayed_durability = on);
+            """
+            : static schemaName => $"""
             set nocount on;set xact_abort on;set tran isolation level read committed;
 
             update top (1) JQ

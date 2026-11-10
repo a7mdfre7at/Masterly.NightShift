@@ -13,6 +13,9 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Collections.Concurrent;
+using System.Text;
+using System.Text.RegularExpressions;
 using Masterly.NightShift.States;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
@@ -39,6 +42,11 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
     private readonly SortedSet<string> _lockedResources = [];
 
+    // A transaction that only moves jobs to Processing doesn't have to wait for the disk: if it is lost, the
+    // jobs are fetched and run again, as after any failure before their final state is stored
+    private bool _movesToProcessing;
+    private bool _hasOtherStateOrQueueChanges;
+
     public SqlServerWriteOnlyTransaction([NotNull] SqlServerConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -52,53 +60,16 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     {
         try
         {
-            _storage.UseTransaction(_connection.DedicatedConnection, static (storage, connection, transaction, ctx) =>
+            if (CanCommitTogether())
             {
-                using SqlCommandBatch commandBatch = new(connection, transaction, preferBatching: storage.CommandBatchMaxTimeout.HasValue);
-                commandBatch.Append(connection.Create("set xact_abort on;set nocount on;"));
-
-                foreach (string lockedResource in ctx._lockedResources)
-                {
-                    commandBatch.Append(connection
-                        .Create("exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive'")
-                        .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
-                }
-
-                AppendBatch(ctx._jobCommands, commandBatch);
-                AppendBatch(ctx._counterCommands, commandBatch);
-                AppendBatch(ctx._hashCommands, commandBatch);
-                AppendBatch(ctx._listCommands, commandBatch);
-                AppendBatch(ctx._setCommands, commandBatch);
-                AppendBatch(ctx._queueCommands, commandBatch);
-
-                foreach (Tuple<DbCommand, DbParameter, string> command in ctx._lockCommands)
-                {
-                    commandBatch.Append(command.Item1);
-                }
-
-                commandBatch.CommandTimeout = storage.CommandTimeout;
-                commandBatch.CommandBatchMaxTimeout = storage.CommandBatchMaxTimeout;
-
-                commandBatch.ExecuteNonQuery();
-                foreach (SqlServerConnection.DisposableLock acquiredLock in ctx._acquiredLocks)
-                {
-                    acquiredLock.TryReportReleased();
-                }
-
-                foreach (Tuple<DbCommand, DbParameter, string> lockCommand in ctx._lockCommands)
-                {
-                    int? releaseResult = lockCommand.Item2.GetParameterValue<int?>();
-                    if (releaseResult.HasValue && releaseResult.Value < 0)
-                    {
-                        throw new SqlServerDistributedLockException($"Could not release a lock on the resource '{lockCommand.Item3}': Server returned the '{releaseResult}' error.");
-                    }
-                }
-
-                foreach (Action<DbConnection, DbTransaction> queueCommand in ctx._queueCommandQueue)
-                {
-                    queueCommand(connection, transaction);
-                }
-            }, this);
+                // Callers that commit at the same time share a round trip and a commit; a caller on its own
+                // goes straight on
+                _storage.Commits.Write(this, static transaction => transaction.CommitAlone());
+            }
+            else
+            {
+                CommitAlone();
+            }
 
             Committed = true;
         }
@@ -111,6 +82,410 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         }
 
         TrySignalListeningWorkers();
+    }
+
+    private void CommitAlone()
+    {
+        if (!TryCommitInOneRoundTrip())
+        {
+            CommitWithApiTransaction();
+        }
+    }
+
+    // Small transactions that take no locks, such as the first state of a new job. A transaction with locks
+    // stays on its own: merged with others it would hold them longer and in an order nobody chose.
+    private bool CanCommitTogether()
+    {
+        if (_storage.Options.MaxConcurrentWriters <= 0 ||
+            !_storage.CommandBatchMaxTimeout.HasValue ||
+            _connection.DedicatedConnection != null ||
+            _queueCommandQueue.Count > 0 ||
+            _lockedResources.Count > 0 ||
+            _lockCommands.Count > 0 ||
+            _acquiredLocks.Count > 0 ||
+            (_movesToProcessing && !_hasOtherStateOrQueueChanges))
+        {
+            return false;
+        }
+
+        int commandCount = Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
+            Count(_listCommands) + Count(_setCommands) + Count(_queueCommands);
+
+        return commandCount is > 0 and <= MaxCommandsToCommitTogether;
+    }
+
+    /// <summary>
+    /// Commits several transactions as one: one command, one round trip, one commit. All of them are stored or
+    /// none is; when it throws, each transaction is committed on its own by its caller.
+    /// </summary>
+    internal static void CommitTogether(SqlServerStorage storage, IReadOnlyList<SqlServerWriteOnlyTransaction> transactions)
+    {
+        storage.UseConnection(null, static (storage, connection, transactions) =>
+        {
+            List<DbCommand> commands = [];
+
+            try
+            {
+                foreach (SqlServerWriteOnlyTransaction transaction in transactions)
+                {
+                    CreateCommands(transaction._jobCommands, connection, commands);
+                    CreateCommands(transaction._counterCommands, connection, commands);
+                    CreateCommands(transaction._hashCommands, connection, commands);
+                    CreateCommands(transaction._listCommands, connection, commands);
+                    CreateCommands(transaction._setCommands, connection, commands);
+                    CreateCommands(transaction._queueCommands, connection, commands);
+                }
+
+                int parameterCount = 0;
+                foreach (DbCommand command in commands)
+                {
+                    parameterCount += command.Parameters.Count;
+                }
+
+                if (parameterCount > MaxParametersInOneCommand)
+                {
+                    throw new InvalidOperationException("The transactions have too many parameters to be committed together.");
+                }
+
+                using DbCommand merged = connection.Create(string.Empty);
+                StringBuilder text = new("set xact_abort on;set nocount on;begin tran;\n");
+
+                for (int i = 0; i < commands.Count; i++)
+                {
+                    AppendRenamed(text, merged, commands[i], i);
+                }
+
+                text.Append("commit tran;");
+                merged.CommandText = text.ToString();
+
+                int? timeout = storage.CommandTimeout;
+                if (timeout is > 0)
+                {
+                    long total = (long)timeout.Value * Math.Max(1, commands.Count);
+                    merged.CommandTimeout = (int)Math.Min(total, storage.CommandBatchMaxTimeout ?? timeout.Value);
+                }
+                else if (timeout.HasValue)
+                {
+                    merged.CommandTimeout = timeout.Value;
+                }
+
+                try
+                {
+                    merged.ExecuteNonQuery();
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    TryRollback(storage, connection);
+                    throw;
+                }
+
+                return true;
+            }
+            finally
+            {
+                foreach (DbCommand command in commands)
+                {
+                    command.Dispose();
+                }
+            }
+        }, transactions);
+    }
+
+    // The transaction as SqlClient offers it: one round trip to begin it, at least one for the commands and
+    // one to commit. Used for what the single command below can't carry.
+    private void CommitWithApiTransaction()
+    {
+        _storage.UseTransaction(_connection.DedicatedConnection, static (storage, connection, transaction, ctx) =>
+        {
+            using SqlCommandBatch commandBatch = new(connection, transaction, preferBatching: storage.CommandBatchMaxTimeout.HasValue);
+            commandBatch.Append(connection.Create("set xact_abort on;set nocount on;"));
+
+            foreach (string lockedResource in ctx._lockedResources)
+            {
+                commandBatch.Append(connection
+                    .Create("exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive'")
+                    .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
+            }
+
+            AppendBatch(ctx._jobCommands, commandBatch);
+            AppendBatch(ctx._counterCommands, commandBatch);
+            AppendBatch(ctx._hashCommands, commandBatch);
+            AppendBatch(ctx._listCommands, commandBatch);
+            AppendBatch(ctx._setCommands, commandBatch);
+            AppendBatch(ctx._queueCommands, commandBatch);
+
+            foreach (Tuple<DbCommand, DbParameter, string> command in ctx._lockCommands)
+            {
+                commandBatch.Append(command.Item1);
+            }
+
+            commandBatch.CommandTimeout = storage.CommandTimeout;
+            commandBatch.CommandBatchMaxTimeout = storage.CommandBatchMaxTimeout;
+
+            commandBatch.ExecuteNonQuery();
+            foreach (SqlServerConnection.DisposableLock acquiredLock in ctx._acquiredLocks)
+            {
+                acquiredLock.TryReportReleased();
+            }
+
+            foreach (Tuple<DbCommand, DbParameter, string> lockCommand in ctx._lockCommands)
+            {
+                int? releaseResult = lockCommand.Item2.GetParameterValue<int?>();
+                if (releaseResult.HasValue && releaseResult.Value < 0)
+                {
+                    throw new SqlServerDistributedLockException($"Could not release a lock on the resource '{lockCommand.Item3}': Server returned the '{releaseResult}' error.");
+                }
+            }
+
+            foreach (Action<DbConnection, DbTransaction> queueCommand in ctx._queueCommandQueue)
+            {
+                queueCommand(connection, transaction);
+            }
+        }, this);
+    }
+
+    /// <summary>
+    /// Sends the whole transaction as one command: <c>begin tran</c>, every command with its parameters renamed
+    /// so they don't clash, and <c>commit tran</c>. One round trip instead of three or more. Returns
+    /// <c>false</c>, having done nothing, when the transaction doesn't fit: batching is turned off, a custom
+    /// queue wants the transaction object, or there are too many commands or parameters for one command.
+    /// </summary>
+    private bool TryCommitInOneRoundTrip()
+    {
+        if (!_storage.CommandBatchMaxTimeout.HasValue || _queueCommandQueue.Count > 0)
+        {
+            return false;
+        }
+
+        // A large transaction, such as the states of a group of jobs, is cheaper as a batch of commands
+        int commandCount = _lockedResources.Count + _lockCommands.Count +
+            Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
+            Count(_listCommands) + Count(_setCommands) + Count(_queueCommands);
+
+        if (commandCount > MaxCommandsInOneCommand)
+        {
+            return false;
+        }
+
+        return _storage.UseConnection(_connection.DedicatedConnection, static (storage, connection, ctx) =>
+        {
+            List<DbCommand> commands = [];
+            List<KeyValuePair<DbParameter, string>> releaseResults = [];
+
+            try
+            {
+                foreach (string lockedResource in ctx._lockedResources)
+                {
+                    commands.Add(connection
+                        .Create("exec sp_getapplock @Resource=@resource, @LockMode=N'Exclusive'")
+                        .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
+                }
+
+                CreateCommands(ctx._jobCommands, connection, commands);
+                CreateCommands(ctx._counterCommands, connection, commands);
+                CreateCommands(ctx._hashCommands, connection, commands);
+                CreateCommands(ctx._listCommands, connection, commands);
+                CreateCommands(ctx._setCommands, connection, commands);
+                CreateCommands(ctx._queueCommands, connection, commands);
+
+                int parameterCount = ctx._lockCommands.Count * 3;
+                foreach (DbCommand command in commands)
+                {
+                    parameterCount += command.Parameters.Count;
+                }
+
+                if (parameterCount > MaxParametersInOneCommand)
+                {
+                    return false;
+                }
+
+                if (commands.Count == 0 && ctx._lockCommands.Count == 0)
+                {
+                    // Nothing to write
+                    return true;
+                }
+
+                using DbCommand merged = connection.Create(string.Empty);
+                StringBuilder text = new();
+
+                text.Append("set xact_abort on;set nocount on;begin tran;\n");
+
+                for (int i = 0; i < commands.Count; i++)
+                {
+                    AppendRenamed(text, merged, commands[i], i);
+                }
+
+                // The locks this transaction took on its connection are released by it, as its last commands
+                for (int i = 0; i < ctx._lockCommands.Count; i++)
+                {
+                    Tuple<DbCommand, DbParameter, string> lockCommand = ctx._lockCommands[i];
+                    string suffix = i.ToString(CultureInfo.InvariantCulture);
+
+                    text.Append(CultureInfo.InvariantCulture, $"exec @lockResult{suffix} = sp_releaseapplock @Resource = @lockResource{suffix}, @LockOwner = @lockOwner{suffix};\n");
+
+                    merged.AddParameter("@lockResource" + suffix, lockCommand.Item1.Parameters["@Resource"].Value, DbType.String, size: SqlServerLimits.LockResourceLength);
+                    merged.AddParameter("@lockOwner" + suffix, lockCommand.Item1.Parameters["@LockOwner"].Value, DbType.String, size: 32);
+
+                    DbParameter result = merged.CreateParameter();
+                    result.ParameterName = "@lockResult" + suffix;
+                    result.DbType = DbType.Int32;
+                    result.Direction = ParameterDirection.Output;
+                    result.Value = DBNull.Value;
+                    merged.Parameters.Add(result);
+
+                    releaseResults.Add(new KeyValuePair<DbParameter, string>(result, lockCommand.Item3));
+                }
+
+                text.Append(storage.UseDelayedDurability && ctx._movesToProcessing && !ctx._hasOtherStateOrQueueChanges
+                    ? "commit tran with (delayed_durability = on);"
+                    : "commit tran;");
+                merged.CommandText = text.ToString();
+
+                int? timeout = storage.CommandTimeout;
+                if (timeout is > 0)
+                {
+                    // As for a batch: the time of every command, up to the limit for a batch
+                    long total = (long)timeout.Value * Math.Max(1, commands.Count);
+                    merged.CommandTimeout = (int)Math.Min(total, storage.CommandBatchMaxTimeout!.Value); // Checked at the top
+                }
+                else if (timeout.HasValue)
+                {
+                    merged.CommandTimeout = timeout.Value;
+                }
+
+                try
+                {
+                    merged.ExecuteNonQuery();
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    // XACT_ABORT rolled the transaction back for most errors. Make sure, so no lock outlives
+                    // this call on a pooled connection.
+                    TryRollback(storage, connection);
+                    throw;
+                }
+
+                foreach (SqlServerConnection.DisposableLock acquiredLock in ctx._acquiredLocks)
+                {
+                    acquiredLock.TryReportReleased();
+                }
+
+                foreach (KeyValuePair<DbParameter, string> release in releaseResults)
+                {
+                    int? releaseResult = release.Key.GetParameterValue<int?>();
+                    if (releaseResult.HasValue && releaseResult.Value < 0)
+                    {
+                        throw new SqlServerDistributedLockException($"Could not release a lock on the resource '{release.Value}': Server returned the '{releaseResult}' error.");
+                    }
+                }
+
+                return true;
+            }
+            finally
+            {
+                foreach (DbCommand command in commands)
+                {
+                    command.Dispose();
+                }
+            }
+        }, this);
+    }
+
+    // SQL Server allows 2100 parameters in a command
+    private const int MaxParametersInOneCommand = 2000;
+    private const int MaxCommandsInOneCommand = 64;
+    private const int MaxCommandsToCommitTogether = 12;
+
+    private static int Count<TKey>(SortedDictionary<TKey, List<Func<DbConnection, DbCommand>>> collection)
+        where TKey : notnull
+    {
+        int count = 0;
+        foreach (KeyValuePair<TKey, List<Func<DbConnection, DbCommand>>> pair in collection)
+        {
+            count += pair.Value.Count;
+        }
+
+        return count;
+    }
+
+    private static readonly ConcurrentDictionary<(string Text, int Index), string> RenamedTexts = new();
+
+    private static void CreateCommands<TKey>(
+        SortedDictionary<TKey, List<Func<DbConnection, DbCommand>>> collection,
+        DbConnection connection,
+        List<DbCommand> commands)
+        where TKey : notnull
+    {
+        foreach (KeyValuePair<TKey, List<Func<DbConnection, DbCommand>>> pair in collection)
+        {
+            foreach (Func<DbConnection, DbCommand> command in pair.Value)
+            {
+                commands.Add(command(connection));
+            }
+        }
+    }
+
+    // Adds a command's text and parameters to the merged command, with "_{index}" added to every parameter
+    // name, so that the same name in two commands stays two parameters
+    private static void AppendRenamed(StringBuilder text, DbCommand merged, DbCommand command, int index)
+    {
+        string suffix = "_" + index.ToString(CultureInfo.InvariantCulture);
+
+        if (command.Parameters.Count == 0)
+        {
+            text.Append(command.CommandText);
+        }
+        else
+        {
+            string[] names = new string[command.Parameters.Count];
+            for (int i = 0; i < names.Length; i++)
+            {
+                names[i] = command.Parameters[i].ParameterName;
+            }
+
+            text.Append(RenamedTexts.GetOrAdd((command.CommandText, index), static (key, parameterNames) =>
+            {
+                string renamed = key.Text;
+                string keySuffix = "_" + key.Index.ToString(CultureInfo.InvariantCulture);
+
+                foreach (string name in parameterNames)
+                {
+                    // The whole name only, in its exact case: "@key" but not "@key1", "@@rowcount" or "@Resource="
+                    renamed = Regex.Replace(
+                        renamed,
+                        $@"(?<![\w@#$]){Regex.Escape(name)}(?![\w@#$])",
+                        name + keySuffix,
+                        RegexOptions.CultureInvariant);
+                }
+
+                return renamed;
+            }, names));
+
+            DbParameter[] parameters = new DbParameter[command.Parameters.Count];
+            command.Parameters.CopyTo(parameters, 0);
+            command.Parameters.Clear();
+
+            foreach (DbParameter parameter in parameters)
+            {
+                parameter.ParameterName += suffix;
+                merged.Parameters.Add(parameter);
+            }
+        }
+
+        text.Append(";\n");
+    }
+
+    private static void TryRollback(SqlServerStorage storage, DbConnection connection)
+    {
+        try
+        {
+            using DbCommand rollback = connection.Create("if @@trancount > 0 rollback tran;", timeout: storage.CommandTimeout);
+            rollback.ExecuteNonQuery();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // The connection is broken, and SQL Server rolls back what it had open
+        }
     }
 
     public override void Dispose()
@@ -183,6 +558,15 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
 
         if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
 
+        if (state.Name == ProcessingState.StateName)
+        {
+            _movesToProcessing = true;
+        }
+        else
+        {
+            _hasOtherStateOrQueueChanges = true;
+        }
+
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
             .AddParameter("@name", state.Name, DbType.String, size: 20)
@@ -220,6 +604,7 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
 
         IPersistentJobQueueProvider provider = _storage.QueueProviders.GetProvider(queue);
         IPersistentJobQueue persistentQueue = provider.GetJobQueue();
+        _hasOtherStateOrQueueChanges = true;
 
         if (persistentQueue.GetType() == typeof(SqlServerJobQueue))
         {
@@ -577,6 +962,8 @@ $@"delete S from [{schemaName}].[Set] S with (forceseek) where [Key] = @key");
     public override void RemoveFromQueue(IFetchedJob fetchedJob)
     {
         ArgumentNullException.ThrowIfNull(fetchedJob);
+
+        _hasOtherStateOrQueueChanges = true;
 
         if (fetchedJob is SqlServerTimeoutJob timeoutJob)
         {

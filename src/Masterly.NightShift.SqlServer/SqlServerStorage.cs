@@ -592,9 +592,80 @@ public class SqlServerStorage : JobStorage
         InitializeQueueProviders();
         HeartbeatProcess = new SqlServerHeartbeatProcess();
 
+        // Normally read right after the schema version, when the database is known to be reachable
+        if (!Options.TryAutoDetectSchemaDependentOptions && Options.AllowDelayedDurability)
+        {
+            try
+            {
+                UseConnection(null, static (storage, connection) => storage.DetectDelayedDurability(connection));
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                LogProvider.GetLogger(typeof(SqlServerStorage)).DebugException("Could not read the DELAYED_DURABILITY setting of the database.", ex);
+            }
+        }
+
         _features.Add(
             JobStorageFeatures.Transaction.RemoveFromQueue(typeof(SqlServerTimeoutJob)),
             Options.UseTransactionalAcknowledge);
+    }
+
+    /// <summary>
+    /// Whether the database lets a commit ask not to wait for the disk (<c>DELAYED_DURABILITY</c> is
+    /// <c>ALLOWED</c> or <c>FORCED</c>). The storage then asks for it where losing the commit does no harm.
+    /// </summary>
+    internal bool UseDelayedDurability { get; private set; }
+
+    /// <summary>Groups the callers that create jobs at the same time, beyond <see cref="SqlServerStorageOptions.MaxConcurrentWriters"/>.</summary>
+    internal WriteCoalescer<SqlServerConnection.JobInsert> JobInserts => field ?? InterlockedInitialize(
+        ref field,
+        new WriteCoalescer<SqlServerConnection.JobInsert>(inserts => SqlServerConnection.InsertJobs(this, null, inserts), maxGroupSize: 64, Options.MaxConcurrentWriters));
+
+    /// <summary>Groups the callers that commit a small transaction at the same time, such as the first state of a new job.</summary>
+    internal WriteCoalescer<SqlServerWriteOnlyTransaction> Commits => field ?? InterlockedInitialize(
+        ref field,
+        new WriteCoalescer<SqlServerWriteOnlyTransaction>(transactions => SqlServerWriteOnlyTransaction.CommitTogether(this, transactions), maxGroupSize: 24, Options.MaxConcurrentWriters));
+
+    // Two threads may both create one: the first to store it wins, and both use that one
+    private static T InterlockedInitialize<T>(ref T? field, T created)
+        where T : class
+    {
+        return Interlocked.CompareExchange(ref field, created, null) ?? created;
+    }
+
+    private void DetectDelayedDurability(DbConnection connection)
+    {
+        ILog log = LogProvider.GetLogger(typeof(SqlServerStorage));
+
+        try
+        {
+            int setting = connection.ExecuteScalar<int>(
+                "select cast(delayed_durability as int) from sys.databases where database_id = db_id()",
+                commandTimeout: CommandTimeout);
+
+            if (setting == 0 && Options.AllowDelayedDurability)
+            {
+                try
+                {
+                    connection.Execute(
+                        "alter database current set delayed_durability = allowed",
+                        commandTimeout: CommandTimeout);
+
+                    setting = 1;
+                }
+                catch (Exception ex) when (ex.IsCatchableExceptionType())
+                {
+                    log.WarnException("AllowDelayedDurability is on, but DELAYED_DURABILITY could not be allowed for the database. Every commit waits for the disk. Allow it with ALTER DATABASE, or grant the ALTER permission.", ex);
+                }
+            }
+
+            UseDelayedDurability = setting != 0;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // A SQL Server older than 2014, or a login that may not read it: every commit waits for the disk
+            log.DebugException("Could not read the DELAYED_DURABILITY setting of the database.", ex);
+        }
     }
 
     private bool InstallSchema()
@@ -685,7 +756,13 @@ public class SqlServerStorage : JobStorage
         try
         {
             int version = UseConnection(null, static (storage, connection) =>
-                connection.ExecuteScalar<int>($"select top (1) [Version] from [{storage.SchemaName}].[Schema]", commandTimeout: storage.CommandTimeout));
+            {
+                int schemaVersion = connection.ExecuteScalar<int>($"select top (1) [Version] from [{storage.SchemaName}].[Schema]", commandTimeout: storage.CommandTimeout);
+
+                // On the same connection, now that the database is known to answer
+                storage.DetectDelayedDurability(connection);
+                return schemaVersion;
+            });
 
             _detectedSchemaVersion = version;
             _schemaVersionDetected = true;

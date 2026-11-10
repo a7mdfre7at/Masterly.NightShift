@@ -37,7 +37,7 @@ public class SqlServerStorageOptions
         PrepareSchemaIfNecessary = true;
         DashboardJobListLimit = 10000;
         DeleteExpiredBatchSize = -1;
-        UseTransactionalAcknowledge = false;
+        UseTransactionalAcknowledge = true;
         CommandBatchMaxTimeout = TimeSpan.FromMinutes(5);
         TryAutoDetectSchemaDependentOptions = true;
         InactiveStateExpirationTimeout = TimeSpan.Zero;
@@ -279,12 +279,47 @@ public class SqlServerStorageOptions
     internal bool? UseIgnoreDupKeyOptionIfSet { get; private set; }
 
     /// <summary>
-    /// Gets or sets whether to enable experimental feature of transactional acknowledge of completed
-    /// background jobs. In this case there will be less requests sent to SQL Server and better handling
-    /// of data loss when asynchronous replication is used. But additional blocking on the JobQueue table
-    /// is expected, since transaction commit requires an explicit Commit request to be sent. 
+    /// Gets or sets whether a finished job is removed from its queue in the transaction that writes its final
+    /// state, instead of by a request of its own afterwards. On by default: it saves a round trip and a commit
+    /// per job.
     /// </summary>
     public bool UseTransactionalAcknowledge { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the storage may turn on <c>DELAYED_DURABILITY = ALLOWED</c> for its database when
+    /// that setting is off. Off by default.
+    /// </summary>
+    /// <remarks>
+    /// <para>With the setting allowed, by this option or by a database administrator, the commits whose loss
+    /// does no harm don't wait for the disk: creating a job record before its first state, fetching a job, and
+    /// moving a job to Processing. The commit that follows them does wait, and stores them with it. If SQL Server
+    /// stops in between, the job runs again, as it does after any failure before its final state is stored.</para>
+    /// <para>The commits that say a job was created, or that it finished, always wait for the disk.</para>
+    /// <para>The setting changes nothing for other users of the database: it only lets a commit ask for it.
+    /// Changing it needs the <c>ALTER</c> permission on the database; without it a warning is logged.</para>
+    /// </remarks>
+    public bool AllowDelayedDurability { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many callers may create jobs at the same time, each with its own round trips. The
+    /// callers beyond that number are written in groups: one round trip and one commit per group. The default
+    /// is 8, and 0 turns grouping off.
+    /// </summary>
+    /// <remarks>
+    /// Nobody waits for a group to fill, so a few callers are never delayed. When a group fails, every caller
+    /// in it is written alone, so a failure only reaches the caller it belongs to. A lower number suits a
+    /// database that slows down under many writers; a higher one suits a database with fast storage.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+    public int MaxConcurrentWriters
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    } = 8;
 
     /// <summary>
     /// Gets or sets the <see cref="DbProviderFactory"/> that creates the connections.
