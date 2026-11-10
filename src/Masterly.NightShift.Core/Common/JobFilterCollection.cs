@@ -63,6 +63,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     {
         ValidateFilterInstance(filter);
         _filters.Add(new JobFilter(filter, JobFilterScope.Global, order));
+        JobFilterVersion.Increment();
     }
 
     /// <summary>
@@ -71,6 +72,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     public void Clear()
     {
         _filters.Clear();
+        JobFilterVersion.Increment();
     }
 
     /// <summary>
@@ -90,6 +92,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     public void Remove(object filter)
     {
         _filters.RemoveAll(x => x.Instance == filter);
+        JobFilterVersion.Increment();
     }
 
     /// <summary>
@@ -108,6 +111,7 @@ public class JobFilterCollection : IJobFilterProvider, IEnumerable<JobFilter>
     public void Remove(Type type)
     {
         _filters.RemoveAll(x => type == x.Instance.GetType());
+        JobFilterVersion.Increment();
     }
 
     public IEnumerator<JobFilter> GetEnumerator()

@@ -13,7 +13,9 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Reflection;
 
 namespace Masterly.NightShift.Common;
 
@@ -23,6 +25,10 @@ namespace Masterly.NightShift.Common;
 public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobFilterProvider
 {
     private static readonly JobFilterComparer FilterComparer = new();
+
+    // The filters of a job method, kept until any filter collection changes. Only used while every provider is
+    // one of the built-in ones, whose answer depends on the job's type and method alone.
+    private readonly ConcurrentDictionary<(Type, MethodInfo), CachedFilters> _cache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JobFilterProviderCollection"/> 
@@ -42,11 +48,76 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
     /// </summary>
     /// <param name="job">Job, can be null.</param>
     /// <returns>The collection of filter providers.</returns>
+    /// <remarks>The result is shared between calls: treat it as read-only.</remarks>
     public IEnumerable<JobFilter> GetFilters(Job? job)
     {
-        var combinedFilters = new List<JobFilter>();
+        if (job == null || !IsCacheable())
+        {
+            return CombineFilters(job);
+        }
 
-        for (var i = 0; i < Items.Count; i++)
+        int version = JobFilterVersion.Current;
+        (Type, MethodInfo) key = (job.Type, job.Method);
+
+        if (_cache.TryGetValue(key, out CachedFilters? cached) && cached.Version == version)
+        {
+            return cached.Filters;
+        }
+
+        // The version was read before the filters: a change made meanwhile makes this entry stale, not wrong
+        JobFilter[] filters = [.. CombineFilters(job)];
+        _cache[key] = new CachedFilters(version, filters);
+        return filters;
+    }
+
+    /// <inheritdoc />
+    protected override void InsertItem(int index, IJobFilterProvider item)
+    {
+        base.InsertItem(index, item);
+        JobFilterVersion.Increment();
+    }
+
+    /// <inheritdoc />
+    protected override void SetItem(int index, IJobFilterProvider item)
+    {
+        base.SetItem(index, item);
+        JobFilterVersion.Increment();
+    }
+
+    /// <inheritdoc />
+    protected override void RemoveItem(int index)
+    {
+        base.RemoveItem(index);
+        JobFilterVersion.Increment();
+    }
+
+    /// <inheritdoc />
+    protected override void ClearItems()
+    {
+        base.ClearItems();
+        JobFilterVersion.Increment();
+    }
+
+    private bool IsCacheable()
+    {
+        for (int i = 0; i < Items.Count; i++)
+        {
+            IJobFilterProvider provider = Items[i];
+            bool builtIn = provider.GetType() == typeof(JobFilterCollection)
+                || (provider.GetType() == typeof(JobFilterAttributeFilterProvider)
+                    && ((JobFilterAttributeFilterProvider)provider).CachesAttributeInstances);
+
+            if (!builtIn) return false;
+        }
+
+        return true;
+    }
+
+    private List<JobFilter> CombineFilters(Job? job)
+    {
+        List<JobFilter> combinedFilters = [];
+
+        for (int i = 0; i < Items.Count; i++)
         {
             combinedFilters.AddRange(Items[i].GetFilters(job));
         }
@@ -63,12 +134,12 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
 
     private static void RemoveDuplicates(List<JobFilter> filters)
     {
-        var visitedTypes = new HashSet<Type>();
+        HashSet<Type> visitedTypes = [];
 
         // Remove duplicates from the back forward
-        for (var i = filters.Count - 1; i >= 0; i--)
+        for (int i = filters.Count - 1; i >= 0; i--)
         {
-            var filterInstance = filters[i].Instance;
+            object filterInstance = filters[i].Instance;
 
             if (!visitedTypes.Add(filterInstance.GetType()) && !AllowMultiple(filterInstance))
             {
@@ -86,6 +157,8 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
 
         return true;
     }
+
+    private sealed record CachedFilters(int Version, JobFilter[] Filters);
 
     private sealed class JobFilterComparer : IComparer<JobFilter>
     {

@@ -14,8 +14,8 @@ public class JobFilterProviderCollectionFacts
     [Fact]
     public void GetFilters_ReturnsNull_WhenJobIsNull()
     {
-        var collection = new JobFilterProviderCollection();
-        var filters = collection.GetFilters(null);
+        JobFilterProviderCollection collection = [];
+        IEnumerable<JobFilter> filters = collection.GetFilters(null);
 
         Assert.Empty(filters);
     }
@@ -24,9 +24,9 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersUsesRegisteredProviders()
     {
         // Arrange
-        var filter = new JobFilter(new object(), JobFilterScope.Method, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter filter = new(new object(), JobFilterScope.Method, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job)).Returns([filter]);
 
         // Act
@@ -40,13 +40,13 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersSortsFiltersByOrderFirstThenScope()
     {
         // Arrange
-        var actionFilter = new JobFilter(new object(), JobFilterScope.Method, null);
-        var controllerFilter = new JobFilter(new object(), JobFilterScope.Type, null);
-        var globalFilter = new JobFilter(new object(), JobFilterScope.Global, null);
-        var earlyActionFilter = new JobFilter(new object(), JobFilterScope.Method, -100);
-        var lateGlobalFilter = new JobFilter(new object(), JobFilterScope.Global, 100);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter actionFilter = new(new object(), JobFilterScope.Method, null);
+        JobFilter controllerFilter = new(new object(), JobFilterScope.Type, null);
+        JobFilter globalFilter = new(new object(), JobFilterScope.Global, null);
+        JobFilter earlyActionFilter = new(new object(), JobFilterScope.Method, -100);
+        JobFilter lateGlobalFilter = new(new object(), JobFilterScope.Global, 100);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job))
             .Returns([actionFilter, controllerFilter, globalFilter, earlyActionFilter, lateGlobalFilter]);
 
@@ -66,11 +66,11 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersSortsFiltersStablyAllowMultipleFalse()
     {
         // Arrange
-        var objectFilter = new JobFilter(new object(), JobFilterScope.Global, null);
-        var allowMultipleFalseAttribute1 = new JobFilter(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
-        var allowMultipleFalseAttribute2 = new JobFilter(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter objectFilter = new(new object(), JobFilterScope.Global, null);
+        JobFilter allowMultipleFalseAttribute1 = new(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
+        JobFilter allowMultipleFalseAttribute2 = new(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
 
         // to prove instability we need at least 17 items in the list
         provider.Setup(p => p.GetFilters(_job))
@@ -110,11 +110,11 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersIncludesLastFilterOnlyWithAttributeUsageAllowMultipleFalse()
     {
         // Arrange
-        var globalFilter = new JobFilter(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
-        var controllerFilter = new JobFilter(new AllowMultipleFalseAttribute(), JobFilterScope.Type, null);
-        var actionFilter = new JobFilter(new AllowMultipleFalseAttribute(), JobFilterScope.Method, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter globalFilter = new(new AllowMultipleFalseAttribute(), JobFilterScope.Global, null);
+        JobFilter controllerFilter = new(new AllowMultipleFalseAttribute(), JobFilterScope.Type, null);
+        JobFilter actionFilter = new(new AllowMultipleFalseAttribute(), JobFilterScope.Method, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job))
             .Returns([controllerFilter, actionFilter, globalFilter]);
 
@@ -134,11 +134,11 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersIncludesAllFiltersWithAttributeUsageAllowMultipleTrue()
     {
         // Arrange
-        var globalFilter = new JobFilter(new AllowMultipleTrueAttribute(), JobFilterScope.Global, null);
-        var controllerFilter = new JobFilter(new AllowMultipleTrueAttribute(), JobFilterScope.Type, null);
-        var actionFilter = new JobFilter(new AllowMultipleTrueAttribute(), JobFilterScope.Method, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter globalFilter = new(new AllowMultipleTrueAttribute(), JobFilterScope.Global, null);
+        JobFilter controllerFilter = new(new AllowMultipleTrueAttribute(), JobFilterScope.Type, null);
+        JobFilter actionFilter = new(new AllowMultipleTrueAttribute(), JobFilterScope.Method, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job))
             .Returns([controllerFilter, actionFilter, globalFilter]);
 
@@ -161,11 +161,11 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersIncludesLastFilterOnlyWithCustomFilterAllowMultipleFalse()
     {
         // Arrange
-        var globalFilter = new JobFilter(new AllowMultipleCustomFilter(false), JobFilterScope.Global, null);
-        var controllerFilter = new JobFilter(new AllowMultipleCustomFilter(false), JobFilterScope.Type, null);
-        var actionFilter = new JobFilter(new AllowMultipleCustomFilter(false), JobFilterScope.Method, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter globalFilter = new(new AllowMultipleCustomFilter(false), JobFilterScope.Global, null);
+        JobFilter controllerFilter = new(new AllowMultipleCustomFilter(false), JobFilterScope.Type, null);
+        JobFilter actionFilter = new(new AllowMultipleCustomFilter(false), JobFilterScope.Method, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job))
             .Returns([controllerFilter, actionFilter, globalFilter]);
 
@@ -180,11 +180,11 @@ public class JobFilterProviderCollectionFacts
     public void GetFiltersIncludesAllFiltersWithCustomFilterAllowMultipleTrue()
     {
         // Arrange
-        var globalFilter = new JobFilter(new AllowMultipleCustomFilter(true), JobFilterScope.Global, null);
-        var controllerFilter = new JobFilter(new AllowMultipleCustomFilter(true), JobFilterScope.Type, null);
-        var actionFilter = new JobFilter(new AllowMultipleCustomFilter(true), JobFilterScope.Method, null);
-        var provider = new Mock<IJobFilterProvider>(MockBehavior.Strict);
-        var collection = new JobFilterProviderCollection(provider.Object);
+        JobFilter globalFilter = new(new AllowMultipleCustomFilter(true), JobFilterScope.Global, null);
+        JobFilter controllerFilter = new(new AllowMultipleCustomFilter(true), JobFilterScope.Type, null);
+        JobFilter actionFilter = new(new AllowMultipleCustomFilter(true), JobFilterScope.Method, null);
+        Mock<IJobFilterProvider> provider = new(MockBehavior.Strict);
+        JobFilterProviderCollection collection = new(provider.Object);
         provider.Setup(p => p.GetFilters(_job))
             .Returns([controllerFilter, actionFilter, globalFilter]);
 
@@ -196,6 +196,98 @@ public class JobFilterProviderCollectionFacts
         Assert.Same(controllerFilter, result[1]);
         Assert.Same(actionFilter, result[2]);
     }
+
+    [Fact]
+    public void GetFilters_ReturnsTheSameList_WhenCalledAgainForTheSameMethod()
+    {
+        JobFilterCollection global = new() { new CaptureCultureAttribute() };
+        JobFilterProviderCollection collection = new(global, new JobFilterAttributeFilterProvider());
+
+        IEnumerable<JobFilter> first = collection.GetFilters(_job);
+        IEnumerable<JobFilter> second = collection.GetFilters(_job);
+
+        Assert.Same(first, second);
+        Assert.Single(first);
+    }
+
+    [Fact]
+    public void GetFilters_SeesAFilter_AddedAfterTheFirstCall()
+    {
+        JobFilterCollection global = new() { new CaptureCultureAttribute() };
+        JobFilterProviderCollection collection = new(global, new JobFilterAttributeFilterProvider());
+        collection.GetFilters(_job);
+        AutomaticRetryAttribute added = new();
+
+        global.Add(added);
+
+        Assert.Contains(collection.GetFilters(_job), x => x.Instance == added);
+    }
+
+    [Fact]
+    public void GetFilters_NoLongerReturnsAFilter_RemovedAfterTheFirstCall()
+    {
+        CaptureCultureAttribute removed = new();
+        JobFilterCollection global = new() { removed };
+        JobFilterProviderCollection collection = new(global, new JobFilterAttributeFilterProvider());
+        collection.GetFilters(_job);
+
+        global.Remove(removed);
+
+        Assert.Empty(collection.GetFilters(_job));
+    }
+
+    [Fact]
+    public void GetFilters_SeesAProvider_AddedAfterTheFirstCall()
+    {
+        JobFilterCollection global = new() { new CaptureCultureAttribute() };
+        JobFilterProviderCollection collection = [global];
+        collection.GetFilters(_job);
+        JobFilterCollection second = new() { new AutomaticRetryAttribute() };
+
+        collection.Add(second);
+
+        Assert.Equal(2, collection.GetFilters(_job).Count());
+    }
+
+    [Fact]
+    public void GetFilters_AsksACustomProviderEveryTime()
+    {
+        Mock<IJobFilterProvider> provider = new();
+        provider.Setup(p => p.GetFilters(_job)).Returns([]);
+        JobFilterProviderCollection collection = new(provider.Object);
+
+        collection.GetFilters(_job);
+        collection.GetFilters(_job);
+
+        provider.Verify(p => p.GetFilters(_job), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void GetFilters_AsksAProviderWithoutAttributeCachingEveryTime()
+    {
+        JobFilterProviderCollection collection = new(new JobFilterAttributeFilterProvider(false));
+
+        IEnumerable<JobFilter> first = collection.GetFilters(_job);
+        IEnumerable<JobFilter> second = collection.GetFilters(_job);
+
+        Assert.NotSame(first, second);
+    }
+
+    [Fact]
+    public void GetFilters_KeepsTheFiltersOfDifferentMethodsApart()
+    {
+        JobFilterProviderCollection collection = new(new JobFilterAttributeFilterProvider());
+        Job retried = Job.FromExpression(() => Retried());
+
+        Assert.Empty(collection.GetFilters(_job));
+        Assert.Single(collection.GetFilters(retried));
+        Assert.Empty(collection.GetFilters(_job));
+    }
+
+    [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+    [AutomaticRetry(Attempts = 1)]
+    public static void Retried() { }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
     [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
