@@ -133,6 +133,76 @@ public class BackgroundJobClient : IBackgroundJobClient, IBackgroundJobClientV2
         }
     }
 
+    /// <summary>
+    /// Gets or sets how many jobs <c>EnqueueMany</c> creates as one group. A group is created as a whole or not
+    /// at all. The default is 250.
+    /// </summary>
+    public static int BulkSize
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = 250;
+
+    /// <summary>
+    /// Creates the given jobs in groups of <see cref="BulkSize"/>, each job in the state the factory returns
+    /// for it. Client filters run for every job.
+    /// </summary>
+    internal IReadOnlyList<string?> CreateMany(IReadOnlyList<Job> jobs, Func<IState> stateFactory)
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+        ArgumentNullException.ThrowIfNull(stateFactory);
+
+        string?[] ids = new string?[jobs.Count];
+        if (ids.Length == 0) return ids;
+
+        try
+        {
+            using IStorageConnection connection = Storage.GetConnection();
+            int bulkSize = BulkSize;
+
+            for (int start = 0; start < ids.Length; start += bulkSize)
+            {
+                int count = Math.Min(bulkSize, ids.Length - start);
+                CreateContext[] contexts = new CreateContext[count];
+
+                for (int i = 0; i < count; i++)
+                {
+                    Job job = jobs[start + i] ?? throw new ArgumentException("The jobs can't contain null.", nameof(jobs));
+
+                    // A state of its own for every job: filters change the state they are given (its queue, for example)
+                    contexts[i] = new CreateContext(Storage, connection, job, stateFactory(), null);
+                }
+
+                if (_factory is BackgroundJobFactory factory)
+                {
+                    BackgroundJob?[] created = factory.CreateMany(contexts);
+                    for (int i = 0; i < count; i++)
+                    {
+                        ids[start + i] = created[i]?.Id;
+                    }
+                }
+                else
+                {
+                    // Another factory: one job at a time
+                    for (int i = 0; i < count; i++)
+                    {
+                        ids[start + i] = _factory.Create(contexts[i])?.Id;
+                    }
+                }
+            }
+
+            return ids;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            throw new BackgroundJobClientException("Background job creation failed. See inner exception for details.", ex);
+        }
+    }
+
     /// <inheritdoc />
     public string? Create(Job job, IState state) => Create(job, state, null);
 

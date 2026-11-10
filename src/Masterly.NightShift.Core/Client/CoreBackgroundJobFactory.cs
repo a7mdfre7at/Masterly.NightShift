@@ -61,16 +61,129 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
             throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
         }
 
-        Dictionary<string, string?> parameters = context.Parameters.ToDictionary(
-            static x => x.Key,
-            static x => InternalParameters.Contains(x.Key)
-                ? SerializationHelper.SerializeInternal(x.Value)
-                : SerializationHelper.Serialize(x.Value, SerializationOption.User));
+        Dictionary<string, string?> parameters = SerializeParameters(context);
 
         DateTime createdAt = JobClock.UtcNow;
         TimeSpan expireIn = TimeSpan.FromDays(30);
 
         return CreateBackgroundJobTwoSteps(context, parameters, createdAt, expireIn);
+    }
+
+    /// <summary>
+    /// Creates the jobs of several contexts that share a storage and a connection: the job records in as few round
+    /// trips as the storage allows, then every initial state in one transaction. Nothing is retried.
+    /// </summary>
+    internal BackgroundJob?[] CreateMany(IReadOnlyList<CreateContext> contexts)
+    {
+        ArgumentNullException.ThrowIfNull(contexts);
+
+        BackgroundJob?[] result = new BackgroundJob?[contexts.Count];
+        if (result.Length == 0) return result;
+
+        Job[] jobs = new Job[result.Length];
+        Dictionary<string, string?>[] parameters = new Dictionary<string, string?>[result.Length];
+
+        for (int i = 0; i < result.Length; i++)
+        {
+            CreateContext context = contexts[i];
+
+            if (context.Job.Queue != null && !context.Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
+            {
+                throw new NotSupportedException("Current storage doesn't support specifying queues directly for a specific job. Please use the QueueAttribute instead.");
+            }
+
+            jobs[i] = context.Job;
+            parameters[i] = SerializeParameters(context);
+        }
+
+        IStorageConnection connection = contexts[0].Connection;
+        DateTime createdAt = JobClock.UtcNow;
+        TimeSpan expireIn = TimeSpan.FromDays(30);
+
+        IReadOnlyList<string?> ids = connection is JobStorageConnection storageConnection
+            ? storageConnection.CreateExpiredJobs(jobs, parameters, createdAt, expireIn)
+            : CreateOneByOne(connection, jobs, parameters, createdAt, expireIn);
+
+        // Work that waits for the commit, such as an activity feed entry, runs only once it succeeded
+        PostCommitActions[] afterCommit = new PostCommitActions[result.Length];
+
+        try
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+
+            for (int i = 0; i < result.Length; i++)
+            {
+                afterCommit[i] = new PostCommitActions();
+
+                string? jobId = ids[i];
+                if (string.IsNullOrEmpty(jobId)) continue;
+
+                CreateContext context = contexts[i];
+                BackgroundJob backgroundJob = new(jobId, context.Job, createdAt, parameters[i]!); // A parameter set to null reads back as null
+                result[i] = backgroundJob;
+
+                if (context.InitialState == null) continue;
+
+                ApplyStateContext applyContext = new(
+                    context.Storage,
+                    connection,
+                    transaction,
+                    backgroundJob,
+                    context.InitialState,
+                    oldStateName: null,
+                    context.Profiler,
+                    StateMachine)
+                {
+                    AfterCommit = afterCommit[i]
+                };
+
+                StateMachine.ApplyState(applyContext);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            // Work about something already stored on its own still runs
+            foreach (PostCommitActions? actions in afterCommit)
+            {
+                actions?.RunAfterFailure();
+            }
+
+            throw;
+        }
+
+        foreach (PostCommitActions actions in afterCommit)
+        {
+            actions.Run();
+        }
+
+        return result;
+    }
+
+    private static string?[] CreateOneByOne(
+        IStorageConnection connection,
+        Job[] jobs,
+        Dictionary<string, string?>[] parameters,
+        DateTime createdAt,
+        TimeSpan expireIn)
+    {
+        string?[] ids = new string?[jobs.Length];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ids[i] = connection.CreateExpiredJob(jobs[i], parameters[i], createdAt, expireIn);
+        }
+
+        return ids;
+    }
+
+    private static Dictionary<string, string?> SerializeParameters(CreateContext context)
+    {
+        return context.Parameters.ToDictionary(
+            static x => x.Key,
+            static x => InternalParameters.Contains(x.Key)
+                ? SerializationHelper.SerializeInternal(x.Value)
+                : SerializationHelper.Serialize(x.Value, SerializationOption.User));
     }
 
     private BackgroundJob? CreateBackgroundJobTwoSteps(CreateContext context, Dictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)

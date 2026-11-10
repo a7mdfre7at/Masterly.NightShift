@@ -35,6 +35,34 @@ public abstract class JobStorageConnection : IStorageConnection
 
     // Background jobs
     public abstract string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn);
+
+    /// <summary>
+    /// Creates several jobs at once, as <see cref="CreateExpiredJob"/> does for one. The default creates them one
+    /// by one; a storage overrides it to create them in fewer round trips.
+    /// </summary>
+    /// <param name="jobs">The jobs to create.</param>
+    /// <param name="parameters">The parameters of each job, in the same order.</param>
+    /// <param name="createdAt">The creation time of every job.</param>
+    /// <param name="expireIn">How long the jobs live while they have no state.</param>
+    /// <returns>The identifier of each job, in the same order.</returns>
+    public virtual IReadOnlyList<string?> CreateExpiredJobs(
+        [NotNull] IReadOnlyList<Job> jobs,
+        [NotNull] IReadOnlyList<IDictionary<string, string?>> parameters,
+        DateTime createdAt,
+        TimeSpan expireIn)
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        string?[] ids = new string?[jobs.Count];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ids[i] = CreateExpiredJob(jobs[i], parameters[i], createdAt, expireIn);
+        }
+
+        return ids;
+    }
+
     public abstract IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken);
     public abstract void SetJobParameter(string id, string name, string? value);
     public abstract string? GetJobParameter(string id, string name);
