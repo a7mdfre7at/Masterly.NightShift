@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using Cronos;
+
 namespace Masterly.NightShift;
 
 /// <summary>
@@ -117,8 +119,8 @@ public static class Cron
         ArgumentNullException.ThrowIfNull(timeZone);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
-        var expression = RecurringJobEntity.ParseCronExpression(cronExpression);
-        var result = new List<DateTime>(count);
+        CronExpression expression = RecurringJobEntity.ParseCronExpression(cronExpression);
+        List<DateTime> result = new(count);
         DateTime? next = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
 
         while (result.Count < count && (next = expression.GetNextOccurrence(next.Value, timeZone, inclusive: false)) != null)
@@ -326,6 +328,76 @@ public static class Cron
     public static string Never()
     {
         return Yearly(2, 31);
+    }
+
+    /// <summary>
+    /// Returns the CRON expression that fires exactly every <paramref name="interval"/>, or throws when CRON
+    /// can't keep every run the same distance apart.
+    /// </summary>
+    /// <remarks>
+    /// Accepted: a whole number of seconds or minutes that divides 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30), a
+    /// whole number of hours that divides 24 (1, 2, 3, 4, 6, 8, 12), one day and seven days. The others have no
+    /// exact CRON form: <c>*/7 * * * *</c> fires at minute 56 and again at minute 0, four minutes later.
+    /// </remarks>
+    /// <param name="interval">The time between two runs.</param>
+    /// <returns>A CRON expression accepted by <see cref="RecurringJob"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="interval"/> is zero or negative.</exception>
+    /// <exception cref="ArgumentException">CRON can't express <paramref name="interval"/> exactly.</exception>
+    public static string Every(TimeSpan interval)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+
+        return interval.Ticks % TimeSpan.TicksPerSecond == 0
+            ? EveryWholeSeconds(interval.Ticks / TimeSpan.TicksPerSecond) ?? throw NotExact(interval)
+            : throw NotExact(interval);
+    }
+
+    private static string? EveryWholeSeconds(long seconds)
+    {
+        const int SecondsPerMinute = 60;
+        const int MinutesPerHour = 60;
+        const int HoursPerDay = 24;
+        const int DaysPerWeek = 7;
+
+        if (seconds < SecondsPerMinute)
+        {
+            return !Divides(seconds, SecondsPerMinute) ? null : seconds == 1 ? "* * * * * *" : $"*/{seconds} * * * * *";
+        }
+
+        if (seconds % SecondsPerMinute != 0) return null;
+        long minutes = seconds / SecondsPerMinute;
+
+        if (minutes < MinutesPerHour)
+        {
+            return !Divides(minutes, MinutesPerHour) ? null : minutes == 1 ? Minutely() : $"*/{minutes} * * * *";
+        }
+
+        if (minutes % MinutesPerHour != 0) return null;
+        long hours = minutes / MinutesPerHour;
+
+        if (hours < HoursPerDay)
+        {
+            return !Divides(hours, HoursPerDay) ? null : hours == 1 ? Hourly() : $"0 */{hours} * * *";
+        }
+
+        return hours switch
+        {
+            HoursPerDay => Daily(),
+            HoursPerDay * DaysPerWeek => Weekly(),
+            _ => null,
+        };
+    }
+
+    private static bool Divides(long divisor, int value)
+    {
+        return value % divisor == 0;
+    }
+
+    private static ArgumentException NotExact(TimeSpan interval)
+    {
+        return new ArgumentException(
+            $"CRON can't run a job exactly every {interval:c}. Use a whole number of seconds or minutes that divides 60, a whole number of hours that divides 24, one day or seven days.",
+            nameof(interval));
     }
 
     /// <summary>

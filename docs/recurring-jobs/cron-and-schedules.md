@@ -116,6 +116,7 @@ For example `Cron.Weekly(DayOfWeek.Friday, 17, 30)` is `30 17 * * 5` and `Cron.Y
 
 | Member | Returns | Meaning |
 |--------|---------|---------|
+| `Cron.Every(TimeSpan interval)` | `string` | The expression that fires exactly every `interval` (see [An exact interval](#an-exact-interval)). Throws `ArgumentException` when CRON can't keep the runs evenly spaced, `ArgumentOutOfRangeException` for zero or less. |
 | `Cron.FromText(string text)` | `string` | Turns an English phrase into a CRON expression (see below). A string that already is a CRON expression or a `@` macro is validated and returned unchanged. Throws `FormatException` for text it doesn't understand, `ArgumentNullException` for `null`. |
 | `Cron.TryFromText(string? text, out string? cronExpression)` | `bool` | Like `FromText`, but returns `false` and sets `cronExpression` to `null` instead of throwing, also for `null` text. |
 | `Cron.Builder()` | `CronBuilder` | Starts a fluent builder (see below). |
@@ -290,6 +291,23 @@ recurringJobs.AddOrUpdate<SyncService>("pull-orders", x => x.PullOrdersAsync(), 
 ```
 
 The scheduler polls every `SchedulePollingInterval` (15 seconds by default), so sub-minute schedules are approximate. See [Creating recurring jobs](creating-recurring-jobs.md#things-to-know).
+
+### An exact interval
+
+```csharp
+RecurringJob.AddOrUpdate("sync", () => Sync(), Cron.Every(TimeSpan.FromMinutes(15)));   // */15 * * * *
+```
+
+`Cron.MinuteInterval(7)` returns `*/7 * * * *`, which fires at minute 56 and again four minutes later, at minute 0. `Cron.Every` refuses what CRON can't do evenly, so a wrong interval fails where it is written. It accepts:
+
+| Interval | Allowed values |
+|---|---|
+| Seconds | 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 |
+| Minutes | 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 |
+| Hours | 1, 2, 3, 4, 6, 8, 12 |
+| Days | 1 (midnight), 7 (Monday at midnight) |
+
+In a time zone with daylight saving, a job every few hours or days shifts on the days the clock changes; use UTC where that matters. Intervals in seconds are approximate, see [Every 30 seconds](#every-30-seconds).
 
 ### Let users type a schedule
 

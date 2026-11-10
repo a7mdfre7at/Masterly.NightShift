@@ -2,6 +2,66 @@
 
 public class CronFacts
 {
+    [Theory]
+    [InlineData(1, "* * * * * *")]
+    [InlineData(15, "*/15 * * * * *")]
+    [InlineData(30, "*/30 * * * * *")]
+    [InlineData(60, "* * * * *")]
+    [InlineData(300, "*/5 * * * *")]
+    [InlineData(1800, "*/30 * * * *")]
+    [InlineData(3600, "0 * * * *")]
+    [InlineData(7200, "0 */2 * * *")]
+    [InlineData(43200, "0 */12 * * *")]
+    [InlineData(86400, "0 0 * * *")]
+    [InlineData(604800, "0 0 * * 1")]
+    public void Every_ReturnsTheExpression_ForAnIntervalCronCanKeepExactly(int seconds, string expected)
+    {
+        string actual = Cron.Every(TimeSpan.FromSeconds(seconds));
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(1, 8)]
+    [InlineData(5, 40)]
+    [InlineData(1800, 4)]
+    [InlineData(21600, 4)]
+    public void Every_ProducesEvenlySpacedRuns(int seconds, int runs)
+    {
+        TimeSpan interval = TimeSpan.FromSeconds(seconds);
+        DateTime from = new(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        IReadOnlyList<DateTime> occurrences = Cron.GetNextOccurrences(Cron.Every(interval), TimeZoneInfo.Utc, from, runs);
+
+        Assert.All(occurrences.Skip(1).Zip(occurrences), pair => Assert.Equal(interval, pair.First - pair.Second));
+    }
+
+    [Theory]
+    [InlineData(500)]
+    [InlineData(1500)]
+    [InlineData(7000)]
+    [InlineData(45000)]
+    [InlineData(90000)]
+    [InlineData(420000)]
+    [InlineData(2700000)]
+    [InlineData(5400000)]
+    [InlineData(25200000)]
+    [InlineData(172800000)]
+    public void Every_ThrowsAnException_ForAnIntervalCronCanNotKeepExactly(int milliseconds)
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => Cron.Every(TimeSpan.FromMilliseconds(milliseconds)));
+
+        Assert.Equal("interval", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-60)]
+    public void Every_ThrowsAnException_WhenTheIntervalIsNotPositive(int seconds)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Cron.Every(TimeSpan.FromSeconds(seconds)));
+    }
+
     [Fact]
     public void Minutely_ReturnsFormattedString()
     {
