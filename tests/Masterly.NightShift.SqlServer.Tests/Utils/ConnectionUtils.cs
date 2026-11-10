@@ -51,7 +51,7 @@ public static class ConnectionUtils
 
     public static DbConnection CreateConnection()
     {
-        var connection = new SqlConnection(GetConnectionString());
+        SqlConnection connection = new(GetConnectionString());
 
         connection.Open();
 

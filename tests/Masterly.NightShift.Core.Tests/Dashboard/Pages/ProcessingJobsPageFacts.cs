@@ -14,7 +14,7 @@ public class ProcessingJobsPageFacts
     [Fact]
     public void Render_WithoutProcessingJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains(Encode(Strings.ProcessingJobsPage_NoJobs), html);
         Assert.DoesNotContain("js-jobs-list", html);
@@ -25,7 +25,7 @@ public class ProcessingJobsPageFacts
     {
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddSeconds(-5)) } });
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("data-url=\"/jobs/processing/export\" data-filename=\"nightshift-processing-jobs.csv\"", html);
         Assert.Contains("data-ajax=\"/jobs/processing/delete-all\"", html);
@@ -42,7 +42,7 @@ public class ProcessingJobsPageFacts
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddSeconds(-5)) } });
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("data-url=\"/jobs/processing/export\"", html);
         Assert.DoesNotContain("/jobs/processing/delete-all", html);
@@ -58,7 +58,7 @@ public class ProcessingJobsPageFacts
         _renderer.Connection.Setup(x => x.GetJobParameter("1", JobConsole.ProgressParameter))
             .Returns(SerializationHelper.Serialize(new JobProgress { Percent = 40, Message = "Copying <files>" }, SerializationOption.Internal));
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("title=\"Copying &lt;files&gt;\"", html);
         Assert.Contains("style=\"width: 40%\"", html);
@@ -71,7 +71,7 @@ public class ProcessingJobsPageFacts
     {
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddSeconds(-5), "gone:1") } });
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains($"<span title=\"{Encode(Strings.ProcessingJobsPage_Aborted)}\" class=\"glyphicon glyphicon-warning-sign", html);
     }
@@ -81,7 +81,7 @@ public class ProcessingJobsPageFacts
     {
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddSeconds(-5)) } });
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.DoesNotContain(Encode(Strings.ProcessingJobsPage_Aborted), html);
     }
@@ -92,7 +92,7 @@ public class ProcessingJobsPageFacts
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddMinutes(-5)) } });
         SetupDeadline("1", _now.AddMinutes(-1));
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains(" overdue\">", html);
         Assert.Contains($"<span class=\"label label-danger text-uppercase\" title=\"{Encode(Strings.Common_Overdue_Tooltip)}\">{Encode(Strings.Common_Overdue)}</span>", html);
@@ -104,7 +104,7 @@ public class ProcessingJobsPageFacts
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddMinutes(-5)) } });
         SetupDeadline("1", _now.AddHours(1));
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains($"<span class=\"label label-default\" title=\"{Encode(Strings.Common_Deadline)}\">{Encode(Strings.Common_Deadline)} <span data-moment=", html);
         Assert.DoesNotContain(Encode(Strings.Common_Overdue_Tooltip), html);
@@ -116,7 +116,7 @@ public class ProcessingJobsPageFacts
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(QuickJob(), _now.AddSeconds(-10)) } });
         SetupInsight(QuickJob(), "60000", "60000", "60000");
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("job-live-progress-eta", html);
         Assert.DoesNotContain("job-live-progress-late", html);
@@ -131,7 +131,7 @@ public class ProcessingJobsPageFacts
         SetupJobs(new Dictionary<string, ProcessingJobDto> { { "1", Processing(SlowJob(), _now.AddHours(-1)) } });
         SetupInsight(SlowJob(), "1000", "1000", "1000");
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("job-live-progress-eta job-live-progress-late", html);
         Assert.Contains($"data-eta=\"{Encode(Strings.ProcessingJobsPage_LongerThanUsual)}\"", html);
@@ -145,9 +145,9 @@ public class ProcessingJobsPageFacts
             { "1", Processing(QuickJob(), _now.AddSeconds(-10)) },
             { "2", Processing(QuickJob(), _now.AddSeconds(-20)) }
         });
-        var key = SetupInsight(QuickJob(), "60000", "60000", "60000");
+        string key = SetupInsight(QuickJob(), "60000", "60000", "60000");
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains("data-job-id=\"1\"", html);
         Assert.Contains("data-job-id=\"2\"", html);
@@ -163,7 +163,7 @@ public class ProcessingJobsPageFacts
             { "2", new ProcessingJobDto { Job = QuickJob(), InProcessingState = false } }
         });
 
-        var html = _renderer.Render(new ProcessingJobsPage());
+        string html = _renderer.Render(new ProcessingJobsPage());
 
         Assert.Contains($"<td colspan=\"4\"><em>{Encode(Strings.Common_JobExpired)}</em></td>", html);
         Assert.Contains($"<td colspan=\"4\">{Encode(Strings.Common_JobStateChanged_Text)}</td>", html);
@@ -189,7 +189,7 @@ public class ProcessingJobsPageFacts
 
     private string SetupInsight(Job job, params string[] durations)
     {
-        var key = JobInsightsAttribute.GetKey(job);
+        string key = JobInsightsAttribute.GetKey(job);
 
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash($"insights:{key}"))
             .Returns(new Dictionary<string, string> { { "LastDurationMs", durations[0] } });

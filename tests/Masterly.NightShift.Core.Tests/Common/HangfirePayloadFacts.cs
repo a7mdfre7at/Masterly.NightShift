@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -50,8 +51,8 @@ public class HangfirePayloadFacts
     {
         Configure(settings);
 
-        var numbers = Read<IReadOnlyDictionary<string, int>>(ReadOnlyDictionaryHoldingDictionary);
-        var texts = Read<IDictionary<string, string>>(DictionaryHoldingSortedDictionary);
+        IReadOnlyDictionary<string, int> numbers = Read<IReadOnlyDictionary<string, int>>(ReadOnlyDictionaryHoldingDictionary);
+        IDictionary<string, string> texts = Read<IDictionary<string, string>>(DictionaryHoldingSortedDictionary);
 
         Assert.Equal([new KeyValuePair<string, int>("k", 1)], numbers);
         Assert.Equal([new KeyValuePair<string, string>("k", "v")], texts);
@@ -63,8 +64,8 @@ public class HangfirePayloadFacts
     {
         Configure(settings);
 
-        var holder = Read<Holder>(ObjectWithReadOnlyListMember);
-        var lists = Read<List<IReadOnlyList<int>>>(ListOfReadOnlyLists);
+        Holder holder = Read<Holder>(ObjectWithReadOnlyListMember);
+        List<IReadOnlyList<int>> lists = Read<List<IReadOnlyList<int>>>(ListOfReadOnlyLists);
 
         Assert.Equal("n", holder.Name);
         Assert.Equal(["i"], holder.Items);
@@ -78,15 +79,15 @@ public class HangfirePayloadFacts
     public void DeserializeJob_ReadsAJob_WithAWrappedCollectionArgument(string settings)
     {
         Configure(settings);
-        var method = typeof(JobService).GetMethod(nameof(JobService.Sum));
+        MethodInfo? method = typeof(JobService).GetMethod(nameof(JobService.Sum));
 
-        var data = new InvocationData(
+        InvocationData data = new(
             typeof(JobService).AssemblyQualifiedName,
             nameof(JobService.Sum),
             SerializationHelper.Serialize(new[] { typeof(IReadOnlyCollection<int>) }),
             SerializationHelper.Serialize(new[] { ReadOnlyCollectionOfIntHoldingList }));
 
-        var job = data.DeserializeJob();
+        Job job = data.DeserializeJob();
 
         Assert.Equal(method, job.Method);
         Assert.Equal([1, 2], (IEnumerable<int>)job.Args[0]);
@@ -96,9 +97,9 @@ public class HangfirePayloadFacts
     public void Deserialize_IgnoresTheTypeNameOfAWrappedCollection()
     {
         // Stored data can't make a server create the type it names, even one that fits the declared type
-        var json = "{\"$type\":\"System.Collections.Generic.HashSet`1[[System.Int32, mscorlib]], System.Core\",\"$values\":[1,1]}";
+        string json = "{\"$type\":\"System.Collections.Generic.HashSet`1[[System.Int32, mscorlib]], System.Core\",\"$values\":[1,1]}";
 
-        var result = Read<IEnumerable<int>>(json);
+        IEnumerable<int> result = Read<IEnumerable<int>>(json);
 
         Assert.IsType<List<int>>(result);
         Assert.Equal([1, 1], result);
@@ -131,12 +132,12 @@ public class HangfirePayloadFacts
     public void Deserialize_KeepsALeadingTypeKey_ThatDoesNotNameAFittingDictionaryType(string settings)
     {
         Configure(settings);
-        var map = new Dictionary<string, string> { ["$type"] = "user-value", ["a"] = "b" };
-        var holder = new MapHolder { Map = new Dictionary<string, string> { ["$type"] = "System.String, mscorlib", ["c"] = "d" } };
+        Dictionary<string, string> map = new() { ["$type"] = "user-value", ["a"] = "b" };
+        MapHolder holder = new() { Map = new Dictionary<string, string> { ["$type"] = "System.String, mscorlib", ["c"] = "d" } };
 
-        var mapBack = Read<Dictionary<string, string>>(SerializationHelper.Serialize(map, SerializationOption.User));
-        var holderBack = Read<MapHolder>(SerializationHelper.Serialize(holder, SerializationOption.User));
-        var listName = Read<IDictionary<string, string>>(
+        Dictionary<string, string> mapBack = Read<Dictionary<string, string>>(SerializationHelper.Serialize(map, SerializationOption.User));
+        MapHolder holderBack = Read<MapHolder>(SerializationHelper.Serialize(holder, SerializationOption.User));
+        IDictionary<string, string> listName = Read<IDictionary<string, string>>(
             "{\"$type\":\"System.Collections.Generic.List`1[[System.String, mscorlib]], mscorlib\",\"k\":\"v\"}");
 
         Assert.Equal(map, mapBack);
@@ -152,7 +153,7 @@ public class HangfirePayloadFacts
         Configure(settings);
 
         // With TypeNameHandling.Objects a dictionary got its own type name; with Auto, the actual type's
-        var holder = Read<MapHolder>("{\"Map\":" + DictionaryOfStringHoldingItself + ",\"Sorted\":" + DictionaryHoldingSortedDictionary + "}");
+        MapHolder holder = Read<MapHolder>("{\"Map\":" + DictionaryOfStringHoldingItself + ",\"Sorted\":" + DictionaryHoldingSortedDictionary + "}");
 
         Assert.Equal([new KeyValuePair<string, string>("m", "n")], holder.Map);
         Assert.Equal([new KeyValuePair<string, string>("k", "v")], holder.Sorted);
@@ -164,7 +165,7 @@ public class HangfirePayloadFacts
     {
         Configure(settings);
 
-        var point = Read<TaggedPoint>("{\"X\":1.5,\"Y\":2,\"Tags\":[\"t1\",\"t2\"]}");
+        TaggedPoint point = Read<TaggedPoint>("{\"X\":1.5,\"Y\":2,\"Tags\":[\"t1\",\"t2\"]}");
 
         Assert.Equal(1.5, point.X);
         Assert.Equal(2, point.Y);
@@ -177,7 +178,7 @@ public class HangfirePayloadFacts
     {
         Configure(settings);
 
-        var money = Read<Money>(MoneyJson);
+        Money money = Read<Money>(MoneyJson);
 
         Assert.Equal(1.5m, money.Amount);
         Assert.Equal("EUR", money.Currency);
@@ -188,13 +189,13 @@ public class HangfirePayloadFacts
     public void Serialize_AndDeserialize_RoundTripAStruct_WhoseMembersOnlyItsConstructorSets(string settings)
     {
         Configure(settings);
-        var job = Job.FromExpression(() => JobService.Pay(new Money(2.25m, "usd"), new Tagged("x", 3) { Note = "n" }));
+        Job job = Job.FromExpression(() => JobService.Pay(new Money(2.25m, "usd"), new Tagged("x", 3) { Note = "n" }));
 
-        var data = InvocationData.SerializeJob(job);
-        var back = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+        InvocationData data = InvocationData.SerializeJob(job);
+        Job back = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
-        var money = Assert.IsType<Money>(back.Args[0]);
-        var tagged = Assert.IsType<Tagged>(back.Args[1]);
+        Money money = Assert.IsType<Money>(back.Args[0]);
+        Tagged tagged = Assert.IsType<Tagged>(back.Args[1]);
         Assert.Equal(2.25m, money.Amount);
         Assert.Equal("USD", money.Currency);
         Assert.Equal("x", tagged.Name);
@@ -205,9 +206,9 @@ public class HangfirePayloadFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Deserialize_CallsTheConstructor_WithDefaults_ForMembersMissingFromTheJson()
     {
-        var money = Read<Money>("{\"Amount\":4}");
-        var tagged = Read<Tagged>("{\"Name\":\"a\"}");
-        var leveled = Read<Leveled>("{}");
+        Money money = Read<Money>("{\"Amount\":4}");
+        Tagged tagged = Read<Tagged>("{\"Name\":\"a\"}");
+        Leveled leveled = Read<Leveled>("{}");
 
         Assert.Equal(4m, money.Amount);
         Assert.Equal("NONE", money.Currency);
@@ -231,7 +232,7 @@ public class HangfirePayloadFacts
     {
         Configure(settings);
 
-        var result = Read<GetOnly>(GetOnlyCollections);
+        GetOnly result = Read<GetOnly>(GetOnlyCollections);
 
         Assert.Equal(new[] { 1, 5 }, result.Items);
         Assert.Equal(1, result.Map["a"]);
@@ -241,7 +242,7 @@ public class HangfirePayloadFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Deserialize_AddsItems_ToACollectionDeclaredAsAReadOnlyInterface()
     {
-        var result = Read<GetOnlyInterfaces>("{\"Items\":[\"x\"],\"Fixed\":[1],\"Missing\":[2]}");
+        GetOnlyInterfaces result = Read<GetOnlyInterfaces>("{\"Items\":[\"x\"],\"Fixed\":[1],\"Missing\":[2]}");
 
         Assert.Equal(["x"], result.Items);
         Assert.Equal([9], result.Fixed);
@@ -251,7 +252,7 @@ public class HangfirePayloadFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Deserialize_LeavesMembers_SystemTextJsonPopulatesItself()
     {
-        var result = Read<PopulatedByOptions>("{\"Items\":[2]}");
+        PopulatedByOptions result = Read<PopulatedByOptions>("{\"Items\":[2]}");
 
         Assert.Equal(new[] { 1, 2 }, result.Items);
     }

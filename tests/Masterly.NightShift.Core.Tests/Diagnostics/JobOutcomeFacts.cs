@@ -17,7 +17,7 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsSucceeded_WhenAFilterHandledTheException()
     {
-        var context = _context.GetPerformedContext(exception: Wrap(new InvalidOperationException()));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new InvalidOperationException()));
         context.ExceptionHandled = true;
 
         Assert.Equal(JobOutcome.Succeeded, JobOutcomes.Classify(context));
@@ -40,7 +40,7 @@ public class JobOutcomeFacts
     {
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(canceled: true));
 
-        var context = _context.GetPerformedContext(exception: new OperationCanceledException());
+        PerformedContext context = _context.GetPerformedContext(exception: new OperationCanceledException());
 
         Assert.Equal(JobOutcome.Canceled, JobOutcomes.Classify(context));
     }
@@ -49,7 +49,7 @@ public class JobOutcomeFacts
     public void Classify_ReturnsFailed_ForAnUnwrappedOperationCanceledException_WithoutShutdown()
     {
         // The worker records it as a failure when the server isn't stopping
-        var context = _context.GetPerformedContext(exception: new OperationCanceledException());
+        PerformedContext context = _context.GetPerformedContext(exception: new OperationCanceledException());
 
         Assert.Equal(JobOutcome.Failed, JobOutcomes.Classify(context));
     }
@@ -61,7 +61,7 @@ public class JobOutcomeFacts
         // worker records a failure, even when the server begins to stop before the filters see it
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(canceled: true));
 
-        var context = _context.GetPerformedContext(exception: Wrap(new OperationCanceledException()));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new OperationCanceledException()));
 
         Assert.Equal(JobOutcome.Failed, JobOutcomes.Classify(context));
     }
@@ -69,7 +69,7 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsRetryLater_WhenTheJobThrewRetryLaterException()
     {
-        var context = _context.GetPerformedContext(exception: Wrap(new RetryLaterException(TimeSpan.FromMinutes(5))));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new RetryLaterException(TimeSpan.FromMinutes(5))));
 
         Assert.Equal(JobOutcome.RetryLater, JobOutcomes.Classify(context));
     }
@@ -77,7 +77,7 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsFailed_ForAnyOtherException()
     {
-        var context = _context.GetPerformedContext(exception: Wrap(new InvalidOperationException()));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new InvalidOperationException()));
 
         Assert.Equal(JobOutcome.Failed, JobOutcomes.Classify(context));
     }
@@ -85,7 +85,7 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsNotRun_WhenAFilterGaveUpWaitingForASlot_BeforeTheMethodRan()
     {
-        var context = _context.GetPerformedContext(exception: Wrap(new ConcurrencyLimitException("resource", "All slots stayed in use.")));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new ConcurrencyLimitException("resource", "All slots stayed in use.")));
 
         Assert.Equal(JobOutcome.NotRun, JobOutcomes.Classify(context));
     }
@@ -93,7 +93,7 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsNotRun_WhenAFilterGaveUpWaitingForALock_BeforeTheMethodRan()
     {
-        var context = _context.GetPerformedContext(exception: Wrap(new DistributedLockTimeoutException("resource")));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new DistributedLockTimeoutException("resource")));
 
         Assert.Equal(JobOutcome.NotRun, JobOutcomes.Classify(context));
     }
@@ -101,9 +101,9 @@ public class JobOutcomeFacts
     [Fact]
     public void Classify_ReturnsFailed_WhenTheMethodItselfThrewALockTimeout()
     {
-        _context.Object.Items[ConcurrencyControl.MethodInvokedItem] = Stopwatch.GetTimestamp();
+        _context.Object.BackgroundJob.MethodInvokedTimestamp = Stopwatch.GetTimestamp();
 
-        var context = _context.GetPerformedContext(exception: Wrap(new DistributedLockTimeoutException("resource")));
+        PerformedContext context = _context.GetPerformedContext(exception: Wrap(new DistributedLockTimeoutException("resource")));
 
         Assert.Equal(JobOutcome.Failed, JobOutcomes.Classify(context));
     }
@@ -113,7 +113,7 @@ public class JobOutcomeFacts
     {
         Assert.Null(JobOutcomes.GetMethodInvokedTimestamp(_context.Object));
 
-        _context.Object.Items[ConcurrencyControl.MethodInvokedItem] = 42L;
+        _context.Object.BackgroundJob.MethodInvokedTimestamp = 42L;
 
         Assert.Equal(42L, JobOutcomes.GetMethodInvokedTimestamp(_context.Object));
     }

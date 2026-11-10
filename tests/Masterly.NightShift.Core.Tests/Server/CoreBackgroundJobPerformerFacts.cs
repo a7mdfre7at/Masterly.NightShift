@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Annotations;
 using Masterly.NightShift.Core.Tests.Common;
 using Masterly.NightShift.Server;
@@ -18,7 +19,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact]
     public void Ctor_ThrowsAnException_WhenActivatorIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new CoreBackgroundJobPerformer(null, null));
 
@@ -28,7 +29,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact]
     public void Ctor_DoesNotThrowAnException_WhenTaskSchedulerIsNull()
     {
-        var performer = new CoreBackgroundJobPerformer(_activator.Object, null);
+        CoreBackgroundJobPerformer performer = new(_activator.Object, null);
         Assert.NotNull(performer);
     }
 
@@ -37,7 +38,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression(() => StaticMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         performer.Perform(_context.Object);
 
@@ -49,7 +50,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression<CoreBackgroundJobPerformerFacts>(x => x.InstanceMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         performer.Perform(_context.Object);
 
@@ -59,7 +60,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_ActivatesJob_WithinAScope()
     {
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
         _context.BackgroundJob.Job = Job.FromExpression<CoreBackgroundJobPerformerFacts>(x => x.InstanceMethod());
 
         performer.Perform(_context.Object);
@@ -72,7 +73,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         _disposed = false;
         _context.BackgroundJob.Job = Job.FromExpression<Disposable>(x => x.Method());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         performer.Perform(_context.Object);
 
@@ -85,7 +86,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         // Arrange
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression(() => MethodWithArguments("hello", 5));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -99,15 +100,15 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         // Arrange
         _methodInvoked = false;
-        var typeConverter = TypeDescriptor.GetConverter(typeof(DateTime));
-        var convertedDate = typeConverter.ConvertToInvariantString(SomeDateTime);
+        TypeConverter typeConverter = TypeDescriptor.GetConverter(typeof(DateTime));
+        string? convertedDate = typeConverter.ConvertToInvariantString(SomeDateTime);
 
-        var type = typeof(CoreBackgroundJobPerformerFacts);
-        var method = type.GetMethod("MethodWithDateTimeArgument");
+        Type type = typeof(CoreBackgroundJobPerformerFacts);
+        MethodInfo? method = type.GetMethod("MethodWithDateTimeArgument");
 
         // Arguments stored by older versions, read as a server reads them
         _context.BackgroundJob.Job = new Job(type, method, InvocationData.DeserializeArguments(method, [convertedDate]));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -121,14 +122,14 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         // Arrange
         _methodInvoked = false;
-        var convertedDate = SomeDateTime.ToString("MM/dd/yyyy HH:mm:ss.ffff");
+        string convertedDate = SomeDateTime.ToString("MM/dd/yyyy HH:mm:ss.ffff");
 
-        var type = typeof(CoreBackgroundJobPerformerFacts);
-        var method = type.GetMethod("MethodWithDateTimeArgument");
+        Type type = typeof(CoreBackgroundJobPerformerFacts);
+        MethodInfo? method = type.GetMethod("MethodWithDateTimeArgument");
 
         // Arguments stored by older versions, read as a server reads them
         _context.BackgroundJob.Job = new Job(type, method, InvocationData.DeserializeArguments(method, [convertedDate]));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -143,7 +144,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         // Arrange
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression(() => MethodWithDateTimeArgument(SomeDateTime));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -159,7 +160,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression(() => NullArgumentMethod(null));
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
         // Act
         performer.Perform(_context.Object);
 
@@ -171,11 +172,11 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_ThrowsException_WhenActivatorThrowsAnException()
     {
         // Arrange
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _activator.Setup(x => x.ActivateJob(It.IsAny<Type>())).Throws(exception);
 
         _context.BackgroundJob.Job = Job.FromExpression(() => InstanceMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -187,7 +188,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         _activator.Setup(x => x.ActivateJob(It.IsNotNull<Type>())).Returns(null);
         _context.BackgroundJob.Job = Job.FromExpression(() => InstanceMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         Assert.Throws<InvalidOperationException>(
             () => performer.Perform(_context.Object));
@@ -196,12 +197,12 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     [Fact]
     public void Perform_ThrowsPerformanceException_OnArgumentsDeserializationFailure()
     {
-        var type = typeof(JobFacts);
-        var method = type.GetMethod("MethodWithDateTimeArgument");
+        Type type = typeof(JobFacts);
+        MethodInfo? method = type.GetMethod("MethodWithDateTimeArgument");
         _context.BackgroundJob.Job = new Job(type, method, "sdfa");
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var exception = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         Assert.NotNull(exception.InnerException);
@@ -212,7 +213,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         _methodInvoked = false;
         _context.BackgroundJob.Job = Job.FromExpression<BrokenDispose>(x => x.Method());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         Assert.Throws<InvalidOperationException>(
             () => performer.Perform(_context.Object));
@@ -224,9 +225,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_ThrowsPerformanceException_WithUnwrappedInnerException()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => ExceptionMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var thrownException = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException thrownException = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         Assert.IsType<InvalidOperationException>(thrownException.InnerException);
@@ -237,9 +238,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Run_ThrowsPerformanceException_WithUnwrappedInnerException_ForTasks()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => TaskExceptionMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var thrownException = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException thrownException = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         Assert.IsType<InvalidOperationException>(thrownException.InnerException);
@@ -250,9 +251,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_ThrowsPerformanceException_WhenMethodThrownTaskCanceledException()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => TaskCanceledExceptionMethod());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var thrownException = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException thrownException = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         Assert.IsType<TaskCanceledException>(thrownException.InnerException);
@@ -266,7 +267,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
         _context.CancellationToken.Setup(x => x.ThrowIfCancellationRequested()).Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<OperationCanceledException>(() => performer.Perform(_context.Object));
@@ -280,7 +281,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
         _context.CancellationToken.Setup(x => x.ThrowIfCancellationRequested()).Throws<TaskCanceledException>();
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<TaskCanceledException>(() => performer.Perform(_context.Object));
@@ -294,7 +295,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
         _context.CancellationToken.Setup(x => x.ThrowIfCancellationRequested()).Throws<JobAbortedException>();
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<JobAbortedException>(() => performer.Perform(_context.Object));
@@ -308,10 +309,10 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
         _context.CancellationToken.Setup(x => x.ThrowIfCancellationRequested()).Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
-        var exception = Assert.Throws<JobPerformanceException>(() => performer.Perform(_context.Object));
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => performer.Perform(_context.Object));
         Assert.Equal(_context.BackgroundJob.Id, exception.JobId);
     }
 
@@ -323,7 +324,7 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
         _context.CancellationToken.Setup(x => x.ThrowIfCancellationRequested()).Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<JobPerformanceException>(() => performer.Perform(_context.Object));
@@ -334,9 +335,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         // Arrange
         _context.BackgroundJob.Job = Job.FromExpression(() => CancelableJob(default(CancellationToken)));
-        var source = new CancellationTokenSource();
+        CancellationTokenSource source = new();
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(source.Token);
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         source.Cancel();
@@ -348,9 +349,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_PassesThePerformContext_IfThereIsAPerformContextParameter()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => PerformContextJob(null));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Same(_context.Object, result);
     }
@@ -359,9 +360,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_ReturnsValue_WhenCallingFunctionReturningValue()
     {
         _context.BackgroundJob.Job = Job.FromExpression<JobFacts.Instance>(x => x.FunctionReturningValue());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Equal("Return value", result);
     }
@@ -370,9 +371,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Run_DoesNotReturnValue_WhenCallingFunctionReturningPlainTask()
     {
         _context.BackgroundJob.Job = Job.FromExpression<JobFacts.Instance>(x => x.FunctionReturningTask());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Null(result);
     }
@@ -381,9 +382,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Run_DoesNotReturnValue_WhenCallingFunctionReturningValueTask()
     {
         _context.BackgroundJob.Job = Job.FromExpression<JobFacts.Instance>(x => x.FunctionReturningValueTask());
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Null(result);
     }
@@ -394,9 +395,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Run_ReturnsTaskResult_WhenCallingFunctionReturningGenericTask(bool continueOnCapturedContext)
     {
         _context.BackgroundJob.Job = Job.FromExpression<JobFacts.Instance>(x => x.FunctionReturningTaskResultingInString(continueOnCapturedContext));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Equal("Return value", result);
     }
@@ -407,9 +408,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Run_ReturnsTaskResult_WhenCallingFunctionReturningValueTask(bool continueOnCapturedContext)
     {
         _context.BackgroundJob.Job = Job.FromExpression<JobFacts.Instance>(x => x.FunctionReturningValueTaskResultingInString(continueOnCapturedContext));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.Equal("Return value", result);
     }
@@ -419,9 +420,9 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         SynchronizationContext.SetSynchronizationContext(null);
         _context.BackgroundJob.Job = Job.FromExpression(() => AsyncMethod(Thread.CurrentThread.ManagedThreadId));
-        var performer = CreatePerformer();
+        CoreBackgroundJobPerformer performer = CreatePerformer();
 
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         Assert.True((bool)result);
     }
@@ -430,10 +431,10 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     public void Perform_ExecutesAsyncMethod_OnCustomScheduler_WhenItIsSet()
     {
         SynchronizationContext.SetSynchronizationContext(null);
-        var scheduler = new MyCustomTaskScheduler();
+        MyCustomTaskScheduler scheduler = new();
 
         _context.BackgroundJob.Job = Job.FromExpression(() => TaskExceptionMethod());
-        var performer = CreatePerformer(scheduler);
+        CoreBackgroundJobPerformer performer = CreatePerformer(scheduler);
 
         Assert.Throws<JobPerformanceException>(() => performer.Perform(_context.Object));
 
@@ -528,11 +529,11 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
     {
         AsyncLocal.Value = "world";
 
-        var parallelism = Math.Max(10, Environment.ProcessorCount);
+        int parallelism = Math.Max(10, Environment.ProcessorCount);
         Parallel.For(0, parallelism, new ParallelOptions { MaxDegreeOfParallelism = parallelism }, _ =>
         {
             _context.BackgroundJob.Job = job;
-            var performer = CreatePerformer(scheduler);
+            CoreBackgroundJobPerformer performer = CreatePerformer(scheduler);
 
             performer.Perform(_context.Object);
 
@@ -631,11 +632,11 @@ public class CoreBackgroundJobPerformerFacts : IDisposable
 
     private void InvokeJobMethodAndAssertAsyncLocalIsNull(Job job, TaskScheduler scheduler = null)
     {
-        var parallelism = Math.Max(10, Environment.ProcessorCount);
+        int parallelism = Math.Max(10, Environment.ProcessorCount);
         Parallel.For(0, parallelism, new ParallelOptions { MaxDegreeOfParallelism = parallelism }, _ =>
         {
             _context.BackgroundJob.Job = job;
-            var performer = CreatePerformer(scheduler);
+            CoreBackgroundJobPerformer performer = CreatePerformer(scheduler);
 
             performer.Perform(_context.Object);
 

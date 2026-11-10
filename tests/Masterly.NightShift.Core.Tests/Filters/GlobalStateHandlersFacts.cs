@@ -5,7 +5,7 @@ public class GlobalStateHandlersFacts
     [Fact]
     public void AllBasicHandlersShouldBeIncluded()
     {
-        var handlerTypes = GlobalStateHandlers.Handlers.Select(x => x.GetType()).ToArray();
+        Type[] handlerTypes = [.. GlobalStateHandlers.Handlers.Select(x => x.GetType())];
 
         Assert.Contains(typeof(SucceededState.Handler), handlerTypes);
         Assert.Contains(typeof(ScheduledState.Handler), handlerTypes);

@@ -34,7 +34,7 @@ public class RecurringJobWindowFacts
         _context.Storage = _storage;
 
         _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>()))
-            .Returns<string>(key => _hashes.TryGetValue(key, out var hash) ? new Dictionary<string, string>(hash) : null);
+            .Returns<string>(key => _hashes.TryGetValue(key, out Dictionary<string, string>? hash) ? new Dictionary<string, string>(hash) : null);
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs"))
             .Returns(() => [.. _schedule.Keys]);
         _connection.Setup(x => x.GetFirstByLowestScoreFromSet("recurring-jobs", It.IsAny<double>(), It.IsAny<double>()))
@@ -50,8 +50,8 @@ public class RecurringJobWindowFacts
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((key, pairs) =>
             {
                 _hashWrites++;
-                if (!_hashes.TryGetValue(key, out var hash)) _hashes[key] = hash = [];
-                foreach (var pair in pairs) hash[pair.Key] = pair.Value;
+                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash)) _hashes[key] = hash = [];
+                foreach (KeyValuePair<string, string> pair in pairs) hash[pair.Key] = pair.Value;
             });
         _transaction
             .Setup(x => x.AddToSet("recurring-jobs", It.IsAny<string>(), It.IsAny<double>()))
@@ -61,7 +61,7 @@ public class RecurringJobWindowFacts
         _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Returns<CreateContext>(ctx =>
             {
-                var time = JobHelper.FromTimestamp((long)ctx.Parameters["Time"]);
+                DateTime time = JobHelper.FromTimestamp((long)ctx.Parameters["Time"]);
                 _runs.Add(time);
                 return new BackgroundJob("job-" + _runs.Count, ctx.Job, _now);
             });
@@ -69,7 +69,7 @@ public class RecurringJobWindowFacts
 
     private Dictionary<string, string> Hash => _hashes["recurring-job:" + Id];
 
-    private DateTime? NextExecution => JobHelper.DeserializeNullableDateTime(Hash.TryGetValue("NextExecution", out var value) ? value : null);
+    private DateTime? NextExecution => JobHelper.DeserializeNullableDateTime(Hash.TryGetValue("NextExecution", out string? value) ? value : null);
 
     private static DateTime Utc(int day, int hour, int minute = 0, int second = 0)
     {
@@ -107,7 +107,7 @@ public class RecurringJobWindowFacts
         _now = now;
         _runs.Clear();
 
-        var scheduler = new RecurringJobScheduler(_factory.Object, TimeSpan.FromMilliseconds(100), new DefaultTimeZoneResolver(), () => _now);
+        RecurringJobScheduler scheduler = new(_factory.Object, TimeSpan.FromMilliseconds(100), new DefaultTimeZoneResolver(), () => _now);
         scheduler.Execute(_context.Object);
 
         return [.. _runs];
@@ -157,7 +157,7 @@ public class RecurringJobWindowFacts
         Assert.Empty(RunSchedulerAt(Utc(3, 9, 0, 5)));
         Assert.Empty(RunSchedulerAt(Utc(4, 9, 0, 5)));
 
-        var runs = RunSchedulerAt(Utc(5, 9, 0, 5));
+        List<DateTime> runs = RunSchedulerAt(Utc(5, 9, 0, 5));
 
         Assert.Equal(new[] { Utc(5, 9, 0, 5) }, runs);
         Assert.Equal(Utc(6, 9), NextExecution);
@@ -172,7 +172,7 @@ public class RecurringJobWindowFacts
         // Occurrences on 2, 3 and 4 March are before the start; 5 and 6 March were missed
         Register(At(4, 12), null, mode);
 
-        var runs = RunSchedulerAt(Utc(6, 10));
+        List<DateTime> runs = RunSchedulerAt(Utc(6, 10));
 
         Assert.Equal(expectedRuns, runs.Count);
         Assert.All(runs, run => Assert.True(run >= Utc(4, 12), $"{run:o} is before the start"));
@@ -184,7 +184,7 @@ public class RecurringJobWindowFacts
     {
         Register(At(4, 12), null, MisfireHandlingMode.Strict);
 
-        var runs = RunSchedulerAt(Utc(6, 10));
+        List<DateTime> runs = RunSchedulerAt(Utc(6, 10));
 
         Assert.Equal(new[] { Utc(5, 9), Utc(6, 9) }, runs);
     }
@@ -213,7 +213,7 @@ public class RecurringJobWindowFacts
     {
         Register(null, At(4, 12), MisfireHandlingMode.Strict);
 
-        var runs = RunSchedulerAt(Utc(7, 10));
+        List<DateTime> runs = RunSchedulerAt(Utc(7, 10));
 
         Assert.Equal(new[] { Utc(2, 9), Utc(3, 9), Utc(4, 9) }, runs);
         Assert.Null(NextExecution);
@@ -225,7 +225,7 @@ public class RecurringJobWindowFacts
     {
         Register(null, At(4, 12));
 
-        var runs = RunSchedulerAt(Utc(7, 10));
+        List<DateTime> runs = RunSchedulerAt(Utc(7, 10));
 
         Assert.Equal(new[] { Utc(7, 10) }, runs);
         Assert.Null(NextExecution);
@@ -243,7 +243,7 @@ public class RecurringJobWindowFacts
         _hashes["recurring-job:" + Id]["NextExecution"] = JobHelper.SerializeDateTime(Utc(4, 9));
         _schedule[Id] = JobHelper.ToTimestamp(Utc(4, 9));
 
-        var runs = RunSchedulerAt(Utc(7, 10));
+        List<DateTime> runs = RunSchedulerAt(Utc(7, 10));
 
         Assert.Empty(runs);
         Assert.Null(NextExecution);
@@ -271,7 +271,7 @@ public class RecurringJobWindowFacts
     public void Scheduler_RespectsTheWindow_InATimeZoneAcrossTheSpringChange()
     {
         // Berlin moves from 02:00 CET to 03:00 CEST on 29 March 2026, so 02:30 that day runs at 03:00 CEST
-        var berlin = TimeZoneInfo.FindSystemTimeZoneById(BerlinTimeZoneId);
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(BerlinTimeZoneId);
         _now = Utc(28, 12);
 
         Register(
@@ -323,9 +323,9 @@ public class RecurringJobWindowFacts
     [Fact]
     public void AddOrUpdate_WithTheSameWindow_WritesNothing_EvenBelowTheStoredPrecision()
     {
-        var startAt = At(10, 0).AddTicks(1234);
+        DateTimeOffset startAt = At(10, 0).AddTicks(1234);
         Register(startAt, At(20, 0).AddTicks(5678));
-        var writes = _hashWrites;
+        int writes = _hashWrites;
 
         Register(startAt, At(20, 0).AddTicks(5678));
 
@@ -349,7 +349,7 @@ public class RecurringJobWindowFacts
     [InlineData(-1)]
     public void AddOrUpdate_ThrowsArgumentException_WhenTheEndIsNotLaterThanTheStart(int endMinusStartInMinutes)
     {
-        var exception = Assert.Throws<ArgumentException>(() => Register(At(5, 0), At(5, 0).AddMinutes(endMinusStartInMinutes)));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => Register(At(5, 0), At(5, 0).AddMinutes(endMinusStartInMinutes)));
 
         Assert.Equal("options", exception.ParamName);
         Assert.Empty(_hashes);
@@ -358,7 +358,7 @@ public class RecurringJobWindowFacts
     [Fact]
     public void AddOrUpdate_ThrowsArgumentOutOfRangeException_WhenTheStartIsBefore1970()
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => Register(new DateTimeOffset(1969, 12, 31, 0, 0, 0, TimeSpan.Zero), null));
 
         Assert.Equal("options", exception.ParamName);
@@ -368,7 +368,7 @@ public class RecurringJobWindowFacts
     [Fact]
     public void AddOrUpdate_ThrowsArgumentOutOfRangeException_WhenTheEndIsBefore1970()
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => Register(null, DateTimeOffset.MinValue));
 
         Assert.Equal("options", exception.ParamName);
@@ -391,7 +391,7 @@ public class RecurringJobWindowFacts
         RunSchedulerAt(Utc(2, 9));
         _now = Utc(5, 12);
 
-        var jobId = CreateManager().TriggerJob(Id);
+        string? jobId = CreateManager().TriggerJob(Id);
 
         Assert.NotNull(jobId);
         Assert.Equal(Utc(5, 12), _runs.Last());
@@ -404,7 +404,7 @@ public class RecurringJobWindowFacts
     {
         Register(At(10, 0), null);
 
-        var jobId = CreateManager().TriggerJob(Id);
+        string? jobId = CreateManager().TriggerJob(Id);
 
         Assert.NotNull(jobId);
         Assert.Equal(Utc(2, 8), _runs.Single());
@@ -415,7 +415,7 @@ public class RecurringJobWindowFacts
     public void Resume_BeforeTheStart_SchedulesTheFirstOccurrenceAfterIt()
     {
         Register(At(10, 0), null);
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
         manager.Pause(Id);
         Assert.Null(NextExecution);
 
@@ -441,7 +441,7 @@ public class RecurringJobWindowFacts
     {
         Register(new DateTimeOffset(2026, 3, 10, 2, 0, 0, TimeSpan.FromHours(2)), At(20, 0));
 
-        var dto = _connection.Object.GetRecurringJobs().Single();
+        RecurringJobDto dto = _connection.Object.GetRecurringJobs().Single();
 
         Assert.Equal(Utc(10, 0), dto.StartAt);
         Assert.Equal(DateTimeKind.Utc, dto.StartAt.Value.Kind);
@@ -455,7 +455,7 @@ public class RecurringJobWindowFacts
         Hash["EndAt"] = string.Empty;
         Hash["StartAt"] = "not a date";
 
-        var dto = _connection.Object.GetRecurringJobs().Single();
+        RecurringJobDto dto = _connection.Object.GetRecurringJobs().Single();
 
         Assert.Null(dto.StartAt);
         Assert.Null(dto.EndAt);

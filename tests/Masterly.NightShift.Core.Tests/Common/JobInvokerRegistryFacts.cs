@@ -9,21 +9,21 @@ public class JobInvokerRegistryFacts
     [Fact]
     public void Register_ThrowsAnException_WhenInvokerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.Register(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.Register(null));
         Assert.Equal("invoker", exception.ParamName);
     }
 
     [Fact]
     public void GetInvoker_ThrowsAnException_WhenMethodIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.GetInvoker(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.GetInvoker(null));
         Assert.Equal("method", exception.ParamName);
     }
 
     [Fact, StaticLock]
     public void GetInvoker_DoesNotCountAReflectionInvoker_ForGlobalMethods()
     {
-        var method = new DynamicMethod("Global", typeof(void), Type.EmptyTypes);
+        DynamicMethod method = new("Global", typeof(void), Type.EmptyTypes);
         JobInvokerRegistry.ClearResolved();
 
         Assert.Throws<ArgumentException>(() => JobInvokerRegistry.GetInvoker(method));
@@ -34,13 +34,13 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_ReturnsRegisteredGeneratedInvoker_ForTheSameSignature()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(RegistryOnlyMethod));
-        var invoker = new FakeGeneratedInvoker(typeof(JobInvokerRegistryFacts), nameof(RegistryOnlyMethod), [typeof(string)]);
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(RegistryOnlyMethod));
+        FakeGeneratedInvoker invoker = new(typeof(JobInvokerRegistryFacts), nameof(RegistryOnlyMethod), [typeof(string)]);
 
         JobInvokerRegistry.Register(invoker);
         JobInvokerRegistry.ClearResolved();
 
-        var resolved = JobInvokerRegistry.GetInvoker(method);
+        JobInvoker resolved = JobInvokerRegistry.GetInvoker(method);
 
         Assert.Same(invoker, resolved);
         Assert.Equal(JobInvokerKind.Generated, resolved.Kind);
@@ -49,11 +49,11 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_ReturnsTheSameInstance_ForTheSameMethod()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
         JobInvokerRegistry.ClearResolved();
 
-        var first = JobInvokerRegistry.GetInvoker(method);
-        var second = JobInvokerRegistry.GetInvoker(method);
+        JobInvoker first = JobInvokerRegistry.GetInvoker(method);
+        JobInvoker second = JobInvokerRegistry.GetInvoker(method);
 
         Assert.Same(first, second);
     }
@@ -61,11 +61,11 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_ReturnsCompiledInvoker_WhenNothingIsRegistered_AndCompilationIsEnabled()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
         JobInvokerRegistry.ClearResolved();
         JobInvokerRegistry.UseCompiledInvokers = true;
 
-        var invoker = JobInvokerRegistry.GetInvoker(method);
+        JobInvoker invoker = JobInvokerRegistry.GetInvoker(method);
 
         Assert.Equal(JobInvokerKind.Compiled, invoker.Kind);
         Assert.Equal(1, JobInvokerRegistry.GetStatistics().Compiled);
@@ -74,14 +74,14 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_ReturnsReflectionInvoker_WhenCompilationIsDisabled()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
         JobInvokerRegistry.ClearResolved();
 
         try
         {
             JobInvokerRegistry.UseCompiledInvokers = false;
 
-            var invoker = JobInvokerRegistry.GetInvoker(method);
+            JobInvoker invoker = JobInvokerRegistry.GetInvoker(method);
 
             Assert.Equal(JobInvokerKind.Reflection, invoker.Kind);
             Assert.Equal(1, JobInvokerRegistry.GetStatistics().Reflection);
@@ -96,12 +96,12 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_UsesTheDeclaringType_SoDerivedInstancesShareTheInvoker()
     {
-        var baseMethod = typeof(BaseJobs).GetMethod(nameof(BaseJobs.Run));
-        var derivedMethod = typeof(DerivedJobs).GetMethod(nameof(DerivedJobs.Run));
+        MethodInfo? baseMethod = typeof(BaseJobs).GetMethod(nameof(BaseJobs.Run));
+        MethodInfo? derivedMethod = typeof(DerivedJobs).GetMethod(nameof(DerivedJobs.Run));
         JobInvokerRegistry.ClearResolved();
 
-        var fromBase = JobInvokerRegistry.GetInvoker(baseMethod);
-        var fromDerived = JobInvokerRegistry.GetInvoker(derivedMethod);
+        JobInvoker fromBase = JobInvokerRegistry.GetInvoker(baseMethod);
+        JobInvoker fromDerived = JobInvokerRegistry.GetInvoker(derivedMethod);
 
         // Different ReflectedType, same declaring method: the compiled delegate is built for the declaring type
         Assert.Equal(typeof(BaseJobs), fromBase.Type);
@@ -114,9 +114,9 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void TryGetGeneratedInvoker_ReturnsFalse_ForMethodsWithoutGeneratedInvoker()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(NotGeneratedMethod));
 
-        Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(method, out var invoker));
+        Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(method, out JobInvoker? invoker));
         Assert.Null(invoker);
     }
 
@@ -131,7 +131,7 @@ public class JobInvokerRegistryFacts
     [Fact]
     public void RegisterAssembly_ThrowsAnException_WhenAssemblyIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.RegisterAssembly(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.RegisterAssembly(null));
         Assert.Equal("assembly", exception.ParamName);
     }
 
@@ -144,16 +144,16 @@ public class JobInvokerRegistryFacts
     [Fact]
     public void TryGetGeneratedInvoker_ThrowsAnException_WhenMethodIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.TryGetGeneratedInvoker(null, out _));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobInvokerRegistry.TryGetGeneratedInvoker(null, out _));
         Assert.Equal("method", exception.ParamName);
     }
 
     [Fact, StaticLock]
     public void TryGetGeneratedInvoker_ReturnsFalse_ForGlobalMethods()
     {
-        var method = new DynamicMethod("Global", typeof(void), Type.EmptyTypes);
+        DynamicMethod method = new("Global", typeof(void), Type.EmptyTypes);
 
-        var found = JobInvokerRegistry.TryGetGeneratedInvoker(method, out var invoker);
+        bool found = JobInvokerRegistry.TryGetGeneratedInvoker(method, out JobInvoker? invoker);
 
         Assert.False(found);
         Assert.Null(invoker);
@@ -162,9 +162,9 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_ThrowsAnException_ForGlobalMethods()
     {
-        var method = new DynamicMethod("Global", typeof(void), Type.EmptyTypes);
+        DynamicMethod method = new("Global", typeof(void), Type.EmptyTypes);
 
-        var exception = Assert.Throws<ArgumentException>(() => JobInvokerRegistry.GetInvoker(method));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => JobInvokerRegistry.GetInvoker(method));
 
         Assert.Equal("method", exception.ParamName);
     }
@@ -172,12 +172,12 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void GetInvoker_FallsBackToReflection_WhenTheMethodCannotBeCompiled()
     {
-        var method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(ByRefMethod));
-        var arguments = new object[] { 41 };
+        MethodInfo? method = typeof(JobInvokerRegistryFacts).GetMethod(nameof(ByRefMethod));
+        object[] arguments = [41];
         JobInvokerRegistry.ClearResolved();
         JobInvokerRegistry.UseCompiledInvokers = true;
 
-        var invoker = JobInvokerRegistry.GetInvoker(method);
+        JobInvoker invoker = JobInvokerRegistry.GetInvoker(method);
         invoker.Invoke(null, arguments);
 
         Assert.Equal(JobInvokerKind.Reflection, invoker.Kind);
@@ -190,7 +190,7 @@ public class JobInvokerRegistryFacts
     [Fact, StaticLock]
     public void RegisterAssembly_DoesNotThrow_ForDynamicAssemblies()
     {
-        var assembly = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName($"Dynamic{Guid.NewGuid():N}"), AssemblyBuilderAccess.Run);
+        AssemblyBuilder assembly = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName($"Dynamic{Guid.NewGuid():N}"), AssemblyBuilderAccess.Run);
 
         JobInvokerRegistry.RegisterAssembly(assembly);
         JobInvokerRegistry.RegisterAssembly(assembly);
@@ -201,7 +201,7 @@ public class JobInvokerRegistryFacts
     public void RegisterAssembly_SkipsProvidersWithoutAParameterlessStaticRegisterMethod_AndRunsTheOthers()
     {
         CountingProvider.Calls = 0;
-        var assembly = EmitAssemblyWithProviders(typeof(ProviderWithoutRegister), typeof(ProviderWithRegisterParameters), typeof(CountingProvider));
+        Assembly assembly = EmitAssemblyWithProviders(typeof(ProviderWithoutRegister), typeof(ProviderWithRegisterParameters), typeof(CountingProvider));
 
         JobInvokerRegistry.RegisterAssembly(assembly);
 
@@ -212,7 +212,7 @@ public class JobInvokerRegistryFacts
     public void RegisterAssembly_RunsProvidersOnlyOnce_PerAssembly()
     {
         CountingProvider.Calls = 0;
-        var assembly = EmitAssemblyWithProviders(typeof(CountingProvider));
+        Assembly assembly = EmitAssemblyWithProviders(typeof(CountingProvider));
 
         JobInvokerRegistry.RegisterAssembly(assembly);
         JobInvokerRegistry.RegisterAssembly(assembly);
@@ -224,7 +224,7 @@ public class JobInvokerRegistryFacts
     public void RegisterAssembly_SwallowsExceptions_ThrownByAProvider()
     {
         ThrowingProvider.Calls = 0;
-        var assembly = EmitAssemblyWithProviders(typeof(ThrowingProvider));
+        Assembly assembly = EmitAssemblyWithProviders(typeof(ThrowingProvider));
 
         JobInvokerRegistry.RegisterAssembly(assembly);
 
@@ -233,16 +233,16 @@ public class JobInvokerRegistryFacts
 
     private static Assembly EmitAssemblyWithProviders(params Type[] providerTypes)
     {
-        var constructor = typeof(JobInvokersProviderAttribute).GetConstructor([typeof(Type)]);
-        var builder = new PersistedAssemblyBuilder(new AssemblyName($"Providers{Guid.NewGuid():N}"), typeof(object).Assembly);
+        ConstructorInfo? constructor = typeof(JobInvokersProviderAttribute).GetConstructor([typeof(Type)]);
+        PersistedAssemblyBuilder builder = new(new AssemblyName($"Providers{Guid.NewGuid():N}"), typeof(object).Assembly);
         builder.DefineDynamicModule("Providers");
 
-        foreach (var providerType in providerTypes)
+        foreach (Type providerType in providerTypes)
         {
             builder.SetCustomAttribute(new CustomAttributeBuilder(constructor, [providerType]));
         }
 
-        using var stream = new MemoryStream();
+        using MemoryStream stream = new();
         builder.Save(stream);
         return Assembly.Load(stream.ToArray());
     }
@@ -312,23 +312,23 @@ public class JobInvokerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTypeIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => new TestInvoker(null, "Method", Type.EmptyTypes, Type.EmptyTypes));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new TestInvoker(null, "Method", Type.EmptyTypes, Type.EmptyTypes));
         Assert.Equal("type", exception.ParamName);
     }
 
     [Fact]
     public void Ctor_ThrowsAnException_WhenMethodNameIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => new TestInvoker(typeof(JobInvokerFacts), null, Type.EmptyTypes, Type.EmptyTypes));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new TestInvoker(typeof(JobInvokerFacts), null, Type.EmptyTypes, Type.EmptyTypes));
         Assert.Equal("methodName", exception.ParamName);
     }
 
     [Fact]
     public void Method_IsResolvedLazily_FromTheSignature()
     {
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), nameof(Sample), [typeof(int), typeof(string)], Type.EmptyTypes);
+        TestInvoker invoker = new(typeof(JobInvokerFacts), nameof(Sample), [typeof(int), typeof(string)], Type.EmptyTypes);
 
-        var method = invoker.Method;
+        MethodInfo method = invoker.Method;
 
         Assert.Equal(typeof(JobInvokerFacts).GetMethod(nameof(Sample)), method);
         Assert.Equal(typeof(Task<string>), invoker.ReturnType);
@@ -339,9 +339,9 @@ public class JobInvokerFacts
     [Fact]
     public void Method_IsResolved_ForConstructedGenericMethods()
     {
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), nameof(Generic), [typeof(int)], [typeof(int)]);
+        TestInvoker invoker = new(typeof(JobInvokerFacts), nameof(Generic), [typeof(int)], [typeof(int)]);
 
-        var method = invoker.Method;
+        MethodInfo method = invoker.Method;
 
         Assert.True(method.IsGenericMethod);
         Assert.False(method.IsGenericMethodDefinition);
@@ -351,10 +351,10 @@ public class JobInvokerFacts
     [Fact]
     public void Method_IsClosedOverTheGenericArguments_WhenTheSignatureUsesTheOpenGenericParameters()
     {
-        var openParameter = typeof(JobInvokerFacts).GetMethod(nameof(Generic)).GetGenericArguments()[0];
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), nameof(Generic), [openParameter], [typeof(long)]);
+        Type openParameter = typeof(JobInvokerFacts).GetMethod(nameof(Generic)).GetGenericArguments()[0];
+        TestInvoker invoker = new(typeof(JobInvokerFacts), nameof(Generic), [openParameter], [typeof(long)]);
 
-        var method = invoker.Method;
+        MethodInfo method = invoker.Method;
 
         Assert.False(method.IsGenericMethodDefinition);
         Assert.Equal([typeof(long)], method.GetGenericArguments());
@@ -363,7 +363,7 @@ public class JobInvokerFacts
     [Fact]
     public void Method_ThrowsAnException_WhenTheSignatureDoesNotExist()
     {
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), "Missing", Type.EmptyTypes, Type.EmptyTypes);
+        TestInvoker invoker = new(typeof(JobInvokerFacts), "Missing", Type.EmptyTypes, Type.EmptyTypes);
 
         Assert.Throws<InvalidOperationException>(() => invoker.Method);
     }
@@ -371,9 +371,9 @@ public class JobInvokerFacts
     [Fact]
     public void Method_ThrowsAnException_NamingTheParameterTypes_WhenTheSignatureDoesNotExist()
     {
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), nameof(Sample), [typeof(Guid)], Type.EmptyTypes);
+        TestInvoker invoker = new(typeof(JobInvokerFacts), nameof(Sample), [typeof(Guid)], Type.EmptyTypes);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => invoker.Method);
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => invoker.Method);
 
         Assert.Contains("Sample(Guid)", exception.Message);
         Assert.Contains(typeof(JobInvokerFacts).FullName, exception.Message);
@@ -382,7 +382,7 @@ public class JobInvokerFacts
     [Fact]
     public void ToString_DescribesTheInvoker()
     {
-        var invoker = new TestInvoker(typeof(JobInvokerFacts), nameof(Sample), [typeof(int), typeof(string)], Type.EmptyTypes);
+        TestInvoker invoker = new(typeof(JobInvokerFacts), nameof(Sample), [typeof(int), typeof(string)], Type.EmptyTypes);
 
         Assert.Equal("Generated: JobInvokerFacts.Sample(Int32, String)", invoker.ToString());
     }

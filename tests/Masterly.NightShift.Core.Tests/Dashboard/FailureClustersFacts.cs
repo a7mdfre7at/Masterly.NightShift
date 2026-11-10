@@ -35,9 +35,9 @@ public class FailureClustersFacts
     [Fact]
     public void Build_GroupsByExceptionAndMethod_LargestFirst()
     {
-        var now = DateTime.UtcNow;
-        var charge = Job.FromExpression(() => Charge(1));
-        var notify = Job.FromExpression(() => Notify(1));
+        DateTime now = DateTime.UtcNow;
+        Job charge = Job.FromExpression(() => Charge(1));
+        Job notify = Job.FromExpression(() => Notify(1));
 
         AddFailure("5", "SqlException", charge, now, "deadlock");
         AddFailure("4", "SqlException", charge, now.AddMinutes(-1));
@@ -46,7 +46,7 @@ public class FailureClustersFacts
         AddFailure("1", "TimeoutException", notify, now.AddMinutes(-4));
         AddFailure("0", "OtherException", notify, now.AddMinutes(-5));
 
-        var clusters = FailureClusters.Build(_monitor.Object);
+        IReadOnlyList<FailureCluster> clusters = FailureClusters.Build(_monitor.Object);
 
         Assert.Equal(2, clusters.Count);
         Assert.Equal("SqlException", clusters[0].ExceptionType);
@@ -61,13 +61,13 @@ public class FailureClustersFacts
     [Fact]
     public void Build_SkipsJobsThatLeftTheFailedState_AndEmptyEntries()
     {
-        var job = Job.FromExpression(() => Charge(1));
+        Job job = Job.FromExpression(() => Charge(1));
         AddFailure("1", "X", job, DateTime.UtcNow, inFailedState: false);
         AddFailure("2", "X", job, DateTime.UtcNow);
         AddFailure("3", "X", job, DateTime.UtcNow);
         _failed.Add(new KeyValuePair<string, FailedJobDto>("4", null));
 
-        var clusters = FailureClusters.Build(_monitor.Object);
+        IReadOnlyList<FailureCluster> clusters = FailureClusters.Build(_monitor.Object);
 
         Assert.Equal(new[] { "2", "3" }, Assert.Single(clusters).JobIds);
     }
@@ -75,10 +75,10 @@ public class FailureClustersFacts
     [Fact]
     public void Build_PagesThroughTheSample_AndRespectsTheLimit()
     {
-        var job = Job.FromExpression(() => Charge(1));
-        for (var i = 0; i < 250; i++) AddFailure(i.ToString(), "E" + (i % 12), job, DateTime.UtcNow);
+        Job job = Job.FromExpression(() => Charge(1));
+        for (int i = 0; i < 250; i++) AddFailure(i.ToString(), "E" + (i % 12), job, DateTime.UtcNow);
 
-        var clusters = FailureClusters.Build(_monitor.Object, sampleSize: 230, maxClusters: 3);
+        IReadOnlyList<FailureCluster> clusters = FailureClusters.Build(_monitor.Object, sampleSize: 230, maxClusters: 3);
 
         Assert.Equal(3, clusters.Count);
         Assert.Equal(230, _failed.Take(230).Count());
@@ -94,7 +94,7 @@ public class FailureClustersFacts
         AddFailure("1", null, null, DateTime.UtcNow);
         AddFailure("2", null, null, DateTime.UtcNow);
 
-        var cluster = Assert.Single(FailureClusters.Build(_monitor.Object));
+        FailureCluster cluster = Assert.Single(FailureClusters.Build(_monitor.Object));
 
         Assert.Equal("?", cluster.ExceptionType);
         Assert.Equal("?", cluster.Method);

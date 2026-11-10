@@ -17,7 +17,7 @@ public class QueueAttributeFacts
     [Fact]
     public void Ctor_CorrectlySets_AllPropertyValues()
     {
-        var filter = new QueueAttribute("hello");
+        QueueAttribute filter = new("hello");
         Assert.Equal("hello", filter.Queue);
     }
 
@@ -27,7 +27,7 @@ public class QueueAttributeFacts
     [InlineData("reports.eu")]
     public void Ctor_ThrowsAnArgumentException_ForAnInvalidQueueName(string queue)
     {
-        var exception = Assert.Throws<ArgumentException>(() => new QueueAttribute(queue));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new QueueAttribute(queue));
 
         Assert.Equal("queue", exception.ParamName);
     }
@@ -38,7 +38,7 @@ public class QueueAttributeFacts
     [InlineData("  ")]
     public void Ctor_ThrowsAnArgumentNullException_ForAMissingQueueName(string queue)
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => new QueueAttribute(queue));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new QueueAttribute(queue));
 
         Assert.Equal("queue", exception.ParamName);
     }
@@ -46,7 +46,7 @@ public class QueueAttributeFacts
     [Fact]
     public void Ctor_AcceptsATemplate_AndLeavesItsCheckForLater()
     {
-        var filter = new QueueAttribute("reports-{0}");
+        QueueAttribute filter = new("reports-{0}");
 
         Assert.Equal("reports-{0}", filter.Queue);
     }
@@ -54,7 +54,7 @@ public class QueueAttributeFacts
     [Fact]
     public void OnStateElection_OverridesTheQueue_OfTheCandidateState()
     {
-        var filter = new QueueAttribute("override");
+        QueueAttribute filter = new("override");
         filter.OnStateElection(_context.Object);
 
         Assert.Equal("override", ((EnqueuedState)_context.Object.CandidateState).Queue);
@@ -63,8 +63,8 @@ public class QueueAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotDoAnything_IfStateIsNotEnqueuedState()
     {
-        var filter = new QueueAttribute("override");
-        var context = new ElectStateContextMock
+        QueueAttribute filter = new("override");
+        ElectStateContextMock context = new()
         {
             ApplyContext = { NewState = new Mock<IState>() }
         };
@@ -88,7 +88,7 @@ public class QueueAttributeFacts
     {
         _context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Build("EU", 7));
 
-        var exception = Assert.Throws<InvalidOperationException>(
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
             () => new QueueAttribute("reports-{0}").OnStateElection(_context.Object));
 
         Assert.Contains("'reports-{0}'", exception.Message);
@@ -100,7 +100,7 @@ public class QueueAttributeFacts
     {
         _context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Build("eu", 7));
 
-        var exception = Assert.Throws<FormatException>(
+        FormatException exception = Assert.Throws<FormatException>(
             () => new QueueAttribute("reports-{5}").OnStateElection(_context.Object));
 
         Assert.Contains("'reports-{5}'", exception.Message);

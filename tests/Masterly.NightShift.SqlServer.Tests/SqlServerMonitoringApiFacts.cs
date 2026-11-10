@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.SqlServer.Entities;
+using Masterly.NightShift.Storage.Monitoring;
 using ReferencedDapper::Dapper;
 
 // ReSharper disable UnusedVariable
@@ -20,15 +21,15 @@ public class SqlServerMonitoringApiFacts
     {
         GlobalConfiguration.Configuration.UseSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var serverData = new ServerData
+        ServerData serverData = new()
         {
             WorkerCount = 5,
             Queues = ["default", "critical"],
             StartedAt = new DateTime(2016, 12, 01, 14, 33, 00)
         };
-        var serializedServerData = SerializationHelper.Serialize(serverData, SerializationOption.User);
+        string serializedServerData = SerializationHelper.Serialize(serverData, SerializationOption.User);
 
-        var deserializedServerData = SerializationHelper.Deserialize<ServerData>(serializedServerData);
+        ServerData? deserializedServerData = SerializationHelper.Deserialize<ServerData>(serializedServerData);
 
         Assert.Equal(5, deserializedServerData.WorkerCount);
         Assert.Equal(new[] { "default", "critical" }, deserializedServerData.Queues);
@@ -38,7 +39,7 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerMonitoringApi(null, null));
 
         Assert.Equal("storage", exception.ParamName);
@@ -47,9 +48,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void Queues_ReturnsEmptyCollection_WhenThereAreNoQueues()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -59,19 +60,19 @@ public class SqlServerMonitoringApiFacts
     public void Queues_ReturnsCorrectJobs_WhichWillBeDequeuedNext()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob(
+        string jobId = SimpleEnqueueJob(
             "critical",
             job: Job.FromExpression(() => Empty()),
             state: new EnqueuedState());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var criticalQueue = result.Single();
-        var queuedJob = criticalQueue.FirstJobs.Single();
+        QueueWithTopEnqueuedJobsDto criticalQueue = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> queuedJob = criticalQueue.FirstJobs.Single();
 
         Assert.Equal("critical", criticalQueue.Name);
         Assert.Equal(1, criticalQueue.Length);
@@ -91,10 +92,10 @@ public class SqlServerMonitoringApiFacts
         SimpleEnqueueJob("critical");
         SimpleEnqueueJob("critical");
         SimpleEnqueueJob("default");
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var queues = monitoring.Queues();
-        var counts = monitoring.QueueCounts();
+        IList<QueueWithTopEnqueuedJobsDto> queues = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> counts = monitoring.QueueCounts();
 
         Assert.Equal(queues.Select(q => (q.Name, q.Length, q.Fetched)), counts.Select(q => (q.Name, q.Length, q.Fetched)));
         Assert.Equal([("critical", 2L), ("default", 1L)], counts.Select(q => (q.Name, q.Length)));
@@ -105,7 +106,7 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void QueueCounts_ReturnsEmptyCollection_WhenThereAreNoQueues()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         Assert.Empty(monitoring.QueueCounts());
     }
@@ -113,7 +114,7 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void Storage_AdvertisesTheQueueCountsFeature()
     {
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
 
         Assert.True(storage.HasFeature(JobStorageFeatures.Monitoring.QueueCounts));
     }
@@ -123,13 +124,13 @@ public class SqlServerMonitoringApiFacts
     {
         // Arrange
         SimpleEnqueueJob("default", jobId: "41423", noState: true);
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var someJob = result.Single().FirstJobs.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single().FirstJobs.Single();
 
         Assert.Equal("41423", someJob.Key);
         Assert.Null(someJob.Value);
@@ -139,14 +140,14 @@ public class SqlServerMonitoringApiFacts
     public void Queues_IsAbleToHandle_BackgroundJobEntry_WithNullState()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("test", noState: true);
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("test", noState: true);
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var someJob = result.Single().FirstJobs.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single().FirstJobs.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.False(someJob.Value.InEnqueuedState);
@@ -158,14 +159,14 @@ public class SqlServerMonitoringApiFacts
     public void Queues_IsAbleToHandle_BackgroundJobEntry_WithAnotherState()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("default", state: new DeletedState());
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("default", state: new DeletedState());
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var someJob = result.Single().FirstJobs.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single().FirstJobs.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.False(someJob.Value.InEnqueuedState);
@@ -177,17 +178,17 @@ public class SqlServerMonitoringApiFacts
     public void Queues_IsAbleToHandle_EnqueuedLikeStates_AsEnqueued()
     {
         // Arrange
-        var state = new Mock<IState>();
+        Mock<IState> state = new();
         state.SetupGet(x => x.Name).Returns("EnQUEued");
 
-        var jobId = SimpleEnqueueJob("default", state: state.Object);
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("default", state: state.Object);
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var someJob = result.Single().FirstJobs.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single().FirstJobs.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.True(someJob.Value.InEnqueuedState);
@@ -199,27 +200,27 @@ public class SqlServerMonitoringApiFacts
     public void Queues_ReturnsTop5Jobs_FromItsHead()
     {
         // Arrange
-        var jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId5 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId6 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId7 = SimpleEnqueueJob("critical", state: new EnqueuedState());
+        string jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId5 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId6 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId7 = SimpleEnqueueJob("critical", state: new EnqueuedState());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var defaultQueue = result.Single(x => x.Name == "default");
+        QueueWithTopEnqueuedJobsDto defaultQueue = result.Single(x => x.Name == "default");
         Assert.Equal(6, defaultQueue.Length);
         Assert.Equal(5, defaultQueue.FirstJobs.Count);
         Assert.Equal(jobId1, defaultQueue.FirstJobs.First().Key);
         Assert.Equal(jobId5, defaultQueue.FirstJobs.Last().Key);
 
-        var criticalQueue = result.Single(x => x.Name == "critical");
+        QueueWithTopEnqueuedJobsDto criticalQueue = result.Single(x => x.Name == "critical");
         Assert.Equal(1, criticalQueue.Length);
         Assert.Single(criticalQueue.FirstJobs);
         Assert.Equal(jobId7, criticalQueue.FirstJobs.Single().Key);
@@ -229,24 +230,24 @@ public class SqlServerMonitoringApiFacts
     public void Queues_IsAbleToHandleSerializationProblems_InJobs()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId = SimpleEnqueueJob("default", state: new EnqueuedState());
 
         UseSqlConnection(connection =>
         {
-            var wrongData = new InvocationData("asfasf", "232", "afasf", "gg");
-            var payload = wrongData.SerializePayload(excludeArguments: true);
+            InvocationData wrongData = new("asfasf", "232", "afasf", "gg");
+            string? payload = wrongData.SerializePayload(excludeArguments: true);
             connection.Execute(
                 $"update [{Constants.DefaultSchema}].Job set InvocationData = @data, Arguments = @args where Id = @jobId",
                 new { jobId, data = payload, args = wrongData.Arguments });
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues();
+        IList<QueueWithTopEnqueuedJobsDto> result = monitoring.Queues();
 
         // Assert
-        var queuedJob = result.Single().FirstJobs.Single();
+        KeyValuePair<string, EnqueuedJobDto?> queuedJob = result.Single().FirstJobs.Single();
         Assert.Equal(jobId, queuedJob.Key);
         Assert.Null(queuedJob.Value.Job);
         Assert.True(queuedJob.Value.InEnqueuedState);
@@ -261,10 +262,10 @@ public class SqlServerMonitoringApiFacts
         SimpleEnqueueJob("a-queue", state: new EnqueuedState());
         SimpleEnqueueJob("c-queue", state: new EnqueuedState());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Queues().ToArray();
+        QueueWithTopEnqueuedJobsDto[] result = [.. monitoring.Queues()];
 
         // Assert
         Assert.Equal("a-queue", result[0].Name);
@@ -275,9 +276,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void Servers_ReturnsEmptyCollection_WhenThereAreNoServers()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.Servers();
+        IList<ServerDto> result = monitoring.Servers();
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -295,27 +296,27 @@ public class SqlServerMonitoringApiFacts
             return true;
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Servers();
+        IList<ServerDto> result = monitoring.Servers();
 
         // Assert
         Assert.Equal(3, result.Count);
 
-        var server1 = result.Single(x => x.Name == "server1");
+        ServerDto server1 = result.Single(x => x.Name == "server1");
         Assert.Equal(["default"], server1.Queues);
         Assert.Equal(100, server1.WorkersCount);
         AssertWithinSecond(_utcNow, server1.StartedAt);
         AssertWithinSecond(_utcNow, server1.Heartbeat);
 
-        var server2 = result.Single(x => x.Name == "server2");
+        ServerDto server2 = result.Single(x => x.Name == "server2");
         Assert.Equal(["critical"], server2.Queues);
         Assert.Equal(17, server2.WorkersCount);
         AssertWithinSecond(_utcNow, server2.StartedAt);
         AssertWithinSecond(_utcNow, server2.Heartbeat);
 
-        var server3 = result.Single(x => x.Name == "server3");
+        ServerDto server3 = result.Single(x => x.Name == "server3");
         Assert.Equal(["alpha", "beta"], server3.Queues);
         Assert.Equal(0, server3.WorkersCount);
         AssertWithinSecond(_utcNow, server3.StartedAt);
@@ -334,10 +335,10 @@ public class SqlServerMonitoringApiFacts
             return true;
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.Servers().ToArray();
+        ServerDto[] result = [.. monitoring.Servers()];
 
         // Assert
         Assert.Equal("server1", result[0].Name);
@@ -348,9 +349,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void JobDetails_ThrowsAnException_WhenJobIdIsNull()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => monitoring.JobDetails(null));
 
         Assert.Equal("jobId", exception.ParamName);
@@ -359,9 +360,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void JobDetails_ReturnsNull_WhenTargetJobDoesNotExist()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.JobDetails("1412");
+        JobDetailsDto? result = monitoring.JobDetails("1412");
 
         Assert.Null(result);
     }
@@ -370,9 +371,9 @@ public class SqlServerMonitoringApiFacts
     [InlineData("abc"), InlineData(""), InlineData("1.5"), InlineData("99999999999999999999")]
     public void JobDetails_ReturnsNull_WhenJobIdIsNotABigint(string jobId)
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.JobDetails(jobId);
+        JobDetailsDto? result = monitoring.JobDetails(jobId);
 
         Assert.Null(result);
     }
@@ -381,16 +382,16 @@ public class SqlServerMonitoringApiFacts
     public void JobDetails_CorrectlyHandles_CreatedButNotInitializedJob()
     {
         // Arrange
-        var jobId = UseConnection(connection => connection.CreateExpiredJob(
+        string jobId = UseConnection(connection => connection.CreateExpiredJob(
                 Job.FromExpression(() => Empty()),
                 new Dictionary<string, string> { { "CurrentCulture", "en-US" }, { "RetryCount", "5" } },
                 _utcNow,
                 TimeSpan.FromMinutes(37)));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.JobDetails(jobId);
+        JobDetailsDto? result = monitoring.JobDetails(jobId);
 
         // Assert
         Assert.NotNull(result);
@@ -406,21 +407,21 @@ public class SqlServerMonitoringApiFacts
     public void JobDetails_CorrectlyShowsCreated_AndInitializedJob()
     {
         // Arrange
-        var createdId = UseConnection(connection =>
+        string createdId = UseConnection(connection =>
         {
-            var jobId = connection.CreateExpiredJob(
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => Empty()),
                 new Dictionary<string, string>(),
                 _utcNow,
                 TimeSpan.FromMinutes(1));
 
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.SetJobState(jobId, new EnqueuedState("critical") { Reason = "Some reason" });
                 transaction.Commit();
             }
 
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.SetJobState(jobId, new DeletedState());
                 transaction.Commit();
@@ -429,10 +430,10 @@ public class SqlServerMonitoringApiFacts
             return jobId;
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.JobDetails(createdId);
+        JobDetailsDto? result = monitoring.JobDetails(createdId);
 
         // Assert
         Assert.NotNull(result);
@@ -450,7 +451,7 @@ public class SqlServerMonitoringApiFacts
     public void JobDetails_IsAbleToHandleSerializationProblems()
     {
         // Arrange
-        var jobId = UseConnection(connection => connection.CreateExpiredJob(
+        string jobId = UseConnection(connection => connection.CreateExpiredJob(
             Job.FromExpression(() => Empty()),
             new Dictionary<string, string>(),
             _utcNow,
@@ -458,17 +459,17 @@ public class SqlServerMonitoringApiFacts
 
         UseSqlConnection(connection =>
         {
-            var wrongData = new InvocationData("asfasf", "232", "afasf", "gg");
-            var payload = wrongData.SerializePayload(excludeArguments: true);
+            InvocationData wrongData = new("asfasf", "232", "afasf", "gg");
+            string? payload = wrongData.SerializePayload(excludeArguments: true);
             connection.Execute(
                 $"update [{Constants.DefaultSchema}].Job set InvocationData = @data, Arguments = @args where Id = @jobId",
                 new { jobId, data = payload, args = wrongData.Arguments });
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.JobDetails(jobId);
+        JobDetailsDto? result = monitoring.JobDetails(jobId);
 
         // Assert
         Assert.NotNull(result);
@@ -482,9 +483,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void GetStatistics_ReturnsEmptyStatistics_WhenNothingIsCreatedYet()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.GetStatistics();
+        StatisticsDto result = monitoring.GetStatistics();
 
         Assert.Equal(0, result.Deleted);
         Assert.Equal(0, result.Enqueued);
@@ -503,9 +504,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void EnqueuedJobs_ThrowsAnException_WhenQueueNamesIsNull()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => monitoring.EnqueuedJobs(null, 0, 10));
 
         Assert.Equal("queue", exception.ParamName);
@@ -514,9 +515,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void EnqueuedJobs_ReturnsEmptyCollection_WhenThereIsNoSuchQueue()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.EnqueuedJobs("critical", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("critical", 0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -526,18 +527,18 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_ReturnsCorrectJobs_WhichWillBeDequeuedNext()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob(
+        string jobId = SimpleEnqueueJob(
             "critical",
             job: Job.FromExpression(() => Empty()),
             state: new EnqueuedState());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("critical", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("critical", 0, 10);
 
         // Assert
-        var queuedJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> queuedJob = result.Single();
 
         Assert.Equal(jobId, queuedJob.Key);
         Assert.True(queuedJob.Value.InEnqueuedState);
@@ -552,14 +553,14 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_ReturnsJobs_InTheAscendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleEnqueueJob("critical");
-        var jobId2 = SimpleEnqueueJob("critical");
-        var jobId3 = SimpleEnqueueJob("critical");
+        string jobId1 = SimpleEnqueueJob("critical");
+        string jobId2 = SimpleEnqueueJob("critical");
+        string jobId3 = SimpleEnqueueJob("critical");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("critical", 0, 10).ToArray();
+        KeyValuePair<string, EnqueuedJobDto?>[] result = [.. monitoring.EnqueuedJobs("critical", 0, 10)];
 
         // Assert
         Assert.Equal(jobId1, result[0].Key);
@@ -572,13 +573,13 @@ public class SqlServerMonitoringApiFacts
     {
         // Arrange
         SimpleEnqueueJob("default", jobId: "12345", noState: true);
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("default", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("default", 0, 10);
 
         // Assert
-        var someJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single();
 
         Assert.Equal("12345", someJob.Key);
         Assert.Null(someJob.Value);
@@ -588,14 +589,14 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_IsAbleToHandle_BackgroundJobEntry_WithNullState()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("test", noState: true);
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("test", noState: true);
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("test", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("test", 0, 10);
 
         // Assert
-        var someJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.False(someJob.Value.InEnqueuedState);
@@ -607,12 +608,12 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_IsAbleToHandle_MultipleEntriesWithTheSameJobId()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("default");
-        var sameId = SimpleEnqueueJob("default", jobId: jobId);
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("default");
+        string sameId = SimpleEnqueueJob("default", jobId: jobId);
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var enqueued = monitoring.EnqueuedJobs("default", 0, 10).ToArray();
+        KeyValuePair<string, EnqueuedJobDto?>[] enqueued = [.. monitoring.EnqueuedJobs("default", 0, 10)];
 
         // Assert
         Assert.Equal(2, enqueued.Length);
@@ -624,14 +625,14 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_IsAbleToHandle_BackgroundJobEntry_WithAnotherState()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("default", state: new DeletedState());
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("default", state: new DeletedState());
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("default", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("default", 0, 10);
 
         // Assert
-        var someJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.False(someJob.Value.InEnqueuedState);
@@ -643,17 +644,17 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_IsAbleToHandle_EnqueuedLikeStates_AsEnqueued()
     {
         // Arrange
-        var state = new Mock<IState>();
+        Mock<IState> state = new();
         state.SetupGet(x => x.Name).Returns("EnQUEued");
 
-        var jobId = SimpleEnqueueJob("default", state: state.Object);
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleEnqueueJob("default", state: state.Object);
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("default", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("default", 0, 10);
 
         // Assert
-        var someJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> someJob = result.Single();
 
         Assert.Equal(jobId, someJob.Key);
         Assert.True(someJob.Value.InEnqueuedState);
@@ -665,16 +666,16 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_ReturnsJobs_WithinTheGivenRange_FromTheGivenQueue()
     {
         // Arrange
-        var jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobIdX = SimpleEnqueueJob("critical", state: new EnqueuedState());
-        var jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
-        var jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId1 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId2 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobIdX = SimpleEnqueueJob("critical", state: new EnqueuedState());
+        string jobId3 = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId4 = SimpleEnqueueJob("default", state: new EnqueuedState());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("default", 1, 2);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("default", 1, 2);
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -686,24 +687,24 @@ public class SqlServerMonitoringApiFacts
     public void EnqueuedJobs_IsAbleToHandleSerializationProblems_InJobs()
     {
         // Arrange
-        var jobId = SimpleEnqueueJob("default", state: new EnqueuedState());
+        string jobId = SimpleEnqueueJob("default", state: new EnqueuedState());
 
         UseSqlConnection(connection =>
         {
-            var wrongData = new InvocationData("asfasf", "232", "afasf", "gg");
-            var payload = wrongData.SerializePayload(excludeArguments: true);
+            InvocationData wrongData = new("asfasf", "232", "afasf", "gg");
+            string? payload = wrongData.SerializePayload(excludeArguments: true);
             connection.Execute(
                 $"update [{Constants.DefaultSchema}].Job set InvocationData = @data, Arguments = @args where Id = @jobId",
                 new { jobId, data = payload, args = wrongData.Arguments });
         });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedJobs("default", 0, 10);
+        JobList<EnqueuedJobDto?> result = monitoring.EnqueuedJobs("default", 0, 10);
 
         // Assert
-        var queuedJob = result.Single();
+        KeyValuePair<string, EnqueuedJobDto?> queuedJob = result.Single();
         Assert.Equal(jobId, queuedJob.Key);
         Assert.Null(queuedJob.Value.Job);
         Assert.True(queuedJob.Value.InEnqueuedState);
@@ -713,9 +714,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FetchedJobs_ThrowsAnException_WhenQueueIsNull()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => monitoring.FetchedJobs(null, 0, 10));
 
         Assert.Equal("queue", exception.ParamName);
@@ -724,9 +725,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FetchedJobs_ReturnsEmptyCollection()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.FetchedJobs("default", 0, 10);
+        JobList<FetchedJobDto?> result = monitoring.FetchedJobs("default", 0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -735,9 +736,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void ProcessingJobs_ReturnsEmptyCollection_WhenThereAreNoProcessingJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.ProcessingJobs(0, 10);
+        JobList<ProcessingJobDto?> result = monitoring.ProcessingJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -747,14 +748,14 @@ public class SqlServerMonitoringApiFacts
     public void ProcessingJobs_ReturnsCorrectJobs_InTheProcessingState()
     {
         // Arrange
-        var jobId = SimpleProcessingJob("server-1", "worker-1", job: Job.FromExpression(() => Empty()));
-        var monitoring = CreateMonitoringApi();
+        string jobId = SimpleProcessingJob("server-1", "worker-1", job: Job.FromExpression(() => Empty()));
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ProcessingJobs(0, 10);
+        JobList<ProcessingJobDto?> result = monitoring.ProcessingJobs(0, 10);
 
         // Assert
-        var processingJob = result.Single();
+        KeyValuePair<string, ProcessingJobDto?> processingJob = result.Single();
 
         Assert.Equal(jobId, processingJob.Key);
         Assert.True(processingJob.Value.InProcessingState);
@@ -769,14 +770,14 @@ public class SqlServerMonitoringApiFacts
     public void ProcessingJobs_ReturnsJobs_InTheAscendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleProcessingJob();
-        var jobId2 = SimpleProcessingJob();
-        var jobId3 = SimpleProcessingJob();
+        string jobId1 = SimpleProcessingJob();
+        string jobId2 = SimpleProcessingJob();
+        string jobId3 = SimpleProcessingJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ProcessingJobs(0, 10).ToArray();
+        KeyValuePair<string, ProcessingJobDto?>[] result = [.. monitoring.ProcessingJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId1, result[0].Key);
@@ -788,16 +789,16 @@ public class SqlServerMonitoringApiFacts
     public void ProcessingJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleProcessingJob();
-        var jobId2 = SimpleProcessingJob();
-        var jobId3 = SimpleProcessingJob();
-        var jobId4 = SimpleProcessingJob();
-        var jobId5 = SimpleProcessingJob();
+        string jobId1 = SimpleProcessingJob();
+        string jobId2 = SimpleProcessingJob();
+        string jobId3 = SimpleProcessingJob();
+        string jobId4 = SimpleProcessingJob();
+        string jobId5 = SimpleProcessingJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ProcessingJobs(1, 2).ToArray();
+        KeyValuePair<string, ProcessingJobDto?>[] result = [.. monitoring.ProcessingJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -808,9 +809,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void ScheduledJobs_ReturnsEmptyCollection_WhenThereAreNoScheduledJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.ScheduledJobs(0, 10);
+        JobList<ScheduledJobDto?> result = monitoring.ScheduledJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -820,17 +821,17 @@ public class SqlServerMonitoringApiFacts
     public void ScheduledJobs_ReturnsCorrectJobs_InTheScheduledState_WithNonCompositeIndex()
     {
         // Arrange
-        var jobId = SimpleScheduledJob(
+        string jobId = SimpleScheduledJob(
             TimeSpan.FromDays(1),
             job: Job.FromExpression(() => Empty()));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ScheduledJobs(0, 10);
+        JobList<ScheduledJobDto?> result = monitoring.ScheduledJobs(0, 10);
 
         // Assert
-        var scheduledJob = result.Single();
+        KeyValuePair<string, ScheduledJobDto?> scheduledJob = result.Single();
 
         Assert.Equal(jobId, scheduledJob.Key);
         Assert.True(scheduledJob.Value.InScheduledState);
@@ -845,17 +846,17 @@ public class SqlServerMonitoringApiFacts
     public void ScheduledJobs_ReturnsCorrectJobs_InTheScheduledState_WithCompositeIndex()
     {
         // Arrange
-        var jobId = SimpleScheduledJob(
+        string jobId = SimpleScheduledJob(
             TimeSpan.FromHours(1),
             job: Job.FromExpression(() => Empty(), "critical"));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ScheduledJobs(0, 10);
+        JobList<ScheduledJobDto?> result = monitoring.ScheduledJobs(0, 10);
 
         // Assert
-        var scheduledJob = result.Single();
+        KeyValuePair<string, ScheduledJobDto?> scheduledJob = result.Single();
         Assert.Equal(jobId, scheduledJob.Key);
         Assert.Equal("critical", scheduledJob.Value.Job.Queue);
     }
@@ -864,14 +865,14 @@ public class SqlServerMonitoringApiFacts
     public void ScheduledJobs_ReturnsJobs_InTheAscendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleScheduledJob();
-        var jobId2 = SimpleScheduledJob();
-        var jobId3 = SimpleScheduledJob();
+        string jobId1 = SimpleScheduledJob();
+        string jobId2 = SimpleScheduledJob();
+        string jobId3 = SimpleScheduledJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ScheduledJobs(0, 10).ToArray();
+        KeyValuePair<string, ScheduledJobDto?>[] result = [.. monitoring.ScheduledJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId1, result[0].Key);
@@ -883,16 +884,16 @@ public class SqlServerMonitoringApiFacts
     public void ScheduledJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleScheduledJob();
-        var jobId2 = SimpleScheduledJob();
-        var jobId3 = SimpleScheduledJob();
-        var jobId4 = SimpleScheduledJob();
-        var jobId5 = SimpleScheduledJob();
+        string jobId1 = SimpleScheduledJob();
+        string jobId2 = SimpleScheduledJob();
+        string jobId3 = SimpleScheduledJob();
+        string jobId4 = SimpleScheduledJob();
+        string jobId5 = SimpleScheduledJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ScheduledJobs(1, 2).ToArray();
+        KeyValuePair<string, ScheduledJobDto?>[] result = [.. monitoring.ScheduledJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -903,9 +904,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void SucceededJobs_ReturnsEmptyCollection_WhenThereAreNoSucceededJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.SucceededJobs(0, 10);
+        JobList<SucceededJobDto?> result = monitoring.SucceededJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -915,17 +916,17 @@ public class SqlServerMonitoringApiFacts
     public void SucceededJobs_ReturnsCorrectJobs_InTheSucceededState()
     {
         // Arrange
-        var jobId = SimpleSucceededJob(
+        string jobId = SimpleSucceededJob(
             "hello", 123, 456,
             job: Job.FromExpression(() => Empty()));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.SucceededJobs(0, 10);
+        JobList<SucceededJobDto?> result = monitoring.SucceededJobs(0, 10);
 
         // Assert
-        var succeededJob = result.Single();
+        KeyValuePair<string, SucceededJobDto?> succeededJob = result.Single();
 
         Assert.Equal(jobId, succeededJob.Key);
         Assert.True(succeededJob.Value.InSucceededState);
@@ -941,14 +942,14 @@ public class SqlServerMonitoringApiFacts
     public void SucceededJobs_ReturnsJobs_InTheDescendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleSucceededJob();
-        var jobId2 = SimpleSucceededJob();
-        var jobId3 = SimpleSucceededJob();
+        string jobId1 = SimpleSucceededJob();
+        string jobId2 = SimpleSucceededJob();
+        string jobId3 = SimpleSucceededJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.SucceededJobs(0, 10).ToArray();
+        KeyValuePair<string, SucceededJobDto?>[] result = [.. monitoring.SucceededJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId3, result[0].Key);
@@ -960,16 +961,16 @@ public class SqlServerMonitoringApiFacts
     public void SucceededJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleSucceededJob();
-        var jobId2 = SimpleSucceededJob();
-        var jobId3 = SimpleSucceededJob();
-        var jobId4 = SimpleSucceededJob();
-        var jobId5 = SimpleSucceededJob();
+        string jobId1 = SimpleSucceededJob();
+        string jobId2 = SimpleSucceededJob();
+        string jobId3 = SimpleSucceededJob();
+        string jobId4 = SimpleSucceededJob();
+        string jobId5 = SimpleSucceededJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.SucceededJobs(1, 2).ToArray();
+        KeyValuePair<string, SucceededJobDto?>[] result = [.. monitoring.SucceededJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -981,14 +982,14 @@ public class SqlServerMonitoringApiFacts
     public void SucceededJobs_IsAbleToHandle_ExpiredJobEntry()
     {
         // Arrange
-        var jobId1 = SimpleSucceededJob(expireIn: TimeSpan.FromHours(-1));
+        string jobId1 = SimpleSucceededJob(expireIn: TimeSpan.FromHours(-1));
         UseSqlConnection(connection => connection.Execute(
             $"delete from[{Constants.DefaultSchema}].Job where ExpireAt is not null"));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var someJob = monitoring.SucceededJobs(0, 10).SingleOrDefault();
+        KeyValuePair<string, SucceededJobDto?> someJob = monitoring.SucceededJobs(0, 10).SingleOrDefault();
 
         // Assert
         Assert.True(someJob.Key == null || someJob.Key == jobId1, someJob.Key);
@@ -998,9 +999,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FailedJobs_ReturnsEmptyCollection_WhenThereAreNoFailedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.FailedJobs(0, 10);
+        JobList<FailedJobDto?> result = monitoring.FailedJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -1010,17 +1011,17 @@ public class SqlServerMonitoringApiFacts
     public void FailedJobs_ReturnsCorrectJobs_InTheFailedState()
     {
         // Arrange
-        var jobId = SimpleJob(
+        string jobId = SimpleJob(
             job: Job.FromExpression(() => Empty()),
             state: new FailedState(new InvalidOperationException("Hello, world!")) { Reason = "Some reason" });
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.FailedJobs(0, 10);
+        JobList<FailedJobDto?> result = monitoring.FailedJobs(0, 10);
 
         // Assert
-        var failedJob = result.Single();
+        KeyValuePair<string, FailedJobDto?> failedJob = result.Single();
 
         Assert.Equal(jobId, failedJob.Key);
         Assert.True(failedJob.Value.InFailedState);
@@ -1037,14 +1038,14 @@ public class SqlServerMonitoringApiFacts
     public void FailedJobs_ReturnsJobs_InTheDescendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleFailedJob(new InvalidOperationException());
-        var jobId2 = SimpleFailedJob(new OperationCanceledException());
-        var jobId3 = SimpleFailedJob(new NotSupportedException());
+        string jobId1 = SimpleFailedJob(new InvalidOperationException());
+        string jobId2 = SimpleFailedJob(new OperationCanceledException());
+        string jobId3 = SimpleFailedJob(new NotSupportedException());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.FailedJobs(0, 10).ToArray();
+        KeyValuePair<string, FailedJobDto?>[] result = [.. monitoring.FailedJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId3, result[0].Key);
@@ -1056,16 +1057,16 @@ public class SqlServerMonitoringApiFacts
     public void FailedJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleFailedJob();
-        var jobId2 = SimpleFailedJob();
-        var jobId3 = SimpleFailedJob();
-        var jobId4 = SimpleFailedJob();
-        var jobId5 = SimpleFailedJob();
+        string jobId1 = SimpleFailedJob();
+        string jobId2 = SimpleFailedJob();
+        string jobId3 = SimpleFailedJob();
+        string jobId4 = SimpleFailedJob();
+        string jobId5 = SimpleFailedJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.FailedJobs(1, 2).ToArray();
+        KeyValuePair<string, FailedJobDto?>[] result = [.. monitoring.FailedJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -1076,9 +1077,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void DeletedJobs_ReturnsEmptyCollection_WhenThereAreNoDeletedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.DeletedJobs(0, 10);
+        JobList<DeletedJobDto?> result = monitoring.DeletedJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -1088,17 +1089,17 @@ public class SqlServerMonitoringApiFacts
     public void DeletedJobs_ReturnsCorrectJobs_InTheDeletedState()
     {
         // Arrange
-        var jobId = SimpleDeletedJob(
+        string jobId = SimpleDeletedJob(
             exception: new InvalidOperationException("Hello, world!"),
             job: Job.FromExpression(() => Empty()));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.DeletedJobs(0, 10);
+        JobList<DeletedJobDto?> result = monitoring.DeletedJobs(0, 10);
 
         // Assert
-        var deletedJob = result.Single();
+        KeyValuePair<string, DeletedJobDto?> deletedJob = result.Single();
 
         Assert.Equal(jobId, deletedJob.Key);
         Assert.True(deletedJob.Value.InDeletedState);
@@ -1112,14 +1113,14 @@ public class SqlServerMonitoringApiFacts
     public void DeletedJobs_ReturnsJobs_InTheDescendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleDeletedJob(new InvalidOperationException());
-        var jobId2 = SimpleDeletedJob(new NotSupportedException());
-        var jobId3 = SimpleDeletedJob(new ArgumentNullException());
+        string jobId1 = SimpleDeletedJob(new InvalidOperationException());
+        string jobId2 = SimpleDeletedJob(new NotSupportedException());
+        string jobId3 = SimpleDeletedJob(new ArgumentNullException());
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.DeletedJobs(0, 10).ToArray();
+        KeyValuePair<string, DeletedJobDto?>[] result = [.. monitoring.DeletedJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId3, result[0].Key);
@@ -1131,16 +1132,16 @@ public class SqlServerMonitoringApiFacts
     public void DeletedJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleDeletedJob();
-        var jobId2 = SimpleDeletedJob();
-        var jobId3 = SimpleDeletedJob();
-        var jobId4 = SimpleDeletedJob();
-        var jobId5 = SimpleDeletedJob();
+        string jobId1 = SimpleDeletedJob();
+        string jobId2 = SimpleDeletedJob();
+        string jobId3 = SimpleDeletedJob();
+        string jobId4 = SimpleDeletedJob();
+        string jobId5 = SimpleDeletedJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.DeletedJobs(1, 2).ToArray();
+        KeyValuePair<string, DeletedJobDto?>[] result = [.. monitoring.DeletedJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -1152,14 +1153,14 @@ public class SqlServerMonitoringApiFacts
     public void DeletedJobs_IsAbleToHandle_ExpiredJobEntry()
     {
         // Arrange
-        var jobId1 = SimpleDeletedJob(expireIn: TimeSpan.FromHours(-1));
+        string jobId1 = SimpleDeletedJob(expireIn: TimeSpan.FromHours(-1));
         UseSqlConnection(connection => connection.Execute(
             $"delete from[{Constants.DefaultSchema}].Job where ExpireAt is not null"));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var someJob = monitoring.DeletedJobs(0, 10).SingleOrDefault();
+        KeyValuePair<string, DeletedJobDto?> someJob = monitoring.DeletedJobs(0, 10).SingleOrDefault();
 
         // Assert
         Assert.True(someJob.Key == null || someJob.Key == jobId1, someJob.Key);
@@ -1169,9 +1170,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void AwaitingJobs_ReturnsEmptyCollection_WhenThereAreNoAwaitingJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.AwaitingJobs(0, 10);
+        JobList<AwaitingJobDto?> result = monitoring.AwaitingJobs(0, 10);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -1181,18 +1182,18 @@ public class SqlServerMonitoringApiFacts
     public void AwaitingJobs_ReturnsCorrectJobs_InTheAwaitingState()
     {
         // Arrange
-        var processingId = SimpleProcessingJob("server-1", "worker-1");
-        var jobId = SimpleAwaitingJob(
+        string processingId = SimpleProcessingJob("server-1", "worker-1");
+        string jobId = SimpleAwaitingJob(
             processingId,
             job: Job.FromExpression(() => Empty()));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.AwaitingJobs(0, 10);
+        JobList<AwaitingJobDto?> result = monitoring.AwaitingJobs(0, 10);
 
         // Assert
-        var awaitingJob = result.Single();
+        KeyValuePair<string, AwaitingJobDto?> awaitingJob = result.Single();
 
         Assert.Equal(jobId, awaitingJob.Key);
         Assert.True(awaitingJob.Value.InAwaitingState);
@@ -1207,17 +1208,17 @@ public class SqlServerMonitoringApiFacts
     public void AwaitingJobs_DoesNotFailWhenSeveralJobs_PointToTheSameParentJob()
     {
         // Arrange
-        var processingId = SimpleProcessingJob("server-1", "worker-1");
-        var jobId1 = SimpleAwaitingJob(processingId);
-        var jobId2 = SimpleAwaitingJob(processingId);
+        string processingId = SimpleProcessingJob("server-1", "worker-1");
+        string jobId1 = SimpleAwaitingJob(processingId);
+        string jobId2 = SimpleAwaitingJob(processingId);
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.AwaitingJobs(0, 10);
+        JobList<AwaitingJobDto?> result = monitoring.AwaitingJobs(0, 10);
 
         // Assert
-        var awaiting = result.ToArray();
+        KeyValuePair<string, AwaitingJobDto?>[] awaiting = [.. result];
 
         Assert.Equal(2, awaiting.Length);
         Assert.Contains(jobId1, awaiting.Select(x => x.Key));
@@ -1229,14 +1230,14 @@ public class SqlServerMonitoringApiFacts
     public void AwaitingJobs_ReturnsJobs_InTheAscendingOrder()
     {
         // Arrange
-        var jobId1 = SimpleAwaitingJob("123");
-        var jobId2 = SimpleAwaitingJob("456");
-        var jobId3 = SimpleAwaitingJob("789");
+        string jobId1 = SimpleAwaitingJob("123");
+        string jobId2 = SimpleAwaitingJob("456");
+        string jobId3 = SimpleAwaitingJob("789");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.AwaitingJobs(0, 10).ToArray();
+        KeyValuePair<string, AwaitingJobDto?>[] result = [.. monitoring.AwaitingJobs(0, 10)];
 
         // Assert
         Assert.Equal(jobId1, result[0].Key);
@@ -1248,16 +1249,16 @@ public class SqlServerMonitoringApiFacts
     public void AwaitingJobs_ReturnsJobs_WithinTheGivenRange()
     {
         // Arrange
-        var jobId1 = SimpleAwaitingJob("1");
-        var jobId2 = SimpleAwaitingJob("1");
-        var jobId3 = SimpleAwaitingJob("2");
-        var jobId4 = SimpleAwaitingJob("1");
-        var jobId5 = SimpleAwaitingJob("1");
+        string jobId1 = SimpleAwaitingJob("1");
+        string jobId2 = SimpleAwaitingJob("1");
+        string jobId3 = SimpleAwaitingJob("2");
+        string jobId4 = SimpleAwaitingJob("1");
+        string jobId5 = SimpleAwaitingJob("1");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.AwaitingJobs(1, 2).ToArray();
+        KeyValuePair<string, AwaitingJobDto?>[] result = [.. monitoring.AwaitingJobs(1, 2)];
 
         // Assert
         Assert.Equal(2, result.Length);
@@ -1268,9 +1269,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void ScheduledCount_ReturnsZero_WhenThereAreNoScheduledJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.ScheduledCount();
+        long result = monitoring.ScheduledCount();
 
         Assert.Equal(0, result);
     }
@@ -1282,10 +1283,10 @@ public class SqlServerMonitoringApiFacts
         SimpleScheduledJob(TimeSpan.FromHours(1));
         SimpleScheduledJob(TimeSpan.FromHours(2));
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ScheduledCount();
+        long result = monitoring.ScheduledCount();
 
         // Assert
         Assert.Equal(2, result);
@@ -1294,9 +1295,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void EnqueuedCount_ThrowsAnException_WhenQueueNameIsNull()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => monitoring.EnqueuedCount(null));
 
         Assert.Equal("queue", exception.ParamName);
@@ -1305,9 +1306,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void EnqueuedCount_ReturnsZero_WhenTargetQueueDoesNotExist()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.EnqueuedCount("critical");
+        long result = monitoring.EnqueuedCount("critical");
 
         Assert.Equal(0, result);
     }
@@ -1321,10 +1322,10 @@ public class SqlServerMonitoringApiFacts
         SimpleEnqueueJob("critical");
         SimpleEnqueueJob("critical");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.EnqueuedCount("critical");
+        long result = monitoring.EnqueuedCount("critical");
 
         // Assert
         Assert.Equal(3, result);
@@ -1333,9 +1334,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FetchedCount_ThrowsAnException_WhenQueueIsNull()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => monitoring.FetchedCount(null));
 
         Assert.Equal("queue", exception.ParamName);
@@ -1344,9 +1345,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FetchedCount_ReturnsZero_WhenTargetQueueDoesNotExist()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.FetchedCount("critical");
+        long result = monitoring.FetchedCount("critical");
 
         Assert.Equal(0, result);
     }
@@ -1354,9 +1355,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FailedCount_ReturnsZero_WhenThereAreNoFailedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.FailedCount();
+        long result = monitoring.FailedCount();
 
         Assert.Equal(0, result);
     }
@@ -1369,10 +1370,10 @@ public class SqlServerMonitoringApiFacts
         SimpleFailedJob();
         SimpleFailedJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.FailedCount();
+        long result = monitoring.FailedCount();
 
         // Assert
         Assert.Equal(3, result);
@@ -1381,9 +1382,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void ProcessingCount_ReturnsZero_WhenThereAreNoProcessingJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.ProcessingCount();
+        long result = monitoring.ProcessingCount();
 
         Assert.Equal(0, result);
     }
@@ -1397,10 +1398,10 @@ public class SqlServerMonitoringApiFacts
         SimpleProcessingJob("3", "3");
         SimpleProcessingJob("1", "1");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.ProcessingCount();
+        long result = monitoring.ProcessingCount();
 
         // Assert
         Assert.Equal(4, result);
@@ -1409,9 +1410,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void SucceededListCount_ReturnsZero_WhenThereAreNoSucceededJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.SucceededListCount();
+        long result = monitoring.SucceededListCount();
 
         Assert.Equal(0, result);
     }
@@ -1426,10 +1427,10 @@ public class SqlServerMonitoringApiFacts
         SimpleSucceededJob();
         SimpleSucceededJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.SucceededListCount();
+        long result = monitoring.SucceededListCount();
 
         // Assert
         Assert.Equal(5, result);
@@ -1438,9 +1439,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void DeletedListCount_ReturnsZero_WhenThereAreNoDeletedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.DeletedListCount();
+        long result = monitoring.DeletedListCount();
 
         Assert.Equal(0, result);
     }
@@ -1453,10 +1454,10 @@ public class SqlServerMonitoringApiFacts
         SimpleDeletedJob();
         SimpleDeletedJob();
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.DeletedListCount();
+        long result = monitoring.DeletedListCount();
 
         // Assert
         Assert.Equal(3, result);
@@ -1465,9 +1466,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void AwaitingCount_ReturnsZero_WhenThereAreNoAwaitingJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.AwaitingCount();
+        long result = monitoring.AwaitingCount();
 
         Assert.Equal(0, result);
     }
@@ -1481,10 +1482,10 @@ public class SqlServerMonitoringApiFacts
         SimpleAwaitingJob("3");
         SimpleAwaitingJob("1");
 
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
         // Act
-        var result = monitoring.AwaitingCount();
+        long result = monitoring.AwaitingCount();
 
         // Assert
         Assert.Equal(4, result);
@@ -1493,10 +1494,10 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void SucceededByDatesCount_ReturnsEntriesForTheWholeWeek_EvenWhenThereAreNoSucceededJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.SucceededByDatesCount();
-        var date = _utcNow.Date;
+        IDictionary<DateTime, long> result = monitoring.SucceededByDatesCount();
+        DateTime date = _utcNow.Date;
 
         Assert.Equal(7, result.Count);
         Assert.Equal(0, result[date]);
@@ -1511,10 +1512,10 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void FailedByDatesCount_ReturnsEntriesForTheWholeWeek_EvenWhenThereAreNoFailedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.FailedByDatesCount();
-        var date = _utcNow.Date;
+        IDictionary<DateTime, long> result = monitoring.FailedByDatesCount();
+        DateTime date = _utcNow.Date;
 
         Assert.Equal(7, result.Count);
         Assert.Equal(0, result[date]);
@@ -1529,10 +1530,10 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void DeletedByDatesCount_ReturnsEntriesForTheWholeWeek_EvenWhenThereAreNoDeletedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.DeletedByDatesCount();
-        var date = _utcNow.Date;
+        IDictionary<DateTime, long> result = monitoring.DeletedByDatesCount();
+        DateTime date = _utcNow.Date;
 
         Assert.Equal(7, result.Count);
         Assert.Equal(0, result[date]);
@@ -1547,9 +1548,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void HourlySucceededJobs_ReturnsEntriesForTheWholeDay_EvenWhenThereAreNoSucceededJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.HourlySucceededJobs();
+        IDictionary<DateTime, long> result = monitoring.HourlySucceededJobs();
 
         Assert.Equal(24, result.Count);
         Assert.Equal(0, result[result.Keys.ElementAt(0)]);
@@ -1565,9 +1566,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void HourlyFailedJobs_ReturnsEntriesForTheWholeDay_EvenWhenThereAreNoFailedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.HourlyFailedJobs();
+        IDictionary<DateTime, long> result = monitoring.HourlyFailedJobs();
 
         Assert.Equal(24, result.Count);
         Assert.Equal(0, result[result.Keys.ElementAt(0)]);
@@ -1583,9 +1584,9 @@ public class SqlServerMonitoringApiFacts
     [Fact, CleanDatabase]
     public void HourlyDeletedJobs_ReturnsEntriesForTheWholeDay_EvenWhenThereAreNoDeletedJobs()
     {
-        var monitoring = CreateMonitoringApi();
+        SqlServerMonitoringApi monitoring = CreateMonitoringApi();
 
-        var result = monitoring.HourlyDeletedJobs();
+        IDictionary<DateTime, long> result = monitoring.HourlyDeletedJobs();
 
         Assert.Equal(24, result.Count);
         Assert.Equal(0, result[result.Keys.ElementAt(0)]);
@@ -1600,16 +1601,16 @@ public class SqlServerMonitoringApiFacts
 
     private string SimpleProcessingJob(string serverId = null, string workerId = null, Job job = null)
     {
-        var type = typeof(ProcessingState);
-        var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic);
-        var processingState = (ProcessingState)ctor.First().Invoke([serverId ?? "server-1", workerId ?? "worker-1"]);
+        Type type = typeof(ProcessingState);
+        ConstructorInfo[] ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic);
+        ProcessingState processingState = (ProcessingState)ctor.First().Invoke([serverId ?? "server-1", workerId ?? "worker-1"]);
 
         return SimpleJob(state: processingState, job: job);
     }
 
     private string SimpleScheduledJob(TimeSpan? delay = null, Job job = null)
     {
-        var state = new ScheduledState(delay ?? TimeSpan.FromHours(1));
+        ScheduledState state = new(delay ?? TimeSpan.FromHours(1));
         return SimpleJob(job: job, state: state, transactionAction: (transaction, assignedJobId, assignedJob) =>
         {
             transaction.AddToSet(
@@ -1661,7 +1662,7 @@ public class SqlServerMonitoringApiFacts
 
     private string SimpleJob(string jobId = null, Job job = null, IState state = null, TimeSpan? expireIn = null, Action<IWriteOnlyTransaction, string, Job> transactionAction = null)
     {
-        var createdId = UseConnection(connection =>
+        string createdId = UseConnection(connection =>
         {
             job ??= Job.FromExpression(() => Empty());
             jobId ??= connection.CreateExpiredJob(
@@ -1670,7 +1671,7 @@ public class SqlServerMonitoringApiFacts
                 _utcNow,
                 TimeSpan.FromMinutes(1));
 
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 if (state != null) transaction.SetJobState(jobId, state);
                 transactionAction?.Invoke(transaction, jobId, job);
@@ -1686,20 +1687,20 @@ public class SqlServerMonitoringApiFacts
 
     private SqlServerMonitoringApi CreateMonitoringApi()
     {
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
         return new SqlServerMonitoringApi(storage, 1_000);
     }
 
     private T UseConnection<T>(Func<SqlServerConnection, T> action)
     {
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
-        using var connection = new SqlServerConnection(storage);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
+        using SqlServerConnection connection = new(storage);
         return action(connection);
     }
 
     private void UseSqlConnection(Action<DbConnection> action)
     {
-        using var connection = ConnectionUtils.CreateConnection();
+        using DbConnection connection = ConnectionUtils.CreateConnection();
         action(connection);
     }
 

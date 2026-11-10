@@ -10,9 +10,9 @@ public class JobInsightAnomalyFacts
     [Fact]
     public void IsSlowingDown_WhenTheRecentMedianDoubles()
     {
-        var durations = Enumerable.Repeat(1000L, 20).Concat(Enumerable.Repeat(2500L, 10)).ToArray();
+        long[] durations = [.. Enumerable.Repeat(1000L, 20), .. Enumerable.Repeat(2500L, 10)];
 
-        var insight = Create(durations);
+        JobInsight insight = Create(durations);
 
         Assert.Equal(1000, insight.EarlierMedianMs);
         Assert.Equal(2500, insight.RecentMedianMs);
@@ -38,7 +38,7 @@ public class JobInsightAnomalyFacts
     [Fact]
     public void EstimateCompletion_UsesTheMedian_WithAtLeastThreeSamples()
     {
-        var started = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+        DateTime started = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
 
         Assert.Null(Create([1000, 2000]).EstimateCompletion(started));
         Assert.Equal(started.AddSeconds(2), Create([1000, 2000, 3000]).EstimateCompletion(started));
@@ -47,7 +47,7 @@ public class JobInsightAnomalyFacts
     [Fact]
     public void IsAnomalous_IsFalse_ForAHealthyMethod()
     {
-        var insight = Create([.. Enumerable.Repeat(1000L, 30)], succeeded: 100, failed: 1);
+        JobInsight insight = Create([.. Enumerable.Repeat(1000L, 30)], succeeded: 100, failed: 1);
 
         Assert.False(insight.IsAnomalous);
     }

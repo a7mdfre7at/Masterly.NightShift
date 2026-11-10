@@ -8,12 +8,12 @@ public class CommandDispatcherFacts
     [Fact]
     public void Dispatch_Sets401StatusCode_WhenNotPermitted()
     {
-        var options = new DashboardOptions
+        DashboardOptions options = new()
         {
             IsReadOnlyFunc = _ => true
         };
-        var context = new DashboardContextStub(options);
-        var dispatcher = new CommandDispatcher(_ => false);
+        DashboardContextStub context = new(options);
+        CommandDispatcher dispatcher = new(_ => false);
         dispatcher.Dispatch(context);
         Assert.Equal(401, context.Response.StatusCode);
     }

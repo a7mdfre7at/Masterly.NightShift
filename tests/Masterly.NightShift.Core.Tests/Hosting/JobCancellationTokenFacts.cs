@@ -5,14 +5,14 @@ public class JobCancellationTokenFacts
     [Fact]
     public void ShutdownToken_IsInCanceledState_WhenPassingTrueValue()
     {
-        var token = new JobCancellationToken(true);
+        JobCancellationToken token = new(true);
         Assert.True(token.ShutdownToken.IsCancellationRequested);
     }
 
     [Fact]
     public void ThrowIfCancellationRequested_DoesNotThrowOnFalseValue()
     {
-        var token = new JobCancellationToken(false);
+        JobCancellationToken token = new(false);
 
         // Does not throw
         token.ThrowIfCancellationRequested();
@@ -21,7 +21,7 @@ public class JobCancellationTokenFacts
     [Fact]
     public void ThrowIfCancellationRequested_ThrowsOnTrueValue()
     {
-        var token = new JobCancellationToken(true);
+        JobCancellationToken token = new(true);
 
         Assert.Throws<OperationCanceledException>(
             token.ThrowIfCancellationRequested);

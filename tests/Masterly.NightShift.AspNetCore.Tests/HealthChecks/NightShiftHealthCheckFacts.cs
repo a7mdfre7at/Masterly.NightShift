@@ -24,13 +24,13 @@ public class NightShiftHealthCheckFacts
 
     private async Task<HealthReportEntry> CheckAsync(Action<IHealthChecksBuilder> configure)
     {
-        var services = new ServiceCollection();
+        ServiceCollection services = new();
         services.AddLogging();
         services.AddSingleton(_storage.Object);
         configure(services.AddHealthChecks());
 
-        using var provider = services.BuildServiceProvider();
-        var report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync(TestContext.Current.CancellationToken);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        HealthReport report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync(TestContext.Current.CancellationToken);
         return Assert.Single(report.Entries).Value;
     }
 
@@ -40,7 +40,7 @@ public class NightShiftHealthCheckFacts
         AddServer("web-1:1:a", TimeSpan.FromSeconds(10));
         AddServer("web-2:1:b", TimeSpan.FromHours(1));
 
-        var entry = await CheckAsync(builder => builder.AddNightShift());
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
 
         Assert.Equal(HealthStatus.Healthy, entry.Status);
         Assert.Equal(1, entry.Data["alive"]);
@@ -52,7 +52,7 @@ public class NightShiftHealthCheckFacts
     {
         AddServer("web-1:1:a", TimeSpan.FromMinutes(5));
 
-        var entry = await CheckAsync(builder => builder.AddNightShift());
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
 
         Assert.Equal(HealthStatus.Unhealthy, entry.Status);
         Assert.Equal("No NightShift server sent a heartbeat recently.", entry.Description);
@@ -63,8 +63,8 @@ public class NightShiftHealthCheckFacts
     {
         AddServer("web-1:1:a", TimeSpan.FromMinutes(5));
 
-        var degraded = await CheckAsync(builder => builder.AddNightShift(failureStatus: HealthStatus.Degraded));
-        var healthy = await CheckAsync(builder => builder.AddNightShift(options => options.HeartbeatTimeout = TimeSpan.FromMinutes(10)));
+        HealthReportEntry degraded = await CheckAsync(builder => builder.AddNightShift(failureStatus: HealthStatus.Degraded));
+        HealthReportEntry healthy = await CheckAsync(builder => builder.AddNightShift(options => options.HeartbeatTimeout = TimeSpan.FromMinutes(10)));
 
         Assert.Equal(HealthStatus.Degraded, degraded.Status);
         Assert.Equal(HealthStatus.Healthy, healthy.Status);
@@ -75,7 +75,7 @@ public class NightShiftHealthCheckFacts
     {
         _monitor.Setup(x => x.Servers()).Throws(new InvalidOperationException("Login failed for user 'sa' on db-prod-01"));
 
-        var entry = await CheckAsync(builder => builder.AddNightShift());
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
 
         Assert.Equal(HealthStatus.Unhealthy, entry.Status);
         Assert.Equal("The NightShift storage did not answer.", entry.Description);
@@ -88,7 +88,7 @@ public class NightShiftHealthCheckFacts
         // A liveness probe must not restart every pod during a database outage
         _monitor.Setup(x => x.Servers()).Throws(new InvalidOperationException("Login failed"));
 
-        var entry = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
 
         Assert.Equal(HealthStatus.Degraded, entry.Status);
         Assert.DoesNotContain("Login failed", entry.Description);
@@ -97,12 +97,12 @@ public class NightShiftHealthCheckFacts
     [Fact]
     public async Task Check_UsesTheStorageFromTheOptions_WhenGiven()
     {
-        var other = new Mock<JobStorage>();
-        var otherMonitor = new Mock<IMonitoringApi>();
+        Mock<JobStorage> other = new();
+        Mock<IMonitoringApi> otherMonitor = new();
         other.Setup(x => x.GetMonitoringApi()).Returns(otherMonitor.Object);
         otherMonitor.Setup(x => x.Servers()).Returns([new() { Name = "x", Heartbeat = DateTime.UtcNow }]);
 
-        var entry = await CheckAsync(builder => builder.AddNightShift(options => options.Storage = other.Object, name: "other"));
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift(options => options.Storage = other.Object, name: "other"));
 
         Assert.Equal(HealthStatus.Healthy, entry.Status);
         _monitor.Verify(x => x.Servers(), Times.Never);
@@ -113,7 +113,7 @@ public class NightShiftHealthCheckFacts
     {
         AddServer("elsewhere:1:a", TimeSpan.FromSeconds(1));
 
-        var entry = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
 
         Assert.Equal(HealthStatus.Unhealthy, entry.Status);
         Assert.Equal("No NightShift server runs in this process.", entry.Description);
@@ -122,30 +122,30 @@ public class NightShiftHealthCheckFacts
     [Fact]
     public async Task Process_ChecksTheHeartbeat_OfTheServersStartedInThisProcess_Only()
     {
-        var serverId = $"this-process:1:{Guid.NewGuid()}";
+        string serverId = $"this-process:1:{Guid.NewGuid()}";
         AddServer("elsewhere:1:a", TimeSpan.FromSeconds(1));
         AddServer(serverId, TimeSpan.FromMinutes(5));
 
-        var services = new ServiceCollection();
+        ServiceCollection services = new();
         services.AddHealthChecks().AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process);
-        var tracker = Assert.Single(services.BuildServiceProvider().GetServices<IBackgroundProcess>());
+        IBackgroundProcess tracker = Assert.Single(services.BuildServiceProvider().GetServices<IBackgroundProcess>());
 
-        using (var stopping = new CancellationTokenSource())
+        using (CancellationTokenSource stopping = new())
         {
-            var context = new BackgroundProcessContext(serverId, _storage.Object, new Dictionary<string, object>(), Guid.NewGuid(), stopping.Token, stopping.Token, stopping.Token);
-            var running = Task.Run(() => tracker.Execute(context), TestContext.Current.CancellationToken);
+            BackgroundProcessContext context = new(serverId, _storage.Object, new Dictionary<string, object>(), Guid.NewGuid(), stopping.Token, stopping.Token, stopping.Token);
+            Task running = Task.Run(() => tracker.Execute(context), TestContext.Current.CancellationToken);
 
             try
             {
                 await WaitUntilTrackedAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
 
-                var silent = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+                HealthReportEntry silent = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
                 Assert.Equal(HealthStatus.Unhealthy, silent.Status);
                 Assert.Equal(1, silent.Data["silent"]);
 
                 _servers.Single(x => x.Name == serverId).Heartbeat = DateTime.UtcNow;
 
-                var alive = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+                HealthReportEntry alive = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
                 Assert.Equal(HealthStatus.Healthy, alive.Status);
                 Assert.Equal(1, alive.Data["servers"]);
             }
@@ -156,17 +156,17 @@ public class NightShiftHealthCheckFacts
             }
         }
 
-        var stopped = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+        HealthReportEntry stopped = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
         Assert.Equal("No NightShift server runs in this process.", stopped.Description);
     }
 
     [Fact]
     public void AddNightShift_RegistersTheServerTracker_OnlyForTheProcessScope_AndOnlyOnce()
     {
-        var cluster = new ServiceCollection();
+        ServiceCollection cluster = new();
         cluster.AddHealthChecks().AddNightShift();
 
-        var process = new ServiceCollection();
+        ServiceCollection process = new();
         process.AddHealthChecks()
             .AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process, name: "a")
             .AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process, name: "b");
@@ -184,9 +184,9 @@ public class NightShiftHealthCheckFacts
 
     private async Task WaitUntilTrackedAsync(Action<IHealthChecksBuilder> configure)
     {
-        for (var i = 0; i < 100; i++)
+        for (int i = 0; i < 100; i++)
         {
-            var entry = await CheckAsync(configure);
+            HealthReportEntry entry = await CheckAsync(configure);
             if (entry.Description != "No NightShift server runs in this process.") return;
             await Task.Delay(20, TestContext.Current.CancellationToken);
         }

@@ -32,7 +32,7 @@ public class JobStorageExtensionsFacts
     {
         AddFailed("1", "2", "3");
 
-        var result = _storage.Object.RequeueFailedJobs(_client.Object);
+        BulkJobResult result = _storage.Object.RequeueFailedJobs(_client.Object);
 
         Assert.Equal(3, result.Processed);
         Assert.Equal(0, result.Remaining);
@@ -48,7 +48,7 @@ public class JobStorageExtensionsFacts
         _failed[1].Value.ExceptionType = typeof(TimeoutException).FullName;
         _failed[3].Value.ExceptionType = typeof(TimeoutException).FullName;
 
-        var result = _storage.Object.RequeueFailedJobs(_client.Object, job => job.ExceptionType == typeof(TimeoutException).FullName);
+        BulkJobResult result = _storage.Object.RequeueFailedJobs(_client.Object, job => job.ExceptionType == typeof(TimeoutException).FullName);
 
         Assert.Equal(2, result.Processed);
         Assert.True(result.Complete);
@@ -62,7 +62,7 @@ public class JobStorageExtensionsFacts
         _failed[0].Value.InFailedState = false;
         _failed.Add(new KeyValuePair<string, FailedJobDto>("3", null));
 
-        var result = _storage.Object.RequeueFailedJobs(_client.Object);
+        BulkJobResult result = _storage.Object.RequeueFailedJobs(_client.Object);
 
         Assert.Equal(1, result.Processed);
         Assert.True(result.Complete);
@@ -74,7 +74,7 @@ public class JobStorageExtensionsFacts
     {
         AddFailed([.. Enumerable.Range(0, 1200).Select(i => i.ToString())]);
 
-        var result = _storage.Object.RequeueFailedJobs(_client.Object);
+        BulkJobResult result = _storage.Object.RequeueFailedJobs(_client.Object);
 
         Assert.Equal(1200, result.Processed);
         Assert.True(result.Complete);
@@ -85,7 +85,7 @@ public class JobStorageExtensionsFacts
     {
         AddFailed("1", "2", "3");
 
-        var result = _storage.Object.RequeueFailedJobs(_client.Object, timeBudget: TimeSpan.Zero);
+        BulkJobResult result = _storage.Object.RequeueFailedJobs(_client.Object, timeBudget: TimeSpan.Zero);
 
         Assert.Equal(1, result.Processed);
         Assert.Equal(2, result.Remaining);
@@ -103,7 +103,7 @@ public class JobStorageExtensionsFacts
     [Fact]
     public void GetJobState_ReturnsTheCurrentState_WithTheJobsCreationTime()
     {
-        var createdAt = new DateTime(2026, 11, 8, 10, 0, 0, DateTimeKind.Utc);
+        DateTime createdAt = new(2026, 11, 8, 10, 0, 0, DateTimeKind.Utc);
         _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = FailedState.StateName, CreatedAt = createdAt });
         _connection.Setup(x => x.GetStateData(JobId)).Returns(new StateData
         {
@@ -112,7 +112,7 @@ public class JobStorageExtensionsFacts
             Data = new Dictionary<string, string> { { "ExceptionType", "System.TimeoutException" } }
         });
 
-        var state = _storage.Object.GetJobState(JobId);
+        JobStateInfo? state = _storage.Object.GetJobState(JobId);
 
         Assert.NotNull(state);
         Assert.Equal(FailedState.StateName, state.Name);
@@ -142,7 +142,7 @@ public class JobStorageExtensionsFacts
     {
         SetupState(SucceededState.StateName, SerializationHelper.Serialize(new Answer { Value = 42, Text = "done" }, SerializationOption.User));
 
-        var found = _storage.Object.TryGetResult<Answer>(JobId, out var result);
+        bool found = _storage.Object.TryGetResult<Answer>(JobId, out Answer? result);
 
         Assert.True(found);
         Assert.Equal(42, result.Value);
@@ -154,7 +154,7 @@ public class JobStorageExtensionsFacts
     {
         SetupState(SucceededState.StateName, SerializationHelper.Serialize(42, SerializationOption.User));
 
-        Assert.True(_storage.Object.TryGetResult<int>(JobId, out var result));
+        Assert.True(_storage.Object.TryGetResult<int>(JobId, out int result));
         Assert.Equal(42, result);
     }
 
@@ -163,14 +163,14 @@ public class JobStorageExtensionsFacts
     {
         SetupState(FailedState.StateName, "42");
 
-        Assert.False(_storage.Object.TryGetResult<int>(JobId, out var result));
+        Assert.False(_storage.Object.TryGetResult<int>(JobId, out int result));
         Assert.Equal(0, result);
     }
 
     [Fact]
     public void TryGetResult_ReturnsFalse_WhenTheJobDoesNotExist()
     {
-        Assert.False(_storage.Object.TryGetResult<string>("missing", out var result));
+        Assert.False(_storage.Object.TryGetResult<string>("missing", out string? result));
         Assert.Null(result);
     }
 
@@ -207,7 +207,7 @@ public class JobStorageExtensionsFacts
 
     private void AddFailed(params string[] ids)
     {
-        foreach (var id in ids)
+        foreach (string id in ids)
         {
             _failed.Add(new KeyValuePair<string, FailedJobDto>(id, new FailedJobDto { InFailedState = true }));
         }
@@ -215,7 +215,7 @@ public class JobStorageExtensionsFacts
 
     private void SetupState(string name, string result)
     {
-        var data = new Dictionary<string, string>();
+        Dictionary<string, string> data = [];
         if (result != null) data["Result"] = result;
 
         _connection.Setup(x => x.GetStateData(JobId)).Returns(new StateData { Name = name, Data = data });

@@ -23,18 +23,18 @@ public class RestrictiveSerializerSettingsFacts
 
         try
         {
-            var storage = new SqlServerStorage(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
-            var client = new BackgroundJobClient(storage);
+            SqlServerStorage storage = new(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
+            BackgroundJobClient client = new(storage);
 
-            var parent = client.Create(() => RestrictedJobs.Run(5, "a"), new EnqueuedState("default"));
-            var continuation = client.ContinueJobWith(parent, () => RestrictedJobs.Run(6, "b"));
-            var deleted = client.Create(() => RestrictedJobs.Run(7, "c"), new EnqueuedState());
+            string? parent = client.Create(() => RestrictedJobs.Run(5, "a"), new EnqueuedState("default"));
+            string? continuation = client.ContinueJobWith(parent, () => RestrictedJobs.Run(6, "b"));
+            string? deleted = client.Create(() => RestrictedJobs.Run(7, "c"), new EnqueuedState());
 
             Assert.True(client.ChangeState(parent, new SucceededState(null, 1, 1), EnqueuedState.StateName));
             Assert.True(client.ChangeState(deleted, new DeletedState(new ExceptionInfo(new InvalidOperationException("boom"))), EnqueuedState.StateName));
 
-            using var connection = storage.GetConnection();
-            var job = connection.GetJobData(parent);
+            using IStorageConnection connection = storage.GetConnection();
+            JobData? job = connection.GetJobData(parent);
             Assert.Null(job.LoadException);
             Assert.Equal([5, "a"], job.Job.Args);
             Assert.Equal(EnqueuedState.StateName, connection.GetStateData(continuation).Name);

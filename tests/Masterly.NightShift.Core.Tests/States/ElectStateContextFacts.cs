@@ -14,7 +14,7 @@ public class ElectStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenApplyContextIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ElectStateContext(null));
 
         Assert.Equal("applyContext", exception.ParamName);
@@ -23,7 +23,7 @@ public class ElectStateContextFacts
     [Fact]
     public void Ctor_CorrectlySetAllProperties()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
 
         Assert.Same(_applyContext.Connection.Object, context.Connection);
         Assert.Same(_applyContext.Transaction.Object, context.Transaction);
@@ -44,7 +44,7 @@ public class ElectStateContextFacts
         };
 
         // Act
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
 
         // Assert
         Assert.Equal(_applyContext.CustomData, context.CustomData);
@@ -54,7 +54,7 @@ public class ElectStateContextFacts
     [Fact]
     public void SetCandidateState_ThrowsAnException_WhenValueIsNull()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
 
         Assert.Throws<ArgumentNullException>(() => context.CandidateState = null);
     }
@@ -62,8 +62,8 @@ public class ElectStateContextFacts
     [Fact]
     public void SetCandidateState_SetsTheGivenValue()
     {
-        var context = CreateContext();
-        var newState = new Mock<IState>();
+        ElectStateContext context = CreateContext();
+        Mock<IState> newState = new();
 
         context.CandidateState = newState.Object;
 
@@ -73,8 +73,8 @@ public class ElectStateContextFacts
     [Fact]
     public void SetCandidateState_AddsPreviousCandidateState_ToTraversedStatesList()
     {
-        var context = CreateContext();
-        var state = new Mock<IState>();
+        ElectStateContext context = CreateContext();
+        Mock<IState> state = new();
 
         context.CandidateState = state.Object;
 
@@ -84,7 +84,7 @@ public class ElectStateContextFacts
     [Fact]
     public void SetJobParameter_CallsTheCorrespondingMethod_WithJsonEncodedValue()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
 
         context.SetJobParameter("Name", "Value");
 
@@ -95,7 +95,7 @@ public class ElectStateContextFacts
     [Fact]
     public void SetJobParameter_CanReceiveNullValue()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
 
         context.SetJobParameter("Name", (string)null);
 
@@ -106,11 +106,11 @@ public class ElectStateContextFacts
     [Fact]
     public void GetJobParameter_CallsTheCorrespondingMethod_WithJsonDecodedValue()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
         _applyContext.Connection.Setup(x => x.GetJobParameter(_applyContext.BackgroundJob.Id, "Name"))
             .Returns(TestJson.ToJson("Value"));
 
-        var value = context.GetJobParameter<string>("Name");
+        string? value = context.GetJobParameter<string>("Name");
 
         Assert.Equal("Value", value);
     }
@@ -118,11 +118,11 @@ public class ElectStateContextFacts
     [Fact]
     public void GetJobParameter_ReturnsDefaultValue_WhenNoValueProvided()
     {
-        var context = CreateContext();
+        ElectStateContext context = CreateContext();
         _applyContext.Connection.Setup(x => x.GetJobParameter("1", "Value"))
             .Returns(TestJson.ToJson(null));
 
-        var value = context.GetJobParameter<int>("Name");
+        int value = context.GetJobParameter<int>("Name");
 
         Assert.Equal(default, value);
     }

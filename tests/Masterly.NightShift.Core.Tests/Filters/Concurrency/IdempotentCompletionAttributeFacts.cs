@@ -13,7 +13,7 @@ public class IdempotentCompletionAttributeFacts
     {
         _connection
             .Setup(x => x.GetJobParameter(JobId, It.IsAny<string>()))
-            .Returns<string, string>((_, name) => _parameters.TryGetValue(name, out var value) ? value : null);
+            .Returns<string, string>((_, name) => _parameters.TryGetValue(name, out string? value) ? value : null);
 
         _connection
             .Setup(x => x.SetJobParameter(JobId, It.IsAny<string>(), It.IsAny<string>()))
@@ -35,7 +35,7 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void OnStateElection_DoesNothing_WhenTheJobIsCreated()
     {
-        var context = Elect(currentState: null, new SucceededState(null, 0, 0));
+        ElectStateContext context = Elect(currentState: null, new SucceededState(null, 0, 0));
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -45,8 +45,8 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void OnStateApplied_RecordsTheFirstFinalState()
     {
-        var filter = new IdempotentCompletionAttribute();
-        var context = Elect(ProcessingState.StateName, new SucceededState(null, 0, 0));
+        IdempotentCompletionAttribute filter = new();
+        ElectStateContext context = Elect(ProcessingState.StateName, new SucceededState(null, 0, 0));
 
         filter.OnStateElection(context);
         Assert.Null(ReadCompletion());
@@ -77,14 +77,14 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void OnStateApplied_RecordsASucceededState_WithoutItsResult_EvenWhenTheResultCantBeSerialized()
     {
-        var node = new Node();
+        Node node = new();
         node.Next = node;
 
         new IdempotentCompletionAttribute().OnStateApplied(
             Apply(ProcessingState.StateName, new SucceededState(node, 12, 34) { Reason = "done" }),
             new Mock<IWriteOnlyTransaction>().Object);
 
-        var recorded = Assert.IsType<SucceededState>(ReadCompletion());
+        SucceededState recorded = Assert.IsType<SucceededState>(ReadCompletion());
         Assert.Null(recorded.Result);
         Assert.Equal(12, recorded.Latency);
         Assert.Equal(34, recorded.PerformanceDuration);
@@ -104,10 +104,10 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void StateMachine_RecordsAnUnserializableResult_AndTheJobStillSucceeds()
     {
-        var node = new Node();
+        Node node = new();
         node.Next = node;
 
-        var applied = ApplyWithFilters(Job.FromExpression(() => Charge()), ProcessingState.StateName, new SucceededState(node, 1, 1));
+        IState applied = ApplyWithFilters(Job.FromExpression(() => Charge()), ProcessingState.StateName, new SucceededState(node, 1, 1));
 
         Assert.IsType<SucceededState>(applied);
         Assert.IsType<SucceededState>(ReadCompletion());
@@ -118,9 +118,9 @@ public class IdempotentCompletionAttributeFacts
     {
         // LatencyTimeout (order -1) turns the late Processing state into Deleted before IdempotentCompletion runs
         Record(new SucceededState(null, 1, 1));
-        var job = Job.FromExpression(() => ChargeWithLatencyTimeout());
+        Job job = Job.FromExpression(() => ChargeWithLatencyTimeout());
 
-        var applied = ApplyWithFilters(job, ProcessingState.StateName, new ProcessingState("server", "worker"), createdAt: DateTime.UtcNow.AddHours(-2));
+        IState applied = ApplyWithFilters(job, ProcessingState.StateName, new ProcessingState("server", "worker"), createdAt: DateTime.UtcNow.AddHours(-2));
 
         Assert.IsType<SucceededState>(applied);
     }
@@ -129,9 +129,9 @@ public class IdempotentCompletionAttributeFacts
     public void StateMachine_RecordsTheDeletedState_ThatALaterElectionFilterChose()
     {
         // AutomaticRetry (order 20) turns the Failed state into Deleted after IdempotentCompletion ran
-        var job = Job.FromExpression(() => ChargeAndDeleteOnFailure());
+        Job job = Job.FromExpression(() => ChargeAndDeleteOnFailure());
 
-        var applied = ApplyWithFilters(job, ProcessingState.StateName, new FailedState(new InvalidOperationException()));
+        IState applied = ApplyWithFilters(job, ProcessingState.StateName, new FailedState(new InvalidOperationException()));
 
         Assert.IsType<DeletedState>(applied);
         Assert.IsType<DeletedState>(ReadCompletion());
@@ -141,7 +141,7 @@ public class IdempotentCompletionAttributeFacts
     public void OnStateElection_RestoresTheRecordedState_InsteadOfRunningTheJobAgain()
     {
         Record(new SucceededState(null, 0, 0));
-        var context = Elect(ProcessingState.StateName, new ProcessingState("server", "worker"));
+        ElectStateContext context = Elect(ProcessingState.StateName, new ProcessingState("server", "worker"));
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -151,7 +151,7 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void OnStateElection_LetsTheJobRun_WhenNothingIsRecorded()
     {
-        var context = Elect(EnqueuedState.StateName, new ProcessingState("server", "worker"));
+        ElectStateContext context = Elect(EnqueuedState.StateName, new ProcessingState("server", "worker"));
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -162,7 +162,7 @@ public class IdempotentCompletionAttributeFacts
     public void OnStateElection_HonoursAnExplicitDelete_OfASucceededJob()
     {
         Record(new SucceededState(null, 0, 0));
-        var context = Elect(SucceededState.StateName, new DeletedState());
+        ElectStateContext context = Elect(SucceededState.StateName, new DeletedState());
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -176,7 +176,7 @@ public class IdempotentCompletionAttributeFacts
     public void OnStateElection_ForgetsTheCompletion_WhenAFinishedJobIsRequeued(string currentState)
     {
         Record(new SucceededState(null, 0, 0));
-        var context = Elect(currentState, new EnqueuedState());
+        ElectStateContext context = Elect(currentState, new EnqueuedState());
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -189,7 +189,7 @@ public class IdempotentCompletionAttributeFacts
     {
         // The Succeeded state was never saved, so the job is still Processing in storage
         Record(new SucceededState(null, 0, 0));
-        var context = Elect(ProcessingState.StateName, new EnqueuedState());
+        ElectStateContext context = Elect(ProcessingState.StateName, new EnqueuedState());
 
         new IdempotentCompletionAttribute().OnStateElection(context);
 
@@ -200,13 +200,13 @@ public class IdempotentCompletionAttributeFacts
     [Fact]
     public void OnStateElection_RunsARequeuedJobAgain_AndRecordsItsNextCompletion()
     {
-        var filter = new IdempotentCompletionAttribute();
+        IdempotentCompletionAttribute filter = new();
         filter.OnStateApplied(Apply(ProcessingState.StateName, new SucceededState(null, 0, 0)), new Mock<IWriteOnlyTransaction>().Object);
         filter.OnStateElection(Elect(SucceededState.StateName, new EnqueuedState()));
 
-        var processing = Elect(EnqueuedState.StateName, new ProcessingState("server", "worker"));
+        ElectStateContext processing = Elect(EnqueuedState.StateName, new ProcessingState("server", "worker"));
         filter.OnStateElection(processing);
-        var deleted = Elect(ProcessingState.StateName, new DeletedState());
+        ElectStateContext deleted = Elect(ProcessingState.StateName, new DeletedState());
         filter.OnStateElection(deleted);
         filter.OnStateApplied(Apply(ProcessingState.StateName, deleted.CandidateState), new Mock<IWriteOnlyTransaction>().Object);
 
@@ -216,7 +216,7 @@ public class IdempotentCompletionAttributeFacts
 
     private ElectStateContext Elect(string currentState, IState candidate)
     {
-        var mock = new ElectStateContextMock();
+        ElectStateContextMock mock = new();
         mock.ApplyContext.Connection = _connection;
         mock.ApplyContext.BackgroundJob.Id = JobId;
         mock.ApplyContext.OldStateName = currentState;
@@ -226,7 +226,7 @@ public class IdempotentCompletionAttributeFacts
 
     private ApplyStateContext Apply(string currentState, IState newState)
     {
-        var mock = new ApplyStateContextMock
+        ApplyStateContextMock mock = new()
         {
             Connection = _connection
         };
@@ -239,9 +239,9 @@ public class IdempotentCompletionAttributeFacts
     // Runs the real state machine with the job's filters, the way a worker's state change does
     private IState ApplyWithFilters(Job job, string currentState, IState candidate, DateTime? createdAt = null)
     {
-        var snapshot = new Dictionary<string, string>(_parameters);
-        var backgroundJob = new BackgroundJob(JobId, job, createdAt ?? DateTime.UtcNow, snapshot);
-        var machine = new StateMachine(new JobFilterProviderCollection(new JobFilterAttributeFilterProvider()));
+        Dictionary<string, string> snapshot = new(_parameters);
+        BackgroundJob backgroundJob = new(JobId, job, createdAt ?? DateTime.UtcNow, snapshot);
+        StateMachine machine = new(new JobFilterProviderCollection(new JobFilterAttributeFilterProvider()));
 
         return machine.ApplyState(new ApplyStateContext(
             new Mock<JobStorage>().Object,
@@ -261,9 +261,9 @@ public class IdempotentCompletionAttributeFacts
 
     private IState ReadCompletion()
     {
-        if (!_parameters.TryGetValue(IdempotentCompletionAttribute.CompletionParameter, out var value) || value == null) return null;
+        if (!_parameters.TryGetValue(IdempotentCompletionAttribute.CompletionParameter, out string? value) || value == null) return null;
 
-        var serializedState = SerializationHelper.Deserialize<string>(value, SerializationOption.User);
+        string? serializedState = SerializationHelper.Deserialize<string>(value, SerializationOption.User);
         return SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal);
     }
 

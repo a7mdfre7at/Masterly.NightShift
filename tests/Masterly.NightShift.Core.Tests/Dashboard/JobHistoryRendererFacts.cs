@@ -11,7 +11,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_LinksEveryParent_AndShowsTheMode_OfAFanInContinuation()
     {
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
         {
             { "ParentIds", "11,12" },
             { "Mode", "Any" },
@@ -27,9 +27,9 @@ public class JobHistoryRendererFacts
     public void RenderHistory_LinksOnlyTheFirstParents_OfALargeFanIn()
     {
         // A continuation of a batch of 5,000 jobs rendered 5,000 links
-        var ids = string.Join(",", Enumerable.Range(1, 5000));
+        string ids = string.Join(",", Enumerable.Range(1, 5000));
 
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string> { { "ParentIds", ids } }).ToString();
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string> { { "ParentIds", ids } }).ToString();
 
         Assert.Equal(JobHistoryRenderer.MaxParentLinks, Regex.Matches(html, "<a href=").Count);
         Assert.Contains("/jobs/details/50\"", html);
@@ -40,7 +40,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_ShowsAllAsTheMode_WhenAFanInContinuationHasNoMode()
     {
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
         {
             { "ParentIds", "11" },
         }).ToString();
@@ -51,7 +51,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_FallsBackToTheSingleParent_WhenParentIdsAreEmpty()
     {
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
         {
             { "ParentIds", "" },
             { "ParentId", "7" },
@@ -65,7 +65,7 @@ public class JobHistoryRendererFacts
     public void RenderHistory_ShowsTheStoredTypeName_WhenTheNextStateCanNotBeLoaded()
     {
         // A continuation created by another application, whose custom state type this dashboard doesn't have
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
         {
             { "ParentId", "7" },
             { "NextState", "{\"$type\":\"Contoso.Jobs.HoldState, Contoso.Jobs\",\"Reason\":\"<b>hold</b>\"}" },
@@ -79,7 +79,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_ShowsTheStateLabel_WhenTheNextStateLoads()
     {
-        var html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
+        string html = CreateHelper().RenderHistory(AwaitingState.StateName, new Dictionary<string, string>
         {
             { "ParentId", "7" },
             { "NextState", Masterly.NightShift.Common.SerializationHelper.Serialize<IState>(new EnqueuedState("critical"), Masterly.NightShift.Common.SerializationOption.TypedInternal) },
@@ -93,7 +93,7 @@ public class JobHistoryRendererFacts
     {
         JobHistoryRenderer.Register("Facts.Throwing", static (_, data) => throw new KeyNotFoundException(data["Missing"]));
 
-        var html = CreateHelper().RenderHistory("Facts.Throwing", new Dictionary<string, string> { { "Size", "<large>" } }).ToString();
+        string html = CreateHelper().RenderHistory("Facts.Throwing", new Dictionary<string, string> { { "Size", "<large>" } }).ToString();
 
         Assert.Equal("<dl class=\"dl-horizontal\"><dt>Size</dt><dd>&lt;large&gt;</dd></dl>", html);
     }
@@ -102,13 +102,13 @@ public class JobHistoryRendererFacts
     public void RenderHistory_ShowsTheJobsOwnQueue_ForAnEnqueuedStateThatSaysDefault()
     {
         // Enqueue("emails", ...) records "default" in the state, and the job goes to "emails"
-        var page = new JobDetailsPage("1")
+        JobDetailsPage page = new("1")
         {
             RenderedJob = new Job(typeof(JobHistoryRendererFacts), typeof(JobHistoryRendererFacts).GetMethod(nameof(Work)), [], "emails"),
         };
         page.Assign(new DashboardContextStub(new DashboardOptions()));
 
-        var html = new HtmlHelper(page).RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }).ToString();
+        string html = new HtmlHelper(page).RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }).ToString();
 
         Assert.Contains("<dt>Queue:</dt>", html);
         Assert.Contains("emails", html);
@@ -117,7 +117,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_ShowsNoQueue_ForTheDefaultQueue()
     {
-        var html = CreateHelper().RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
+        NonEscapedString? html = CreateHelper().RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
 
         Assert.Null(html);
     }
@@ -125,7 +125,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void RenderHistory_ShowsTheStatesQueue_WhenItIsNotDefault()
     {
-        var html = CreateHelper().RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "critical" } }).ToString();
+        string html = CreateHelper().RenderHistory(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "critical" } }).ToString();
 
         Assert.Contains("critical", html);
     }
@@ -134,7 +134,7 @@ public class JobHistoryRendererFacts
     public void RenderHistory_FallsBackToTheRawData_WhenABuiltInRendererMeetsUnexpectedData()
     {
         // Written by another version: Latency isn't a number
-        var html = CreateHelper().RenderHistory(SucceededState.StateName, new Dictionary<string, string> { { "Latency", "fast" } }).ToString();
+        string html = CreateHelper().RenderHistory(SucceededState.StateName, new Dictionary<string, string> { { "Latency", "fast" } }).ToString();
 
         Assert.Equal("<dl class=\"dl-horizontal\"><dt>Latency</dt><dd>fast</dd></dl>", html);
     }
@@ -179,7 +179,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void StateLabel_UsesTheSuffixClass_ForABuiltInState()
     {
-        var html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
+        string html = CreateHelper().StateLabel(SucceededState.StateName).ToString();
 
         Assert.Equal("<span class=\"label label-default  label-state-success\">Succeeded</span>", html);
     }
@@ -187,7 +187,7 @@ public class JobHistoryRendererFacts
     [Fact]
     public void StateLabel_KeepsTheNeutralLook_ForAStateWithoutASuffix()
     {
-        var html = CreateHelper().StateLabel("Facts.Unknown").ToString();
+        string html = CreateHelper().StateLabel("Facts.Unknown").ToString();
 
         Assert.Equal("<span class=\"label label-default \">Facts.Unknown</span>", html);
     }
@@ -197,7 +197,7 @@ public class JobHistoryRendererFacts
 
     private static HtmlHelper CreateHelper()
     {
-        var page = new JobDetailsPage("1");
+        JobDetailsPage page = new("1");
         page.Assign(new DashboardContextStub(new DashboardOptions()));
         return new HtmlHelper(page);
     }

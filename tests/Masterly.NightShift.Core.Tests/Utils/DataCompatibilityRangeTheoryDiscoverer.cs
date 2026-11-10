@@ -16,7 +16,7 @@ internal sealed class DataCompatibilityRangeTheoryDiscoverer : TheoryDiscoverer
         IXunitTestMethod testMethod,
         IFactAttribute factAttribute)
     {
-        var testCases = await base.Discover(discoveryOptions, testMethod, factAttribute);
+        IReadOnlyCollection<IXunitTestCase> testCases = await base.Discover(discoveryOptions, testMethod, factAttribute);
         return DataCompatibilityRange.Expand(testCases, (IDataCompatibilityRangeAttribute)factAttribute);
     }
 }

@@ -16,7 +16,7 @@ public class DrainModeResumedMarkerFacts : IDisposable
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(() => _hash);
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
-            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (var pair in pairs) _hash[pair.Key] = pair.Value; });
+            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value; });
         DrainMode.InvalidateCache();
     }
 
@@ -50,14 +50,14 @@ public class DrainModeResumedMarkerFacts : IDisposable
     [Fact, StaticLock]
     public void ClearStaleServerPauses_WritesAPrintableMarker()
     {
-        var storage = new Mock<JobStorage>();
-        var monitoring = new Mock<IMonitoringApi>();
+        Mock<JobStorage> storage = new();
+        Mock<IMonitoringApi> monitoring = new();
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         storage.Setup(x => x.GetMonitoringApi()).Returns(monitoring.Object);
         monitoring.Setup(x => x.Servers()).Returns([]);
         DrainMode.PauseServer(_connection.Object, "web-1");
 
-        var cleared = DrainMode.ClearStaleServerPauses(storage.Object);
+        IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage.Object);
 
         Assert.Equal(["web-1"], cleared);
         AssertPrintable(_hash[DrainMode.ServerFieldPrefix + "web-1"]);
@@ -77,12 +77,12 @@ public class DrainModeResumedMarkerFacts : IDisposable
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
         DrainMode.ResumeQueue(_connection.Object, "emails");
-        var marker = _hash[DrainMode.QueueFieldPrefix + "emails"];
+        string marker = _hash[DrainMode.QueueFieldPrefix + "emails"];
 
         DrainMode.PauseQueue(_connection.Object, "emails", marker);
         DrainMode.PauseServer(_connection.Object, "web-1", marker);
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.IsQueuePaused("emails"));
         Assert.True(status.IsServerPaused("web-1"));
     }

@@ -137,7 +137,7 @@ public class CronTextParserFacts
     [InlineData("hourly at 75", "'75' is not a valid time.")]
     public void FromText_RejectsATime_ItCannotCombine(string text, string message)
     {
-        var exception = Assert.Throws<FormatException>(() => Cron.FromText(text));
+        FormatException exception = Assert.Throws<FormatException>(() => Cron.FromText(text));
 
         Assert.Equal(message, exception.Message);
     }
@@ -150,7 +150,7 @@ public class CronTextParserFacts
     [InlineData("daily of nothing", "Unable to understand 'of' in the schedule 'daily of nothing'.")]
     public void FromText_ExplainsWhatItDidNotUnderstand(string text, string message)
     {
-        var exception = Assert.Throws<FormatException>(() => Cron.FromText(text));
+        FormatException exception = Assert.Throws<FormatException>(() => Cron.FromText(text));
 
         Assert.Equal(message, exception.Message);
     }
@@ -179,7 +179,7 @@ public class CronTextParserFacts
     [Fact]
     public void TryFromText_ReturnsFalse_WithoutThrowing()
     {
-        Assert.False(Cron.TryFromText("nonsense words", out var cron));
+        Assert.False(Cron.TryFromText("nonsense words", out string? cron));
         Assert.Null(cron);
 
         Assert.True(Cron.TryFromText("every 5 minutes", out cron));
@@ -189,16 +189,16 @@ public class CronTextParserFacts
     [Fact]
     public void TryFromText_ReturnsFalse_ForNull()
     {
-        Assert.False(Cron.TryFromText(null, out var cron));
+        Assert.False(Cron.TryFromText(null, out string? cron));
         Assert.Null(cron);
     }
 
     [Fact]
     public void GetNextOccurrences_ReturnsTheRequestedNumberOfUtcInstants()
     {
-        var from = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+        DateTime from = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
 
-        var next = Cron.GetNextOccurrences("0 */6 * * *", TimeZoneInfo.Utc, from, 3);
+        IReadOnlyList<DateTime> next = Cron.GetNextOccurrences("0 */6 * * *", TimeZoneInfo.Utc, from, 3);
 
         Assert.Equal(
         [
@@ -211,10 +211,10 @@ public class CronTextParserFacts
     [Fact]
     public void GetNextOccurrences_EvaluatesInTheGivenTimeZone()
     {
-        var from = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
-        var plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
+        DateTime from = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+        TimeZoneInfo plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
 
-        var next = Cron.GetNextOccurrences("0 9 * * *", plusTwo, from, 1);
+        IReadOnlyList<DateTime> next = Cron.GetNextOccurrences("0 9 * * *", plusTwo, from, 1);
 
         Assert.Equal(new DateTime(2026, 11, 5, 7, 0, 0, DateTimeKind.Utc), next[0]);
     }
@@ -222,10 +222,10 @@ public class CronTextParserFacts
     [Fact]
     public void GetNextOccurrences_ReturnsFewer_WhenTheExpressionStopsFiring()
     {
-        var from = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+        DateTime from = new(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
 
         // February 31st never happens
-        var next = Cron.GetNextOccurrences("0 0 31 2 *", TimeZoneInfo.Utc, from, 2);
+        IReadOnlyList<DateTime> next = Cron.GetNextOccurrences("0 0 31 2 *", TimeZoneInfo.Utc, from, 2);
 
         Assert.Empty(next);
     }

@@ -38,7 +38,7 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStateMachineIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new CoreBackgroundJobFactory(null));
 
         Assert.Equal("stateMachine", exception.ParamName);
@@ -47,8 +47,8 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void Create_ThrowsAnException_WhenContextIsNull()
     {
-        var factory = CreateFactory();
-        var exception = Assert.Throws<ArgumentNullException>(
+        CoreBackgroundJobFactory factory = CreateFactory();
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => factory.Create(null));
 
         Assert.Equal("context", exception.ParamName);
@@ -61,7 +61,7 @@ public class CoreBackgroundJobFactoryFacts
         _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.JobQueueProperty)).Returns(false);
         _context.Job = Job.FromExpression(() => Method(), "some-queue");
 
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         // Act & Assert
         Assert.Throws<NotSupportedException>(() => factory.Create(_context.Object));
@@ -74,8 +74,8 @@ public class CoreBackgroundJobFactoryFacts
             .Setup(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
             .Returns<string>(null);
 
-        var factory = CreateFactory();
-        var result = factory.Create(_context.Object);
+        CoreBackgroundJobFactory factory = CreateFactory();
+        BackgroundJob? result = factory.Create(_context.Object);
 
         Assert.Null(result);
     }
@@ -85,7 +85,7 @@ public class CoreBackgroundJobFactoryFacts
     {
         _context.Object.Parameters.Add("Name", "Value");
 
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         factory.Create(_context.Object);
 
@@ -99,7 +99,7 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void CreateJob_ChangesTheStateOfACreatedJob()
     {
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         factory.Create(_context.Object);
 
@@ -114,7 +114,7 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void CreateJob_ReturnsNewJobId()
     {
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
         Assert.Equal(JobId, factory.Create(_context.Object).Id);
     }
 
@@ -127,7 +127,7 @@ public class CoreBackgroundJobFactoryFacts
                 It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
             .Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => factory.Create(_context.Object));
@@ -144,7 +144,7 @@ public class CoreBackgroundJobFactoryFacts
         // Arrange
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>())).Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => factory.Create(_context.Object));
@@ -168,7 +168,7 @@ public class CoreBackgroundJobFactoryFacts
             .Throws<InvalidOperationException>()
             .Returns(JobId);
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
         factory.Create(_context.Object);
@@ -190,7 +190,7 @@ public class CoreBackgroundJobFactoryFacts
             .Throws<InvalidOperationException>()
             .Returns(_context.InitialState.Object);
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
         factory.Create(_context.Object);
@@ -217,7 +217,7 @@ public class CoreBackgroundJobFactoryFacts
             State = EnqueuedState.StateName
         });
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
         factory.Create(_context.Object);
@@ -241,10 +241,10 @@ public class CoreBackgroundJobFactoryFacts
 
         _context.Connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns((JobData)null);
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
-        var exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
+        AggregateException exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
 
         // Assert
         Assert.IsType<TimeoutException>(exception.InnerExceptions[0]);
@@ -267,10 +267,10 @@ public class CoreBackgroundJobFactoryFacts
             .Throws<NotSupportedException>()
             .Throws<TimeoutException>();
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
-        var exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
+        AggregateException exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
 
         // Assert
         Assert.IsType<NotSupportedException>(exception.InnerExceptions[0]);
@@ -292,10 +292,10 @@ public class CoreBackgroundJobFactoryFacts
             .Throws<TimeoutException>()
             .Pass();
 
-        var factory = CreateFactory(retries: 1);
+        CoreBackgroundJobFactory factory = CreateFactory(retries: 1);
 
         // Act
-        var exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
+        AggregateException exception = Assert.Throws<AggregateException>(() => factory.Create(_context.Object));
 
         // Assert
         Assert.IsType<NotSupportedException>(exception.InnerExceptions[0]);
@@ -308,7 +308,7 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void Create_RunsThePostCommitActionsOfTheInitialState_OnlyAfterTheCommit()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -317,7 +317,7 @@ public class CoreBackgroundJobFactoryFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         factory.Create(_context.Object);
 
@@ -327,7 +327,7 @@ public class CoreBackgroundJobFactoryFacts
     [Fact]
     public void Create_DropsThePostCommitActionsOfTheInitialState_WhenTheCommitThrows()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -336,7 +336,7 @@ public class CoreBackgroundJobFactoryFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
 
         Assert.Throws<TimeoutException>(() => factory.Create(_context.Object));
 
@@ -346,16 +346,16 @@ public class CoreBackgroundJobFactoryFacts
     [Fact, StaticLock]
     public void Create_DoesNotWriteAnActivityFeedEntry_WhenTheJobsCreationFails()
     {
-        var feedConnection = new Mock<IStorageConnection>();
-        var feedTransaction = new Mock<IWriteOnlyTransaction>();
-        var inserted = new List<string>();
+        Mock<IStorageConnection> feedConnection = new();
+        Mock<IWriteOnlyTransaction> feedTransaction = new();
+        List<string> inserted = [];
         feedConnection.Setup(x => x.CreateWriteTransaction()).Returns(feedTransaction.Object);
         feedTransaction.Setup(x => x.InsertToList(ActivityFeed.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => inserted.Add(value));
         _context.Storage.Setup(x => x.GetConnection()).Returns(feedConnection.Object);
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => new ActivityFeedFilter().OnStateApplied(ctx, ctx.Transaction))
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
-        var factory = CreateFactory();
+        CoreBackgroundJobFactory factory = CreateFactory();
         ActivityFeed.Enabled = true;
         ActivityFeedWriter.Schedule = static flush => flush();
 
@@ -378,7 +378,7 @@ public class CoreBackgroundJobFactoryFacts
 
     private CoreBackgroundJobFactory CreateFactory(int? retries = null)
     {
-        var factory = new CoreBackgroundJobFactory(_stateMachine.Object);
+        CoreBackgroundJobFactory factory = new(_stateMachine.Object);
         if (retries.HasValue) factory.RetryAttempts = retries.Value;
 
         return factory;

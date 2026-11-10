@@ -18,7 +18,7 @@ public class ProfilerFacts
     [MemberData(nameof(GetProfilers))]
     internal void InvokeMeasured_ThrowsAnException_WhenActionIsNull(IProfiler profiler)
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => profiler.InvokeMeasured(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => profiler.InvokeMeasured(
             _instance,
             null));
 
@@ -29,7 +29,7 @@ public class ProfilerFacts
     [MemberData(nameof(GetProfilers))]
     internal void InvokeMeasured_ReturnsResult_ForFunctions(IProfiler profiler)
     {
-        var result = profiler.InvokeMeasured(_instance, x =>
+        string? result = profiler.InvokeMeasured(_instance, x =>
         {
             Assert.Same(_instance, x);
             return x.ToString();
@@ -42,7 +42,7 @@ public class ProfilerFacts
     [MemberData(nameof(GetProfilers))]
     internal void InvokeMeasured_DoesNotThrowAnException_WhenInstanceIsNull(IProfiler profiler)
     {
-        var result = profiler.InvokeMeasured((object)null, x =>
+        bool result = profiler.InvokeMeasured((object)null, x =>
         {
             Assert.Null(x);
             return true;
@@ -55,7 +55,7 @@ public class ProfilerFacts
     [MemberData(nameof(GetProfilers))]
     internal void InvokeMeasured_WithAction_InvokesIt(IProfiler profiler)
     {
-        var invoked = false;
+        bool invoked = false;
 
         profiler.InvokeMeasured(_instance, x =>
         {
@@ -70,7 +70,7 @@ public class ProfilerFacts
     [MemberData(nameof(GetProfilers))]
     internal void InvokeMeasured_WithActionAndNullInstance_InvokesIt(IProfiler profiler)
     {
-        var invoked = false;
+        bool invoked = false;
 
         profiler.InvokeMeasured((object)null, x =>
         {
@@ -84,12 +84,12 @@ public class ProfilerFacts
     [Fact]
     internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullMessage()
     {
-        using var mre = new ManualResetEventSlim(initialState: false);
+        using ManualResetEventSlim mre = new(initialState: false);
         _logger
             .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
             .Callback(mre.Set);
 
-        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        SlowLogProfiler profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
         profiler.InvokeMeasured(_instance, x =>
         {
             mre.Wait(TimeSpan.FromSeconds(15));
@@ -102,12 +102,12 @@ public class ProfilerFacts
     [Fact]
     internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNullInstance()
     {
-        using var mre = new ManualResetEventSlim(initialState: false);
+        using ManualResetEventSlim mre = new(initialState: false);
         _logger
             .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
             .Callback(mre.Set);
 
-        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        SlowLogProfiler profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
         profiler.InvokeMeasured((object)null, x => mre.Wait(TimeSpan.FromSeconds(15)));
 
         _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.AtLeastOnce);
@@ -116,12 +116,12 @@ public class ProfilerFacts
     [Fact]
     internal void SlowLog_GeneratesLogMessage_WhenThresholdReached_WithNonNullMessage()
     {
-        using var mre = new ManualResetEventSlim(initialState: false);
+        using ManualResetEventSlim mre = new(initialState: false);
         _logger
             .Setup(x => x.Log(It.IsAny<LogLevel>(), It.IsNotNull<Func<string>>(), It.IsAny<Exception>()))
             .Callback(mre.Set);
 
-        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
+        SlowLogProfiler profiler = CreateSlowLogProfiler(_logger, TimeSpan.Zero);
         profiler.InvokeMeasured(_instance, x =>
         {
             mre.Wait(TimeSpan.FromSeconds(15));
@@ -134,7 +134,7 @@ public class ProfilerFacts
     [Fact]
     internal void SlowLog_DoesNotGenerateLogMessage_WhenThresholdIsNotReached()
     {
-        var profiler = CreateSlowLogProfiler(_logger, TimeSpan.FromSeconds(600));
+        SlowLogProfiler profiler = CreateSlowLogProfiler(_logger, TimeSpan.FromSeconds(600));
         profiler.InvokeMeasured(_instance, x => x.ToString(), _ => "message");
 
         _logger.Verify(x => x.Log(LogLevel.Warn, It.IsNotNull<Func<string>>(), null), Times.Never);

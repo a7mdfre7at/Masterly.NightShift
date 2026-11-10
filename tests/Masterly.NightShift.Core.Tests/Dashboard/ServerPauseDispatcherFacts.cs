@@ -22,7 +22,7 @@ public class ServerPauseDispatcherFacts : IDisposable
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
-                foreach (var pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
             });
         DrainMode.InvalidateCache();
     }
@@ -35,7 +35,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly()
     {
-        var context = Create("/servers/pause/web-1", PauseRoute, readOnly: true);
+        DashboardContextStub context = Create("/servers/pause/web-1", PauseRoute, readOnly: true);
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -46,7 +46,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets405_ForNonPostRequests()
     {
-        var context = Create("/servers/pause/web-1", PauseRoute, method: "GET");
+        DashboardContextStub context = Create("/servers/pause/web-1", PauseRoute, method: "GET");
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -57,7 +57,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets422_WhenTheServerIdIsBlank()
     {
-        var context = Create("/servers/pause/  ", PauseRoute);
+        DashboardContextStub context = Create("/servers/pause/  ", PauseRoute);
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -69,12 +69,12 @@ public class ServerPauseDispatcherFacts : IDisposable
     public async Task Dispatch_PausesTheUnescapedServer_WithTheTrimmedReason()
     {
         // ASP.NET Core decodes the path except %2F, which the dashboard decodes itself
-        var context = Create("/servers/pause/web-1:42%2Fa", PauseRoute, reason: "  deploy  ");
+        DashboardContextStub context = Create("/servers/pause/web-1:42%2Fa", PauseRoute, reason: "  deploy  ");
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
         Assert.Equal(204, context.Response.StatusCode);
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.IsServerPaused("web-1:42/a"));
         Assert.Equal("deploy", status.PausedServers["web-1:42/a"]);
         Assert.False(status.Active);
@@ -84,7 +84,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_PausesTheServer_WithoutAReason_WhenNoneIsGiven()
     {
-        var context = Create("/servers/pause/web-1", PauseRoute, reason: "   ");
+        DashboardContextStub context = Create("/servers/pause/web-1", PauseRoute, reason: "   ");
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -96,7 +96,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_TruncatesTheReason_To200Characters()
     {
-        var context = Create("/servers/pause/web-1", PauseRoute, reason: new string('r', 250));
+        DashboardContextStub context = Create("/servers/pause/web-1", PauseRoute, reason: new string('r', 250));
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -107,7 +107,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     public async Task Dispatch_ResumesAPausedServer_IgnoringAnyReason()
     {
         _hash[DrainMode.ServerFieldPrefix + "web-1"] = "deploy";
-        var context = Create("/servers/resume/web-1", ResumeRoute, reason: "ignored");
+        DashboardContextStub context = Create("/servers/resume/web-1", ResumeRoute, reason: "ignored");
 
         await new ServerPauseDispatcher(pause: false).Dispatch(context);
 
@@ -119,7 +119,7 @@ public class ServerPauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_RecordsTheServerAndTheReason_InTheAuditLog()
     {
-        var context = Create("/servers/pause/web-7", PauseRoute, reason: "debugging");
+        DashboardContextStub context = Create("/servers/pause/web-7", PauseRoute, reason: "debugging");
 
         await new ServerPauseDispatcher(pause: true).Dispatch(context);
 
@@ -130,7 +130,7 @@ public class ServerPauseDispatcherFacts : IDisposable
 
     private DashboardContextStub Create(string path, string route, string method = "POST", bool readOnly = false, string reason = null)
     {
-        var request = new DashboardRequestStub(method, path);
+        DashboardRequestStub request = new(method, path);
         if (reason != null) request.Form["reason"] = [reason];
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)

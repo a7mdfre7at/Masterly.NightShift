@@ -73,7 +73,7 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFilterProviderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobStateChanger((IJobFilterProvider)null));
 
         Assert.Equal("filterProvider", exception.ParamName);
@@ -82,7 +82,7 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStateMachineNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobStateChanger(_filterProvider.Object, null));
 
         Assert.Equal("stateMachine", exception.ParamName);
@@ -91,7 +91,7 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_WorksWithinAJobLock()
     {
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -102,10 +102,10 @@ public class BackgroundJobStateChangerFacts
     public void TryToChangeState_ChangesTheStateOfTheJob()
     {
         // Arrange
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
@@ -119,7 +119,7 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_PassesCustomData_ToApplyStateContext()
     {
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -131,7 +131,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_ChangesTheStateOfTheJob_WhenFromStatesIsNull()
     {
         // Arrange
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
         _context.ExpectedStates = null;
 
         // Act
@@ -149,10 +149,10 @@ public class BackgroundJobStateChangerFacts
         _connection.Setup(x => x.GetJobData(It.IsAny<string>()))
             .Returns((JobData)null);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         Assert.Null(result);
@@ -173,11 +173,11 @@ public class BackgroundJobStateChangerFacts
             State = null
         });
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
         _cts.Cancel();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         Assert.Null(result);
@@ -191,7 +191,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_WaitsFor_NonNullJobDataAndStateValue()
     {
         // Arrange
-        var results = new Queue<JobData>();
+        Queue<JobData> results = new();
         results.Enqueue(null);
         results.Enqueue(new JobData { Job = _job, State = null });
         results.Enqueue(new JobData { Job = _job, State = OldStateName });
@@ -199,10 +199,10 @@ public class BackgroundJobStateChangerFacts
         _connection.Setup(x => x.GetJobData(It.IsAny<string>()))
             .Returns(results.Dequeue);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         Assert.Empty(results);
@@ -214,11 +214,11 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_ReturnsNull_WhenFromStatesArgumentDoesNotContainCurrentState()
     {
         // Arrange
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
         _context.ExpectedStates = ["AnotherState"];
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         Assert.Null(result);
@@ -235,7 +235,7 @@ public class BackgroundJobStateChangerFacts
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Throws(new FieldAccessException());
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act & Assert
         Assert.Throws<FieldAccessException>(
@@ -254,7 +254,7 @@ public class BackgroundJobStateChangerFacts
                 LoadException = new JobLoadException("asd", new InvalidOperationException())
             });
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -277,7 +277,7 @@ public class BackgroundJobStateChangerFacts
                 LoadException = new JobLoadException("asd", new InvalidOperationException("Bad argument.")) { Failure = JobLoadFailure.Arguments }
             });
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -300,7 +300,7 @@ public class BackgroundJobStateChangerFacts
                 LoadException = new JobLoadException("asd", new InvalidOperationException("No method.")) { Failure = JobLoadFailure.TypeOrMethod }
             });
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -322,7 +322,7 @@ public class BackgroundJobStateChangerFacts
                 LoadException = new JobLoadException("asd", new InvalidOperationException("Storage error."))
             });
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -346,10 +346,10 @@ public class BackgroundJobStateChangerFacts
 
         _state.Setup(x => x.IgnoreJobLoadException).Returns(true);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
@@ -363,11 +363,11 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_CommitsTheNewState_AndReturnsAppliedState()
     {
         // Arrange
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
         _context.ExpectedStates = [OldStateName];
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         _stateMachine.Verify(x => x.ApplyState(
@@ -384,15 +384,15 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_ReturnsState_ReturnedByAStateMachine()
     {
         // Arrange
-        var anotherState = new Mock<IState>();
+        Mock<IState> anotherState = new();
 
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Returns(anotherState.Object);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         // Assert
         Assert.Same(result, anotherState.Object);
@@ -406,7 +406,7 @@ public class BackgroundJobStateChangerFacts
             .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)))
             .Throws<Exception>();
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act & Assert
         Assert.Throws<Exception>(() => stateChanger.ChangeState(_context.Object));
@@ -426,7 +426,7 @@ public class BackgroundJobStateChangerFacts
             .Setup(x => x.ApplyState(It.Is<ApplyStateContext>(context => context.NewState == _state.Object)))
             .Throws<Exception>();
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act & Assert
         Assert.Throws<Exception>(() => stateChanger.ChangeState(_context.Object));
@@ -445,7 +445,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_DoesNotApplyAnything_AndRethrowsExceptions_ThrownByElectStateFilters()
     {
         // Arrange
-        var electStateFilter = new Mock<IElectStateFilter>();
+        Mock<IElectStateFilter> electStateFilter = new();
 
         electStateFilter
             .Setup(x => x.OnStateElection(It.IsAny<ElectStateContext>()))
@@ -455,7 +455,7 @@ public class BackgroundJobStateChangerFacts
             .Setup(x => x.GetFilters(It.IsAny<Job>()))
             .Returns([new JobFilter(electStateFilter.Object, JobFilterScope.Method, 0)]);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         Assert.Throws<NotSupportedException>(() => stateChanger.ChangeState(_context.Object));
@@ -469,7 +469,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_DoesNotApplyAnything_AndRethrowsAndException_ThrownByApplyStateFilters()
     {
         // Arrange
-        var applyStateFilter = new Mock<IApplyStateFilter>();
+        Mock<IApplyStateFilter> applyStateFilter = new();
 
         applyStateFilter
             .Setup(x => x.OnStateApplied(It.IsAny<ApplyStateContext>(), It.IsAny<IWriteOnlyTransaction>()))
@@ -479,7 +479,7 @@ public class BackgroundJobStateChangerFacts
             .Setup(x => x.GetFilters(It.IsAny<Job>()))
             .Returns([new JobFilter(applyStateFilter.Object, JobFilterScope.Method, 0)]);
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         Assert.Throws<NotSupportedException>(() => stateChanger.ChangeState(_context.Object));
@@ -496,7 +496,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_DoesNotInvokeElectStateFilters_WhenFiltersDisabled()
     {
         // Arrange
-        var electStateFilter = new Mock<IElectStateFilter>();
+        Mock<IElectStateFilter> electStateFilter = new();
 
         electStateFilter
             .Setup(x => x.OnStateElection(It.IsAny<ElectStateContext>()))
@@ -508,7 +508,7 @@ public class BackgroundJobStateChangerFacts
 
         _context.DisableFilters = true;
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -526,7 +526,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_DoesNotInvokeApplyStateFilters_WhenFiltersDisabled()
     {
         // Arrange
-        var applyStateFilter = new Mock<IApplyStateFilter>();
+        Mock<IApplyStateFilter> applyStateFilter = new();
 
         applyStateFilter
             .Setup(x => x.OnStateApplied(It.IsAny<ApplyStateContext>(), It.IsAny<IWriteOnlyTransaction>()))
@@ -538,7 +538,7 @@ public class BackgroundJobStateChangerFacts
 
         _context.DisableFilters = true;
 
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         // Act
         stateChanger.ChangeState(_context.Object);
@@ -556,7 +556,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_WithTransaction_PassesTheGivenTransaction_AndDoesNotCommitTheImplicitOne()
     {
         _context.Transaction = new Mock<JobStorageTransaction>();
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -571,7 +571,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_WithTransaction_DoesNotCommitAndDoesNotDisposeTheExplicitTransaction()
     {
         _context.Transaction = new Mock<JobStorageTransaction>();
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -583,7 +583,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_WithTransaction_AcquiresATransactionLevelLockInstead()
     {
         _context.Transaction = new Mock<JobStorageTransaction>();
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -594,12 +594,12 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_RunsPostCommitActions_AfterTheCommit()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
             .Returns(_state.Object);
         _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -609,13 +609,13 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_RunsPostCommitActions_AfterTheJobLockIsReleased()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
             .Returns(_state.Object);
         _transaction.Setup(x => x.Dispose()).Callback(() => calls.Add("transaction disposed"));
         _distributedLock.Setup(x => x.Dispose()).Callback(() => calls.Add("lock released"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -625,12 +625,12 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_DropsPostCommitActions_WhenTheCommitFails()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => calls.Add("action")))
             .Returns(_state.Object);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
 
@@ -640,7 +640,7 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_RunsOnlyTheActionsQueuedRegardless_WhenTheCommitFails_AfterTheJobLockIsReleased()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -650,7 +650,7 @@ public class BackgroundJobStateChangerFacts
             .Returns(_state.Object);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
         _distributedLock.Setup(x => x.Dispose()).Callback(() => calls.Add("lock released"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
 
@@ -660,12 +660,12 @@ public class BackgroundJobStateChangerFacts
     [Fact]
     public void ChangeState_RunsTheActionsQueuedRegardless_AfterASuccessfulCommit()
     {
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => ctx.AfterCommit.AddRegardless(() => calls.Add("regardless")))
             .Returns(_state.Object);
         _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 
@@ -679,9 +679,9 @@ public class BackgroundJobStateChangerFacts
             .Callback<ApplyStateContext>(ctx => ctx.AfterCommit.AddRegardless(() => throw new InvalidOperationException("sink failed")))
             .Returns(_state.Object);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
-        var exception = Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
+        TimeoutException exception = Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(_context.Object));
 
         Assert.Equal("commit failed", exception.Message);
     }
@@ -692,9 +692,9 @@ public class BackgroundJobStateChangerFacts
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx => ctx.RunAfterCommit(() => throw new InvalidOperationException("sink failed")))
             .Returns(_state.Object);
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
-        var result = stateChanger.ChangeState(_context.Object);
+        IState? result = stateChanger.ChangeState(_context.Object);
 
         Assert.Same(_state.Object, result);
         _transaction.Verify(x => x.Commit(), Times.Once);
@@ -704,7 +704,7 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_WithTransaction_RunsActionsRightAway_BecauseItDoesNotCommit()
     {
         _context.Transaction = new Mock<JobStorageTransaction>();
-        var ran = false;
+        bool ran = false;
         _stateMachine.Setup(x => x.ApplyState(It.IsNotNull<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -712,7 +712,7 @@ public class BackgroundJobStateChangerFacts
                 ctx.RunAfterCommit(() => ran = true);
             })
             .Returns(_state.Object);
-        var stateChanger = CreateStateChanger();
+        BackgroundJobStateChanger stateChanger = CreateStateChanger();
 
         stateChanger.ChangeState(_context.Object);
 

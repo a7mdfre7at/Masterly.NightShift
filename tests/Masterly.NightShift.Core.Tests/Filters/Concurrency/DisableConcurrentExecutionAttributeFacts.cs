@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Core.Tests;
 
@@ -23,7 +24,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTimeoutInSecondsIsNegative()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new DisableConcurrentExecutionAttribute(-1));
 
         Assert.Equal("timeoutInSeconds", exception.ParamName);
@@ -40,7 +41,7 @@ public class DisableConcurrentExecutionAttributeFacts
     public void OnPerforming_UsesAHash_ForARedactedArgument_InTheLockName()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => SampleWithSecret("Tenant", "s3cret"));
-        var attribute = new DisableConcurrentExecutionAttribute("lock-{0}-{1}", TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new("lock-{0}-{1}", TimeoutInSeconds);
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -52,7 +53,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void Ctor_CorrectlySets_TheTimeoutSecProperty()
     {
-        var attribute = new DisableConcurrentExecutionAttribute(TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new(TimeoutInSeconds);
 
         Assert.Equal(TimeoutInSeconds, attribute.TimeoutSec);
     }
@@ -60,7 +61,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void Ctor_CorrectlySets_BothResourceAndTimeoutSecProperties()
     {
-        var attribute = new DisableConcurrentExecutionAttribute("my-resource", TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new("my-resource", TimeoutInSeconds);
 
         Assert.Equal("my-resource", attribute.Resource);
         Assert.Equal(TimeoutInSeconds, attribute.TimeoutSec);
@@ -69,7 +70,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerforming_AcquiresDistributedLock_BasedOnJobTypeAndMethodName()
     {
-        var attribute = CreateAttribute();
+        DisableConcurrentExecutionAttribute attribute = CreateAttribute();
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -82,7 +83,7 @@ public class DisableConcurrentExecutionAttributeFacts
     public void OnPerforming_AcquiresDistributedLock_OnTheLowerCasedFormattedResource_WhenResourceIsSpecified()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Sample("Some-Value"));
-        var attribute = new DisableConcurrentExecutionAttribute("Prefix-{0}", TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new("Prefix-{0}", TimeoutInSeconds);
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -94,7 +95,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerforming_ThrowsFormatException_WhenResourceFormatIsInvalid()
     {
-        var attribute = new DisableConcurrentExecutionAttribute("resource-{1}", TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new("resource-{1}", TimeoutInSeconds);
 
         Assert.Throws<FormatException>(
             () => attribute.OnPerforming(_context.GetPerformingContext()));
@@ -103,8 +104,8 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerforming_StoresAcquiredDistributedLock_InTheItemsCollection()
     {
-        var attribute = CreateAttribute();
-        var performingContext = _context.GetPerformingContext();
+        DisableConcurrentExecutionAttribute attribute = CreateAttribute();
+        PerformingContext performingContext = _context.GetPerformingContext();
 
         attribute.OnPerforming(performingContext);
 
@@ -114,7 +115,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerformed_ReleasesTheAcquiredDistributedLock()
     {
-        var attribute = CreateAttribute();
+        DisableConcurrentExecutionAttribute attribute = CreateAttribute();
         attribute.OnPerforming(_context.GetPerformingContext());
 
         attribute.OnPerformed(_context.GetPerformedContext());
@@ -126,13 +127,13 @@ public class DisableConcurrentExecutionAttributeFacts
     public void OnPerforming_ShortensALongLockName_SoResourcesThatStartAlikeGetDifferentLocks()
     {
         // SQL Server cuts lock names at 255 characters, its schema included
-        var prefix = new string('k', 260);
-        var attribute = new DisableConcurrentExecutionAttribute("{0}", TimeoutInSeconds);
-        var names = new List<string>();
+        string prefix = new('k', 260);
+        DisableConcurrentExecutionAttribute attribute = new("{0}", TimeoutInSeconds);
+        List<string> names = [];
 
-        foreach (var argument in new[] { prefix + "a", prefix + "b" })
+        foreach (string? argument in new[] { prefix + "a", prefix + "b" })
         {
-            var context = new PerformContextMock();
+            PerformContextMock context = new();
             context.BackgroundJob.Job = Job.FromExpression(() => Sample(argument));
             context.Connection
                 .Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>()))
@@ -152,9 +153,9 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerforming_KeepsALockNameOf200Characters_AsItIs()
     {
-        var resource = new string('r', 200);
+        string resource = new('r', 200);
         _context.BackgroundJob.Job = Job.FromExpression(() => Sample(resource));
-        var attribute = new DisableConcurrentExecutionAttribute("{0}", TimeoutInSeconds);
+        DisableConcurrentExecutionAttribute attribute = new("{0}", TimeoutInSeconds);
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -165,7 +166,7 @@ public class DisableConcurrentExecutionAttributeFacts
     public void OnPerformed_DoesNotThrow_WhenTheLockCannotBeReleased()
     {
         _distributedLock.Setup(x => x.Dispose()).Throws(new InvalidOperationException("connection is broken"));
-        var attribute = CreateAttribute();
+        DisableConcurrentExecutionAttribute attribute = CreateAttribute();
         attribute.OnPerforming(_context.GetPerformingContext());
 
         attribute.OnPerformed(_context.GetPerformedContext());
@@ -176,7 +177,7 @@ public class DisableConcurrentExecutionAttributeFacts
     [Fact]
     public void OnPerformed_ThrowsAnException_WhenDistributedLockWasNotAcquired()
     {
-        var attribute = CreateAttribute();
+        DisableConcurrentExecutionAttribute attribute = CreateAttribute();
 
         Assert.Throws<InvalidOperationException>(
             () => attribute.OnPerformed(_context.GetPerformedContext()));

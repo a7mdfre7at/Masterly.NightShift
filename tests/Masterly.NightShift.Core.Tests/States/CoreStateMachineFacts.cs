@@ -16,11 +16,11 @@ public class CoreStateMachineFacts
     public CoreStateMachineFacts()
     {
         _stateHandlersThunk = (storage, stateName) => new CoreStateMachine.StateHandlersCollection(
-            _handlers.TryGetValue(stateName, out var handlers) ? [.. handlers] : [],
+            _handlers.TryGetValue(stateName, out List<IStateHandler>? handlers) ? [.. handlers] : [],
             [],
             stateName);
 
-        var backgroundJob = new BackgroundJobMock { Id = JobId };
+        BackgroundJobMock backgroundJob = new() { Id = JobId };
         _applyContext = new ApplyStateContextMock
         {
             BackgroundJob = backgroundJob,
@@ -33,7 +33,7 @@ public class CoreStateMachineFacts
     [Fact]
     public void ApplyState_SetsTheNewState_ForABackgroundJob()
     {
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         stateMachine.ApplyState(_applyContext.Object);
 
@@ -44,7 +44,7 @@ public class CoreStateMachineFacts
     public void ApplyState_SetsJobExpiration_IfStateIsFinal()
     {
         _applyContext.NewState.Setup(x => x.IsFinal).Returns(true);
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         stateMachine.ApplyState(_applyContext.Object);
 
@@ -55,7 +55,7 @@ public class CoreStateMachineFacts
     public void ApplyState_PersistTheJob_IfStateIsNotFinal()
     {
         _applyContext.NewState.Setup(x => x.IsFinal).Returns(false);
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         stateMachine.ApplyState(_applyContext.Object);
 
@@ -68,7 +68,7 @@ public class CoreStateMachineFacts
         _applyContext.NewState.Setup(x => x.IsFinal).Returns(false);
         _applyContext.Object.JobExpirationTimeout = TimeSpan.FromDays(30);
         _applyContext.Object.ExpireInNonFinalState = true;
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         stateMachine.ApplyState(_applyContext.Object);
 
@@ -80,8 +80,8 @@ public class CoreStateMachineFacts
     public void ApplyState_CallsUnapplyHandlers_BeforeSettingTheState()
     {
         // Arrange
-        var handler1 = CreateStateHandler(OldStateName);
-        var handler2 = CreateStateHandler(OldStateName);
+        Mock<IStateHandler> handler1 = CreateStateHandler(OldStateName);
+        Mock<IStateHandler> handler2 = CreateStateHandler(OldStateName);
 
         handler1
             .Setup(x => x.Unapply(_applyContext.Object, _applyContext.Transaction.Object))
@@ -91,7 +91,7 @@ public class CoreStateMachineFacts
             .Setup(x => x.Unapply(_applyContext.Object, _applyContext.Transaction.Object))
             .InSequence();
 
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_applyContext.Object);
@@ -103,8 +103,8 @@ public class CoreStateMachineFacts
     public void ApplyState_DoesNotCallUnapplyHandlers_ForDifferentStates()
     {
         // Arrange
-        var handler = CreateStateHandler(StateName);
-        var stateMachine = CreateStateMachine();
+        Mock<IStateHandler> handler = CreateStateHandler(StateName);
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_applyContext.Object);
@@ -119,8 +119,8 @@ public class CoreStateMachineFacts
     public void ApplyState_ShouldCallApplyHandlers_AfterSettingTheState()
     {
         // Arrange
-        var handler1 = CreateStateHandler(StateName);
-        var handler2 = CreateStateHandler(StateName);
+        Mock<IStateHandler> handler1 = CreateStateHandler(StateName);
+        Mock<IStateHandler> handler2 = CreateStateHandler(StateName);
 
         _applyContext.Transaction
             .Setup(x => x.SetJobState(It.IsAny<string>(), It.IsAny<IState>()))
@@ -131,7 +131,7 @@ public class CoreStateMachineFacts
         handler2.Setup(x => x.Apply(_applyContext.Object, _applyContext.Transaction.Object))
             .InSequence();
 
-        var stateMachine = CreateStateMachine();
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_applyContext.Object);
@@ -143,8 +143,8 @@ public class CoreStateMachineFacts
     public void ApplyState_DoesNotCallApplyHandlers_ForDifferentStates()
     {
         // Arrange
-        var handler = CreateStateHandler(OldStateName);
-        var stateMachine = CreateStateMachine();
+        Mock<IStateHandler> handler = CreateStateHandler(OldStateName);
+        CoreStateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_applyContext.Object);
@@ -162,7 +162,7 @@ public class CoreStateMachineFacts
 
     private Mock<IStateHandler> CreateStateHandler(string stateName)
     {
-        var handler = new Mock<IStateHandler>();
+        Mock<IStateHandler> handler = new();
         handler.Setup(x => x.StateName).Returns(stateName);
 
         if (!_handlers.ContainsKey(stateName)) _handlers.Add(stateName, []);

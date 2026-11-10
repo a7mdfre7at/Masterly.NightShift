@@ -7,9 +7,9 @@ public class PageRendererFacts
     [Fact]
     public void Render_ProducesTheLayoutAroundThePage_WhenStorageIsEmpty()
     {
-        var renderer = new PageRenderer();
+        PageRenderer renderer = new();
 
-        var html = renderer.Render(new TagsPage());
+        string html = renderer.Render(new TagsPage());
 
         Assert.Contains("<html", html);
         Assert.Contains("page-title", html);

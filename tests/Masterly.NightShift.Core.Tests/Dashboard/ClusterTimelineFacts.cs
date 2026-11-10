@@ -12,17 +12,17 @@ public class ClusterTimelineFacts
     [Fact]
     public void Build_PairsProcessingWithTheNextTransition_PerWorker()
     {
-        var entries = new[]
-        {
+        ActivityEntry[] entries =
+        [
             Entry(1000, "a", EnqueuedState.StateName),
             Entry(2000, "a", ProcessingState.StateName, "srv-1", "w1"),
             Entry(5000, "a", SucceededState.StateName),
             Entry(2500, "b", ProcessingState.StateName, "srv-1", "w2"),
             Entry(4000, "b", FailedState.StateName),
             Entry(6000, "c", ProcessingState.StateName, "srv-2", "w9"),
-        };
+        ];
 
-        var timeline = ClusterTimeline.Build(Enumerable.Reverse(entries), 8000);
+        ClusterTimeline timeline = ClusterTimeline.Build(Enumerable.Reverse(entries), 8000);
 
         Assert.Equal(3, timeline.Lanes.Count);
         Assert.Equal(["srv-1", "srv-1", "srv-2"], timeline.Lanes.Select(l => l.ServerId));
@@ -31,17 +31,17 @@ public class ClusterTimelineFacts
         Assert.Equal(2000, timeline.FromMs);
         Assert.Equal(8000, timeline.ToMs);
 
-        var w1 = Assert.Single(timeline.Lanes[0].Spans);
+        TimelineSpan w1 = Assert.Single(timeline.Lanes[0].Spans);
         Assert.Equal(2000, w1.StartMs);
         Assert.Equal(5000, w1.EndMs);
         Assert.Equal(SucceededState.StateName, w1.Outcome);
         Assert.Equal("App.Work", w1.Method);
 
-        var w2 = Assert.Single(timeline.Lanes[1].Spans);
+        TimelineSpan w2 = Assert.Single(timeline.Lanes[1].Spans);
         Assert.Equal(FailedState.StateName, w2.Outcome);
         Assert.Equal(1500, w2.DurationMs);
 
-        var running = Assert.Single(timeline.Lanes[2].Spans);
+        TimelineSpan running = Assert.Single(timeline.Lanes[2].Spans);
         Assert.True(running.IsRunning);
         Assert.Equal(8000, running.EndMs);
     }
@@ -49,14 +49,14 @@ public class ClusterTimelineFacts
     [Fact]
     public void Build_EndsARefetchedRunWhereTheNewOneStarts()
     {
-        var entries = new[]
-        {
+        ActivityEntry[] entries =
+        [
             Entry(1000, "a", ProcessingState.StateName, "srv", "w1"),
             Entry(3000, "a", ProcessingState.StateName, "srv", "w2"),
             Entry(4000, "a", SucceededState.StateName),
-        };
+        ];
 
-        var timeline = ClusterTimeline.Build(entries, 5000);
+        ClusterTimeline timeline = ClusterTimeline.Build(entries, 5000);
 
         Assert.Equal(2, timeline.Runs);
         Assert.Equal(ProcessingState.StateName, Assert.Single(timeline.Lanes[0].Spans).Outcome);
@@ -68,15 +68,15 @@ public class ClusterTimelineFacts
     [Fact]
     public void Build_ClipsToTheWindow_AndDropsEmptyLanes()
     {
-        var entries = new[]
-        {
+        ActivityEntry[] entries =
+        [
             Entry(0, "old", ProcessingState.StateName, "srv", "w1"),
             Entry(100, "old", SucceededState.StateName),
             Entry(9000, "new", ProcessingState.StateName, "srv", "w2"),
             Entry(9500, "new", SucceededState.StateName),
-        };
+        ];
 
-        var timeline = ClusterTimeline.Build(entries, 10000, TimeSpan.FromMilliseconds(2000));
+        ClusterTimeline timeline = ClusterTimeline.Build(entries, 10000, TimeSpan.FromMilliseconds(2000));
 
         Assert.Equal(8000, timeline.FromMs);
         Assert.Equal("w2", Assert.Single(timeline.Lanes).WorkerId);
@@ -86,7 +86,7 @@ public class ClusterTimelineFacts
     [Fact]
     public void Build_IsEmpty_WithoutProcessingEntries()
     {
-        var timeline = ClusterTimeline.Build([Entry(1, "a", EnqueuedState.StateName)], 10);
+        ClusterTimeline timeline = ClusterTimeline.Build([Entry(1, "a", EnqueuedState.StateName)], 10);
 
         Assert.True(timeline.IsEmpty);
         Assert.Equal(0, timeline.Runs);

@@ -26,7 +26,7 @@ public class CleanDatabaseAttribute : BeforeAfterTestAttribute
             _sqlObjectInstalled = true;
         }
 
-        using var connection = new SqlConnection(
+        using SqlConnection connection = new(
             ConnectionUtils.GetConnectionString());
         connection.Execute(@"
 truncate table [HangFire].[AggregatedCounter];
@@ -48,17 +48,17 @@ truncate table [HangFire].[Server];
 
     private static void CreateAndInitializeDatabaseIfNotExists()
     {
-        var recreateDatabaseSql = string.Format(
+        string recreateDatabaseSql = string.Format(
             @"if db_id('{0}') is null create database [{0}] COLLATE SQL_Latin1_General_CP1_CS_AS",
             ConnectionUtils.GetDatabaseName());
 
-        using (var connection = new SqlConnection(
+        using (SqlConnection connection = new(
             ConnectionUtils.GetMasterConnectionString()))
         {
             connection.Execute(recreateDatabaseSql);
         }
 
-        using (var connection = new SqlConnection(
+        using (SqlConnection connection = new(
             ConnectionUtils.GetConnectionString()))
         {
             SqlServerObjectsInstaller.Install(connection, null, true);

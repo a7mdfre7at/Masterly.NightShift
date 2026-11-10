@@ -13,7 +13,7 @@ public class LocalRequestsOnlyAuthorizationFilterFacts
     [InlineData("10.0.0.5", "10.0.0.5")]
     public void Authorize_AllowsLocalRequests(string remote, string local)
     {
-        var context = Create(remote, local);
+        DashboardContextStub context = Create(remote, local);
 
         Assert.True(new LocalRequestsOnlyAuthorizationFilter().Authorize(context));
     }
@@ -24,7 +24,7 @@ public class LocalRequestsOnlyAuthorizationFilterFacts
     [InlineData("", "10.0.0.5")]
     public void Authorize_DeniesRemoteOrUnknownAddresses(string remote, string local)
     {
-        var context = Create(remote, local);
+        DashboardContextStub context = Create(remote, local);
 
         Assert.False(new LocalRequestsOnlyAuthorizationFilter().Authorize(context));
     }
@@ -37,7 +37,7 @@ public class LocalRequestsOnlyAuthorizationFilterFacts
     public void Authorize_DeniesRequestsForwardedByAProxy_EvenFromLoopback(string header, string value)
     {
         // nginx, IIS, Envoy or an Istio sidecar on the same machine connect from a loopback address
-        var context = Create("127.0.0.1", "127.0.0.1", new Dictionary<string, string> { { header, value } });
+        DashboardContextStub context = Create("127.0.0.1", "127.0.0.1", new Dictionary<string, string> { { header, value } });
 
         Assert.False(new LocalRequestsOnlyAuthorizationFilter().Authorize(context));
     }
@@ -45,7 +45,7 @@ public class LocalRequestsOnlyAuthorizationFilterFacts
     [Fact]
     public void Authorize_IgnoresEmptyForwardingHeaders()
     {
-        var context = Create("127.0.0.1", "127.0.0.1", new Dictionary<string, string> { { "X-Forwarded-For", " " } });
+        DashboardContextStub context = Create("127.0.0.1", "127.0.0.1", new Dictionary<string, string> { { "X-Forwarded-For", " " } });
 
         Assert.True(new LocalRequestsOnlyAuthorizationFilter().Authorize(context));
     }
@@ -72,7 +72,7 @@ public class LocalRequestsOnlyAuthorizationFilterFacts
 
         public override string GetHeader(string name)
         {
-            return _headers.TryGetValue(name, out var value) ? value : null;
+            return _headers.TryGetValue(name, out string? value) ? value : null;
         }
     }
 }

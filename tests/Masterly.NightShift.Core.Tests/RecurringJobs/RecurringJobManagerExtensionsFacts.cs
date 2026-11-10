@@ -14,7 +14,7 @@ public class RecurringJobManagerExtensionsFacts
     [Fact]
     public void Pause_ThrowsAnException_WhenManagerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => RecurringJobManagerExtensions.Pause(null, RecurringJobId));
 
         Assert.Equal("manager", exception.ParamName);
@@ -33,7 +33,7 @@ public class RecurringJobManagerExtensionsFacts
     {
         _managerV3.Setup(x => x.Pause(RecurringJobId)).Returns(expected);
 
-        var result = Manager.Pause(RecurringJobId);
+        bool result = Manager.Pause(RecurringJobId);
 
         Assert.Equal(expected, result);
         _managerV3.Verify(x => x.Pause(RecurringJobId), Times.Once);
@@ -42,7 +42,7 @@ public class RecurringJobManagerExtensionsFacts
     [Fact]
     public void Resume_ThrowsAnException_WhenManagerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => RecurringJobManagerExtensions.Resume(null, RecurringJobId));
 
         Assert.Equal("manager", exception.ParamName);
@@ -61,7 +61,7 @@ public class RecurringJobManagerExtensionsFacts
     {
         _managerV3.Setup(x => x.Resume(RecurringJobId)).Returns(expected);
 
-        var result = Manager.Resume(RecurringJobId);
+        bool result = Manager.Resume(RecurringJobId);
 
         Assert.Equal(expected, result);
         _managerV3.Verify(x => x.Resume(RecurringJobId), Times.Once);
@@ -70,7 +70,7 @@ public class RecurringJobManagerExtensionsFacts
     [Fact]
     public void UpdateSchedule_ThrowsAnException_WhenManagerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => RecurringJobManagerExtensions.UpdateSchedule(null, RecurringJobId, "0 9 * * *"));
 
         Assert.Equal("manager", exception.ParamName);
@@ -89,7 +89,7 @@ public class RecurringJobManagerExtensionsFacts
             .Setup(x => x.UpdateSchedule(RecurringJobId, "0 9 * * *", TimeZoneInfo.Utc, "critical", MisfireHandlingMode.Ignorable))
             .Returns(true);
 
-        var result = Manager.UpdateSchedule(RecurringJobId, "0 9 * * *", TimeZoneInfo.Utc, "critical", MisfireHandlingMode.Ignorable);
+        bool result = Manager.UpdateSchedule(RecurringJobId, "0 9 * * *", TimeZoneInfo.Utc, "critical", MisfireHandlingMode.Ignorable);
 
         Assert.True(result);
         _managerV3.Verify(

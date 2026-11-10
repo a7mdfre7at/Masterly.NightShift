@@ -23,8 +23,8 @@ public class JobCatalogFacts : IDisposable
     {
         JobCatalog.Add<CatalogJobs>();
 
-        var entries = JobCatalog.GetEntries().Where(e => e.Type == typeof(CatalogJobs)).ToList();
-        var names = entries.Select(e => e.Method.Name).ToList();
+        List<JobCatalogEntry> entries = [.. JobCatalog.GetEntries().Where(e => e.Type == typeof(CatalogJobs))];
+        List<string> names = [.. entries.Select(e => e.Method.Name)];
 
         Assert.Contains("Import", names);
         Assert.Contains("Notify", names);
@@ -39,7 +39,7 @@ public class JobCatalogFacts : IDisposable
     {
         JobCatalog.Add<CatalogJobs>();
 
-        var entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Import");
+        JobCatalogEntry entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Import");
 
         Assert.Equal(["file", "rows", "console", "token"], entry.Parameters.Select(p => p.Name));
         Assert.Equal([false, false, true, true], entry.Parameters.Select(p => p.Injected));
@@ -59,9 +59,9 @@ public class JobCatalogFacts : IDisposable
         JobCatalog.Add(typeof(CatalogJobs));
         JobCatalog.Add(typeof(CatalogJobs));
 
-        var entries = JobCatalog.GetEntries().Where(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify").ToList();
+        List<JobCatalogEntry> entries = [.. JobCatalog.GetEntries().Where(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify")];
 
-        var entry = Assert.Single(entries);
+        JobCatalogEntry entry = Assert.Single(entries);
         Assert.Same(entry.Type, JobCatalog.Find(entry.Id).Type);
         Assert.Null(JobCatalog.Find("nope|x|"));
     }
@@ -70,9 +70,9 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_ConvertsTextualArguments_ToTheParameterTypes()
     {
         JobCatalog.Add<CatalogJobs>();
-        var entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify");
+        JobCatalogEntry entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify");
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
         {
             { "channel", "Sms" },
             { "urgent", "on" },
@@ -93,9 +93,9 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_LeavesInjectedParametersNull_AndUsesDefaults()
     {
         JobCatalog.Add<CatalogJobs>();
-        var entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Import");
+        JobCatalogEntry entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Import");
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "file", "a.csv" } });
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "file", "a.csv" } });
 
         Assert.Equal("a.csv", job.Args[0]);
         Assert.Equal(10, job.Args[1]);
@@ -108,9 +108,9 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_ReportsBadInput_WithTheParameterName()
     {
         JobCatalog.Add<CatalogJobs>();
-        var entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify");
+        JobCatalogEntry entry = JobCatalog.GetEntries().Single(e => e.Type == typeof(CatalogJobs) && e.Method.Name == "Notify");
 
-        var ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "channel", "Pigeon" } }));
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "channel", "Pigeon" } }));
         Assert.Contains("Pigeon", ex.Message);
 
         ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "channel", "Sms" }, { "ratio", "abc" } }));
@@ -139,9 +139,9 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CreateJob_TakesPlainGuidTimeSpanAndCharValues()
     {
-        var entry = LookupEntry();
+        JobCatalogEntry entry = LookupEntry();
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
         {
             { "id", "3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10" },
             { "delay", "00:30:00" },
@@ -160,9 +160,9 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CreateJob_StillTakesGuidTimeSpanAndChar_AsQuotedJsonStrings()
     {
-        var entry = LookupEntry();
+        JobCatalogEntry entry = LookupEntry();
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string>
         {
             { "id", "\"3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10\"" },
             { "delay", "\"00:30:00\"" },
@@ -183,7 +183,7 @@ public class JobCatalogFacts : IDisposable
     [InlineData("separator", "ab")]
     public void CreateJob_ReportsABadGuidTimeSpanOrChar_WithTheParameterName(string name, string text)
     {
-        var arguments = new Dictionary<string, string>
+        Dictionary<string, string> arguments = new()
         {
             { "id", "3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10" },
             { "delay", "00:30:00" },
@@ -191,7 +191,7 @@ public class JobCatalogFacts : IDisposable
         };
         arguments[name] = text;
 
-        var exception = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(LookupEntry(), arguments));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(LookupEntry(), arguments));
 
         Assert.StartsWith($"Parameter '{name}'", exception.Message);
     }
@@ -199,7 +199,7 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CreateJob_ReadsNull_ForNullableGuidAndTimeSpan()
     {
-        var job = JobCatalog.CreateJob(LookupEntry(), new Dictionary<string, string>
+        Job job = JobCatalog.CreateJob(LookupEntry(), new Dictionary<string, string>
         {
             { "id", "3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10" },
             { "delay", "00:30:00" },
@@ -215,12 +215,12 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void FormatArguments_GivesPlainGuidTimeSpanAndChar_ThatCreateJobReadsBack()
     {
-        var id = new Guid("3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10");
-        var job = new Job(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Lookup"), id, TimeSpan.FromMinutes(30), ';', null, TimeSpan.FromSeconds(5));
+        Guid id = new("3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10");
+        Job job = new(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Lookup"), id, TimeSpan.FromMinutes(30), ';', null, TimeSpan.FromSeconds(5));
 
-        var arguments = JobCatalog.FormatArguments(job);
-        var parameters = typeof(CatalogJobs).GetMethod("Lookup").GetParameters();
-        var again = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), parameters.Select((p, i) => (p.Name, arguments[i])).ToDictionary(x => x.Name, x => x.Item2));
+        IReadOnlyList<string?> arguments = JobCatalog.FormatArguments(job);
+        ParameterInfo[] parameters = typeof(CatalogJobs).GetMethod("Lookup").GetParameters();
+        Job again = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), parameters.Select((p, i) => (p.Name, arguments[i])).ToDictionary(x => x.Name, x => x.Item2));
 
         Assert.Equal(new[] { "3f2c1b6e-0d5a-4c1e-9b7a-2f9d1e6c4a10", "00:30:00", ";", "", "00:00:05" }, arguments.ToArray());
         Assert.Equal(job.Args, again.Args);
@@ -238,9 +238,9 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CreateEntry_DescribesAnyJob_EvenOutsideTheCatalog()
     {
-        var job = new Job(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Notify"), Channel.Email, true, null, 0.5, new[] { "a" });
+        Job job = new(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Notify"), Channel.Email, true, null, 0.5, new[] { "a" });
 
-        var entry = JobCatalog.CreateEntry(job);
+        JobCatalogEntry entry = JobCatalog.CreateEntry(job);
 
         Assert.Equal(typeof(CatalogJobs), entry.Type);
         Assert.Equal("Notify", entry.Method.Name);
@@ -250,10 +250,10 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void FormatArguments_RendersValuesForTheRunForm()
     {
-        var when = new DateTime(2026, 11, 5, 14, 30, 0, DateTimeKind.Utc);
-        var job = new Job(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Notify"), Channel.Email, true, when, 0.5, new[] { "a", "b" });
+        DateTime when = new(2026, 11, 5, 14, 30, 0, DateTimeKind.Utc);
+        Job job = new(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Notify"), Channel.Email, true, when, 0.5, new[] { "a", "b" });
 
-        var arguments = JobCatalog.FormatArguments(job);
+        IReadOnlyList<string?> arguments = JobCatalog.FormatArguments(job);
 
         Assert.Equal(new[] { "Email", "true", "2026-11-05T14:30:00Z", "0.5", "[\"a\",\"b\"]" }, arguments.ToArray());
     }
@@ -261,9 +261,9 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void FormatArguments_SkipsInjectedParameters_AndKeepsNulls()
     {
-        var job = new Job(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Import"), "file.csv", 3, null, CancellationToken.None);
+        Job job = new(typeof(CatalogJobs), typeof(CatalogJobs).GetMethod("Import"), "file.csv", 3, null, CancellationToken.None);
 
-        var arguments = JobCatalog.FormatArguments(job);
+        IReadOnlyList<string?> arguments = JobCatalog.FormatArguments(job);
 
         Assert.Equal(new[] { "file.csv", "3", null, null }, arguments.ToArray());
     }
@@ -272,9 +272,9 @@ public class JobCatalogFacts : IDisposable
     public void FormatArgument_RendersADateTimeOffset_WithItsOffset()
     {
         // Without the offset, the run form gave back a different instant, read in the server's time zone
-        var value = new DateTimeOffset(2026, 11, 5, 16, 30, 15, TimeSpan.FromHours(2));
+        DateTimeOffset value = new(2026, 11, 5, 16, 30, 15, TimeSpan.FromHours(2));
 
-        var text = JobCatalog.FormatArgument(value, typeof(DateTimeOffset?));
+        string? text = JobCatalog.FormatArgument(value, typeof(DateTimeOffset?));
 
         Assert.Equal("2026-11-05T16:30:15+02:00", text);
     }
@@ -299,13 +299,13 @@ public class JobCatalogFacts : IDisposable
     [MemberData(nameof(Offsets))]
     public void RunAgain_GivesTheSameDateTimeOffset_WhenTheFormIsSentAsItIs(DateTimeOffset original)
     {
-        var job = Job.FromExpression<CatalogDateJobs>(x => x.At(original, null));
-        var entry = JobCatalog.CreateEntry(job);
-        var formatted = JobCatalog.FormatArguments(job);
+        Job job = Job.FromExpression<CatalogDateJobs>(x => x.At(original, null));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(job);
+        IReadOnlyList<string?> formatted = JobCatalog.FormatArguments(job);
 
-        var again = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", formatted[0] }, { "maybe", formatted[1] } });
+        Job again = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", formatted[0] }, { "maybe", formatted[1] } });
 
-        var value = Assert.IsType<DateTimeOffset>(again.Args[0]);
+        DateTimeOffset value = Assert.IsType<DateTimeOffset>(again.Args[0]);
         Assert.Equal(original.UtcTicks, value.UtcTicks);
         Assert.Equal(original.Offset, value.Offset);
         Assert.Null(again.Args[1]);
@@ -317,12 +317,12 @@ public class JobCatalogFacts : IDisposable
     [InlineData(DateTimeKind.Local)]
     public void RunAgain_GivesTheSameDateTime_AndKind_WhenTheFormIsSentAsItIs(DateTimeKind kind)
     {
-        var original = new DateTime(2026, 11, 8, 10, 0, 0, kind).AddTicks(70);
-        var job = Job.FromExpression<CatalogDateJobs>(x => x.On(original, original));
-        var entry = JobCatalog.CreateEntry(job);
-        var formatted = JobCatalog.FormatArguments(job);
+        DateTime original = new DateTime(2026, 11, 8, 10, 0, 0, kind).AddTicks(70);
+        Job job = Job.FromExpression<CatalogDateJobs>(x => x.On(original, original));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(job);
+        IReadOnlyList<string?> formatted = JobCatalog.FormatArguments(job);
 
-        var again = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", formatted[0] }, { "maybe", formatted[1] } });
+        Job again = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", formatted[0] }, { "maybe", formatted[1] } });
 
         Assert.Equal(original, again.Args[0]);
         Assert.Equal(kind, ((DateTime)again.Args[0]).Kind);
@@ -337,9 +337,9 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_ReadsADateTimeOffsetWithoutAnOffset_AsUtc(string text, int hour, int minute)
     {
         // What the datetime-local input sends; before, the server's own time zone decided which moment it was
-        var entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.At(DateTimeOffset.MinValue, null)));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.At(DateTimeOffset.MinValue, null)));
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", text }, { "maybe", text } });
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", text }, { "maybe", text } });
 
         Assert.Equal(new DateTimeOffset(2026, 11, 4, hour, minute, 0, TimeSpan.Zero), job.Args[0]);
         Assert.Equal(TimeSpan.Zero, ((DateTimeOffset)job.Args[0]).Offset);
@@ -352,9 +352,9 @@ public class JobCatalogFacts : IDisposable
     [InlineData(" \"2026-11-04T18:30:00-03:00\" ", -3)]
     public void CreateJob_KeepsTheOffsetOfADateTimeOffset(string text, int offsetHours)
     {
-        var entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.At(DateTimeOffset.MinValue, null)));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.At(DateTimeOffset.MinValue, null)));
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", text } });
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", text } });
 
         Assert.Equal(new DateTimeOffset(2026, 11, 4, 18, 30, 0, TimeSpan.FromHours(offsetHours)), job.Args[0]);
         Assert.Equal(TimeSpan.FromHours(offsetHours), ((DateTimeOffset)job.Args[0]).Offset);
@@ -363,9 +363,9 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CreateJob_ReadsADateTimeEndingInZ_AsUtc()
     {
-        var entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.On(DateTime.MinValue, null)));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(Job.FromExpression<CatalogDateJobs>(x => x.On(DateTime.MinValue, null)));
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", "2026-11-04T18:30:00Z" } });
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "when", "2026-11-04T18:30:00Z" } });
 
         Assert.Equal(DateTimeKind.Utc, ((DateTime)job.Args[0]).Kind);
         Assert.Equal(new DateTime(2026, 11, 4, 18, 30, 0, DateTimeKind.Utc), job.Args[0]);
@@ -394,11 +394,10 @@ public class JobCatalogFacts : IDisposable
         JobCatalog.Add<CatalogRecord>();
         JobCatalog.Add<CatalogJobsWithOverrides>();
 
-        var names = JobCatalog.GetEntries()
+        string[] names = [.. JobCatalog.GetEntries()
             .Where(e => e.Type == typeof(CatalogRecord) || e.Type == typeof(CatalogJobsWithOverrides))
             .Select(e => e.Type.Name + "." + e.Method.Name)
-            .OrderBy(x => x, StringComparer.Ordinal)
-            .ToArray();
+            .OrderBy(x => x, StringComparer.Ordinal)];
 
         Assert.Equal(new[] { "CatalogJobsWithOverrides.Run", "CatalogRecord.Build" }, names);
     }
@@ -407,10 +406,10 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_RefusesATypeName_InAnObjectArgument_WithRecommendedSettings()
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-        var entry = InputEntry(nameof(CatalogInputJobs.Handle));
-        var text = $"{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}";
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.Handle));
+        string text = $"{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}";
 
-        var ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", text } }));
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", text } }));
 
         Assert.Contains("payload", ex.Message);
         Assert.Contains("$type", ex.Message);
@@ -420,10 +419,10 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_RefusesATypeName_InAnObjectMemberOfAnArgument_WithRecommendedSettings()
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-        var entry = InputEntry(nameof(CatalogInputJobs.Wrap));
-        var text = $"{{\"Data\":{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}}}";
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.Wrap));
+        string text = $"{{\"Data\":{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}}}";
 
-        var ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "wrapper", text } }));
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "wrapper", text } }));
 
         Assert.Contains("$type", ex.Message);
     }
@@ -431,9 +430,9 @@ public class JobCatalogFacts : IDisposable
     [Fact, CleanSerializerSettings]
     public void CreateJob_RefusesATypeArgument_InsteadOfResolvingTheName()
     {
-        var entry = InputEntry(nameof(CatalogInputJobs.Load));
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.Load));
 
-        var ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "type", $"\"{TypeNameOf(typeof(CatalogPayload))}\"" } }));
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "type", $"\"{TypeNameOf(typeof(CatalogPayload))}\"" } }));
 
         Assert.Contains("type", ex.Message);
         Assert.Contains("System.Type", ex.Message);
@@ -442,9 +441,9 @@ public class JobCatalogFacts : IDisposable
     [Fact, CleanSerializerSettings]
     public void CreateJob_RefusesATypeMemberOfAnArgument()
     {
-        var entry = InputEntry(nameof(CatalogInputJobs.LoadWrapped));
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.LoadWrapped));
 
-        var ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "wrapper", $"{{\"Kind\":\"{TypeNameOf(typeof(CatalogPayload))}\"}}" } }));
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "wrapper", $"{{\"Kind\":\"{TypeNameOf(typeof(CatalogPayload))}\"}}" } }));
 
         Assert.Contains("System.Type", ex.Message);
     }
@@ -452,7 +451,7 @@ public class JobCatalogFacts : IDisposable
     [Fact, CleanSerializerSettings]
     public void StoredTypeArguments_AreStillReadBack()
     {
-        var serialized = SerializationHelper.Serialize(typeof(CatalogPayload), SerializationOption.User);
+        string serialized = SerializationHelper.Serialize(typeof(CatalogPayload), SerializationOption.User);
 
         Assert.Equal(typeof(CatalogPayload), SerializationHelper.Deserialize<Type>(serialized, SerializationOption.User));
     }
@@ -461,10 +460,10 @@ public class JobCatalogFacts : IDisposable
     public void CreateJob_ReadsAnObjectArgument_AsPlainJson_WithRecommendedSettings()
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-        var entry = InputEntry(nameof(CatalogInputJobs.Handle));
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.Handle));
 
-        var number = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", "5" } });
-        var element = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", "{\"Name\":\"x\"}" } });
+        Job number = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", "5" } });
+        Job element = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "payload", "{\"Name\":\"x\"}" } });
 
         Assert.Equal(5L, number.Args[0]);
         Assert.Equal("x", Assert.IsType<JsonElement>(element.Args[0]).GetProperty("Name").GetString());
@@ -473,11 +472,11 @@ public class JobCatalogFacts : IDisposable
     [Fact, CleanSerializerSettings]
     public void CreateJob_StillTakesATypeName_ForAnInterfaceArgument_WhenItNamesAnImplementation()
     {
-        var entry = InputEntry(nameof(CatalogInputJobs.Send));
-        var good = $"{{\"$type\":\"{TypeNameOf(typeof(CatalogMessage))}\",\"Text\":\"hi\"}}";
-        var bad = $"{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}";
+        JobCatalogEntry entry = InputEntry(nameof(CatalogInputJobs.Send));
+        string good = $"{{\"$type\":\"{TypeNameOf(typeof(CatalogMessage))}\",\"Text\":\"hi\"}}";
+        string bad = $"{{\"$type\":\"{PayloadTypeName}\",\"Name\":\"x\"}}";
 
-        var job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "message", good } });
+        Job job = JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "message", good } });
 
         Assert.Equal("hi", Assert.IsType<CatalogMessage>(job.Args[0]).Text);
         Assert.Throws<ArgumentException>(() => JobCatalog.CreateJob(entry, new Dictionary<string, string> { { "message", bad } }));
@@ -487,11 +486,11 @@ public class JobCatalogFacts : IDisposable
     public void FormatArguments_ThenCreateJob_RoundTripsObjectAndInterfaceArguments_WithRecommendedSettings()
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-        var job = new Job(typeof(CatalogInputJobs), typeof(CatalogInputJobs).GetMethod(nameof(CatalogInputJobs.Mixed)),
+        Job job = new(typeof(CatalogInputJobs), typeof(CatalogInputJobs).GetMethod(nameof(CatalogInputJobs.Mixed)),
             new CatalogPayload { Name = "x" }, new CatalogMessage { Text = "hi" });
 
-        var texts = JobCatalog.FormatArguments(job);
-        var rerun = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), new Dictionary<string, string> { { "payload", texts[0] }, { "message", texts[1] } });
+        IReadOnlyList<string?> texts = JobCatalog.FormatArguments(job);
+        Job rerun = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), new Dictionary<string, string> { { "payload", texts[0] }, { "message", texts[1] } });
 
         Assert.DoesNotContain("$type", texts[0]);
         Assert.Equal("x", Assert.IsType<JsonElement>(rerun.Args[0]).GetProperty("Name").GetString());
@@ -501,10 +500,10 @@ public class JobCatalogFacts : IDisposable
     [Fact, CleanSerializerSettings]
     public void FormatArguments_ThenCreateJob_RoundTripsAnInterfaceArgument_WithDefaultSettings()
     {
-        var job = new Job(typeof(CatalogInputJobs), typeof(CatalogInputJobs).GetMethod(nameof(CatalogInputJobs.Send)), new CatalogMessage { Text = "hi" });
+        Job job = new(typeof(CatalogInputJobs), typeof(CatalogInputJobs).GetMethod(nameof(CatalogInputJobs.Send)), new CatalogMessage { Text = "hi" });
 
-        var texts = JobCatalog.FormatArguments(job);
-        var rerun = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), new Dictionary<string, string> { { "message", texts[0] } });
+        IReadOnlyList<string?> texts = JobCatalog.FormatArguments(job);
+        Job rerun = JobCatalog.CreateJob(JobCatalog.CreateEntry(job), new Dictionary<string, string> { { "message", texts[0] } });
 
         Assert.Equal("hi", Assert.IsType<CatalogMessage>(rerun.Args[0]).Text);
     }
@@ -514,11 +513,11 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void GetFormField_OffersNullForNullableBoolsAndEnums_AndAMultipleChoiceForFlags()
     {
-        var entry = FormEntry(x => x.Run(true, null, null, BindingFlags.Default));
+        JobCatalogEntry entry = FormEntry(x => x.Run(true, null, null, BindingFlags.Default));
 
-        var maybe = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[1], "", false))).RootElement;
-        var day = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[2], "", false))).RootElement;
-        var flags = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[3], "Instance, Public", false))).RootElement;
+        JsonElement maybe = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[1], "", false))).RootElement;
+        JsonElement day = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[2], "", false))).RootElement;
+        JsonElement flags = JsonDocument.Parse(DashboardJson.Serialize(JobCatalog.GetFormField(entry.Parameters[3], "Instance, Public", false))).RootElement;
 
         Assert.Equal("select", maybe.GetProperty("input").GetString());
         Assert.True(maybe.GetProperty("nullable").GetBoolean());
@@ -532,7 +531,7 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CombineFormValues_TakesTrue_WhenACheckboxSendsItAfterItsHiddenFalse()
     {
-        var parameter = FormEntry(x => x.Run(true, null, null, BindingFlags.Default)).Parameters[0];
+        JobCatalogParameter parameter = FormEntry(x => x.Run(true, null, null, BindingFlags.Default)).Parameters[0];
 
         Assert.Equal("false", JobCatalog.CombineFormValues(parameter, ["false"]));
         Assert.Equal("true", JobCatalog.CombineFormValues(parameter, ["false", "true"]));
@@ -543,7 +542,7 @@ public class JobCatalogFacts : IDisposable
     [Fact]
     public void CombineFormValues_CombinesTheChoicesOfAFlagsEnum()
     {
-        var parameter = FormEntry(x => x.Run(true, null, null, BindingFlags.Default)).Parameters[3];
+        JobCatalogParameter parameter = FormEntry(x => x.Run(true, null, null, BindingFlags.Default)).Parameters[3];
 
         Assert.Equal("Instance, Public", JobCatalog.CombineFormValues(parameter, ["0", "Instance", "Public"]));
         Assert.Equal("0", JobCatalog.CombineFormValues(parameter, ["0"]));
@@ -555,9 +554,9 @@ public class JobCatalogFacts : IDisposable
     public void RunAgain_GivesBackFalseNullAndCombinedFlags_WhenTheFormIsSentAsItIs()
     {
         // The form pre-filled from the job: a false bool whose default is true, null bool? and enum, two flags
-        var job = Job.FromExpression<CatalogFormJobs>(x => x.Run(false, null, null, BindingFlags.Instance | BindingFlags.Public));
-        var entry = JobCatalog.CreateEntry(job);
-        var texts = JobCatalog.FormatArguments(job);
+        Job job = Job.FromExpression<CatalogFormJobs>(x => x.Run(false, null, null, BindingFlags.Instance | BindingFlags.Public));
+        JobCatalogEntry entry = JobCatalog.CreateEntry(job);
+        IReadOnlyList<string?> texts = JobCatalog.FormatArguments(job);
 
         Assert.Equal(["false", "", "", "Instance, Public"], texts);
         Assert.Equal(false, JobCatalog.ConvertArgument(entry.Parameters[0], "false"));
@@ -581,7 +580,7 @@ public class JobCatalogFacts : IDisposable
 
     private static JobCatalogEntry InputEntry(string method)
     {
-        var info = typeof(CatalogInputJobs).GetMethod(method);
+        MethodInfo? info = typeof(CatalogInputJobs).GetMethod(method);
         return JobCatalog.CreateEntry(new Job(typeof(CatalogInputJobs), info, new object[info.GetParameters().Length]));
     }
 

@@ -45,11 +45,11 @@ public class AuditLogFacts : IDisposable
     [Fact]
     public void Record_WritesUserPathTargetsAndDetail_AndTrimsTheList()
     {
-        var context = Context("/jobs/failed/requeue");
+        DashboardContextStub context = Context("/jobs/failed/requeue");
 
         AuditLog.Record(context, ["1", "2"], "because", 204);
 
-        var entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
+        AuditEntry entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
         Assert.Equal("ahmad", entry.User);
         Assert.Equal("127.0.0.1", entry.RemoteIpAddress);
         Assert.Equal("/jobs/failed/requeue", entry.Action);
@@ -67,7 +67,7 @@ public class AuditLogFacts : IDisposable
     {
         AuditLog.Record(Context("/jobs/failed/delete"), Enumerable.Range(1, 40).Select(i => i.ToString()));
 
-        var entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
+        AuditEntry entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
         Assert.Equal(AuditLog.MaxTargets, entry.Targets.Count);
         Assert.Equal(40, entry.TargetCount);
     }
@@ -87,11 +87,11 @@ public class AuditLogFacts : IDisposable
     [Fact]
     public void Record_LeavesTheRemoteAddressEmpty_WhenTheHostCannotTellIt()
     {
-        var context = new UserContextStub(new DashboardOptions(), new NoRemoteAddressRequest("/recurring/trigger"), _storage.Object);
+        UserContextStub context = new(new DashboardOptions(), new NoRemoteAddressRequest("/recurring/trigger"), _storage.Object);
 
         AuditLog.Record(context, ["nightly"]);
 
-        var entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
+        AuditEntry entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
         Assert.Null(entry.RemoteIpAddress);
         Assert.Equal("ahmad", entry.User);
         Assert.Equal("/recurring/trigger", entry.Action);
@@ -118,12 +118,12 @@ public class AuditLogFacts : IDisposable
     [Fact]
     public async Task CommandDispatcher_RecordsTheRouteTargets()
     {
-        var context = Context("/jobs/actions/requeue/77");
+        DashboardContextStub context = Context("/jobs/actions/requeue/77");
         context.UriMatch = System.Text.RegularExpressions.Regex.Match("/jobs/actions/requeue/77", "/jobs/actions/requeue/(?<JobId>.+)");
 
         await new CommandDispatcher(_ => true).Dispatch(context);
 
-        var entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
+        AuditEntry entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
         Assert.Equal(["77"], entry.Targets);
         Assert.Equal(204, entry.Status);
     }
@@ -131,13 +131,13 @@ public class AuditLogFacts : IDisposable
     [Fact]
     public async Task BatchCommandDispatcher_RecordsTheJobIds()
     {
-        var request = new DashboardRequestStub("POST", "/jobs/failed/requeue");
+        DashboardRequestStub request = new("POST", "/jobs/failed/requeue");
         request.Form["jobs[]"] = ["1", "2", "3"];
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => false }, request, _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => false }, request, _storage.Object);
 
         await new BatchCommandDispatcher((_, __) => { }).Dispatch(context);
 
-        var entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
+        AuditEntry entry = Assert.Single(AuditLog.Read(_connection.Object, 10));
         Assert.Equal(["1", "2", "3"], entry.Targets);
         Assert.Null(entry.User);
     }
@@ -148,7 +148,7 @@ public class AuditLogFacts : IDisposable
         _list.Add("not json");
         _list.Add(SerializationHelper.Serialize(new AuditEntry { Timestamp = 1, Action = "/a" }, SerializationOption.User));
 
-        var entries = AuditLog.Read(_connection.Object, 10);
+        IReadOnlyList<AuditEntry> entries = AuditLog.Read(_connection.Object, 10);
 
         Assert.Equal("/a", Assert.Single(entries).Action);
         Assert.Equal(2, AuditLog.Count(_connection.Object));
@@ -157,14 +157,14 @@ public class AuditLogFacts : IDisposable
     [Fact, StaticLock]
     public void Record_WritesTheActionToTheLog_AtTheInformationLevel()
     {
-        var provider = new RecordingLogProvider();
+        RecordingLogProvider provider = new();
 
         using (provider.Use())
         {
             AuditLog.Record(Context("/jobs/failed/requeue"), ["1", "2"], "because", 204);
         }
 
-        var entry = Assert.Single(provider.Entries, e => e.Logger == typeof(AuditLog).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(provider.Entries, e => e.Logger == typeof(AuditLog).FullName);
         Assert.Equal(LogLevel.Info, entry.Level);
         Assert.Equal("Dashboard action /jobs/failed/requeue by ahmad from 127.0.0.1 on 1, 2: HTTP 204, because.", entry.Message);
     }
@@ -172,17 +172,17 @@ public class AuditLogFacts : IDisposable
     [Fact, StaticLock]
     public void Record_ReplacesLineBreaks_InTheLogLine_ButStoresTheTextAsItIs()
     {
-        var provider = new RecordingLogProvider();
+        RecordingLogProvider provider = new();
         string stored = null;
         _transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => stored = value);
-        var note = "done\r\nINFO Dashboard action /maintenance/reset by admin" + (char)0x2028 + "x";
+        string note = "done\r\nINFO Dashboard action /maintenance/reset by admin" + (char)0x2028 + "x";
 
         using (provider.Use())
         {
             AuditLog.Record(Context("/jobs/note"), ["1\n2"], note, 204);
         }
 
-        var entry = Assert.Single(provider.Entries, e => e.Logger == typeof(AuditLog).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(provider.Entries, e => e.Logger == typeof(AuditLog).FullName);
         Assert.Equal("Dashboard action /jobs/note by ahmad from 127.0.0.1 on 1 2: HTTP 204, done  INFO Dashboard action /maintenance/reset by admin x.", entry.Message);
         Assert.Contains("\\r\\n", stored);
     }
@@ -190,7 +190,7 @@ public class AuditLogFacts : IDisposable
     [Fact, StaticLock]
     public void Record_LogsAWarning_WhenTheStorageFails()
     {
-        var provider = new RecordingLogProvider();
+        RecordingLogProvider provider = new();
         _connection.Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("down"));
 
         using (provider.Use())
@@ -222,7 +222,7 @@ public class AuditLogFacts : IDisposable
     [Fact]
     public void Read_AndCount_ReturnNothing_WhenTheStorageCannotReadLists()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
 
         Assert.Empty(AuditLog.Read(connection.Object, 10));
         Assert.Equal(0, AuditLog.Count(connection.Object));

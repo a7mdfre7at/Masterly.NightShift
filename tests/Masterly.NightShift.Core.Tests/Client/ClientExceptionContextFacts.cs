@@ -9,10 +9,10 @@ public class ClientExceptionContextFacts
 
     public ClientExceptionContextFacts()
     {
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<IStorageConnection>();
-        var job = Job.FromExpression(() => TestMethod());
-        var state = new Mock<IState>();
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        Job job = Job.FromExpression(() => TestMethod());
+        Mock<IState> state = new();
 
         _createContext = new CreateContext(
             storage.Object, connection.Object, job, state.Object);
@@ -28,7 +28,7 @@ public class ClientExceptionContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenExceptionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ClientExceptionContext(_createContext, null));
 
         Assert.Equal("exception", exception.ParamName);
@@ -37,8 +37,8 @@ public class ClientExceptionContextFacts
     [Fact]
     public void Ctor_CorrectlySets_AllProperties()
     {
-        var exception = new Exception();
-        var context = new ClientExceptionContext(_createContext, exception);
+        Exception exception = new();
+        ClientExceptionContext context = new(_createContext, exception);
 
         Assert.Same(exception, context.Exception);
         Assert.False(context.ExceptionHandled);

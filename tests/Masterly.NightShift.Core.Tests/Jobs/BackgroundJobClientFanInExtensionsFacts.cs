@@ -22,7 +22,7 @@ public class BackgroundJobClientFanInExtensionsFacts
     [Fact]
     public void ContinueJobWithAll_CreatesTheJobInAwaitingJobsState_SkippingNullParents()
     {
-        var id = _client.Object.ContinueJobWithAll(["1", null, "2"], () => Method());
+        string? id = _client.Object.ContinueJobWithAll(["1", null, "2"], () => Method());
 
         Assert.Equal("child", id);
         _client.Verify(x => x.Create(
@@ -63,7 +63,7 @@ public class BackgroundJobClientFanInExtensionsFacts
     [Fact]
     public void ContinueJobWithAll_PassesTheNextState_ForEveryShape()
     {
-        var nextState = new EnqueuedState("critical");
+        EnqueuedState nextState = new("critical");
 
         _client.Object.ContinueJobWithAll(["1"], () => MethodAsync(), nextState);
         _client.Object.ContinueJobWithAll<BackgroundJobClientFanInExtensionsFacts>(["1"], x => x.Instance(), nextState);
@@ -76,7 +76,7 @@ public class BackgroundJobClientFanInExtensionsFacts
     [Fact]
     public void ContinueJobWithAny_PassesTheNextState_ForEveryShape()
     {
-        var nextState = new EnqueuedState("critical");
+        EnqueuedState nextState = new("critical");
 
         _client.Object.ContinueJobWithAny(["1"], () => Method(), nextState);
         _client.Object.ContinueJobWithAny(["1"], () => MethodAsync(), nextState);
@@ -103,7 +103,7 @@ public class BackgroundJobClientFanInExtensionsFacts
     [Fact]
     public void ContinueJobWithAny_WithAQueue_CreatesTheJobForThatQueue_ForEveryShape()
     {
-        var nextState = new ScheduledState(TimeSpan.FromMinutes(5));
+        ScheduledState nextState = new(TimeSpan.FromMinutes(5));
 
         _client.Object.ContinueJobWithAny(["1"], "critical", () => Method());
         _client.Object.ContinueJobWithAny(["1"], "critical", () => MethodAsync());

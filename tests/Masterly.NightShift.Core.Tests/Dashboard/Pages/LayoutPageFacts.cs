@@ -16,7 +16,7 @@ public class LayoutPageFacts
     {
         _renderer.Options = new DashboardOptions { DarkModeEnabled = true };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("localStorage.getItem('nightshift.theme')", html);
         Assert.Contains("id=\"hfDarkStylesheet\"", html);
@@ -30,7 +30,7 @@ public class LayoutPageFacts
     {
         _renderer.Options = new DashboardOptions { DarkModeEnabled = false };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("nightshift.theme", html);
         Assert.DoesNotContain("hfDarkStylesheet", html);
@@ -43,7 +43,7 @@ public class LayoutPageFacts
     {
         _renderer.Options = new DashboardOptions { AppPath = "/my-app" };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<a href=\"/my-app\" title=\"{Encode(Strings.LayoutPage_Back)}\">", html);
     }
@@ -52,9 +52,9 @@ public class LayoutPageFacts
     public void Render_WithoutAppPath_ShowsTheVersionInTheSidebarFooter()
     {
         _renderer.Options = new DashboardOptions { AppPath = null };
-        var version = typeof(RazorPage).Assembly.GetName().Version;
+        Version? version = typeof(RazorPage).Assembly.GetName().Version;
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<span>Masterly.NightShift {version.Major}.{version.Minor}.{version.Build}</span>", html);
         Assert.DoesNotContain(Encode(Strings.LayoutPage_Back), html);
@@ -63,7 +63,7 @@ public class LayoutPageFacts
     [Fact]
     public void Render_Always_RendersTheTopbarWatchlistAndClientConfiguration()
     {
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<div class=\"hf-topbar-title\">" + Encode(Strings.TagsPage_Title) + "</div>", html);
         Assert.Contains("data-live-url=\"/jobs/live\"", html);
@@ -80,7 +80,7 @@ public class LayoutPageFacts
     [Fact]
     public void Render_WhenNothingIsPaused_ShowsNoDrainBanner()
     {
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("hf-drain-banner", html);
     }
@@ -90,7 +90,7 @@ public class LayoutPageFacts
     {
         SetupControlHash(new Dictionary<string, string> { { "Queue:critical", "maintenance" }, { "Queue:emails", "" } });
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("hf-drain-banner hf-drain-banner-queues", html);
         Assert.Contains(Encode(string.Format(Strings.LayoutPage_QueuesPaused, "critical, emails")), html);
@@ -104,7 +104,7 @@ public class LayoutPageFacts
         SetupServers("web-1");
         SetupControlHash(new Dictionary<string, string> { { "Server:web-1", "deploy" } });
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("hf-drain-banner hf-drain-banner-queues", html);
         Assert.Contains(Encode(string.Format(Strings.LayoutPage_ServersPaused, "web-1")), html);
@@ -118,7 +118,7 @@ public class LayoutPageFacts
         SetupServers("web-1:2:new");
         SetupControlHash(new Dictionary<string, string> { { "Server:web-1:1:old", "deploy" }, { "Server:web-1:2:new", "" } });
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains(Encode(string.Format(Strings.LayoutPage_ServersPaused, "web-1:2:new")), html);
         Assert.DoesNotContain("web-1:1:old", html);
@@ -129,7 +129,7 @@ public class LayoutPageFacts
     {
         SetupControlHash(new Dictionary<string, string> { { "Server:web-1:1:old", "deploy" } });
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("hf-drain-banner", html);
     }
@@ -145,7 +145,7 @@ public class LayoutPageFacts
             { "Queue:critical", "ignored while draining" }
         });
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<div class=\"hf-drain-banner\" role=\"status\">", html);
         Assert.Contains($"<strong>{Encode(Strings.LayoutPage_Drain_Banner)}</strong>", html);
@@ -161,7 +161,7 @@ public class LayoutPageFacts
         SetupControlHash(new Dictionary<string, string> { { "Drain", "1" } });
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<strong>{Encode(Strings.LayoutPage_Drain_Banner)}</strong>", html);
         Assert.DoesNotContain("hf-drain-banner-since", html);
@@ -175,7 +175,7 @@ public class LayoutPageFacts
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Retries = 0, Awaiting = 0 });
         _renderer.Storage.Setup(x => x.GetReadOnlyConnection()).Throws(new InvalidOperationException("Storage is down"));
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains("js-page-container", html);
         Assert.DoesNotContain("hf-drain-banner", html);
@@ -187,7 +187,7 @@ public class LayoutPageFacts
         _renderer.Storage.Setup(x => x.ToString()).Returns("Test <Storage>");
         _renderer.Options = new DashboardOptions { DisplayStorageConnectionString = true };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<li>Test &lt;Storage&gt; ", html);
     }
@@ -198,7 +198,7 @@ public class LayoutPageFacts
         _renderer.Storage.Setup(x => x.ToString()).Returns("Test <Storage>");
         _renderer.Options = new DashboardOptions { DisplayStorageConnectionString = false };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("Test &lt;Storage&gt;", html);
     }
@@ -208,7 +208,7 @@ public class LayoutPageFacts
     {
         SetupStorageTime(DateTime.UtcNow);
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<li>{Encode(Strings.LayoutPage_Footer_StorageTime)} <span data-moment-local=", html);
         Assert.DoesNotContain(Encode(Strings.LayoutPage_Footer_TimeIsOutOfSync), html);
@@ -219,7 +219,7 @@ public class LayoutPageFacts
     {
         SetupStorageTime(DateTime.UtcNow.AddMinutes(-5));
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<span class=\"text-warning\" title=\"{Encode(Strings.LayoutPage_Footer_TimeIsOutOfSync)}\">", html);
     }
@@ -227,7 +227,7 @@ public class LayoutPageFacts
     [Fact]
     public void Render_WhenTheStorageCantReportItsTime_ShowsOnlyTheApplicationTime()
     {
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain(Encode(Strings.LayoutPage_Footer_StorageTime), html);
         Assert.Contains($"<span>{Encode(Strings.LayoutPage_Footer_Time)} <span data-moment-local=", html);
@@ -238,7 +238,7 @@ public class LayoutPageFacts
     {
         _renderer.Request = new DashboardRequestStub("GET", "/tags");
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"<div class=\"hf-nav-section\">{Encode(Strings.NavigationMenu_Section_Monitor)}</div>", html);
         Assert.Contains("<a href=\"/tags\" class=\"hf-nav-item active\">", html);
@@ -252,7 +252,7 @@ public class LayoutPageFacts
         _renderer.Request = new DashboardRequestStub("GET", "/jobs/failed");
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Failed = 7, Retries = 0 });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("<a href=\"/jobs/enqueued\" class=\"hf-nav-item active\">", html);
         Assert.Contains("<ul class=\"hf-nav-sub\">", html);
@@ -272,7 +272,7 @@ public class LayoutPageFacts
 
         try
         {
-            var html = _renderer.Render(new TagsPage());
+            string html = _renderer.Render(new TagsPage());
 
             Assert.Contains("<a href=\"/custom\" class=\"hf-nav-item \">", html);
             Assert.Contains("glyphicon glyphicon-chevron-right\"", html);
@@ -289,12 +289,12 @@ public class LayoutPageFacts
     [Fact, GlobalLock(Reason = "Changes NavigationMenu.Items")]
     public void Render_WithoutMenuItems_LeavesTheNavigationEmpty()
     {
-        var saved = NavigationMenu.Items.ToList();
+        List<Func<RazorPage, MenuItem>> saved = [.. NavigationMenu.Items];
         NavigationMenu.Items.Clear();
 
         try
         {
-            var html = _renderer.Render(new TagsPage());
+            string html = _renderer.Render(new TagsPage());
 
             Assert.DoesNotContain("hf-nav-section", html);
             Assert.DoesNotContain("hf-nav-item", html);

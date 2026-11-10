@@ -1,5 +1,8 @@
 extern alias ReferencedDapper;
+
+using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Server;
 using ReferencedDapper::Dapper;
 
@@ -17,17 +20,17 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void Throttle_TakesAndReleasesASlot_ForALongResource_AndTheSetExpires()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        using var connection = storage.GetConnection();
-        var context = CreatePerformContext(storage, connection, Job.FromExpression(() => Jobs.ForTenant(LongValue)));
-        var throttle = new ThrottleAttribute("tenant-{0}") { StaleTimeoutMinutes = 30 };
-        var performing = new PerformingContext(context);
+        using IStorageConnection connection = storage.GetConnection();
+        PerformContext context = CreatePerformContext(storage, connection, Job.FromExpression(() => Jobs.ForTenant(LongValue)));
+        ThrottleAttribute throttle = new("tenant-{0}") { StaleTimeoutMinutes = 30 };
+        PerformingContext performing = new(context);
 
         throttle.OnPerforming(performing);
 
         Assert.False(performing.Canceled);
-        var key = Assert.Single(QuerySetKeys("throttle:tenant-%"));
+        string key = Assert.Single(QuerySetKeys("throttle:tenant-%"));
         Assert.True(key.Length <= 100);
         Assert.Contains("~", key);
         Assert.Single(connection.GetAllItemsFromSet(key));
@@ -41,16 +44,16 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void RateLimit_RecordsAStart_ForALongResource_AndTheSetExpiresWithTheWindow()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        using var connection = storage.GetConnection();
-        var context = CreatePerformContext(storage, connection, Job.FromExpression(() => Jobs.ForTenant(LongValue)));
-        var performing = new PerformingContext(context);
+        using IStorageConnection connection = storage.GetConnection();
+        PerformContext context = CreatePerformContext(storage, connection, Job.FromExpression(() => Jobs.ForTenant(LongValue)));
+        PerformingContext performing = new(context);
 
         new RateLimitAttribute("tenant-{0}", 5, 600).OnPerforming(performing);
 
         Assert.False(performing.Canceled);
-        var key = Assert.Single(QuerySetKeys("ratelimit:tenant-%"));
+        string key = Assert.Single(QuerySetKeys("ratelimit:tenant-%"));
         Assert.True(key.Length <= 100);
         Assert.All(QuerySetExpirations(key), expireAt => Assert.True(expireAt > DateTime.UtcNow.AddMinutes(9) && expireAt < DateTime.UtcNow.AddMinutes(12)));
     }
@@ -58,20 +61,20 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void CircuitBreaker_RecordsTheFailure_AndOpens_ForALongResource()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var jobId = client.Create(Job.FromExpression(() => Jobs.CallPartner(LongValue)), new EnqueuedState());
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        string? jobId = client.Create(Job.FromExpression(() => Jobs.CallPartner(LongValue)), new EnqueuedState());
 
         // A failure that doesn't fit the storage used to break the transition, and the job lost its retries
         Assert.True(client.ChangeState(jobId, new FailedState(new TimeoutException()), EnqueuedState.StateName));
 
-        using var connection = storage.GetConnection();
+        using IStorageConnection connection = storage.GetConnection();
         Assert.Equal(FailedState.StateName, connection.GetStateData(jobId).Name);
 
-        var resource = Assert.Single(connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey));
+        string resource = Assert.Single(connection.GetAllItemsFromSet(CircuitBreakerAttribute.CircuitsSetKey));
         Assert.StartsWith("partner-vvv", resource, StringComparison.Ordinal);
 
-        var circuit = CircuitBreakerAttribute.ReadCircuit(connection, resource);
+        CircuitBreakerAttribute.CircuitState circuit = CircuitBreakerAttribute.ReadCircuit(connection, resource);
         Assert.Equal(CircuitBreakerAttribute.OpenState, circuit.State);
         Assert.Equal(1, circuit.Failures);
         Assert.NotNull(circuit.OpenUntil);
@@ -81,12 +84,12 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void RateLimit_CountsStartsByScore_AndRemovesTheOnesThatLeftTheWindow()
     {
-        var storage = CreateStorage();
-        var now = JobHelper.ToTimestamp(DateTime.UtcNow);
+        SqlServerStorage storage = CreateStorage();
+        long now = JobHelper.ToTimestamp(DateTime.UtcNow);
         const string key = "ratelimit:sms:60";
 
-        using var connection = storage.GetConnection();
-        using (var transaction = connection.CreateWriteTransaction())
+        using IStorageConnection connection = storage.GetConnection();
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.AddToSet(key, $"{now - 120}:old", now - 120);
             transaction.AddToSet(key, $"{now - 30}:a", now - 30);
@@ -94,14 +97,14 @@ public class ConcurrencyFilterFacts
             transaction.Commit();
         }
 
-        var job = Job.FromExpression(() => Jobs.ForTenant("x"));
-        var refused = new PerformingContext(CreatePerformContext(storage, connection, job));
+        Job job = Job.FromExpression(() => Jobs.ForTenant("x"));
+        PerformingContext refused = new(CreatePerformContext(storage, connection, job));
         new RateLimitAttribute("sms", 2, 60) { Action = ConcurrencyAction.Skip }.OnPerforming(refused);
 
         Assert.True(refused.Canceled);
         Assert.Equal([$"{now - 10}:b", $"{now - 30}:a"], connection.GetAllItemsFromSet(key).OrderByDescending(x => x, StringComparer.Ordinal));
 
-        var allowed = new PerformingContext(CreatePerformContext(storage, connection, job));
+        PerformingContext allowed = new(CreatePerformContext(storage, connection, job));
         new RateLimitAttribute("sms", 3, 60) { Action = ConcurrencyAction.Skip }.OnPerforming(allowed);
 
         Assert.False(allowed.Canceled);
@@ -111,11 +114,11 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void PreventDuplicates_RefusesTheSecondCopy_ForALongTemplatedFingerprint()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
 
-        var first = client.Create(Job.FromExpression(() => Jobs.Import(LongValue)), new EnqueuedState());
-        var second = client.Create(Job.FromExpression(() => Jobs.Import(LongValue)), new EnqueuedState());
+        string? first = client.Create(Job.FromExpression(() => Jobs.Import(LongValue)), new EnqueuedState());
+        string? second = client.Create(Job.FromExpression(() => Jobs.Import(LongValue)), new EnqueuedState());
 
         Assert.NotNull(first);
         Assert.Null(second);
@@ -124,27 +127,27 @@ public class ConcurrencyFilterFacts
     [Fact, CleanDatabase]
     public void Throttle_ReclaimsTheLeakedSlotOfASucceededJob_ButNotTheSlotOfAProcessingOne()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var job = Job.FromExpression(() => Jobs.ForTenant("x"));
-        var now = JobHelper.ToTimestamp(DateTime.UtcNow);
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        Job job = Job.FromExpression(() => Jobs.ForTenant("x"));
+        long now = JobHelper.ToTimestamp(DateTime.UtcNow);
         const string key = "throttle:gpu";
 
-        var succeeded = client.Create(job, new SucceededState(null, 1, 1));
-        var processing = client.Create(job, CreateProcessingState("worker"));
-        var waiting = client.Create(job, CreateProcessingState("worker-2"));
+        string? succeeded = client.Create(job, new SucceededState(null, 1, 1));
+        string? processing = client.Create(job, CreateProcessingState("worker"));
+        string? waiting = client.Create(job, CreateProcessingState("worker-2"));
 
-        using var connection = storage.GetConnection();
+        using IStorageConnection connection = storage.GetConnection();
         // The succeeded job's release failed, so its slot stayed in the set
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.AddToSet(key, $"{now - 60}:{succeeded}", now - 60);
             transaction.AddToSet(key, $"{now - 30}:{processing}", now - 30);
             transaction.Commit();
         }
 
-        var throttle = new ThrottleAttribute("gpu") { MaxConcurrency = 2, Action = ConcurrencyAction.Skip };
-        var performing = new PerformingContext(CreatePerformContext(storage, connection, job, waiting));
+        ThrottleAttribute throttle = new("gpu") { MaxConcurrency = 2, Action = ConcurrencyAction.Skip };
+        PerformingContext performing = new(CreatePerformContext(storage, connection, job, waiting));
 
         throttle.OnPerforming(performing);
 
@@ -154,7 +157,7 @@ public class ConcurrencyFilterFacts
             connection.GetAllItemsFromSet(key).Select(x => x[(x.IndexOf(':') + 1)..]).OrderBy(x => x, StringComparer.Ordinal));
 
         // Now both slots belong to Processing jobs: a third job is refused
-        var refused = new PerformingContext(CreatePerformContext(storage, connection, job, "999999"));
+        PerformingContext refused = new(CreatePerformContext(storage, connection, job, "999999"));
         throttle.OnPerforming(refused);
 
         Assert.True(refused.Canceled);
@@ -164,7 +167,7 @@ public class ConcurrencyFilterFacts
     // The constructor is internal: workers create the state
     private static ProcessingState CreateProcessingState(string workerId)
     {
-        var ctor = typeof(ProcessingState).GetConstructors(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Single();
+        ConstructorInfo ctor = typeof(ProcessingState).GetConstructors(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Single();
         return (ProcessingState)ctor.Invoke(["server", workerId]);
     }
 
@@ -175,7 +178,7 @@ public class ConcurrencyFilterFacts
 
     private static PerformContext CreatePerformContext(JobStorage storage, IStorageConnection connection, Job job, string jobId = "1")
     {
-        var token = new Mock<IJobCancellationToken>();
+        Mock<IJobCancellationToken> token = new();
         token.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
 
         return new PerformContext(storage, connection, new BackgroundJob(jobId, job, DateTime.UtcNow), token.Object);
@@ -183,13 +186,13 @@ public class ConcurrencyFilterFacts
 
     private static string[] QuerySetKeys(string pattern)
     {
-        using var connection = ConnectionUtils.CreateConnection();
+        using DbConnection connection = ConnectionUtils.CreateConnection();
         return [.. connection.Query<string>("select distinct [Key] from [HangFire].[Set] where [Key] like @pattern", new { pattern })];
     }
 
     private static DateTime?[] QuerySetExpirations(string key)
     {
-        using var connection = ConnectionUtils.CreateConnection();
+        using DbConnection connection = ConnectionUtils.CreateConnection();
         return [.. connection.Query<DateTime?>("select ExpireAt from [HangFire].[Set] where [Key] = @key", new { key })];
     }
 

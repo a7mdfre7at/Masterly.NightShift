@@ -11,7 +11,7 @@ public class BatchesPageFacts
     [Fact]
     public void Render_WithoutBatches_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains($"{Encode(Strings.BatchesPage_Title)} <small class=\"text-muted\">{Encode(Strings.BatchesPage_Hint)}</small>", html);
         Assert.Contains($"<div class=\"alert alert-info\">{Strings.BatchesPage_NoBatches_Html}</div>", html);
@@ -24,7 +24,7 @@ public class BatchesPageFacts
         SetupIndex("nightly");
         SetupBatch("nightly", "Nightly <import>", DateTime.UtcNow.AddHours(-1), total: 4, succeeded: 4);
 
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains("<a class=\"hf-batch-link\" href=\"/batches/nightly\">", html);
         Assert.Contains($"<span class=\"label label-success text-uppercase\">{Encode(Strings.BatchesPage_State_Finished)}</span>", html);
@@ -43,7 +43,7 @@ public class BatchesPageFacts
         SetupIndex("b-2");
         SetupBatch("b-2", null, null, total: 4, succeeded: 3, failed: 1);
 
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains($"<span class=\"label label-danger text-uppercase\">{Encode(Strings.BatchesPage_State_Failed)}</span>", html);
         Assert.Contains("<strong>b-2</strong>", html);
@@ -59,7 +59,7 @@ public class BatchesPageFacts
         SetupIndex("b-3");
         SetupBatch("b-3", null, null, total: 3, succeeded: 1, processing: 1, deleted: 1);
 
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains($"<span class=\"label label-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-processing\" style=\"width: 33.3%\"></span>", html);
@@ -73,7 +73,7 @@ public class BatchesPageFacts
         SetupIndex("empty");
         SetupBatch("empty", null, null, total: 0);
 
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.Contains($"<span class=\"label label-info text-uppercase\">{Encode(Strings.BatchesPage_State_Running)}</span>", html);
         Assert.Contains("<span class=\"hf-batch-seg hf-batch-seg-success\" style=\"width: 0%\"></span>", html);
@@ -86,7 +86,7 @@ public class BatchesPageFacts
         SetupBatch("old", null, null, total: 1, succeeded: 1);
         SetupBatch("new", null, null, total: 1);
 
-        var html = _renderer.Render(new BatchesPage());
+        string html = _renderer.Render(new BatchesPage());
 
         Assert.True(html.IndexOf("/batches/new", StringComparison.Ordinal) < html.IndexOf("/batches/old", StringComparison.Ordinal));
     }
@@ -100,7 +100,7 @@ public class BatchesPageFacts
 
     private void SetupBatch(string id, string description, DateTime? createdAt, long total, long succeeded = 0, long failed = 0, long processing = 0, long deleted = 0)
     {
-        var hash = new Dictionary<string, string> { { "Description", description ?? string.Empty } };
+        Dictionary<string, string> hash = new() { { "Description", description ?? string.Empty } };
         if (createdAt.HasValue) hash["CreatedAt"] = JobHelper.SerializeDateTime(createdAt.Value);
 
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(id))).Returns(hash);

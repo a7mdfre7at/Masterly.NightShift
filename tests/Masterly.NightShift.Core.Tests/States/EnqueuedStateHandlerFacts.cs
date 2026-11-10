@@ -22,14 +22,14 @@ public class EnqueuedStateHandlerFacts
     [Fact]
     public void HandlerShouldBeRegistered_ForTheEnqueuedState()
     {
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
         Assert.Equal(EnqueuedState.StateName, handler.StateName);
     }
 
     [Fact]
     public void Apply_AddsJob_ToTheSpecifiedQueue()
     {
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
 
         handler.Apply(_context.Object, _transaction.Object);
 
@@ -39,7 +39,7 @@ public class EnqueuedStateHandlerFacts
     [Fact]
     public void Apply_ThrowsAnException_WhenOtherThanEnqueuedStateGiven()
     {
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
         _context.NewStateObject = null;
         _context.NewState = new Mock<IState>();
 
@@ -51,7 +51,7 @@ public class EnqueuedStateHandlerFacts
     public void Apply_WithJobAndQueueSpecified_ThrowsAnException_WhenRequiredFeatureNotSupported()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "critical");
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
 
         Assert.Throws<NotSupportedException>(
             () => handler.Apply(_context.Object, _transaction.Object));
@@ -63,7 +63,7 @@ public class EnqueuedStateHandlerFacts
         _context.Storage.Setup(x => x.HasFeature("Job.Queue")).Returns(true);
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "myqueue");
         _enqueuedState.Queue = "default";
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
 
         handler.Apply(_context.Object, _transaction.Object);
 
@@ -76,7 +76,7 @@ public class EnqueuedStateHandlerFacts
         _context.Storage.Setup(x => x.HasFeature("Job.Queue")).Returns(true);
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "myqueue");
         _enqueuedState.Queue = "otherqueue";
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
 
         handler.Apply(_context.Object, _transaction.Object);
 
@@ -86,7 +86,7 @@ public class EnqueuedStateHandlerFacts
     [Fact]
     public void Unapply_DoesNotDoAnything()
     {
-        var handler = new EnqueuedState.Handler();
+        EnqueuedState.Handler handler = new();
 
         // Does not throw
         handler.Unapply(null, null);

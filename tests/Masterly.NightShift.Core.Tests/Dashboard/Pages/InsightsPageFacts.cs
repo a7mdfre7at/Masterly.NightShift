@@ -24,7 +24,7 @@ public class InsightsPageFacts
     {
         _renderer.Storage.Setup(x => x.GetReadOnlyConnection()).Returns(new Mock<IStorageConnection>().Object);
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains(H(Strings.InsightsPage_NotSupported), html);
         Assert.DoesNotContain("insights-summary", html);
@@ -38,7 +38,7 @@ public class InsightsPageFacts
         _renderer.Connection.Setup(x => x.GetCounter(It.IsAny<string>())).Throws(new NotSupportedException());
         _renderer.Connection.Setup(x => x.GetAllItemsFromList(It.IsAny<string>())).Throws(new NotSupportedException());
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains(H(Strings.InsightsPage_NotSupported), html);
         Assert.DoesNotContain("insights-summary", html);
@@ -47,7 +47,7 @@ public class InsightsPageFacts
     [Fact]
     public void Render_ShowsEmptySummaryTiles_AndTheNoDataHint_WhenNothingWasRecorded()
     {
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("insights-summary", html);
         Assert.Contains("<div class=\"insights-tile-value\">0</div>", html);
@@ -64,7 +64,7 @@ public class InsightsPageFacts
     {
         AddHealthyInsight();
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-anomalies\"", html);
         Assert.Contains("hf-anomalies-ok", html);
@@ -78,7 +78,7 @@ public class InsightsPageFacts
         AddAnomalousInsight();
         AddFailingInsight();
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.DoesNotContain("hf-anomalies-ok", html);
         Assert.Contains("<code>Jobs.Slow</code>", html);
@@ -99,7 +99,7 @@ public class InsightsPageFacts
         AddHealthyInsight();
         AddNeverRunInsight();
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-jobs\"", html);
         Assert.Contains("<span class=\"label label-danger\">10 (" + 0.5.ToString("P0"), html);
@@ -119,7 +119,7 @@ public class InsightsPageFacts
     {
         AddHealthyInsight();
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.DoesNotContain("class=\"text-decoration-none\"", html);
         Assert.Contains("<span data-moment=", Section(html, "id=\"insights-jobs\""));
@@ -133,7 +133,7 @@ public class InsightsPageFacts
         AddCircuit("archive", CircuitBreakerAttribute.ClosedState, null, 2);
         AddCircuit("search", CircuitBreakerAttribute.ClosedState, null, 0);
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-circuits\"", html);
         Assert.Contains("label label-danger text-uppercase\">Open</span>", html);
@@ -154,7 +154,7 @@ public class InsightsPageFacts
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
         AddCircuit("payments", CircuitBreakerAttribute.OpenState, DateTime.UtcNow, 5);
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("<code>payments</code>", html);
         Assert.DoesNotContain("/insights/circuits/reset/", html);
@@ -164,7 +164,7 @@ public class InsightsPageFacts
     [Fact]
     public void Render_ShowsTheActivityHeatmap_WithoutAnyCircuitBreakers()
     {
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-heatmap\"", html);
         Assert.Equal(7 * 24, CountOf(html, "<div class=\"hf-heatmap-cell"));
@@ -176,7 +176,7 @@ public class InsightsPageFacts
     {
         AddCircuit("payments", CircuitBreakerAttribute.OpenState, DateTime.UtcNow, 1);
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.Contains("id=\"insights-heatmap\"", html);
         Assert.Contains(H(Strings.InsightsPage_Heatmap_Empty), html);
@@ -195,7 +195,7 @@ public class InsightsPageFacts
         _renderer.Connection.Setup(x => x.GetCounter(It.Is<string>(k => k.StartsWith("stats:succeeded:", StringComparison.Ordinal)))).Returns(1);
         _renderer.Connection.Setup(x => x.GetCounter(It.Is<string>(k => k.StartsWith("stats:failed:", StringComparison.Ordinal)))).Returns(3);
 
-        var html = _renderer.Render(new InsightsPage());
+        string html = _renderer.Render(new InsightsPage());
 
         Assert.DoesNotContain(H(Strings.InsightsPage_Heatmap_Empty), html);
         Assert.Contains("hf-heatmap-cell hf-heatmap-bad", html);
@@ -205,7 +205,7 @@ public class InsightsPageFacts
     private void AddAnomalousInsight()
     {
         // Ten quick runs, then ten slow ones ending with a very slow, failed run; half of all runs failed
-        var newestFirst = new[] { 7000L }.Concat(Enumerable.Repeat(2000L, 9)).Concat(Enumerable.Repeat(100L, 10));
+        IEnumerable<long> newestFirst = new[] { 7000L }.Concat(Enumerable.Repeat(2000L, 9)).Concat(Enumerable.Repeat(100L, 10));
         AddInsight("Jobs.Slow", 10, 10, newestFirst, new Dictionary<string, string>
         {
             { "LastRunAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) },
@@ -250,7 +250,7 @@ public class InsightsPageFacts
     {
         _circuits.Add(resource);
 
-        var hash = new Dictionary<string, string> { { "State", state } };
+        Dictionary<string, string> hash = new() { { "State", state } };
         if (openedAt.HasValue)
         {
             hash.Add("OpenedAt", new DateTimeOffset(openedAt.Value).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
@@ -265,7 +265,7 @@ public class InsightsPageFacts
 
     private static string Duration(long milliseconds)
     {
-        var page = new InsightsPage();
+        InsightsPage page = new();
         page.Assign(new DashboardContextStub(new DashboardOptions()));
         return new HtmlHelper(page).ToHumanDuration(TimeSpan.FromMilliseconds(milliseconds), false);
     }

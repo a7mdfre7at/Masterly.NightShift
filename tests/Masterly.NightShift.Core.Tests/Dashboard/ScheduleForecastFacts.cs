@@ -23,9 +23,9 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_ProjectsOccurrences_InsideTheWindow()
     {
-        var forecast = ScheduleForecast.Build([Dto("hourly", "0 * * * *")], _from, TimeSpan.FromHours(24), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("hourly", "0 * * * *")], _from, TimeSpan.FromHours(24), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal(23, row.Occurrences.Count);
         Assert.Equal(_from.AddHours(1), row.Occurrences[0]);
         Assert.All(row.Occurrences, x => Assert.InRange(x, _from, _from.AddHours(24)));
@@ -37,12 +37,12 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_LeavesOutOccurrences_BeforeTheStart_ButKeepsTheOneAtTheStart()
     {
-        var dto = Dto("hourly", "0 * * * *");
+        RecurringJobDto dto = Dto("hourly", "0 * * * *");
         dto.StartAt = _from.AddHours(5);
 
-        var forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromHours(10), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromHours(10), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal(_from.AddHours(5), row.Occurrences[0]);
         Assert.Equal(5, row.Occurrences.Count);
     }
@@ -50,24 +50,24 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_LeavesOutOccurrences_AfterTheEnd_ButKeepsTheOneAtTheEnd()
     {
-        var dto = Dto("hourly", "0 * * * *");
+        RecurringJobDto dto = Dto("hourly", "0 * * * *");
         dto.EndAt = _from.AddHours(3);
 
-        var forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromHours(10), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromHours(10), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal([_from.AddHours(1), _from.AddHours(2), _from.AddHours(3)], row.Occurrences);
     }
 
     [Fact]
     public void Build_ProjectsNothing_ForAJobThatHasEnded_OrStartsAfterTheWindow()
     {
-        var ended = Dto("ended", "0 * * * *");
+        RecurringJobDto ended = Dto("ended", "0 * * * *");
         ended.EndAt = _from.AddDays(-1);
-        var later = Dto("later", "0 * * * *");
+        RecurringJobDto later = Dto("later", "0 * * * *");
         later.StartAt = _from.AddDays(2);
 
-        var forecast = ScheduleForecast.Build([ended, later], _from, TimeSpan.FromHours(24), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([ended, later], _from, TimeSpan.FromHours(24), _ => null);
 
         Assert.Equal(2, forecast.Rows.Count);
         Assert.All(forecast.Rows, x => Assert.Empty(x.Occurrences));
@@ -77,27 +77,27 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_UsesTheStartAndEnd_StoredWithTheJob()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         SetupRecurringJob(connection, "windowed", "0 * * * *");
-        var hash = RecurringJobHash("0 * * * *", null);
+        Dictionary<string, string> hash = RecurringJobHash("0 * * * *", null);
         hash["StartAt"] = JobHelper.SerializeDateTime(_from.AddHours(2));
         hash["EndAt"] = JobHelper.SerializeDateTime(_from.AddHours(4));
         connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:windowed")).Returns(hash);
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal([_from.AddHours(2), _from.AddHours(3), _from.AddHours(4)], row.Occurrences);
     }
 
     [Fact]
     public void Build_UsesTheExpectedDuration_FromInsights()
     {
-        var key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Sample()));
+        string key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Sample()));
 
-        var forecast = ScheduleForecast.Build([Dto("job", "0 */6 * * *")], _from, TimeSpan.FromHours(24), k => k == key ? TimeSpan.FromMinutes(10) : (TimeSpan?)null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("job", "0 */6 * * *")], _from, TimeSpan.FromHours(24), k => k == key ? TimeSpan.FromMinutes(10) : (TimeSpan?)null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.True(row.DurationKnown);
         Assert.Equal(TimeSpan.FromMinutes(10), row.ExpectedDuration);
         Assert.Equal(3, row.Occurrences.Count);
@@ -107,12 +107,12 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_SkipsPausedAndRemovedJobs_ButListsPausedOnes()
     {
-        var removed = Dto("removed", "* * * * *");
+        RecurringJobDto removed = Dto("removed", "* * * * *");
         removed.Removed = true;
 
-        var forecast = ScheduleForecast.Build([Dto("paused", "* * * * *", paused: true), removed], _from, TimeSpan.FromHours(1), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("paused", "* * * * *", paused: true), removed], _from, TimeSpan.FromHours(1), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal("paused", row.Id);
         Assert.Empty(row.Occurrences);
     }
@@ -120,9 +120,9 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_ReportsBadCronExpressions_InsteadOfThrowing()
     {
-        var forecast = ScheduleForecast.Build([Dto("broken", "not a cron")], _from, TimeSpan.FromHours(1), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("broken", "not a cron")], _from, TimeSpan.FromHours(1), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Empty(row.Occurrences);
         Assert.NotNull(row.Error);
     }
@@ -130,7 +130,7 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_FindsHotSpots_WhereJobsStartTogether()
     {
-        var forecast = ScheduleForecast.Build([Dto("a", "0 * * * *"), Dto("b", "2 * * * *"), Dto("c", "30 * * * *")], _from, TimeSpan.FromHours(3), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("a", "0 * * * *"), Dto("b", "2 * * * *"), Dto("c", "30 * * * *")], _from, TimeSpan.FromHours(3), _ => null);
 
         Assert.Equal(2, forecast.HotSpots.Count);
         Assert.All(forecast.HotSpots, h => Assert.Equal(["a", "b"], h.JobIds));
@@ -140,7 +140,7 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_OrdersRowsByRunCount_AndFindsTheBusiestHour()
     {
-        var forecast = ScheduleForecast.Build([Dto("rare", "0 14 * * *"), Dto("often", "*/15 * * * *")], _from, TimeSpan.FromHours(3), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("rare", "0 14 * * *"), Dto("often", "*/15 * * * *")], _from, TimeSpan.FromHours(3), _ => null);
 
         Assert.Equal(["often", "rare"], forecast.Rows.Select(r => r.Id));
         Assert.Equal(_from.AddHours(2), forecast.BusiestHour);
@@ -151,9 +151,9 @@ public class ScheduleForecastFacts
     {
         // Every minute over a week: 10,080 runs. The row said "2000x" and its band stopped after about 33 hours,
         // and its first runs collided with every other job of those hours.
-        var forecast = ScheduleForecast.Build([Dto("every-minute", "* * * * *"), Dto("daily", "0 13 * * *")], _from, TimeSpan.FromDays(7), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("every-minute", "* * * * *"), Dto("daily", "0 13 * * *")], _from, TimeSpan.FromDays(7), _ => null);
 
-        var row = forecast.Rows.Single(r => r.Id == "every-minute");
+        ScheduleForecast.Row row = forecast.Rows.Single(r => r.Id == "every-minute");
         Assert.True(row.Truncated);
         Assert.True(forecast.Truncated);
         Assert.Equal(ScheduleForecast.MaxOccurrencesPerJob, row.Occurrences.Count);
@@ -165,10 +165,10 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_TruncatedRuns_StopAtTheJobsEnd()
     {
-        var dto = Dto("every-minute", "* * * * *");
+        RecurringJobDto dto = Dto("every-minute", "* * * * *");
         dto.EndAt = _from.AddDays(3);
 
-        var forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromDays(7), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([dto], _from, TimeSpan.FromDays(7), _ => null);
 
         Assert.Equal(_from.AddDays(3), Assert.Single(forecast.Rows).RunsUntil);
     }
@@ -177,9 +177,9 @@ public class ScheduleForecastFacts
     public void Build_DoesNotMarkAJobAsTruncated_WhenItsRunsEndAtTheCap()
     {
         // 2000 runs, the last one inside the window, nothing after it
-        var forecast = ScheduleForecast.Build([Dto("every-minute", "* * * * *")], _from, TimeSpan.FromMinutes(2001), _ => null);
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("every-minute", "* * * * *")], _from, TimeSpan.FromMinutes(2001), _ => null);
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal(ScheduleForecast.MaxOccurrencesPerJob, row.Occurrences.Count);
         Assert.False(row.Truncated);
         Assert.Null(row.RunsUntil);
@@ -188,8 +188,8 @@ public class ScheduleForecastFacts
     [Fact]
     public void Build_HonoursTheTimeZone()
     {
-        var zone = TimeZoneInfo.Utc;
-        var forecast = ScheduleForecast.Build([Dto("daily", "0 13 * * *", timeZone: zone.Id)], _from, TimeSpan.FromHours(24), _ => null);
+        TimeZoneInfo zone = TimeZoneInfo.Utc;
+        ScheduleForecast forecast = ScheduleForecast.Build([Dto("daily", "0 13 * * *", timeZone: zone.Id)], _from, TimeSpan.FromHours(24), _ => null);
 
         Assert.Equal(_from.AddHours(1), Assert.Single(Assert.Single(forecast.Rows).Occurrences));
     }
@@ -203,13 +203,13 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_ReadsRecurringJobs_AndTheMedianDurationFromInsights()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         SetupRecurringJob(connection, "job", "0 */6 * * *");
         SetupDurations(connection, "100", "300", "200");
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal("job", row.Id);
         Assert.Equal(3, row.Occurrences.Count);
         Assert.True(row.DurationKnown);
@@ -219,13 +219,13 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_UsesTheDefaultDuration_WithFewerThanThreeRecordedRuns()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         SetupRecurringJob(connection, "job", "0 */6 * * *");
         SetupDurations(connection, "100", "300");
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.False(row.DurationKnown);
         Assert.Equal(ScheduleForecast.DefaultDuration, row.ExpectedDuration);
     }
@@ -233,10 +233,10 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_UsesTheDefaultDuration_WithoutAnyInsights()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         SetupRecurringJob(connection, "job", "0 */6 * * *");
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
 
         Assert.False(Assert.Single(forecast.Rows).DurationKnown);
     }
@@ -244,12 +244,12 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_WithALegacyConnection_UsesTheDefaultDuration()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         SetupRecurringJob(connection, "job", "0 */6 * * *");
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24));
 
-        var row = Assert.Single(forecast.Rows);
+        ScheduleForecast.Row row = Assert.Single(forecast.Rows);
         Assert.Equal(3, row.Occurrences.Count);
         Assert.False(row.DurationKnown);
     }
@@ -257,13 +257,13 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_ResolvesTimeZones_WithTheGivenResolver()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         SetupRecurringJob(connection, "daily", "0 13 * * *", timeZoneId: "Custom/Plus2");
-        var zone = TimeZoneInfo.CreateCustomTimeZone("Custom/Plus2", TimeSpan.FromHours(2), "Custom/Plus2", "Custom/Plus2");
-        var resolver = new Mock<ITimeZoneResolver>();
+        TimeZoneInfo zone = TimeZoneInfo.CreateCustomTimeZone("Custom/Plus2", TimeSpan.FromHours(2), "Custom/Plus2", "Custom/Plus2");
+        Mock<ITimeZoneResolver> resolver = new();
         resolver.Setup(x => x.GetTimeZoneById("Custom/Plus2")).Returns(zone);
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24), resolver.Object);
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(24), resolver.Object);
 
         Assert.Equal(_from.AddHours(23), Assert.Single(Assert.Single(forecast.Rows).Occurrences));
         resolver.Verify(x => x.GetTimeZoneById("Custom/Plus2"), Times.Once);
@@ -272,10 +272,10 @@ public class ScheduleForecastFacts
     [Fact]
     public void BuildFromConnection_WithoutRecurringJobs_IsEmpty()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns([]);
 
-        var forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(1));
+        ScheduleForecast forecast = ScheduleForecast.Build(connection.Object, _from, TimeSpan.FromHours(1));
 
         Assert.Empty(forecast.Rows);
         Assert.Empty(forecast.HotSpots);
@@ -298,7 +298,7 @@ public class ScheduleForecastFacts
 
     private static Dictionary<string, string> RecurringJobHash(string cron, string timeZoneId)
     {
-        var hash = new Dictionary<string, string>
+        Dictionary<string, string> hash = new()
         {
             { "Cron", cron },
             { "Job", InvocationData.SerializeJob(Job.FromExpression(() => Sample())).SerializePayload() },
@@ -309,7 +309,7 @@ public class ScheduleForecastFacts
 
     private static void SetupDurations(Mock<JobStorageConnection> connection, params string[] newestFirst)
     {
-        var key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Sample()));
+        string key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Sample()));
         connection.Setup(x => x.GetAllEntriesFromHash("insights:" + key)).Returns(new Dictionary<string, string> { { "LastDurationMs", newestFirst[0] } });
         connection.Setup(x => x.GetAllItemsFromList("insights:" + key + ":durations")).Returns([.. newestFirst]);
     }

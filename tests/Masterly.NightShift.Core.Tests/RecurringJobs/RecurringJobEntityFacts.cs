@@ -13,7 +13,7 @@ public class RecurringJobEntityFacts
 
     public RecurringJobEntityFacts()
     {
-        var timeZone = TimeZoneInfo.Local;
+        TimeZoneInfo timeZone = TimeZoneInfo.Local;
 
         _recurringJob = new Dictionary<string, string>
         {
@@ -30,7 +30,7 @@ public class RecurringJobEntityFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenRecurringJobId_IsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() =>
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
             new RecurringJobEntity(null, _recurringJob));
 
         Assert.Equal("recurringJobId", exception.ParamName);
@@ -39,7 +39,7 @@ public class RecurringJobEntityFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenRecurringJob_IsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() =>
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() =>
             new RecurringJobEntity(RecurringJobId, null));
 
         Assert.Equal("recurringJob", exception.ParamName);
@@ -48,7 +48,7 @@ public class RecurringJobEntityFacts
     [Fact]
     public void Ctor_SetsRelaxedMisfireOption_WhenCorrespondingKeyIsMissing()
     {
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
         Assert.Equal(MisfireHandlingMode.Relaxed, entity.MisfireHandling);
     }
 
@@ -57,7 +57,7 @@ public class RecurringJobEntityFacts
     {
         _recurringJob["Misfire"] = "0";
 
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
 
         Assert.Equal(MisfireHandlingMode.Relaxed, entity.MisfireHandling);
     }
@@ -67,7 +67,7 @@ public class RecurringJobEntityFacts
     {
         _recurringJob["Misfire"] = "1";
 
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
 
         Assert.Equal(MisfireHandlingMode.Strict, entity.MisfireHandling);
     }
@@ -89,9 +89,9 @@ public class RecurringJobEntityFacts
     [Fact]
     public void IsChanged_DoesNotAddMisfireKey_WhenItIsNotPresentAndDefaultValueIsUnchanged()
     {
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
 
-        entity.IsChanged(_nowInstant, out var fields);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
         Assert.False(fields.ContainsKey("Misfire"));
     }
@@ -100,9 +100,9 @@ public class RecurringJobEntityFacts
     public void IsChanged_DoesNotAddMisfireKey_WhenItIsSetToDefaultAndDefaultValueIsUnchanged()
     {
         _recurringJob["Misfire"] = "0";
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
 
-        entity.IsChanged(_nowInstant, out var fields);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
         Assert.False(fields.ContainsKey("Misfire"));
     }
@@ -110,10 +110,10 @@ public class RecurringJobEntityFacts
     [Fact]
     public void IsChanged_AddsMisfireKey_WhenItIsNotPresent_ButDefaultValueIsChanged()
     {
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
         entity.MisfireHandling = MisfireHandlingMode.Strict;
 
-        entity.IsChanged(_nowInstant, out var fields);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
         Assert.True(fields.ContainsKey("Misfire"));
         Assert.Equal("1", fields["Misfire"]);
@@ -123,10 +123,10 @@ public class RecurringJobEntityFacts
     public void IsChanged_ExplicitlySetsTheDefaultValue_WhenItWasSetToStrict()
     {
         _recurringJob["Misfire"] = "1";
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
         entity.MisfireHandling = MisfireHandlingMode.Relaxed;
 
-        entity.IsChanged(_nowInstant, out var fields);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
         Assert.True(fields.ContainsKey("Misfire"));
         Assert.Equal("0", fields["Misfire"]);
@@ -136,10 +136,10 @@ public class RecurringJobEntityFacts
     public void IsChanged_DoesNotAddMisfireKey_WhenItsNonDefaultValueIsUnchanged()
     {
         _recurringJob["Misfire"] = "1";
-        var entity = CreateEntity();
+        RecurringJobEntity entity = CreateEntity();
         entity.MisfireHandling = MisfireHandlingMode.Strict;
 
-        entity.IsChanged(_nowInstant, out var fields);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string>? fields);
 
         Assert.False(fields.ContainsKey("Misfire"));
     }
@@ -148,10 +148,10 @@ public class RecurringJobEntityFacts
     public void ScheduleNext_InStrictMode_ReturnsAtMostMaxExecutionsPerPass_AndLeavesTheJobDue()
     {
         _recurringJob["Misfire"] = "1";
-        var entity = CreateEntity();
-        var from = _nowInstant.AddDays(-1);
+        RecurringJobEntity entity = CreateEntity();
+        DateTime from = _nowInstant.AddDays(-1);
 
-        var executions = entity.ScheduleNext(_timeZoneResolver.Object, from, _nowInstant, TimeSpan.Zero).ToList();
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, from, _nowInstant, TimeSpan.Zero)];
 
         Assert.Equal(RecurringJobEntity.MaxExecutionsPerPass, executions.Count);
         Assert.Equal(from.AddMinutes(1), executions.First());
@@ -163,11 +163,11 @@ public class RecurringJobEntityFacts
     public void ScheduleNext_InStrictMode_CreatesTheRemainingRuns_OnTheNextPass()
     {
         _recurringJob["Misfire"] = "1";
-        var entity = CreateEntity();
-        var from = _nowInstant.AddMinutes(-150);
+        RecurringJobEntity entity = CreateEntity();
+        DateTime from = _nowInstant.AddMinutes(-150);
 
-        var firstPass = entity.ScheduleNext(_timeZoneResolver.Object, from, _nowInstant, TimeSpan.Zero).ToList();
-        var secondPass = entity.ScheduleNext(_timeZoneResolver.Object, firstPass.Last(), _nowInstant, TimeSpan.Zero).ToList();
+        List<DateTime> firstPass = [.. entity.ScheduleNext(_timeZoneResolver.Object, from, _nowInstant, TimeSpan.Zero)];
+        List<DateTime> secondPass = [.. entity.ScheduleNext(_timeZoneResolver.Object, firstPass.Last(), _nowInstant, TimeSpan.Zero)];
 
         Assert.Equal(
             Enumerable.Range(1, 150).Select(minutes => from.AddMinutes(minutes)),

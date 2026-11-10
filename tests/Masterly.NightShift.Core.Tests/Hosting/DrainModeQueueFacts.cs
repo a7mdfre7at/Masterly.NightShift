@@ -15,7 +15,7 @@ public class DrainModeQueueFacts : IDisposable
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(() => _hash);
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
-            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (var pair in pairs) _hash[pair.Key] = pair.Value; });
+            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value; });
         DrainMode.InvalidateCache();
     }
 
@@ -29,7 +29,7 @@ public class DrainModeQueueFacts : IDisposable
     {
         DrainMode.PauseQueue(_connection.Object, "Emails", "smtp outage");
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.False(status.Active);
         Assert.Equal("smtp outage", status.PausedQueues["emails"]);
         Assert.True(status.IsQueuePaused("emails"));
@@ -48,7 +48,7 @@ public class DrainModeQueueFacts : IDisposable
     {
         DrainMode.Enable(_connection.Object, "deploy");
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.Active);
         Assert.True(status.IsQueuePaused("anything"));
     }
@@ -57,14 +57,14 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_HoldsJobsFromPausedQueues_AndLetsOthersRun()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var filter = new DrainModeFilter();
+        DrainModeFilter filter = new();
 
-        var held = Elect("1", "emails");
+        ElectStateContextMock held = Elect("1", "emails");
         filter.OnStateElection(held.Object);
-        var scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
         Assert.Equal("Held: queue 'emails' is paused", scheduled.Reason);
 
-        var running = Elect("2", "default");
+        ElectStateContextMock running = Elect("2", "default");
         filter.OnStateElection(running.Object);
         Assert.IsType<ProcessingState>(running.Object.CandidateState);
     }
@@ -72,8 +72,8 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_DoesNotReadTheState_WhenNoQueueIsPaused()
     {
-        var filter = new DrainModeFilter();
-        var context = Elect("3", "emails");
+        DrainModeFilter filter = new();
+        ElectStateContextMock context = Elect("3", "emails");
 
         filter.OnStateElection(context.Object);
 
@@ -85,13 +85,13 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_FallsBackToTheJobQueue_WhenTheStateCannotBeRead()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var filter = new DrainModeFilter();
-        var context = ElectWithJobQueue("4", "emails");
+        DrainModeFilter filter = new();
+        ElectStateContextMock context = ElectWithJobQueue("4", "emails");
         _connection.Setup(x => x.GetStateData("4")).Throws(new InvalidOperationException("storage hiccup"));
 
         filter.OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal("Held: queue 'emails' is paused", scheduled.Reason);
     }
 
@@ -99,8 +99,8 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_FallsBackToTheJobQueue_WhenTheStateHasNoQueue()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var filter = new DrainModeFilter();
-        var context = ElectWithJobQueue("5", "emails");
+        DrainModeFilter filter = new();
+        ElectStateContextMock context = ElectWithJobQueue("5", "emails");
         _connection.Setup(x => x.GetStateData("5")).Returns(new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string>() });
 
         filter.OnStateElection(context.Object);
@@ -112,8 +112,8 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_LetsTheJobRun_WhenNeitherTheStateNorTheJobNamesAQueue()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var filter = new DrainModeFilter();
-        var context = ElectWithJobQueue("6", null);
+        DrainModeFilter filter = new();
+        ElectStateContextMock context = ElectWithJobQueue("6", null);
         _connection.Setup(x => x.GetStateData("6")).Returns((StateData)null);
 
         filter.OnStateElection(context.Object);
@@ -126,12 +126,12 @@ public class DrainModeQueueFacts : IDisposable
     {
         // BackgroundJob.Enqueue("emails", ...) keeps the queue in the job; the Enqueued state says "default"
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = ElectWithJobQueue("7", "emails");
+        ElectStateContextMock context = ElectWithJobQueue("7", "emails");
         SetupState("7", "default");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal("Held: queue 'emails' is paused", scheduled.Reason);
     }
 
@@ -140,7 +140,7 @@ public class DrainModeQueueFacts : IDisposable
     {
         // As the Enqueued state handler does: an explicit queue in the state wins over the job's own
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = ElectWithJobQueue("8", "emails");
+        ElectStateContextMock context = ElectWithJobQueue("8", "emails");
         SetupState("8", "critical");
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -152,7 +152,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_RemembersTheQueueOfTheEnqueuedState_WhenItHoldsAJobWithoutAQueueOfItsOwn()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = Elect("9", "emails");
+        ElectStateContextMock context = Elect("9", "emails");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -164,7 +164,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_RemembersTheQueue_WhenTheGlobalSwitchHoldsTheJob()
     {
         DrainMode.Enable(_connection.Object);
-        var context = Elect("10", "emails");
+        ElectStateContextMock context = Elect("10", "emails");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -176,9 +176,9 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_DoesNotRememberTheQueue_OfAJobWithAQueueOfItsOwn_OrOfTheDefaultQueue()
     {
         DrainMode.Enable(_connection.Object);
-        var ownQueue = ElectWithJobQueue("11", "emails");
+        ElectStateContextMock ownQueue = ElectWithJobQueue("11", "emails");
         SetupState("11", "default");
-        var defaultQueue = Elect("12", "default");
+        ElectStateContextMock defaultQueue = Elect("12", "default");
 
         new DrainModeFilter().OnStateElection(ownQueue.Object);
         new DrainModeFilter().OnStateElection(defaultQueue.Object);
@@ -192,7 +192,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_DoesNotWriteTheQueueAgain_WhenTheJobAlreadyRemembersIt()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = Elect("13", "emails");
+        ElectStateContextMock context = Elect("13", "emails");
         context.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { DrainModeFilter.HeldQueueParameter, "\"emails\"" } };
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -205,11 +205,11 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_PutsAHeldJobBackInItsQueue_WhenTheScheduleEnqueuesItAgain()
     {
         // The delayed job scheduler enqueues the held job with a new EnqueuedState, which names the default queue
-        var context = ElectEnqueued("14", ScheduledState.StateName, "\"emails\"");
+        ElectStateContextMock context = ElectEnqueued("14", ScheduledState.StateName, "\"emails\"");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
-        var enqueued = Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+        EnqueuedState enqueued = Assert.IsType<EnqueuedState>(context.Object.CandidateState);
         Assert.Equal("emails", enqueued.Queue);
         _connection.Verify(x => x.GetAllEntriesFromHash(It.IsAny<string>()), Times.Never);
     }
@@ -217,7 +217,7 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_ReadsTheHeldQueueFromTheStorage_WhenThereIsNoParametersSnapshot()
     {
-        var context = ElectEnqueued("15", ScheduledState.StateName, null);
+        ElectStateContextMock context = ElectEnqueued("15", ScheduledState.StateName, null);
         context.ApplyContext.BackgroundJob.ParametersSnapshot = null;
         _connection.Setup(x => x.GetJobParameter("15", DrainModeFilter.HeldQueueParameter)).Returns("\"emails\"");
 
@@ -232,7 +232,7 @@ public class DrainModeQueueFacts : IDisposable
     [InlineData("Scheduled", "default", true)]
     public void Filter_LeavesTheEnqueuedState_WhenTheJobDoesNotComeBackFromAHold(string currentState, string candidateQueue, bool jobHasItsOwnQueue)
     {
-        var context = ElectEnqueued("16", currentState, "\"emails\"", candidateQueue);
+        ElectStateContextMock context = ElectEnqueued("16", currentState, "\"emails\"", candidateQueue);
         if (jobHasItsOwnQueue) context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample(), "reports");
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -243,7 +243,7 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_ForgetsTheHeldQueue_OnceItPutTheJobBackInIt()
     {
-        var context = ElectEnqueued("18", ScheduledState.StateName, "\"emails\"");
+        ElectStateContextMock context = ElectEnqueued("18", ScheduledState.StateName, "\"emails\"");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -254,8 +254,8 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_ForgetsTheHeldQueue_InTheStateChangesTransaction_WhenTheStorageCan()
     {
-        var context = ElectEnqueued("19", ScheduledState.StateName, "\"emails\"");
-        var transaction = new Mock<JobStorageTransaction>();
+        ElectStateContextMock context = ElectEnqueued("19", ScheduledState.StateName, "\"emails\"");
+        Mock<JobStorageTransaction> transaction = new();
         context.ApplyContext.Transaction = transaction.As<IWriteOnlyTransaction>();
         context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
 
@@ -269,7 +269,7 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_ForgetsTheHeldQueue_WhenTheJobIsEnqueuedToAnotherQueueAfterTheHold()
     {
-        var context = ElectEnqueued("20", ScheduledState.StateName, "\"emails\"", "critical");
+        ElectStateContextMock context = ElectEnqueued("20", ScheduledState.StateName, "\"emails\"", "critical");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -281,7 +281,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_LeavesARetryInTheDefaultQueue_AfterTheHeldQueueWasForgotten()
     {
         // The parameter was cleared when the hold ended (an empty value), and the job then failed and was retried
-        var context = ElectEnqueued("21", ScheduledState.StateName, null);
+        ElectStateContextMock context = ElectEnqueued("21", ScheduledState.StateName, null);
         context.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { DrainModeFilter.HeldQueueParameter, null } };
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -296,11 +296,11 @@ public class DrainModeQueueFacts : IDisposable
         // A [Queue("emails")] or new EnqueuedState("emails") job interrupted by a shutdown comes back still in
         // the Processing state, which names no queue
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = ElectRequeuedWhileProcessing("22", "emails");
+        ElectStateContextMock context = ElectRequeuedWhileProcessing("22", "emails");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal("Held: queue 'emails' is paused", scheduled.Reason);
         _connection.Verify(x => x.SetJobParameter("22", DrainModeFilter.HeldQueueParameter, "\"emails\""));
     }
@@ -309,7 +309,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_RemembersTheQueueFromTheHistory_WhenTheGlobalSwitchHoldsAJobRequeuedWhileRunning()
     {
         DrainMode.Enable(_connection.Object);
-        var context = ElectRequeuedWhileProcessing("23", "emails");
+        ElectStateContextMock context = ElectRequeuedWhileProcessing("23", "emails");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -321,7 +321,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_DoesNotReadTheHistory_OfAJobFetchedFromItsEnqueuedState()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = Elect("24", "emails");
+        ElectStateContextMock context = Elect("24", "emails");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -333,7 +333,7 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_LetsAJobRequeuedWhileRunning_Run_WhenItsHistoryCannotBeRead()
     {
         DrainMode.PauseQueue(_connection.Object, "emails");
-        var context = ElectRequeuedWhileProcessing("25", "emails");
+        ElectStateContextMock context = ElectRequeuedWhileProcessing("25", "emails");
         context.ApplyContext.Storage.Setup(x => x.GetMonitoringApi()).Throws(new InvalidOperationException("storage hiccup"));
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -344,17 +344,17 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void HoldingFilters_PutAHeldJobBackInItsQueue_WithoutDrainModeFilter()
     {
-        var filters = new IElectStateFilter[]
-        {
+        IElectStateFilter[] filters =
+        [
             new ThrottleAttribute("resource"),
             new RateLimitAttribute("resource", 1, 60),
             new CircuitBreakerAttribute(1, 60, 60),
             new RunWindowAttribute("00:00-23:59"),
-        };
+        ];
 
-        foreach (var filter in filters)
+        foreach (IElectStateFilter filter in filters)
         {
-            var context = ElectEnqueued("26", ScheduledState.StateName, "\"emails\"");
+            ElectStateContextMock context = ElectEnqueued("26", ScheduledState.StateName, "\"emails\"");
             context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample());
 
             filter.OnStateElection(context.Object);
@@ -368,7 +368,7 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void HoldingFilters_AndDrainModeFilter_ForgetTheHeldQueue_OnceInOneElection()
     {
-        var context = ElectEnqueued("27", ScheduledState.StateName, "\"emails\"");
+        ElectStateContextMock context = ElectEnqueued("27", ScheduledState.StateName, "\"emails\"");
         context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample());
 
         new DrainModeFilter().OnStateElection(context.Object);
@@ -382,7 +382,7 @@ public class DrainModeQueueFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_IgnoresAnInvalidHeldQueue()
     {
-        var context = ElectEnqueued("17", ScheduledState.StateName, "\"Not A Queue\"");
+        ElectStateContextMock context = ElectEnqueued("17", ScheduledState.StateName, "\"Not A Queue\"");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
@@ -391,7 +391,7 @@ public class DrainModeQueueFacts : IDisposable
 
     private ElectStateContextMock ElectEnqueued(string jobId, string currentState, string heldQueue, string candidateQueue = "default")
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.BackgroundJob.ParametersSnapshot = heldQueue == null
             ? []
@@ -405,7 +405,7 @@ public class DrainModeQueueFacts : IDisposable
     // A job requeued while it was running: still Processing, with its queue in the Enqueued state before that
     private ElectStateContextMock ElectRequeuedWhileProcessing(string jobId, string queue)
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.OldStateName = ProcessingState.StateName;
@@ -416,8 +416,8 @@ public class DrainModeQueueFacts : IDisposable
             Data = new Dictionary<string, string> { { "ServerId", "old" }, { "WorkerId", "w" } },
         });
 
-        var now = DateTime.UtcNow;
-        var monitoring = new Mock<IMonitoringApi>();
+        DateTime now = DateTime.UtcNow;
+        Mock<IMonitoringApi> monitoring = new();
         monitoring.Setup(x => x.JobDetails(jobId)).Returns(new JobDetailsDto
         {
             Properties = new Dictionary<string, string>(),
@@ -440,7 +440,7 @@ public class DrainModeQueueFacts : IDisposable
 
     private ElectStateContextMock ElectWithJobQueue(string jobId, string queue)
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample(), queue);
         context.ApplyContext.Connection = _connection;
@@ -455,7 +455,7 @@ public class DrainModeQueueFacts : IDisposable
 
     private ElectStateContextMock Elect(string jobId, string queue)
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.NewStateObject = new ProcessingState("srv", "w");

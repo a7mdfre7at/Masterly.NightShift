@@ -21,7 +21,7 @@ public class DrainModeDispatcherFacts : IDisposable
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
                 _hash ??= [];
-                foreach (var pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
             });
         DrainMode.InvalidateCache();
     }
@@ -34,7 +34,7 @@ public class DrainModeDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly_ForPost()
     {
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("POST"), _storage.Object);
 
         await new DrainModeDispatcher(enable: true).Dispatch(context);
 
@@ -46,12 +46,12 @@ public class DrainModeDispatcherFacts : IDisposable
     public async Task Dispatch_AnswersTheStatus_ForGet_EvenWhenReadOnly()
     {
         _hash = new Dictionary<string, string> { { "Drain", "1" }, { "DrainReason", "deploy" } };
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("GET"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("GET"), _storage.Object);
 
         await new DrainModeDispatcher(enable: true).Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.True(json["active"].GetValue<bool>());
         Assert.Equal("deploy", json["reason"].GetValue<string>());
         Assert.Equal(30, json["holdSeconds"].GetValue<int>());
@@ -60,7 +60,7 @@ public class DrainModeDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets405_ForOtherMethods()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("PUT"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("PUT"), _storage.Object);
 
         await new DrainModeDispatcher(enable: true).Dispatch(context);
 
@@ -70,9 +70,9 @@ public class DrainModeDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_EnablesTheSwitch_WithTheReason()
     {
-        var request = new DashboardRequestStub("POST");
+        DashboardRequestStub request = new("POST");
         request.Form["reason"] = ["  db maintenance  "];
-        var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);
 
         await new DrainModeDispatcher(enable: true).Dispatch(context);
 
@@ -85,9 +85,9 @@ public class DrainModeDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_TruncatesTheReason_To200Characters()
     {
-        var request = new DashboardRequestStub("POST");
+        DashboardRequestStub request = new("POST");
         request.Form["reason"] = [new('d', 201)];
-        var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);
 
         await new DrainModeDispatcher(enable: true).Dispatch(context);
 
@@ -100,7 +100,7 @@ public class DrainModeDispatcherFacts : IDisposable
     public async Task Dispatch_DisablesTheSwitch()
     {
         _hash = new Dictionary<string, string> { { "Drain", "1" } };
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
 
         await new DrainModeDispatcher(enable: false).Dispatch(context);
 

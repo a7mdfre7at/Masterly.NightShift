@@ -29,8 +29,8 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void Console_IsSharedBetweenContextsOfTheSamePerformance()
     {
-        var context = _context.Object;
-        var performing = new PerformingContext(context);
+        PerformContext context = _context.Object;
+        PerformingContext performing = new(context);
 
         Assert.Same(context.Console, performing.Console);
         Assert.Same(context.Console, context.Console);
@@ -48,7 +48,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void SetProgress_ClampsToTheValidRange()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.SetProgress(250);
         console.SetProgress(-3);
@@ -60,7 +60,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void SetProgress_SkipsWrites_WhenNothingChanged()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.SetProgress(10, "step");
         console.SetProgress(10, "step");
@@ -76,7 +76,7 @@ public class JobConsoleFacts : IDisposable
 
         _context.Object.Console.WriteLine("hello");
 
-        var entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
+        JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
         Assert.Equal("hello", entry.Message);
         Assert.Equal(JobConsoleLevel.Info, entry.Level);
         Assert.Null(entry.Checkpoint);
@@ -89,12 +89,12 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void WriteLine_KeepsTheLevel_AndIncrementsTheSequence()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.WriteLine(JobConsoleLevel.Warning, "careful");
         console.WriteLine(JobConsoleLevel.Error, "boom");
 
-        var entries = _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal)).ToList();
+        List<JobConsoleEntry?> entries = [.. _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal))];
         Assert.Equal(JobConsoleLevel.Warning, entries[0].Level);
         Assert.Equal(JobConsoleLevel.Error, entries[1].Level);
         Assert.Equal([1, 2], entries.Select(x => x.Sequence));
@@ -110,14 +110,14 @@ public class JobConsoleFacts : IDisposable
     public void WriteLine_DropsTheLine_AndLogsAWarning_WhenTheStorageFails()
     {
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("SQL timeout"));
-        var log = new RecordingLogProvider();
+        RecordingLogProvider log = new();
 
         using (log.Use())
         {
             _context.Object.Console.WriteLine("line");
         }
 
-        var entry = Assert.Single(log.Entries, static x => x.Logger == typeof(JobConsole).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(log.Entries, static x => x.Logger == typeof(JobConsole).FullName);
         Assert.Equal(LogLevel.Warn, entry.Level);
         Assert.Contains("'JobId'", entry.Message, StringComparison.Ordinal);
         Assert.IsType<TimeoutException>(entry.Exception);
@@ -128,10 +128,10 @@ public class JobConsoleFacts : IDisposable
     {
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("SQL timeout"));
         _context.Connection.Setup(x => x.SetJobParameter("JobId", JobConsole.ProgressParameter, It.IsAny<string>())).Throws(new TimeoutException("SQL timeout"));
-        var now = _now;
+        DateTime now = _now;
         JobConsole.Clock = () => now;
-        var console = _context.Object.Console;
-        var log = new RecordingLogProvider();
+        IJobConsole console = _context.Object.Console;
+        RecordingLogProvider log = new();
 
         using (log.Use())
         {
@@ -144,7 +144,7 @@ public class JobConsoleFacts : IDisposable
             console.WriteLine("fourth");
         }
 
-        var messages = log.Entries.Where(static x => x.Logger == typeof(JobConsole).FullName).Select(static x => x.Message).ToArray();
+        string[] messages = [.. log.Entries.Where(static x => x.Logger == typeof(JobConsole).FullName).Select(static x => x.Message)];
         Assert.Equal(2, messages.Length);
         Assert.Contains(" 1 progress report(s) or line(s)", messages[0], StringComparison.Ordinal);
         Assert.Contains(" 4 progress report(s) or line(s)", messages[1], StringComparison.Ordinal);
@@ -154,7 +154,7 @@ public class JobConsoleFacts : IDisposable
     public void WriteLine_WritesAgain_OnceTheStorageRecovers()
     {
         _transaction.SetupSequence(x => x.Commit()).Throws(new TimeoutException("SQL timeout")).Pass();
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.WriteLine("lost");
         console.WriteLine("kept");
@@ -169,7 +169,7 @@ public class JobConsoleFacts : IDisposable
         _context.Connection.SetupSequence(x => x.SetJobParameter("JobId", JobConsole.ProgressParameter, It.IsAny<string>()))
             .Throws(new TimeoutException("SQL timeout"))
             .Pass();
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.SetProgress(10, "step");
         console.SetProgress(10, "step");
@@ -192,7 +192,7 @@ public class JobConsoleFacts : IDisposable
     {
         _context.Object.Console.Checkpoint("loaded");
 
-        var entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
+        JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
         Assert.Equal("loaded", entry.Checkpoint);
         Assert.Null(entry.Message);
         Assert.Null(entry.Level);
@@ -201,13 +201,13 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void HasCheckpoint_Throws_WhenTheStorageFails_AndReadsAgainOnTheNextCall()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
-        var entry = SerializationHelper.Serialize(new JobConsoleEntry { Checkpoint = "step", Timestamp = 1 }, SerializationOption.Internal);
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
+        string entry = SerializationHelper.Serialize(new JobConsoleEntry { Checkpoint = "step", Timestamp = 1 }, SerializationOption.Internal);
         connection.SetupSequence(x => x.GetAllItemsFromList(JobConsole.GetCheckpointsKey("JobId")))
             .Throws(new TimeoutException("SQL timeout"))
             .Returns([entry]);
         _context.Storage.Setup(x => x.GetConnection()).Returns(connection.Object);
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         // Treating the error as "no checkpoints" would make Resume redo the finished step
         Assert.Throws<TimeoutException>(() => console.HasCheckpoint("step"));
@@ -218,7 +218,7 @@ public class JobConsoleFacts : IDisposable
     public void HasCheckpoint_ReturnsFalse_WhenTheStorageCannotReadLists()
     {
         // The base class throws NotSupportedException from GetAllItemsFromList
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         _context.Storage.Setup(x => x.GetConnection()).Returns(connection.Object);
 
         Assert.False(_context.Object.Console.HasCheckpoint("step"));
@@ -230,18 +230,18 @@ public class JobConsoleFacts : IDisposable
     {
         _context.Object.Console.WriteLine(new string('x', JobConsole.MaxMessageLength + 100));
 
-        var entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
+        JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(_inserted.Single(), SerializationOption.Internal);
         Assert.Equal(JobConsole.MaxMessageLength, entry.Message.Length);
     }
 
     [Fact]
     public void Writes_GoThroughAShortLivedConnection_WhenTheStorageIsKnown()
     {
-        var owned = new Mock<IStorageConnection>();
-        var ownedTransaction = new Mock<IWriteOnlyTransaction>();
+        Mock<IStorageConnection> owned = new();
+        Mock<IWriteOnlyTransaction> ownedTransaction = new();
         owned.Setup(x => x.CreateWriteTransaction()).Returns(ownedTransaction.Object);
         _context.Storage.Setup(x => x.GetConnection()).Returns(owned.Object);
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.WriteLine("hello");
         console.SetProgress(10);
@@ -257,15 +257,15 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void Writes_FromSeveralThreads_RunOneAtATime()
     {
-        var running = 0;
-        var overlaps = 0;
+        int running = 0;
+        int overlaps = 0;
         _transaction.Setup(x => x.InsertToList(Key, It.IsAny<string>())).Callback(() =>
         {
             if (Interlocked.Increment(ref running) > 1) Interlocked.Increment(ref overlaps);
             Thread.Sleep(1);
             Interlocked.Decrement(ref running);
         });
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         Parallel.For(0, 64, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i => console.WriteLine($"line {i}"));
 
@@ -276,8 +276,8 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void Console_IsCreatedOnce_WhenSeveralThreadsAskForIt()
     {
-        var context = _context.Object;
-        var consoles = new ConcurrentBag<IJobConsole>();
+        PerformContext context = _context.Object;
+        ConcurrentBag<IJobConsole> consoles = [];
 
         Parallel.For(0, 64, new ParallelOptions { MaxDegreeOfParallelism = 8 }, _ => consoles.Add(new PerformContext(context).Console));
 
@@ -287,7 +287,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void FirstWrite_MarksTheJob_SoTheStateFilterKnowsItHasAConsole()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.WriteLine("one");
         console.Checkpoint("two");
@@ -310,7 +310,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void SetProgress_DoesNotMarkTheJob()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.SetProgress(10);
 
@@ -321,11 +321,11 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void Writes_AreSkipped_OnceTheJobIsAborted()
     {
-        var state = new StateData { Name = DeletedState.StateName, Data = new Dictionary<string, string>() };
+        StateData state = new() { Name = DeletedState.StateName, Data = new Dictionary<string, string>() };
         _context.Connection.Setup(x => x.GetStateData("JobId")).Returns(state);
 
-        using var token = new ServerJobCancellationToken(_context.Connection.Object, "JobId", "server", "worker", CancellationToken.None);
-        var console = new PerformContext(_context.Storage.Object, _context.Connection.Object, _context.BackgroundJob.Object, token).Console;
+        using ServerJobCancellationToken token = new(_context.Connection.Object, "JobId", "server", "worker", CancellationToken.None);
+        IJobConsole console = new PerformContext(_context.Storage.Object, _context.Connection.Object, _context.BackgroundJob.Object, token).Console;
         console.WriteLine("before");
         _ = token.ShutdownToken;
         Assert.True(token.TryCheckJobIsAborted(_context.Connection.Object));
@@ -342,8 +342,8 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void Writes_AreSkipped_AfterThePerformanceIsOver()
     {
-        var token = new ServerJobCancellationToken(_context.Connection.Object, "JobId", "server", "worker", CancellationToken.None);
-        var console = new PerformContext(_context.Storage.Object, _context.Connection.Object, _context.BackgroundJob.Object, token).Console;
+        ServerJobCancellationToken token = new(_context.Connection.Object, "JobId", "server", "worker", CancellationToken.None);
+        IJobConsole console = new PerformContext(_context.Storage.Object, _context.Connection.Object, _context.BackgroundJob.Object, token).Console;
         token.Dispose();
 
         console.WriteLine("too late");
@@ -356,7 +356,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void ReadEntries_ReturnsEmpty_ForConnectionsWithoutListSupport()
     {
-        var entries = JobConsole.ReadEntries(_context.Connection.Object, "JobId");
+        IReadOnlyList<JobConsoleEntry> entries = JobConsole.ReadEntries(_context.Connection.Object, "JobId");
 
         Assert.Empty(entries);
     }
@@ -364,9 +364,9 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void ReadEntries_ReturnsEmpty_WhenTheConnectionLacksTheExtendedApi()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
 
-        var entries = JobConsole.ReadEntries(connection.Object, "JobId");
+        IReadOnlyList<JobConsoleEntry> entries = JobConsole.ReadEntries(connection.Object, "JobId");
 
         Assert.Empty(entries);
     }
@@ -374,7 +374,7 @@ public class JobConsoleFacts : IDisposable
     [Fact]
     public void ReadEntries_OrdersByTimestampThenSequence_AndSkipsGarbage()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromList(Key)).Returns(
         [
             "{\"t\":2000,\"s\":1,\"l\":\"Info\",\"m\":\"second\"}",
@@ -383,7 +383,7 @@ public class JobConsoleFacts : IDisposable
             "{\"t\":1000,\"s\":1,\"l\":\"Debug\",\"m\":\"first\"}",
         ]);
 
-        var entries = JobConsole.ReadEntries(connection.Object, "JobId");
+        IReadOnlyList<JobConsoleEntry> entries = JobConsole.ReadEntries(connection.Object, "JobId");
 
         Assert.Equal(["first", null, "second"], entries.Select(x => x.Message));
         Assert.Equal("start", entries[1].Checkpoint);
@@ -400,7 +400,7 @@ public class JobConsoleFacts : IDisposable
     {
         _context.Connection.Setup(x => x.GetJobParameter("JobId", JobConsole.ProgressParameter)).Returns("{\"p\":55.5,\"m\":\"half\",\"t\":123}");
 
-        var progress = JobConsole.ReadProgress(_context.Connection.Object, "JobId");
+        JobProgress? progress = JobConsole.ReadProgress(_context.Connection.Object, "JobId");
 
         Assert.Equal(55.5, progress.Percent);
         Assert.Equal("half", progress.Message);
@@ -433,7 +433,7 @@ public class JobConsoleFacts : IDisposable
     public void Console_IsInjected_IntoJobMethodParameters()
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Report(null));
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
 
         performer.Perform(_context.Object);
 
@@ -445,11 +445,11 @@ public class JobConsoleFacts : IDisposable
     public void LogInvocation_WritesStartAndFinishToTheConsole()
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Logged());
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
 
         performer.Perform(_context.Object);
 
-        var messages = _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal).Message).ToList();
+        List<string?> messages = [.. _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal).Message)];
         Assert.Equal(2, messages.Count);
         Assert.StartsWith("Starting", messages[0]);
         Assert.StartsWith("Finished", messages[1]);
@@ -461,11 +461,11 @@ public class JobConsoleFacts : IDisposable
         // The method ran (an e-mail was sent): a timeout on the console write must not make it Failed and retried
         _transaction.SetupSequence(x => x.Commit()).Pass().Throws(new TimeoutException("SQL timeout"));
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Logged());
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
 
         performer.Perform(_context.Object);
 
-        var messages = _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal).Message).ToList();
+        List<string?> messages = [.. _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal).Message)];
         Assert.Equal(2, messages.Count);
         Assert.StartsWith("Finished", messages[1]);
     }
@@ -473,13 +473,13 @@ public class JobConsoleFacts : IDisposable
     [Fact, StaticLock]
     public void LogInvocation_DoesNotReportTheMethodAsFailed_WhenTheConsoleThrowsAfterItReturned()
     {
-        var console = new Mock<IJobConsole>();
+        Mock<IJobConsole> console = new();
         console.Setup(x => x.WriteLine(JobConsoleLevel.Debug, It.Is<string>(m => m.StartsWith("Finished", StringComparison.Ordinal))))
             .Throws(new TimeoutException("SQL timeout"));
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Logged());
-        var context = _context.Object;
+        PerformContext context = _context.Object;
         context.Items[PerformContext.ConsoleItemKey] = console.Object;
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
 
         Assert.ThrowsAny<Exception>(() => performer.Perform(context));
 
@@ -490,11 +490,11 @@ public class JobConsoleFacts : IDisposable
     public void LogInvocation_WritesTheException_AndRethrows()
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.LoggedFailure());
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
 
         Assert.Throws<JobPerformanceException>(() => performer.Perform(_context.Object));
 
-        var entries = _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal)).ToList();
+        List<JobConsoleEntry?> entries = [.. _inserted.Select(x => SerializationHelper.Deserialize<JobConsoleEntry>(x, SerializationOption.Internal))];
         Assert.Equal(JobConsoleLevel.Error, entries[1].Level);
         Assert.Contains("InvalidOperationException", entries[1].Message);
     }
@@ -598,7 +598,7 @@ public class JobConsoleStateFilterFacts
     [Fact]
     public void OnStateApplied_ExpiresTheConsole_WhenThePerformanceThatJustEndedWroteToIt()
     {
-        var perform = new PerformContextMock();
+        PerformContextMock perform = new();
         perform.Connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
         perform.Object.Console.WriteLine("hello");
         JobHasNoConsole();
@@ -629,7 +629,7 @@ public class JobConsoleStateFilterFacts
     public void OnStateApplied_DoesNothing_WhenTheStorageLacksTheExtendedApi(bool finalState)
     {
         // The base class throws NotSupportedException from ExpireList and PersistList
-        var transaction = new Mock<JobStorageTransaction> { CallBase = true };
+        Mock<JobStorageTransaction> transaction = new() { CallBase = true };
         _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
         JobHasAConsole();
         _context.NewStateObject = finalState ? new SucceededState(null, 0, 0) : new EnqueuedState();
@@ -648,12 +648,12 @@ public class JobConsoleStateFilterFacts
         JobHasAConsole();
         _context.OldStateName = oldStateName;
         _context.NewStateObject = new EnqueuedState();
-        var marker = default(string);
+        string? marker = null;
         _transaction.Setup(x => x.InsertToList(CheckpointsKey, It.IsAny<string>())).Callback<string, string>((_, value) => marker = value);
 
         new JobConsoleStateFilter().OnStateApplied(_context.Object, _transaction.Object);
 
-        var entry = SerializationHelper.Deserialize<JobConsoleEntry>(marker, SerializationOption.Internal);
+        JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(marker, SerializationOption.Internal);
         Assert.Null(entry.Checkpoint);
         _transaction.Verify(x => x.TrimList(CheckpointsKey, 0, 0));
         _transaction.Verify(x => x.PersistList(ConsoleKey));
@@ -688,7 +688,7 @@ public class JobConsoleStateFilterFacts
     [Fact]
     public void OnStateApplied_ThrowsAnException_WhenArgumentsAreNull()
     {
-        var filter = new JobConsoleStateFilter();
+        JobConsoleStateFilter filter = new();
 
         Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => filter.OnStateApplied(null, _transaction.Object)).ParamName);
         Assert.Equal("transaction", Assert.Throws<ArgumentNullException>(() => filter.OnStateApplied(_context.Object, null)).ParamName);

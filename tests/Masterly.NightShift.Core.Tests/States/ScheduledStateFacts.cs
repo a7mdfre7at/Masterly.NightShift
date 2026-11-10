@@ -7,22 +7,22 @@ public class ScheduledStateFacts
     [Fact]
     public void StateName_IsCorrect()
     {
-        var state = new ScheduledState(DateTime.UtcNow);
+        ScheduledState state = new(DateTime.UtcNow);
         Assert.Equal(ScheduledState.StateName, state.Name);
     }
 
     [Fact]
     public void Ctor_SetsTheCorrectData_WhenDateIsPassed()
     {
-        var date = new DateTime(2012, 12, 12);
-        var state = new ScheduledState(date);
+        DateTime date = new(2012, 12, 12);
+        ScheduledState state = new(date);
         Assert.Equal(date, state.EnqueueAt);
     }
 
     [Fact]
     public void Ctor_SetsTheCorrectDate_WhenTimeSpanIsPassed()
     {
-        var state = new ScheduledState(TimeSpan.FromDays(1));
+        ScheduledState state = new(TimeSpan.FromDays(1));
         Assert.True(DateTime.UtcNow.AddDays(1).AddMinutes(-1) < state.EnqueueAt);
         Assert.True(state.EnqueueAt < DateTime.UtcNow.AddDays(1).AddMinutes(1));
     }
@@ -30,9 +30,9 @@ public class ScheduledStateFacts
     [Fact]
     public void SerializeData_ReturnsCorrectData()
     {
-        var state = new ScheduledState(new DateTime(2012, 12, 12));
+        ScheduledState state = new(new DateTime(2012, 12, 12));
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal(JobHelper.SerializeDateTime(state.EnqueueAt), data["EnqueueAt"]);
         Assert.Equal(JobHelper.SerializeDateTime(state.ScheduledAt), data["ScheduledAt"]);
@@ -41,9 +41,9 @@ public class ScheduledStateFacts
     [Fact]
     public void SerializeData_DoesNotContainQueueKey_WhenItIsNotSet()
     {
-        var state = new ScheduledState(TimeSpan.Zero);
+        ScheduledState state = new(TimeSpan.Zero);
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.DoesNotContain("Queue", data.Keys);
     }
@@ -51,7 +51,7 @@ public class ScheduledStateFacts
     [Fact]
     public void IsFinal_ReturnsFalse()
     {
-        var state = new ScheduledState(DateTime.UtcNow);
+        ScheduledState state = new(DateTime.UtcNow);
 
         Assert.False(state.IsFinal);
     }
@@ -59,18 +59,18 @@ public class ScheduledStateFacts
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = new ScheduledState(DateTime.UtcNow);
+        ScheduledState state = new(DateTime.UtcNow);
         Assert.False(state.IgnoreJobLoadException);
     }
 
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var dateTime = DateTime.UtcNow;
-        var state = new ScheduledState(dateTime);
-        var convertedDateTime = JsonSerializer.Serialize(dateTime);
+        DateTime dateTime = DateTime.UtcNow;
+        ScheduledState state = new(dateTime);
+        string convertedDateTime = JsonSerializer.Serialize(dateTime);
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.ScheduledState, Masterly.NightShift.Core\",\"EnqueueAt\":" + convertedDateTime + "}",
@@ -80,11 +80,11 @@ public class ScheduledStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var dateTime = DateTime.UtcNow;
-        var state = new ScheduledState(dateTime);
-        var convertedDateTime = JsonSerializer.Serialize(dateTime);
+        DateTime dateTime = DateTime.UtcNow;
+        ScheduledState state = new(dateTime);
+        string convertedDateTime = JsonSerializer.Serialize(dateTime);
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.ScheduledState, Masterly.NightShift.Core\",\"EnqueueAt\":" + convertedDateTime + "}",

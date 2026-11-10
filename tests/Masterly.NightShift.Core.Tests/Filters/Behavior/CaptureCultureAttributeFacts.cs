@@ -1,4 +1,5 @@
 using System.Globalization;
+using Masterly.NightShift.Client;
 
 namespace Masterly.NightShift.Core.Tests;
 
@@ -31,7 +32,7 @@ public class CaptureCultureAttributeFacts
     [Fact]
     public void Ctor_SetsDefaultCulturesToNull_ByDefault()
     {
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         Assert.Null(attribute.DefaultCultureName);
         Assert.Null(attribute.DefaultUICultureName);
@@ -40,7 +41,7 @@ public class CaptureCultureAttributeFacts
     [Fact]
     public void Ctor_AllowsToUseNulls_AsDefaultCultureValues()
     {
-        var attribute = new CaptureCultureAttribute(null, null);
+        CaptureCultureAttribute attribute = new(null, null);
 
         Assert.Null(attribute.DefaultCultureName);
         Assert.Null(attribute.DefaultUICultureName);
@@ -50,7 +51,7 @@ public class CaptureCultureAttributeFacts
     public void OnCreating_SetsCultureRelated_Parameters()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_uiCulture);
 
@@ -66,7 +67,7 @@ public class CaptureCultureAttributeFacts
     public void OnCreating_ExplicitlySetsUICultureName_EvenWhenItIsEqualToTheCultureNameOne_WithCompatibilityVersion170AndBelow()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute(null, null, captureDefault: false);
+        CaptureCultureAttribute attribute = new(null, null, captureDefault: false);
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_culture);
 
@@ -82,7 +83,7 @@ public class CaptureCultureAttributeFacts
     public void OnCreating_DoesNotSetUICultureName_WhenItIsEqualToTheCultureNameOne_WithCompatibilityVersion180AndAbove()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute(null, null, captureDefault: true);
+        CaptureCultureAttribute attribute = new(null, null, captureDefault: true);
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_culture);
 
@@ -101,7 +102,7 @@ public class CaptureCultureAttributeFacts
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_uiCulture);
 
-        var attribute = new CaptureCultureAttribute(_culture.Name, _uiCulture.Name, captureDefault: true);
+        CaptureCultureAttribute attribute = new(_culture.Name, _uiCulture.Name, captureDefault: true);
 
         // Act
         attribute.OnCreating(_context.GetCreatingContext());
@@ -118,7 +119,7 @@ public class CaptureCultureAttributeFacts
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_uiCulture);
 
-        var attribute = new CaptureCultureAttribute(_culture.Name, _uiCulture.Name, captureDefault: false);
+        CaptureCultureAttribute attribute = new(_culture.Name, _uiCulture.Name, captureDefault: false);
 
         // Act
         attribute.OnCreating(_context.GetCreatingContext());
@@ -131,7 +132,7 @@ public class CaptureCultureAttributeFacts
     [Fact]
     public void OnCreating_ThrowsAnException_WhenContextIsNull()
     {
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         Assert.Throws<ArgumentNullException>(() => attribute.OnCreating(null));
     }
@@ -140,8 +141,8 @@ public class CaptureCultureAttributeFacts
     public void OnCreating_StoresEmptyStrings_ForTheInvariantCulture()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
-        var creating = _context.GetCreatingContext();
+        CaptureCultureAttribute attribute = new();
+        CreatingContext creating = _context.GetCreatingContext();
 
         // Act
         attribute.OnCreating(creating);
@@ -154,7 +155,7 @@ public class CaptureCultureAttributeFacts
     public void OnCreated_DoesNotThrow_NotImplementedException()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnCreated(_context.GetCreatedContext("id"));
@@ -166,7 +167,7 @@ public class CaptureCultureAttributeFacts
     public void OnPerforming_ReadsCorrespondingJobParameters_AndSetCurrentCultures()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -191,7 +192,7 @@ public class CaptureCultureAttributeFacts
         SetCurrentCulture(_culture);
         SetCurrentUICulture(_uiCulture);
 
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -209,7 +210,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -231,7 +232,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute("en-US", "en-GB");
+        CaptureCultureAttribute attribute = new("en-US", "en-GB");
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -253,7 +254,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute("en-US");
+        CaptureCultureAttribute attribute = new("en-US");
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -275,7 +276,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute("en-US", null);
+        CaptureCultureAttribute attribute = new("en-US", null);
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -296,7 +297,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -318,7 +319,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns("\"yy-YY\"");
 
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerforming(_perform.GetPerformingContext());
@@ -334,7 +335,7 @@ public class CaptureCultureAttributeFacts
     public void OnPerformed_ResetsCurrentCultures_ToTheirOriginalValues()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
         attribute.OnPerforming(_perform.GetPerformingContext());
 
         // Act
@@ -348,7 +349,7 @@ public class CaptureCultureAttributeFacts
     [Fact]
     public void OnPerformed_ThrowsAnException_WhenContextIsNull()
     {
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         Assert.Throws<ArgumentNullException>(() => attribute.OnPerformed(null));
     }
@@ -365,7 +366,7 @@ public class CaptureCultureAttributeFacts
             .Setup(x => x.GetJobParameter(_perform.BackgroundJob.Id, "CurrentUICulture"))
             .Returns((string)null);
 
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
         attribute.OnPerforming(_perform.GetPerformingContext());
 
         // The job itself changes the culture; nothing was saved to restore
@@ -384,7 +385,7 @@ public class CaptureCultureAttributeFacts
     public void OnPerformed_DoesNotThrow_WhenCanNotRestoreOriginalCultures()
     {
         // Arrange
-        var attribute = new CaptureCultureAttribute();
+        CaptureCultureAttribute attribute = new();
 
         // Act
         attribute.OnPerformed(_perform.GetPerformedContext());

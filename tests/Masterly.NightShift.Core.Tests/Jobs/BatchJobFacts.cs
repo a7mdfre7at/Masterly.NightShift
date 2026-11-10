@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using Masterly.NightShift.Client;
 
 namespace Masterly.NightShift.Core.Tests;
 
@@ -22,32 +24,32 @@ public class BatchJobFacts : IDisposable
         _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
-        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns<string>(key => _hashes.TryGetValue(key, out var hash) ? hash : null);
-        _connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns<string>(key => [.. _sets.TryGetValue(key, out var set) ? set : []]);
-        _connection.Setup(x => x.GetRangeFromSet(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>())).Returns<string, int, int>((key, from, to) => [.. (_sets.TryGetValue(key, out var set) ? set : []).Skip(from).Take(to - from + 1)]);
-        _connection.Setup(x => x.GetSetCount(It.IsAny<string>())).Returns<string>(key => _sets.TryGetValue(key, out var set) ? set.Count : 0);
-        _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns<string>(key => _counters.TryGetValue(key, out var value) ? value : 0);
+        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns<string>(key => _hashes.TryGetValue(key, out Dictionary<string, string>? hash) ? hash : null);
+        _connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns<string>(key => [.. _sets.TryGetValue(key, out List<string>? set) ? set : []]);
+        _connection.Setup(x => x.GetRangeFromSet(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>())).Returns<string, int, int>((key, from, to) => [.. (_sets.TryGetValue(key, out List<string>? set) ? set : []).Skip(from).Take(to - from + 1)]);
+        _connection.Setup(x => x.GetSetCount(It.IsAny<string>())).Returns<string>(key => _sets.TryGetValue(key, out List<string>? set) ? set.Count : 0);
+        _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns<string>(key => _counters.TryGetValue(key, out long value) ? value : 0);
 
         _transaction.Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((key, pairs) =>
             {
-                if (!_hashes.TryGetValue(key, out var hash)) _hashes[key] = hash = [];
-                foreach (var pair in pairs) hash[pair.Key] = pair.Value;
+                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash)) _hashes[key] = hash = [];
+                foreach (KeyValuePair<string, string> pair in pairs) hash[pair.Key] = pair.Value;
             });
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>())).Callback<string, string, double>((key, value, _) => Add(key, value));
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>(Add);
-        _transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => { if (_sets.TryGetValue(key, out var set)) set.Remove(value); });
-        _transaction.Setup(x => x.IncrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out var v) ? v : 0) + 1);
-        _transaction.Setup(x => x.DecrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out var v) ? v : 0) - 1);
+        _transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => { if (_sets.TryGetValue(key, out List<string>? set)) set.Remove(value); });
+        _transaction.Setup(x => x.IncrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out long v) ? v : 0) + 1);
+        _transaction.Setup(x => x.DecrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out long v) ? v : 0) - 1);
 
-        var nextId = 100;
+        int nextId = 100;
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns<Job, IState>((job, state) =>
         {
             _created.Add((job, state));
-            var id = (nextId++).ToString();
+            string id = (nextId++).ToString();
             // What BatchSupportAttribute does on creation, without a real pipeline
-            var filter = new BatchSupportAttribute();
-            var applyContext = new ApplyStateContextMock { NewStateObject = state };
+            BatchSupportAttribute filter = new();
+            ApplyStateContextMock applyContext = new() { NewStateObject = state };
             applyContext.BackgroundJob.Id = id;
             applyContext.Connection = new Mock<IStorageConnection>();
             filter.OnStateApplied(applyContext.Object, _transaction.Object);
@@ -62,7 +64,7 @@ public class BatchJobFacts : IDisposable
 
     private void Add(string key, string value)
     {
-        if (!_sets.TryGetValue(key, out var set)) _sets[key] = set = [];
+        if (!_sets.TryGetValue(key, out List<string>? set)) _sets[key] = set = [];
         if (!set.Contains(value)) set.Add(value);
     }
 
@@ -98,7 +100,7 @@ public class BatchJobFacts : IDisposable
         SetupRealClientStorage();
         string jobId = null;
 
-        var batchId = BatchJob.StartNew(batch => jobId = batch.Enqueue(() => Export("eu")), "Through the current storage");
+        string batchId = BatchJob.StartNew(batch => jobId = batch.Enqueue(() => Export("eu")), "Through the current storage");
 
         Assert.Equal("900", jobId);
         Assert.Equal("Through the current storage", _hashes[BatchJob.GetHashKey(batchId)]["Description"]);
@@ -115,7 +117,7 @@ public class BatchJobFacts : IDisposable
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
 
-        var id = BatchJob.ContinueWith("b1", () => Merge());
+        string? id = BatchJob.ContinueWith("b1", () => Merge());
 
         Assert.Equal("900", id);
         Assert.Equal(new[] { "900" }, _sets[BatchJob.GetContinuationsKey("b1")]);
@@ -133,7 +135,7 @@ public class BatchJobFacts : IDisposable
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
 
-        var id = BatchJob.ContinueWith<BatchJobFacts>("b1", x => x.Instance("eu"), JobContinuationOptions.OnlyOnSucceededState);
+        string? id = BatchJob.ContinueWith<BatchJobFacts>("b1", x => x.Instance("eu"), JobContinuationOptions.OnlyOnSucceededState);
 
         Assert.Equal("900", id);
         _connection.Verify(x => x.CreateExpiredJob(
@@ -150,7 +152,7 @@ public class BatchJobFacts : IDisposable
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
 
-        var id = BatchJob.ContinueWith("b1", () => MergeAsync());
+        string? id = BatchJob.ContinueWith("b1", () => MergeAsync());
 
         Assert.Equal("900", id);
         _connection.Verify(x => x.CreateExpiredJob(
@@ -165,7 +167,7 @@ public class BatchJobFacts : IDisposable
     {
         SetupRealClientStorage();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => BatchJob.ContinueWith("nope", Job.FromExpression(() => Merge())));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => BatchJob.ContinueWith("nope", Job.FromExpression(() => Merge())));
 
         Assert.Contains("'nope'", exception.Message);
         _connection.Verify(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>()), Times.Never);
@@ -182,7 +184,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void ContinueWith_ThrowsAnException_WhenArgumentsAreNull()
     {
-        var job = Job.FromExpression(() => Merge());
+        Job job = Job.FromExpression(() => Merge());
 
         Assert.Equal("client", Assert.Throws<ArgumentNullException>(() => BatchJob.ContinueWith(null, _storage.Object, "b1", job)).ParamName);
         Assert.Equal("storage", Assert.Throws<ArgumentNullException>(() => BatchJob.ContinueWith(_client.Object, null, "b1", job)).ParamName);
@@ -197,7 +199,7 @@ public class BatchJobFacts : IDisposable
         Add(BatchJob.GetJobsKey("b1"), "1");
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingJobsState>())).Returns((string)null);
 
-        var id = BatchJob.ContinueWith(_client.Object, _storage.Object, "b1", Job.FromExpression(() => Merge()));
+        string? id = BatchJob.ContinueWith(_client.Object, _storage.Object, "b1", Job.FromExpression(() => Merge()));
 
         Assert.Null(id);
         Assert.Null(BatchJob.CurrentContinuation);
@@ -206,9 +208,9 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Builder_CreatesEveryKindOfJob_ThroughTheClient()
     {
-        var state = new Mock<IState>();
-        var ids = new List<string>();
-        var batchIds = new List<string>();
+        Mock<IState> state = new();
+        List<string> ids = [];
+        List<string> batchIds = [];
 
         BatchJob.StartNew(_client.Object, _storage.Object, batch =>
         {
@@ -253,7 +255,7 @@ public class BatchJobFacts : IDisposable
         _counters[BatchJob.GetStateKey("b1", ProcessingState.StateName)] = 1;
         _counters[BatchJob.GetStateKey("b1", DeletedState.StateName)] = 2;
 
-        var batch = BatchJob.Get(_connection.Object, "b1");
+        JobBatch? batch = BatchJob.Get(_connection.Object, "b1");
 
         Assert.Equal(1, batch.Processing);
         Assert.Equal(2, batch.Deleted);
@@ -265,12 +267,12 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Get_OnALegacyConnection_CountsTheJobsSet_AndReadsTheContinuations()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns(new Dictionary<string, string> { { "Description", "Legacy" } });
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns(["1", "2", "3"]);
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetContinuationsKey("b1"))).Returns(["9", "10"]);
 
-        var batch = BatchJob.Get(connection.Object, "b1");
+        JobBatch? batch = BatchJob.Get(connection.Object, "b1");
 
         Assert.Equal("Legacy", batch.Description);
         Assert.Equal(3, batch.Total);
@@ -281,11 +283,11 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Get_OnALegacyConnection_ToleratesMissingSets()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns([]);
         connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns((HashSet<string>)null);
 
-        var batch = BatchJob.Get(connection.Object, "b1");
+        JobBatch? batch = BatchJob.Get(connection.Object, "b1");
 
         Assert.Equal(0, batch.Total);
         Assert.Empty(batch.Continuations);
@@ -306,7 +308,7 @@ public class BatchJobFacts : IDisposable
         Add(BatchJob.GetJobsKey("b1"), "3");
         Add(BatchJob.GetJobsKey("b1"), "1");
 
-        var ids = BatchJob.GetJobIds(_connection.Object, "b1");
+        IReadOnlyList<string> ids = BatchJob.GetJobIds(_connection.Object, "b1");
 
         Assert.Equal(["3", "1"], ids);
     }
@@ -314,10 +316,10 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void GetJobIds_OnALegacyConnection_ReadsTheWholeSet()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns(["1", "2"]);
 
-        var ids = BatchJob.GetJobIds(connection.Object, "b1");
+        IReadOnlyList<string> ids = BatchJob.GetJobIds(connection.Object, "b1");
 
         Assert.Equal(["1", "2"], ids.OrderBy(x => x, StringComparer.Ordinal));
     }
@@ -325,7 +327,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void GetJobIds_OnALegacyConnection_ReturnsNothing_WhenTheSetIsMissing()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns((HashSet<string>)null);
 
         Assert.Empty(BatchJob.GetJobIds(connection.Object, "b1"));
@@ -351,7 +353,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Count_OnALegacyConnection_CountsTheIndexMembers()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns(["a", "b", "c"]);
 
         Assert.Equal(3, BatchJob.Count(connection.Object));
@@ -360,7 +362,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Count_OnALegacyConnection_ReturnsZero_WhenTheIndexIsMissing()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns((HashSet<string>)null);
 
         Assert.Equal(0, BatchJob.Count(connection.Object));
@@ -369,7 +371,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Count_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => BatchJob.Count(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => BatchJob.Count(null));
 
         Assert.Equal("connection", exception.ParamName);
     }
@@ -377,11 +379,11 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void List_OnALegacyConnection_IsNewestFirst_AndPages()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns(["a", "b", "c"]);
         connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns([]);
 
-        var batches = BatchJob.List(connection.Object, 1, 2);
+        IReadOnlyList<JobBatch> batches = BatchJob.List(connection.Object, 1, 2);
 
         Assert.Equal(["b", "a"], batches.Select(x => x.Id));
         connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
@@ -390,7 +392,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void List_OnALegacyConnection_ReturnsNothing_WhenTheIndexIsMissing()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns((HashSet<string>)null);
 
         Assert.Empty(BatchJob.List(connection.Object, 0, 10));
@@ -416,9 +418,9 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_IgnoresStatesThatAreNotTracked()
     {
-        var filter = new BatchSupportAttribute();
-        var snapshot = new Dictionary<string, string> { { BatchJob.ParameterName, SerializationHelper.Serialize("b1", SerializationOption.User) } };
-        var context = new ApplyStateContextMock { OldStateName = "Custom" };
+        BatchSupportAttribute filter = new();
+        Dictionary<string, string> snapshot = new() { { BatchJob.ParameterName, SerializationHelper.Serialize("b1", SerializationOption.User) } };
+        ApplyStateContextMock context = new() { OldStateName = "Custom" };
         context.NewState.Setup(x => x.Name).Returns("AnotherCustom");
         context.BackgroundJob.Id = "7";
         context.BackgroundJob.ParametersSnapshot = snapshot;
@@ -433,8 +435,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_ReadsTheBatchFromStorage_WhenThereIsNoSnapshot()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new EnqueuedState() };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new EnqueuedState() };
         context.BackgroundJob.Id = "7";
         context.Connection.Setup(x => x.GetJobParameter("7", BatchJob.ParameterName)).Returns(SerializationHelper.Serialize("b1", SerializationOption.User));
 
@@ -448,8 +450,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_IgnoresTheJob_WhenItsParameterCanNotBeRead()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new EnqueuedState() };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new EnqueuedState() };
         context.BackgroundJob.Id = "7";
         context.Connection.Setup(x => x.GetJobParameter("7", BatchJob.ParameterName)).Throws(new InvalidOperationException("storage is down"));
 
@@ -462,8 +464,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_ThrowsAnException_WhenArgumentsAreNull()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new EnqueuedState() };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new EnqueuedState() };
 
         Assert.Equal("context", Assert.Throws<ArgumentNullException>(() => filter.OnStateApplied(null, _transaction.Object)).ParamName);
         Assert.Equal("transaction", Assert.Throws<ArgumentNullException>(() => filter.OnStateApplied(context.Object, null)).ParamName);
@@ -472,8 +474,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateUnapplied_ChangesNothing()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new EnqueuedState(), OldStateName = ProcessingState.StateName };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new EnqueuedState(), OldStateName = ProcessingState.StateName };
         context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { BatchJob.ParameterName, SerializationHelper.Serialize("b1", SerializationOption.User) } };
 
         filter.OnStateUnapplied(context.Object, _transaction.Object);
@@ -487,8 +489,8 @@ public class BatchJobFacts : IDisposable
     public void BatchSupport_OnCreated_WritesNothing_EvenForAContinuation()
     {
         // A write after the job exists could fail and make the caller create the job again
-        var filter = new BatchSupportAttribute();
-        var context = new CreateContextMock();
+        BatchSupportAttribute filter = new();
+        CreateContextMock context = new();
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
@@ -508,7 +510,7 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_ThrowsAnException_WhenContextIsNull()
     {
-        var filter = new BatchSupportAttribute();
+        BatchSupportAttribute filter = new();
 
         Assert.Throws<ArgumentNullException>(() => filter.OnCreating(null));
         Assert.Throws<ArgumentNullException>(() => filter.OnCreated(null));
@@ -519,7 +521,7 @@ public class BatchJobFacts : IDisposable
     {
         string insideId = null;
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch =>
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch =>
         {
             insideId = BatchJob.Current;
             batch.Enqueue(() => Export("eu"));
@@ -548,14 +550,14 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnCreating_SetsTheParameter_OnlyInsideABatch()
     {
-        var filter = new BatchSupportAttribute();
-        var outside = new CreateContextMock().GetCreatingContext();
+        BatchSupportAttribute filter = new();
+        CreatingContext outside = new CreateContextMock().GetCreatingContext();
         filter.OnCreating(outside);
         Assert.False(outside.Parameters.ContainsKey(BatchJob.ParameterName));
 
         BatchJob.StartNew(_client.Object, _storage.Object, _ =>
         {
-            var inside = new CreateContextMock().GetCreatingContext();
+            CreatingContext inside = new CreateContextMock().GetCreatingContext();
             filter.OnCreating(inside);
             Assert.Equal(BatchJob.Current, inside.GetJobParameter<string>(BatchJob.ParameterName));
         });
@@ -564,20 +566,20 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_KeepsTheCountersCurrent()
     {
-        var filter = new BatchSupportAttribute();
-        var snapshot = new Dictionary<string, string> { { BatchJob.ParameterName, SerializationHelper.Serialize("b1", SerializationOption.User) } };
+        BatchSupportAttribute filter = new();
+        Dictionary<string, string> snapshot = new() { { BatchJob.ParameterName, SerializationHelper.Serialize("b1", SerializationOption.User) } };
 
-        var created = new ApplyStateContextMock { NewStateObject = new EnqueuedState() };
+        ApplyStateContextMock created = new() { NewStateObject = new EnqueuedState() };
         created.BackgroundJob.Id = "7";
         created.BackgroundJob.ParametersSnapshot = snapshot;
         filter.OnStateApplied(created.Object, _transaction.Object);
 
-        var processing = new ApplyStateContextMock { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
+        ApplyStateContextMock processing = new() { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
         processing.BackgroundJob.Id = "7";
         processing.BackgroundJob.ParametersSnapshot = snapshot;
         filter.OnStateApplied(processing.Object, _transaction.Object);
 
-        var succeeded = new ApplyStateContextMock { NewStateObject = new SucceededState(null, 1, 1), OldStateName = ProcessingState.StateName };
+        ApplyStateContextMock succeeded = new() { NewStateObject = new SucceededState(null, 1, 1), OldStateName = ProcessingState.StateName };
         succeeded.BackgroundJob.Id = "7";
         succeeded.BackgroundJob.ParametersSnapshot = snapshot;
         filter.OnStateApplied(succeeded.Object, _transaction.Object);
@@ -593,7 +595,7 @@ public class BatchJobFacts : IDisposable
     public void StateMachine_KeepsTheBatchCounters_WhenTheStateIsChangedWithoutFilters()
     {
         // The worker stores a FailedState without filters when every attempt to store the final state failed
-        var context = CreateFailedContext("b1", out var transaction);
+        ApplyStateContextMock context = CreateFailedContext("b1", out Mock<IWriteOnlyTransaction>? transaction);
 
         new CoreStateMachine().ApplyState(context.Object);
 
@@ -604,8 +606,8 @@ public class BatchJobFacts : IDisposable
     [Fact, StaticLock]
     public void StateMachine_UpdatesTheBatchCountersOnce_WhenTheFilterRan()
     {
-        var context = CreateFailedContext("b1", out var transaction);
-        var filters = new JobFilterCollection { new BatchSupportAttribute() };
+        ApplyStateContextMock context = CreateFailedContext("b1", out Mock<IWriteOnlyTransaction>? transaction);
+        JobFilterCollection filters = new() { new BatchSupportAttribute() };
 
         new StateMachine(filters, new CoreStateMachine()).ApplyState(context.Object);
 
@@ -616,7 +618,7 @@ public class BatchJobFacts : IDisposable
     [Fact, StaticLock]
     public void StateMachine_LeavesTheBatchCounters_WhenTheFilterIsNotRegistered()
     {
-        var context = CreateFailedContext("b1", out var transaction);
+        ApplyStateContextMock context = CreateFailedContext("b1", out Mock<IWriteOnlyTransaction>? transaction);
         GlobalJobFilters.Filters.Remove(typeof(BatchSupportAttribute));
         try
         {
@@ -633,7 +635,7 @@ public class BatchJobFacts : IDisposable
 
     private static ApplyStateContextMock CreateFailedContext(string batchId, out Mock<IWriteOnlyTransaction> transaction)
     {
-        var context = new ApplyStateContextMock
+        ApplyStateContextMock context = new()
         {
             NewStateObject = new FailedState(new InvalidOperationException("boom"), "server"),
             OldStateName = ProcessingState.StateName
@@ -652,8 +654,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_IgnoresJobsOutsideBatches()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new EnqueuedState() };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new EnqueuedState() };
         context.BackgroundJob.Id = "9";
         context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
 
@@ -673,7 +675,7 @@ public class BatchJobFacts : IDisposable
         _counters[BatchJob.GetStateKey("b1", ProcessingState.StateName)] = 1;
         Add(BatchJob.GetContinuationsKey("b1"), "77");
 
-        var batch = BatchJob.Get(_connection.Object, "b1");
+        JobBatch? batch = BatchJob.Get(_connection.Object, "b1");
 
         Assert.Equal("Nightly", batch.Description);
         Assert.Equal(_now, batch.CreatedAt);
@@ -705,13 +707,13 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void List_IsNewestFirst_AndSkipsExpiredBatches_WithoutWriting()
     {
-        foreach (var id in new[] { "old", "gone", "new" })
+        foreach (string? id in new[] { "old", "gone", "new" })
         {
             Add(BatchJob.IndexKey, id);
             if (id != "gone") _hashes[BatchJob.GetHashKey(id)] = [];
         }
 
-        var batches = BatchJob.List(_connection.Object, 0, 10);
+        IReadOnlyList<JobBatch> batches = BatchJob.List(_connection.Object, 0, 10);
 
         // Listing serves dashboard GETs, which must not write
         Assert.Equal(["new", "old"], batches.Select(b => b.Id));
@@ -722,10 +724,10 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void StartNew_ExpiresTheJobList_OnceItsJobsAreCreated()
     {
-        var createdWhenExpired = -1;
+        int createdWhenExpired = -1;
         _transaction.Setup(x => x.ExpireSet(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback(() => createdWhenExpired = _created.Count);
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch =>
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch =>
         {
             batch.Enqueue(() => Export("eu"));
             batch.Enqueue(() => Export("us"));
@@ -757,7 +759,7 @@ public class BatchJobFacts : IDisposable
     {
         _transaction.Setup(x => x.ExpireSet(It.IsAny<string>(), It.IsAny<TimeSpan>())).Throws(new InvalidOperationException("storage down"));
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch => batch.Enqueue(() => Export("eu")));
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch => batch.Enqueue(() => Export("eu")));
 
         Assert.Equal(12, batchId.Length);
     }
@@ -767,7 +769,7 @@ public class BatchJobFacts : IDisposable
     {
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch => batch.Enqueue(() => Export("eu")));
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, batch => batch.Enqueue(() => Export("eu")));
 
         Assert.Contains(batchId, _sets[BatchJob.IndexKey]);
         _transaction.Verify(x => x.ExpireHash(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
@@ -777,14 +779,14 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void StartNew_RemovesExpiredBatchesFromTheIndex()
     {
-        var expiredBefore = (double)JobHelper.ToTimestamp(_now - BatchJob.ExpireIn);
+        double expiredBefore = (double)JobHelper.ToTimestamp(_now - BatchJob.ExpireIn);
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.BatchedGetFirstByLowest)).Returns(true);
         _connection.Setup(x => x.GetFirstByLowestScoreFromSet(BatchJob.IndexKey, 0, expiredBefore, 100)).Returns(["old1", "old2"]);
         Add(BatchJob.IndexKey, "old1");
         Add(BatchJob.IndexKey, "old2");
         Add(BatchJob.IndexKey, "recent");
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, _ => { });
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, _ => { });
 
         Assert.Equal(new[] { "recent", batchId }, _sets[BatchJob.IndexKey]);
     }
@@ -792,11 +794,11 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void StartNew_RemovesTheOldestExpiredBatch_WithoutBatchedReads()
     {
-        var expiredBefore = (double)JobHelper.ToTimestamp(_now - BatchJob.ExpireIn);
+        double expiredBefore = (double)JobHelper.ToTimestamp(_now - BatchJob.ExpireIn);
         _connection.Setup(x => x.GetFirstByLowestScoreFromSet(BatchJob.IndexKey, 0, expiredBefore)).Returns("old1");
         Add(BatchJob.IndexKey, "old1");
 
-        var batchId = BatchJob.StartNew(_client.Object, _storage.Object, _ => { });
+        string batchId = BatchJob.StartNew(_client.Object, _storage.Object, _ => { });
 
         Assert.Equal(new[] { batchId }, _sets[BatchJob.IndexKey]);
     }
@@ -804,10 +806,10 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_RecordsAContinuation_InTheTransactionOfItsFirstState()
     {
-        var filter = new BatchSupportAttribute();
-        var context = ContinuationContext("500", oldStateName: null);
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = ContinuationContext("500", oldStateName: null);
         context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
-        var calls = new List<string>();
+        List<string> calls = [];
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => { calls.Add("add"); Add(key, value); });
         _transaction.Setup(x => x.ExpireSet(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback(() => calls.Add("expire"));
 
@@ -823,8 +825,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_DoesNotExpireTheContinuationList_WhenTheStorageHasNoExtendedApi()
     {
-        var filter = new BatchSupportAttribute();
-        var context = ContinuationContext("500", oldStateName: null);
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = ContinuationContext("500", oldStateName: null);
 
         filter.OnStateApplied(context.Object, _transaction.Object);
 
@@ -835,8 +837,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_RecordsAContinuation_OnlyWithItsFirstState()
     {
-        var filter = new BatchSupportAttribute();
-        var context = ContinuationContext("500", oldStateName: AwaitingState.StateName);
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = ContinuationContext("500", oldStateName: AwaitingState.StateName);
 
         filter.OnStateApplied(context.Object, _transaction.Object);
 
@@ -846,8 +848,8 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_OnStateApplied_ReadsTheContinuationFromStorage_WhenThereIsNoSnapshot()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new ApplyStateContextMock { NewStateObject = new AwaitingJobsState(["1"]) };
+        BatchSupportAttribute filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new AwaitingJobsState(["1"]) };
         context.BackgroundJob.Id = "500";
         context.Connection.Setup(x => x.GetJobParameter("500", BatchJob.ContinuationParameterName)).Returns(SerializationHelper.Serialize("b1", SerializationOption.User));
 
@@ -860,8 +862,8 @@ public class BatchJobFacts : IDisposable
     public void BatchSupport_WritesItsParameters_WhenTheApplicationsOptionsDoNotKnowStrings()
     {
         SerializationHelper.SetUserSerializerSettings(new System.Text.Json.JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(int)) });
-        var filter = new BatchSupportAttribute();
-        var context = new CreateContextMock();
+        BatchSupportAttribute filter = new();
+        CreateContextMock context = new();
         IDictionary<string, string> stored = null;
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         context.Connection
@@ -893,7 +895,7 @@ public class BatchJobFacts : IDisposable
 
     private ApplyStateContextMock ContinuationContext(string jobId, string oldStateName)
     {
-        var context = new ApplyStateContextMock { NewStateObject = new AwaitingJobsState(["1"]), OldStateName = oldStateName };
+        ApplyStateContextMock context = new() { NewStateObject = new AwaitingJobsState(["1"]), OldStateName = oldStateName };
         context.BackgroundJob.Id = jobId;
         context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
         {
@@ -907,7 +909,7 @@ public class BatchJobFacts : IDisposable
     {
         public override string Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
         {
-            using var document = System.Text.Json.JsonDocument.ParseValue(ref reader);
+            using JsonDocument document = System.Text.Json.JsonDocument.ParseValue(ref reader);
             return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
                 ? document.RootElement.GetProperty("v").GetString()
                 : document.RootElement.GetString();
@@ -924,13 +926,13 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void Reads_FallBackToTheBasicApi_WhenTheStorageConnectionHasNoExtendedApi()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns(new Dictionary<string, string> { { "Description", "Basic" } });
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey("b1"))).Returns(["1", "2"]);
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetContinuationsKey("b1"))).Returns([]);
         connection.Setup(x => x.GetAllItemsFromSet(BatchJob.IndexKey)).Returns(["b1"]);
 
-        var batch = BatchJob.Get(connection.Object, "b1");
+        JobBatch? batch = BatchJob.Get(connection.Object, "b1");
 
         Assert.Equal(2, batch.Total);
         Assert.Empty(batch.Counts);
@@ -952,7 +954,7 @@ public class BatchJobFacts : IDisposable
             return "500";
         });
 
-        var id = BatchJob.ContinueWith(_client.Object, _storage.Object, "b1", Job.FromExpression(() => Merge()), JobContinuationOptions.OnlyOnSucceededState);
+        string? id = BatchJob.ContinueWith(_client.Object, _storage.Object, "b1", Job.FromExpression(() => Merge()), JobContinuationOptions.OnlyOnSucceededState);
 
         Assert.Equal("500", id);
         Assert.Equal("b1", continuationOf);
@@ -972,17 +974,17 @@ public class BatchJobFacts : IDisposable
     [Fact]
     public void BatchSupport_RecordsContinuations_ThroughTheirParameter()
     {
-        var filter = new BatchSupportAttribute();
-        var context = new CreateContextMock();
+        BatchSupportAttribute filter = new();
+        CreateContextMock context = new();
         _hashes[BatchJob.GetHashKey("b1")] = [];
         Add(BatchJob.GetJobsKey("b1"), "1");
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingJobsState>())).Returns<Job, IState>((_, state) =>
         {
-            var creating = context.GetCreatingContext();
+            CreatingContext creating = context.GetCreatingContext();
             filter.OnCreating(creating);
 
             // What the factory stores and the state machine applies
-            var applyContext = new ApplyStateContextMock { NewStateObject = state };
+            ApplyStateContextMock applyContext = new() { NewStateObject = state };
             applyContext.BackgroundJob.Id = "500";
             applyContext.BackgroundJob.ParametersSnapshot = creating.Parameters.ToDictionary(x => x.Key, x => SerializationHelper.SerializeInternal(x.Value));
             filter.OnStateApplied(applyContext.Object, _transaction.Object);

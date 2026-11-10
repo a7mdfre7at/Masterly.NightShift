@@ -25,14 +25,14 @@ public class JobListCommandsFacts
     [Fact]
     public void DeleteAll_DeletesEveryJob_PageByPage_UntilTheListIsEmpty()
     {
-        var remaining = new Queue<List<string>>([
+        Queue<List<string>> remaining = new([
             ["1", "2"],
             ["3"],
             [],
         ]);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAll(context, (_, from, count) => Items(remaining.Dequeue()), null, ScheduledState.StateName);
+        BulkJobResult result = JobListCommands.DeleteAll(context, (_, from, count) => Items(remaining.Dequeue()), null, ScheduledState.StateName);
 
         Assert.Equal(3, result.Processed);
         Assert.True(result.Complete);
@@ -44,10 +44,10 @@ public class JobListCommandsFacts
     [Fact]
     public void DeleteAll_Stops_WhenAPageReturnsOnlyJobsAlreadySeen()
     {
-        var context = Create();
+        DashboardContextStub context = Create();
 
         // A job that refuses to leave the list (its state changed meanwhile) must not loop forever
-        var result = JobListCommands.DeleteAll(context, (_, from, count) => from == 0 ? Items("stuck") : Items(), null, FailedState.StateName);
+        BulkJobResult result = JobListCommands.DeleteAll(context, (_, from, count) => from == 0 ? Items("stuck") : Items(), null, FailedState.StateName);
 
         Assert.Equal(1, result.Processed);
         Assert.True(result.Complete);
@@ -59,10 +59,10 @@ public class JobListCommandsFacts
     {
         // SQL Server keeps the queue row of a deleted job until a worker fetches it, so the enqueued list
         // still starts with the jobs deleted a moment ago
-        var queue = Enumerable.Range(1, 1200).Select(i => i.ToString()).ToList();
-        var context = Create();
+        List<string> queue = [.. Enumerable.Range(1, 1200).Select(i => i.ToString())];
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAll(context, (_, from, count) => Items(queue.Skip(from).Take(count).ToArray()), null, EnqueuedState.StateName);
+        BulkJobResult result = JobListCommands.DeleteAll(context, (_, from, count) => Items(queue.Skip(from).Take(count).ToArray()), null, EnqueuedState.StateName);
 
         Assert.Equal(1200, result.Processed);
         Assert.True(result.Complete);
@@ -73,12 +73,14 @@ public class JobListCommandsFacts
     public void DeleteAll_SkipsJobsNoLongerInTheListsState_WithoutChangingThem()
     {
         // A second click: the head of the queue holds rows of jobs deleted by the first one
-        var page = new List<KeyValuePair<string, bool>>();
-        page.AddRange(Enumerable.Range(1, 600).Select(i => new KeyValuePair<string, bool>("old-" + i, false)));
-        page.Add(new KeyValuePair<string, bool>("new-1", true));
-        var context = Create();
+        List<KeyValuePair<string, bool>> page =
+        [
+            .. Enumerable.Range(1, 600).Select(i => new KeyValuePair<string, bool>("old-" + i, false)),
+            new KeyValuePair<string, bool>("new-1", true),
+        ];
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAll(context, (_, from, count) => page.Skip(from).Take(count), null, EnqueuedState.StateName);
+        BulkJobResult result = JobListCommands.DeleteAll(context, (_, from, count) => page.Skip(from).Take(count), null, EnqueuedState.StateName);
 
         Assert.Equal(1, result.Processed);
         Assert.True(result.Complete);
@@ -89,11 +91,11 @@ public class JobListCommandsFacts
     public void DeleteAll_StopsAtTheWorkLimit_AndReportsWhatRemains()
     {
         // A list that never shrinks and never ends: every read finds jobs it hasn't seen
-        var next = 0;
+        int next = 0;
         _monitor.Setup(x => x.FailedCount()).Returns(123456);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAll(
+        BulkJobResult result = JobListCommands.DeleteAll(
             context,
             (_, from, count) => [.. Enumerable.Range(0, count).Select(_ => new KeyValuePair<string, bool>((next++).ToString(), true))],
             monitor => monitor.FailedCount(),
@@ -107,7 +109,7 @@ public class JobListCommandsFacts
     [Fact, StaticLock]
     public void DeleteAll_StopsWhenItsTimeIsUp_AndReportsWhatRemains()
     {
-        var budget = JobListCommands.TimeBudget;
+        TimeSpan budget = JobListCommands.TimeBudget;
         JobListCommands.TimeBudget = TimeSpan.FromMilliseconds(100);
 
         try
@@ -118,9 +120,9 @@ public class JobListCommandsFacts
                 .Callback<string, IState, string>((id, _, _) => { _changed.Add(id); System.Threading.Thread.Sleep(30); })
                 .Returns(true);
             _monitor.Setup(x => x.FailedCount()).Returns(497);
-            var context = Create();
+            DashboardContextStub context = Create();
 
-            var result = JobListCommands.DeleteAll(
+            BulkJobResult result = JobListCommands.DeleteAll(
                 context,
                 (_, from, count) => [.. Enumerable.Range(0, 500).Select(i => new KeyValuePair<string, bool>(i.ToString(), true))],
                 monitor => monitor.FailedCount(),
@@ -140,10 +142,10 @@ public class JobListCommandsFacts
     [Fact]
     public void RequeueAll_RequeuesEveryJob_ExpectingTheListsState()
     {
-        var remaining = new Queue<List<string>>([["1", "2"], []]);
-        var context = Create();
+        Queue<List<string>> remaining = new([["1", "2"], []]);
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.RequeueAll(context, (_, from, count) => Items(remaining.Dequeue()), null, FailedState.StateName);
+        BulkJobResult result = JobListCommands.RequeueAll(context, (_, from, count) => Items(remaining.Dequeue()), null, FailedState.StateName);
 
         Assert.Equal(2, result.Processed);
         _client.Verify(x => x.ChangeState("1", It.Is<EnqueuedState>(s => s.Reason == "Requeued via Dashboard UI (requeue all)"), FailedState.StateName));
@@ -154,9 +156,9 @@ public class JobListCommandsFacts
     public void DeleteAll_DoesNotCountJobsTheClientRefusedToChange()
     {
         _client.Setup(x => x.ChangeState("taken", It.IsAny<IState>(), It.IsAny<string>())).Returns(false);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAll(context, (_, from, count) => from == 0 ? Items("taken", "free") : Items(), null, FailedState.StateName);
+        BulkJobResult result = JobListCommands.DeleteAll(context, (_, from, count) => from == 0 ? Items("taken", "free") : Items(), null, FailedState.StateName);
 
         Assert.Equal(1, result.Processed);
         Assert.True(result.Complete);
@@ -165,11 +167,11 @@ public class JobListCommandsFacts
     [Fact]
     public void DeleteAllFromSet_UsesTheSetRange_AndTheExpectedState()
     {
-        var calls = 0;
+        int calls = 0;
         _connection.Setup(x => x.GetRangeFromSet("retries", 0, 499)).Returns(() => calls++ == 0 ? ["a", "b"] : []);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
+        BulkJobResult? result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
 
         Assert.Equal(2, result.Processed);
         Assert.Equal(new[] { "a", "b" }, _changed);
@@ -179,11 +181,11 @@ public class JobListCommandsFacts
     [Fact]
     public void DeleteAllFromSet_ReturnsNull_AndDeletesNothing_WhenTheConnectionCanNotPageASet()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
+        BulkJobResult? result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
 
         Assert.Null(result);
         Assert.Empty(_changed);
@@ -196,9 +198,9 @@ public class JobListCommandsFacts
         // The base GetRangeFromSet throws NotSupportedException: delete-all answered 500 instead of 422
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
         _connection.Setup(x => x.GetRangeFromSet(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>())).Throws(new NotSupportedException());
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
+        BulkJobResult? result = JobListCommands.DeleteAllFromSet(context, "retries", ScheduledState.StateName);
 
         Assert.Null(result);
         Assert.Empty(_changed);
@@ -208,11 +210,11 @@ public class JobListCommandsFacts
     public void RemoveAllRecurringJobs_RemovesEveryRegisteredJob()
     {
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(["nightly", "weekly"]);
-        var manager = new Mock<IRecurringJobManager>();
-        var context = Create();
+        Mock<IRecurringJobManager> manager = new();
+        DashboardContextStub context = Create();
         context.RecurringJobManager = manager.Object;
 
-        var result = JobListCommands.RemoveAllRecurringJobs(context);
+        BulkJobResult result = JobListCommands.RemoveAllRecurringJobs(context);
 
         Assert.Equal(2, result.Processed);
         Assert.True(result.Complete);
@@ -224,14 +226,14 @@ public class JobListCommandsFacts
     public void RemoveAllRecurringJobs_StopsWhenItsTimeIsUp_AndSaysHowManyAreLeft()
     {
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(["a", "b", "c"]);
-        var manager = new Mock<IRecurringJobManager>();
-        var context = Create();
+        Mock<IRecurringJobManager> manager = new();
+        DashboardContextStub context = Create();
         context.RecurringJobManager = manager.Object;
-        var budget = JobListCommands.TimeBudget;
+        TimeSpan budget = JobListCommands.TimeBudget;
         JobListCommands.TimeBudget = TimeSpan.Zero;
         try
         {
-            var result = JobListCommands.RemoveAllRecurringJobs(context);
+            BulkJobResult result = JobListCommands.RemoveAllRecurringJobs(context);
 
             Assert.Equal(1, result.Processed);
             Assert.False(result.Complete);
@@ -248,12 +250,12 @@ public class JobListCommandsFacts
     [Fact, StaticLock]
     public async Task Dispatcher_RecordsTheAttempt_WhenTheCommandFailsMidway()
     {
-        var list = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        List<string> list = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => list.Add(value));
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
-        var context = Create();
-        var dispatcher = new JobListCommandDispatcher(_ => throw new InvalidOperationException("storage down"));
+        DashboardContextStub context = Create();
+        JobListCommandDispatcher dispatcher = new(_ => throw new InvalidOperationException("storage down"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.Dispatch(context));
 
@@ -263,8 +265,8 @@ public class JobListCommandsFacts
     [Fact]
     public async Task Dispatcher_AnswersWithWhatWasDone_AsJson()
     {
-        var context = Create();
-        var dispatcher = new JobListCommandDispatcher(_ => new BulkJobResult(7, 0, true));
+        DashboardContextStub context = Create();
+        JobListCommandDispatcher dispatcher = new(_ => new BulkJobResult(7, 0, true));
 
         await dispatcher.Dispatch(context);
 
@@ -276,8 +278,8 @@ public class JobListCommandsFacts
     [Fact]
     public async Task Dispatcher_Answers422_WhenTheStorageCanNotRunTheCommand()
     {
-        var context = Create();
-        var dispatcher = new JobListCommandDispatcher(_ => null);
+        DashboardContextStub context = Create();
+        JobListCommandDispatcher dispatcher = new(_ => null);
 
         await dispatcher.Dispatch(context);
 
@@ -287,10 +289,10 @@ public class JobListCommandsFacts
     [Fact]
     public async Task Dispatcher_Answers405_ForGet_And401_ForReadOnlyUsers()
     {
-        var called = false;
-        var dispatcher = new JobListCommandDispatcher(_ => { called = true; return new BulkJobResult(0, 0, true); });
-        var get = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET"), _storage.Object);
-        var readOnly = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = static _ => true }, new DashboardRequestStub("POST"), _storage.Object);
+        bool called = false;
+        JobListCommandDispatcher dispatcher = new(_ => { called = true; return new BulkJobResult(0, 0, true); });
+        DashboardContextStub get = new(new DashboardOptions(), new DashboardRequestStub("GET"), _storage.Object);
+        DashboardContextStub readOnly = new(new DashboardOptions { IsReadOnlyFunc = static _ => true }, new DashboardRequestStub("POST"), _storage.Object);
 
         await dispatcher.Dispatch(get);
         await dispatcher.Dispatch(readOnly);

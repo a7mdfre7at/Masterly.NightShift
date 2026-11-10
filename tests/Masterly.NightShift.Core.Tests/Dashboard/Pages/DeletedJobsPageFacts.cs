@@ -12,7 +12,7 @@ public class DeletedJobsPageFacts
     [Fact]
     public void Render_WithoutDeletedJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new DeletedJobsPage());
+        string html = _renderer.Render(new DeletedJobsPage());
 
         Assert.Contains(Encode(Strings.DeletedJobsPage_NoJobs), html);
         Assert.DoesNotContain("/jobs/deleted/export", html);
@@ -23,7 +23,7 @@ public class DeletedJobsPageFacts
     {
         SetupJobs();
 
-        var html = _renderer.Render(new DeletedJobsPage());
+        string html = _renderer.Render(new DeletedJobsPage());
 
         Assert.Contains("data-url=\"/jobs/deleted/export\" data-filename=\"nightshift-deleted-jobs.csv\"", html);
         Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
@@ -36,7 +36,7 @@ public class DeletedJobsPageFacts
         SetupJobs();
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new DeletedJobsPage());
+        string html = _renderer.Render(new DeletedJobsPage());
 
         Assert.Contains("data-url=\"/jobs/deleted/export\"", html);
         Assert.DoesNotContain("/jobs/deleted/requeue", html);

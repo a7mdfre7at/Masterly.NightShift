@@ -14,7 +14,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void AddNightShiftKeepAlive_ThrowsAnException_WhenServicesIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => NightShiftKeepAliveServiceCollectionExtensions.AddNightShiftKeepAlive(null));
 
         Assert.Equal("services", exception.ParamName);
@@ -23,7 +23,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void AddNightShiftKeepAlive_ThrowsAnException_WhenPathIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ServiceCollection().AddNightShiftKeepAlive(path: null));
 
         Assert.Equal("path", exception.ParamName);
@@ -32,9 +32,9 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void AddNightShiftKeepAlive_RegistersOneKeepAliveProcess_AsABackgroundProcess()
     {
-        using var provider = BuildProvider(addresses: null, configure: x => x.Url = ClosedPort);
-        var first = provider.GetRequiredService<IBackgroundProcess>();
-        var second = provider.GetRequiredService<IBackgroundProcess>();
+        using ServiceProvider provider = BuildProvider(addresses: null, configure: x => x.Url = ClosedPort);
+        IBackgroundProcess first = provider.GetRequiredService<IBackgroundProcess>();
+        IBackgroundProcess second = provider.GetRequiredService<IBackgroundProcess>();
 
         Assert.IsType<KeepAliveProcess>(first);
         Assert.Same(first, second);
@@ -43,7 +43,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void AddNightShiftKeepAlive_AppliesTheConfiguredOptions()
     {
-        using var provider = BuildProvider(addresses: null, configure: x =>
+        using ServiceProvider provider = BuildProvider(addresses: null, configure: x =>
                {
                    x.Url = ClosedPort + "/custom";
                    x.Interval = TimeSpan.FromMinutes(1);
@@ -57,7 +57,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_RequestsTheConfiguredUrl_InsteadOfTheServerAddress()
     {
-        using var provider = BuildProvider(["http://localhost:2"], configure: x => x.Url = ClosedPort + "/custom");
+        using ServiceProvider provider = BuildProvider(["http://localhost:2"], configure: x => x.Url = ClosedPort + "/custom");
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal(ClosedPort + "/custom", KeepAliveProcess.Status.Url);
@@ -66,7 +66,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_RequestsTheUrlFromTheConfiguredFactory_InsteadOfTheServerAddress()
     {
-        using var provider = BuildProvider(["http://localhost:2"], configure: x => x.UrlFactory = () => ClosedPort + "/factory");
+        using ServiceProvider provider = BuildProvider(["http://localhost:2"], configure: x => x.UrlFactory = () => ClosedPort + "/factory");
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal(ClosedPort + "/factory", KeepAliveProcess.Status.Url);
@@ -81,7 +81,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [InlineData("http://[::]:1")]
     public void Ping_RequestsTheDefaultPathOnTheServerAddress_UsingLocalhostForAnyAddress(string address)
     {
-        using var provider = BuildProvider([address]);
+        using ServiceProvider provider = BuildProvider([address]);
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal("http://localhost:1/nightshift/ping", KeepAliveProcess.Status.Url);
@@ -90,7 +90,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_PrefersAnHttpAddress_OverAnHttpsOne()
     {
-        using var provider = BuildProvider(["https://localhost:2", "http://localhost:1"]);
+        using ServiceProvider provider = BuildProvider(["https://localhost:2", "http://localhost:1"]);
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal("http://localhost:1/nightshift/ping", KeepAliveProcess.Status.Url);
@@ -99,7 +99,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_UsesAnHttpsAddress_WhenItIsTheOnlyOne()
     {
-        using var provider = BuildProvider(["https://localhost:1"]);
+        using ServiceProvider provider = BuildProvider(["https://localhost:1"]);
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal("https://localhost:1/nightshift/ping", KeepAliveProcess.Status.Url);
@@ -110,7 +110,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [InlineData("keep-alive")]
     public void Ping_AppendsTheGivenPath_WithExactlyOneSlash(string path)
     {
-        using var provider = BuildProvider([ClosedPort + "/"], path);
+        using ServiceProvider provider = BuildProvider([ClosedPort + "/"], path);
         GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.Equal(ClosedPort + "/keep-alive", KeepAliveProcess.Status.Url);
@@ -119,8 +119,8 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_ReportsAnUnresolvedUrl_WhenThereIsNoServer()
     {
-        using var provider = BuildProvider(addresses: null);
-        var answered = GetProcess(provider).Ping(CancellationToken.None);
+        using ServiceProvider provider = BuildProvider(addresses: null);
+        bool answered = GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.False(answered);
         Assert.Null(KeepAliveProcess.Status.Url);
@@ -131,8 +131,8 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_ReportsAnUnresolvedUrl_WhenTheServerHasNoAddresses()
     {
-        using var provider = BuildProvider([]);
-        var answered = GetProcess(provider).Ping(CancellationToken.None);
+        using ServiceProvider provider = BuildProvider([]);
+        bool answered = GetProcess(provider).Ping(CancellationToken.None);
 
         Assert.False(answered);
         Assert.Null(KeepAliveProcess.Status.Url);
@@ -142,13 +142,13 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
     [Fact]
     public void Ping_ResolvesTheUrlAgain_WhenTheServerHadNoAddressYet()
     {
-        var server = new ServerStub([]);
-        var services = new ServiceCollection()
+        ServerStub server = new([]);
+        IServiceCollection services = new ServiceCollection()
             .AddSingleton<IServer>(server)
             .AddNightShiftKeepAlive(Fast);
 
-        using var provider = services.BuildServiceProvider();
-        var process = GetProcess(provider);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        KeepAliveProcess process = GetProcess(provider);
         process.Ping(CancellationToken.None);
         server.Features.Get<IServerAddressesFeature>().Addresses.Add(ClosedPort);
 
@@ -162,7 +162,7 @@ public class NightShiftKeepAliveServiceCollectionExtensionsFacts
         string path = "/nightshift/ping",
         Action<KeepAliveOptions> configure = null)
     {
-        var services = new ServiceCollection();
+        ServiceCollection services = new();
 
         if (addresses != null)
         {

@@ -2,6 +2,8 @@
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using Masterly.NightShift.Server;
+using Microsoft.Data.SqlClient;
 using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -18,7 +20,7 @@ public class SqlServerStorageFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionStringIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerStorage((string)null));
 
         Assert.Equal("connectionString", exception.ParamName);
@@ -27,7 +29,7 @@ public class SqlServerStorageFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenOptionsValueIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerStorage("hello", null));
 
         Assert.Equal("options", exception.ParamName);
@@ -36,7 +38,7 @@ public class SqlServerStorageFacts
     [Fact]
     public void Ctor_ThrowsAClearException_WhenGivenAConnectionStringName()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new SqlServerStorage("NightShift", _options));
 
         Assert.Equal("connectionString", exception.ParamName);
@@ -47,7 +49,7 @@ public class SqlServerStorageFacts
     [Fact]
     public void ResolveConnectionString_ReturnsAConnectionString_AsItIs()
     {
-        var connectionString = "Server=.;Database=NightShift;Integrated Security=True;";
+        string connectionString = "Server=.;Database=NightShift;Integrated Security=True;";
 
         Assert.Same(connectionString, SqlServerStorage.ResolveConnectionString(connectionString));
     }
@@ -55,7 +57,7 @@ public class SqlServerStorageFacts
     [Fact]
     public void JobExpirationTimeout_AcceptsTheLongestRetention()
     {
-        var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options)
+        SqlServerStorage storage = new(() => new Mock<DbConnection>().Object, _options)
         {
             JobExpirationTimeout = TimeSpan.FromDays(ExpireAfterAttribute.MaxDays)
         };
@@ -66,9 +68,9 @@ public class SqlServerStorageFacts
     [Fact]
     public void JobExpirationTimeout_ThrowsAnException_WhenLongerThanTheLongestRetention()
     {
-        var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options);
+        SqlServerStorage storage = new(() => new Mock<DbConnection>().Object, _options);
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => storage.JobExpirationTimeout = TimeSpan.MaxValue);
 
         Assert.Equal("value", exception.ParamName);
@@ -78,8 +80,8 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void Ctor_CanCreateSqlServerStorage_WithExistingConnection()
     {
-        using var connection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(connection);
+        using DbConnection connection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(connection);
         Assert.NotNull(storage);
     }
 
@@ -88,7 +90,7 @@ public class SqlServerStorageFacts
     {
         Func<DbConnection> connectionFactory = null;
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerStorage(connectionFactory));
 
         Assert.Equal("connectionFactory", exception.ParamName);
@@ -98,7 +100,7 @@ public class SqlServerStorageFacts
     public void Ctor_ThrowsAnException_WhenOptionsValueIsNull_WithConnectionFactory()
     {
         Func<DbConnection> connectionFactory = ConnectionUtils.CreateConnection;
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerStorage(connectionFactory, null));
 
         Assert.Equal("options", exception.ParamName);
@@ -107,8 +109,8 @@ public class SqlServerStorageFacts
     [Fact]
     public void CreateAndOpenConnection_UsesConnectionFactory()
     {
-        var connection = new Mock<DbConnection>();
-        var storage = new SqlServerStorage(() => connection.Object, _options);
+        Mock<DbConnection> connection = new();
+        SqlServerStorage storage = new(() => connection.Object, _options);
 
         Assert.Same(connection.Object, storage.CreateAndOpenConnection());
     }
@@ -116,23 +118,23 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void GetMonitoringApi_ReturnsNonNullInstance()
     {
-        var storage = CreateStorage();
-        var api = storage.GetMonitoringApi();
+        SqlServerStorage storage = CreateStorage();
+        IMonitoringApi api = storage.GetMonitoringApi();
         Assert.NotNull(api);
     }
 
     [Fact, CleanDatabase]
     public void GetConnection_ReturnsNonNullInstance()
     {
-        var storage = CreateStorage();
-        using var connection = (SqlServerConnection)storage.GetConnection();
+        SqlServerStorage storage = CreateStorage();
+        using SqlServerConnection connection = (SqlServerConnection)storage.GetConnection();
         Assert.NotNull(connection);
     }
 
     [Fact, CleanDatabase]
     public void UseConnection_UsesMicrosoftDataSqlClient_ByDefault()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
         storage.UseConnection(null, (_, connection) =>
         {
             Assert.IsType<Microsoft.Data.SqlClient.SqlConnection>(connection);
@@ -142,9 +144,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void UseConnection_UsesTheConfiguredSqlClientFactory()
     {
-        var factory = new CountingFactory();
+        CountingFactory factory = new();
         _options.SqlClientFactory = factory;
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         storage.UseConnection(null, (_, connection) =>
         {
@@ -157,9 +159,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void UseTransaction_UsesReadCommitted_ByDefault()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var isolationLevel = storage.UseTransaction(null, static (_, connection, transaction, _) =>
+        short isolationLevel = storage.UseTransaction(null, static (_, connection, transaction, _) =>
             connection.ExecuteScalar<short>(
                 "select transaction_isolation_level from sys.dm_exec_sessions where session_id = @@SPID",
                 transaction: transaction), 0, null);
@@ -171,9 +173,9 @@ public class SqlServerStorageFacts
     [Fact]
     public void GetServerRequiredProcesses_ReturnsTheHeartbeatProcess()
     {
-        var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options);
+        SqlServerStorage storage = new(() => new Mock<DbConnection>().Object, _options);
 
-        var processes = storage.GetServerRequiredProcesses().ToArray();
+        IBackgroundProcess[] processes = [.. storage.GetServerRequiredProcesses()];
 
         Assert.Single(processes);
         Assert.IsType<SqlServerHeartbeatProcess>(processes[0]);
@@ -182,9 +184,9 @@ public class SqlServerStorageFacts
     [Fact]
     public void GetStorageWideProcesses_ReturnsTheMaintenanceProcesses()
     {
-        var storage = new SqlServerStorage(() => new Mock<DbConnection>().Object, _options);
+        SqlServerStorage storage = new(() => new Mock<DbConnection>().Object, _options);
 
-        var processes = storage.GetStorageWideProcesses().ToArray();
+        IBackgroundProcess[] processes = [.. storage.GetStorageWideProcesses()];
 
         Assert.Equal(2, processes.Length);
         Assert.Contains(processes, x => x is ExpirationManager);
@@ -194,9 +196,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Connection_GetUtcDateTime_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Connection.GetUtcDateTime");
+        bool result = storage.HasFeature("Connection.GetUtcDateTime");
 
         Assert.True(result);
     }
@@ -204,9 +206,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Connection_GetSetContains_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Connection.GetSetContains");
+        bool result = storage.HasFeature("Connection.GetSetContains");
 
         Assert.True(result);
     }
@@ -214,9 +216,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Connection_GetSetCount_Limited_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Connection.GetSetCount.Limited");
+        bool result = storage.HasFeature("Connection.GetSetCount.Limited");
 
         Assert.True(result);
     }
@@ -224,9 +226,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Connection_BatchedGetFirstByLowestScoreFromSet_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Connection.BatchedGetFirstByLowestScoreFromSet");
+        bool result = storage.HasFeature("Connection.BatchedGetFirstByLowestScoreFromSet");
 
         Assert.True(result);
     }
@@ -234,9 +236,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Job_Queue_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Job.Queue");
+        bool result = storage.HasFeature("Job.Queue");
 
         Assert.True(result);
     }
@@ -244,9 +246,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Storage_ExtendedApi_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Storage.ExtendedApi");
+        bool result = storage.HasFeature("Storage.ExtendedApi");
 
         Assert.True(result);
     }
@@ -254,9 +256,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Transaction_AcquireDistributedLock_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Transaction.AcquireDistributedLock");
+        bool result = storage.HasFeature("Transaction.AcquireDistributedLock");
 
         Assert.True(result);
     }
@@ -264,9 +266,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Monitoring_AwaitingJobs_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Monitoring.AwaitingJobs");
+        bool result = storage.HasFeature("Monitoring.AwaitingJobs");
 
         Assert.True(result);
     }
@@ -274,9 +276,9 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void HasFeature_Monitoring_DeletedStateGraphs_ReturnsTrue()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
-        var result = storage.HasFeature("Monitoring.DeletedStateGraphs");
+        bool result = storage.HasFeature("Monitoring.DeletedStateGraphs");
 
         Assert.True(result);
     }
@@ -296,7 +298,7 @@ public class SqlServerStorageFacts
     {
         _options.TryAutoDetectSchemaDependentOptions = false;
 
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         Assert.False(storage.DisableGlobalLocks);
         Assert.False(storage.UseIgnoreDupKeyOption);
@@ -310,7 +312,7 @@ public class SqlServerStorageFacts
         _options.DisableGlobalLocks = true;
         _options.UseIgnoreDupKeyOption = true;
 
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         Assert.True(storage.DisableGlobalLocks);
         Assert.True(storage.UseIgnoreDupKeyOption);
@@ -320,7 +322,7 @@ public class SqlServerStorageFacts
     public void UseIgnoreDupKeyOption_StaysOff_OnASchemaOlderThan8_EvenWhenSet()
     {
         _options.UseIgnoreDupKeyOption = true;
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         // The test database is at the latest schema; pretend detection found version 7
         typeof(SqlServerStorage)
@@ -335,10 +337,10 @@ public class SqlServerStorageFacts
     {
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
-        var attempts = 0;
+        int attempts = 0;
 
-        var stopwatch = Stopwatch.StartNew();
-        var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        SqlServerStorage storage = new(() => Interlocked.Increment(ref attempts) <= 2
             ? throw new DatabaseStartingException()
             : ConnectionUtils.CreateConnection(), _options);
         stopwatch.Stop();
@@ -356,9 +358,9 @@ public class SqlServerStorageFacts
     {
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
-        var attempts = 0;
+        int attempts = 0;
 
-        var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
+        SqlServerStorage storage = new(() => Interlocked.Increment(ref attempts) <= 2
             ? throw new InvalidOperationException("The token service isn't ready yet.")
             : ConnectionUtils.CreateConnection(), _options);
 
@@ -372,7 +374,7 @@ public class SqlServerStorageFacts
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
 
-        var storage = new SqlServerStorage(() => throw new InvalidOperationException("The token service isn't ready yet."), _options);
+        SqlServerStorage storage = new(() => throw new InvalidOperationException("The token service isn't ready yet."), _options);
 
         Assert.True(storage.SchemaInstallPending);
     }
@@ -384,14 +386,14 @@ public class SqlServerStorageFacts
     public void Ctor_InstallRetriesReachTheServer_AfterAPooledConnectionFailedToOpen()
     {
         // The database doesn't exist at the first attempt, and is created before the second one opens its connection
-        var databaseName = ConnectionUtils.GetDatabaseName() + "_starting";
-        var connectionString = new DbConnectionStringBuilder { ConnectionString = ConnectionUtils.GetConnectionString(databaseName) };
+        string databaseName = ConnectionUtils.GetDatabaseName() + "_starting";
+        DbConnectionStringBuilder connectionString = new() { ConnectionString = ConnectionUtils.GetConnectionString(databaseName) };
         connectionString["Pooling"] = true;
         // Otherwise the client retries the failed login itself, 10 seconds later
         connectionString["ConnectRetryCount"] = 0;
 
-        var attempts = 0;
-        var options = new SqlServerStorageOptions
+        int attempts = 0;
+        SqlServerStorageOptions options = new()
         {
             TryAutoDetectSchemaDependentOptions = false,
             SqlClientFactory = Microsoft.Data.SqlClient.SqlClientFactory.Instance,
@@ -407,7 +409,7 @@ public class SqlServerStorageFacts
 
         try
         {
-            var storage = new SqlServerStorage(connectionString.ConnectionString, options);
+            SqlServerStorage storage = new(connectionString.ConnectionString, options);
 
             Assert.False(storage.SchemaInstallPending);
             Assert.Equal(2, attempts);
@@ -421,8 +423,8 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void SchemaDependentOptions_AreDetectedOnFirstUse_WhenTheDatabaseWasNotReachableAtStartup()
     {
-        var attempts = 0;
-        var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) == 1
+        int attempts = 0;
+        SqlServerStorage storage = new(() => Interlocked.Increment(ref attempts) == 1
             ? throw new DatabaseStartingException()
             : ConnectionUtils.CreateConnection(), _options);
 
@@ -437,9 +439,9 @@ public class SqlServerStorageFacts
     public void SchemaInstall_IsTriedAgainWhenTheStorageIsUsed_WhenTheDatabaseWasNotReachableAtStartup()
     {
         _options.PrepareSchemaIfNecessary = true;
-        var reachable = 0;
-        var attempts = 0;
-        var storage = new SqlServerStorage(() =>
+        int reachable = 0;
+        int attempts = 0;
+        SqlServerStorage storage = new(() =>
         {
             Interlocked.Increment(ref attempts);
             return Volatile.Read(ref reachable) == 1 ? ConnectionUtils.CreateConnection() : throw new DatabaseStartingException();
@@ -468,8 +470,8 @@ public class SqlServerStorageFacts
     {
         _options.PrepareSchemaIfNecessary = true;
         _options.TryAutoDetectSchemaDependentOptions = false;
-        var attempts = 0;
-        var storage = new SqlServerStorage(() =>
+        int attempts = 0;
+        SqlServerStorage storage = new(() =>
         {
             Interlocked.Increment(ref attempts);
             throw new DatabaseStartingException();
@@ -494,14 +496,14 @@ public class SqlServerStorageFacts
     public void SchemaInstall_IsNotTriedAgain_WhenItSucceededAtStartup()
     {
         _options.PrepareSchemaIfNecessary = true;
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         Assert.False(storage.SchemaInstallPending);
     }
 
     private static void MakeSchemaRetriesDue(SqlServerStorage storage)
     {
-        foreach (var field in new[] { "_nextSchemaInstallRetryTicks", "_nextSchemaVersionRetryTicks" })
+        foreach (string? field in new[] { "_nextSchemaInstallRetryTicks", "_nextSchemaVersionRetryTicks" })
         {
             typeof(SqlServerStorage)
                 .GetField(field, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
@@ -512,8 +514,8 @@ public class SqlServerStorageFacts
     [Fact, CleanDatabase]
     public void SchemaVersionDetection_IsNotRetriedOnEveryUse_WhileItKeepsFailing()
     {
-        var attempts = 0;
-        var storage = new SqlServerStorage(() => Interlocked.Increment(ref attempts) <= 2
+        int attempts = 0;
+        SqlServerStorage storage = new(() => Interlocked.Increment(ref attempts) <= 2
             ? throw new DatabaseStartingException()
             : ConnectionUtils.CreateConnection(), _options);
 
@@ -532,14 +534,14 @@ public class SqlServerStorageFacts
 
         try
         {
-            var storage = new SqlServerStorage(
+            SqlServerStorage storage = new(
                 ConnectionUtils.GetConnectionString(),
                 new SqlServerStorageOptions { SchemaName = schemaName });
 
             Assert.Equal(SqlServerObjectsInstaller.LatestSchemaVersion, storage.DetectedSchemaVersion);
 
-            using var connection = storage.GetConnection();
-            using (var transaction = connection.CreateWriteTransaction())
+            using IStorageConnection connection = storage.GetConnection();
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.AddToSet("my-set", "value");
                 transaction.Commit();
@@ -561,10 +563,10 @@ public class SqlServerStorageFacts
     {
         const string schemaName = "Задания";
 
-        using (var connection = ConnectionUtils.CreateConnection())
+        using (DbConnection connection = ConnectionUtils.CreateConnection())
         {
             // The test database's collation (SQL_Latin1_General_CP1_CS_AS) has no Cyrillic in its code page
-            var lostInNonUnicodeLiteral = connection.ExecuteScalar<int>(
+            int lostInNonUnicodeLiteral = connection.ExecuteScalar<int>(
                 $"select case when '{schemaName}' = N'{schemaName}' then 0 else 1 end");
             Assert.SkipUnless(lostInNonUnicodeLiteral == 1, "The database's code page can hold the schema name, so this test proves nothing here.");
         }
@@ -572,17 +574,17 @@ public class SqlServerStorageFacts
         try
         {
             // The second time, the schema is already there
-            for (var i = 0; i < 2; i++)
+            for (int i = 0; i < 2; i++)
             {
-                var storage = new SqlServerStorage(
+                SqlServerStorage storage = new(
                     ConnectionUtils.GetConnectionString(),
                     new SqlServerStorageOptions { SchemaName = schemaName });
 
                 Assert.False(storage.SchemaInstallPending);
                 Assert.Equal(SqlServerObjectsInstaller.LatestSchemaVersion, storage.DetectedSchemaVersion);
 
-                using var connection = storage.GetConnection();
-                using (var transaction = connection.CreateWriteTransaction())
+                using IStorageConnection connection = storage.GetConnection();
+                using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
                 {
                     transaction.AddToSet("my-set", "value" + i.ToString(CultureInfo.InvariantCulture));
                     transaction.Commit();
@@ -599,7 +601,7 @@ public class SqlServerStorageFacts
 
     private static void CreateDatabase(string databaseName)
     {
-        using var connection = new Microsoft.Data.SqlClient.SqlConnection(ConnectionUtils.GetMasterConnectionString());
+        using SqlConnection connection = new(ConnectionUtils.GetMasterConnectionString());
         connection.Execute(@"
 declare @sql nvarchar(max) = N'create database ' + quotename(@name);
 exec sp_executesql @sql;", new { name = databaseName });
@@ -607,7 +609,7 @@ exec sp_executesql @sql;", new { name = databaseName });
 
     private static void DropDatabase(string databaseName)
     {
-        using var connection = new Microsoft.Data.SqlClient.SqlConnection(ConnectionUtils.GetMasterConnectionString());
+        using SqlConnection connection = new(ConnectionUtils.GetMasterConnectionString());
         connection.Execute(@"
 declare @sql nvarchar(max) = N'alter database ' + quotename(@name) + N' set single_user with rollback immediate; drop database ' + quotename(@name);
 if db_id(@name) is not null exec sp_executesql @sql;", new { name = databaseName });
@@ -615,7 +617,7 @@ if db_id(@name) is not null exec sp_executesql @sql;", new { name = databaseName
 
     private static void DropSchema(string schemaName)
     {
-        using var connection = ConnectionUtils.CreateConnection();
+        using DbConnection connection = ConnectionUtils.CreateConnection();
         // State and JobParameter first, because of their foreign keys to Job
         connection.Execute(@"
 declare @sql nvarchar(max) = N'';
@@ -661,7 +663,7 @@ if schema_id(@schema) is not null exec sp_executesql @sql;", new { schema = sche
     public void Ctor_AutoDetectsTheSchemaDependentOptions_ThatWereNotSet()
     {
         // The test database is at the latest schema version
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         Assert.True(storage.DisableGlobalLocks);
         Assert.True(storage.UseIgnoreDupKeyOption);
@@ -675,7 +677,7 @@ if schema_id(@schema) is not null exec sp_executesql @sql;", new { schema = sche
         _options.UseIgnoreDupKeyOption = false;
         _options.DeleteExpiredBatchSize = 500;
 
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         Assert.False(storage.DisableGlobalLocks);
         Assert.False(storage.UseIgnoreDupKeyOption);

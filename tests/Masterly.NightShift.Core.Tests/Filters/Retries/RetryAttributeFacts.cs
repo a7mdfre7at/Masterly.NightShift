@@ -24,7 +24,7 @@ public class RetryAttributeFacts
     [Fact]
     public void Ctor_SetsPositiveRetryAttemptsNumber_ByDefault()
     {
-        var filter = new AutomaticRetryAttribute();
+        AutomaticRetryAttribute filter = new();
         Assert.Equal(10, filter.Attempts);
     }
 
@@ -38,7 +38,7 @@ public class RetryAttributeFacts
     [Fact]
     public void Ctor_ThrowsAnArgumentException_WhenDelaysInSecondsIsEmpty()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new AutomaticRetryAttribute { DelaysInSeconds = [] });
 
         Assert.Equal("value", exception.ParamName);
@@ -61,21 +61,21 @@ public class RetryAttributeFacts
     [Fact]
     public void Ctor_SetsOnAttemptsExceededAction_ByDefault()
     {
-        var filter = new AutomaticRetryAttribute();
+        AutomaticRetryAttribute filter = new();
         Assert.Equal(AttemptsExceededAction.Fail, filter.OnAttemptsExceeded);
     }
 
     [Fact]
     public void Ctor_DelayByAttemptIsNotNull_ByDefault()
     {
-        var filter = new AutomaticRetryAttribute();
+        AutomaticRetryAttribute filter = new();
         Assert.NotNull(filter.DelayInSecondsByAttemptFunc);
     }
 
     [Fact]
     public void DelaysInSeconds_SetsValueCorrectly()
     {
-        var filter = new AutomaticRetryAttribute { DelaysInSeconds = [5, 8] };
+        AutomaticRetryAttribute filter = new() { DelaysInSeconds = [5, 8] };
 
         Assert.Equal(2, filter.DelaysInSeconds.Length);
         Assert.Equal(5, filter.DelaysInSeconds[0]);
@@ -85,14 +85,14 @@ public class RetryAttributeFacts
     [Fact]
     public void DelaysInSeconds_CanBeSetToNull()
     {
-        var filter = new AutomaticRetryAttribute { DelaysInSeconds = null };
+        AutomaticRetryAttribute filter = new() { DelaysInSeconds = null };
         Assert.NotNull(filter);
     }
 
     [Fact]
     public void OnStateElection_UsesTheDelayFunction_AfterDelaysInSecondsIsResetToNull()
     {
-        var filter = new AutomaticRetryAttribute
+        AutomaticRetryAttribute filter = new()
         {
             DelaysInSeconds = [0],
             DelayInSecondsByAttemptFunc = attempt => 60,
@@ -107,7 +107,7 @@ public class RetryAttributeFacts
     [Fact]
     public void DelayInSecondsByAttemptFunc_ReturnCorrectValue_WhenCustomFunctionIsSet()
     {
-        var filter = new AutomaticRetryAttribute { DelayInSecondsByAttemptFunc = attempt => (int)attempt % 3 };
+        AutomaticRetryAttribute filter = new() { DelayInSecondsByAttemptFunc = attempt => (int)attempt % 3 };
 
         Assert.Equal(1, filter.DelayInSecondsByAttemptFunc(1));
         Assert.Equal(2, filter.DelayInSecondsByAttemptFunc(2));
@@ -120,9 +120,9 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_ThrowsAnException_WhenDelayInSecondsByAttemptFuncThrowsAnException()
     {
-        var exception = new Exception();
+        Exception exception = new();
 
-        var filter = new AutomaticRetryAttribute
+        AutomaticRetryAttribute filter = new()
         {
             DelayInSecondsByAttemptFunc = attempt =>
             {
@@ -130,7 +130,7 @@ public class RetryAttributeFacts
             }
         };
 
-        var thrownException = Assert.Throws<Exception>(() => filter.OnStateElection(_context.Object));
+        Exception thrownException = Assert.Throws<Exception>(() => filter.OnStateElection(_context.Object));
 
         Assert.Equal(exception, thrownException);
     }
@@ -138,7 +138,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_UsesDelaysInSeconds_WhenBothDelaysInSecondsAndDelayInSecondsByAttemptFuncAreSpecified()
     {
-        var filter = new AutomaticRetryAttribute
+        AutomaticRetryAttribute filter = new()
         {
             DelayInSecondsByAttemptFunc = attempt => 1,
             DelaysInSeconds = [0]
@@ -152,7 +152,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotChangeState_IfRetryAttemptsIsSetToZero()
     {
-        var filter = new AutomaticRetryAttribute { Attempts = 0 };
+        AutomaticRetryAttribute filter = new() { Attempts = 0 };
         filter.OnStateElection(_context.Object);
 
         Assert.Same(_failedState, _context.Object.CandidateState);
@@ -161,7 +161,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_ChangeStateToScheduled_IfRetryAttemptsWereNotExceeded()
     {
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
         filter.OnStateElection(_context.Object);
 
         Assert.IsType<ScheduledState>(_context.Object.CandidateState);
@@ -176,7 +176,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_ChangeStateToEnqueued_IfDelayIsZero()
     {
-        var filter = new AutomaticRetryAttribute
+        AutomaticRetryAttribute filter = new()
         {
             Attempts = 1,
             DelaysInSeconds = [0]
@@ -194,8 +194,8 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotChangeAnything_IfCandidateStateIsNotFailedState()
     {
-        var filter = CreateFilter();
-        var state = new Mock<IState>();
+        AutomaticRetryAttribute filter = CreateFilter();
+        Mock<IState> state = new();
         _context.ApplyContext.NewStateObject = null;
         _context.ApplyContext.NewState = state;
 
@@ -208,7 +208,7 @@ public class RetryAttributeFacts
     public void OnStateElection_DoesNotChangeState_IfRetryAttemptsNumberExceeded()
     {
         _connection.Setup(x => x.GetJobParameter(JobId, "RetryCount")).Returns("1");
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
 
         filter.OnStateElection(_context.Object);
 
@@ -219,7 +219,7 @@ public class RetryAttributeFacts
     public void OnStateElection_ChangesStateToDeleted_IfRetryAttemptsNumberExceededAndOnAttemptsExceededIsSetToDelete()
     {
         _connection.Setup(x => x.GetJobParameter(JobId, "RetryCount")).Returns("1");
-        var filter = new AutomaticRetryAttribute { Attempts = 1, OnAttemptsExceeded = AttemptsExceededAction.Delete };
+        AutomaticRetryAttribute filter = new() { Attempts = 1, OnAttemptsExceeded = AttemptsExceededAction.Delete };
 
         filter.OnStateElection(_context.Object);
 
@@ -230,7 +230,7 @@ public class RetryAttributeFacts
     public void OnStateElection_ChangesStateToFailed_IfRetryAttemptsNumberExceededAndOnAttemptsExceedIsSetToFail()
     {
         _connection.Setup(x => x.GetJobParameter(JobId, "RetryCount")).Returns("1");
-        var filter = new AutomaticRetryAttribute { Attempts = 1, OnAttemptsExceeded = AttemptsExceededAction.Fail };
+        AutomaticRetryAttribute filter = new() { Attempts = 1, OnAttemptsExceeded = AttemptsExceededAction.Fail };
 
         filter.OnStateElection(_context.Object);
 
@@ -241,7 +241,7 @@ public class RetryAttributeFacts
     public void OnStateElection_ChangesStateToDeleted_IfRetryAttemptsNumberIsZeroAndOnAttemptsExceedIsSetToDelete()
     {
         _connection.Setup(x => x.GetJobParameter(JobId, "RetryCount")).Returns("0");
-        var filter = new AutomaticRetryAttribute { Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete };
+        AutomaticRetryAttribute filter = new() { Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete };
 
         filter.OnStateElection(_context.Object);
 
@@ -251,7 +251,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotDoAnything_WhenOnlyOnIsSpecified_AndIneligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { OnlyOn = [typeof(FormatException), typeof(NullReferenceException)] };
+        AutomaticRetryAttribute filter = new() { OnlyOn = [typeof(FormatException), typeof(NullReferenceException)] };
         _context.ApplyContext.NewStateObject = new FailedState(new ArgumentException());
 
         filter.OnStateElection(_context.Object);
@@ -263,7 +263,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_TriggersRetryAnyway_WhenEmptyOnlyOnIsSpecified()
     {
-        var filter = new AutomaticRetryAttribute { OnlyOn = Type.EmptyTypes };
+        AutomaticRetryAttribute filter = new() { OnlyOn = Type.EmptyTypes };
         _context.ApplyContext.NewStateObject = new FailedState(new ArgumentException());
 
         filter.OnStateElection(_context.Object);
@@ -275,7 +275,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_WorksAsExpected_WhenOnlyOnIsSpecified_AndAnEligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { OnlyOn = [typeof(NullReferenceException), typeof(InvalidOperationException)] };
+        AutomaticRetryAttribute filter = new() { OnlyOn = [typeof(NullReferenceException), typeof(InvalidOperationException)] };
 
         filter.OnStateElection(_context.Object);
 
@@ -286,7 +286,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_WorksAsExpected_WhenOnlyOnIsSpecified_AndADerivedClassOfAnEligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { OnlyOn = [typeof(ArgumentException)] };
+        AutomaticRetryAttribute filter = new() { OnlyOn = [typeof(ArgumentException)] };
         _context.ApplyContext.NewStateObject = new FailedState(new ArgumentNullException());
 
         filter.OnStateElection(_context.Object);
@@ -298,7 +298,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_WorksAsExpected_WhenExceptOnIsSpecified_AndIneligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { ExceptOn = [typeof(FormatException), typeof(NullReferenceException)] };
+        AutomaticRetryAttribute filter = new() { ExceptOn = [typeof(FormatException), typeof(NullReferenceException)] };
         _context.ApplyContext.NewStateObject = new FailedState(new ArgumentException());
 
         filter.OnStateElection(_context.Object);
@@ -310,7 +310,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotDoAnything_WhenExceptOnIsSpecified_AndAnEligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { ExceptOn = [typeof(NullReferenceException), typeof(InvalidOperationException)] };
+        AutomaticRetryAttribute filter = new() { ExceptOn = [typeof(NullReferenceException), typeof(InvalidOperationException)] };
 
         filter.OnStateElection(_context.Object);
 
@@ -321,7 +321,7 @@ public class RetryAttributeFacts
     [Fact]
     public void OnStateElection_DoesNotDoAnything_WhenExceptOnIsSpecified_AndADerivedClassOfAnEligibleExceptionIsPassed()
     {
-        var filter = new AutomaticRetryAttribute { ExceptOn = [typeof(ArgumentException)] };
+        AutomaticRetryAttribute filter = new() { ExceptOn = [typeof(ArgumentException)] };
         _context.ApplyContext.NewStateObject = new FailedState(new ArgumentNullException());
 
         filter.OnStateElection(_context.Object);
@@ -334,10 +334,10 @@ public class RetryAttributeFacts
     public void OnStateApplied_AddsJobToRetriesSet_IfNewStateIsScheduled()
     {
         // Arrange
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
 
-        var newState = new ScheduledState(DateTime.UtcNow) { Reason = "Retry attempt ..." };
-        var applyStateContext = CreatApplyStateContext(newState);
+        ScheduledState newState = new(DateTime.UtcNow) { Reason = "Retry attempt ..." };
+        ApplyStateContext applyStateContext = CreatApplyStateContext(newState);
 
         // Act
         filter.OnStateApplied(applyStateContext, _transaction.Object);
@@ -350,10 +350,10 @@ public class RetryAttributeFacts
     public void OnStateApplied_DoesNotAddJobToRetriesSet_IfNewStateIsScheduledAndReasonIsNull()
     {
         // Arrange
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
 
-        var newState = new ScheduledState(DateTime.UtcNow) { Reason = null };
-        var applyStateContext = CreatApplyStateContext(newState);
+        ScheduledState newState = new(DateTime.UtcNow) { Reason = null };
+        ApplyStateContext applyStateContext = CreatApplyStateContext(newState);
 
         // Act
         filter.OnStateApplied(applyStateContext, _transaction.Object);
@@ -366,10 +366,10 @@ public class RetryAttributeFacts
     public void OnStateApplied_DoesNotAddJobToRetriesSet_IfNewStateIsScheduledAndReasonDoesNotMatch()
     {
         // Arrange
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
 
-        var newState = new ScheduledState(DateTime.UtcNow) { Reason = "Some reason." };
-        var applyStateContext = CreatApplyStateContext(newState);
+        ScheduledState newState = new(DateTime.UtcNow) { Reason = "Some reason." };
+        ApplyStateContext applyStateContext = CreatApplyStateContext(newState);
 
         // Act
         filter.OnStateApplied(applyStateContext, _transaction.Object);
@@ -382,10 +382,10 @@ public class RetryAttributeFacts
     public void OnStateApplied_DoesNotAddJobToRetriesSet_IfNewStateIsEnqueued()
     {
         // Arrange
-        var filter = CreateFilter();
+        AutomaticRetryAttribute filter = CreateFilter();
 
-        var newState = new EnqueuedState { Reason = "Retry attempt ..." };
-        var applyStateContext = CreatApplyStateContext(newState);
+        EnqueuedState newState = new() { Reason = "Retry attempt ..." };
+        ApplyStateContext applyStateContext = CreatApplyStateContext(newState);
 
         // Act
         filter.OnStateApplied(applyStateContext, _transaction.Object);
@@ -401,7 +401,7 @@ public class RetryAttributeFacts
 
     private ApplyStateContext CreatApplyStateContext(IState newState)
     {
-        var context = new ApplyStateContextMock();
+        ApplyStateContextMock context = new();
         context.BackgroundJob.Id = JobId;
         context.Transaction = _transaction;
         context.NewStateObject = newState;

@@ -28,32 +28,32 @@ public class RecurringJobManifestDispatcherFacts
 
     private DashboardContextStub Context(string method, bool readOnly = false, params (string, string)[] form)
     {
-        var request = new DashboardRequestStub(method);
-        foreach (var (key, value) in form) request.Form[key] = [value];
+        DashboardRequestStub request = new(method);
+        foreach ((string? key, string? value) in form) request.Form[key] = [value];
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object) { RecurringJobManager = _manager.Object };
     }
 
     [Fact]
     public async Task Export_WritesTheManifest()
     {
-        var context = Context("GET", readOnly: true);
+        DashboardContextStub context = Context("GET", readOnly: true);
 
         await new RecurringJobManifestDispatcher(import: false).Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
         Assert.Equal("application/json", context.Response.ContentType);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Equal("nightly", json["recurringJobs"][0]["id"].GetValue<string>());
     }
 
     [Fact]
     public async Task Import_Sets401_WhenReadOnly_And405_ForGet()
     {
-        var readOnly = Context("POST", readOnly: true);
+        DashboardContextStub readOnly = Context("POST", readOnly: true);
         await new RecurringJobManifestDispatcher(import: true).Dispatch(readOnly);
         Assert.Equal(401, readOnly.Response.StatusCode);
 
-        var get = Context("GET");
+        DashboardContextStub get = Context("GET");
         await new RecurringJobManifestDispatcher(import: true).Dispatch(get);
         Assert.Equal(405, get.Response.StatusCode);
     }
@@ -61,11 +61,11 @@ public class RecurringJobManifestDispatcherFacts
     [Fact]
     public async Task Import_Sets422_WithoutAManifest_OrWithAnUnreadableOne()
     {
-        var empty = Context("POST");
+        DashboardContextStub empty = Context("POST");
         await new RecurringJobManifestDispatcher(import: true).Dispatch(empty);
         Assert.Equal(422, empty.Response.StatusCode);
 
-        var garbage = Context("POST", form: ("manifest", "nope"));
+        DashboardContextStub garbage = Context("POST", form: ("manifest", "nope"));
         await new RecurringJobManifestDispatcher(import: true).Dispatch(garbage);
         Assert.Equal(422, garbage.Response.StatusCode);
         Assert.Contains("JSON", JsonNode.Parse(garbage.Response.Text)["error"].GetValue<string>());
@@ -74,13 +74,13 @@ public class RecurringJobManifestDispatcherFacts
     [Fact]
     public async Task Import_AppliesTheManifest_AndReportsTheOutcome()
     {
-        var manifest = "{ \"recurringJobs\": [ { \"id\": \"weekly\", \"cron\": \"0 0 * * 1\", \"job\": { \"type\": \"" + typeof(RecurringJobManifestDispatcherFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + "\", \"method\": \"Sample\" } } ] }";
-        var context = Context("POST", form: [("manifest", manifest), ("prune", "true")]);
+        string manifest = "{ \"recurringJobs\": [ { \"id\": \"weekly\", \"cron\": \"0 0 * * 1\", \"job\": { \"type\": \"" + typeof(RecurringJobManifestDispatcherFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + "\", \"method\": \"Sample\" } } ] }";
+        DashboardContextStub context = Context("POST", form: [("manifest", manifest), ("prune", "true")]);
 
         await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Equal("weekly", json["added"][0].GetValue<string>());
         Assert.Equal("nightly", json["removed"][0].GetValue<string>());
         Assert.Empty(json["errors"].AsArray());
@@ -100,13 +100,13 @@ public class RecurringJobManifestDispatcherFacts
     [Fact]
     public async Task Import_RejectsAMethodTheApplicationDoesNotUseAsAJob_ByDefault()
     {
-        var context = Context("POST", form: ("manifest", NotUsedAsAJobManifest()));
+        DashboardContextStub context = Context("POST", form: ("manifest", NotUsedAsAJobManifest()));
 
         await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
-        var error = Assert.Single(json["errors"].AsArray());
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
+        JsonNode? error = Assert.Single(json["errors"].AsArray());
         Assert.Equal("weekly", error["id"].GetValue<string>());
         Assert.Contains("AllowAnyMethodInManifestImport", error["message"].GetValue<string>());
         Assert.Empty(json["added"].AsArray());
@@ -116,10 +116,10 @@ public class RecurringJobManifestDispatcherFacts
     [Fact]
     public async Task Import_AcceptsAnyMethod_WhenTheDashboardOptionsAllowIt()
     {
-        var request = new DashboardRequestStub("POST");
+        DashboardRequestStub request = new("POST");
         request.Form["manifest"] = [NotUsedAsAJobManifest()];
-        var options = new DashboardOptions { IsReadOnlyFunc = _ => false, AllowAnyMethodInManifestImport = true };
-        var context = new DashboardContextStub(options, request, _storage.Object) { RecurringJobManager = _manager.Object };
+        DashboardOptions options = new() { IsReadOnlyFunc = _ => false, AllowAnyMethodInManifestImport = true };
+        DashboardContextStub context = new(options, request, _storage.Object) { RecurringJobManager = _manager.Object };
 
         await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
 
@@ -131,14 +131,14 @@ public class RecurringJobManifestDispatcherFacts
     [Fact]
     public async Task Import_ReportsTheEntriesItCouldNotApply_WithoutPruning()
     {
-        var manifest = "{ \"recurringJobs\": [ { \"cron\": \"0 0 * * 1\" } ] }";
-        var context = Context("POST", form: ("manifest", manifest));
+        string manifest = "{ \"recurringJobs\": [ { \"cron\": \"0 0 * * 1\" } ] }";
+        DashboardContextStub context = Context("POST", form: ("manifest", manifest));
 
         await new RecurringJobManifestDispatcher(import: true).Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
-        var error = Assert.Single(json["errors"].AsArray());
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
+        JsonNode? error = Assert.Single(json["errors"].AsArray());
         Assert.Equal("?", error["id"].GetValue<string>());
         Assert.Equal("An entry has no \"id\".", error["message"].GetValue<string>());
         Assert.Empty(json["added"].AsArray());

@@ -14,8 +14,8 @@ public class TelemetryFacts
     [Fact, CleanDatabase]
     public void UseTelemetry_ContinuesTheTraceThatCreatedTheJob_WhenTheJobIsPerformed()
     {
-        var spans = new ConcurrentQueue<Activity>();
-        using var listener = new ActivityListener
+        ConcurrentQueue<Activity> spans = new();
+        using ActivityListener listener = new()
         {
             ShouldListenTo = source => source.Name == NightShiftTelemetry.ActivitySourceName,
             Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
@@ -23,7 +23,7 @@ public class TelemetryFacts
         };
         ActivitySource.AddActivityListener(listener);
 
-        var storage = new SqlServerStorage(
+        SqlServerStorage storage = new(
             ConnectionUtils.GetConnectionString(),
             new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
 
@@ -36,7 +36,7 @@ public class TelemetryFacts
             ActivityTraceId requestTraceId;
             string jobId;
 
-            using (var request = new Activity("GET /orders").SetIdFormat(ActivityIdFormat.W3C).Start())
+            using (Activity request = new Activity("GET /orders").SetIdFormat(ActivityIdFormat.W3C).Start())
             {
                 requestTraceId = request.TraceId;
                 jobId = new BackgroundJobClient(storage).Enqueue(() => TelemetryJob.Run());
@@ -51,8 +51,8 @@ public class TelemetryFacts
             }
 
             // Assert
-            var create = Assert.Single(spans, x => x.Kind == ActivityKind.Producer);
-            var process = Assert.Single(spans, x => x.Kind == ActivityKind.Consumer);
+            Activity create = Assert.Single(spans, x => x.Kind == ActivityKind.Producer);
+            Activity process = Assert.Single(spans, x => x.Kind == ActivityKind.Consumer);
 
             Assert.Equal(requestTraceId, create.TraceId);
             Assert.Equal(requestTraceId, process.TraceId);
@@ -67,7 +67,7 @@ public class TelemetryFacts
         }
         finally
         {
-            foreach (var filter in GlobalJobFilters.Filters.Where(IsTelemetryFilter).ToArray())
+            foreach (JobFilter? filter in GlobalJobFilters.Filters.Where(IsTelemetryFilter).ToArray())
             {
                 GlobalJobFilters.Filters.Remove(filter.Instance);
             }
@@ -77,8 +77,8 @@ public class TelemetryFacts
     [Fact, CleanDatabase]
     public void UseTelemetry_ReportsTheQueueChosenByTheQueueAttribute_OnBothSpans()
     {
-        var spans = new ConcurrentQueue<Activity>();
-        using var listener = new ActivityListener
+        ConcurrentQueue<Activity> spans = new();
+        using ActivityListener listener = new()
         {
             ShouldListenTo = source => source.Name == NightShiftTelemetry.ActivitySourceName,
             Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
@@ -86,7 +86,7 @@ public class TelemetryFacts
         };
         ActivitySource.AddActivityListener(listener);
 
-        var storage = new SqlServerStorage(
+        SqlServerStorage storage = new(
             ConnectionUtils.GetConnectionString(),
             new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
 
@@ -106,15 +106,15 @@ public class TelemetryFacts
             }
 
             // Assert
-            var create = Assert.Single(spans, x => x.Kind == ActivityKind.Producer);
-            var process = Assert.Single(spans, x => x.Kind == ActivityKind.Consumer);
+            Activity create = Assert.Single(spans, x => x.Kind == ActivityKind.Producer);
+            Activity process = Assert.Single(spans, x => x.Kind == ActivityKind.Consumer);
 
             Assert.Equal("critical", create.GetTagItem("messaging.destination.name"));
             Assert.Equal("critical", process.GetTagItem("messaging.destination.name"));
         }
         finally
         {
-            foreach (var filter in GlobalJobFilters.Filters.Where(IsTelemetryFilter).ToArray())
+            foreach (JobFilter? filter in GlobalJobFilters.Filters.Where(IsTelemetryFilter).ToArray())
             {
                 GlobalJobFilters.Filters.Remove(filter.Instance);
             }

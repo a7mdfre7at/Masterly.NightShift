@@ -11,7 +11,7 @@ public class MaintenanceDispatcherFacts
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly()
     {
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("POST"), _storage.Object);
 
         await new MaintenanceDispatcher(true).Dispatch(context);
 
@@ -22,7 +22,7 @@ public class MaintenanceDispatcherFacts
     [Fact]
     public async Task Dispatch_Sets405_ForNonPostRequests()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("GET"), _storage.Object);
 
         await new MaintenanceDispatcher(true).Dispatch(context);
 
@@ -33,7 +33,7 @@ public class MaintenanceDispatcherFacts
     public async Task Dispatch_Sets422_WhenTheStorageCannotPurge()
     {
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(false);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
 
         await new MaintenanceDispatcher(true).Dispatch(context);
 
@@ -46,7 +46,7 @@ public class MaintenanceDispatcherFacts
     public async Task Dispatch_ClearsJobs_KeepingRecurringJobsServersAuditLogAndDrainMode()
     {
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
 
         await new MaintenanceDispatcher(keepRecurringJobsAndServers: true).Dispatch(context);
 
@@ -58,7 +58,7 @@ public class MaintenanceDispatcherFacts
     public async Task Dispatch_ResetsEverything_ButTheAuditLog()
     {
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST"), _storage.Object);
 
         await new MaintenanceDispatcher(keepRecurringJobsAndServers: false).Dispatch(context);
 
@@ -70,23 +70,23 @@ public class MaintenanceDispatcherFacts
     public async Task Dispatch_Sets500_WithAGenericMessage_AndRecordsTheFailure_WhenThePurgeFails()
     {
         // The storage's own message (server, database, table names) went to the browser, and nothing was audited
-        var audit = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        List<string> audit = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
         _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
         _storage.Setup(x => x.Purge(It.IsAny<StoragePurgeOptions>())).Throws(new System.InvalidOperationException("Server db-07: database Jobs is read-only."));
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST", "/maintenance/reset"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST", "/maintenance/reset"), _storage.Object);
 
         await new MaintenanceDispatcher(keepRecurringJobsAndServers: true).Dispatch(context);
 
         Assert.Equal(500, context.Response.StatusCode);
-        var error = JsonNode.Parse(context.Response.Text)["error"].GetValue<string>();
+        string error = JsonNode.Parse(context.Response.Text)["error"].GetValue<string>();
         Assert.DoesNotContain("db-07", error);
         Assert.Contains("log", error);
-        var entry = Assert.Single(audit);
+        string entry = Assert.Single(audit);
         Assert.Contains("\"s\":500", entry);
         Assert.DoesNotContain("db-07", entry);
     }
@@ -94,14 +94,14 @@ public class MaintenanceDispatcherFacts
     [Fact, StaticLock]
     public async Task Dispatch_RecordsThe422_WhenTheStorageCannotPurge()
     {
-        var audit = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        List<string> audit = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
         _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(false);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST", "/maintenance/reset"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("POST", "/maintenance/reset"), _storage.Object);
 
         await new MaintenanceDispatcher(keepRecurringJobsAndServers: false).Dispatch(context);
 
@@ -111,7 +111,7 @@ public class MaintenanceDispatcherFacts
     [Fact]
     public void JobStorage_Purge_ThrowsNotSupported_ByDefault()
     {
-        var storage = new JobStorageStub();
+        JobStorageStub storage = new();
 
         Assert.False(storage.HasFeature(JobStorageFeatures.Purge));
         Assert.Throws<System.NotSupportedException>(() => storage.Purge(new StoragePurgeOptions()));

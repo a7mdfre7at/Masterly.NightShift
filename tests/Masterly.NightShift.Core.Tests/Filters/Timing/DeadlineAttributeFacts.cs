@@ -26,20 +26,20 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnCreating_SetsTheDeadlineParameter_FromNow()
     {
-        var context = new CreateContextMock();
-        var attribute = new DeadlineAttribute("00:10:00");
+        CreateContextMock context = new();
+        DeadlineAttribute attribute = new("00:10:00");
 
         attribute.OnCreating(context.GetCreatingContext());
 
-        var value = context.Object.Parameters[DeadlineAttribute.DeadlineAtParameter];
-        var deadline = value is string serialized ? SerializationHelper.Deserialize<DateTime>(serialized, SerializationOption.User) : (DateTime)value;
+        object value = context.Object.Parameters[DeadlineAttribute.DeadlineAtParameter];
+        DateTime deadline = value is string serialized ? SerializationHelper.Deserialize<DateTime>(serialized, SerializationOption.User) : (DateTime)value;
         Assert.Equal(_now.AddMinutes(10), deadline);
     }
 
     [Fact]
     public void OnStateElection_DoesNotThrow_WhenTheMissCannotBeRecorded()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
         context.ApplyContext.Connection
             .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
@@ -56,7 +56,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnStateElection_RecordsTheMiss_WhenSucceedingAfterTheDeadline()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
         context.ApplyContext.Connection
             .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
@@ -71,25 +71,25 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RaisesTheDeadlineMissedAlert_AfterTheCommit()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
         try
         {
-            var context = new ElectStateContextMock();
+            ElectStateContextMock context = new();
             context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
             context.ApplyContext.Connection
                 .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
                 .Returns(SerializationHelper.Serialize(_now.AddMinutes(-5), SerializationOption.User));
 
             // Last, because reading Object builds the context from the setup above
-            var afterCommit = new PostCommitActions();
+            PostCommitActions afterCommit = new();
             context.ApplyContext.Object.AfterCommit = afterCommit;
 
             new DeadlineAttribute(60).OnStateElection(context.Object);
             Assert.Empty(sink.Received);
 
             afterCommit.Run();
-            var alert = Assert.Single(sink.Received);
+            Alert alert = Assert.Single(sink.Received);
             Assert.Equal(AlertKind.DeadlineMissed, alert.Kind);
             Assert.Equal("JobId", alert.JobId);
         }
@@ -102,7 +102,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnStateElection_DoesNothing_WhenOnTime()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
         context.ApplyContext.Connection
             .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
@@ -116,7 +116,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnStateElection_IgnoresOtherStates()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         new DeadlineAttribute(60).OnStateElection(context.Object);
@@ -127,7 +127,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void ReadDeadline_ReturnsNull_WithoutParameter()
     {
-        var context = new PerformContextMock();
+        PerformContextMock context = new();
 
         Assert.Null(DeadlineAttribute.ReadDeadline(context.Connection.Object, "JobId"));
     }
@@ -135,7 +135,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void ReadDeadline_ThrowsAnException_WhenArgumentsAreNull()
     {
-        var context = new PerformContextMock();
+        PerformContextMock context = new();
 
         Assert.Equal("connection", Assert.Throws<ArgumentNullException>(() => DeadlineAttribute.ReadDeadline(null, "JobId")).ParamName);
         Assert.Equal("jobId", Assert.Throws<ArgumentNullException>(() => DeadlineAttribute.ReadDeadline(context.Connection.Object, null)).ParamName);
@@ -144,7 +144,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void ReadDeadline_ReturnsNull_WhenTheParameterIsMalformed()
     {
-        var context = new PerformContextMock();
+        PerformContextMock context = new();
         context.Connection.Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter)).Returns("{not a date");
 
         Assert.Null(DeadlineAttribute.ReadDeadline(context.Connection.Object, "JobId"));
@@ -153,7 +153,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void ReadDeadline_ReturnsNull_WhenTheStorageThrows()
     {
-        var context = new PerformContextMock();
+        PerformContextMock context = new();
         context.Connection.Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter)).Throws(new InvalidOperationException("storage is down"));
 
         Assert.Null(DeadlineAttribute.ReadDeadline(context.Connection.Object, "JobId"));
@@ -162,7 +162,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnStateElection_DoesNothing_WhenTheDeadlineCannotBeRead()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
         context.ApplyContext.Connection
             .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
@@ -176,7 +176,7 @@ public class DeadlineAttributeFacts : IDisposable
     [Fact]
     public void OnCreated_LeavesTheJobParametersAlone()
     {
-        var context = new CreateContextMock();
+        CreateContextMock context = new();
 
         new DeadlineAttribute(60).OnCreated(context.GetCreatedContext("JobId"));
 

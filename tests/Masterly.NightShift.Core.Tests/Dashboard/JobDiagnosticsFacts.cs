@@ -24,7 +24,7 @@ public class JobDiagnosticsFacts : IDisposable
         _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         _monitor.Setup(x => x.Servers()).Returns(_servers);
         _monitor.Setup(x => x.Queues()).Returns(_queues);
-        _connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns<string>(id => _jobs.TryGetValue(id, out var data) ? data : null);
+        _connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns<string>(id => _jobs.TryGetValue(id, out JobData? data) ? data : null);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(_control);
         _connection.Setup(x => x.GetAllEntriesFromHash(It.Is<string>(k => k.StartsWith("insights:")))).Returns((Dictionary<string, string>)null);
         DrainMode.InvalidateCache();
@@ -40,7 +40,7 @@ public class JobDiagnosticsFacts : IDisposable
 
     private RazorPage CreatePage()
     {
-        var page = new JobDetailsPage("1");
+        JobDetailsPage page = new("1");
         page.Assign(new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object));
         return page;
     }
@@ -69,9 +69,9 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Enqueued_WithoutServers_IsAProblem()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("no-servers", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Problem, finding.Severity);
         Assert.EndsWith("/servers", finding.Link);
@@ -82,9 +82,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default", "critical");
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "reports" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "reports" } }));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("queue-unserved", finding.Code);
         Assert.Contains("reports", finding.Message.ToString());
         Assert.Contains("critical", finding.Message.ToString());
@@ -95,7 +95,7 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow.AddHours(-1), "default");
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
 
         Assert.Equal(new[] { "no-servers" }, Codes(findings));
     }
@@ -107,9 +107,9 @@ public class JobDiagnosticsFacts : IDisposable
         _control["Drain"] = "1";
         _control["DrainReason"] = "deploying";
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("drain", finding.Code);
         Assert.Contains("deploying", finding.Message.ToString());
     }
@@ -119,9 +119,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("healthy", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Info, finding.Severity);
     }
@@ -132,9 +132,9 @@ public class JobDiagnosticsFacts : IDisposable
         AddServer("web-1", DateTime.UtcNow, "default");
         _queues.Add(new QueueWithTopEnqueuedJobsDto { Name = "default", Length = 120, FirstJobs = new JobList<EnqueuedJobDto>([]) });
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }, createdAt: DateTime.UtcNow.AddMinutes(-5)));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }, createdAt: DateTime.UtcNow.AddMinutes(-5)));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("waiting", finding.Code);
         Assert.Contains("120", finding.Message.ToString());
     }
@@ -143,9 +143,9 @@ public class JobDiagnosticsFacts : IDisposable
     public void Scheduled_InTheFuture_ReportsWhenItIsDue()
     {
         AddServer("web-1", DateTime.UtcNow, "default");
-        var data = new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(10)) } };
+        Dictionary<string, string> data = new() { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Retry attempt 2 of 10: boom"));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Retry attempt 2 of 10: boom"));
 
         Assert.Equal(new[] { "retry", "due" }, Codes(findings));
     }
@@ -154,9 +154,9 @@ public class JobDiagnosticsFacts : IDisposable
     public void Scheduled_Overdue_IsAProblem_AndStillChecksTheQueue()
     {
         AddServer("web-1", DateTime.UtcNow, "other");
-        var data = new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
+        Dictionary<string, string> data = new() { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data));
 
         Assert.Equal(new[] { "overdue", "queue-unserved" }, Codes(findings));
         Assert.Equal(JobDiagnosticSeverity.Problem, findings[0].Severity);
@@ -165,9 +165,9 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Awaiting_WithAMissingParent_IsAProblem()
     {
-        var data = new Dictionary<string, string> { { "ParentId", "77" }, { "Options", "OnlyOnSucceededState" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" }, { "Options", "OnlyOnSucceededState" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
         Assert.Equal(new[] { "parent-missing" }, Codes(findings));
     }
@@ -176,11 +176,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_WhoseParentFailedTheCondition_ExplainsIt()
     {
         _jobs["77"] = new JobData { State = DeletedState.StateName, Job = Job.FromExpression(() => Work()) };
-        var data = new Dictionary<string, string> { { "ParentId", "77" }, { "Options", "OnlyOnSucceededState" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" }, { "Options", "OnlyOnSucceededState" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("condition-failed", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Problem, finding.Severity);
     }
@@ -189,11 +189,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_WithARunningParent_IsInformational()
     {
         _jobs["77"] = new JobData { State = ProcessingState.StateName, Job = Job.FromExpression(() => Work()) };
-        var data = new Dictionary<string, string> { { "ParentId", "77" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("parent-waiting", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Info, finding.Severity);
     }
@@ -203,9 +203,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _jobs["a"] = new JobData { State = SucceededState.StateName, Job = Job.FromExpression(() => Work()) };
         _jobs["b"] = new JobData { State = ProcessingState.StateName, Job = Job.FromExpression(() => Work()) };
-        var state = new AwaitingJobsState(["a", "b"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+        AwaitingJobsState state = new(["a", "b"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
 
         Assert.Equal("fan-in", findings[0].Code);
         Assert.Contains("1", findings[0].Message.ToString());
@@ -216,12 +216,12 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_FanInOverManyParents_ReadsOnlyTheFirstOnes_AndListsAFewLines()
     {
         // A continuation of a batch of 5,000 jobs read every parent and wrote a line for each: 10 s, 6 MB
-        var ids = Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture)).ToArray();
-        foreach (var id in ids) _jobs[id] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
+        string[] ids = [.. Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture))];
+        foreach (string? id in ids) _jobs[id] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
         _jobs["3"] = new JobData { State = FailedState.StateName, Job = Job.FromExpression(() => Work()) };
-        var state = new AwaitingJobsState(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+        AwaitingJobsState state = new(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
 
         _connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(JobDiagnostics.MaxParentsRead));
         Assert.Equal("fan-in", findings[0].Code);
@@ -230,28 +230,28 @@ public class JobDiagnosticsFacts : IDisposable
         // The failed parent comes first, before the waiting ones
         Assert.Equal("parent-failed", findings[1].Code);
         Assert.Equal(JobDiagnostics.MaxParentLines, findings.Count(static x => x.Code.StartsWith("parent-", StringComparison.Ordinal)));
-        var more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
+        JobDiagnostic more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
         Assert.Contains((5000 - JobDiagnostics.MaxParentLines).ToString(CultureInfo.CurrentCulture), more.Message.ToString());
     }
 
     [Fact, StaticLock]
     public void Awaiting_BatchContinuation_CountsTheBatch_WithItsCounters()
     {
-        var ids = Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture)).ToArray();
-        var state = new AwaitingJobsState(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
-        var details = Details(AwaitingState.StateName, state.SerializeData(), new Dictionary<string, string> { { BatchJob.ContinuationParameterName, "\"b1\"" } });
+        string[] ids = [.. Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture))];
+        AwaitingJobsState state = new(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+        JobDetailsDto details = Details(AwaitingState.StateName, state.SerializeData(), new Dictionary<string, string> { { BatchJob.ContinuationParameterName, "\"b1\"" } });
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
         _connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey("b1"))).Returns(new Dictionary<string, string> { { "Description", "import" } });
         _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns(0L);
         _connection.Setup(x => x.GetCounter(BatchJob.GetTotalKey("b1"))).Returns(5000L);
         _connection.Setup(x => x.GetCounter(BatchJob.GetStateKey("b1", SucceededState.StateName))).Returns(4990L);
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
         Assert.Equal("fan-in", findings[0].Code);
         Assert.Contains("4990", findings[0].Message.ToString());
         Assert.Contains("5000", findings[0].Message.ToString());
-        var more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
+        JobDiagnostic more = Assert.Single(findings, static x => x.Code == "parents-not-listed");
         Assert.EndsWith("/batches/b1", more.Link);
         _connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Exactly(JobDiagnostics.MaxParentsRead));
     }
@@ -259,9 +259,9 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Processing_OnAnUnknownServer_IsAProblem()
     {
-        var data = new Dictionary<string, string> { { "ServerId", "gone-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "gone-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
         Assert.Equal(new[] { "server-gone" }, Codes(findings));
     }
@@ -270,11 +270,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Processing_OnALiveServer_ReportsTheRun()
     {
         AddServer("web-1", DateTime.UtcNow, "default");
-        var data = new Dictionary<string, string> { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("running", finding.Code);
         Assert.Contains("web-1", finding.Message.ToString());
     }
@@ -282,7 +282,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Failed_AfterRetries_SaysTheyAreExhausted()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName, properties: new Dictionary<string, string> { { "RetryCount", "10" }, { AutomaticRetryAttribute.RetryLaterCountParameter, "3" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName, properties: new Dictionary<string, string> { { "RetryCount", "10" }, { AutomaticRetryAttribute.RetryLaterCountParameter, "3" } }));
 
         Assert.Equal(new[] { "retries-exhausted", "retry-later-exhausted" }, Codes(findings));
         Assert.Contains("10", findings[0].Message.ToString());
@@ -291,7 +291,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Failed_WithoutRetries_SaysWhy()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName));
 
         Assert.Equal(new[] { "not-retried" }, Codes(findings));
     }
@@ -301,9 +301,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _monitor.Setup(x => x.Servers()).Throws(new InvalidOperationException("storage <down>"));
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("error", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Warning, finding.Severity);
         Assert.Contains("storage &lt;down&gt;", finding.Message.ToString());
@@ -313,7 +313,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Diagnose_WithoutHistory_HasNoFindings()
     {
-        var details = Details(EnqueuedState.StateName);
+        JobDetailsDto details = Details(EnqueuedState.StateName);
         details.History = [];
 
         Assert.Empty(JobDiagnostics.Diagnose(CreatePage(), "1", details));
@@ -332,9 +332,9 @@ public class JobDiagnosticsFacts : IDisposable
         AddServer("web-1", DateTime.UtcNow, "default");
         _control[DrainMode.QueueFieldPrefix + "default"] = "maintenance";
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } }));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("queue-paused", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Warning, finding.Severity);
         Assert.Contains(": maintenance", finding.Message.ToString());
@@ -346,12 +346,12 @@ public class JobDiagnosticsFacts : IDisposable
     {
         // Enqueue("reports", ...) records "default" in the state; the job waits in "reports"
         AddServer("web-1", DateTime.UtcNow, "default", "emails");
-        var details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
+        JobDetailsDto details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
         details.Job = new Job(typeof(JobDiagnosticsFacts), typeof(JobDiagnosticsFacts).GetMethod(nameof(Work)), [], "reports");
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("queue-unserved", finding.Code);
         Assert.Contains("reports", finding.Message.ToString());
     }
@@ -361,12 +361,12 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "reports");
         _control[DrainMode.QueueFieldPrefix + "reports"] = "month end";
-        var details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
+        JobDetailsDto details = Details(EnqueuedState.StateName, new Dictionary<string, string> { { "Queue", "default" } });
         details.Job = new Job(typeof(JobDiagnosticsFacts), typeof(JobDiagnosticsFacts).GetMethod(nameof(Work)), [], "reports");
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("queue-paused", finding.Code);
         Assert.Contains("month end", finding.Message.ToString());
     }
@@ -377,9 +377,9 @@ public class JobDiagnosticsFacts : IDisposable
         AddServer("web-1", DateTime.UtcNow, "default");
         _control[DrainMode.QueueFieldPrefix + "default"] = string.Empty;
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("queue-paused", finding.Code);
         Assert.DoesNotContain(": ", finding.Message.ToString());
     }
@@ -390,7 +390,7 @@ public class JobDiagnosticsFacts : IDisposable
         AddServer("web-1", DateTime.UtcNow, "default");
         _control[DrainMode.QueueFieldPrefix + "reports"] = "maintenance";
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(EnqueuedState.StateName));
 
         Assert.Equal(new[] { "healthy" }, Codes(findings));
     }
@@ -399,9 +399,9 @@ public class JobDiagnosticsFacts : IDisposable
     public void Scheduled_ByRetryLater_SaysTheJobChoseTheTime()
     {
         AddServer("web-1", DateTime.UtcNow, "default");
-        var data = new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(10)) } };
+        Dictionary<string, string> data = new() { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Retry later (1 of 5): rate limited"));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Retry later (1 of 5): rate limited"));
 
         Assert.Equal(new[] { "retry-later", "due" }, Codes(findings));
         Assert.Equal(JobDiagnosticSeverity.Info, findings[0].Severity);
@@ -411,9 +411,9 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Scheduled_OverdueWithoutLiveServers_IsAProblem_AndReportsTheMissingServers()
     {
-        var data = new Dictionary<string, string> { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
+        Dictionary<string, string> data = new() { { "EnqueueAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Some other reason"));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ScheduledState.StateName, data, reason: "Some other reason"));
 
         Assert.Equal(new[] { "overdue", "no-servers" }, Codes(findings));
     }
@@ -422,11 +422,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_WhoseParentFailed_IsAProblem()
     {
         _jobs["77"] = new JobData { State = FailedState.StateName, Job = Job.FromExpression(() => Work()) };
-        var data = new Dictionary<string, string> { { "ParentId", "77" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("parent-failed", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Problem, finding.Severity);
         Assert.Contains("77", finding.Message.ToString());
@@ -437,11 +437,11 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _jobs["77"] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
         _connection.Setup(x => x.GetStateData("77")).Returns(new StateData { Name = ScheduledState.StateName, Reason = "Retry attempt 1 of 10: boom" });
-        var data = new Dictionary<string, string> { { "ParentId", "77" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("parent-retrying", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Info, finding.Severity);
     }
@@ -451,9 +451,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _jobs["77"] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
         _connection.Setup(x => x.GetStateData("77")).Returns(new StateData { Name = ScheduledState.StateName, Reason = "Scheduled by the user" });
-        var data = new Dictionary<string, string> { { "ParentId", "77" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
         Assert.Equal(new[] { "parent-waiting" }, Codes(findings));
     }
@@ -463,9 +463,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _jobs["77"] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
         _connection.Setup(x => x.GetStateData("77")).Returns((StateData)null);
-        var data = new Dictionary<string, string> { { "ParentId", "77" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
         Assert.Equal(new[] { "parent-waiting" }, Codes(findings));
     }
@@ -480,11 +480,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_WhoseParentFinishedAndMetTheCondition_SaysItShouldHaveStarted(string options, string parentState)
     {
         _jobs["77"] = new JobData { State = parentState, Job = Job.FromExpression(() => Work()) };
-        var data = new Dictionary<string, string> { { "ParentId", "77" }, { "Options", options } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" }, { "Options", options } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("parent-finished", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Warning, finding.Severity);
     }
@@ -493,9 +493,9 @@ public class JobDiagnosticsFacts : IDisposable
     public void Awaiting_OnlyOnDeleted_WhoseParentSucceeded_FailedTheCondition()
     {
         _jobs["77"] = new JobData { State = SucceededState.StateName, Job = Job.FromExpression(() => Work()) };
-        var data = new Dictionary<string, string> { { "ParentId", "77" }, { "Options", "OnlyOnDeletedState" } };
+        Dictionary<string, string> data = new() { { "ParentId", "77" }, { "Options", "OnlyOnDeletedState" } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, data));
 
         Assert.Equal(new[] { "condition-failed" }, Codes(findings));
     }
@@ -503,7 +503,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Awaiting_WithoutAParent_HasNoFindings()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, new Dictionary<string, string> { { "ParentId", "" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, new Dictionary<string, string> { { "ParentId", "" } }));
 
         Assert.Empty(findings);
     }
@@ -513,11 +513,11 @@ public class JobDiagnosticsFacts : IDisposable
     {
         _jobs["a"] = new JobData { State = SucceededState.StateName, Job = Job.FromExpression(() => Work()) };
         _jobs["b"] = new JobData { State = DeletedState.StateName, Job = Job.FromExpression(() => Work()) };
-        var state = new AwaitingJobsState(["a", "b"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.Any);
+        AwaitingJobsState state = new(["a", "b"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.Any);
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(AwaitingState.StateName, state.SerializeData()));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("fan-in", finding.Code);
         Assert.Contains("2", finding.Message.ToString());
     }
@@ -526,11 +526,11 @@ public class JobDiagnosticsFacts : IDisposable
     public void Processing_OnAServerThatMissedItsHeartbeat_IsAProblem()
     {
         AddServer("web-1", DateTime.UtcNow.AddHours(-1), "default");
-        var data = new Dictionary<string, string> { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("server-stale", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Problem, finding.Severity);
         Assert.Contains("web-1", finding.Message.ToString());
@@ -542,11 +542,11 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
         RecordDurations("1000", "1000", "1000");
-        var data = new Dictionary<string, string> { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("slow", finding.Code);
         Assert.Equal(JobDiagnosticSeverity.Warning, finding.Severity);
         Assert.EndsWith("/insights", finding.Link);
@@ -557,11 +557,11 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
         RecordDurations("60000", "60000", "60000");
-        var data = new Dictionary<string, string> { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddSeconds(-10)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddSeconds(-10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
-        var finding = Assert.Single(findings);
+        JobDiagnostic finding = Assert.Single(findings);
         Assert.Equal("running", finding.Code);
         Assert.Contains("web-1", finding.Message.ToString());
     }
@@ -571,9 +571,9 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
         RecordDurations("10", "10");
-        var data = new Dictionary<string, string> { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
+        Dictionary<string, string> data = new() { { "ServerId", "web-1" }, { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-10)) } };
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName, data));
 
         Assert.Equal(new[] { "running" }, Codes(findings));
     }
@@ -581,7 +581,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Processing_WithoutAServerId_HasNoFindings()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(ProcessingState.StateName));
 
         Assert.Empty(findings);
     }
@@ -589,10 +589,10 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Failed_WithRetriesDisabled_SaysSo()
     {
-        var details = Details(FailedState.StateName);
+        JobDetailsDto details = Details(FailedState.StateName);
         details.Job = Job.FromExpression(() => NoRetries());
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
         Assert.Equal(new[] { "retries-disabled" }, Codes(findings));
     }
@@ -600,7 +600,7 @@ public class JobDiagnosticsFacts : IDisposable
     [Fact, StaticLock]
     public void Failed_WithMalformedRetryCounters_TreatsThemAsZero()
     {
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName, properties: new Dictionary<string, string> { { "RetryCount", "many" }, { AutomaticRetryAttribute.RetryLaterCountParameter, "x" } }));
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", Details(FailedState.StateName, properties: new Dictionary<string, string> { { "RetryCount", "many" }, { AutomaticRetryAttribute.RetryLaterCountParameter, "x" } }));
 
         Assert.Equal(new[] { "not-retried" }, Codes(findings));
     }
@@ -610,10 +610,10 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
         SetCircuit("payments-api", CircuitBreakerAttribute.OpenState);
-        var details = Details(EnqueuedState.StateName);
+        JobDetailsDto details = Details(EnqueuedState.StateName);
         details.Job = Job.FromExpression(() => CircuitJobs.Pay());
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
         Assert.Equal(new[] { "healthy", "circuit-open" }, Codes(findings));
         Assert.Equal(JobDiagnosticSeverity.Warning, findings[1].Severity);
@@ -626,10 +626,10 @@ public class JobDiagnosticsFacts : IDisposable
     {
         AddServer("web-1", DateTime.UtcNow, "default");
         SetCircuit("payments-api", CircuitBreakerAttribute.ClosedState);
-        var details = Details(EnqueuedState.StateName);
+        JobDetailsDto details = Details(EnqueuedState.StateName);
         details.Job = Job.FromExpression(() => CircuitJobs.Pay());
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
         Assert.Equal(new[] { "healthy" }, Codes(findings));
     }
@@ -638,17 +638,17 @@ public class JobDiagnosticsFacts : IDisposable
     public void Failed_WithAnOpenCircuit_DoesNotReportTheCircuit()
     {
         SetCircuit("payments-api", CircuitBreakerAttribute.OpenState);
-        var details = Details(FailedState.StateName);
+        JobDetailsDto details = Details(FailedState.StateName);
         details.Job = Job.FromExpression(() => CircuitJobs.Pay());
 
-        var findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
+        IReadOnlyList<JobDiagnostic> findings = JobDiagnostics.Diagnose(CreatePage(), "1", details);
 
         Assert.Equal(new[] { "not-retried" }, Codes(findings));
     }
 
     private void RecordDurations(params string[] durations)
     {
-        var key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Work()));
+        string key = JobInsightsAttribute.GetKey(Job.FromExpression(() => Work()));
         _connection.Setup(x => x.GetAllEntriesFromHash("insights:" + key)).Returns(new Dictionary<string, string> { { "LastDurationMs", durations[0] } });
         _connection.Setup(x => x.GetAllItemsFromList("insights:" + key + ":durations")).Returns([.. durations]);
     }

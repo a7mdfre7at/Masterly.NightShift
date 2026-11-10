@@ -19,11 +19,11 @@ public class StateMachineFacts
 
     public StateMachineFacts()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _transaction = new Mock<IWriteOnlyTransaction>();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
 
-        var backgroundJob = new BackgroundJobMock { Id = JobId };
+        BackgroundJobMock backgroundJob = new() { Id = JobId };
         _context = new ApplyStateContextMock
         {
             BackgroundJob = backgroundJob,
@@ -41,7 +41,7 @@ public class StateMachineFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFilterProviderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateMachine(null, _innerMachine.Object));
 
         Assert.Equal("filterProvider", exception.ParamName);
@@ -50,7 +50,7 @@ public class StateMachineFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenInnerStateMachineIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateMachine(_filterProvider.Object, null));
 
         Assert.Equal("innerStateMachine", exception.ParamName);
@@ -60,9 +60,9 @@ public class StateMachineFacts
     public void ApplyState_CallsElectionFilterWithCorrectProperties()
     {
         // Arrange
-        var filter = CreateFilter<IElectStateFilter>();
+        Mock<IElectStateFilter> filter = CreateFilter<IElectStateFilter>();
 
-        var stateMachine = CreateStateMachine();
+        StateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_context.Object);
@@ -79,15 +79,15 @@ public class StateMachineFacts
     public void ApplyState_CallsElectionFilters()
     {
         // Arrange
-        var filter1 = CreateFilter<IElectStateFilter>();
-        var filter2 = CreateFilter<IElectStateFilter>();
+        Mock<IElectStateFilter> filter1 = CreateFilter<IElectStateFilter>();
+        Mock<IElectStateFilter> filter2 = CreateFilter<IElectStateFilter>();
 
         filter1.Setup(x => x.OnStateElection(It.IsAny<ElectStateContext>()))
             .InSequence();
         filter2.Setup(x => x.OnStateElection(It.IsAny<ElectStateContext>()))
             .InSequence();
 
-        var stateMachine = CreateStateMachine();
+        StateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_context.Object);
@@ -99,12 +99,12 @@ public class StateMachineFacts
     public void ApplyState_AddsJobHistory_ForTraversedStates()
     {
         // Arrange
-        var anotherState = new Mock<IState>();
-        var filter = CreateFilter<IElectStateFilter>();
+        Mock<IState> anotherState = new();
+        Mock<IElectStateFilter> filter = CreateFilter<IElectStateFilter>();
         filter.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
             .Callback<ElectStateContext>(context => context.CandidateState = anotherState.Object);
 
-        var stateMachine = CreateStateMachine();
+        StateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_context.Object);
@@ -117,8 +117,8 @@ public class StateMachineFacts
     public void ApplyState_CallsStateUnappliedFilters_BeforeCallingInnerStateMachine()
     {
         // Arrange
-        var filter1 = CreateFilter<IApplyStateFilter>();
-        var filter2 = CreateFilter<IApplyStateFilter>();
+        Mock<IApplyStateFilter> filter1 = CreateFilter<IApplyStateFilter>();
+        Mock<IApplyStateFilter> filter2 = CreateFilter<IApplyStateFilter>();
 
         filter1.Setup(x => x.OnStateUnapplied(It.IsNotNull<ApplyStateContext>(), _transaction.Object))
             .InSequence();
@@ -128,7 +128,7 @@ public class StateMachineFacts
             .Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .InSequence();
 
-        var stateMachine = CreateStateMachine();
+        StateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_context.Object);
@@ -140,15 +140,15 @@ public class StateMachineFacts
     public void ApplyState_CallsStateAppliedFilters_AfterSettingTheState()
     {
         // Arrange
-        var filter1 = CreateFilter<IApplyStateFilter>();
-        var filter2 = CreateFilter<IApplyStateFilter>();
+        Mock<IApplyStateFilter> filter1 = CreateFilter<IApplyStateFilter>();
+        Mock<IApplyStateFilter> filter2 = CreateFilter<IApplyStateFilter>();
 
         filter1.Setup(x => x.OnStateApplied(It.IsNotNull<ApplyStateContext>(), _transaction.Object))
             .InSequence();
         filter2.Setup(x => x.OnStateApplied(It.IsNotNull<ApplyStateContext>(), _transaction.Object))
             .InSequence();
 
-        var stateMachine = CreateStateMachine();
+        StateMachine stateMachine = CreateStateMachine();
 
         // Act
         stateMachine.ApplyState(_context.Object);
@@ -163,7 +163,7 @@ public class StateMachineFacts
 
     private Mock<T> CreateFilter<T>() where T : class
     {
-        var filter = new Mock<T>();
+        Mock<T> filter = new();
         _filters.Add(filter.Object);
 
         return filter;

@@ -5,7 +5,7 @@ public class AspNetCoreJobActivatorFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenScopeFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => new AspNetCoreJobActivator(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new AspNetCoreJobActivator(null));
 
         Assert.Equal("serviceScopeFactory", exception.ParamName);
     }
@@ -13,11 +13,11 @@ public class AspNetCoreJobActivatorFacts
     [Fact]
     public void BeginScope_ResolvesScopedServices_OncePerScope()
     {
-        using var provider = BuildProvider();
-        var activator = new AspNetCoreJobActivator(provider.GetRequiredService<IServiceScopeFactory>());
-        using var scope = activator.BeginScope((JobActivatorContext)null);
-        var first = scope.Resolve(typeof(AsyncOnlyDisposable));
-        var second = scope.Resolve(typeof(AsyncOnlyDisposable));
+        using ServiceProvider provider = BuildProvider();
+        AspNetCoreJobActivator activator = new(provider.GetRequiredService<IServiceScopeFactory>());
+        using JobActivatorScope scope = activator.BeginScope((JobActivatorContext)null);
+        object? first = scope.Resolve(typeof(AsyncOnlyDisposable));
+        object? second = scope.Resolve(typeof(AsyncOnlyDisposable));
 
         Assert.Same(first, second);
     }
@@ -25,10 +25,10 @@ public class AspNetCoreJobActivatorFacts
     [Fact]
     public void BeginScope_CreatesUnregisteredTypes()
     {
-        using var provider = BuildProvider();
-        var activator = new AspNetCoreJobActivator(provider.GetRequiredService<IServiceScopeFactory>());
-        using var scope = activator.BeginScope((JobActivatorContext)null);
-        var instance = scope.Resolve(typeof(UnregisteredJob));
+        using ServiceProvider provider = BuildProvider();
+        AspNetCoreJobActivator activator = new(provider.GetRequiredService<IServiceScopeFactory>());
+        using JobActivatorScope scope = activator.BeginScope((JobActivatorContext)null);
+        object? instance = scope.Resolve(typeof(UnregisteredJob));
 
         Assert.IsType<UnregisteredJob>(instance);
     }
@@ -37,10 +37,10 @@ public class AspNetCoreJobActivatorFacts
     public void DisposeScope_DisposesServices_ThatAreOnlyAsyncDisposable()
     {
         // A synchronous scope disposal throws for such services, so this only passes on the asynchronous path
-        using var provider = BuildProvider();
-        var activator = new AspNetCoreJobActivator(provider.GetRequiredService<IServiceScopeFactory>());
-        var scope = activator.BeginScope((JobActivatorContext)null);
-        var instance = (AsyncOnlyDisposable)scope.Resolve(typeof(AsyncOnlyDisposable));
+        using ServiceProvider provider = BuildProvider();
+        AspNetCoreJobActivator activator = new(provider.GetRequiredService<IServiceScopeFactory>());
+        JobActivatorScope scope = activator.BeginScope((JobActivatorContext)null);
+        AsyncOnlyDisposable? instance = (AsyncOnlyDisposable)scope.Resolve(typeof(AsyncOnlyDisposable));
 
         scope.Dispose();
 

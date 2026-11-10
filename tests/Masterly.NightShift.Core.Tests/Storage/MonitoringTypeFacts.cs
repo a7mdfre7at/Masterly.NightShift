@@ -43,7 +43,7 @@ public class MonitoringTypeFacts
     [Fact]
     public void JobList_Ctor_ShouldInitializeCollection()
     {
-        var list = new JobList<int>(new Dictionary<string, int> { { "1", 2 } });
+        JobList<int> list = new(new Dictionary<string, int> { { "1", 2 } });
         Assert.Single(list);
     }
 }

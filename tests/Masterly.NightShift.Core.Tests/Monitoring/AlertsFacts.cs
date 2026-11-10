@@ -22,7 +22,7 @@ public class AlertsFacts : IDisposable
     [Fact, StaticLock]
     public void Raise_DeliversToEverySink_AndSurvivesAFailingOne()
     {
-        var failing = new Mock<IAlertSink>();
+        Mock<IAlertSink> failing = new();
         failing.Setup(x => x.Publish(It.IsAny<Alert>())).Throws<InvalidOperationException>();
         Alerts.AddSink(failing.Object);
         Alerts.AddSink(_sink);
@@ -37,12 +37,12 @@ public class AlertsFacts : IDisposable
     public void AlertsFilter_RaisesJobFailed_WhenAJobEntersTheFailedState()
     {
         Alerts.AddSink(_sink);
-        var context = new ApplyStateContextMock { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
+        ApplyStateContextMock context = new() { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
         context.BackgroundJob.Id = "7";
 
         new AlertsFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
-        var alert = Assert.Single(_sink.Alerts);
+        Alert alert = Assert.Single(_sink.Alerts);
         Assert.Equal(AlertKind.JobFailed, alert.Kind);
         Assert.Equal("7", alert.JobId);
         Assert.Equal("BackgroundJobMock.SomeMethod", alert.Method);
@@ -54,8 +54,8 @@ public class AlertsFacts : IDisposable
     public void AlertsFilter_WaitsForTheCommit_WhenTheStateChangeRunsActionsAfterIt()
     {
         Alerts.AddSink(_sink);
-        var context = new ApplyStateContextMock { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
-        var afterCommit = new PostCommitActions();
+        ApplyStateContextMock context = new() { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
+        PostCommitActions afterCommit = new();
         context.Object.AfterCommit = afterCommit;
 
         new AlertsFilter().OnStateApplied(context.Object, context.Transaction.Object);
@@ -69,28 +69,28 @@ public class AlertsFacts : IDisposable
     public void AlertsFilter_AlertsOnce_WhenTheCommitFailsAndTheStateChangeIsRetried()
     {
         Alerts.AddSink(_sink);
-        var filterProvider = new Mock<IJobFilterProvider>();
+        Mock<IJobFilterProvider> filterProvider = new();
         filterProvider.Setup(x => x.GetFilters(It.IsAny<Job>()))
             .Returns([new JobFilter(new AlertsFilter(), JobFilterScope.Global, null)]);
-        var innerStateMachine = new Mock<IStateMachine>();
+        Mock<IStateMachine> innerStateMachine = new();
         innerStateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>())).Returns<ApplyStateContext>(x => x.NewState);
-        var stateChanger = new BackgroundJobStateChanger(filterProvider.Object, innerStateMachine.Object);
+        BackgroundJobStateChanger stateChanger = new(filterProvider.Object, innerStateMachine.Object);
 
-        var connection = new Mock<IStorageConnection>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        Mock<IStorageConnection> connection = new();
+        Mock<IWriteOnlyTransaction> transaction = new();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
         connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
         connection.Setup(x => x.GetJobData("7")).Returns(new JobData { State = ProcessingState.StateName, Job = Job.FromExpression(() => Console.WriteLine()) });
         transaction.SetupSequence(x => x.Commit()).Throws(new TimeoutException("commit failed")).Pass();
 
-        var context = new StateChangeContext(new Mock<JobStorage>().Object, connection.Object, "7", new FailedState(new InvalidOperationException("boom"), "srv"), ProcessingState.StateName);
+        StateChangeContext context = new(new Mock<JobStorage>().Object, connection.Object, "7", new FailedState(new InvalidOperationException("boom"), "srv"), ProcessingState.StateName);
 
         Assert.Throws<TimeoutException>(() => stateChanger.ChangeState(context));
         Assert.Empty(_sink.Alerts);
 
         stateChanger.ChangeState(context);
 
-        var alert = Assert.Single(_sink.Alerts);
+        Alert alert = Assert.Single(_sink.Alerts);
         Assert.Equal("7", alert.JobId);
     }
 
@@ -98,7 +98,7 @@ public class AlertsFacts : IDisposable
     public void AlertsFilter_IgnoresOtherStates()
     {
         Alerts.AddSink(_sink);
-        var context = new ApplyStateContextMock { NewStateObject = new SucceededState(null, 0, 0) };
+        ApplyStateContextMock context = new() { NewStateObject = new SucceededState(null, 0, 0) };
 
         new AlertsFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -109,7 +109,7 @@ public class AlertsFacts : IDisposable
     public void AlertsFilter_OnStateUnapplied_RaisesNothing()
     {
         Alerts.AddSink(_sink);
-        var context = new ApplyStateContextMock { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
+        ApplyStateContextMock context = new() { NewStateObject = new FailedState(new TimeoutException("boom"), "srv") };
 
         new AlertsFilter().OnStateUnapplied(context.Object, context.Transaction.Object);
 
@@ -120,7 +120,7 @@ public class AlertsFacts : IDisposable
     [Fact, StaticLock]
     public void UseAlerts_RegistersTheSink_AndTheFilterOnce()
     {
-        var configuration = new Mock<IGlobalConfiguration>().Object;
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
 
         configuration.UseAlerts(_sink);
         configuration.UseAlerts(new RecordingSink());
@@ -134,7 +134,7 @@ public class AlertsFacts : IDisposable
     {
         new Mock<IGlobalConfiguration>().Object.UseWebhookAlerts("http://hooks.local/x", o => o.Format = WebhookFormat.Slack);
 
-        var sink = Assert.IsType<WebhookAlertSink>(Assert.Single(Alerts.Sinks));
+        WebhookAlertSink sink = Assert.IsType<WebhookAlertSink>(Assert.Single(Alerts.Sinks));
         Assert.Equal("http://hooks.local/x", sink.Options.Url);
         Assert.Equal(WebhookFormat.Slack, sink.Options.Format);
     }
@@ -143,7 +143,7 @@ public class AlertsFacts : IDisposable
     public void DeadlineAttribute_RaisesDeadlineMissed()
     {
         Alerts.AddSink(_sink);
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
         context.ApplyContext.Connection
             .Setup(x => x.GetJobParameter("JobId", DeadlineAttribute.DeadlineAtParameter))
@@ -151,7 +151,7 @@ public class AlertsFacts : IDisposable
 
         new DeadlineAttribute(60).OnStateElection(context.Object);
 
-        var alert = Assert.Single(_sink.Alerts);
+        Alert alert = Assert.Single(_sink.Alerts);
         Assert.Equal(AlertKind.DeadlineMissed, alert.Kind);
         Assert.Equal("JobId", alert.JobId);
     }
@@ -178,19 +178,19 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task SendAsync_PostsJson_WithHeaders()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var options = new WebhookAlertOptions { Url = "http://hooks.local/nightshift" };
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertOptions options = new() { Url = "http://hooks.local/nightshift" };
         options.Headers["Authorization"] = "Bearer token";
-        var sink = new WebhookAlertSink(options, new HttpClient(handler));
-        var alert = new Alert(AlertKind.CircuitOpened, "Circuit 'api' is open", "3 failures") { Resource = "api", JobId = "9" };
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+        Alert alert = new(AlertKind.CircuitOpened, "Circuit 'api' is open", "3 failures") { Resource = "api", JobId = "9" };
 
-        var sent = await sink.SendAsync(alert);
+        bool sent = await sink.SendAsync(alert);
 
         Assert.True(sent);
         Assert.Equal(1, sink.Sent);
         Assert.Equal(HttpMethod.Post, handler.LastRequest.Method);
         Assert.Equal("Bearer token", handler.LastRequest.Headers.GetValues("Authorization").Single());
-        var body = JsonNode.Parse(handler.LastBody);
+        JsonNode? body = JsonNode.Parse(handler.LastBody);
         Assert.Equal("nightshift", body["source"].GetValue<string>());
         Assert.Equal("circuitOpened", body["kind"].GetValue<string>());
         Assert.Equal("api", body["resource"].GetValue<string>());
@@ -201,9 +201,9 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_UsesTheSlackShape_WhenConfigured()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Slack }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Slack }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", "Boom") { JobId = "1", ServerId = "s" }));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", "Boom") { JobId = "1", ServerId = "s" }));
 
         Assert.Equal("*Job 1 failed*\nBoom\nJob: 1\nServer: s", body["text"].GetValue<string>());
     }
@@ -211,9 +211,9 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_EscapesSlackControlCharacters_SoExceptionTextCanNotPingOrHideLinks()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Slack }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Slack }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "A & B <failed>", "<!channel> see <https://evil.example|the docs> & fix") { Resource = "<@U123>" }));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "A & B <failed>", "<!channel> see <https://evil.example|the docs> & fix") { Resource = "<@U123>" }));
 
         Assert.Equal(
             "*A &amp; B &lt;failed&gt;*\n&lt;!channel&gt; see &lt;https://evil.example|the docs&gt; &amp; fix\nResource: &lt;@U123&gt;",
@@ -223,9 +223,9 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_UsesTheDiscordShape_WithMentionsTurnedOff()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", "@everyone Boom") { JobId = "1" }));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", "@everyone Boom") { JobId = "1" }));
 
         Assert.Equal("**Job 1 failed**\n@everyone Boom\nJob: 1", body["content"].GetValue<string>());
         Assert.Empty(body["allowed_mentions"]["parse"].AsArray());
@@ -235,28 +235,28 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_UsesAnAdaptiveCardMessage_ForTeams()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Teams }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
-        var alert = new Alert(AlertKind.JobFailed, "Job 42 failed: EmailService.SendWelcome", "SmtpException: Mailbox unavailable")
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Teams }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        Alert alert = new(AlertKind.JobFailed, "Job 42 failed: EmailService.SendWelcome", "SmtpException: Mailbox unavailable")
         {
             JobId = "42",
             Method = "EmailService.SendWelcome",
             OccurredAt = new DateTime(2026, 11, 6, 9, 41, 27, DateTimeKind.Utc),
         };
 
-        var body = JsonNode.Parse(sink.CreateBody(alert));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(alert));
 
         Assert.Equal("message", body["type"].GetValue<string>());
-        var attachment = Assert.Single(body["attachments"].AsArray());
+        JsonNode? attachment = Assert.Single(body["attachments"].AsArray());
         Assert.Equal("application/vnd.microsoft.card.adaptive", attachment["contentType"].GetValue<string>());
-        var card = attachment["content"];
+        JsonNode? card = attachment["content"];
         Assert.Equal("AdaptiveCard", card["type"].GetValue<string>());
         Assert.Equal("1.4", card["version"].GetValue<string>());
         Assert.Equal("http://adaptivecards.io/schemas/adaptive-card.json", card["$schema"].GetValue<string>());
-        var blocks = card["body"].AsArray();
+        JsonArray blocks = card["body"].AsArray();
         Assert.Equal("Job 42 failed: EmailService.SendWelcome", blocks[0]["text"].GetValue<string>());
         Assert.Equal("Bolder", blocks[0]["weight"].GetValue<string>());
         Assert.Equal("SmtpException: Mailbox unavailable", blocks[1]["text"].GetValue<string>());
-        var facts = blocks[2]["facts"].AsArray();
+        JsonArray facts = blocks[2]["facts"].AsArray();
         Assert.Equal(new[] { "Kind", "Job", "Method", "When" }, facts.Select(static f => f["title"].GetValue<string>()).ToArray());
         Assert.Equal("42", facts[1]["value"].GetValue<string>());
         Assert.Equal("2026-11-06 09:41:27Z", facts[3]["value"].GetValue<string>());
@@ -265,11 +265,11 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_EscapesMarkdown_InTeamsCards_SoExceptionTextCanNotAddLinks()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Teams }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Teams }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "*Job* failed", "see [the docs](https://evil.example) <at>all</at> \\x") { Resource = "a_b" }));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "*Job* failed", "see [the docs](https://evil.example) <at>all</at> \\x") { Resource = "a_b" }));
 
-        var blocks = body["attachments"][0]["content"]["body"].AsArray();
+        JsonArray blocks = body["attachments"][0]["content"]["body"].AsArray();
         Assert.Equal("\\*Job\\* failed", blocks[0]["text"].GetValue<string>());
         Assert.Equal("see \\[the docs\\](https://evil.example) \\<at\\>all\\</at\\> \\\\x", blocks[1]["text"].GetValue<string>());
         Assert.Equal("a\\_b", blocks[2]["facts"].AsArray().Single(static f => f["title"].GetValue<string>() == "Resource")["value"].GetValue<string>());
@@ -278,15 +278,15 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_EscapesMarkdown_InDiscordMessages_SoExceptionTextCanNotAddLinksOrFormatting()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
-        var alert = new Alert(AlertKind.JobFailed, "*Job* ~~1~~ failed", "# Big\n> quote see [the docs](https://evil.example) ||spoiler|| `code` \\x")
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        Alert alert = new(AlertKind.JobFailed, "*Job* ~~1~~ failed", "# Big\n> quote see [the docs](https://evil.example) ||spoiler|| `code` \\x")
         {
             JobId = "a_b",
             Resource = "res(1)",
             ServerId = "web#1",
         };
 
-        var body = JsonNode.Parse(sink.CreateBody(alert));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(alert));
 
         Assert.Equal(
             "**\\*Job\\* \\~\\~1\\~\\~ failed**\n" +
@@ -298,11 +298,11 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void CreateBody_CutsDiscordMessages_ToTwoThousandCharacters()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Format = WebhookFormat.Discord }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", new string('x', 5000))));
+        JsonNode? body = JsonNode.Parse(sink.CreateBody(new Alert(AlertKind.JobFailed, "Job 1 failed", new string('x', 5000))));
 
-        var content = body["content"].GetValue<string>();
+        string content = body["content"].GetValue<string>();
         Assert.Equal(2000, content.Length);
         Assert.EndsWith("\u2026", content);
     }
@@ -310,8 +310,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task SendAsync_CountsFailures_ForNonSuccessCodes_AndExceptions()
     {
-        var rejected = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(new StubHandler(HttpStatusCode.BadGateway)));
-        var throwing = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(new StubHandler(new HttpRequestException("down"))));
+        WebhookAlertSink rejected = new(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(new StubHandler(HttpStatusCode.BadGateway)));
+        WebhookAlertSink throwing = new(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(new StubHandler(new HttpRequestException("down"))));
 
         Assert.False(await rejected.SendAsync(new Alert(AlertKind.JobFailed, "t", "m")));
         Assert.False(await throwing.SendAsync(new Alert(AlertKind.JobFailed, "t", "m")));
@@ -322,8 +322,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void Publish_SkipsEventsThatAreNotSubscribed()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Events = AlertKind.CircuitOpened }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Events = AlertKind.CircuitOpened }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
 
@@ -334,8 +334,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Publish_SendsInTheBackground()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
 
@@ -345,8 +345,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Publish_DropsTheAlert_WhenTooManyRequestsAreInFlight()
     {
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 1 }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 1 }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "first", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -361,8 +361,8 @@ public class WebhookAlertSinkFacts
     public async Task SendAsync_DoesNotFreeASlotThatPublishHolds()
     {
         // Only the published request waits; the direct one answers at once
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>(), GatedRequests = 1 };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 1 }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>(), GatedRequests = 1 };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 1 }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "published", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -384,10 +384,10 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Ctor_LeavesTheTimeoutOfTheCallersClientAlone_EvenWhenTheClientAlreadySentRequests()
     {
-        var client = new HttpClient(new StubHandler(HttpStatusCode.OK)) { Timeout = TimeSpan.FromSeconds(30) };
+        HttpClient client = new(new StubHandler(HttpStatusCode.OK)) { Timeout = TimeSpan.FromSeconds(30) };
         (await client.GetAsync("http://hooks.local/warm-up", TestContext.Current.CancellationToken)).Dispose();
 
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://hooks.local/x", Timeout = TimeSpan.FromSeconds(5) }, client);
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://hooks.local/x", Timeout = TimeSpan.FromSeconds(5) }, client);
 
         Assert.Equal(TimeSpan.FromSeconds(30), client.Timeout);
         Assert.True(await sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m")));
@@ -396,10 +396,10 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task SendAsync_GivesUpAfterTheTimeout_EvenWhenTheClientHasNone()
     {
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://hooks.local/x", Timeout = TimeSpan.FromMilliseconds(200) }, client);
-        var recording = new RecordingLogProvider();
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        HttpClient client = new(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://hooks.local/x", Timeout = TimeSpan.FromMilliseconds(200) }, client);
+        RecordingLogProvider recording = new();
 
         bool sent;
         using (recording.Use())
@@ -409,7 +409,7 @@ public class WebhookAlertSinkFacts
 
         Assert.False(sent);
         Assert.Equal(1, sink.Failed);
-        var entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
         Assert.Contains("no answer within 00:00:00.2000000", entry.Message);
     }
 
@@ -419,7 +419,7 @@ public class WebhookAlertSinkFacts
     [InlineData("https://user:s3cr3tT0k3n@ops.example.com/", "https://ops.example.com/... (hash ")]
     public void GetLoggableUrl_KeepsOnlyTheSchemeHostAndPort_AndAShortHash(string url, string expectedStart)
     {
-        var loggable = WebhookAlertSink.GetLoggableUrl(url);
+        string loggable = WebhookAlertSink.GetLoggableUrl(url);
 
         Assert.StartsWith(expectedStart, loggable);
         Assert.DoesNotContain("s3cr3tT0k3n", loggable);
@@ -429,8 +429,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void GetLoggableUrl_TellsWebhooksOnTheSameHostApart()
     {
-        var first = WebhookAlertSink.GetLoggableUrl("https://hooks.slack.com/services/T1/B1/aaaaaaaaaaaaaaaaaaaaaaaa");
-        var second = WebhookAlertSink.GetLoggableUrl("https://hooks.slack.com/services/T1/B2/bbbbbbbbbbbbbbbbbbbbbbbb");
+        string first = WebhookAlertSink.GetLoggableUrl("https://hooks.slack.com/services/T1/B1/aaaaaaaaaaaaaaaaaaaaaaaa");
+        string second = WebhookAlertSink.GetLoggableUrl("https://hooks.slack.com/services/T1/B2/bbbbbbbbbbbbbbbbbbbbbbbb");
 
         Assert.NotEqual(first, second);
         Assert.Equal(first, WebhookAlertSink.GetLoggableUrl("https://hooks.slack.com/services/T1/B1/aaaaaaaaaaaaaaaaaaaaaaaa"));
@@ -446,15 +446,15 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task SendAsync_LogsARejection_WithoutTheSecretPartOfTheUrl()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = SlackUrl }, new HttpClient(new StubHandler(HttpStatusCode.Forbidden)));
-        var recording = new RecordingLogProvider();
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = SlackUrl }, new HttpClient(new StubHandler(HttpStatusCode.Forbidden)));
+        RecordingLogProvider recording = new();
 
         using (recording.Use())
         {
             await sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));
         }
 
-        var entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
         Assert.Equal(LogLevel.Warn, entry.Level);
         Assert.Contains("https://hooks.slack.com/... (hash ", entry.Message);
         Assert.Contains("HTTP 403", entry.Message);
@@ -465,15 +465,15 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task SendAsync_LogsAFailedRequest_WithoutTheSecretPartOfTheUrl()
     {
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = SlackUrl }, new HttpClient(new StubHandler(new HttpRequestException("down"))));
-        var recording = new RecordingLogProvider();
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = SlackUrl }, new HttpClient(new StubHandler(new HttpRequestException("down"))));
+        RecordingLogProvider recording = new();
 
         using (recording.Use())
         {
             await sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));
         }
 
-        var entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries, x => x.Logger == typeof(WebhookAlertSink).FullName);
         Assert.Contains("https://hooks.slack.com/... (hash ", entry.Message);
         Assert.DoesNotContain("s3cr3tT0k3n", entry.Message);
         Assert.IsType<HttpRequestException>(entry.Exception);
@@ -482,8 +482,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public void Dispose_LeavesAClientPassedIn_ToItsOwner()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
 
         sink.Dispose();
 
@@ -493,12 +493,12 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Dispose_WaitsForARequestInFlight_ThenReturns()
     {
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 2 }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 2 }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        var disposing = Task.Run(sink.Dispose, TestContext.Current.CancellationToken);
+        Task disposing = Task.Run(sink.Dispose, TestContext.Current.CancellationToken);
 
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(disposing.IsCompleted);
@@ -513,8 +513,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Dispose_StopsWaiting_AfterTheRequestTimeout()
     {
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMilliseconds(300) }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMilliseconds(300) }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -527,11 +527,11 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Dispose_CancelsARequestStillRunning_WithAnInfiniteTimeout_AndAClientPassedIn()
     {
-        var handler = new StubHandler(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x", Timeout = Timeout.InfiniteTimeSpan }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = Timeout.InfiniteTimeSpan }, new HttpClient(handler));
 
         // Not counted against MaxConcurrentRequests, so Dispose doesn't wait for it
-        var sending = sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));
+        Task<bool> sending = sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         sink.Dispose();
@@ -544,8 +544,8 @@ public class WebhookAlertSinkFacts
     [Fact]
     public async Task Publish_SendsNothing_AfterDispose_AndCountsNoDrop()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var sink = new WebhookAlertSink(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x" }, new HttpClient(handler));
 
         sink.Dispose();
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
@@ -574,7 +574,7 @@ public class WebhookAlertSinkFacts
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var number = Interlocked.Increment(ref _requests);
+            int number = Interlocked.Increment(ref _requests);
             LastRequest = request;
             LastBody = request.Content != null ? await request.Content.ReadAsStringAsync() : null;
             Received.TrySetResult(true);

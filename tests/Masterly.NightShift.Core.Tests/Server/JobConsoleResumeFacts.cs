@@ -28,7 +28,7 @@ public class JobConsoleResumeFacts : IDisposable
         _transaction.Setup(x => x.TrimList(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()))
             .Callback<string, int, int>((key, start, end) =>
             {
-                var kept = _lists[key].Skip(start).Take(end - start + 1).ToList();
+                List<string> kept = [.. _lists[key].Skip(start).Take(end - start + 1)];
                 _lists[key].Clear();
                 _lists[key].AddRange(kept);
             });
@@ -45,8 +45,8 @@ public class JobConsoleResumeFacts : IDisposable
     /// <summary>Checkpoints as builds before the checkpoints list stored them: in the console list only.</summary>
     private void OlderBuildReached(params string[] checkpoints)
     {
-        var timestamp = 1000L;
-        foreach (var checkpoint in checkpoints)
+        long timestamp = 1000L;
+        foreach (string checkpoint in checkpoints)
         {
             ConsoleList.Insert(0, SerializationHelper.Serialize(new JobConsoleEntry { Timestamp = timestamp++, Checkpoint = checkpoint }, SerializationOption.Internal));
         }
@@ -54,7 +54,7 @@ public class JobConsoleResumeFacts : IDisposable
 
     private IJobConsole NextAttempt()
     {
-        var context = new PerformContextMock { Connection = _connection.As<IStorageConnection>() };
+        PerformContextMock context = new() { Connection = _connection.As<IStorageConnection>() };
         return context.Object.Console;
     }
 
@@ -63,7 +63,7 @@ public class JobConsoleResumeFacts : IDisposable
     {
         _context.Object.Console.Checkpoint("download");
         _context.Object.Console.Checkpoint("parse");
-        var console = NextAttempt();
+        IJobConsole console = NextAttempt();
 
         Assert.Equal(["download", "parse"], console.Checkpoints);
         Assert.True(console.HasCheckpoint("parse"));
@@ -78,13 +78,13 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Checkpoint_IsWrittenToTheConsole_AndOnceToTheCheckpointsList()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         console.Checkpoint("download");
         console.Checkpoint("download");
 
         Assert.Equal(2, ConsoleList.Count);
-        var entry = SerializationHelper.Deserialize<JobConsoleEntry>(Assert.Single(CheckpointsList), SerializationOption.Internal);
+        JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(Assert.Single(CheckpointsList), SerializationOption.Internal);
         Assert.Equal("download", entry.Checkpoint);
     }
 
@@ -92,11 +92,11 @@ public class JobConsoleResumeFacts : IDisposable
     public void Checkpoints_SurviveTheConsoleBeingTrimmed()
     {
         JobConsole.DefaultMaxLines = 5;
-        var console = _context.Object.Console;
-        var ran = new List<string>();
+        IJobConsole console = _context.Object.Console;
+        List<string> ran = [];
 
         console.Resume("download", () => ran.Add("download"));
-        for (var i = 0; i < 20; i++) console.WriteLine($"row {i}");
+        for (int i = 0; i < 20; i++) console.WriteLine($"row {i}");
         NextAttempt().Resume("download", () => ran.Add("download again"));
 
         Assert.Equal(5, ConsoleList.Count);
@@ -107,8 +107,8 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Checkpoints_ReturnsACopy()
     {
-        var console = _context.Object.Console;
-        var before = console.Checkpoints;
+        IJobConsole console = _context.Object.Console;
+        IReadOnlyList<string> before = console.Checkpoints;
 
         console.Checkpoint("download");
 
@@ -119,7 +119,7 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Checkpoint_FromSeveralThreads_KeepsEveryName()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         Parallel.For(0, 200, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i => console.Checkpoint($"step {i}"));
 
@@ -131,7 +131,7 @@ public class JobConsoleResumeFacts : IDisposable
     public void Checkpoints_WrittenByAnOlderBuild_AreReadFromTheConsoleList()
     {
         OlderBuildReached("download", "parse");
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         Assert.Equal(["download", "parse"], console.Checkpoints);
     }
@@ -143,7 +143,7 @@ public class JobConsoleResumeFacts : IDisposable
         OlderBuildReached("download", "download", "parse");
 
         _context.Object.Console.Checkpoint("save");
-        for (var i = 0; i < 10; i++) _context.Object.Console.WriteLine($"row {i}");
+        for (int i = 0; i < 10; i++) _context.Object.Console.WriteLine($"row {i}");
 
         Assert.Equal(["download", "parse", "save"], NextAttempt().Checkpoints);
         Assert.Equal(3, CheckpointsList.Count);
@@ -165,7 +165,7 @@ public class JobConsoleResumeFacts : IDisposable
         CheckpointsList.Clear();
         CheckpointsList.Add(JobConsole.CreateRestartMarker());
 
-        var console = NextAttempt();
+        IJobConsole console = NextAttempt();
 
         Assert.Empty(console.Checkpoints);
         Assert.True(ConsoleList.Count > 0);
@@ -174,7 +174,7 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Resume_RunsEveryStepAgain_AfterASucceededJobIsRequeued()
     {
-        var ran = new List<string>();
+        List<string> ran = [];
         _context.Object.Console.Resume("download", () => ran.Add("first"));
         ApplyState(new SucceededState(null, 0, 0), ProcessingState.StateName);
         ApplyState(new EnqueuedState(), SucceededState.StateName);
@@ -187,7 +187,7 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Resume_SkipsFinishedSteps_AfterAFailedJobIsRequeued()
     {
-        var ran = new List<string>();
+        List<string> ran = [];
         _context.Object.Console.Resume("download", () => ran.Add("first"));
         ApplyState(new FailedState(new InvalidOperationException()), ProcessingState.StateName);
         ApplyState(new EnqueuedState(), FailedState.StateName);
@@ -199,7 +199,7 @@ public class JobConsoleResumeFacts : IDisposable
 
     private void ApplyState(IState state, string oldStateName)
     {
-        var context = new ApplyStateContextMock
+        ApplyStateContextMock context = new()
         {
             NewStateObject = state,
             OldStateName = oldStateName,
@@ -215,9 +215,9 @@ public class JobConsoleResumeFacts : IDisposable
     public void Checkpoints_StartEmpty_WhenTheStorageCannotReadLists()
     {
         _connection.Setup(x => x.GetAllItemsFromList(It.IsAny<string>())).Throws(new NotSupportedException("no extended API"));
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
-        var countBefore = console.Checkpoints.Count;
+        int countBefore = console.Checkpoints.Count;
         console.Checkpoint("download");
 
         Assert.Equal(0, countBefore);
@@ -230,8 +230,8 @@ public class JobConsoleResumeFacts : IDisposable
     {
         // Used to count as "no checkpoints", which made Resume run finished steps again
         _connection.Setup(x => x.GetAllItemsFromList(It.IsAny<string>())).Throws(new InvalidOperationException("list read failed"));
-        var console = _context.Object.Console;
-        var ran = false;
+        IJobConsole console = _context.Object.Console;
+        bool ran = false;
 
         Assert.Throws<InvalidOperationException>(() => console.Resume("download", () => ran = true));
 
@@ -242,8 +242,8 @@ public class JobConsoleResumeFacts : IDisposable
     public void Resume_SkipsStepsThatAlreadyFinished_AndRecordsNewOnes()
     {
         OlderBuildReached("download");
-        var console = _context.Object.Console;
-        var ran = new List<string>();
+        IJobConsole console = _context.Object.Console;
+        List<string> ran = [];
 
         console.Resume("download", () => ran.Add("download"));
         console.Resume("parse", () => ran.Add("parse"));
@@ -258,8 +258,8 @@ public class JobConsoleResumeFacts : IDisposable
     public async Task ResumeAsync_BehavesLikeResume()
     {
         OlderBuildReached("download");
-        var console = _context.Object.Console;
-        var ran = new List<string>();
+        IJobConsole console = _context.Object.Console;
+        List<string> ran = [];
 
         await console.ResumeAsync("download", () => { ran.Add("download"); return Task.CompletedTask; });
         await console.ResumeAsync("parse", () => { ran.Add("parse"); return Task.CompletedTask; });
@@ -270,7 +270,7 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Resume_DoesNotRecordTheCheckpoint_WhenTheStepThrows()
     {
-        var console = _context.Object.Console;
+        IJobConsole console = _context.Object.Console;
 
         Assert.Throws<InvalidOperationException>(() => console.Resume("parse", () => throw new InvalidOperationException()));
 
@@ -280,7 +280,7 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Checkpoints_AreEmpty_WhenTheStorageCannotReadLists()
     {
-        var plain = new PerformContextMock();
+        PerformContextMock plain = new();
         plain.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
 
         Assert.Empty(plain.Object.Console.Checkpoints);
@@ -290,8 +290,8 @@ public class JobConsoleResumeFacts : IDisposable
     [Fact]
     public void Checkpoints_AreEmpty_WhenTheConnectionLacksTheExtendedApi()
     {
-        var plain = new PerformContextMock();
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        PerformContextMock plain = new();
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         plain.Connection = connection.As<IStorageConnection>();
 
         Assert.Empty(plain.Object.Console.Checkpoints);

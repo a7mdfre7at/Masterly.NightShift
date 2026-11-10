@@ -10,7 +10,7 @@ public class QueueInsightsFacts : IDisposable
     public QueueInsightsFacts()
     {
         QueueInsights.Clock = () => _now;
-        _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns<string>(key => _counters.TryGetValue(key, out var value) ? value : 0);
+        _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Returns<string>(key => _counters.TryGetValue(key, out long value) ? value : 0);
     }
 
     public void Dispose()
@@ -41,7 +41,7 @@ public class QueueInsightsFacts : IDisposable
         _counters["queue:emails:started:202611051007"] = 7;  // the current, unfinished minute: not counted yet
         _counters["queue:emails:started:202611051001"] = 99; // six minutes ago: outside the window
 
-        var health = QueueInsights.Read(_connection.Object, "emails");
+        QueueHealth? health = QueueInsights.Read(_connection.Object, "emails");
 
         Assert.Equal(100, health.Samples);
         Assert.Equal(5100, health.MedianLatencyMs);
@@ -65,7 +65,7 @@ public class QueueInsightsFacts : IDisposable
         _counters["queue:emails:started:202611051006"] = 6;
         _counters["queue:emails:started:202611051007"] = 3;
 
-        var health = QueueInsights.Read(_connection.Object, "emails");
+        QueueHealth? health = QueueInsights.Read(_connection.Object, "emails");
 
         Assert.Equal(30, health.StartedLast5Minutes);
         Assert.Equal(6.0, health.PerMinute);
@@ -77,7 +77,7 @@ public class QueueInsightsFacts : IDisposable
         _connection.Setup(x => x.GetAllEntriesFromHash("queue:emails:insights")).Returns(new Dictionary<string, string> { { "LastStartedAt", JobHelper.SerializeDateTime(_now.AddSeconds(-5)) } });
         _counters["queue:emails:started:202611051007"] = 4;
 
-        var health = QueueInsights.Read(_connection.Object, "emails");
+        QueueHealth? health = QueueInsights.Read(_connection.Object, "emails");
 
         Assert.Equal(0, health.StartedLast5Minutes);
         Assert.False(health.IsStalled(10));
@@ -89,7 +89,7 @@ public class QueueInsightsFacts : IDisposable
         _connection.Setup(x => x.GetAllEntriesFromHash("queue:slow:insights")).Returns(new Dictionary<string, string> { { "LastStartedAt", JobHelper.SerializeDateTime(_now.AddMinutes(-20)) } });
         _connection.Setup(x => x.GetAllItemsFromList("queue:slow:latency")).Returns(["100"]);
 
-        var health = QueueInsights.Read(_connection.Object, "slow");
+        QueueHealth? health = QueueInsights.Read(_connection.Object, "slow");
 
         Assert.Equal(0, health.PerMinute);
         Assert.Null(health.EstimateDrain(5));
@@ -106,7 +106,7 @@ public class QueueInsightsFacts : IDisposable
 
     private ApplyStateContextMock CreateStartContext(string stateQueue = "critical", string jobQueue = null)
     {
-        var context = new ApplyStateContextMock { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
+        ApplyStateContextMock context = new() { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
         context.BackgroundJob.Id = "42";
         if (jobQueue != null) context.BackgroundJob.Job = new Job(typeof(QueueInsightsFacts), typeof(QueueInsightsFacts).GetMethod(nameof(Dispose)), [], jobQueue);
         context.Connection.Setup(x => x.GetStateData("42")).Returns(new StateData
@@ -121,8 +121,8 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Filter_RecordsTheWait_WhenAJobStartsFromAQueue_InATransactionOfItsOwn()
     {
-        var filter = new QueueInsightsFilter();
-        var context = CreateStartContext();
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = CreateStartContext();
 
         filter.OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -137,8 +137,8 @@ public class QueueInsightsFacts : IDisposable
     {
         // Enqueue("emails", ...) stores "default" in the Enqueued state and the queue in the job, and the job
         // waits in "emails"; it was recorded under "default"
-        var filter = new QueueInsightsFilter();
-        var context = CreateStartContext(stateQueue: "default", jobQueue: "emails");
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = CreateStartContext(stateQueue: "default", jobQueue: "emails");
 
         filter.OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -150,8 +150,8 @@ public class QueueInsightsFacts : IDisposable
     public void Filter_RecordsTheWait_UnderTheStatesQueue_WhenItIsNotDefault()
     {
         // As EnqueuedState's handler does: an explicit queue in the state wins over the job's own
-        var filter = new QueueInsightsFilter();
-        var context = CreateStartContext(stateQueue: "critical", jobQueue: "emails");
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = CreateStartContext(stateQueue: "critical", jobQueue: "emails");
 
         filter.OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -161,9 +161,9 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Filter_WaitsForTheCommit_WhenTheStateChangeHasPostCommitActions()
     {
-        var filter = new QueueInsightsFilter();
-        var context = CreateStartContext();
-        var afterCommit = new PostCommitActions();
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = CreateStartContext();
+        PostCommitActions afterCommit = new();
         context.Object.AfterCommit = afterCommit;
 
         filter.OnStateApplied(context.Object, context.Transaction.Object);
@@ -178,9 +178,9 @@ public class QueueInsightsFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_DoesNotFailTheStateChange_WhenTheWriteFails_AndLogsAWarning()
     {
-        var provider = new RecordingLogProvider();
-        var filter = new QueueInsightsFilter();
-        var context = CreateStartContext();
+        RecordingLogProvider provider = new();
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = CreateStartContext();
         _transaction.Setup(x => x.Commit()).Throws(new InvalidOperationException("deadlock victim"));
 
         using (provider.Use())
@@ -194,7 +194,7 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Read_ReturnsNull_WhenTheStorageCannotReadListsAndCounters()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         connection.Setup(x => x.GetAllEntriesFromHash("queue:emails:insights")).Returns([]);
 
         Assert.Null(QueueInsights.Read(connection.Object, "emails"));
@@ -203,8 +203,8 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Filter_IgnoresOtherTransitions()
     {
-        var filter = new QueueInsightsFilter();
-        var context = new ApplyStateContextMock { NewStateObject = new SucceededState(null, 1, 1), OldStateName = ProcessingState.StateName };
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new SucceededState(null, 1, 1), OldStateName = ProcessingState.StateName };
         context.BackgroundJob.Id = "42";
 
         filter.OnStateApplied(context.Object, _transaction.Object);
@@ -216,8 +216,8 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Filter_RecordsNothing_WhenThePreviousStateCannotBeRead()
     {
-        var filter = new QueueInsightsFilter();
-        var context = new ApplyStateContextMock { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
+        QueueInsightsFilter filter = new();
+        ApplyStateContextMock context = new() { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
         context.BackgroundJob.Id = "42";
         context.Connection.Setup(x => x.GetStateData("42")).Throws(new InvalidOperationException("storage is down"));
 
@@ -230,7 +230,7 @@ public class QueueInsightsFacts : IDisposable
     [Fact]
     public void Filter_OnStateUnapplied_WritesNothing()
     {
-        var context = new ApplyStateContextMock { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
+        ApplyStateContextMock context = new() { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
 
         new QueueInsightsFilter().OnStateUnapplied(context.Object, _transaction.Object);
 

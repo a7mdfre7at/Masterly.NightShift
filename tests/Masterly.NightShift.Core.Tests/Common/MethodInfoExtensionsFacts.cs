@@ -7,8 +7,8 @@ public class MethodInfoExtensionsFacts
     [Fact]
     public void GetNormalizedName_ReturnsNormalizedName_ForRegularMethod()
     {
-        var service = new RegularInterfaceImplementation();
-        var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
+        RegularInterfaceImplementation service = new();
+        string normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
 
         Assert.Equal("Method", normalizedName);
     }
@@ -16,8 +16,8 @@ public class MethodInfoExtensionsFacts
     [Fact]
     public void GetNormalizedName_ReturnsNormalizedName_ForExplicitlyImplementedMethod()
     {
-        var service = new ExplicitInterfaceImplementation();
-        var normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
+        ExplicitInterfaceImplementation service = new();
+        string normalizedName = service.GetType().GetRuntimeMethods().First().GetNormalizedName();
 
         Assert.Equal("Method", normalizedName);
     }

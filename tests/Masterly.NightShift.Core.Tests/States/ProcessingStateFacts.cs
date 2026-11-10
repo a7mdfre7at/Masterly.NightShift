@@ -22,16 +22,16 @@ public class ProcessingStateFacts
     [Fact]
     public void StateName_IsCorrect()
     {
-        var state = CreateState();
+        ProcessingState state = CreateState();
         Assert.Equal(ProcessingState.StateName, state.Name);
     }
 
     [Fact]
     public void SerializeData_ReturnsCorrectData()
     {
-        var state = CreateState();
+        ProcessingState state = CreateState();
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal(JobHelper.SerializeDateTime(state.StartedAt), data["StartedAt"]);
         Assert.Equal(ServerId, data["ServerId"]);
@@ -41,7 +41,7 @@ public class ProcessingStateFacts
     [Fact]
     public void IsFinal_ReturnsFalse()
     {
-        var state = CreateState();
+        ProcessingState state = CreateState();
 
         Assert.False(state.IsFinal);
     }
@@ -49,9 +49,9 @@ public class ProcessingStateFacts
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var state = new ProcessingState("server1", "worker1");
+        ProcessingState state = new("server1", "worker1");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.ProcessingState, Masterly.NightShift.Core\",\"ServerId\":\"server1\"," +
@@ -62,9 +62,9 @@ public class ProcessingStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var state = new ProcessingState("server1", "worker1");
+        ProcessingState state = new("server1", "worker1");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.ProcessingState, Masterly.NightShift.Core\",\"ServerId\":\"server1\"," +
@@ -75,7 +75,7 @@ public class ProcessingStateFacts
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = CreateState();
+        ProcessingState state = CreateState();
 
         Assert.False(state.IgnoreJobLoadException);
     }

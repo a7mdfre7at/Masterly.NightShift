@@ -28,7 +28,7 @@ public class ContinuationsSupportAttributeFacts
     public void OnStateElection_AddsAContinuationForParentJob_IfCandidateStateIsAwaiting()
     {
         // Arrange
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -48,7 +48,7 @@ public class ContinuationsSupportAttributeFacts
     public void OnStateElection_ChangesCandidateToTheNextState_OnAwaitingCompletedParentJob()
     {
         _context.ApplyContext.Connection.Setup(x => x.GetStateData(_parentId)).Returns(new StateData { Name = SucceededState.StateName });
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         filter.OnStateElection(_context.Object);
 
@@ -62,13 +62,13 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = "another-id" } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
 
         // Assert
-        var expectedList = SerializationHelper.Serialize(new List<Continuation>
+        string expectedList = SerializationHelper.Serialize(new List<Continuation>
         {
             new() { JobId = "another-id", Options = JobContinuationOptions.OnAnyFinishedState },
             new() { JobId = _continuationId, Options = JobContinuationOptions.OnAnyFinishedState }
@@ -82,7 +82,7 @@ public class ContinuationsSupportAttributeFacts
     {
         _context.ApplyContext.Connection.Setup(x => x.GetJobData(_parentId)).Returns((JobData)null);
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         Assert.Throws<InvalidOperationException>(() => filter.OnStateElection(_context.Object));
     }
@@ -108,7 +108,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -138,7 +138,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -166,7 +166,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -191,7 +191,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -214,7 +214,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act & Assert
         filter.OnStateElection(_context.Object);
@@ -236,7 +236,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act: awaiting with the test's token makes the timeout end the test even if the call hangs
         await Task.Run(() => filter.OnStateElection(_context.Object), TestContext.Current.CancellationToken)
@@ -259,7 +259,7 @@ public class ContinuationsSupportAttributeFacts
         _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
             .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = null } }));
 
-        var filter = CreateFilter();
+        ContinuationsSupportAttribute filter = CreateFilter();
 
         // Act
         filter.OnStateElection(_context.Object);
@@ -272,7 +272,7 @@ public class ContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateUnapplied_DoesNotThrow()
     {
-        var filter = (IApplyStateFilter)CreateFilter();
+        IApplyStateFilter filter = (IApplyStateFilter)CreateFilter();
         // Does not throw
         filter.OnStateUnapplied(null, null);
     }
@@ -282,13 +282,13 @@ public class ContinuationsSupportAttributeFacts
     {
         SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var continuationsJson = SerializationHelper.Serialize(new List<Continuation>
+        string continuationsJson = SerializationHelper.Serialize(new List<Continuation>
         {
             new() {JobId = "1", Options = JobContinuationOptions.OnAnyFinishedState},
             new() {JobId = "3214324", Options = JobContinuationOptions.OnlyOnSucceededState}
         }, SerializationOption.User);
 
-        var continuations = SerializationHelper.Deserialize<List<Continuation>>(continuationsJson);
+        List<Continuation>? continuations = SerializationHelper.Deserialize<List<Continuation>>(continuationsJson);
 
         Assert.NotNull(continuations);
         Assert.Equal(2, continuations.Count);

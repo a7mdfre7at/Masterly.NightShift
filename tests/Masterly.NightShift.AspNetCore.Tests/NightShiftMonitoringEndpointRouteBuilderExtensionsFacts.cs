@@ -29,14 +29,14 @@ public class NightShiftMonitoringEndpointRouteBuilderExtensionsFacts
     [Fact]
     public async Task MapNightShiftHealth_AnswersTheHealthReport_WithoutTheDashboardFilters()
     {
-        var app = CreateApplication();
+        WebApplication app = CreateApplication();
         app.MapNightShiftDashboard(); // its default filter only lets local requests in
         app.MapNightShiftHealth("/health/nightshift");
 
-        var (status, body) = await InvokeAsync(app, "/health/nightshift");
+        (int status, string? body) = await InvokeAsync(app, "/health/nightshift");
 
         Assert.Equal(200, status);
-        var json = JsonNode.Parse(body);
+        JsonNode? json = JsonNode.Parse(body);
         Assert.Equal("healthy", json["status"].GetValue<string>());
         Assert.Equal(4, json["enqueued"].GetValue<long>());
     }
@@ -44,10 +44,10 @@ public class NightShiftMonitoringEndpointRouteBuilderExtensionsFacts
     [Fact]
     public async Task MapNightShiftMetrics_AnswersThePrometheusText()
     {
-        var app = CreateApplication();
+        WebApplication app = CreateApplication();
         app.MapNightShiftMetrics("/metrics/nightshift");
 
-        var (status, body) = await InvokeAsync(app, "/metrics/nightshift");
+        (int status, string? body) = await InvokeAsync(app, "/metrics/nightshift");
 
         Assert.Equal(200, status);
         Assert.Contains("nightshift_jobs{state=\"enqueued\"} 4\n", body);
@@ -59,14 +59,14 @@ public class NightShiftMonitoringEndpointRouteBuilderExtensionsFacts
         Assert.Throws<ArgumentNullException>("endpoints", () => NightShiftMonitoringEndpointRouteBuilderExtensions.MapNightShiftHealth(null, "/h"));
         Assert.Throws<ArgumentNullException>("pattern", () => CreateApplication().MapNightShiftMetrics(null));
 
-        var bare = WebApplication.CreateBuilder().Build();
-        var exception = Assert.Throws<InvalidOperationException>(() => bare.MapNightShiftHealth("/h"));
+        WebApplication bare = WebApplication.CreateBuilder().Build();
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => bare.MapNightShiftHealth("/h"));
         Assert.Contains("AddNightShift", exception.Message);
     }
 
     private WebApplication CreateApplication()
     {
-        var builder = WebApplication.CreateBuilder();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(_storage.Object);
         builder.Services.AddNightShift(_ => { });
         return builder.Build();
@@ -74,16 +74,16 @@ public class NightShiftMonitoringEndpointRouteBuilderExtensionsFacts
 
     private static async Task<(int Status, string Body)> InvokeAsync(WebApplication app, string path)
     {
-        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+        RouteEndpoint endpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(x => x.Endpoints)
             .OfType<RouteEndpoint>()
             .Single(x => x.RoutePattern.RawText == path);
 
-        var httpContext = new DefaultHttpContext { RequestServices = app.Services };
+        DefaultHttpContext httpContext = new() { RequestServices = app.Services };
         httpContext.Request.Method = "GET";
         httpContext.Request.Path = path;
         httpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.7");
-        var body = new MemoryStream();
+        MemoryStream body = new();
         httpContext.Response.Body = body;
 
         await endpoint.RequestDelegate(httpContext);

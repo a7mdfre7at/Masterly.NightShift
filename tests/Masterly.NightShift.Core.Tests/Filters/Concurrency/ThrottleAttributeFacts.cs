@@ -43,7 +43,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact]
     public void Defaults_AreAMutexThatReschedules()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
 
         Assert.Equal(1, attribute.MaxConcurrency);
         Assert.Equal(ConcurrencyAction.Reschedule, attribute.Action);
@@ -71,7 +71,7 @@ public class ThrottleAttributeFacts : IDisposable
     [InlineData(1000, 300)]
     public void GetRetryDelay_DoublesOnEveryReschedule_UpToTheMaximum(int reschedules, int expectedSeconds)
     {
-        var attribute = new ThrottleAttribute();
+        ThrottleAttribute attribute = new();
 
         Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), attribute.GetRetryDelay(reschedules));
     }
@@ -79,7 +79,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact]
     public void GetRetryDelay_DoesNotGrow_WhenTheMaximumIsNotAboveTheDelay()
     {
-        var attribute = new ThrottleAttribute { RetryDelaySeconds = 20, MaxRetryDelaySeconds = 0 };
+        ThrottleAttribute attribute = new() { RetryDelaySeconds = 20, MaxRetryDelaySeconds = 0 };
 
         Assert.Equal(TimeSpan.FromSeconds(20), attribute.GetRetryDelay(7));
     }
@@ -87,10 +87,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_BacksOff_WhenTheSameJobIsRescheduledAgain()
     {
-        var attribute = new ThrottleAttribute("resource") { RetryDelaySeconds = 20 };
+        ThrottleAttribute attribute = new("resource") { RetryDelaySeconds = 20 };
         _members.Add($"{_timestamp}:other");
         _context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { "ThrottleReschedules", "3" } };
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -104,7 +104,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_CountsTheFirstReschedule()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other");
 
         attribute.OnPerforming(_context.GetPerformingContext());
@@ -115,7 +115,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ForgetsTheRescheduleCount_WhenTheJobGetsASlot()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { "ThrottleReschedules", "6" } };
 
         attribute.OnPerforming(_context.GetPerformingContext());
@@ -127,10 +127,10 @@ public class ThrottleAttributeFacts : IDisposable
     public void OnPerforming_KeepsTheSlot_WhenTheRescheduleCountCannotBeCleared()
     {
         // Only bookkeeping: failing the job here would skip OnPerformed and leave the slot taken
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _context.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { "ThrottleReschedules", "6" } };
         _context.Connection.Setup(x => x.SetJobParameter("JobId", "ThrottleReschedules", null)).Throws(new InvalidOperationException("storage hiccup"));
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
         attribute.OnPerformed(_context.GetPerformedContext());
@@ -144,10 +144,10 @@ public class ThrottleAttributeFacts : IDisposable
     public void OnPerforming_StillReschedules_WhenTheRescheduleCountCannotBeWritten()
     {
         // Only bookkeeping for the back-off: a storage error mustn't fail a job that never ran
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other");
         _context.Connection.Setup(x => x.SetJobParameter("JobId", "ThrottleReschedules", It.IsAny<string>())).Throws(new InvalidOperationException("storage hiccup"));
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -164,7 +164,7 @@ public class ThrottleAttributeFacts : IDisposable
     [InlineData(5, 1, 1)]
     public void GetWaitDelay_BacksOff_ButNeverPastTheWaitTimeout(int attempt, int remainingMilliseconds, int expectedMilliseconds)
     {
-        var delay = ThrottleAttribute.GetWaitDelay(attempt, TimeSpan.FromMilliseconds(remainingMilliseconds));
+        TimeSpan delay = ThrottleAttribute.GetWaitDelay(attempt, TimeSpan.FromMilliseconds(remainingMilliseconds));
 
         Assert.Equal(TimeSpan.FromMilliseconds(expectedMilliseconds), delay);
     }
@@ -173,9 +173,9 @@ public class ThrottleAttributeFacts : IDisposable
     public void OnPerforming_FailsWhenTheWaitTimeoutEnds_NotAtTheNextPoll()
     {
         // The polls would be 250 ms, 500 ms and 1 s apart: the third one is cut to what is left of the second
-        var attribute = new ThrottleAttribute("resource") { Action = ConcurrencyAction.Wait, WaitTimeoutSeconds = 1 };
+        ThrottleAttribute attribute = new("resource") { Action = ConcurrencyAction.Wait, WaitTimeoutSeconds = 1 };
         _members.Add($"{_timestamp}:other-job");
-        var elapsed = Stopwatch.StartNew();
+        Stopwatch elapsed = Stopwatch.StartNew();
         ConcurrencyControl.Clock = () => _now + elapsed.Elapsed;
 
         Assert.Throws<ConcurrencyLimitException>(() => attribute.OnPerforming(_context.GetPerformingContext()));
@@ -186,12 +186,12 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_RemembersTheQueueFromTheHistory_OfAJobRequeuedWhileRunning()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other-job");
-        var performContext = _context.Object;
+        PerformContext performContext = _context.Object;
         _context.Connection.Setup(x => x.GetStateData("JobId"))
             .Returns(new StateData { Name = ProcessingState.StateName, Data = new Dictionary<string, string> { { "ServerId", "old" } } });
-        var monitoring = new Mock<IMonitoringApi>();
+        Mock<IMonitoringApi> monitoring = new();
         monitoring.Setup(x => x.JobDetails("JobId")).Returns(new JobDetailsDto
         {
             Properties = new Dictionary<string, string>(),
@@ -213,7 +213,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_DoesNotWriteTheRescheduleCount_WhenTheJobGetsASlotAtOnce()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -223,10 +223,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ExpiresTheSet_AfterTheStaleTimeout_WhenTheStorageSupportsIt()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
         _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
-        var attribute = new ThrottleAttribute("resource") { StaleTimeoutMinutes = 90 };
+        ThrottleAttribute attribute = new("resource") { StaleTimeoutMinutes = 90 };
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -237,9 +237,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_DoesNotExpireTheSet_WhenTheStorageDoesNotSupportIt()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -249,10 +249,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ShortensTheKey_OfALongResource()
     {
-        var tenant = new string('t', 95);
+        string tenant = new('t', 95);
         _context.BackgroundJob.Job = Job.FromExpression(() => SampleWithArgument(tenant));
         _context.Connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns([]);
-        var attribute = new ThrottleAttribute("tenant-{0}");
+        ThrottleAttribute attribute = new("tenant-{0}");
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -265,9 +265,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_RemembersTheQueueGivenOnlyByTheEnqueuedState_WhenItReschedules()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other-job");
-        var performContext = _context.Object;
+        PerformContext performContext = _context.Object;
         _context.Connection.Setup(x => x.GetStateData("JobId"))
             .Returns(new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string> { { "Queue", "emails" } } });
 
@@ -282,7 +282,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotReadTheState_OfAJobWithAQueueOfItsOwn()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _context.BackgroundJob.Job = Job.FromExpression(() => Sample(), "emails");
 
         attribute.OnStateElection(ElectProcessing(_context.Object));
@@ -293,9 +293,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_DoesNotRememberTheDefaultQueue_WhenItReschedules()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other-job");
-        var performContext = _context.Object;
+        PerformContext performContext = _context.Object;
         _context.Connection.Setup(x => x.GetStateData("JobId"))
             .Returns(new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string> { { "Queue", "default" } } });
 
@@ -322,10 +322,10 @@ public class ThrottleAttributeFacts : IDisposable
     public void OnPerforming_KeepsTheExactKey_OfAResourceThatFits()
     {
         // 84 characters: shortened by an earlier build, although throttle:{resource} fits in 100
-        var tenant = new string('t', 77);
+        string tenant = new('t', 77);
         _context.BackgroundJob.Job = Job.FromExpression(() => SampleWithArgument(tenant));
         _context.Connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns([]);
-        var attribute = new ThrottleAttribute("tenant-{0}");
+        ThrottleAttribute attribute = new("tenant-{0}");
 
         attribute.OnPerforming(_context.GetPerformingContext());
 
@@ -335,10 +335,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReschedulesWithTheWorkersStateChanger()
     {
-        var workerStateChanger = new Mock<IBackgroundJobStateChanger>();
-        var attribute = new ThrottleAttribute("resource");
+        Mock<IBackgroundJobStateChanger> workerStateChanger = new();
+        ThrottleAttribute attribute = new("resource");
         _members.Add($"{_timestamp}:other");
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
         performing.Items[ConcurrencyControl.StateChangerItem] = workerStateChanger.Object;
 
         attribute.OnPerforming(performing);
@@ -351,9 +351,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_AcquiresASlot_WhenBelowTheLimit()
     {
-        var attribute = new ThrottleAttribute("resource") { MaxConcurrency = 2 };
+        ThrottleAttribute attribute = new("resource") { MaxConcurrency = 2 };
         _members.Add($"{_timestamp}:other");
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -366,9 +366,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReschedulesTheJob_WhenAllSlotsAreTaken()
     {
-        var attribute = new ThrottleAttribute("resource") { RetryDelaySeconds = 20 };
+        ThrottleAttribute attribute = new("resource") { RetryDelaySeconds = 20 };
         _members.Add($"{_timestamp}:other");
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -385,9 +385,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_CancelsTheJob_WhenActionIsSkip()
     {
-        var attribute = new ThrottleAttribute("resource") { Action = ConcurrencyAction.Skip };
+        ThrottleAttribute attribute = new("resource") { Action = ConcurrencyAction.Skip };
         _members.Add($"{_timestamp}:other");
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -399,10 +399,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ThrowsAnException_WhenActionIsWait_AndTheTimeoutExpires()
     {
-        var attribute = new ThrottleAttribute("resource") { Action = ConcurrencyAction.Wait, WaitTimeoutSeconds = 0 };
+        ThrottleAttribute attribute = new("resource") { Action = ConcurrencyAction.Wait, WaitTimeoutSeconds = 0 };
         _members.Add($"{_timestamp}:other");
 
-        var exception = Assert.Throws<ConcurrencyLimitException>(() => attribute.OnPerforming(_context.GetPerformingContext()));
+        ConcurrencyLimitException exception = Assert.Throws<ConcurrencyLimitException>(() => attribute.OnPerforming(_context.GetPerformingContext()));
 
         Assert.Equal("resource", exception.Resource);
     }
@@ -410,7 +410,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ThrowsOperationCanceled_WhenShutdownIsRequestedWhileWaitingForASlot()
     {
-        var attribute = new ThrottleAttribute("resource") { Action = ConcurrencyAction.Wait };
+        ThrottleAttribute attribute = new("resource") { Action = ConcurrencyAction.Wait };
         _members.Add($"{_timestamp}:other");
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
 
@@ -423,10 +423,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReclaimsStaleSlots()
     {
-        var attribute = new ThrottleAttribute("resource") { StaleTimeoutMinutes = 30 };
-        var stale = $"{_timestamp - 31 * 60}:crashed";
+        ThrottleAttribute attribute = new("resource") { StaleTimeoutMinutes = 30 };
+        string stale = $"{_timestamp - 31 * 60}:crashed";
         _members.Add(stale);
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -438,10 +438,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReclaimsTheSlotOfItsOwnPreviousAttempt()
     {
-        var attribute = new ThrottleAttribute("resource");
-        var previous = $"{_timestamp - 5}:JobId";
+        ThrottleAttribute attribute = new("resource");
+        string previous = $"{_timestamp - 5}:JobId";
         _members.Add(previous);
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -453,9 +453,9 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_TreatsUnparsableMembersAsStale()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
         _members.Add("garbage");
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -466,10 +466,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerformed_ReleasesTheAcquiredSlot()
     {
-        var attribute = new ThrottleAttribute("resource");
-        var performing = _context.GetPerformingContext();
+        ThrottleAttribute attribute = new("resource");
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
-        var performed = new PerformedContext(performing, null, false, null);
+        PerformedContext performed = new(performing, null, false, null);
 
         attribute.OnPerformed(performed);
 
@@ -480,7 +480,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerformed_DoesNothing_WhenNoSlotWasAcquired()
     {
-        var attribute = new ThrottleAttribute("resource");
+        ThrottleAttribute attribute = new("resource");
 
         attribute.OnPerformed(_context.GetPerformedContext());
 
@@ -490,7 +490,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void Resource_IsFormattedWithJobArguments_AndLowercased()
     {
-        var attribute = new ThrottleAttribute("tenant-{0}");
+        ThrottleAttribute attribute = new("tenant-{0}");
         _context.BackgroundJob.Job = Job.FromExpression(() => SampleWithArgument("Contoso"));
         _context.Connection.Setup(x => x.GetAllItemsFromSet("throttle:tenant-contoso")).Returns([]);
 
@@ -502,8 +502,8 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void Resource_DefaultsToTheFullTypeName_MethodAndParameterTypes()
     {
-        var attribute = new ThrottleAttribute();
-        var expectedKey = "throttle:masterly.nightshift.core.tests.throttleattributefacts.sample()";
+        ThrottleAttribute attribute = new();
+        string expectedKey = "throttle:masterly.nightshift.core.tests.throttleattributefacts.sample()";
         _context.Connection.Setup(x => x.GetAllItemsFromSet(expectedKey)).Returns([]);
 
         attribute.OnPerforming(_context.GetPerformingContext());
@@ -514,8 +514,8 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerformed_DoesNotThrow_WhenTheSlotCannotBeReleased_AfterTryingThreeTimes()
     {
-        var attribute = new ThrottleAttribute("resource");
-        var performing = _context.GetPerformingContext();
+        ThrottleAttribute attribute = new("resource");
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
         _transaction.Setup(x => x.Commit()).Throws(new InvalidOperationException("storage is down"));
 
@@ -527,10 +527,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerformed_ReleasesTheSlot_WhenTheFirstAttemptHitsATransientStorageError()
     {
-        var attribute = new ThrottleAttribute("resource");
-        var performing = _context.GetPerformingContext();
+        ThrottleAttribute attribute = new("resource");
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
-        var releases = 0;
+        int releases = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
             if (++releases == 1) throw new InvalidOperationException("deadlock victim");
@@ -545,16 +545,16 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void Perform_SucceedsAfterTheJobMethodRan_WhenTheSlotCannotBeReleased()
     {
-        var commits = 0;
+        int commits = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
             if (++commits >= 2) throw new InvalidOperationException("storage is down");
         });
-        var filters = new JobFilterCollection
+        JobFilterCollection filters = new()
         {
             new ThrottleAttribute("resource")
         };
-        var performer = new BackgroundJobPerformer(filters, new JobActivator());
+        BackgroundJobPerformer performer = new(filters, new JobActivator());
 
         performer.Perform(_context.Object);
 
@@ -571,11 +571,11 @@ public class ThrottleAttributeFacts : IDisposable
     public void OnPerforming_ReclaimsASlot_WhoseJobIsNoLongerProcessing_WhenAllSlotsAreTaken(string holderState)
     {
         // Its release failed: a slot is held only while the job is Processing
-        var attribute = new ThrottleAttribute("resource");
-        var leaked = $"{_timestamp - 60}:finished";
+        ThrottleAttribute attribute = new("resource");
+        string leaked = $"{_timestamp - 60}:finished";
         _members.Add(leaked);
         _context.Connection.Setup(x => x.GetStateData("finished")).Returns(new StateData { Name = holderState, Data = new Dictionary<string, string>() });
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -588,11 +588,11 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReclaimsASlot_WhoseJobNoLongerExists()
     {
-        var attribute = new ThrottleAttribute("resource");
-        var leaked = $"{_timestamp - 60}:expired";
+        ThrottleAttribute attribute = new("resource");
+        string leaked = $"{_timestamp - 60}:expired";
         _members.Add(leaked);
         _context.Connection.Setup(x => x.GetStateData("expired")).Returns((StateData)null);
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -603,12 +603,12 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReclaimsOnlyTheSlotsOfFinishedJobs_AndCountsTheRest()
     {
-        var attribute = new ThrottleAttribute("resource") { MaxConcurrency = 2, Action = ConcurrencyAction.Skip };
+        ThrottleAttribute attribute = new("resource") { MaxConcurrency = 2, Action = ConcurrencyAction.Skip };
         _members.Add($"{_timestamp - 60}:running-1");
         _members.Add($"{_timestamp - 30}:running-2");
         _members.Add($"{_timestamp - 90}:finished");
         _context.Connection.Setup(x => x.GetStateData("finished")).Returns(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() });
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -622,10 +622,10 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_KeepsASlot_WhenTheStateOfItsJobCannotBeRead()
     {
-        var attribute = new ThrottleAttribute("resource") { Action = ConcurrencyAction.Skip };
+        ThrottleAttribute attribute = new("resource") { Action = ConcurrencyAction.Skip };
         _members.Add($"{_timestamp - 60}:unknown");
         _context.Connection.Setup(x => x.GetStateData("unknown")).Throws(new InvalidOperationException("storage is down"));
-        var performing = _context.GetPerformingContext();
+        PerformingContext performing = _context.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -636,7 +636,7 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_DoesNotReadTheHoldersStates_WhileASlotIsFree()
     {
-        var attribute = new ThrottleAttribute("resource") { MaxConcurrency = 2 };
+        ThrottleAttribute attribute = new("resource") { MaxConcurrency = 2 };
         _members.Add($"{_timestamp}:other");
 
         attribute.OnPerforming(_context.GetPerformingContext());
@@ -651,7 +651,7 @@ public class ThrottleAttributeFacts : IDisposable
         _members.Add($"{_timestamp - 60}:a");
         _members.Add("garbage");
 
-        var slots = ThrottleAttribute.GetSlots(_context.Connection.Object, "resource");
+        IReadOnlyList<ThrottleAttribute.ThrottleSlot> slots = ThrottleAttribute.GetSlots(_context.Connection.Object, "resource");
 
         Assert.Equal(["a", "b"], slots.Select(static x => x.JobId));
         Assert.Equal(_now.AddSeconds(-60), slots[0].AcquiredAt);
@@ -668,8 +668,8 @@ public class ThrottleAttributeFacts : IDisposable
     [Fact]
     public void GetSlots_FindsTheResource_LikeTheFilterFormatsIt()
     {
-        var tenant = new string('T', 120);
-        var stored = ConcurrencyControl.ShortenResource($"tenant-{tenant}".ToLowerInvariant(), ThrottleAttribute.MaxResourceLength);
+        string tenant = new('T', 120);
+        string stored = ConcurrencyControl.ShortenResource($"tenant-{tenant}".ToLowerInvariant(), ThrottleAttribute.MaxResourceLength);
         _context.Connection.Setup(x => x.GetAllItemsFromSet($"throttle:{stored}")).Returns([$"{_timestamp}:a"]);
 
         Assert.Single(ThrottleAttribute.GetSlots(_context.Connection.Object, $"Tenant-{tenant}"));
@@ -690,7 +690,7 @@ public class ThrottleAttributeFacts : IDisposable
         _members.Add($"{_timestamp - 10}:a");
         _members.Add($"{_timestamp}:b");
 
-        var released = ThrottleAttribute.Release(_context.Connection.Object, "Resource", "a");
+        bool released = ThrottleAttribute.Release(_context.Connection.Object, "Resource", "a");
 
         Assert.True(released);
         _context.Connection.Verify(x => x.AcquireDistributedLock("throttle:resource:lock", It.IsAny<TimeSpan>()));
@@ -705,7 +705,7 @@ public class ThrottleAttributeFacts : IDisposable
     {
         _members.Add($"{_timestamp}:b");
 
-        var released = ThrottleAttribute.Release(_context.Connection.Object, "resource", "a");
+        bool released = ThrottleAttribute.Release(_context.Connection.Object, "resource", "a");
 
         Assert.False(released);
         _context.Connection.Verify(x => x.CreateWriteTransaction(), Times.Never);

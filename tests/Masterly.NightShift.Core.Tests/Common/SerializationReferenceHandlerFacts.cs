@@ -16,12 +16,12 @@ public class SerializationReferenceHandlerFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void IgnoreCycles_WritesACycleThroughAListMember_AsSystemTextJsonDoes_AndReadsItBack()
     {
-        var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.IgnoreCycles };
+        JsonSerializerOptions options = new() { ReferenceHandler = ReferenceHandler.IgnoreCycles };
         SerializationHelper.SetUserSerializerSettings(options);
-        var root = CreateTree();
+        TreeNode root = CreateTree();
 
-        var json = SerializationHelper.Serialize(root, SerializationOption.User);
-        var back = SerializationHelper.Deserialize<TreeNode>(json, SerializationOption.User);
+        string json = SerializationHelper.Serialize(root, SerializationOption.User);
+        TreeNode? back = SerializationHelper.Deserialize<TreeNode>(json, SerializationOption.User);
 
         Assert.Equal(JsonSerializer.Serialize(root, options), json);
         Assert.Equal("root", back.Name);
@@ -32,12 +32,12 @@ public class SerializationReferenceHandlerFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Preserve_WritesACycleThroughAListMember_AsSystemTextJsonDoes_AndRestoresIt()
     {
-        var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve };
+        JsonSerializerOptions options = new() { ReferenceHandler = ReferenceHandler.Preserve };
         SerializationHelper.SetUserSerializerSettings(options);
-        var root = CreateTree();
+        TreeNode root = CreateTree();
 
-        var json = SerializationHelper.Serialize(root, SerializationOption.User);
-        var back = SerializationHelper.Deserialize<TreeNode>(json, SerializationOption.User);
+        string json = SerializationHelper.Serialize(root, SerializationOption.User);
+        TreeNode? back = SerializationHelper.Deserialize<TreeNode>(json, SerializationOption.User);
 
         Assert.Equal(JsonSerializer.Serialize(root, options), json);
         Assert.Same(back, Assert.Single(back.Children).Parent);
@@ -48,7 +48,7 @@ public class SerializationReferenceHandlerFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve });
 
-        var back = SerializationHelper.Deserialize<TreeNode>(PreservedTree, SerializationOption.User);
+        TreeNode? back = SerializationHelper.Deserialize<TreeNode>(PreservedTree, SerializationOption.User);
 
         Assert.Equal("root", back.Name);
         Assert.Same(back, Assert.Single(back.Children).Parent);
@@ -58,12 +58,12 @@ public class SerializationReferenceHandlerFacts
     public void Preserve_KeepsASharedReference_ThroughAListMember_OfAJobArgument()
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve });
-        var line = new Line { Sku = "s" };
-        var order = new Order { Name = "o", Main = line, Lines = { line } };
-        var job = Job.FromExpression(() => JobService.Process(order));
+        Line line = new() { Sku = "s" };
+        Order order = new() { Name = "o", Main = line, Lines = { line } };
+        Job job = Job.FromExpression(() => JobService.Process(order));
 
-        var payload = InvocationData.SerializeJob(job).SerializePayload();
-        var back = (Order)InvocationData.DeserializePayload(payload).DeserializeJob().Args[0];
+        string? payload = InvocationData.SerializeJob(job).SerializePayload();
+        Order back = (Order)InvocationData.DeserializePayload(payload).DeserializeJob().Args[0];
 
         Assert.Same(back.Main, Assert.Single(back.Lines));
     }
@@ -72,12 +72,12 @@ public class SerializationReferenceHandlerFacts
     public void IgnoreCycles_LetsAJobArgument_HaveACycleThroughAListMember()
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.IgnoreCycles });
-        var order = new Order { Name = "o" };
+        Order order = new() { Name = "o" };
         order.Lines.Add(new Line { Sku = "a", Order = order });
-        var job = Job.FromExpression(() => JobService.Process(order));
+        Job job = Job.FromExpression(() => JobService.Process(order));
 
-        var payload = InvocationData.SerializeJob(job).SerializePayload();
-        var back = (Order)InvocationData.DeserializePayload(payload).DeserializeJob().Args[0];
+        string? payload = InvocationData.SerializeJob(job).SerializePayload();
+        Order back = (Order)InvocationData.DeserializePayload(payload).DeserializeJob().Args[0];
 
         Assert.Equal("a", Assert.Single(back.Lines).Sku);
         Assert.Null(back.Lines[0].Order);
@@ -86,15 +86,15 @@ public class SerializationReferenceHandlerFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void IgnoreCyclesAndPreserve_HandleACycleThroughAnArrayMember_AsSystemTextJsonDoes()
     {
-        foreach (var handler in new[] { ReferenceHandler.IgnoreCycles, ReferenceHandler.Preserve })
+        foreach (ReferenceHandler? handler in new[] { ReferenceHandler.IgnoreCycles, ReferenceHandler.Preserve })
         {
-            var options = new JsonSerializerOptions { ReferenceHandler = handler };
+            JsonSerializerOptions options = new() { ReferenceHandler = handler };
             SerializationHelper.SetUserSerializerSettings(options);
-            var shipment = new Shipment { Name = "s" };
+            Shipment shipment = new() { Name = "s" };
             shipment.Parcels = [new Parcel { Code = "p", Shipment = shipment }];
 
-            var json = SerializationHelper.Serialize(shipment, SerializationOption.User);
-            var back = SerializationHelper.Deserialize<Shipment>(json, SerializationOption.User);
+            string json = SerializationHelper.Serialize(shipment, SerializationOption.User);
+            Shipment? back = SerializationHelper.Deserialize<Shipment>(json, SerializationOption.User);
 
             Assert.Equal(JsonSerializer.Serialize(shipment, options), json);
             Assert.Equal("p", Assert.Single(back.Parcels).Code);
@@ -103,7 +103,7 @@ public class SerializationReferenceHandlerFacts
 
     private static TreeNode CreateTree()
     {
-        var root = new TreeNode { Name = "root" };
+        TreeNode root = new() { Name = "root" };
         root.Children.Add(new TreeNode { Name = "child", Parent = root });
         return root;
     }

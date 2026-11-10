@@ -20,12 +20,12 @@ public class JobLoggingScopeFacts
     [InlineData(false)]
     public void AddNightShiftServer_RunsAnAsyncJob_InsideALoggingScope_ItsCodeAfterAnAwaitSees(bool useTaskScheduler)
     {
-        using var provider = BuildServices().BuildServiceProvider();
-        var job = Job.FromExpression<LoggingJob>(x => x.RunAsync());
+        using ServiceProvider provider = BuildServices().BuildServiceProvider();
+        Job job = Job.FromExpression<LoggingJob>(x => x.RunAsync());
 
         Perform(provider, job, Snapshot(("RecurringJobId", "\"nightly-report\""), ("RetryCount", "2")), useTaskScheduler);
 
-        var scope = Assert.Single(_logs.ScopesOf("Inside the async job"));
+        Dictionary<string, object> scope = Assert.Single(_logs.ScopesOf("Inside the async job"));
         Assert.Equal("42", scope["JobId"]);
         Assert.Equal("LoggingJob.RunAsync", scope["JobName"]);
         Assert.Equal("nightly-report", scope["RecurringJobId"]);
@@ -36,11 +36,11 @@ public class JobLoggingScopeFacts
     [Fact]
     public void AddNightShiftServer_RunsASyncJob_InsideALoggingScope_AndClosesItAfterwards()
     {
-        using var provider = BuildServices().BuildServiceProvider();
+        using ServiceProvider provider = BuildServices().BuildServiceProvider();
         Perform(provider, Job.FromExpression<LoggingJob>(x => x.Run()), Snapshot(), useTaskScheduler: true);
         provider.GetRequiredService<ILogger<JobLoggingScopeFacts>>().LogInformation("After the job");
 
-        var scope = Assert.Single(_logs.ScopesOf("Inside the sync job"));
+        Dictionary<string, object> scope = Assert.Single(_logs.ScopesOf("Inside the sync job"));
         Assert.Equal(["JobId", "JobName"], scope.Keys);
         Assert.Empty(_logs.ScopesOf("After the job"));
     }
@@ -48,8 +48,8 @@ public class JobLoggingScopeFacts
     [Fact]
     public void AddNightShiftServer_KeepsTheScope_ForEntriesOfAFailingJob()
     {
-        using var provider = BuildServices().BuildServiceProvider();
-        var job = Job.FromExpression<LoggingJob>(x => x.FailAsync());
+        using ServiceProvider provider = BuildServices().BuildServiceProvider();
+        Job job = Job.FromExpression<LoggingJob>(x => x.FailAsync());
 
         Assert.Throws<JobPerformanceException>(() => Perform(provider, job, Snapshot(), useTaskScheduler: true));
         provider.GetRequiredService<ILogger<JobLoggingScopeFacts>>().LogInformation("After the job");
@@ -61,13 +61,13 @@ public class JobLoggingScopeFacts
     [Fact]
     public void AddNightShiftServer_KeepsTheScope_UntilTheWorkerChangedTheJobsState_AndClosesItAfterwards()
     {
-        using var provider = BuildServices().BuildServiceProvider();
-        var states = RunWorker(provider, Job.FromExpression<LoggingJob>(x => x.FailWithOneRetry()));
+        using ServiceProvider provider = BuildServices().BuildServiceProvider();
+        List<string> states = RunWorker(provider, Job.FromExpression<LoggingJob>(x => x.FailWithOneRetry()));
         provider.GetRequiredService<ILogger<JobLoggingScopeFacts>>().LogInformation("After the job");
 
         // AutomaticRetry logs its warning while the worker moves the failed job to Scheduled
         Assert.Equal(new[] { ProcessingState.StateName, ScheduledState.StateName }, states);
-        var retryWarning = Assert.Single(_logs.ScopesOfMessagesStartingWith("Failed to process the job '42'"));
+        Dictionary<string, object> retryWarning = Assert.Single(_logs.ScopesOfMessagesStartingWith("Failed to process the job '42'"));
         Assert.Equal("42", retryWarning["JobId"]);
         Assert.Equal("LoggingJob.FailWithOneRetry", retryWarning["JobName"]);
         Assert.Empty(_logs.ScopesOf("After the job"));
@@ -76,7 +76,7 @@ public class JobLoggingScopeFacts
     [Fact]
     public void AddNightShiftServer_DoesNotReadTheStorage_ForTheScope()
     {
-        using var provider = BuildServices().BuildServiceProvider();
+        using ServiceProvider provider = BuildServices().BuildServiceProvider();
         Perform(provider, Job.FromExpression<LoggingJob>(x => x.RunAsync()), parametersSnapshot: null, useTaskScheduler: true);
 
         Assert.Equal(["JobId", "JobName"], Assert.Single(_logs.ScopesOf("Inside the async job")).Keys);
@@ -88,9 +88,9 @@ public class JobLoggingScopeFacts
     [Fact]
     public void ConfigureNightShiftJobLogging_TurnsTheScopeOff()
     {
-        var services = BuildServices().ConfigureNightShiftJobLogging(options => options.BeginScope = false);
+        IServiceCollection services = BuildServices().ConfigureNightShiftJobLogging(options => options.BeginScope = false);
 
-        using var provider = services.BuildServiceProvider();
+        using ServiceProvider provider = services.BuildServiceProvider();
         Assert.Same(provider.GetRequiredService<IJobFilterProvider>(), GetServerOptions(provider).FilterProvider);
 
         Perform(provider, Job.FromExpression<LoggingJob>(x => x.RunAsync()), Snapshot(), useTaskScheduler: true);
@@ -101,22 +101,22 @@ public class JobLoggingScopeFacts
     [Fact]
     public void ConfigureNightShiftJobLogging_ChangesTheSameOptions_WhenCalledTwice()
     {
-        var services = new ServiceCollection()
+        IServiceCollection services = new ServiceCollection()
             .ConfigureNightShiftJobLogging(options => options.BeginScope = false)
             .ConfigureNightShiftJobLogging(_ => { });
 
-        using var provider = services.BuildServiceProvider();
+        using ServiceProvider provider = services.BuildServiceProvider();
         Assert.False(Assert.Single(provider.GetServices<NightShiftJobLoggingOptions>()).BeginScope);
     }
 
     [Fact]
     public void AddNightShiftServer_OpensOneScope_WhenSharedServerOptionsAreUsedTwice()
     {
-        var services = BuildServices(addServer: false)
+        IServiceCollection services = BuildServices(addServer: false)
             .AddSingleton(new BackgroundJobServerOptions())
             .AddNightShiftServer();
 
-        using var provider = services.BuildServiceProvider();
+        using ServiceProvider provider = services.BuildServiceProvider();
         provider.GetServices<IHostedService>().ToList();
         provider.GetServices<IHostedService>().ToList();
 
@@ -134,7 +134,7 @@ public class JobLoggingScopeFacts
 
     private IServiceCollection BuildServices(bool addServer = true)
     {
-        var services = new ServiceCollection()
+        IServiceCollection services = new ServiceCollection()
             .AddLogging(builder => builder.AddProvider(_logs))
             .AddTransient<LoggingJob>()
             .AddSingleton(_storage.Object)
@@ -145,10 +145,10 @@ public class JobLoggingScopeFacts
 
     private void Perform(IServiceProvider provider, Job job, IReadOnlyDictionary<string, string> parametersSnapshot, bool useTaskScheduler)
     {
-        var options = GetServerOptions(provider);
-        var performer = new BackgroundJobPerformer(options.FilterProvider, options.Activator, useTaskScheduler ? TaskScheduler.Default : null);
-        var backgroundJob = new BackgroundJob("42", job, DateTime.UtcNow, parametersSnapshot);
-        var token = new Mock<IJobCancellationToken>();
+        BackgroundJobServerOptions options = GetServerOptions(provider);
+        BackgroundJobPerformer performer = new(options.FilterProvider, options.Activator, useTaskScheduler ? TaskScheduler.Default : null);
+        BackgroundJob backgroundJob = new("42", job, DateTime.UtcNow, parametersSnapshot);
+        Mock<IJobCancellationToken> token = new();
 
         performer.Perform(new PerformContext(_storage.Object, _connection.Object, backgroundJob, token.Object));
     }
@@ -156,11 +156,11 @@ public class JobLoggingScopeFacts
     /// <summary>Lets a worker of the server fetch, perform and finish job 42, and returns the states it set.</summary>
     private List<string> RunWorker(IServiceProvider provider, Job job)
     {
-        var options = GetServerOptions(provider);
-        var states = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        BackgroundJobServerOptions options = GetServerOptions(provider);
+        List<string> states = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.SetJobState("42", It.IsAny<IState>())).Callback<string, IState>((_, state) => states.Add(state.Name));
-        var fetchedJob = new Mock<IFetchedJob>();
+        Mock<IFetchedJob> fetchedJob = new();
         fetchedJob.Setup(x => x.JobId).Returns("42");
 
         _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
@@ -175,8 +175,8 @@ public class JobLoggingScopeFacts
             ParametersSnapshot = new Dictionary<string, string>(),
         });
 
-        var performer = new BackgroundJobPerformer(options.FilterProvider, options.Activator, TaskScheduler.Default);
-        var worker = new Worker(["default"], performer, new BackgroundJobStateChanger(options.FilterProvider));
+        BackgroundJobPerformer performer = new(options.FilterProvider, options.Activator, TaskScheduler.Default);
+        Worker worker = new(["default"], performer, new BackgroundJobStateChanger(options.FilterProvider));
 
         worker.Execute(new BackgroundProcessContext("server", _storage.Object, new Dictionary<string, object>(), Guid.NewGuid(), CancellationToken.None, CancellationToken.None, CancellationToken.None));
         return states;
@@ -184,7 +184,7 @@ public class JobLoggingScopeFacts
 
     private static BackgroundJobServerOptions GetServerOptions(IServiceProvider provider)
     {
-        var server = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().First();
+        BackgroundJobServerHostedService server = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().First();
 
         // The options are private to the hosted service
         return (BackgroundJobServerOptions)typeof(BackgroundJobServerHostedService)
@@ -271,7 +271,7 @@ public class JobLoggingScopeFacts
 
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
             {
-                var scopes = new List<object>();
+                List<object> scopes = [];
                 _provider._scopes?.ForEachScope((scope, list) => list.Add(scope), scopes);
                 _provider._entries.Enqueue((formatter(state, exception), scopes));
             }

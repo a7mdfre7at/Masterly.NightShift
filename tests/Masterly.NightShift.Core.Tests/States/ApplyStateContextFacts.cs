@@ -34,7 +34,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ApplyStateContext(null, _connection.Object, _transaction.Object, _backgroundJob.Object, _newState.Object, OldState));
 
         Assert.Equal("storage", exception.ParamName);
@@ -43,7 +43,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () =>
                 new ApplyStateContext(_storage.Object, null, _transaction.Object, _backgroundJob.Object,
                     _newState.Object, OldState));
@@ -54,7 +54,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTransactionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () =>
                 new ApplyStateContext(_storage.Object, _connection.Object, null, _backgroundJob.Object, _newState.Object, OldState));
 
@@ -64,7 +64,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenBackgroundJobIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ApplyStateContext(_storage.Object, _connection.Object, _transaction.Object, null, _newState.Object, OldState));
 
         Assert.Equal("backgroundJob", exception.ParamName);
@@ -73,7 +73,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenNewStateIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ApplyStateContext(_storage.Object, _connection.Object, _transaction.Object, _backgroundJob.Object, null, OldState));
 
         Assert.Equal("newState", exception.ParamName);
@@ -82,7 +82,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenProfilerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ApplyStateContext(
                 _storage.Object,
                 _connection.Object,
@@ -101,9 +101,9 @@ public class ApplyStateContextFacts
     {
         _backgroundJob.ParametersSnapshot = new Dictionary<string, string> { { "Retries", "1" } };
         _connection.Setup(x => x.GetJobParameter(_backgroundJob.Id, "Retries")).Returns("3");
-        var context = new ApplyStateContext(_storage.Object, _connection.Object, _transaction.Object, _backgroundJob.Object, _newState.Object, OldState);
+        ApplyStateContext context = new(_storage.Object, _connection.Object, _transaction.Object, _backgroundJob.Object, _newState.Object, OldState);
 
-        var value = context.GetJobParameter<int>("Retries");
+        int value = context.GetJobParameter<int>("Retries");
 
         Assert.Equal(3, value);
     }
@@ -112,9 +112,9 @@ public class ApplyStateContextFacts
     public void GetJobParameter_ThrowsAnException_WhenTheValueCannotBeDeserialized()
     {
         _connection.Setup(x => x.GetJobParameter(_backgroundJob.Id, "Retries")).Returns("not a number");
-        var context = new ApplyStateContext(_storage.Object, _connection.Object, _transaction.Object, _backgroundJob.Object, _newState.Object, OldState);
+        ApplyStateContext context = new(_storage.Object, _connection.Object, _transaction.Object, _backgroundJob.Object, _newState.Object, OldState);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => context.GetJobParameter<int>("Retries"));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => context.GetJobParameter<int>("Retries"));
 
         Assert.Contains("`Retries`", exception.Message);
     }
@@ -122,7 +122,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void Ctor_ShouldSetPropertiesCorrectly()
     {
-        var context = new ApplyStateContext(
+        ApplyStateContext context = new(
             _storage.Object,
             _connection.Object,
             _transaction.Object,
@@ -142,7 +142,7 @@ public class ApplyStateContextFacts
     [Fact]
     public void InternalCtor_CorrectlySetsAllTheProperties()
     {
-        var context = new ApplyStateContext(
+        ApplyStateContext context = new(
             _storage.Object,
             _connection.Object,
             _transaction.Object,
@@ -167,8 +167,8 @@ public class ApplyStateContextFacts
     [Fact]
     public void CopyCtor_ForElectStateContext_CorrectlySetsAllTheProperties()
     {
-        var electContext = new ElectStateContextMock();
-        var context = new ApplyStateContext(_transaction.Object, electContext.Object);
+        ElectStateContextMock electContext = new();
+        ApplyStateContext context = new(_transaction.Object, electContext.Object);
 
         Assert.Same(electContext.Object.Storage, context.Storage);
         Assert.Same(electContext.Object.Connection, context.Connection);
@@ -183,11 +183,11 @@ public class ApplyStateContextFacts
     public void CopyCtor_ForElectStateContext_CopiesCustomData_ToAnotherDictionary()
     {
         // Arrange
-        var dictionary = new Dictionary<string, object> { { "lalala", new object() } };
-        var electContext = new ElectStateContextMock { ApplyContext = { CustomData = dictionary } };
+        Dictionary<string, object> dictionary = new() { { "lalala", new object() } };
+        ElectStateContextMock electContext = new() { ApplyContext = { CustomData = dictionary } };
 
         // Act
-        var context = new ApplyStateContext(_transaction.Object, electContext.Object);
+        ApplyStateContext context = new(_transaction.Object, electContext.Object);
 
         // Assert
         Assert.Equal(electContext.Object.CustomData, context.CustomData);
@@ -197,11 +197,11 @@ public class ApplyStateContextFacts
     [Fact]
     public void CopyCtor_ForElectStateContext_KeepsThePostCommitActions_OfTheStateChange()
     {
-        var afterCommit = new PostCommitActions();
-        var electContext = new ElectStateContextMock();
+        PostCommitActions afterCommit = new();
+        ElectStateContextMock electContext = new();
         electContext.ApplyContext.Object.AfterCommit = afterCommit;
 
-        var context = new ApplyStateContext(_transaction.Object, electContext.Object);
+        ApplyStateContext context = new(_transaction.Object, electContext.Object);
 
         Assert.Same(afterCommit, electContext.Object.AfterCommit);
         Assert.Same(afterCommit, context.AfterCommit);
@@ -210,8 +210,8 @@ public class ApplyStateContextFacts
     [Fact]
     public void RunAfterCommit_RunsTheActionRightAway_WhenNobodyRunsActionsAfterTheCommit()
     {
-        var context = new ApplyStateContextMock();
-        var ran = false;
+        ApplyStateContextMock context = new();
+        bool ran = false;
 
         context.Object.RunAfterCommit(() => ran = true);
 

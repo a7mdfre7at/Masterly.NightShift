@@ -19,7 +19,7 @@ public class JobNotesDispatcherFacts
     [Fact]
     public async Task Dispatch_Answers422_ForTextLongerThanTheTextBoxAllows()
     {
-        var context = Create("1", new string('x', JobNotes.MaxLength + 1));
+        DashboardContextStub context = Create("1", new string('x', JobNotes.MaxLength + 1));
 
         await new JobNotesDispatcher().Dispatch(context);
 
@@ -30,7 +30,7 @@ public class JobNotesDispatcherFacts
     [Fact]
     public async Task Dispatch_AcceptsTextOfTheMaximumLength_AroundWhitespace()
     {
-        var context = Create("1", "  " + new string('x', JobNotes.MaxLength) + "  ");
+        DashboardContextStub context = Create("1", "  " + new string('x', JobNotes.MaxLength) + "  ");
 
         await new JobNotesDispatcher().Dispatch(context);
 
@@ -41,7 +41,7 @@ public class JobNotesDispatcherFacts
     [Fact]
     public async Task Dispatch_DecodesAnEncodedSlashInTheJobId()
     {
-        var context = Create("tenant%2F5", "note");
+        DashboardContextStub context = Create("tenant%2F5", "note");
 
         await new JobNotesDispatcher().Dispatch(context);
 
@@ -50,8 +50,8 @@ public class JobNotesDispatcherFacts
 
     private DashboardContextStub Create(string jobId, string text)
     {
-        var path = "/jobs/notes/add/" + jobId;
-        var request = new DashboardRequestStub("POST", path);
+        string path = "/jobs/notes/add/" + jobId;
+        DashboardRequestStub request = new("POST", path);
         request.Form["text"] = [text];
 
         return new DashboardContextStub(new DashboardOptions(), request, _storage.Object)

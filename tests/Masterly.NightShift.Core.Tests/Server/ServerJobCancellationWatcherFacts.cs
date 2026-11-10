@@ -29,11 +29,11 @@ public class ServerJobCancellationWatcherFacts : IDisposable
     [Fact]
     public void Execute_DelegatesCancellationToServerJobCancellationToken()
     {
-        var token = new ServerJobCancellationToken(_connection.Object, "job-id", _context.ServerId, "1", _context.StoppedTokenSource.Token);
+        ServerJobCancellationToken token = new(_connection.Object, "job-id", _context.ServerId, "1", _context.StoppedTokenSource.Token);
         Assert.False(token.ShutdownToken.IsCancellationRequested);
 
         _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
-        var watchdog = new ServerJobCancellationWatcher(_checkInterval);
+        ServerJobCancellationWatcher watchdog = new(_checkInterval);
 
         Assert.Throws<OperationCanceledException>(() => watchdog.Execute(_context.Object));
 

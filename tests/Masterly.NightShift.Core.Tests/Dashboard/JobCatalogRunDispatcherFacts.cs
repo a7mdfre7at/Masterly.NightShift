@@ -33,8 +33,8 @@ public class JobCatalogRunDispatcherFacts : IDisposable
 
     private DashboardContextStub Context(string method = "POST", bool readOnly = false, (string, string)[] form = null)
     {
-        var request = new DashboardRequestStub(method);
-        foreach (var (key, value) in form ?? []) request.Form[key] = [value];
+        DashboardRequestStub request = new(method);
+        foreach ((string? key, string? value) in form ?? []) request.Form[key] = [value];
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
         {
@@ -46,7 +46,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly()
     {
-        var context = Context(readOnly: true);
+        DashboardContextStub context = Context(readOnly: true);
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -56,7 +56,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets405_ForGet()
     {
-        var context = Context("GET");
+        DashboardContextStub context = Context("GET");
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -66,11 +66,11 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets422_WithoutAnId_And404_ForAnUnknownOne()
     {
-        var missing = Context();
+        DashboardContextStub missing = Context();
         await new JobCatalogRunDispatcher().Dispatch(missing);
         Assert.Equal(422, missing.Response.StatusCode);
 
-        var unknown = Post(("id", "Nope|Method|"));
+        DashboardContextStub unknown = Post(("id", "Nope|Method|"));
         await new JobCatalogRunDispatcher().Dispatch(unknown);
         Assert.Equal(404, unknown.Response.StatusCode);
     }
@@ -78,7 +78,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_EnqueuesTheJob_WithConvertedArguments()
     {
-        var context = Post(("id", _entryId), ("mode", "enqueue"), ("queue", "critical"), ("arg:to", "bob"), ("arg:count", "3"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "enqueue"), ("queue", "critical"), ("arg:to", "bob"), ("arg:count", "3"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -92,7 +92,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_SchedulesTheJob_WithADelay()
     {
-        var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", "15"), ("arg:to", "bob"), ("arg:count", "1"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "schedule"), ("delay", "15"), ("arg:to", "bob"), ("arg:count", "1"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -106,7 +106,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [InlineData("1e308")]
     public async Task Dispatch_Sets422_ForABadDelay(string delay)
     {
-        var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -117,7 +117,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_SchedulesTheJob_WithADelayPhrase()
     {
-        var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", "in 2 hours"), ("arg:to", "bob"), ("arg:count", "1"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "schedule"), ("delay", "in 2 hours"), ("arg:to", "bob"), ("arg:count", "1"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -132,7 +132,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [InlineData("in 3000000000 months")]
     public async Task Dispatch_Sets422_ForADelayThatIsNeitherMinutesNorAPhrase(string delay)
     {
-        var context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "schedule"), ("delay", delay), ("arg:to", "bob"), ("arg:count", "1"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -144,7 +144,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_Sets422_ForAnUnknownMode()
     {
-        var context = Post(("id", _entryId), ("mode", "teleport"), ("arg:to", "bob"), ("arg:count", "1"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "teleport"), ("arg:to", "bob"), ("arg:count", "1"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -157,7 +157,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_CreatesARecurringJob_FromPlainEnglish()
     {
-        var context = Post(("id", _entryId), ("mode", "recurring"), ("recurringId", " nightly "), ("cron", "every day at 3am"), ("arg:to", "ops"), ("arg:count", "2"));
+        DashboardContextStub context = Post(("id", _entryId), ("mode", "recurring"), ("recurringId", " nightly "), ("cron", "every day at 3am"), ("arg:to", "ops"), ("arg:count", "2"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -169,11 +169,11 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_Sets422_ForRecurringJobsWithoutIdOrCron()
     {
-        var noId = Post(("id", _entryId), ("mode", "recurring"), ("cron", "* * * * *"), ("arg:to", "x"), ("arg:count", "1"));
+        DashboardContextStub noId = Post(("id", _entryId), ("mode", "recurring"), ("cron", "* * * * *"), ("arg:to", "x"), ("arg:count", "1"));
         await new JobCatalogRunDispatcher().Dispatch(noId);
         Assert.Equal(422, noId.Response.StatusCode);
 
-        var noCron = Post(("id", _entryId), ("mode", "recurring"), ("recurringId", "x"), ("arg:to", "x"), ("arg:count", "1"));
+        DashboardContextStub noCron = Post(("id", _entryId), ("mode", "recurring"), ("recurringId", "x"), ("arg:to", "x"), ("arg:count", "1"));
         await new JobCatalogRunDispatcher().Dispatch(noCron);
         Assert.Equal(422, noCron.Response.StatusCode);
     }
@@ -181,7 +181,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_Sets422_ForBadArguments()
     {
-        var context = Post(("id", _entryId), ("arg:to", "bob"), ("arg:count", "many"));
+        DashboardContextStub context = Post(("id", _entryId), ("arg:to", "bob"), ("arg:count", "many"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -193,10 +193,10 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_RunsAnExistingJobAgain_WithTheGivenArguments()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
         connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = Job.FromExpression<UncataloguedJobs>(x => x.Replay("old", 1)) });
-        var context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"));
+        DashboardContextStub context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -210,11 +210,11 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     public async Task Dispatch_RunsAnExistingJobAgain_InItsOwnQueue_WhenTheQueueFieldIsEmpty()
     {
         // A job created with Enqueue("emails", ...) and run again landed in "default"
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
-        var source = new Job(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), ["old", 1], "emails");
+        Job source = new(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), ["old", 1], "emails");
         connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = source });
-        var context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", ""));
+        DashboardContextStub context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", ""));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -225,11 +225,11 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_UsesTheQueueGiven_ForAnExistingJob()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
-        var source = new Job(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), ["old", 1], "emails");
+        Job source = new(typeof(UncataloguedJobs), typeof(UncataloguedJobs).GetMethod("Replay"), ["old", 1], "emails");
         connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = source });
-        var context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", "critical"));
+        DashboardContextStub context = Post(("source", "41"), ("arg:name", "new"), ("arg:count", "7"), ("queue", "critical"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -240,13 +240,13 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     public async Task Dispatch_Sets422_NamingWhatCanNotBeLoaded_WhenTheSourceJobsTypeIsMissing()
     {
         // A dashboard hosted without the job's assemblies answered 404, as if the job didn't exist
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
         connection.Setup(x => x.GetJobData("41")).Returns(new JobData
         {
             LoadException = new JobLoadException("Could not load the job.", new InvalidOperationException("Could not resolve assembly 'Shop.Web'.")),
         });
-        var context = Post(("source", "41"));
+        DashboardContextStub context = Post(("source", "41"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -258,9 +258,9 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_Sets404_WhenTheSourceJobIsGone()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
-        var context = Post(("source", "404"));
+        DashboardContextStub context = Post(("source", "404"));
 
         await new JobCatalogRunDispatcher().Dispatch(context);
 
@@ -271,8 +271,8 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     public async Task Dispatch_GivesFalse_ForAnUncheckedBoxWhoseDefaultIsTrue_AndTrue_ForACheckedOne()
     {
         // An unchecked box sent nothing, and nothing meant the default, true
-        var uncheckedBox = await RunAgainAsync(x => x.Flag(true), ("arg:dryRun", "false"));
-        var checkedBox = await RunAgainAsync(x => x.Flag(false), ("arg:dryRun", "false"), ("arg:dryRun", "true"));
+        Job uncheckedBox = await RunAgainAsync(x => x.Flag(true), ("arg:dryRun", "false"));
+        Job checkedBox = await RunAgainAsync(x => x.Flag(false), ("arg:dryRun", "false"), ("arg:dryRun", "true"));
 
         Assert.Equal(false, uncheckedBox.Args[0]);
         Assert.Equal(true, checkedBox.Args[0]);
@@ -281,8 +281,8 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_CombinesTheChoicesOfAFlagsEnum_AndGivesNoFlags_WhenNothingIsChosen()
     {
-        var combined = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"), ("arg:flags", "Instance"), ("arg:flags", "Public"));
-        var none = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"));
+        Job combined = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"), ("arg:flags", "Instance"), ("arg:flags", "Public"));
+        Job none = await RunAgainAsync(x => x.Flags(BindingFlags.Static), ("arg:flags", "0"));
 
         Assert.Equal(BindingFlags.Instance | BindingFlags.Public, combined.Args[0]);
         Assert.Equal(BindingFlags.Default, none.Args[0]);
@@ -291,7 +291,7 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_GivesNull_ForTheNullChoiceOfABoolOrEnumThatIsNullable()
     {
-        var job = await RunAgainAsync(x => x.Maybe(true, DayOfWeek.Friday), ("arg:enabled", "null"), ("arg:day", "null"));
+        Job job = await RunAgainAsync(x => x.Maybe(true, DayOfWeek.Friday), ("arg:enabled", "null"), ("arg:day", "null"));
 
         Assert.Null(job.Args[0]);
         Assert.Null(job.Args[1]);
@@ -299,19 +299,19 @@ public class JobCatalogRunDispatcherFacts : IDisposable
 
     private async Task<Job> RunAgainAsync(Expression<Action<FormJobs>> source, params (string, string)[] form)
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
         connection.Setup(x => x.GetJobData("41")).Returns(new JobData { Job = Job.FromExpression(source) });
 
-        var request = new DashboardRequestStub("POST");
+        DashboardRequestStub request = new("POST");
         request.Form["source"] = ["41"];
-        foreach (var (key, value) in form)
+        foreach ((string? key, string? value) in form)
         {
-            if (!request.Form.TryGetValue(key, out var values)) request.Form[key] = values = [];
+            if (!request.Form.TryGetValue(key, out List<string>? values)) request.Form[key] = values = [];
             values.Add(value);
         }
 
-        var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object) { BackgroundJobClient = _client.Object };
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object) { BackgroundJobClient = _client.Object };
         Job created = null;
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Callback<Job, IState>((job, _) => created = job).Returns("124");
 

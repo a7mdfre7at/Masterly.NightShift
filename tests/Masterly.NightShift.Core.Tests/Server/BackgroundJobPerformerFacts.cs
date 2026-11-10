@@ -27,7 +27,7 @@ public class BackgroundJobPerformerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFilterProvider_IsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobPerformer(null, _innerPerformer.Object));
 
         Assert.Equal("filterProvider", exception.ParamName);
@@ -36,7 +36,7 @@ public class BackgroundJobPerformerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenInnerPerformer_IsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobPerformer(_filterProvider.Object, (IBackgroundJobPerformer)null));
 
         Assert.Equal("innerPerformer", exception.ParamName);
@@ -45,9 +45,9 @@ public class BackgroundJobPerformerFacts
     [Fact]
     public void Run_ThrowsAnException_WhenContextIsNull()
     {
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => performer.Perform(null));
 
         Assert.Equal("context", exception.ParamName);
@@ -56,7 +56,7 @@ public class BackgroundJobPerformerFacts
     [Fact]
     public void Run_CallsTheRunMethod_OfInnerProcess()
     {
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         performer.Perform(_context.Object);
 
@@ -67,8 +67,8 @@ public class BackgroundJobPerformerFacts
     public void Run_StoresJobReturnValueInPerformedContext()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
-        var performer = CreatePerformer();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
@@ -87,15 +87,15 @@ public class BackgroundJobPerformerFacts
     {
         // Arrange
         // ReSharper disable once UnusedVariable
-        var filter = CreateFilter<IServerFilter>();
-        var performer = CreatePerformer();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
             .Returns("Returned value");
 
         // Act
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         // Assert
         Assert.Equal("Returned value", result);
@@ -109,7 +109,7 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<InvalidOperationException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => performer.Perform(_context.Object));
@@ -119,13 +119,13 @@ public class BackgroundJobPerformerFacts
     public void Run_CallsExceptionFilter_OnException()
     {
         // Arrange
-        var filter = CreateFilter<IServerExceptionFilter>();
+        Mock<IServerExceptionFilter> filter = CreateFilter<IServerExceptionFilter>();
 
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
             .Throws<InvalidOperationException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => performer.Perform(_context.Object));
@@ -138,8 +138,8 @@ public class BackgroundJobPerformerFacts
     public void Run_CallsExceptionFilters_InReverseOrder()
     {
         // Arrange
-        var filter1 = CreateFilter<IServerExceptionFilter>();
-        var filter2 = CreateFilter<IServerExceptionFilter>();
+        Mock<IServerExceptionFilter> filter1 = CreateFilter<IServerExceptionFilter>();
+        Mock<IServerExceptionFilter> filter2 = CreateFilter<IServerExceptionFilter>();
 
         filter2.Setup(x => x.OnServerException(It.IsAny<ServerExceptionContext>())).InSequence();
         filter1.Setup(x => x.OnServerException(It.IsAny<ServerExceptionContext>())).InSequence();
@@ -148,7 +148,7 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<InvalidOperationException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => performer.Perform(_context.Object));
@@ -164,11 +164,11 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<InvalidOperationException>();
 
-        var filter = CreateFilter<IServerExceptionFilter>();
+        Mock<IServerExceptionFilter> filter = CreateFilter<IServerExceptionFilter>();
         filter.Setup(x => x.OnServerException(It.IsAny<ServerExceptionContext>()))
             .Callback((ServerExceptionContext x) => x.ExceptionHandled = true);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert does not throw
         performer.Perform(_context.Object);
@@ -178,7 +178,7 @@ public class BackgroundJobPerformerFacts
     public void Run_CallsServerFilters_BeforeAndAfterTheCreationOfAJob()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
 
         filter.Setup(x => x.OnPerforming(It.IsNotNull<PerformingContext>()))
             .InSequence();
@@ -190,7 +190,7 @@ public class BackgroundJobPerformerFacts
         filter.Setup(x => x.OnPerformed(It.IsNotNull<PerformedContext>()))
             .InSequence();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -202,15 +202,15 @@ public class BackgroundJobPerformerFacts
     public void Run_WrapsFilterCalls_OneIntoAnother()
     {
         // Arrange
-        var outerFilter = CreateFilter<IServerFilter>();
-        var innerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> outerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> innerFilter = CreateFilter<IServerFilter>();
 
         outerFilter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>())).InSequence();
         innerFilter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>())).InSequence();
         innerFilter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>())).InSequence();
         outerFilter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>())).InSequence();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -222,12 +222,12 @@ public class BackgroundJobPerformerFacts
     public void Run_DoesNotCallBoth_Perform_And_OnPerforming_WhenFilterCancelsThis()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
 
         filter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>()))
             .Callback((PerformingContext x) => x.Canceled = true);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -242,13 +242,13 @@ public class BackgroundJobPerformerFacts
     public void Run_TellsOuterFilter_AboutTheCancellationOfCreation()
     {
         // Arrange
-        var outerFilter = CreateFilter<IServerFilter>();
-        var innerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> outerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> innerFilter = CreateFilter<IServerFilter>();
 
         innerFilter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>()))
             .Callback((PerformingContext context) => context.Canceled = true);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -261,15 +261,15 @@ public class BackgroundJobPerformerFacts
     public void Run_DoesNotCall_Perform_And_OnPerformed_WhenExceptionOccured_DuringPerformingPhase()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
 
         filter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>()))
             .Throws<InvalidOperationException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
-        var exception = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         // Assert
@@ -284,14 +284,14 @@ public class BackgroundJobPerformerFacts
     public void Run_TellsFiltersAboutException_WhenItIsOccured_DuringThePerformanceOfAJob()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
             .Throws(exception);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => performer.Perform(_context.Object));
@@ -305,16 +305,16 @@ public class BackgroundJobPerformerFacts
     public void Run_TellsOuterFilters_AboutAllExceptions()
     {
         // Arrange
-        var outerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> outerFilter = CreateFilter<IServerFilter>();
         // ReSharper disable once UnusedVariable
-        var innerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> innerFilter = CreateFilter<IServerFilter>();
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
             .Throws(exception);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => performer.Perform(_context.Object));
@@ -326,9 +326,9 @@ public class BackgroundJobPerformerFacts
     public void Run_DoesNotThrow_HandledExceptions()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
             .Throws(exception);
@@ -336,7 +336,7 @@ public class BackgroundJobPerformerFacts
         filter.Setup(x => x.OnPerformed(It.Is<PerformedContext>(context => context.Exception == exception)))
             .Callback((PerformedContext x) => x.ExceptionHandled = true);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert does not throw
         performer.Perform(_context.Object);
@@ -346,8 +346,8 @@ public class BackgroundJobPerformerFacts
     public void Run_TellsOuterFilter_EvenAboutHandledException()
     {
         // Arrange
-        var outerFilter = CreateFilter<IServerFilter>();
-        var innerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> outerFilter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> innerFilter = CreateFilter<IServerFilter>();
 
         _innerPerformer
             .Setup(x => x.Perform(_context.Object))
@@ -356,7 +356,7 @@ public class BackgroundJobPerformerFacts
         innerFilter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>()))
             .Callback((PerformedContext x) => x.ExceptionHandled = true);
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         performer.Perform(_context.Object);
@@ -369,14 +369,14 @@ public class BackgroundJobPerformerFacts
     public void Run_WrapsOnPerformedException_IntoJobPerformanceException()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>()))
             .Throws<InvalidOperationException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
-        var exception = Assert.Throws<JobPerformanceException>(() =>
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() =>
             performer.Perform(_context.Object));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -386,7 +386,7 @@ public class BackgroundJobPerformerFacts
     public void Run_WrapsOnPerformedException_OccuredAfterAnotherException_IntoJobPerformanceException()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>()))
             .Throws<InvalidOperationException>();
 
@@ -394,10 +394,10 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<ArgumentNullException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
-        var exception = Assert.Throws<JobPerformanceException>(() =>
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() =>
             performer.Perform(_context.Object));
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -411,8 +411,8 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<JobAbortedException>();
 
-        var filter = CreateFilter<IServerExceptionFilter>();
-        var performer = CreatePerformer();
+        Mock<IServerExceptionFilter> filter = CreateFilter<IServerExceptionFilter>();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<JobAbortedException>(() => performer.Perform(_context.Object));
@@ -427,7 +427,7 @@ public class BackgroundJobPerformerFacts
     public void Run_ExceptionFiltersAreNOTInvoked_OnOperationCanceledException_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
+        CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);
@@ -435,8 +435,8 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<OperationCanceledException>();
 
-        var filter = CreateFilter<IServerExceptionFilter>();
-        var performer = CreatePerformer();
+        Mock<IServerExceptionFilter> filter = CreateFilter<IServerExceptionFilter>();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<OperationCanceledException>(
@@ -456,8 +456,8 @@ public class BackgroundJobPerformerFacts
             .Setup(x => x.Perform(_context.Object))
             .Throws<OperationCanceledException>();
 
-        var filter = CreateFilter<IServerExceptionFilter>();
-        var performer = CreatePerformer();
+        Mock<IServerExceptionFilter> filter = CreateFilter<IServerExceptionFilter>();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
         Assert.Throws<OperationCanceledException>(
@@ -473,15 +473,15 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsOperationCanceledException_OccurredInPreFilterMethods_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
+        CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>()))
             .Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<OperationCanceledException>(
@@ -492,14 +492,14 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsJobPerformanceException_InsteadOfOperationCanceled_OccurredInPreFilterMethods_WhenShutdownTokenIsNotCanceled()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerforming(It.IsAny<PerformingContext>()))
             .Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
-        var exception = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         // Assert
@@ -510,15 +510,15 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsOperationCanceledException_OccurredInPostFilterMethods_WhenShutdownTokenIsCanceled()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
+        CancellationTokenSource cts = new();
         cts.Cancel();
 
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(cts.Token);
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>()))
             .Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act & Assert
         Assert.Throws<OperationCanceledException>(() => performer.Perform(_context.Object));
@@ -528,14 +528,14 @@ public class BackgroundJobPerformerFacts
     public void Run_ThrowsJobPerformanceException_InsteadOfOperationCanceled_OccurredInPostFilterMethods_WhenShutdownTokenIsNOTCanceled()
     {
         // Arrange
-        var filter = CreateFilter<IServerFilter>();
+        Mock<IServerFilter> filter = CreateFilter<IServerFilter>();
         filter.Setup(x => x.OnPerformed(It.IsAny<PerformedContext>()))
             .Throws<OperationCanceledException>();
 
-        var performer = CreatePerformer();
+        BackgroundJobPerformer performer = CreatePerformer();
 
         // Act
-        var exception = Assert.Throws<JobPerformanceException>(
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(
             () => performer.Perform(_context.Object));
 
         // Assert
@@ -547,14 +547,14 @@ public class BackgroundJobPerformerFacts
     public void Run_FlowsAsyncLocal_ThroughFilters_AndSynchronousBackgroundJobMethod(TaskScheduler scheduler)
     {
         // Arrange
-        var id = Guid.NewGuid();
+        Guid id = Guid.NewGuid();
         _filters.Add(new AsyncLocalFilter(id));
         _context.BackgroundJob.Job = Job.FromExpression(() => AsyncLocalSync());
 
-        var performer = CreatePerformer(CreateInnerPerformer(scheduler));
+        BackgroundJobPerformer performer = CreatePerformer(CreateInnerPerformer(scheduler));
 
         // Act
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         // Assert
         Assert.Equal(id, result);
@@ -565,14 +565,14 @@ public class BackgroundJobPerformerFacts
     public void Run_FlowsAsyncLocal_ThroughFilters_AndSimpleAsynchronousBackgroundJobMethod(TaskScheduler scheduler)
     {
         // Arrange
-        var id = Guid.NewGuid();
+        Guid id = Guid.NewGuid();
         _filters.Add(new AsyncLocalFilter(id));
         _context.BackgroundJob.Job = Job.FromExpression(() => AsyncLocalSimpleAsync());
 
-        var performer = CreatePerformer(CreateInnerPerformer(scheduler));
+        BackgroundJobPerformer performer = CreatePerformer(CreateInnerPerformer(scheduler));
 
         // Act
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         // Assert
         Assert.Equal(id, result);
@@ -583,14 +583,14 @@ public class BackgroundJobPerformerFacts
     public void Run_FlowsAsyncLocal_ThroughFilters_AndAsyncAwaitAsynchronousBackgroundJobMethod(TaskScheduler scheduler)
     {
         // Arrange
-        var id = Guid.NewGuid();
+        Guid id = Guid.NewGuid();
         _filters.Add(new AsyncLocalFilter(id));
         _context.BackgroundJob.Job = Job.FromExpression(() => AsyncLocalAsyncAwait());
 
-        var performer = CreatePerformer(CreateInnerPerformer(scheduler));
+        BackgroundJobPerformer performer = CreatePerformer(CreateInnerPerformer(scheduler));
 
         // Act
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         // Assert
         Assert.Equal(id, result);
@@ -601,14 +601,14 @@ public class BackgroundJobPerformerFacts
     public void Run_FlowsAsyncLocal_ThroughFilters_AndAsyncAwaitContinuationAsynchronousBackgroundJobMethod(TaskScheduler scheduler)
     {
         // Arrange
-        var id = Guid.NewGuid();
+        Guid id = Guid.NewGuid();
         _filters.Add(new AsyncLocalFilter(id));
         _context.BackgroundJob.Job = Job.FromExpression(() => AsyncLocalAsyncAwaitContinuation());
 
-        var performer = CreatePerformer(CreateInnerPerformer(scheduler));
+        BackgroundJobPerformer performer = CreatePerformer(CreateInnerPerformer(scheduler));
 
         // Act
-        var result = performer.Perform(_context.Object);
+        object? result = performer.Perform(_context.Object);
 
         // Assert
         Assert.Equal(id, result);
@@ -634,7 +634,7 @@ public class BackgroundJobPerformerFacts
     private Mock<T> CreateFilter<T>()
         where T : class
     {
-        var filter = new Mock<T>();
+        Mock<T> filter = new();
         _filters.Add(filter.Object);
 
         return filter;

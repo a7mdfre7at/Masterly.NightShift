@@ -30,8 +30,8 @@ public class StatisticsHistoryAttributeFacts
     [Fact]
     public void StatisticsHistoryFilter_ActsBefore_RetryFilter()
     {
-        var statisticsHistoryFilter = new StatisticsHistoryAttribute();
-        var retryFilter = new AutomaticRetryAttribute();
+        StatisticsHistoryAttribute statisticsHistoryFilter = new();
+        AutomaticRetryAttribute retryFilter = new();
 
         Assert.True(statisticsHistoryFilter.Order > retryFilter.Order);
     }
@@ -76,11 +76,11 @@ public class StatisticsHistoryAttributeFacts
 
     private void VerifyCountersIncremented(string prefix)
     {
-        var thisDay = DateTime.UtcNow.ToString("yyyy-MM-dd");
-        var prevDay = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd");
+        string thisDay = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        string prevDay = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd");
 
-        var thisHour = DateTime.UtcNow.ToString("yyyy-MM-dd-HH");
-        var prevHour = DateTime.UtcNow.AddHours(1).ToString("yyyy-MM-dd-HH");
+        string thisHour = DateTime.UtcNow.ToString("yyyy-MM-dd-HH");
+        string prevHour = DateTime.UtcNow.AddHours(1).ToString("yyyy-MM-dd-HH");
 
         _transaction.Verify(x => x.IncrementCounter(
             It.Is<string>(key => key == prefix + thisDay || key == prefix + prevDay),

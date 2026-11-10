@@ -25,7 +25,7 @@ public class BackgroundProcessingServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessingServer(null, _processes, _properties));
 
         Assert.Equal("storage", exception.ParamName);
@@ -34,7 +34,7 @@ public class BackgroundProcessingServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenProcessesArgumentIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessingServer(_storage.Object, null, _properties));
 
         Assert.Equal("processes", exception.ParamName);
@@ -43,7 +43,7 @@ public class BackgroundProcessingServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenPropertiesArgumentIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessingServer(_storage.Object, _processes, null));
 
         Assert.Equal("properties", exception.ParamName);
@@ -65,16 +65,16 @@ public class BackgroundProcessingServerFacts
     public void Execute_StartsAllTheProcesses_InLoop_AndWaitsForThem()
     {
         // Arrange
-        var component1Countdown = new CountdownEvent(5);
-        var component2Countdown = new CountdownEvent(5);
+        CountdownEvent component1Countdown = new(5);
+        CountdownEvent component2Countdown = new(5);
 
-        var component1 = CreateProcessMock<IBackgroundProcess>();
+        Mock<IBackgroundProcess> component1 = CreateProcessMock<IBackgroundProcess>();
         component1.Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>())).Callback(() =>
         {
             component1Countdown.Signal();
         });
 
-        var component2 = CreateProcessMock<IBackgroundProcess>();
+        Mock<IBackgroundProcess> component2 = CreateProcessMock<IBackgroundProcess>();
         component2.Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>())).Callback(() =>
         {
             component2Countdown.Signal();
@@ -99,7 +99,7 @@ public class BackgroundProcessingServerFacts
     private Mock<T> CreateProcessMock<T>()
         where T : class, IBackgroundProcess
     {
-        var mock = new Mock<T>();
+        Mock<T> mock = new();
         _processes.Add(mock.Object);
 
         return mock;

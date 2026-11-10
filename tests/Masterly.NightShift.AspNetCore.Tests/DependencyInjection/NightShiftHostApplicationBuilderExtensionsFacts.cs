@@ -9,31 +9,31 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
     [Fact]
     public void AddNightShift_RegistersTheServices()
     {
-        var builder = CreateBuilder();
+        HostApplicationBuilder builder = CreateBuilder();
 
         builder.AddNightShift(_ => { });
 
-        using var host = builder.Build();
+        using IHost host = builder.Build();
         Assert.NotNull(host.Services.GetRequiredService<IBackgroundJobClient>());
     }
 
     [Fact]
     public void AddNightShift_WithTheServices_RegistersTheServices()
     {
-        var builder = CreateBuilder();
+        HostApplicationBuilder builder = CreateBuilder();
 
         builder.AddNightShift((_, _) => { });
 
-        using var host = builder.Build();
+        using IHost host = builder.Build();
         Assert.NotNull(host.Services.GetRequiredService<IBackgroundJobClient>());
     }
 
     [Fact]
     public void AddNightShift_ReturnsTheBuilder()
     {
-        var builder = CreateBuilder();
+        HostApplicationBuilder builder = CreateBuilder();
 
-        var result = builder.AddNightShift(_ => { });
+        IHostApplicationBuilder result = builder.AddNightShift(_ => { });
 
         Assert.Same(builder, result);
     }
@@ -41,7 +41,7 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
     [Fact]
     public void AddNightShift_ThrowsAnException_WhenBuilderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => ((IHostApplicationBuilder)null).AddNightShift(_ => { }));
 
         Assert.Equal("builder", exception.ParamName);
@@ -50,7 +50,7 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
     [Fact]
     public void AddNightShiftServer_AddsAHostedService()
     {
-        var builder = CreateBuilder();
+        HostApplicationBuilder builder = CreateBuilder();
 
         builder.AddNightShiftServer();
 
@@ -60,7 +60,7 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
     [Fact]
     public void AddNightShiftServer_WithOptions_AddsAHostedService()
     {
-        var builder = CreateBuilder();
+        HostApplicationBuilder builder = CreateBuilder();
 
         builder.AddNightShiftServer(static x => x.WorkerCount = 1);
 
@@ -70,7 +70,7 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
     [Fact]
     public void AddNightShiftServer_ThrowsAnException_WhenBuilderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => ((IHostApplicationBuilder)null).AddNightShiftServer());
 
         Assert.Equal("builder", exception.ParamName);
@@ -78,7 +78,7 @@ public class NightShiftHostApplicationBuilderExtensionsFacts
 
     private HostApplicationBuilder CreateBuilder()
     {
-        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
+        HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
         builder.Services.AddSingleton(_storage.Object);
         return builder;
     }

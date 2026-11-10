@@ -26,11 +26,11 @@ public class SearchDispatcherFacts
     [Fact]
     public async Task Dispatch_ReturnsEmptyLists_ForEmptyQueries()
     {
-        var context = Create("");
+        DashboardContextStub context = Create("");
 
         await new SearchDispatcher().Dispatch(context);
 
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Empty(json["jobs"].AsArray());
         Assert.Empty(json["recurringJobs"].AsArray());
     }
@@ -38,11 +38,11 @@ public class SearchDispatcherFacts
     [Fact]
     public async Task Dispatch_FindsRecurringJobs_ContainingTheText_PrefixesFirst()
     {
-        var context = Create("report");
+        DashboardContextStub context = Create("report");
 
         await new SearchDispatcher().Dispatch(context);
 
-        var recurring = JsonNode.Parse(context.Response.Text)["recurringJobs"].AsArray();
+        JsonArray recurring = JsonNode.Parse(context.Response.Text)["recurringJobs"].AsArray();
         Assert.Equal(2, recurring.Count);
         Assert.Equal("report-weekly", recurring[0]["id"].GetValue<string>());
         Assert.Equal("nightly-report", recurring[1]["id"].GetValue<string>());
@@ -59,12 +59,12 @@ public class SearchDispatcherFacts
             State = "Succeeded",
             CreatedAt = DateTime.UtcNow,
         });
-        var context = Create("12345");
+        DashboardContextStub context = Create("12345");
 
         await new SearchDispatcher().Dispatch(context);
 
-        var jobs = JsonNode.Parse(context.Response.Text)["jobs"].AsArray();
-        var job = Assert.Single(jobs);
+        JsonArray jobs = JsonNode.Parse(context.Response.Text)["jobs"].AsArray();
+        JsonNode? job = Assert.Single(jobs);
         Assert.Equal("12345", job["id"].GetValue<string>());
         Assert.Equal("Succeeded", job["state"].GetValue<string>());
         Assert.Contains("Sample", job["name"].GetValue<string>());
@@ -75,7 +75,7 @@ public class SearchDispatcherFacts
     public async Task Dispatch_TreatsStorageErrorsOnIdLookup_AsNoMatch()
     {
         _connection.Setup(x => x.GetJobData("abc")).Throws(new FormatException());
-        var context = Create("abc");
+        DashboardContextStub context = Create("abc");
 
         await new SearchDispatcher().Dispatch(context);
 
@@ -85,7 +85,7 @@ public class SearchDispatcherFacts
     [Fact]
     public async Task Dispatch_DoesNotLookUpAJob_ForQueriesWithInnerWhitespace()
     {
-        var context = Create("nightly report");
+        DashboardContextStub context = Create("nightly report");
 
         await new SearchDispatcher().Dispatch(context);
 
@@ -96,7 +96,7 @@ public class SearchDispatcherFacts
     [Fact]
     public async Task Dispatch_DoesNotLookUpAJob_ForQueriesLongerThan128Characters()
     {
-        var context = Create(new string('7', 129));
+        DashboardContextStub context = Create(new string('7', 129));
 
         await new SearchDispatcher().Dispatch(context);
 
@@ -107,8 +107,8 @@ public class SearchDispatcherFacts
     [Fact]
     public async Task Dispatch_LooksUpAJob_ForQueriesOfExactly128Characters()
     {
-        var id = new string('7', 128);
-        var context = Create(id);
+        string id = new('7', 128);
+        DashboardContextStub context = Create(id);
 
         await new SearchDispatcher().Dispatch(context);
 
@@ -117,7 +117,7 @@ public class SearchDispatcherFacts
 
     private DashboardContextStub Create(string query)
     {
-        var request = new DashboardRequestStub("GET", "/search");
+        DashboardRequestStub request = new("GET", "/search");
         request.Query["q"] = query;
         return new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
     }
@@ -128,16 +128,16 @@ public class SearchDispatcherFacts
         _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(["customer:contoso", "import", "report"]);
         _connection.Setup(x => x.GetSetCount(It.IsAny<string>())).Returns(4);
 
-        var context = Create("port");
+        DashboardContextStub context = Create("port");
         await new SearchDispatcher().Dispatch(context);
-        var tags = JsonNode.Parse(context.Response.Text)["tags"].AsArray();
+        JsonArray tags = JsonNode.Parse(context.Response.Text)["tags"].AsArray();
         Assert.Equal(["import", "report"], tags.Select(t => t["tag"].GetValue<string>()).OrderBy(x => x));
         Assert.Equal(4, tags[0]["count"].GetValue<int>());
         Assert.EndsWith("/tags/import", tags.Single(t => t["tag"].GetValue<string>() == "import")["url"].GetValue<string>());
 
-        var prefixed = Create("tag:contoso");
+        DashboardContextStub prefixed = Create("tag:contoso");
         await new SearchDispatcher().Dispatch(prefixed);
-        var only = JsonNode.Parse(prefixed.Response.Text)["tags"].AsArray();
+        JsonArray only = JsonNode.Parse(prefixed.Response.Text)["tags"].AsArray();
         Assert.Equal("customer:contoso", Assert.Single(only)["tag"].GetValue<string>());
     }
 
@@ -147,7 +147,7 @@ public class SearchDispatcherFacts
         _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns([.. Enumerable.Range(0, 500).Select(i => $"customer:{i}")]);
         _connection.Setup(x => x.GetSetCount(It.IsAny<string>())).Returns(1);
 
-        var context = Create("tag:customer");
+        DashboardContextStub context = Create("tag:customer");
         await new SearchDispatcher().Dispatch(context);
 
         Assert.Equal(10, JsonNode.Parse(context.Response.Text)["tags"].AsArray().Count);
@@ -159,10 +159,10 @@ public class SearchDispatcherFacts
     {
         _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(["a-export", "export:eu", "b-export", "export:us"]);
 
-        var context = Create("tag:export");
+        DashboardContextStub context = Create("tag:export");
         await new SearchDispatcher().Dispatch(context);
 
-        var tags = JsonNode.Parse(context.Response.Text)["tags"].AsArray().Select(t => t["tag"].GetValue<string>());
+        IEnumerable<string> tags = JsonNode.Parse(context.Response.Text)["tags"].AsArray().Select(t => t["tag"].GetValue<string>());
         Assert.Equal(["export:eu", "export:us", "a-export", "b-export"], tags);
     }
 

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Masterly.NightShift.Core.Tests.Stubs;
 using Masterly.NightShift.Dashboard;
@@ -40,21 +41,21 @@ public class DashboardRoutesFacts
     [Fact]
     public void EveryFontTheStylesheetUses_HasARoute_AndAnEmbeddedFile()
     {
-        var assembly = typeof(DashboardRoutes).Assembly;
+        Assembly assembly = typeof(DashboardRoutes).Assembly;
         string css;
-        using (var stream = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("css", "nightshift-ui.css")))
-        using (var reader = new StreamReader(stream!))
+        using (Stream? stream = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("css", "nightshift-ui.css")))
+        using (StreamReader reader = new(stream!))
         {
             css = reader.ReadToEnd();
         }
 
-        var fonts = Regex.Matches(css, @"url\(fonts/([a-z0-9-]+)/woff2\)").Select(x => x.Groups[1].Value).ToArray();
+        string[] fonts = [.. Regex.Matches(css, @"url\(fonts/([a-z0-9-]+)/woff2\)").Select(x => x.Groups[1].Value)];
 
         Assert.Equal(15, fonts.Length);
         Assert.All(fonts, font =>
         {
             Assert.NotNull(DashboardRoutes.Routes.FindDispatcher($"/fonts/{font}/woff2"));
-            using var file = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("fonts", font + ".woff2"));
+            using Stream? file = assembly.GetManifestResourceStream(DashboardRoutes.GetContentResourceName("fonts", font + ".woff2"));
             Assert.NotNull(file);
         });
     }
@@ -64,8 +65,8 @@ public class DashboardRoutesFacts
     {
         // Expected values come from an independent FNV-1a implementation, so a result that depended
         // on per-process randomization (like String.GetHashCode) or on the platform would fail here
-        var single = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, JavaScript);
-        var two = DashboardRoutes.CombineResourceHash(single, Build, Stylesheet);
+        int single = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, JavaScript);
+        int two = DashboardRoutes.CombineResourceHash(single, Build, Stylesheet);
 
         Assert.Equal(18652613, DashboardRoutes.InitialResourceHash);
         Assert.Equal(1170108145, single);
@@ -75,8 +76,8 @@ public class DashboardRoutesFacts
     [Fact]
     public void CombineResourceHash_Changes_WhenTheResourceAssemblyIsRebuilt()
     {
-        var original = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, JavaScript);
-        var rebuilt = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, AnotherBuild, JavaScript);
+        int original = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, JavaScript);
+        int rebuilt = DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, AnotherBuild, JavaScript);
 
         Assert.Equal(66424875, rebuilt);
         Assert.NotEqual(original, rebuilt);
@@ -85,9 +86,9 @@ public class DashboardRoutesFacts
     [Fact]
     public void CombineResourceHash_DependsOnTheOrderOfResources_AsTheBundleDoes()
     {
-        var jsFirst = DashboardRoutes.CombineResourceHash(
+        int jsFirst = DashboardRoutes.CombineResourceHash(
             DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, JavaScript), Build, Stylesheet);
-        var cssFirst = DashboardRoutes.CombineResourceHash(
+        int cssFirst = DashboardRoutes.CombineResourceHash(
             DashboardRoutes.CombineResourceHash(DashboardRoutes.InitialResourceHash, Build, Stylesheet), Build, JavaScript);
 
         Assert.Equal(461273807, cssFirst);
@@ -97,9 +98,9 @@ public class DashboardRoutesFacts
     [Fact]
     public void CombineResourceHash_IsNeverNegative_SoMathAbsInTheLayoutCanNotOverflow()
     {
-        var hash = DashboardRoutes.InitialResourceHash;
+        int hash = DashboardRoutes.InitialResourceHash;
 
-        foreach (var i in Enumerable.Range(0, 10000))
+        foreach (int i in Enumerable.Range(0, 10000))
         {
             hash = DashboardRoutes.CombineResourceHash(hash, Guid.NewGuid(), $"resource-{i}");
             Assert.True(hash >= 0);
@@ -124,7 +125,7 @@ public class DashboardRoutesFacts
     [InlineData("/jobs/awaiting/delete-all", "awaiting-1", "Awaiting")]
     public async Task DeleteAllRoutes_DeleteEveryJobOfTheirList_ExpectingTheListsState(string path, string jobId, string expectedState)
     {
-        var context = Create(path);
+        DashboardContextStub context = Create(path);
 
         await Dispatch(context);
 
@@ -142,7 +143,7 @@ public class DashboardRoutesFacts
             new KeyValuePair<string, FailedJobDto>("failed-1", new FailedJobDto { InFailedState = true }),
             new KeyValuePair<string, FailedJobDto>("moved-on", new FailedJobDto { InFailedState = false }),
         ]));
-        var context = Create("/jobs/failed/requeue-all");
+        DashboardContextStub context = Create("/jobs/failed/requeue-all");
 
         await Dispatch(context);
 
@@ -154,7 +155,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task FailedRequeueAllRoute_Answers401_ForReadOnlyDashboards()
     {
-        var context = Create("/jobs/failed/requeue-all", readOnly: true);
+        DashboardContextStub context = Create("/jobs/failed/requeue-all", readOnly: true);
 
         await Dispatch(context);
 
@@ -168,9 +169,9 @@ public class DashboardRoutesFacts
         // Like the Awaiting page: storages without Monitoring.AwaitingJobs keep awaiting jobs in a set
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)).Returns(false);
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
-        var calls = 0;
+        int calls = 0;
         _connection.Setup(x => x.GetRangeFromSet("awaiting", 0, 499)).Returns(() => calls++ == 0 ? ["awaiting-9"] : []);
-        var context = Create("/jobs/awaiting/delete-all");
+        DashboardContextStub context = Create("/jobs/awaiting/delete-all");
 
         await Dispatch(context);
 
@@ -184,7 +185,7 @@ public class DashboardRoutesFacts
     {
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs)).Returns(false);
         _storage.Setup(x => x.GetConnection()).Returns(new Mock<IStorageConnection>().Object);
-        var context = Create("/jobs/awaiting/delete-all");
+        DashboardContextStub context = Create("/jobs/awaiting/delete-all");
 
         await Dispatch(context);
 
@@ -196,7 +197,7 @@ public class DashboardRoutesFacts
     public async Task EnqueuedDeleteAllRoute_DecodesAnEncodedSlashInTheQueue_Only()
     {
         _monitor.Setup(x => x.EnqueuedJobs("a/b%41", 0, 500)).Returns(List("enqueued-2", new EnqueuedJobDto { InEnqueuedState = true }));
-        var context = Create("/jobs/enqueued/delete-all/a%2Fb%41");
+        DashboardContextStub context = Create("/jobs/enqueued/delete-all/a%2Fb%41");
 
         await Dispatch(context);
 
@@ -208,8 +209,8 @@ public class DashboardRoutesFacts
     [InlineData("requeue")]
     public void EnqueuedPage_OfAQueueNamedLikeACommand_IsReachableWithGet(string queue)
     {
-        var get = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "GET");
-        var post = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "POST");
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? get = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "GET");
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? post = DashboardRoutes.Routes.FindDispatcher("/jobs/enqueued/" + queue, "POST");
 
         Assert.IsType<RazorPageDispatcher>(get.Item1);
         Assert.Equal(queue, get.Item2.Groups["Queue"].Value);
@@ -219,7 +220,7 @@ public class DashboardRoutesFacts
     [Fact]
     public void CommandRoutes_StillAnswerGet_WhenNoOtherRouteMatches()
     {
-        var route = DashboardRoutes.Routes.FindDispatcher("/jobs/failed/delete-all", "GET");
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? route = DashboardRoutes.Routes.FindDispatcher("/jobs/failed/delete-all", "GET");
 
         Assert.IsType<JobListCommandDispatcher>(route.Item1);
     }
@@ -227,7 +228,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task JobRequeueRoute_DecodesAnEncodedSlashInTheJobId()
     {
-        var context = Create("/jobs/actions/requeue/tenant%2F42");
+        DashboardContextStub context = Create("/jobs/actions/requeue/tenant%2F42");
 
         await Dispatch(context);
 
@@ -238,7 +239,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task DeleteAllRoutes_Answer401_ForReadOnlyDashboards()
     {
-        var context = Create("/jobs/failed/delete-all", readOnly: true);
+        DashboardContextStub context = Create("/jobs/failed/delete-all", readOnly: true);
 
         await Dispatch(context);
 
@@ -249,7 +250,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task RecurringPauseRoute_PausesEveryPostedRecurringJob()
     {
-        var context = Create("/recurring/pause", jobs: ["nightly", "weekly"]);
+        DashboardContextStub context = Create("/recurring/pause", jobs: ["nightly", "weekly"]);
 
         await Dispatch(context);
 
@@ -262,7 +263,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task RecurringResumeRoute_ResumesEveryPostedRecurringJob()
     {
-        var context = Create("/recurring/resume", jobs: ["nightly"]);
+        DashboardContextStub context = Create("/recurring/resume", jobs: ["nightly"]);
 
         await Dispatch(context);
 
@@ -274,7 +275,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task RecurringPauseRoute_Answers422_WithoutJobs()
     {
-        var context = Create("/recurring/pause");
+        DashboardContextStub context = Create("/recurring/pause");
 
         await Dispatch(context);
 
@@ -286,7 +287,7 @@ public class DashboardRoutesFacts
     public async Task TagForgetRoute_RemovesTheNormalizedTag()
     {
         // ASP.NET Core has already decoded the path, except "%2F"
-        var context = Create("/tags/forget/Customer:Contoso");
+        DashboardContextStub context = Create("/tags/forget/Customer:Contoso");
 
         await Dispatch(context);
 
@@ -298,7 +299,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task TagForgetRoute_Answers405_ForGet()
     {
-        var context = Create("/tags/forget/import", method: "GET");
+        DashboardContextStub context = Create("/tags/forget/import", method: "GET");
 
         await Dispatch(context);
 
@@ -312,8 +313,8 @@ public class DashboardRoutesFacts
         _connection.Setup(x => x.GetSetCount("tags:on call")).Returns(3);
         _connection.Setup(x => x.GetRangeFromSet("tags:on call", 0, 2)).Returns(["1", "2", "3"]);
         _connection.Setup(x => x.GetJobData("2")).Returns(new JobData());
-        var context = Create("/tags/forget-expired/on call");
-        var request = (DashboardRequestStub)context.Request;
+        DashboardContextStub context = Create("/tags/forget-expired/on call");
+        DashboardRequestStub request = (DashboardRequestStub)context.Request;
         request.Query["from"] = "0";
         request.Query["count"] = "20";
 
@@ -329,7 +330,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task TagForgetExpiredRoute_Answers405_ForGet()
     {
-        var context = Create("/tags/forget-expired/import", method: "GET");
+        DashboardContextStub context = Create("/tags/forget-expired/import", method: "GET");
 
         await Dispatch(context);
 
@@ -340,7 +341,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task TagForgetExpiredRoute_Answers401_ForReadOnlyDashboards()
     {
-        var context = Create("/tags/forget-expired/import", readOnly: true);
+        DashboardContextStub context = Create("/tags/forget-expired/import", readOnly: true);
 
         await Dispatch(context);
 
@@ -352,7 +353,7 @@ public class DashboardRoutesFacts
     public async Task CircuitResetRoute_ClosesTheCircuit_AndForgetsItsFailures()
     {
         _connection.Setup(x => x.GetAllItemsFromSet("circuit:payments api:failures")).Returns(["f1", "f2"]);
-        var context = Create("/insights/circuits/reset/payments api");
+        DashboardContextStub context = Create("/insights/circuits/reset/payments api");
 
         await Dispatch(context);
 
@@ -369,7 +370,7 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task CircuitResetRoute_Answers401_ForReadOnlyDashboards()
     {
-        var context = Create("/insights/circuits/reset/payments", readOnly: true);
+        DashboardContextStub context = Create("/insights/circuits/reset/payments", readOnly: true);
 
         await Dispatch(context);
 
@@ -395,7 +396,7 @@ public class DashboardRoutesFacts
     [InlineData("/ping", typeof(PingDispatcher))]
     public void Routes_MapThePath_ToItsDispatcher(string path, Type dispatcherType)
     {
-        var route = DashboardRoutes.Routes.FindDispatcher(path);
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? route = DashboardRoutes.Routes.FindDispatcher(path);
 
         Assert.NotNull(route);
         Assert.IsType(dispatcherType, route.Item1);
@@ -408,14 +409,14 @@ public class DashboardRoutesFacts
 
     private static Task Dispatch(DashboardContextStub context)
     {
-        var route = DashboardRoutes.Routes.FindDispatcher(context.Request.Path);
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? route = DashboardRoutes.Routes.FindDispatcher(context.Request.Path);
         context.UriMatch = route.Item2;
         return route.Item1.Dispatch(context);
     }
 
     private DashboardContextStub Create(string path, string method = "POST", bool readOnly = false, string[] jobs = null)
     {
-        var request = new DashboardRequestStub(method, path);
+        DashboardRequestStub request = new(method, path);
         if (jobs != null) request.Form["jobs[]"] = [.. jobs];
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)

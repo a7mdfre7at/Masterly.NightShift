@@ -12,10 +12,10 @@ public class BackgroundExecutionFacts
     [Fact]
     public void Run_DoesNotCallTheCallback_WhenAlreadyStopped()
     {
-        using var cts = new CancellationTokenSource();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
-        using var execution = CreateExecution(LongDelay, cts.Token);
-        var calls = 0;
+        using BackgroundExecution execution = CreateExecution(LongDelay, cts.Token);
+        int calls = 0;
 
         execution.Run((_, _) => calls++, null);
 
@@ -25,10 +25,10 @@ public class BackgroundExecutionFacts
     [Fact]
     public void Run_Stops_WhenStopIsRequestedDuringTheRetryDelay()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(LongDelay, cts.Token);
-        var calls = 0;
-        var stopwatch = Stopwatch.StartNew();
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(LongDelay, cts.Token);
+        int calls = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         execution.Run((_, _) =>
         {
@@ -44,14 +44,14 @@ public class BackgroundExecutionFacts
     [Fact]
     public void Run_Stops_OnOperationCanceledException_OfALinkedStopToken()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(ShortDelay, cts.Token);
-        var calls = 0;
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(ShortDelay, cts.Token);
+        int calls = 0;
 
         execution.Run((_, _) =>
         {
             calls++;
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
             cts.Cancel();
             linked.Token.ThrowIfCancellationRequested();
         }, null);
@@ -62,9 +62,9 @@ public class BackgroundExecutionFacts
     [Fact]
     public void Run_Retries_OnOperationCanceledException_OfAnUnrelatedToken()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(ShortDelay, cts.Token);
-        var calls = 0;
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(ShortDelay, cts.Token);
+        int calls = 0;
 
         execution.Run((_, _) =>
         {
@@ -83,9 +83,9 @@ public class BackgroundExecutionFacts
     [Fact]
     public void Run_CallsTheCallbackAgain_AfterASuccess()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(LongDelay, cts.Token);
-        var calls = 0;
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(LongDelay, cts.Token);
+        int calls = 0;
 
         execution.Run((_, _) =>
         {
@@ -98,10 +98,10 @@ public class BackgroundExecutionFacts
     [Fact]
     public async Task RunAsync_DoesNotCallTheCallback_WhenAlreadyStopped()
     {
-        using var cts = new CancellationTokenSource();
+        using CancellationTokenSource cts = new();
         cts.Cancel();
-        using var execution = CreateExecution(LongDelay, cts.Token);
-        var calls = 0;
+        using BackgroundExecution execution = CreateExecution(LongDelay, cts.Token);
+        int calls = 0;
 
         await execution.RunAsync((_, _) =>
         {
@@ -115,10 +115,10 @@ public class BackgroundExecutionFacts
     [Fact]
     public async Task RunAsync_Stops_WhenStopIsRequestedDuringTheRetryDelay()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(LongDelay, cts.Token);
-        var calls = 0;
-        var stopwatch = Stopwatch.StartNew();
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(LongDelay, cts.Token);
+        int calls = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         await execution.RunAsync(async (_, _) =>
         {
@@ -135,14 +135,14 @@ public class BackgroundExecutionFacts
     [Fact]
     public async Task RunAsync_Stops_OnOperationCanceledException_OfALinkedStopToken()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(ShortDelay, cts.Token);
-        var calls = 0;
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(ShortDelay, cts.Token);
+        int calls = 0;
 
         await execution.RunAsync(async (_, _) =>
         {
             calls++;
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
             cts.Cancel();
             await Task.Delay(Timeout.Infinite, linked.Token);
         }, null);
@@ -153,9 +153,9 @@ public class BackgroundExecutionFacts
     [Fact]
     public async Task RunAsync_Retries_OnOperationCanceledException_OfAnUnrelatedToken()
     {
-        using var cts = new CancellationTokenSource();
-        using var execution = CreateExecution(ShortDelay, cts.Token);
-        var calls = 0;
+        using CancellationTokenSource cts = new();
+        using BackgroundExecution execution = CreateExecution(ShortDelay, cts.Token);
+        int calls = 0;
 
         await execution.RunAsync((_, _) =>
         {
@@ -173,7 +173,7 @@ public class BackgroundExecutionFacts
 
     private static BackgroundExecution CreateExecution(TimeSpan retryDelay, CancellationToken stopToken)
     {
-        var options = new BackgroundExecutionOptions
+        BackgroundExecutionOptions options = new()
         {
             Name = "facts",
             RetryDelay = _ => retryDelay

@@ -9,31 +9,31 @@ public class SqlServerStoragePurgeFacts
     [Fact]
     public void Storage_ReportsThePurgeFeature()
     {
-        using var connection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(connection);
+        using DbConnection connection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(connection);
         Assert.True(storage.HasFeature(JobStorageFeatures.Purge));
     }
 
     [Fact, CleanDatabase]
     public void Purge_ThrowsAnException_WhenOptionsAreNull()
     {
-        using var connection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(connection);
+        using DbConnection connection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(connection);
         Assert.Throws<ArgumentNullException>(() => storage.Purge(null));
     }
 
     [Fact, CleanDatabase]
     public void Purge_RemovesJobs_AndKeepsRecurringJobsByDefault()
     {
-        using var sqlConnection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(sqlConnection);
+        using DbConnection sqlConnection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(sqlConnection);
         string jobId;
 
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
             jobId = connection.CreateExpiredJob(Job.FromExpression(() => Sample()), new Dictionary<string, string> { { "p", "1" } }, DateTime.UtcNow, TimeSpan.FromDays(1));
 
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.AddToQueue("default", jobId);
                 transaction.AddToSet("my-set", "value");
@@ -50,7 +50,7 @@ public class SqlServerStoragePurgeFacts
 
         storage.Purge(new StoragePurgeOptions());
 
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.Null(connection.GetJobData(jobId));
             Assert.Empty(connection.GetAllItemsFromSet("my-set"));
@@ -68,12 +68,12 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_RemovesEverything_WhenNothingIsKept()
     {
-        using var sqlConnection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(sqlConnection);
+        using DbConnection sqlConnection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(sqlConnection);
 
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
-            using (var transaction = connection.CreateWriteTransaction())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
                 transaction.AddToSet("recurring-jobs", "nightly", 1);
                 transaction.SetRangeInHash("recurring-job:nightly", [new KeyValuePair<string, string>("Cron", "0 1 * * *")]);
@@ -85,7 +85,7 @@ public class SqlServerStoragePurgeFacts
 
         storage.Purge(new StoragePurgeOptions { KeepRecurringJobs = false, KeepServers = false });
 
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.Empty(connection.GetAllItemsFromSet("recurring-jobs"));
             Assert.Null(connection.GetAllEntriesFromHash("recurring-job:nightly"));
@@ -97,12 +97,12 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_KeepsTheAuditLogAndDrainMode_ByDefault()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
         WriteAuditLogDrainModeAndOtherData(storage);
 
         storage.Purge(new StoragePurgeOptions());
 
-        using var connection = (JobStorageConnection)storage.GetConnection();
+        using JobStorageConnection connection = (JobStorageConnection)storage.GetConnection();
         Assert.Equal(new[] { "who-did-what" }, connection.GetAllItemsFromList(AuditLog.ListKey));
         Assert.Equal("maintenance", connection.GetAllEntriesFromHash(DrainMode.HashKey)["Queue:critical"]);
         Assert.Empty(connection.GetAllItemsFromList("activity"));
@@ -113,12 +113,12 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_RemovesTheAuditLogAndDrainMode_WhenTheyAreNotKept()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
         WriteAuditLogDrainModeAndOtherData(storage);
 
         storage.Purge(new StoragePurgeOptions { KeepAuditLog = false, KeepDrainMode = false });
 
-        using var connection = (JobStorageConnection)storage.GetConnection();
+        using JobStorageConnection connection = (JobStorageConnection)storage.GetConnection();
         Assert.Empty(connection.GetAllItemsFromList(AuditLog.ListKey));
         Assert.Null(connection.GetAllEntriesFromHash(DrainMode.HashKey));
         Assert.Null(connection.GetAllEntriesFromHash("other-hash"));
@@ -128,12 +128,12 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_KeepsDrainMode_WithoutRecurringJobs()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
         WriteAuditLogDrainModeAndOtherData(storage);
 
         storage.Purge(new StoragePurgeOptions { KeepRecurringJobs = false, KeepDrainMode = true, KeepAuditLog = false });
 
-        using var connection = (JobStorageConnection)storage.GetConnection();
+        using JobStorageConnection connection = (JobStorageConnection)storage.GetConnection();
         Assert.Equal("maintenance", connection.GetAllEntriesFromHash(DrainMode.HashKey)["Queue:critical"]);
         Assert.Null(connection.GetAllEntriesFromHash("recurring-job:nightly"));
         Assert.Empty(connection.GetAllItemsFromSet("recurring-jobs"));
@@ -143,9 +143,9 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_DeletesEveryRow_WhenThereAreMoreRowsThanFitInOneBatch()
     {
-        var storage = CreateStorage(options => options.DeleteExpiredBatchSize = 10);
+        SqlServerStorage storage = CreateStorage(options => options.DeleteExpiredBatchSize = 10);
 
-        using var sql = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
         InsertJobs(sql, 25);
         Assert.Equal(25 + 75 + 50, CountJobRows(sql));
 
@@ -157,15 +157,15 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_DeletesEveryRow_WhenTheExistingConnectionHasNocountOn()
     {
-        using var sql = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
         // Storage transactions turn NOCOUNT on, and an existing connection keeps it
-        using (var command = sql.CreateCommand())
+        using (DbCommand command = sql.CreateCommand())
         {
             command.CommandText = "set nocount on;";
             command.ExecuteNonQuery();
         }
 
-        var storage = new SqlServerStorage(sql, new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, DeleteExpiredBatchSize = 10 });
+        SqlServerStorage storage = new(sql, new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, DeleteExpiredBatchSize = 10 });
         InsertJobs(sql, 25);
 
         storage.Purge(new StoragePurgeOptions());
@@ -176,14 +176,14 @@ public class SqlServerStoragePurgeFacts
     [Fact, CleanDatabase]
     public void Purge_KeepsWhatItAlreadyDeleted_WhenALaterBatchFails()
     {
-        var storage = CreateStorage(options => options.CommandTimeout = TimeSpan.FromSeconds(1));
+        SqlServerStorage storage = CreateStorage(options => options.CommandTimeout = TimeSpan.FromSeconds(1));
 
-        using var sql = ConnectionUtils.CreateConnection();
-        using var blocker = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        using DbConnection blocker = ConnectionUtils.CreateConnection();
         InsertJobs(sql, 5);
 
-        using (var connection = storage.GetConnection())
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
             transaction.SetRangeInHash("other-hash", [new KeyValuePair<string, string>("a", "b")]);
             transaction.Commit();
@@ -191,11 +191,11 @@ public class SqlServerStoragePurgeFacts
 
         // Another session holds a row of the [Hash] table, which Purge deletes after the jobs, so
         // the purge times out there
-        using (var blockingTransaction = blocker.BeginTransaction())
+        using (DbTransaction blockingTransaction = blocker.BeginTransaction())
         {
             try
             {
-                using (var command = blocker.CreateCommand())
+                using (DbCommand command = blocker.CreateCommand())
                 {
                     command.Transaction = blockingTransaction;
                     command.CommandText = $"update [{Constants.DefaultSchema}].[Hash] set [Value] = N'locked' where [Key] = N'other-hash'";
@@ -216,7 +216,7 @@ public class SqlServerStoragePurgeFacts
 
     private static SqlServerStorage CreateStorage(Action<SqlServerStorageOptions> configure = null)
     {
-        var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false };
+        SqlServerStorageOptions options = new() { PrepareSchemaIfNecessary = false };
         configure?.Invoke(options);
 
         return new SqlServerStorage(ConnectionUtils.CreateConnection, options);
@@ -224,8 +224,8 @@ public class SqlServerStoragePurgeFacts
 
     private static void WriteAuditLogDrainModeAndOtherData(SqlServerStorage storage)
     {
-        using var connection = storage.GetConnection();
-        using var transaction = connection.CreateWriteTransaction();
+        using IStorageConnection connection = storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         transaction.InsertToList(AuditLog.ListKey, "who-did-what");
         transaction.InsertToList("activity", "something-happened");
         transaction.SetRangeInHash(DrainMode.HashKey, [new KeyValuePair<string, string>("Queue:critical", "maintenance")]);
@@ -237,7 +237,7 @@ public class SqlServerStoragePurgeFacts
 
     private static void InsertJobs(DbConnection connection, int count)
     {
-        using var command = connection.CreateCommand();
+        using DbCommand command = connection.CreateCommand();
         // Every job gets three states and two parameters
         command.CommandText = $@"
 declare @i int = 0;
@@ -254,7 +254,7 @@ end";
 
     private static long CountJobRows(DbConnection connection)
     {
-        using var command = connection.CreateCommand();
+        using DbCommand command = connection.CreateCommand();
         command.CommandText = $@"select
     (select count_big(*) from [{Constants.DefaultSchema}].Job) +
     (select count_big(*) from [{Constants.DefaultSchema}].State) +

@@ -158,7 +158,7 @@ public class TimeTextFacts
     [InlineData("2026-12-24 99:00")]
     public void TryParse_ReturnsFalse_ForUnknownPeriodsAndMalformedDates(string text)
     {
-        var parsed = TimeText.TryParse(text, Now, Utc, out var result);
+        bool parsed = TimeText.TryParse(text, Now, Utc, out DateTime result);
 
         Assert.False(parsed);
         Assert.Equal(default, result);
@@ -173,7 +173,7 @@ public class TimeTextFacts
     [InlineData("in 99999999999999999999 seconds")]
     public void TryParse_ReturnsFalse_ForRelativePhrasesMoreThanTenYearsAhead(string text)
     {
-        Assert.False(TimeText.TryParse(text, Now, Utc, out var result));
+        Assert.False(TimeText.TryParse(text, Now, Utc, out DateTime result));
         Assert.Equal(default, result);
         Assert.Throws<FormatException>(() => Parse(text));
     }
@@ -181,16 +181,16 @@ public class TimeTextFacts
     [Fact]
     public void TryParse_AcceptsRelativePhrasesUpToTenYearsAhead()
     {
-        Assert.True(TimeText.TryParse("in 3652 days", Now, Utc, out var days));
+        Assert.True(TimeText.TryParse("in 3652 days", Now, Utc, out DateTime days));
         Assert.Equal(Now.AddDays(3652), days);
-        Assert.True(TimeText.TryParse("in 120 months", Now, Utc, out var months));
+        Assert.True(TimeText.TryParse("in 120 months", Now, Utc, out DateTime months));
         Assert.Equal(Now.AddMonths(120), months);
     }
 
     [Fact]
     public void TryParse_ReturnsFalse_InsteadOfThrowing_WhenTheMomentIsBeyondTheCalendar()
     {
-        var nearTheEnd = new DateTime(9999, 12, 30, 0, 0, 0, DateTimeKind.Utc);
+        DateTime nearTheEnd = new(9999, 12, 30, 0, 0, 0, DateTimeKind.Utc);
 
         Assert.False(TimeText.TryParse("in 3 days", nearTheEnd, Utc, out _));
         Assert.False(TimeText.TryParse("in 2 months", nearTheEnd, Utc, out _));
@@ -205,10 +205,10 @@ public class TimeTextFacts
     [Fact]
     public void Parse_MovesATimeInsideTheSpringForwardGap_AnHourLater()
     {
-        var berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
 
         // 02:30 does not exist in Berlin on 2027-03-28: clocks jump from 02:00 to 03:00 (01:00 UTC)
-        var result = TimeText.Parse("2027-03-28 02:30", Now, berlin);
+        DateTime result = TimeText.Parse("2027-03-28 02:30", Now, berlin);
 
         Assert.Equal(new DateTime(2027, 3, 28, 1, 30, 0, DateTimeKind.Utc), result);
     }
@@ -216,11 +216,11 @@ public class TimeTextFacts
     [Fact]
     public void Parse_AddsCalendarMonths_InTheGivenTimeZone()
     {
-        var berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
-        var september = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
+        DateTime september = new(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
 
         // 14:00 summer time on September 30th is 14:00 winter time on October 30th, an hour later in UTC
-        var result = TimeText.Parse("in 1 month", september, berlin);
+        DateTime result = TimeText.Parse("in 1 month", september, berlin);
 
         Assert.Equal(new DateTime(2026, 10, 30, 13, 0, 0, DateTimeKind.Utc), result);
     }
@@ -228,13 +228,13 @@ public class TimeTextFacts
     [Fact, StaticLock]
     public void Parse_WithoutANow_ReadsRelativeToTheCurrentTime()
     {
-        var previous = TimeText.DefaultTimeZone;
+        TimeZoneInfo previous = TimeText.DefaultTimeZone;
         try
         {
             TimeText.DefaultTimeZone = TimeZoneInfo.Utc;
-            var before = DateTime.UtcNow;
+            DateTime before = DateTime.UtcNow;
 
-            var result = TimeText.Parse("in 10 minutes");
+            DateTime result = TimeText.Parse("in 10 minutes");
 
             Assert.InRange(result, before.AddMinutes(10), DateTime.UtcNow.AddMinutes(10));
             Assert.Equal(DateTimeKind.Utc, result.Kind);
@@ -248,9 +248,9 @@ public class TimeTextFacts
     [Fact]
     public void Parse_ReadsPhrasesInTheGivenTimeZone()
     {
-        var berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
 
-        var result = TimeText.Parse("tomorrow at 9am", Now, berlin);
+        DateTime result = TimeText.Parse("tomorrow at 9am", Now, berlin);
 
         Assert.Equal(new DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc), result);
     }
@@ -274,7 +274,7 @@ public class TimeTextFacts
     [InlineData("2026-11-04T08:00:00Z")]
     public void Parse_SaysTheMomentIsInThePast(string text)
     {
-        var exception = Assert.Throws<FormatException>(() => Parse(text));
+        FormatException exception = Assert.Throws<FormatException>(() => Parse(text));
 
         Assert.Equal($"The time '{text}' is in the past.", exception.Message);
     }
@@ -288,7 +288,7 @@ public class TimeTextFacts
     [InlineData("this morning", "09:00")]
     public void Parse_RefusesTodaysPartOfTheDay_OnceItHasPassed_SayingSo(string text, string time)
     {
-        var exception = Assert.Throws<FormatException>(() => TimeText.Parse(text, LateEvening, Utc));
+        FormatException exception = Assert.Throws<FormatException>(() => TimeText.Parse(text, LateEvening, Utc));
 
         Assert.Equal(
             $"The time '{text}' is in the past: '{text}' is {time} today. Add a time still ahead today, or name another day, such as \"tomorrow evening\".",
@@ -305,7 +305,7 @@ public class TimeTextFacts
     [InlineData("at 18:00", "2026-11-05 18:00")]
     public void Parse_ReadsTodaysPartOfTheDay_WithALaterTime_AndMovesATimeWithoutADayToTomorrow(string text, string expected)
     {
-        var result = TimeText.Parse(text, LateEvening, Utc);
+        DateTime result = TimeText.Parse(text, LateEvening, Utc);
 
         Assert.Equal(DateTime.SpecifyKind(DateTime.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc), result);
     }
@@ -330,12 +330,12 @@ public class TimeTextFacts
     [InlineData("2.25 months from now")]
     public void Parse_RefusesPartsOfAMonth(string text)
     {
-        var exception = Assert.Throws<FormatException>(() => Parse(text));
+        FormatException exception = Assert.Throws<FormatException>(() => Parse(text));
 
         Assert.Equal(
             $"Unable to use the time '{text}': months must be a whole number. Use days or weeks for a part of a month, for example \"in 45 days\".",
             exception.Message);
-        Assert.False(TimeText.TryParse(text, Now, Utc, out var result));
+        Assert.False(TimeText.TryParse(text, Now, Utc, out DateTime result));
         Assert.Equal(default, result);
     }
 
@@ -348,11 +348,11 @@ public class TimeTextFacts
     [Fact]
     public void TryParse_UsesTheDefaultTimeZone_WhenNoneIsGiven()
     {
-        var previous = TimeText.DefaultTimeZone;
+        TimeZoneInfo previous = TimeText.DefaultTimeZone;
         try
         {
             TimeText.DefaultTimeZone = TimeZoneInfo.Utc;
-            Assert.True(TimeText.TryParse("in 5 minutes", Now, null, out var result));
+            Assert.True(TimeText.TryParse("in 5 minutes", Now, null, out DateTime result));
             Assert.Equal(Now.AddMinutes(5), result);
         }
         finally

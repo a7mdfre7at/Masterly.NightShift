@@ -16,7 +16,7 @@ public class JobNotesFacts : IDisposable
     {
         JobNotes.Clock = () => _now;
         _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
-        _connection.Setup(x => x.GetJobParameter("1", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out var value) ? value : null);
+        _connection.Setup(x => x.GetJobParameter("1", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out string? value) ? value : null);
         _connection.Setup(x => x.SetJobParameter("1", It.IsAny<string>(), It.IsAny<string>())).Callback<string, string, string>((_, name, value) => _parameters[name] = value);
         _connection.Setup(x => x.GetJobData("1")).Returns(new JobData());
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
@@ -33,7 +33,7 @@ public class JobNotesFacts : IDisposable
         JobNotes.Add(_connection.Object, "1", "  first  ", "ann");
         JobNotes.Add(_connection.Object, "1", "second", null, acknowledges: true);
 
-        var notes = JobNotes.Read(_connection.Object, "1");
+        IReadOnlyList<JobNote> notes = JobNotes.Read(_connection.Object, "1");
 
         Assert.Equal(2, notes.Count);
         Assert.Equal("first", notes[0].Text);
@@ -48,8 +48,8 @@ public class JobNotesFacts : IDisposable
     [Fact]
     public void Add_ReadsAndWritesTheNotes_UnderALockOfTheirOwn()
     {
-        var calls = new List<string>();
-        var handle = new Mock<IDisposable>();
+        List<string> calls = [];
+        Mock<IDisposable> handle = new();
         handle.Setup(x => x.Dispose()).Callback(() => calls.Add("release"));
         _connection.Setup(x => x.AcquireDistributedLock("job:1:notes-lock", JobNotes.LockTimeout)).Callback(() => calls.Add("lock")).Returns(handle.Object);
         _connection.Setup(x => x.GetJobParameter("1", JobNotes.ParameterName)).Callback(() => calls.Add("read")).Returns((string)null);
@@ -81,8 +81,8 @@ public class JobNotesFacts : IDisposable
         JobNotes.Add(_connection.Object, "1", new string('x', 5000));
         Assert.Equal(JobNotes.MaxLength, JobNotes.Read(_connection.Object, "1")[1].Text.Length);
 
-        for (var i = 0; i < JobNotes.MaxNotes + 5; i++) JobNotes.Add(_connection.Object, "1", "n" + i);
-        var notes = JobNotes.Read(_connection.Object, "1");
+        for (int i = 0; i < JobNotes.MaxNotes + 5; i++) JobNotes.Add(_connection.Object, "1", "n" + i);
+        IReadOnlyList<JobNote> notes = JobNotes.Read(_connection.Object, "1");
         Assert.Equal(JobNotes.MaxNotes, notes.Count);
         Assert.Equal("n" + (JobNotes.MaxNotes + 4), notes.Last().Text);
     }
@@ -96,7 +96,7 @@ public class JobNotesFacts : IDisposable
         {
             JobNotes.Add(_connection.Object, "1", "looked at it", "alice", acknowledges: true);
 
-            var note = Assert.Single(JobNotes.Read(_connection.Object, "1"));
+            JobNote note = Assert.Single(JobNotes.Read(_connection.Object, "1"));
             Assert.Equal("looked at it", note.Text);
             Assert.True(note.Acknowledges);
         }
@@ -109,9 +109,9 @@ public class JobNotesFacts : IDisposable
     [Fact, StaticLock]
     public void Parse_ReadsNotesWrittenWithTheUserOptions_Before()
     {
-        var written = SerializationHelper.Serialize(new List<JobNote> { new() { Timestamp = 1, Text = "old", User = "bob" } }, SerializationOption.User);
+        string written = SerializationHelper.Serialize(new List<JobNote> { new() { Timestamp = 1, Text = "old", User = "bob" } }, SerializationOption.User);
 
-        var note = Assert.Single(JobNotes.Parse(written));
+        JobNote note = Assert.Single(JobNotes.Parse(written));
 
         Assert.Equal("old", note.Text);
         Assert.Equal("bob", note.User);
@@ -127,10 +127,10 @@ public class JobNotesFacts : IDisposable
     [Fact]
     public async Task Dispatcher_AddsANote_AndRecordsIt()
     {
-        var request = new DashboardRequestStub("POST", "/jobs/notes/add/1");
+        DashboardRequestStub request = new("POST", "/jobs/notes/add/1");
         request.Form["text"] = ["partner API down"];
         request.Form["ack"] = ["true"];
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => false }, request, _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => false }, request, _storage.Object)
         {
             UriMatch = System.Text.RegularExpressions.Regex.Match("/jobs/notes/add/1", "/jobs/notes/add/(?<JobId>.+)")
         };
@@ -138,7 +138,7 @@ public class JobNotesFacts : IDisposable
         await new JobNotesDispatcher().Dispatch(context);
 
         Assert.Equal(204, context.Response.StatusCode);
-        var note = Assert.Single(JobNotes.Read(_connection.Object, "1"));
+        JobNote note = Assert.Single(JobNotes.Read(_connection.Object, "1"));
         Assert.Equal("partner API down", note.Text);
         Assert.True(note.Acknowledges);
     }
@@ -148,9 +148,9 @@ public class JobNotesFacts : IDisposable
     {
         async Task<int> Run(string method, bool readOnly, string jobId, string text)
         {
-            var request = new DashboardRequestStub(method, "/jobs/notes/add/" + jobId);
+            DashboardRequestStub request = new(method, "/jobs/notes/add/" + jobId);
             if (text != null) request.Form["text"] = [text];
-            var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
+            DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
             {
                 UriMatch = System.Text.RegularExpressions.Regex.Match("/jobs/notes/add/" + jobId, "/jobs/notes/add/(?<JobId>.+)")
             };

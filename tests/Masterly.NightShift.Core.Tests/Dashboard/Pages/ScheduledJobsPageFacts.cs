@@ -12,7 +12,7 @@ public class ScheduledJobsPageFacts
     [Fact]
     public void Render_WithoutScheduledJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new ScheduledJobsPage());
+        string html = _renderer.Render(new ScheduledJobsPage());
 
         Assert.Contains(Encode(Strings.ScheduledJobsPage_NoJobs), html);
         Assert.DoesNotContain("/jobs/scheduled/export", html);
@@ -23,7 +23,7 @@ public class ScheduledJobsPageFacts
     {
         SetupJobs();
 
-        var html = _renderer.Render(new ScheduledJobsPage());
+        string html = _renderer.Render(new ScheduledJobsPage());
 
         Assert.Contains("data-url=\"/jobs/scheduled/export\" data-filename=\"nightshift-scheduled-jobs.csv\"", html);
         Assert.Contains("data-ajax=\"/jobs/scheduled/delete-all\"", html);
@@ -39,7 +39,7 @@ public class ScheduledJobsPageFacts
         SetupJobs();
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new ScheduledJobsPage());
+        string html = _renderer.Render(new ScheduledJobsPage());
 
         Assert.Contains("data-url=\"/jobs/scheduled/export\"", html);
         Assert.DoesNotContain("/jobs/scheduled/delete-all", html);

@@ -25,7 +25,7 @@ public class ServerWatchdogFacts
     public void Execute_DelegatesRemovalToStorageConnection()
     {
         _connection.Setup(x => x.RemoveTimedOutServers(It.IsAny<TimeSpan>())).Returns(1);
-        var watchdog = new ServerWatchdog(_checkInterval, _serverTimeout);
+        ServerWatchdog watchdog = new(_checkInterval, _serverTimeout);
 
         Assert.Throws<OperationCanceledException>(() => watchdog.Execute(_context.Object));
 

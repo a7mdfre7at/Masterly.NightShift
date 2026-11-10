@@ -13,7 +13,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [Fact]
         public void Ctor_InitializesAllTheGivenProperties()
         {
-            var invocationData = new InvocationData("type", "method", "parameterTypes", "arguments");
+            InvocationData invocationData = new("type", "method", "parameterTypes", "arguments");
 
             Assert.Equal("type", invocationData.Type);
             Assert.Equal("method", invocationData.Method);
@@ -25,7 +25,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [Fact]
         public void Ctor_WithQueue_InitializesAllTheGivenProperties()
         {
-            var invocationData = new InvocationData("type", "method", "parameterTypes", "arguments", "critical");
+            InvocationData invocationData = new("type", "method", "parameterTypes", "arguments", "critical");
 
             Assert.Equal("type", invocationData.Type);
             Assert.Equal("method", invocationData.Method);
@@ -37,17 +37,17 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_AllTheData()
         {
-            var type = typeof(InvocationDataFacts);
-            var methodInfo = type.GetMethod("Sample");
+            Type type = typeof(InvocationDataFacts);
+            MethodInfo? methodInfo = type.GetMethod("Sample");
 
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 type.AssemblyQualifiedName,
                 // ReSharper disable once PossibleNullReferenceException
                 methodInfo.Name,
                 TestJson.ToJson(new[] { typeof(string) }),
                 TestJson.ToJson(new[] { TestJson.ToJson("Hello") }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(type, job.Type);
             Assert.Equal(methodInfo, job.Method);
@@ -58,14 +58,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_QueueProperty()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "Masterly.NightShift.JobStorage, Masterly.NightShift.Core",
                 "GetConnection",
                 string.Empty,
                 null,
                 "critical");
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal("critical", job.Queue);
         }
@@ -73,13 +73,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesNullOrEmpty_ParameterTypesAndArguments()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "Masterly.NightShift.JobStorage, Masterly.NightShift.Core",
                 "GetConnection",
                 string.Empty,
                 null);
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(JobStorage), job.Type);
         }
@@ -87,13 +87,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesTypesWithoutAssemblyName_FromMscorlibAssembly()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "System.DateTime",
                 "IsLeapYear",
                 "[\"System.Int32\"]",
                 "[\"1\"]");
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(DateTime), job.Type);
         }
@@ -101,13 +101,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesPartialAssemblyNames()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Empty",
                 null,
                 null);
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(InvocationDataFacts), job.Type);
         }
@@ -115,13 +115,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesFullAssemblyNames()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                 "Empty",
                 null,
                 null);
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(InvocationDataFacts), job.Type);
         }
@@ -133,13 +133,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
             {
                 GlobalConfiguration.Configuration.UseIgnoredAssemblyVersionTypeResolver();
 
-                var serializedData = new InvocationData(
+                InvocationData serializedData = new(
                     "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests, Version=9.9.9.9, Culture=neutral, PublicKeyToken=null",
                     "Empty",
                     null,
                     null);
 
-                var job = serializedData.DeserializeJob();
+                Job job = serializedData.DeserializeJob();
 
                 Assert.Equal(typeof(InvocationDataFacts), job.Type);
             }
@@ -156,13 +156,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
             {
                 GlobalConfiguration.Configuration.UseIgnoredAssemblyVersionTypeResolver();
 
-                var serializedData = new InvocationData(
+                InvocationData serializedData = new(
                     "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests, Version=9.9.9.9, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
                     "Empty",
                     null,
                     null);
 
-                var job = serializedData.DeserializeJob();
+                Job job = serializedData.DeserializeJob();
 
                 Assert.Equal(typeof(InvocationDataFacts), job.Type);
             }
@@ -179,13 +179,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
             {
                 GlobalConfiguration.Configuration.UseIgnoredAssemblyVersionTypeResolver();
 
-                var serializedData = new InvocationData(
+                InvocationData serializedData = new(
                     "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+GenericType`1[[System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], Masterly.NightShift.Core.Tests, Version=9.9.9.9, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
                     "Method",
                     "[\"System.Int32, System.Private.CoreLib, Version=9.9.9.9, Culture=neutral, PublicKeyToken=lalalalala\",\"System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e\"]",
                     "[\"123\",\"456\"]");
 
-                var job = serializedData.DeserializeJob();
+                Job job = serializedData.DeserializeJob();
 
                 Assert.Equal(typeof(GenericType<int>), job.Type);
                 Assert.Equal("Method", job.Method.Name);
@@ -200,13 +200,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesSystemPrivateCoreLib_TypeForwarding()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "System.String, System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
                 "IsNullOrEmpty",
                 "[\"System.String, System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e\"]",
                 TestJson.ToJson(new[] { TestJson.ToJson("hello") }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(string), job.Type);
             Assert.Equal("IsNullOrEmpty", job.Method.Name);
@@ -216,7 +216,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_WrapsAnException_WithTheJobLoadException()
         {
-            var serializedData = new InvocationData(null, null, null, null);
+            InvocationData serializedData = new(null, null, null, null);
 
             Assert.Throws<JobLoadException>(
                 serializedData.DeserializeJob);
@@ -225,7 +225,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_ThrowsAnException_WhenTypeCanNotBeFound()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 "NonExistingType",
                 "Perform",
                 "",
@@ -238,7 +238,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_ThrowsAnException_WhenMethodCanNotBeFound()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "NonExistingMethod",
                 TestJson.ToJson(new[] { typeof(string) }),
@@ -251,13 +251,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void DeserializeJob_SaysTheTypeOrMethodWasNotFound_WhenTheMethodCanNotBeFound()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "NonExistingMethod",
                 TestJson.ToJson(new[] { typeof(string) }),
                 "");
 
-            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
+            JobLoadException exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
 
             Assert.Equal(JobLoadFailure.TypeOrMethod, exception.Failure);
             Assert.Contains("type or method was not found", exception.Message);
@@ -267,13 +267,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void DeserializeJob_SaysTheArgumentsCouldNotBeDeserialized_WhenAnArgumentIsInvalid()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(ListMethod),
                 TestJson.ToJson(new[] { typeof(IList<string>) }),
                 TestJson.ToJson(new[] { "asdfasdf" }));
 
-            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
+            JobLoadException exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
 
             Assert.Equal(JobLoadFailure.Arguments, exception.Failure);
             Assert.Contains("arguments could not be deserialized", exception.Message);
@@ -283,9 +283,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void SerializeJob_WritesTheActualType_OfAnArgumentDeclaredAsAnInterface()
         {
-            var job = Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" }));
+            Job job = Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" }));
 
-            var data = InvocationData.SerializeJob(job);
+            InvocationData data = InvocationData.SerializeJob(job);
 
             Assert.Equal(
                 "[\"{\\\"$type\\\":\\\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+EmailNotification, Masterly.NightShift.Core.Tests\\\",\\\"To\\\":\\\"ana@example.com\\\"}\"]",
@@ -295,11 +295,11 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void DeserializeJob_ReadsAnArgumentDeclaredAsAnInterface_AsItsActualType()
         {
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
 
-            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
-            var notification = Assert.IsType<EmailNotification>(job.Args[0]);
+            EmailNotification notification = Assert.IsType<EmailNotification>(job.Args[0]);
             Assert.Equal("ana@example.com", notification.To);
         }
 
@@ -307,9 +307,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void DeserializeJob_ReadsAnArgumentDeclaredAsAnInterface_WithRecommendedSettings()
         {
             GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(new EmailNotification { To = "ana@example.com" })));
 
-            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
             Assert.Equal("ana@example.com", Assert.IsType<EmailNotification>(job.Args[0]).To);
         }
@@ -318,11 +318,11 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void DeserializeJob_ReadsAnArgumentDeclaredAsAnAbstractClass_AsItsActualType()
         {
             GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => ReportMethod(new SalesReport { Title = "Q3", Region = "EMEA" })));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => ReportMethod(new SalesReport { Title = "Q3", Region = "EMEA" })));
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
 
-            var report = Assert.IsType<SalesReport>(job.Args[0]);
+            SalesReport report = Assert.IsType<SalesReport>(job.Args[0]);
             Assert.Equal("Q3", report.Title);
             Assert.Equal("EMEA", report.Region);
         }
@@ -330,9 +330,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void DeserializeJob_ReadsANullArgument_DeclaredAsAnInterface()
         {
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(null)));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => NotifyMethod(null)));
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
 
             Assert.Equal("[null]", data.Arguments);
             Assert.Null(job.Args[0]);
@@ -342,13 +342,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void DeserializeJob_ReadsConcreteArguments_StoredWithoutTypeName_WithRecommendedSettings()
         {
             GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
-            var data = new InvocationData(
+            InvocationData data = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(ComplicatedMethod),
                 TestJson.ToJson(new[] { typeof(IList<string>), typeof(SomeClass) }),
                 "[\"[\\\"one\\\"]\",\"{\\\"StringValue\\\":\\\"value\\\"}\"]");
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
 
             Assert.Equal(new[] { "one" }, Assert.IsType<List<string>>(job.Args[0]));
             Assert.Equal("value", Assert.IsType<SomeClass>(job.Args[1]).StringValue);
@@ -358,15 +358,15 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void DeserializeJob_ReadsPascalCaseArguments_WithCamelCaseUserOptions()
         {
             GlobalConfiguration.Configuration.UseSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            var data = new InvocationData(
+            InvocationData data = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(InvoiceMethod),
                 TestJson.ToJson(new[] { typeof(InvoiceRequest) }),
                 "[\"{\\\"CustomerId\\\":42,\\\"Amount\\\":99.5,\\\"Currency\\\":\\\"EUR\\\"}\"]");
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
 
-            var request = Assert.IsType<InvoiceRequest>(job.Args[0]);
+            InvoiceRequest request = Assert.IsType<InvoiceRequest>(job.Args[0]);
             Assert.Equal(42, request.CustomerId);
             Assert.Equal(99.5m, request.Amount);
             Assert.Equal("EUR", request.Currency);
@@ -375,9 +375,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Serialize_CorrectlySerializesTheData()
         {
-            var job = Job.FromExpression(() => Sample("Hello"));
+            Job job = Job.FromExpression(() => Sample("Hello"));
 
-            var invocationData = InvocationData.SerializeJob(job);
+            InvocationData invocationData = InvocationData.SerializeJob(job);
 
             Assert.Equal(typeof(InvocationDataFacts).AssemblyQualifiedName, invocationData.Type);
             Assert.Equal("Sample", invocationData.Method);
@@ -389,9 +389,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Serialize_CorrectlySerializes_TheJobQueueProperty()
         {
-            var job = Job.FromExpression(() => Sample("Hello"), "critical");
+            Job job = Job.FromExpression(() => Sample("Hello"), "critical");
 
-            var invocationData = InvocationData.SerializeJob(job);
+            InvocationData invocationData = InvocationData.SerializeJob(job);
 
             Assert.Equal("Sample", invocationData.Method);
             Assert.Equal("critical", invocationData.Queue);
@@ -400,14 +400,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Serialize_CorrectlyHandles_ParameterTypes_InPossibleOldFormat()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "ComplicatedMethod",
                 "{\"$type\":\"System.Type[], mscorlib\",\"$values\":[\"System.Collections.Generic.IList`1[[System.String, mscorlib]], mscorlib\",\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+SomeClass, Masterly.NightShift.Core.Tests\"]}",
                 "[null, null]");
 
-            var serialized = invocationData.SerializePayload();
-            var job = InvocationData.DeserializePayload(serialized).DeserializeJob();
+            string? serialized = invocationData.SerializePayload();
+            Job job = InvocationData.DeserializePayload(serialized).DeserializeJob();
 
             Assert.Equal(typeof(InvocationDataFacts), job.Type);
             Assert.Equal(typeof(InvocationDataFacts).GetMethod("ComplicatedMethod"), job.Method);
@@ -416,10 +416,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void Serialize_SerializesDateTimeUsingCustomFormatter_BeforeVersion170()
         {
-            var dateTimeString = "2019-03-05T13:20:04.5932150Z";
-            var dateTime = DateTime.Parse(dateTimeString, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-            var dateTimeData = InvocationData.SerializeJob(Job.FromExpression(() => DateTimeMethod(dateTime)));
-            var nullableData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(dateTime)));
+            string dateTimeString = "2019-03-05T13:20:04.5932150Z";
+            DateTime dateTime = DateTime.Parse(dateTimeString, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            InvocationData dateTimeData = InvocationData.SerializeJob(Job.FromExpression(() => DateTimeMethod(dateTime)));
+            InvocationData nullableData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(dateTime)));
 
             Assert.Equal($"[\"{dateTimeString}\"]", dateTimeData.Arguments);
             Assert.Equal($"[\"{dateTimeString}\"]", nullableData.Arguments);
@@ -428,10 +428,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
         public void Serialize_SerializesDateTimeUsingRegularJsonFormatter_AfterVersion170()
         {
-            var dateTimeString = "\"2019-03-05T13:20:04.5932150Z\"";
-            var dateTime = SerializationHelper.Deserialize<DateTime>(dateTimeString, SerializationOption.User);
-            var dateTimeData = InvocationData.SerializeJob(Job.FromExpression(() => DateTimeMethod(dateTime)));
-            var nullableData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(dateTime)));
+            string dateTimeString = "\"2019-03-05T13:20:04.5932150Z\"";
+            DateTime dateTime = SerializationHelper.Deserialize<DateTime>(dateTimeString, SerializationOption.User);
+            InvocationData dateTimeData = InvocationData.SerializeJob(Job.FromExpression(() => DateTimeMethod(dateTime)));
+            InvocationData nullableData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(dateTime)));
 
             Assert.Equal($"[\"\\\"2019-03-05T13:20:04.593215Z\\\"\"]", dateTimeData.Arguments);
             Assert.Equal($"[\"\\\"2019-03-05T13:20:04.593215Z\\\"\"]", nullableData.Arguments);
@@ -442,8 +442,8 @@ namespace Masterly.NightShift.Core.Tests.Storage
         {
             GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-            var job = Job.FromExpression(() => GenericMethod<object>(new SomeClass()));
-            var data = InvocationData.SerializeJob(job);
+            Job job = Job.FromExpression(() => GenericMethod<object>(new SomeClass()));
+            InvocationData data = InvocationData.SerializeJob(job);
 
             Assert.Equal("[\"{\\\"$type\\\":\\\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+SomeClass, Masterly.NightShift.Core.Tests\\\",\\\"DefaultValue\\\":0}\"]", data.Arguments);
         }
@@ -453,13 +453,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         {
             GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-            var data = new InvocationData(
+            InvocationData data = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "GenericMethod",
                 "[\"System.Object, mscorlib\"]",
                 "[\"{\\\"$type\\\":\\\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts+SomeClass, Masterly.NightShift.Core.Tests\\\"}\"]");
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
             Assert.Equal("GenericMethod", job.Method.Name);
             Assert.Equal(new object[] { typeof(object) }, [.. job.Method.GetParameters().Select(x => x.ParameterType)]);
             Assert.IsType<SomeClass>(job.Args[0]);
@@ -468,13 +468,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_CorrectlySerializesInvocationDataToString_WithOldFormat_InVersion_Pre_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"Type\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"Method\":\"Sample\",\"ParameterTypes\":\"[\\\"System.String\\\"]\",\"Arguments\":\"[\\\"\\\\\\\"Hello\\\\\\\"\\\"]\"}",
@@ -484,14 +484,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_CorrectlySerializesInvocationDataWithQueueToString_WithOldFormat_InVersion_Pre_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]",
                 "critical");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"Type\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"Method\":\"Sample\",\"ParameterTypes\":\"[\\\"System.String\\\"]\",\"Arguments\":\"[\\\"\\\\\\\"Hello\\\\\\\"\\\"]\",\"Queue\":\"critical\"}",
@@ -501,13 +501,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_DoesNotIncludeArgumentsWhenStatedSo_WithOldFormat_InVersion_Pre_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]");
 
-            var payload = invocationData.SerializePayload(excludeArguments: true);
+            string? payload = invocationData.SerializePayload(excludeArguments: true);
 
             Assert.Equal(
                 "{\"Type\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"Method\":\"Sample\",\"ParameterTypes\":\"[\\\"System.String\\\"]\",\"Arguments\":null}",
@@ -517,13 +517,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_SerializesInvocationDataToString_WithoutNullifyingEmptyEntries_InVersion_Pre_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Empty",
                 "[]",
                 "[]");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"Type\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"Method\":\"Empty\",\"ParameterTypes\":\"[]\",\"Arguments\":\"[]\"}",
@@ -534,10 +534,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void SerializePayload_KeepsItsMemberNames_WhenTheUserOptionsRenameThem_InVersion_Pre_170()
         {
             SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
 
-            var payload = data.SerializePayload();
-            var job = InvocationData.DeserializePayload(payload).DeserializeJob();
+            string? payload = data.SerializePayload();
+            Job job = InvocationData.DeserializePayload(payload).DeserializeJob();
 
             Assert.Contains("\"ParameterTypes\":", payload);
             Assert.Equal(nameof(TwoArguments), job.Method.Name);
@@ -548,9 +548,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void SerializePayload_KeepsEveryMember_WhenTheUserOptionsIgnoreReadOnlyProperties_InVersion_Pre_170()
         {
             SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { IgnoreReadOnlyProperties = true });
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => TwoArguments(42, "hello")));
 
-            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
             Assert.Equal(nameof(TwoArguments), job.Method.Name);
             Assert.Equal([42, "hello"], job.Args);
@@ -560,9 +560,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void SerializePayload_IgnoresAResolverThatDoesNotKnowInvocationData_InVersion_Pre_170()
         {
             SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(string[]), typeof(string)) });
-            var data = new InvocationData(typeof(InvocationDataFacts).AssemblyQualifiedName, nameof(Sample), "[\"System.String\"]", "[\"\\\"Hello\\\"\"]");
+            InvocationData data = new(typeof(InvocationDataFacts).AssemblyQualifiedName, nameof(Sample), "[\"System.String\"]", "[\"\\\"Hello\\\"\"]");
 
-            var payload = data.SerializePayload();
+            string? payload = data.SerializePayload();
 
             Assert.StartsWith("{\"Type\":", payload);
         }
@@ -573,10 +573,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
             // What Version_110 stored before with a snake_case naming policy: "type" and "method" match
             // case-insensitively, "parameter_types" doesn't
             SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
-            var payload = "{\"type\":\"" + typeof(InvocationDataFacts).AssemblyQualifiedName + "\",\"method\":\"Sample\"," +
+            string payload = "{\"type\":\"" + typeof(InvocationDataFacts).AssemblyQualifiedName + "\",\"method\":\"Sample\"," +
                           "\"parameter_types\":\"[\\\"System.String\\\"]\",\"arguments\":\"[\\\"\\\\\\\"Hello\\\\\\\"\\\"]\"}";
 
-            var job = InvocationData.DeserializePayload(payload).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(payload).DeserializeJob();
 
             Assert.Equal(nameof(Sample), job.Method.Name);
             Assert.Equal("Hello", job.Args[0]);
@@ -585,9 +585,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void SerializeJob_StoresNaNAndInfinities_AndReadsThemBack()
         {
-            var data = InvocationData.SerializeJob(Job.FromExpression(() => Calculate(double.NaN, float.PositiveInfinity)));
+            InvocationData data = InvocationData.SerializeJob(Job.FromExpression(() => Calculate(double.NaN, float.PositiveInfinity)));
 
-            var job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+            Job job = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
             Assert.Equal("[\"\\\"NaN\\\"\",\"\\\"Infinity\\\"\"]", data.Arguments);
             Assert.True(double.IsNaN((double)job.Args[0]));
@@ -597,13 +597,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_CorrectlySerializesInvocationDataToString_WithNewFormat_InVersion_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Sample\",\"p\":[\"System.String\"],\"a\":[\"\\\"Hello\\\"\"]}",
@@ -613,14 +613,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_CorrectlySerializesInvocationDataWithQueueToString_WithNewFormat_InVersion_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]",
                 "critical");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Sample\",\"p\":[\"System.String\"],\"a\":[\"\\\"Hello\\\"\"],\"q\":\"critical\"}",
@@ -630,13 +630,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_DoesNotIncludeArgumentsWhenStatedSo_WithNewFormat_InVersion_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Sample",
                 "[\"System.String\"]",
                 "[\"\\\"Hello\\\"\"]");
 
-            var payload = invocationData.SerializePayload(excludeArguments: true);
+            string? payload = invocationData.SerializePayload(excludeArguments: true);
 
             Assert.Equal(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Sample\",\"p\":[\"System.String\"]}",
@@ -646,13 +646,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
         public void SerializePayload_SerializesInvocationDataToString_WithNullifyingEmptyEntries_InVersion_170()
         {
-            var invocationData = new InvocationData(
+            InvocationData invocationData = new(
                 "Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests",
                 "Empty",
                 "[]",
                 "[]");
 
-            var payload = invocationData.SerializePayload();
+            string? payload = invocationData.SerializePayload();
 
             Assert.Equal(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Empty\"}",
@@ -671,9 +671,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [InlineData("{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Sample\",\"p\":[\"System.String\"],\"a\":[\"\\\"Hello\\\"\"]}")]
         public void Deserialize_DeserializesCorrectlyStringToInvocationData(string invocationData)
         {
-            var serializedData = InvocationData.DeserializePayload(invocationData);
+            InvocationData serializedData = InvocationData.DeserializePayload(invocationData);
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.False(job.Type.GetTypeInfo().ContainsGenericParameters);
             Assert.Equal("Sample", job.Method.Name);
@@ -685,11 +685,11 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_DeserializesCorrectlyShortFormatStringToInvocationData()
         {
-            var invocationData = "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Empty\"}";
+            string invocationData = "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Empty\"}";
 
-            var serializedData = InvocationData.DeserializePayload(invocationData);
+            InvocationData serializedData = InvocationData.DeserializePayload(invocationData);
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.False(job.Type.GetTypeInfo().ContainsGenericParameters);
             Assert.Equal("Empty", job.Method.Name);
@@ -700,10 +700,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesGenericTypes()
         {
-            var serializedData = InvocationData.SerializeJob(
+            InvocationData serializedData = InvocationData.SerializeJob(
                 Job.FromExpression<GenericType<string>>(x => x.Method()));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.False(job.Type.GetTypeInfo().ContainsGenericParameters);
             Assert.Equal(typeof(string), job.Type.GetGenericArguments()[0]);
@@ -712,10 +712,10 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesGenericMethods_WithOpenTypeParameters()
         {
-            var serializedData = InvocationData.SerializeJob(
+            InvocationData serializedData = InvocationData.SerializeJob(
                 Job.FromExpression<GenericType<string>>(x => x.Method("asd", 123)));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.False(job.Method.ContainsGenericParameters);
         }
@@ -723,13 +723,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesMethodsDefinedInInterfaces()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(IParent).AssemblyQualifiedName,
                 "Method",
                 TestJson.ToJson(new Type[0]),
                 TestJson.ToJson(new string[0]));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(IParent), job.Type);
         }
@@ -737,13 +737,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_HandlesMethodsDefinedInParentInterfaces()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(IChild).AssemblyQualifiedName,
                 "Method",
                 TestJson.ToJson(new Type[0]),
                 TestJson.ToJson(new string[0]));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(IChild), job.Type);
         }
@@ -751,13 +751,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_RethrowsJsonException_InsteadOfNullValue_WhenReferenceConverterChosen()
         {
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "ListMethod",
                 TestJson.ToJson(new[] { typeof(IList<string>) }),
                 TestJson.ToJson(new[] { "asdfasdf" }));
 
-            var exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
+            JobLoadException exception = Assert.Throws<JobLoadException>(serializedData.DeserializeJob);
             Assert.IsAssignableFrom<JsonException>(exception.InnerException);
         }
 
@@ -765,19 +765,19 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [MemberData(nameof(MemberData))]
         public void Deserialize_CorrectlyDeserializesJobFromInvocationData(Job job, string typeName, string method, string parameterTypes, string serializedArgs)
         {
-            var deserializedJob = new InvocationData(typeName, method, parameterTypes, serializedArgs).DeserializeJob();
+            Job deserializedJob = new InvocationData(typeName, method, parameterTypes, serializedArgs).DeserializeJob();
 
             Assert.Equal(job.Type, deserializedJob.Type);
             Assert.Equal(job.Method, deserializedJob.Method);
 
-            var parameters = job.Method.GetParameters();
-            var deserializedParameters = deserializedJob.Method.GetParameters();
-            for (var i = 0; i < parameters.Length; i++)
+            ParameterInfo[] parameters = job.Method.GetParameters();
+            ParameterInfo[] deserializedParameters = deserializedJob.Method.GetParameters();
+            for (int i = 0; i < parameters.Length; i++)
             {
                 Assert.Equal(parameters[i].ParameterType, deserializedParameters[i].ParameterType);
             }
 
-            for (var i = 0; i < job.Args.Count; i++)
+            for (int i = 0; i < job.Args.Count; i++)
             {
                 Assert.Equal(job.Args[i], deserializedJob.Args[i]);
             }
@@ -828,14 +828,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_LocalDateTimeArguments_ConvertedToRoundtripFormat()
         {
-            var value = DateTime.Now;
-            var serializedData = new InvocationData(
+            DateTime value = DateTime.Now;
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("o", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, (DateTime)job.Args[0]);
         }
@@ -843,14 +843,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_UnknownDateTimeArguments_ConvertedToRoundtripFormat()
         {
-            var value = new DateTime(2017, 1, 1, 1, 1, 1, 1, DateTimeKind.Unspecified);
-            var serializedData = new InvocationData(
+            DateTime value = new(2017, 1, 1, 1, 1, 1, 1, DateTimeKind.Unspecified);
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("o", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, (DateTime)job.Args[0]);
         }
@@ -859,14 +859,14 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void Deserialize_CorrectlyDeserializes_UtcDateTimeArguments_ConvertedToRoundtripFormat()
         {
 
-            var value = DateTime.UtcNow;
-            var serializedData = new InvocationData(
+            DateTime value = DateTime.UtcNow;
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("o", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, (DateTime)job.Args[0]);
         }
@@ -874,16 +874,16 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_LocalDateTimeArguments_ConvertedToOldFormat_WithLoweredPrecision()
         {
-            var value = DateTime.Now;
-            var serializedData = new InvocationData(
+            DateTime value = DateTime.Now;
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("MM/dd/yyyy HH:mm:ss.ffff", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
-            var actualValue = (DateTime)job.Args[0];
+            DateTime actualValue = (DateTime)job.Args[0];
 
             Assert.Equal(value.Year, actualValue.Year);
             Assert.Equal(value.Month, actualValue.Month);
@@ -896,16 +896,16 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_UnknownDateTimeArguments_ConvertedToOldFormat_WithLoweredPrecision()
         {
-            var value = new DateTime(2017, 1, 1, 1, 1, 1, 1, DateTimeKind.Unspecified);
-            var serializedData = new InvocationData(
+            DateTime value = new(2017, 1, 1, 1, 1, 1, 1, DateTimeKind.Unspecified);
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("MM/dd/yyyy HH:mm:ss.ffff", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
-            var actualValue = (DateTime)job.Args[0];
+            DateTime actualValue = (DateTime)job.Args[0];
 
             Assert.Equal(value.Year, actualValue.Year);
             Assert.Equal(value.Month, actualValue.Month);
@@ -918,17 +918,17 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_UtcDateTimeArguments_ConvertedToOldFormat_WithLoweredPrecision()
         {
-            var value = DateTime.UtcNow;
+            DateTime value = DateTime.UtcNow;
 
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(DateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 TestJson.ToJson(new[] { value.ToString("MM/dd/yyyy HH:mm:ss.ffff", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
-            var actualValue = (DateTime)job.Args[0];
+            DateTime actualValue = (DateTime)job.Args[0];
 
             Assert.Equal(value.Year, actualValue.Year);
             Assert.Equal(value.Month, actualValue.Month);
@@ -942,13 +942,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void Deserialize_CorrectlyDeserializes_NullableUtcDateTimeArguments()
         {
             DateTime? value = DateTime.UtcNow;
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(NullableDateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime?) }),
                 TestJson.ToJson(new[] { value.Value.ToString("o", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, job.Args[0]);
         }
@@ -958,9 +958,9 @@ namespace Masterly.NightShift.Core.Tests.Storage
         {
             DateTime? value = null;
 
-            var serializedData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(value)));
+            InvocationData serializedData = InvocationData.SerializeJob(Job.FromExpression(() => NullableDateTimeMethod(value)));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, job.Args[0]);
         }
@@ -969,13 +969,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void Deserialize_CorrectlyDeserializes_NullableLocalDateTimeArguments()
         {
             DateTime? value = DateTime.Now;
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(NullableDateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime?) }),
                 TestJson.ToJson(new[] { value.Value.ToString("o", CultureInfo.InvariantCulture) }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, job.Args[0]);
         }
@@ -984,13 +984,13 @@ namespace Masterly.NightShift.Core.Tests.Storage
         public void Deserialize_CorrectlyDeserializes_NullableDateTimeArguments_With_Null_Value()
         {
             DateTime? value = null;
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 nameof(NullableDateTimeMethod),
                 TestJson.ToJson(new[] { typeof(DateTime?) }),
                 TestJson.ToJson(new[] { value }));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(value, job.Args[0]);
         }
@@ -998,16 +998,16 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact]
         public void Deserialize_CorrectlyDeserializes_DateTimesInRegularJsonFormat()
         {
-            var dateTimeString = "\"2019-03-05T13:20:04.5932150Z\"";
-            var dateTime = SerializationHelper.Deserialize<DateTime>(dateTimeString, SerializationOption.User);
+            string dateTimeString = "\"2019-03-05T13:20:04.5932150Z\"";
+            DateTime dateTime = SerializationHelper.Deserialize<DateTime>(dateTimeString, SerializationOption.User);
 
-            var dateTimeJob = new InvocationData(
+            Job dateTimeJob = new InvocationData(
                 GetType().AssemblyQualifiedName,
                 "DateTimeMethod",
                 TestJson.ToJson(new[] { typeof(DateTime) }),
                 "[\"\\\"2019-03-05T13:20:04.593215Z\\\"\"]").DeserializeJob();
 
-            var nullableJob = new InvocationData(
+            Job nullableJob = new InvocationData(
                 GetType().AssemblyQualifiedName,
                 "NullableDateTimeMethod",
                 TestJson.ToJson(new[] { typeof(DateTime?) }),
@@ -1022,7 +1022,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         {
             SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-            var serializedData = new InvocationData(
+            InvocationData serializedData = new(
                 typeof(InvocationDataFacts).AssemblyQualifiedName,
                 "ComplicatedMethod",
                 SerializationHelper.Serialize(new[]
@@ -1036,7 +1036,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
                     SerializationHelper.Serialize(new SomeClass { StringValue = "value" }, SerializationOption.User)
                 }, SerializationOption.User));
 
-            var job = serializedData.DeserializeJob();
+            Job job = serializedData.DeserializeJob();
 
             Assert.Equal(typeof(InvocationDataFacts), job.Type);
             Assert.Equal(2, job.Args.Count);
@@ -1054,7 +1054,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [DataCompatibilityRangeFact, CleanSerializerSettings]
         public void DeserializeJob_CanReadPreviousFormat_WrittenWithTypeNamesEverywhere()
         {
-            var job = InvocationData
+            Job job = InvocationData
                 .DeserializePayload("{\"$type\":\"Masterly.NightShift.Storage.InvocationData, Masterly.NightShift.Core\",\"Type\":\"System.Console, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089\",\"Method\":\"WriteLine\",\"ParameterTypes\":\"{\\\"$type\\\":\\\"System.Type[], mscorlib\\\",\\\"$values\\\":[\\\"System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089\\\"]}\",\"Arguments\":\"{\\\"$type\\\":\\\"System.String[], mscorlib\\\",\\\"$values\\\":[\\\"\\\\\\\"Hello \\\\\\\"\\\"]}\"}")
                 .DeserializeJob();
 
@@ -1066,7 +1066,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [Fact]
         public void DeserializePayload_ThrowsAnException_WhenPayloadIsNull()
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => InvocationData.DeserializePayload(null));
 
             Assert.Equal("payload", exception.ParamName);
@@ -1077,7 +1077,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [InlineData("{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"Sample\",\"p\":[\"System.String\"],\"a\":[\"\\\"Hello\\\"\"],\"q\":\"critical\"}")]
         public void DeserializePayload_WithQueueNameSet_ReturnsCorrectInvocationData(string payload)
         {
-            var invocationData = InvocationData.DeserializePayload(payload);
+            InvocationData invocationData = InvocationData.DeserializePayload(payload);
 
             Assert.Contains("InvocationDataFacts", invocationData.Type);
             Assert.Equal("Sample", invocationData.Method);
@@ -1087,7 +1087,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [Fact]
         public void Deserialize_CorrectlyHandles_SystemXmlLinqEntities_SerializedWithNETFramework()
         {
-            var job = InvocationData.DeserializePayload(
+            Job job = InvocationData.DeserializePayload(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"XmlLinqMethod\",\"p\":[\"System.Xml.Linq.XElement, System.Xml.Linq\"],\"a\":[\"{\\\"element\\\":\\\"This is a test\\\"}\"]}")
                 .DeserializeJob();
 
@@ -1097,7 +1097,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
         [Fact]
         public void Deserialize_CorrectlyHandles_SystemXmlLinqEntities_SerializedWithNETCore()
         {
-            var job = InvocationData.DeserializePayload(
+            Job job = InvocationData.DeserializePayload(
                 "{\"t\":\"Masterly.NightShift.Core.Tests.Storage.InvocationDataFacts, Masterly.NightShift.Core.Tests\",\"m\":\"XmlLinqMethod\",\"p\":[\"System.Xml.Linq.XElement, System.Private.Xml.Linq\"],\"a\":[\"{\\\"element\\\":\\\"This is a test\\\"}\"]}")
                 .DeserializeJob();
 
@@ -1280,7 +1280,7 @@ namespace Masterly.NightShift.Core.Tests.Storage
             {
                 TypeHelper.CurrentTypeSerializer = TypeHelper.SimpleAssemblyTypeSerializer;
 
-                var invocationData = InvocationData.SerializeJob(job);
+                InvocationData invocationData = InvocationData.SerializeJob(job);
 
                 Assert.Equal(typeName, invocationData.Type);
                 Assert.Equal(method, invocationData.Method);

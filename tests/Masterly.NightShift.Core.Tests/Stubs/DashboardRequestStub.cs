@@ -15,12 +15,12 @@ internal class DashboardRequestStub(string method = "GET", string path = "/") : 
 
     public override string GetQuery(string key)
     {
-        return Query.TryGetValue(key, out var value) ? value : null;
+        return Query.TryGetValue(key, out string? value) ? value : null;
     }
 
     public override Task<IList<string>> GetFormValuesAsync(string key)
     {
-        IList<string> values = Form.TryGetValue(key, out var list) ? list : [];
+        IList<string> values = Form.TryGetValue(key, out List<string>? list) ? list : [];
         return Task.FromResult(values);
     }
 }

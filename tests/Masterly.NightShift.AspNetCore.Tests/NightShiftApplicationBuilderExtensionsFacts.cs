@@ -12,7 +12,7 @@ public class NightShiftApplicationBuilderExtensionsFacts
     [Fact]
     public void RegisterNightShiftServer_SendsTheStopSignal_WhenTheApplicationIsStopping()
     {
-        using var provider = BuildProvider();
+        using ServiceProvider provider = BuildProvider();
         provider.RegisterNightShiftServer(_server.Object);
 
         _lifetime.RaiseStopping();
@@ -24,7 +24,7 @@ public class NightShiftApplicationBuilderExtensionsFacts
     [Fact]
     public void RegisterNightShiftServer_DisposesTheServer_WhenTheApplicationHasStopped()
     {
-        using var provider = BuildProvider();
+        using ServiceProvider provider = BuildProvider();
         provider.RegisterNightShiftServer(_server.Object);
 
         _lifetime.RaiseStopped();
@@ -35,7 +35,7 @@ public class NightShiftApplicationBuilderExtensionsFacts
     [Fact]
     public void RegisterNightShiftServer_ThrowsAnException_WithoutAHostLifetime()
     {
-        using var provider = new ServiceCollection().BuildServiceProvider();
+        using ServiceProvider provider = new ServiceCollection().BuildServiceProvider();
         Assert.Throws<InvalidOperationException>(() => provider.RegisterNightShiftServer(_server.Object));
     }
 

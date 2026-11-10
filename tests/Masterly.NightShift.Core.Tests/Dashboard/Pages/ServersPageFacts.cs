@@ -13,7 +13,7 @@ public class ServersPageFacts
     [Fact]
     public void Render_ShowsTheNoServersWarning_AndHostingDetails_WhenNoServerIsRegistered()
     {
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains(H(Strings.ServersPage_NoServers), html);
         Assert.DoesNotContain("<table class=\"table\"", html);
@@ -26,14 +26,14 @@ public class ServersPageFacts
     [Fact]
     public void Render_MarksEachServer_ByHowLongAgoItsHeartbeatWas()
     {
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         SetupServers(
             Server("fresh-server", now),
             Server("late-server", now.AddSeconds(-90)),
             Server("dead-server", now.AddMinutes(-10)),
             Server("silent-server", null));
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("glyphicon-ok text-success\" title=\"" + H(Strings.ServersPage_Active) + "\"", html);
         // Past ServerPossiblyAbortedThreshold (one minute) is possibly aborted, as on the job pages; it took twice that
@@ -50,7 +50,7 @@ public class ServersPageFacts
     {
         SetupServers(Server("fresh-server", DateTime.UtcNow));
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain(H(Strings.ServersPage_Note_Title), html);
         Assert.DoesNotContain("glyphicon-alert text-danger", html);
@@ -61,7 +61,7 @@ public class ServersPageFacts
     {
         SetupServers(Server("fresh-server", DateTime.UtcNow, "critical", "default"));
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("critical", html);
         Assert.Contains("default", html);
@@ -72,7 +72,7 @@ public class ServersPageFacts
     {
         SetupServers(Server("fresh-server", DateTime.UtcNow));
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("data-ajax=\"/servers/pause/fresh-server\"", html);
         Assert.DoesNotContain("/servers/resume/", html);
@@ -85,7 +85,7 @@ public class ServersPageFacts
         SetupServers(Server("paused server", DateTime.UtcNow), Server("fresh-server", DateTime.UtcNow));
         SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "paused server", "disk swap" } });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("title=\"disk swap\">" + H(Strings.ServersPage_Paused) + "</span>", html);
         Assert.Contains("data-ajax=\"/servers/resume/paused%20server\"", html);
@@ -102,7 +102,7 @@ public class ServersPageFacts
             { DrainMode.ServerFieldPrefix + "web-1:2:new", "" },
         });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("<h4>" + H(Strings.ServersPage_StalePauses_Title) + "</h4>", html);
         Assert.Contains("<code>web-1:1:old</code>", html);
@@ -118,7 +118,7 @@ public class ServersPageFacts
     {
         SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "gone", "" } });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains(H(Strings.ServersPage_NoServers), html);
         Assert.Contains("<code>gone</code>", html);
@@ -131,7 +131,7 @@ public class ServersPageFacts
         SetupServers(Server("paused server", DateTime.UtcNow));
         SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "paused server", "" } });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain(H(Strings.ServersPage_StalePauses_Title), html);
     }
@@ -142,7 +142,7 @@ public class ServersPageFacts
         _renderer.Options = new Masterly.NightShift.DashboardOptions { IsReadOnlyFunc = _ => true };
         SetupControlHash(new Dictionary<string, string> { { DrainMode.ServerFieldPrefix + "gone", "" } });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("<code>gone</code>", html);
         Assert.DoesNotContain("/servers/resume/", html);
@@ -155,7 +155,7 @@ public class ServersPageFacts
         _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
         SetupServers(Server("fresh-server", DateTime.UtcNow));
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain("/servers/pause/", html);
         Assert.DoesNotContain("<th class=\"min-width\"></th>", html);
@@ -167,7 +167,7 @@ public class ServersPageFacts
     [Fact]
     public void Render_ShowsProcessingAsRunning_WithAPauseForm_WhenNotDrained()
     {
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains(H(Strings.ServersPage_Processing_Running), html);
         Assert.Contains("data-url=\"/maintenance/pause\"", html);
@@ -184,7 +184,7 @@ public class ServersPageFacts
             { "DrainReason", "deploying v2" },
         });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("hf-drain-active", html);
         Assert.Contains(H(Strings.ServersPage_Processing_Paused), html);
@@ -199,7 +199,7 @@ public class ServersPageFacts
     {
         SetupControlHash(new Dictionary<string, string> { { "Drain", "1" } });
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains(H(Strings.ServersPage_Processing_Paused), html);
         Assert.DoesNotContain("<em>", html);
@@ -212,7 +212,7 @@ public class ServersPageFacts
     {
         _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Purge)).Returns(true);
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("id=\"servers-maintenance\"", html);
         Assert.Contains("data-ajax=\"/maintenance/clear-jobs\"", html);
@@ -222,7 +222,7 @@ public class ServersPageFacts
     [Fact]
     public void Render_HidesTheMaintenanceSection_WhenTheStorageDoesNotSupportPurge()
     {
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.DoesNotContain("id=\"servers-maintenance\"", html);
     }
@@ -232,7 +232,7 @@ public class ServersPageFacts
     {
         using (new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/pending" }))
         {
-            var html = _renderer.Render(new ServersPage());
+            string html = _renderer.Render(new ServersPage());
 
             Assert.Contains("label-info\">" + H(Strings.ServersPage_KeepAlive_Pending), html);
             Assert.DoesNotContain(H(Strings.ServersPage_KeepAlive_NotConfigured), html);
@@ -242,10 +242,10 @@ public class ServersPageFacts
     [Fact, StaticLock]
     public void Render_ShowsTheKeepAliveAsOk_WithItsUrl_AfterASuccessfulRequest()
     {
-        using var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/ok" }, new HttpClient(new StubHandler(null)));
+        using KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/ok" }, new HttpClient(new StubHandler(null)));
         process.Ping(CancellationToken.None);
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("label-success\">" + H(Strings.ServersPage_KeepAlive_Ok), html);
         Assert.Contains("<code>http://keep.alive/ok</code>", html);
@@ -254,10 +254,10 @@ public class ServersPageFacts
     [Fact, StaticLock]
     public void Render_ShowsTheKeepAliveAsFailed_WithTheError_AfterAFailedRequest()
     {
-        using var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/failed", LogFailures = false }, new HttpClient(new StubHandler(new HttpRequestException("no route to host"))));
+        using KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/failed", LogFailures = false }, new HttpClient(new StubHandler(new HttpRequestException("no route to host"))));
         process.Ping(CancellationToken.None);
 
-        var html = _renderer.Render(new ServersPage());
+        string html = _renderer.Render(new ServersPage());
 
         Assert.Contains("label-danger\" title=\"no route to host\">" + H(Strings.ServersPage_KeepAlive_Failed), html);
         Assert.Contains("&middot; no route to host", html);

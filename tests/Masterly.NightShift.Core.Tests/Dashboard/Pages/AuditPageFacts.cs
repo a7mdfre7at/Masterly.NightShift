@@ -11,7 +11,7 @@ public class AuditPageFacts
     [Fact]
     public void Render_WithoutEntries_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.AuditPage_NoEntries)}</div>", html);
         Assert.DoesNotContain(Encode(Strings.AuditPage_Disabled), html);
@@ -25,7 +25,7 @@ public class AuditPageFacts
 
         try
         {
-            var html = _renderer.Render(new AuditPage());
+            string html = _renderer.Render(new AuditPage());
 
             Assert.Contains($"<div class=\"alert alert-warning\">{Encode(Strings.AuditPage_Disabled)}</div>", html);
         }
@@ -40,7 +40,7 @@ public class AuditPageFacts
     {
         SetupEntries(3, new AuditEntry { Action = "/tags/forget/x", Timestamp = Now() });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains("<span class=\"hf-catalog-summary text-muted\">1 / 3</span>", html);
         Assert.Contains("<a class=\"btn btn-sm btn-primary active\" href=\"/audit?count=100\">100</a>", html);
@@ -59,7 +59,7 @@ public class AuditPageFacts
         SetupEntries(1, new AuditEntry { Action = "/tags/forget/x", Timestamp = Now() });
         _renderer.Request.Query["count"] = count;
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains($"<a class=\"btn btn-sm btn-primary active\" href=\"/audit?count={expected}\">{expected}</a>", html);
         _renderer.Connection.Verify(x => x.GetRangeFromList(AuditLog.ListKey, 0, expected - 1));
@@ -79,7 +79,7 @@ public class AuditPageFacts
             Status = 204
         });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains("<strong>alice &lt;admin&gt;</strong>", html);
         Assert.Contains("<div class=\"text-muted hf-audit-ip\">10.0.0.1</div>", html);
@@ -101,7 +101,7 @@ public class AuditPageFacts
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true, DisplayAuditIpAddressesToReadOnlyUsers = display };
         SetupEntries(1, new AuditEntry { Timestamp = Now(), User = "alice", RemoteIpAddress = "10.0.0.1", Action = "/jobs/failed/requeue", Status = 204 });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains("<strong>alice</strong>", html);
         Assert.Equal(expected, html.Contains("10.0.0.1"));
@@ -119,7 +119,7 @@ public class AuditPageFacts
             Status = 500
         });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains($"<em class=\"text-muted\">{Encode(Strings.AuditPage_Anonymous)}</em>", html);
         Assert.DoesNotContain("hf-audit-ip", html);
@@ -134,7 +134,7 @@ public class AuditPageFacts
     {
         SetupEntries(1, new AuditEntry { Timestamp = Now(), Action = "/recurring/remove", Targets = ["42"] });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains("<code>42</code>", html);
         Assert.DoesNotContain("/jobs/details/42", html);
@@ -145,7 +145,7 @@ public class AuditPageFacts
     {
         SetupEntries(1, new AuditEntry { Timestamp = Now(), Action = "/maintenance/drain" });
 
-        var html = _renderer.Render(new AuditPage());
+        string html = _renderer.Render(new AuditPage());
 
         Assert.Contains("<code>/maintenance/drain</code>", html);
         Assert.DoesNotContain(Encode(string.Format(Strings.AuditPage_More, 0)), html);

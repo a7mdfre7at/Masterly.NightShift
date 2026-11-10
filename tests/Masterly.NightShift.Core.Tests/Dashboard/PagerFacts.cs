@@ -14,7 +14,7 @@ public class PagerFacts
     [InlineData(0, 5000, 1000)]
     public void RecordsPerPage_IsTheRequestedCount_OrTheDefault_AtMostOneThousand(int perPage, int defaultPerPage, int expected)
     {
-        var pager = new Pager(0, perPage, defaultPerPage, 100000);
+        Pager pager = new(0, perPage, defaultPerPage, 100000);
 
         Assert.Equal(expected, pager.RecordsPerPage);
     }
@@ -22,7 +22,7 @@ public class PagerFacts
     [Fact]
     public void FromRecord_LeavesRoomForAPage_SoTheLastRecordDoesNotOverflow()
     {
-        var pager = new Pager(int.MaxValue, 1000, 20, 3_000_000_000L);
+        Pager pager = new(int.MaxValue, 1000, 20, 3_000_000_000L);
 
         // Pages ask storages for FromRecord..FromRecord + RecordsPerPage - 1
         Assert.True(pager.FromRecord + pager.RecordsPerPage - 1 > pager.FromRecord);
@@ -32,7 +32,7 @@ public class PagerFacts
     [Fact]
     public void FromRecord_IsZero_WhenNegative()
     {
-        var pager = new Pager(-5, 20, 100);
+        Pager pager = new(-5, 20, 100);
 
         Assert.Equal(0, pager.FromRecord);
         Assert.Equal(1, pager.CurrentPage);
@@ -41,7 +41,7 @@ public class PagerFacts
     [Fact]
     public void RecordsPerPageUrl_IsCapped_LikeThePage()
     {
-        var pager = new Pager(0, 20, 100) { BasePageUrl = "/jobs/failed" };
+        Pager pager = new(0, 20, 100) { BasePageUrl = "/jobs/failed" };
 
         Assert.Equal("/jobs/failed?from=0&count=1000", pager.RecordsPerPageUrl(5000));
         Assert.Equal("/jobs/failed?from=0&count=50", pager.RecordsPerPageUrl(50));

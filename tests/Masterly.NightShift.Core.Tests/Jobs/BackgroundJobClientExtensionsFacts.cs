@@ -20,7 +20,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticCreate_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Create(
                 null, () => StaticMethod(), _state.Object));
 
@@ -38,7 +38,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceCreate_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Create<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethod(), _state.Object));
 
@@ -56,7 +56,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticEnqueue_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Enqueue(
                 null, () => StaticMethod()));
 
@@ -74,7 +74,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceEnqueue_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Enqueue<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethod()));
 
@@ -92,7 +92,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule(
                 null, () => StaticMethod(), TimeSpan.FromDays(1)));
 
@@ -112,7 +112,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithDateTimeOffset_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule(
                 null, () => StaticMethod(), DateTimeOffset.UtcNow));
 
@@ -122,7 +122,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithDateTimeOffset_ShouldCreateAJob_InTheScheduledState()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         _client.Object.Schedule(() => StaticMethod(), now);
 
@@ -134,7 +134,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethod(), TimeSpan.FromDays(1)));
 
@@ -155,7 +155,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_WithDateTimeOffset_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethod(), DateTimeOffset.UtcNow));
 
@@ -165,7 +165,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_WithDateTimeOffset_ShouldCreateAJobInTheScheduledState()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(
             x => x.InstanceMethod(),
@@ -179,7 +179,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void ChangeState_WithoutFromState_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.ChangeState(null, "job-id", _state.Object));
 
         Assert.Equal("client", exception.ParamName);
@@ -196,7 +196,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Delete_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Delete(null, JobId));
 
         Assert.Equal("client", exception.ParamName);
@@ -227,7 +227,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Requeue_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Requeue(null, JobId, FailedState.StateName));
 
         Assert.Equal("client", exception.ParamName);
@@ -252,7 +252,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Reschedule_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
           () => BackgroundJobClientExtensions.Reschedule(null, JobId, TimeSpan.FromDays(1), FailedState.StateName));
 
         Assert.Equal("client", exception.ParamName);
@@ -277,7 +277,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Reschedule_WithDateTimeOffset_ChangesTheStateOfAJob_ToScheduled()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         _client.Object.Reschedule(JobId, now);
 
@@ -287,7 +287,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Reschedule_WithDateTimeOffset_WithFromState_ChangesTheStateOfAJob_ToScheduled_FromTheGivenState()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         _client.Object.Reschedule(JobId, now, FailedState.StateName);
 
@@ -297,7 +297,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithPhrase_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule(null, () => StaticMethod(), "in 2 hours"));
 
         Assert.Equal("client", exception.ParamName);
@@ -306,7 +306,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => _client.Object.Schedule(() => StaticMethod(), (string)null));
 
         Assert.Equal("when", exception.ParamName);
@@ -323,11 +323,11 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticSchedule_WithPhrase_CreatesAJobInTheScheduledState_AtTheParsedMoment()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Method.Name == nameof(StaticMethod)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddHours(2) && state.EnqueueAt <= after.AddHours(2))));
@@ -336,14 +336,14 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Schedule_WithQueueAndPhrase_CreatesAJobForThatQueue_InTheScheduledState_ForEveryShape()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         _client.Object.Schedule("critical", () => StaticMethod(), "in 2 hours");
         _client.Object.Schedule("critical", () => StaticMethodAsync(), "in 2 hours");
         _client.Object.Schedule<BackgroundJobClientExtensionsFacts>("critical", x => x.InstanceMethod(), "in 2 hours");
         _client.Object.Schedule<BackgroundJobClientExtensionsFacts>("critical", x => x.InstanceMethodAsync(), "in 2 hours");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Queue == "critical"),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddHours(2) && state.EnqueueAt <= after.AddHours(2))), Times.Exactly(4));
@@ -352,8 +352,8 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void Schedule_WithQueueAndPhrase_ThrowsAnException_WhenThePhraseOrQueueIsNull()
     {
-        var phrase = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule("critical", () => StaticMethod(), (string)null));
-        var queue = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule((string)null, () => StaticMethod(), "in 2 hours"));
+        ArgumentNullException phrase = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule("critical", () => StaticMethod(), (string)null));
+        ArgumentNullException queue = Assert.Throws<ArgumentNullException>(() => _client.Object.Schedule((string)null, () => StaticMethod(), "in 2 hours"));
 
         Assert.Equal("when", phrase.ParamName);
         Assert.Equal("queue", queue.ParamName);
@@ -365,7 +365,7 @@ public class BackgroundJobClientExtensionsFacts
     {
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns(JobId);
 
-        var result = _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
+        string? result = _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
 
         Assert.Equal(JobId, result);
     }
@@ -375,7 +375,7 @@ public class BackgroundJobClientExtensionsFacts
     {
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
 
-        var result = _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
+        string? result = _client.Object.Schedule(() => StaticMethod(), "in 2 hours");
 
         Assert.Null(result);
     }
@@ -383,7 +383,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticAsyncSchedule_WithPhrase_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule(null, () => StaticMethodAsync(), "in 2 hours"));
 
         Assert.Equal("client", exception.ParamName);
@@ -392,7 +392,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticAsyncSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => _client.Object.Schedule(() => StaticMethodAsync(), (string)null));
 
         Assert.Equal("when", exception.ParamName);
@@ -401,11 +401,11 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void StaticAsyncSchedule_WithPhrase_CreatesAJobInTheScheduledState_AtTheParsedMoment()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         _client.Object.Schedule(() => StaticMethodAsync(), "in 3 days");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Method.Name == nameof(StaticMethodAsync)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddDays(3) && state.EnqueueAt <= after.AddDays(3))));
@@ -414,7 +414,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_WithPhrase_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethod(), "in 2 hours"));
 
@@ -424,7 +424,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethod(), (string)null));
 
         Assert.Equal("when", exception.ParamName);
@@ -433,11 +433,11 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceSchedule_WithPhrase_CreatesAJobInTheScheduledState_AtTheParsedMoment()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethod(), "in 90 seconds");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Type == typeof(BackgroundJobClientExtensionsFacts) && job.Method.Name == nameof(InstanceMethod)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddSeconds(90) && state.EnqueueAt <= after.AddSeconds(90))));
@@ -446,7 +446,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceAsyncSchedule_WithPhrase_ThrowsAnException_WhenClientIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => BackgroundJobClientExtensions.Schedule<BackgroundJobClientExtensionsFacts>(
                 null, x => x.InstanceMethodAsync(), "in 2 hours"));
 
@@ -456,7 +456,7 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceAsyncSchedule_WithPhrase_ThrowsAnException_WhenPhraseIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethodAsync(), (string)null));
 
         Assert.Equal("when", exception.ParamName);
@@ -465,11 +465,11 @@ public class BackgroundJobClientExtensionsFacts
     [Fact]
     public void InstanceAsyncSchedule_WithPhrase_CreatesAJobInTheScheduledState_AtTheParsedMoment()
     {
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         _client.Object.Schedule<BackgroundJobClientExtensionsFacts>(x => x.InstanceMethodAsync(), "in 1 week");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Type == typeof(BackgroundJobClientExtensionsFacts) && job.Method.Name == nameof(InstanceMethodAsync)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddDays(7) && state.EnqueueAt <= after.AddDays(7))));

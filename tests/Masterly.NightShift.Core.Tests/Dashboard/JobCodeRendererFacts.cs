@@ -17,7 +17,7 @@ public class JobCodeRendererFacts
     [Fact]
     public void Render_WritesAStaticCall_WithLiterals()
     {
-        var job = Job.FromExpression(() => Static("a \"quoted\" value", 42, true));
+        Job job = Job.FromExpression(() => Static("a \"quoted\" value", 42, true));
 
         Assert.Equal("BackgroundJob.Enqueue(() => JobCodeRendererFacts.Static(\"a \\\"quoted\\\" value\", 42, true));", JobCodeRenderer.Render(job));
     }
@@ -25,7 +25,7 @@ public class JobCodeRendererFacts
     [Fact]
     public void Render_WritesAnInstanceCall_SkippingInjectedParameters()
     {
-        var job = Job.FromExpression<JobCodeRendererFacts>(x => x.Instance(Level.High, 2.5, null, CancellationToken.None));
+        Job job = Job.FromExpression<JobCodeRendererFacts>(x => x.Instance(Level.High, 2.5, null, CancellationToken.None));
 
         Assert.Equal("BackgroundJob.Enqueue<JobCodeRendererFacts>(x => x.Instance(Level.High, 2.5, null, CancellationToken.None));", JobCodeRenderer.Render(job));
     }
@@ -33,9 +33,9 @@ public class JobCodeRendererFacts
     [Fact]
     public void Render_FallsBackToFromJson_ForComplexArguments()
     {
-        var job = Job.FromExpression(() => Complex(new List<int> { 1, 2 }, new DateTime(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc)));
+        Job job = Job.FromExpression(() => Complex(new List<int> { 1, 2 }, new DateTime(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc)));
 
-        var code = JobCodeRenderer.Render(job);
+        string code = JobCodeRenderer.Render(job);
 
         Assert.Contains("FromJson<List<int>>(\"[1,2]\")", code);
         Assert.Contains("DateTime.Parse(\"2026-11-04T00:00:00.0000000Z\")", code);
@@ -44,9 +44,9 @@ public class JobCodeRendererFacts
     [Fact]
     public void Render_SplitsLongArgumentLists()
     {
-        var job = Job.FromExpression(() => Static(new string('x', 90), 1, false));
+        Job job = Job.FromExpression(() => Static(new string('x', 90), 1, false));
 
-        var code = JobCodeRenderer.Render(job);
+        string code = JobCodeRenderer.Render(job);
 
         Assert.Contains(Environment.NewLine + "    \"xxx", code);
     }
@@ -71,7 +71,7 @@ public class JobCodeRendererFacts
     [Fact]
     public void Literal_FormatsDateTimeOffsets_WithTheirOffset()
     {
-        var value = new DateTimeOffset(2026, 11, 4, 1, 2, 3, TimeSpan.FromHours(2));
+        DateTimeOffset value = new(2026, 11, 4, 1, 2, 3, TimeSpan.FromHours(2));
 
         Assert.Equal("DateTimeOffset.Parse(\"2026-11-04T01:02:03.0000000+02:00\")", JobCodeRenderer.Literal(value, typeof(DateTimeOffset)));
     }
@@ -85,7 +85,7 @@ public class JobCodeRendererFacts
     [Fact]
     public void Literal_SkipsValuesTooBigToInline()
     {
-        var value = new[] { new string('x', 2100) };
+        string[] value = [new string('x', 2100)];
 
         Assert.Equal("/* string[]: value too big to inline */ null", JobCodeRenderer.Literal(value, typeof(string[])));
     }
@@ -105,7 +105,7 @@ public class JobCodeRendererFacts
     [Fact]
     public void Render_WritesGenericMethodArguments()
     {
-        var job = Job.FromExpression(() => Generic<int?, Dictionary<string, long>>(null, null));
+        Job job = Job.FromExpression(() => Generic<int?, Dictionary<string, long>>(null, null));
 
         Assert.Equal("BackgroundJob.Enqueue(() => JobCodeRendererFacts.Generic<int?, Dictionary<string, long>>(null, null));", JobCodeRenderer.Render(job));
     }

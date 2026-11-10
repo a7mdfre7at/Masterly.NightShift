@@ -9,16 +9,16 @@ public class CountersAggregatorFacts
     [Fact, CleanDatabase]
     public void CountersAggregatorExecutesProperly()
     {
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].Counter ([Key], [Value], ExpireAt) 
 values ('key', 1, @expireAt)";
 
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddHours(1) });
 
-        var aggregator = CreateAggregator();
-        var cts = new CancellationTokenSource();
+        CountersAggregator aggregator = CreateAggregator();
+        CancellationTokenSource cts = new();
         cts.Cancel();
 
         // Act
@@ -35,7 +35,7 @@ values ('key', 1, @expireAt)";
 
     private static CountersAggregator CreateAggregator()
     {
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
         return new CountersAggregator(storage, TimeSpan.Zero);
     }
 }

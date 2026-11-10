@@ -9,7 +9,7 @@ public class CancellationTokenExtensionsFacts
     [Fact]
     public void GetCancellationEvent_ReturnsSomething()
     {
-        var cancellationEvent = _cts.Token.GetCancellationEvent();
+        CancellationTokenExtensions.CancellationEvent cancellationEvent = _cts.Token.GetCancellationEvent();
 
         Assert.NotNull(cancellationEvent);
         Assert.NotNull(cancellationEvent.WaitHandle);
@@ -18,8 +18,8 @@ public class CancellationTokenExtensionsFacts
     [Fact]
     public void Wait_PerformsWait_NotLessThanTheSpecifiedTime()
     {
-        var stopwatch = Stopwatch.StartNew();
-        var result = _cts.Token.Wait(TimeSpan.FromSeconds(1));
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool result = _cts.Token.Wait(TimeSpan.FromSeconds(1));
         stopwatch.Stop();
 
         Assert.False(result);
@@ -30,8 +30,8 @@ public class CancellationTokenExtensionsFacts
     public void Wait_DoesNotPerformWait_WhenTokenIsCanceled()
     {
         _cts.Cancel();
-        var stopwatch = Stopwatch.StartNew();
-        var result = _cts.Token.Wait(TimeSpan.FromSeconds(1));
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool result = _cts.Token.Wait(TimeSpan.FromSeconds(1));
         stopwatch.Stop();
 
         Assert.True(result);
@@ -49,7 +49,7 @@ public class CancellationTokenExtensionsFacts
     public void WaitOrThrow_ThrowsAnException_WhenTokenIsCanceled()
     {
         _cts.Cancel();
-        var exception = Assert.Throws<OperationCanceledException>(
+        OperationCanceledException exception = Assert.Throws<OperationCanceledException>(
             () => _cts.Token.WaitOrThrow(TimeSpan.FromSeconds(1)));
 
         Assert.Equal(_cts.Token, exception.CancellationToken);

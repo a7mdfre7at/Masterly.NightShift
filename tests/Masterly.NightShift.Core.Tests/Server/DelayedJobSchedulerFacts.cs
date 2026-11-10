@@ -53,7 +53,7 @@ public class DelayedJobSchedulerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStateChangerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new DelayedJobScheduler(Timeout.InfiniteTimeSpan, null));
 
         Assert.Equal("stateChanger", exception.ParamName);
@@ -62,7 +62,7 @@ public class DelayedJobSchedulerFacts
     [Fact]
     public void Execute_MovesJobStateToEnqueued()
     {
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
         _schedule.Add(JobId);
 
         scheduler.Execute(_context.Object);
@@ -83,7 +83,7 @@ public class DelayedJobSchedulerFacts
         _schedule.Add("default:some-id");
         _schedule.Add("critical:another-id");
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -108,7 +108,7 @@ public class DelayedJobSchedulerFacts
         _schedule.Add("job-1");
         _schedule.Add("job-2");
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -132,7 +132,7 @@ public class DelayedJobSchedulerFacts
         _schedule.Add("default:some-id");
         _schedule.Add("critical:another-id");
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -162,7 +162,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.GetFirstByLowestScoreFromSet("schedule", 0, It.Is<double>(time => time > 0)))
             .Returns(_schedule.FirstOrDefault);
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -178,7 +178,7 @@ public class DelayedJobSchedulerFacts
     public void Execute_DoesNotCallStateChanger_IfThereAreNoJobsToEnqueue(bool batching)
     {
         if (batching) EnableBatching();
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -197,7 +197,7 @@ public class DelayedJobSchedulerFacts
             .Returns<IState>(null);
         _schedule.Add(JobId);
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -217,7 +217,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is EnqueuedState)))
             .Throws<InvalidOperationException>();
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
         scheduler.RetryDelayFunc = _ => TimeSpan.FromMilliseconds(50);
 
         // Act
@@ -252,7 +252,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.BackgroundJobId == JobId && ctx.NewState is ScheduledState)))
             .Throws<InvalidOperationException>();
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -268,7 +268,7 @@ public class DelayedJobSchedulerFacts
     public void Execute_ActsWithinADistributedLock(bool batching)
     {
         if (batching) EnableBatching();
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -285,7 +285,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.AcquireDistributedLock("locks:schedulepoller", It.IsAny<TimeSpan>()))
             .Throws(new DistributedLockTimeoutException("locks:schedulepoller"));
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
     }
@@ -304,7 +304,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is EnqueuedState)))
             .Returns<IState>(null);
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -330,7 +330,7 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is EnqueuedState)))
             .Returns<IState>(null);
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -357,7 +357,7 @@ public class DelayedJobSchedulerFacts
             .Returns((IState)null)
             .Returns(() => { _schedule.Remove(JobId); return new EnqueuedState(); });
 
-        var scheduler = CreateScheduler();
+        DelayedJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);

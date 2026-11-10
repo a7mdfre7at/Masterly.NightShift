@@ -15,17 +15,17 @@ public class HtmlHelperFacts
     [Fact]
     public void ToHumanDuration_FormatsFractionalSeconds()
     {
-        var helper = CreateHelper();
-        var result = helper.ToHumanDuration(TimeSpan.FromSeconds(1.087));
+        HtmlHelper helper = CreateHelper();
+        string? result = helper.ToHumanDuration(TimeSpan.FromSeconds(1.087));
         Assert.Equal("+1.087s", result);
     }
 
     [Fact]
     public void StackTrace_ShowsTheText_WhenItHasNoStackFrames()
     {
-        var helper = CreateHelper();
+        HtmlHelper helper = CreateHelper();
 
-        var result = helper.StackTrace("Cron expression '<x>' is invalid").ToString();
+        string result = helper.StackTrace("Cron expression '<x>' is invalid").ToString();
 
         Assert.Equal("Cron expression &#39;&lt;x&gt;&#39; is invalid", result);
     }
@@ -33,9 +33,9 @@ public class HtmlHelperFacts
     [Fact]
     public void StackTrace_FormatsTheFrames_OfAStackTrace()
     {
-        var helper = CreateHelper();
+        HtmlHelper helper = CreateHelper();
 
-        var result = helper.StackTrace("System.Exception: Boom\r\n   at Masterly.NightShift.Jobs.Work() in C:\\Jobs.cs:line 12").ToString();
+        string result = helper.StackTrace("System.Exception: Boom\r\n   at Masterly.NightShift.Jobs.Work() in C:\\Jobs.cs:line 12").ToString();
 
         Assert.StartsWith("System.Exception: Boom", result);
         Assert.Contains("<span class='st-frame'>", result);
@@ -45,10 +45,10 @@ public class HtmlHelperFacts
     [Fact]
     public void JobName_MasksRedactedArguments_InADisplayNameAttribute()
     {
-        var helper = CreateHelper();
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2"));
+        HtmlHelper helper = CreateHelper();
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2"));
 
-        var name = helper.JobName(job, includeQueue: false);
+        string name = helper.JobName(job, includeQueue: false);
 
         Assert.Equal($"Connect to db.local as {RedactedAttribute.Mask}", name);
     }

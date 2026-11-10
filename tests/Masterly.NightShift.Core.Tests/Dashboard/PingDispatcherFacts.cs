@@ -11,7 +11,7 @@ public class PingDispatcherFacts
     [Fact]
     public async Task Dispatch_AnswersPong_AsPlainText()
     {
-        var context = new PingContext(_storage.Object, new DashboardOptions());
+        PingContext context = new(_storage.Object, new DashboardOptions());
 
         await new PingDispatcher().Dispatch(context);
 
@@ -23,7 +23,7 @@ public class PingDispatcherFacts
     [Fact]
     public async Task Dispatch_SetsNoExpiry_SoTheAnswerIsNeverCachedUntilALaterTime()
     {
-        var context = new PingContext(_storage.Object, new DashboardOptions());
+        PingContext context = new(_storage.Object, new DashboardOptions());
 
         await new PingDispatcher().Dispatch(context);
 
@@ -33,7 +33,7 @@ public class PingDispatcherFacts
     [Fact]
     public async Task Dispatch_NeverTouchesTheStorage()
     {
-        var context = new PingContext(_storage.Object, new DashboardOptions());
+        PingContext context = new(_storage.Object, new DashboardOptions());
 
         await new PingDispatcher().Dispatch(context);
 
@@ -43,7 +43,7 @@ public class PingDispatcherFacts
     [Fact]
     public async Task Dispatch_AnswersPong_EvenForReadOnlyDashboards()
     {
-        var context = new PingContext(_storage.Object, new DashboardOptions { IsReadOnlyFunc = _ => true });
+        PingContext context = new(_storage.Object, new DashboardOptions { IsReadOnlyFunc = _ => true });
 
         await new PingDispatcher().Dispatch(context);
 

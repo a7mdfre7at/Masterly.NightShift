@@ -12,7 +12,7 @@ public class SucceededJobsFacts
     [Fact]
     public void Render_WithoutSucceededJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new SucceededJobs());
+        string html = _renderer.Render(new SucceededJobs());
 
         Assert.Contains(Encode(Strings.SucceededJobsPage_NoJobs), html);
         Assert.DoesNotContain("/jobs/succeeded/export", html);
@@ -23,7 +23,7 @@ public class SucceededJobsFacts
     {
         SetupJobs();
 
-        var html = _renderer.Render(new SucceededJobs());
+        string html = _renderer.Render(new SucceededJobs());
 
         Assert.Contains("data-url=\"/jobs/succeeded/export\" data-filename=\"nightshift-succeeded-jobs.csv\"", html);
         Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
@@ -39,7 +39,7 @@ public class SucceededJobsFacts
         SetupJobs();
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new SucceededJobs());
+        string html = _renderer.Render(new SucceededJobs());
 
         Assert.Contains("data-url=\"/jobs/succeeded/export\"", html);
         Assert.DoesNotContain("/jobs/succeeded/delete-all", html);

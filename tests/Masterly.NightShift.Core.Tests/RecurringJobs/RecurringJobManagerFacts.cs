@@ -52,7 +52,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new RecurringJobManager(null, _factory.Object));
 
         Assert.Equal("storage", exception.ParamName);
@@ -61,7 +61,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new RecurringJobManager(_storage.Object, (IBackgroundJobFactory)null));
 
         Assert.Equal("factory", exception.ParamName);
@@ -70,7 +70,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTimeZoneResolverIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new RecurringJobManager(_storage.Object, _factory.Object, null, _nowFactory));
 
         Assert.Equal("timeZoneResolver", exception.ParamName);
@@ -79,7 +79,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenNowFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new RecurringJobManager(_storage.Object, _factory.Object, _timeZoneResolver.Object, null));
 
         Assert.Equal("nowFactory", exception.ParamName);
@@ -88,9 +88,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenIdIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => manager.AddOrUpdate(null, _job, Cron.Daily()));
 
         Assert.Equal("recurringJobId", exception.ParamName);
@@ -99,9 +99,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenJobIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => manager.AddOrUpdate(_id, (Job)null, Cron.Daily()));
 
         Assert.Equal("job", exception.ParamName);
@@ -110,9 +110,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenCronExpressionIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => manager.AddOrUpdate(_id, _job, null));
 
         Assert.Equal("cronExpression", exception.ParamName);
@@ -121,9 +121,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenCronExpressionIsInvalid()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => manager.AddOrUpdate(_id, _job, "* * *"));
 
         Assert.Equal("cronExpression", exception.ParamName);
@@ -132,9 +132,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenCronExpression_HaveInvalidParts()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => manager.AddOrUpdate(_id, _job, "* * * * 9999"));
 
         Assert.Equal("cronExpression", exception.ParamName);
@@ -143,9 +143,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenOptionsArgumentIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => manager.AddOrUpdate(_id, _job, _cronExpression, null));
 
         Assert.Equal("options", exception.ParamName);
@@ -154,9 +154,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenMisfireHandlingIsNotDefined()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions { MisfireHandling = (MisfireHandlingMode)7 }));
 
         Assert.Equal("options", exception.ParamName);
@@ -166,9 +166,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void UpdateSchedule_ThrowsAnException_WhenMisfireHandlingIsNotDefined()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => manager.UpdateSchedule(_id, null, misfireHandling: (MisfireHandlingMode)7));
 
         Assert.Equal("misfireHandling", exception.ParamName);
@@ -182,7 +182,7 @@ public class RecurringJobManagerFacts
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.JobQueueProperty)).Returns(false);
         _job = Job.FromExpression(() => Method(), "some-queue");
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act & Assert
         Assert.Throws<NotSupportedException>(() => manager.AddOrUpdate(_id, _job, _cronExpression));
@@ -191,7 +191,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_AddsAJob_ToTheRecurringJobsSet()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.AddOrUpdate(_id, _job, _cronExpression);
 
@@ -201,7 +201,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_SetsTheRecurringJobEntry()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.AddOrUpdate(_id, _job, _cronExpression);
 
@@ -216,7 +216,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_CommitsTransaction()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.AddOrUpdate(_id, _job, _cronExpression);
 
@@ -230,7 +230,7 @@ public class RecurringJobManagerFacts
         _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
             .Returns(new Dictionary<string, string> { { "CreatedAt", JobHelper.SerializeDateTime(_now) } });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, _cronExpression);
@@ -246,7 +246,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_IsAbleToScheduleSecondBasedCronExpression()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.AddOrUpdate(_id, _job, "15 * * * * *");
 
@@ -256,7 +256,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void AddOrUpdate_IsAbleToScheduleMacroBasedCronExpression()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.AddOrUpdate(_id, _job, "@hourly");
 
@@ -281,7 +281,7 @@ public class RecurringJobManagerFacts
             { "LastJobId", "1384" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, _cronExpression);
@@ -299,7 +299,7 @@ public class RecurringJobManagerFacts
     public void AddOrUpdate_CanAddRecurringJob_WithCronThatNeverFires()
     {
         // Arrange
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "0 0 31 2 *");
@@ -329,7 +329,7 @@ public class RecurringJobManagerFacts
             { "LastJobId", "1384" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -358,7 +358,7 @@ public class RecurringJobManagerFacts
             { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1)) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -383,7 +383,7 @@ public class RecurringJobManagerFacts
             { "NextExecution", JobHelper.SerializeDateTime(_now) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -408,7 +408,7 @@ public class RecurringJobManagerFacts
             { "NextExecution", JobHelper.SerializeDateTime(_now) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -431,7 +431,7 @@ public class RecurringJobManagerFacts
             { "RetryAttempt", "10" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -453,7 +453,7 @@ public class RecurringJobManagerFacts
             { "LastExecution", JobHelper.SerializeDateTime(_now.AddHours(-3)) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "30 13 * * *");
@@ -480,7 +480,7 @@ public class RecurringJobManagerFacts
             { "LastJobId", "1384" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -510,7 +510,7 @@ public class RecurringJobManagerFacts
             { "TimeZoneId", "UTC" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -539,7 +539,7 @@ public class RecurringJobManagerFacts
             { "V", "2" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -566,7 +566,7 @@ public class RecurringJobManagerFacts
             { "Error", "" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -593,7 +593,7 @@ public class RecurringJobManagerFacts
             { "LastJobId", "" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "* * * * *");
@@ -608,7 +608,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Trigger_ThrowsAnException_WhenIdIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         Assert.Throws<ArgumentNullException>(() => manager.Trigger(null));
     }
@@ -624,7 +624,7 @@ public class RecurringJobManagerFacts
                 { "Cron", Cron.Minutely() }
             });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.Trigger(_id);
@@ -646,7 +646,7 @@ public class RecurringJobManagerFacts
                 { "Queue", "my_queue" }
             });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.Trigger(_id);
@@ -659,7 +659,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void Trigger_DoesNotThrowIfJobDoesNotExist()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.Trigger(_id);
 
@@ -669,9 +669,9 @@ public class RecurringJobManagerFacts
     [Fact]
     public void TriggerJob_ReturnsNull_WhenRecurringJobDoesNotExist()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
-        var jobId = manager.TriggerJob(_id);
+        string? jobId = manager.TriggerJob(_id);
 
         Assert.Null(jobId);
         _factory.Verify(x => x.Create(It.IsAny<CreateContext>()), Times.Never);
@@ -688,7 +688,7 @@ public class RecurringJobManagerFacts
                 { "Cron", "0 0 31 2 *" },
             });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.Trigger(_id);
@@ -717,7 +717,7 @@ public class RecurringJobManagerFacts
             { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-1)) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.Trigger(_id);
@@ -742,7 +742,7 @@ public class RecurringJobManagerFacts
                 { "TimeZoneId", "UnexistingID" }
             });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         Assert.Throws<AggregateException>(() => manager.Trigger(_id));
@@ -754,7 +754,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void RemoveIfExists_ThrowsAnException_WhenIdIsNull()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         Assert.Throws<ArgumentNullException>(
             () => manager.RemoveIfExists(null));
@@ -763,7 +763,7 @@ public class RecurringJobManagerFacts
     [Fact]
     public void RemoveIfExists_RemovesEntriesAndCommitsTheTransaction()
     {
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         manager.RemoveIfExists(_id);
 
@@ -777,13 +777,13 @@ public class RecurringJobManagerFacts
     {
         SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var initialJob = Job.FromExpression(() => Console.WriteLine());
-        var invocationData = InvocationData.SerializeJob(initialJob);
+        Job initialJob = Job.FromExpression(() => Console.WriteLine());
+        InvocationData invocationData = InvocationData.SerializeJob(initialJob);
 
-        var serializedInvocationData = SerializationHelper.Serialize(invocationData, SerializationOption.User);
+        string serializedInvocationData = SerializationHelper.Serialize(invocationData, SerializationOption.User);
 
-        var deserializedInvocationData = SerializationHelper.Deserialize<InvocationData>(serializedInvocationData);
-        var deserializedJob = deserializedInvocationData.DeserializeJob();
+        InvocationData? deserializedInvocationData = SerializationHelper.Deserialize<InvocationData>(serializedInvocationData);
+        Job deserializedJob = deserializedInvocationData.DeserializeJob();
 
         Assert.Equal(initialJob.Args, deserializedJob.Args);
         Assert.Equal(initialJob.Method, deserializedJob.Method);
@@ -795,7 +795,7 @@ public class RecurringJobManagerFacts
     {
         // Arrange
         SetupRecurringJobForTrigger();
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -804,10 +804,10 @@ public class RecurringJobManagerFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
-        var jobId = manager.TriggerJob(_id);
+        string? jobId = manager.TriggerJob(_id);
 
         // Assert
         Assert.Equal(_backgroundJob.Id, jobId);
@@ -819,7 +819,7 @@ public class RecurringJobManagerFacts
     {
         // Arrange
         SetupRecurringJobForTrigger();
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -828,7 +828,7 @@ public class RecurringJobManagerFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         Assert.Throws<TimeoutException>(() => manager.TriggerJob(_id));
@@ -860,7 +860,7 @@ public class RecurringJobManagerFacts
     public void AddOrUpdate_UsesTimeZoneResolver_WhenCalculatingNextExecution()
     {
         // Arrange
-        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
+        TimeZoneInfo timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
             ? "Hawaiian Standard Time"
             : "Pacific/Honolulu");
 
@@ -881,7 +881,7 @@ public class RecurringJobManagerFacts
             { "V", "2" }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "0 0 * * *", new RecurringJobOptions { TimeZone = timeZone });
@@ -905,7 +905,7 @@ public class RecurringJobManagerFacts
             { "LastExecution", JobHelper.SerializeDateTime(_now.AddDays(-3)) }
         });
 
-        var manager = CreateManager();
+        RecurringJobManager manager = CreateManager();
 
         // Act
         manager.AddOrUpdate(_id, _job, "30 13 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });

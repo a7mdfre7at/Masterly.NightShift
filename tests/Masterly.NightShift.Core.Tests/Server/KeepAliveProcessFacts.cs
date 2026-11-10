@@ -27,10 +27,10 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RequestsTheUrl_AndRecordsSuccess()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/nightshift/stats" }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/nightshift/stats" }, new HttpClient(handler));
 
-        var result = process.Ping(CancellationToken.None);
+        bool result = process.Ping(CancellationToken.None);
 
         Assert.True(result);
         Assert.Equal("http://keep.alive/nightshift/stats", handler.LastRequest.RequestUri.ToString());
@@ -42,9 +42,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_CountsAnyResponseAsReachingTheHost_ButNotesNonSuccessCodes()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", LogFailures = false }, new HttpClient(new StubHandler(HttpStatusCode.ServiceUnavailable)));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/", LogFailures = false }, new HttpClient(new StubHandler(HttpStatusCode.ServiceUnavailable)));
 
-        var result = process.Ping(CancellationToken.None);
+        bool result = process.Ping(CancellationToken.None);
 
         Assert.True(result);
         Assert.True(KeepAliveProcess.Status.LastSucceeded);
@@ -54,7 +54,7 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RecordsAFailure_WhenTheRequestThrows()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", LogFailures = false }, new HttpClient(new StubHandler(new HttpRequestException("no route"))));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/", LogFailures = false }, new HttpClient(new StubHandler(new HttpRequestException("no route"))));
 
         Assert.False(process.Ping(CancellationToken.None));
         Assert.Equal("no route", KeepAliveProcess.Status.LastError);
@@ -63,9 +63,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_UsesTheUrlFactory_OnceItReturnsAUrl()
     {
-        var calls = 0;
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(new KeepAliveOptions { UrlFactory = () => ++calls < 2 ? null : "http://late.host/" }, new HttpClient(handler));
+        int calls = 0;
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(new KeepAliveOptions { UrlFactory = () => ++calls < 2 ? null : "http://late.host/" }, new HttpClient(handler));
 
         Assert.False(process.Ping(CancellationToken.None));
         Assert.True(process.Ping(CancellationToken.None));
@@ -105,15 +105,15 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void ToString_ReturnsTheTypeName()
     {
-        using var process = new KeepAliveProcess("http://keep.alive/");
+        using KeepAliveProcess process = new("http://keep.alive/");
         Assert.Equal("KeepAliveProcess", process.ToString());
     }
 
     [Fact, StaticLock]
     public void Dispose_DisposesTheHttpClient()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(handler));
 
         process.Dispose();
 
@@ -123,9 +123,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Execute_ThrowsAnException_WhenContextIsNull()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
-        var exception = Assert.Throws<ArgumentNullException>(() => process.Execute(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => process.Execute(null));
 
         Assert.Equal("context", exception.ParamName);
     }
@@ -133,8 +133,8 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Execute_WaitsForTheInterval_ThenPings()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromMilliseconds(1) }, new HttpClient(handler));
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromMilliseconds(1) }, new HttpClient(handler));
 
         process.Execute(new BackgroundProcessContextMock().Object);
 
@@ -145,9 +145,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Execute_ThrowsOperationCanceled_WithoutPinging_WhenStopIsRequested()
     {
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromSeconds(1) }, new HttpClient(handler));
-        var context = new BackgroundProcessContextMock();
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromSeconds(1) }, new HttpClient(handler));
+        BackgroundProcessContextMock context = new();
         context.StoppingTokenSource.Cancel();
 
         Assert.ThrowsAny<OperationCanceledException>(() => process.Execute(context.Object));
@@ -159,14 +159,14 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public async Task Execute_StopsWaiting_AsSoonAsStopIsRequested_WithoutWaitingForTheShutdownTimeout()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromMinutes(5) }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
-        var context = new BackgroundProcessContextMock();
-        var execution = Task.Run(() => process.Execute(context.Object), TestContext.Current.CancellationToken);
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/", Interval = TimeSpan.FromMinutes(5) }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        BackgroundProcessContextMock context = new();
+        Task execution = Task.Run(() => process.Execute(context.Object), TestContext.Current.CancellationToken);
 
         try
         {
             context.StoppingTokenSource.Cancel();
-            var finished = await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            Task finished = await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
             Assert.Same(execution, finished);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
@@ -181,7 +181,7 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RethrowsOperationCanceled_AndKeepsTheStatus_WhenTheTokenIsCanceled()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.OK)));
 
         Assert.ThrowsAny<OperationCanceledException>(() => process.Ping(new CancellationToken(true)));
 
@@ -192,9 +192,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_StillReportsTheHostAsReached_WhenNonSuccessCodesAreLogged()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.Unauthorized)));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(HttpStatusCode.Unauthorized)));
 
-        var result = process.Ping(CancellationToken.None);
+        bool result = process.Ping(CancellationToken.None);
 
         Assert.True(result);
         Assert.True(KeepAliveProcess.Status.LastSucceeded);
@@ -204,9 +204,9 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RecordsAFailure_WhenFailuresAreLogged()
     {
-        var process = new KeepAliveProcess(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(new HttpRequestException("refused"))));
+        KeepAliveProcess process = new(new KeepAliveOptions { Url = "http://keep.alive/" }, new HttpClient(new StubHandler(new HttpRequestException("refused"))));
 
-        var result = process.Ping(CancellationToken.None);
+        bool result = process.Ping(CancellationToken.None);
 
         Assert.False(result);
         Assert.False(KeepAliveProcess.Status.LastSucceeded);
@@ -217,11 +217,11 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RecordsAFailure_WhenTheRequestTimesOut()
     {
-        var process = new KeepAliveProcess(
+        KeepAliveProcess process = new(
             new KeepAliveOptions { Url = "http://keep.alive/", LogFailures = false },
             new HttpClient(new StubHandler(new TaskCanceledException("timed out"))));
 
-        var result = process.Ping(CancellationToken.None);
+        bool result = process.Ping(CancellationToken.None);
 
         Assert.False(result);
         Assert.False(KeepAliveProcess.Status.LastSucceeded);
@@ -231,15 +231,15 @@ public class KeepAliveProcessFacts
     [Fact, StaticLock]
     public void Ping_RetriesTheUrlFactory_AfterItThrows()
     {
-        var calls = 0;
-        var handler = new StubHandler(HttpStatusCode.OK);
-        var process = new KeepAliveProcess(
+        int calls = 0;
+        StubHandler handler = new(HttpStatusCode.OK);
+        KeepAliveProcess process = new(
             new KeepAliveOptions { UrlFactory = () => ++calls == 1 ? throw new InvalidOperationException("not started") : "http://late.host/" },
             new HttpClient(handler));
 
-        var first = process.Ping(CancellationToken.None);
-        var firstStatus = KeepAliveProcess.Status;
-        var second = process.Ping(CancellationToken.None);
+        bool first = process.Ping(CancellationToken.None);
+        KeepAliveStatus? firstStatus = KeepAliveProcess.Status;
+        bool second = process.Ping(CancellationToken.None);
 
         Assert.False(first);
         Assert.False(firstStatus.LastSucceeded);

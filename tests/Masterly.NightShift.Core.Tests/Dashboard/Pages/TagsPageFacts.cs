@@ -11,7 +11,7 @@ public class TagsPageFacts
     [Fact]
     public void Render_WithoutTags_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"{Encode(Strings.TagsPage_Title)} <small class=\"text-muted\">{Encode(Strings.TagsPage_Hint)}</small>", html);
         Assert.Contains($"<div class=\"alert alert-info\">{Strings.TagsPage_NoTags_Html}</div>", html);
@@ -23,7 +23,7 @@ public class TagsPageFacts
     {
         SetupTags(("urgent", 2), ("billing", 4));
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains($"placeholder=\"{Encode(Strings.TagsPage_Search)}\"", html);
         Assert.Contains($"<span class=\"hf-catalog-summary text-muted\">2 {Encode(Strings.TagsPage_Title.ToLowerInvariant())}</span>", html);
@@ -38,7 +38,7 @@ public class TagsPageFacts
     {
         SetupTags(("on call", 1));
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<tr class=\"js-tag-row\" data-tag=\"on call\">", html);
         Assert.Contains("<td><a href=\"/tags/on%20call\" class=\"hf-tag\"><span class=\"glyphicon glyphicon-tag\"></span> on call</a></td>", html);
@@ -53,7 +53,7 @@ public class TagsPageFacts
         SetupTags(("urgent", 1));
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("<tr class=\"js-tag-row\" data-tag=\"urgent\">", html);
         Assert.DoesNotContain("/tags/forget/", html);
@@ -65,7 +65,7 @@ public class TagsPageFacts
     {
         SetupTags(("stale", 0));
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("data-tag=\"stale\" style=\"--hf-weight: 0.00\"", html);
     }
@@ -75,7 +75,7 @@ public class TagsPageFacts
     {
         SetupTags([.. Enumerable.Range(0, 25).Select(i => ($"t{i:00}", (long)i)).Reverse()]);
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("data-tag=\"t00\"", html);
         Assert.Contains("data-tag=\"t19\"", html);
@@ -94,7 +94,7 @@ public class TagsPageFacts
         _renderer.Request.Query["from"] = "20";
         _renderer.Request.Query["count"] = "20";
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.DoesNotContain("data-tag=\"t19\"", html);
         Assert.Contains("data-tag=\"t24\" style=\"--hf-weight: 1.00\"", html);
@@ -113,7 +113,7 @@ public class TagsPageFacts
         ]);
         _renderer.Request.Query["filter"] = "BILLING";
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("data-tag=\"billing-a\"", html);
         Assert.Contains("data-tag=\"billing-c\"", html);
@@ -130,7 +130,7 @@ public class TagsPageFacts
         _renderer.Request.Query["filter"] = "x";
         _renderer.Request.Query["count"] = "10";
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains("?from=10&amp;count=10&amp;filter=x", html);
     }
@@ -141,7 +141,7 @@ public class TagsPageFacts
         SetupTags(("urgent", 1));
         _renderer.Request.Query["filter"] = "nope";
 
-        var html = _renderer.Render(new TagsPage());
+        string html = _renderer.Render(new TagsPage());
 
         Assert.Contains(Encode(string.Format(Strings.TagsPage_NoMatch, "nope")), html);
         Assert.Contains("name=\"filter\" value=\"nope\"", html);
@@ -151,8 +151,8 @@ public class TagsPageFacts
 
     private void SetupTags(params (string Tag, long Count)[] tags)
     {
-        var index = new HashSet<string>();
-        foreach (var (Tag, Count) in tags)
+        HashSet<string> index = [];
+        foreach ((string? Tag, long Count) in tags)
         {
             index.Add(Tag);
             _renderer.Connection.Setup(x => x.GetSetCount(JobTags.GetKey(Tag))).Returns(Count);

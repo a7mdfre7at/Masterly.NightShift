@@ -26,8 +26,8 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsASuccessfulRun()
     {
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, "result", false, null));
@@ -47,8 +47,8 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsAFailedRun()
     {
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, null, false, new InvalidOperationException()));
@@ -62,7 +62,7 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsNothing_ForCanceledJobs()
     {
-        var attribute = new JobInsightsAttribute();
+        JobInsightsAttribute attribute = new();
 
         attribute.OnPerformed(_context.GetPerformedContext(canceled: true));
 
@@ -72,8 +72,8 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsNothing_ForAbortedJobs()
     {
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, null, false, new Masterly.NightShift.Server.JobAbortedException()));
@@ -85,8 +85,8 @@ public class JobInsightsAttributeFacts
     public void OnPerformed_RecordsNothing_WhenTheServerShutsDownWhileTheJobRuns()
     {
         _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new System.Threading.CancellationToken(canceled: true));
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, null, false, new OperationCanceledException()));
@@ -97,10 +97,10 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsNothing_WhenTheJobAskedToBeRetriedLater()
     {
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
-        var exception = new Masterly.NightShift.Server.JobPerformanceException("Job failed", new RetryLaterException(TimeSpan.FromHours(1), "partner busy"));
+        JobPerformanceException exception = new("Job failed", new RetryLaterException(TimeSpan.FromHours(1), "partner busy"));
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, null, false, exception));
 
@@ -110,10 +110,10 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_RecordsAFailedRun_WhenTheJobCanceledItself()
     {
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
-        var exception = new Masterly.NightShift.Server.JobPerformanceException("Job failed", new OperationCanceledException());
+        JobPerformanceException exception = new("Job failed", new OperationCanceledException());
 
         attribute.OnPerformed(new Masterly.NightShift.Server.PerformedContext(performing, null, false, exception));
 
@@ -130,7 +130,7 @@ public class JobInsightsAttributeFacts
     [Fact]
     public void ReadAll_ComputesStatistics_FromStoredData()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet(JobInsightsAttribute.IndexKey)).Returns(["Jobs.Run"]);
         connection.Setup(x => x.GetAllEntriesFromHash("insights:Jobs.Run")).Returns(new Dictionary<string, string>
         {
@@ -145,7 +145,7 @@ public class JobInsightsAttributeFacts
         connection.Setup(x => x.GetCounter("insights:Jobs.Run:ok")).Returns(7);
         connection.Setup(x => x.GetCounter("insights:Jobs.Run:failed")).Returns(3);
 
-        var insight = Assert.Single(JobInsightsAttribute.ReadAll(connection.Object));
+        JobInsight insight = Assert.Single(JobInsightsAttribute.ReadAll(connection.Object));
 
         Assert.Equal("Jobs.Run", insight.Key);
         Assert.Equal(7, insight.Succeeded);
@@ -168,13 +168,13 @@ public class JobInsightsAttributeFacts
     [Fact]
     public void Read_FlagsSlowRuns_WithEnoughSamples()
     {
-        var connection = new Mock<JobStorageConnection>();
-        var durations = Enumerable.Repeat("100", 12).ToList();
+        Mock<JobStorageConnection> connection = new();
+        List<string> durations = [.. Enumerable.Repeat("100", 12)];
         durations.Insert(0, "5000"); // newest first
         connection.Setup(x => x.GetAllEntriesFromHash("insights:Jobs.Slow")).Returns(new Dictionary<string, string> { { "LastDurationMs", "5000" } });
         connection.Setup(x => x.GetAllItemsFromList("insights:Jobs.Slow:durations")).Returns(durations);
 
-        var insight = JobInsightsAttribute.Read(connection.Object, "Jobs.Slow");
+        JobInsight? insight = JobInsightsAttribute.Read(connection.Object, "Jobs.Slow");
 
         Assert.True(insight.LastRunWasSlow);
     }
@@ -182,7 +182,7 @@ public class JobInsightsAttributeFacts
     [Fact]
     public void Read_ReturnsNull_WhenNothingWasRecorded()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         connection.Setup(x => x.GetAllEntriesFromHash("insights:Nothing")).Returns((Dictionary<string, string>)null);
 
         Assert.Null(JobInsightsAttribute.Read(connection.Object, "Nothing"));
@@ -191,9 +191,9 @@ public class JobInsightsAttributeFacts
     [Fact, StaticLock]
     public void OnPerformed_DoesNotFailTheJob_WhenTheStorageFails_AndLogsAWarning()
     {
-        var provider = new RecordingLogProvider();
-        var attribute = new JobInsightsAttribute();
-        var performing = _context.GetPerformingContext();
+        RecordingLogProvider provider = new();
+        JobInsightsAttribute attribute = new();
+        PerformingContext performing = _context.GetPerformingContext();
         attribute.OnPerforming(performing);
         _transaction.Setup(x => x.Commit()).Throws(new InvalidOperationException("deadlock victim"));
 
@@ -208,8 +208,8 @@ public class JobInsightsAttributeFacts
     [Fact]
     public void GetKey_BoundsLongKeys_KeepingTheMethodName_AndTellsTypesApartWithAHash()
     {
-        var key = JobInsightsAttribute.GetKey(Job.FromExpression<LongGenericTypeNameForTheInsightsKeyLimit<Dictionary<string, List<KeyValuePair<string, int>>>>>(x => x.Process()));
-        var other = JobInsightsAttribute.GetKey(Job.FromExpression<LongGenericTypeNameForTheInsightsKeyLimit<Dictionary<string, List<KeyValuePair<string, long>>>>>(x => x.Process()));
+        string key = JobInsightsAttribute.GetKey(Job.FromExpression<LongGenericTypeNameForTheInsightsKeyLimit<Dictionary<string, List<KeyValuePair<string, int>>>>>(x => x.Process()));
+        string other = JobInsightsAttribute.GetKey(Job.FromExpression<LongGenericTypeNameForTheInsightsKeyLimit<Dictionary<string, List<KeyValuePair<string, long>>>>>(x => x.Process()));
 
         Assert.True(key.Length <= JobInsightsAttribute.MaxKeyLength, key);
         Assert.StartsWith("JobInsightsAttributeFacts.LongGenericTypeName", key);
@@ -223,7 +223,7 @@ public class JobInsightsAttributeFacts
     [Fact]
     public void Read_ReturnsNull_WhenTheStorageCannotReadListsAndCounters()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         connection.Setup(x => x.GetAllItemsFromSet(JobInsightsAttribute.IndexKey)).Returns(["Jobs.Run"]);
         connection.Setup(x => x.GetAllEntriesFromHash("insights:Jobs.Run")).Returns(new Dictionary<string, string> { { "LastDurationMs", "5" } });
 
@@ -240,7 +240,7 @@ public class JobInsightsAttributeFacts
             .Throws(new DistributedLockTimeoutException("locked-jobs"));
 
         // The worker still records the attempt as failed
-        var exception = Assert.Throws<JobPerformanceException>(() => CreatePerformer().Perform(_context.Object));
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => CreatePerformer().Perform(_context.Object));
 
         Assert.IsType<DistributedLockTimeoutException>(exception.InnerException);
         _transaction.Verify(x => x.Commit(), Times.Never);
@@ -251,7 +251,7 @@ public class JobInsightsAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<LockedJobs>(x => x.Throttled());
 
-        var exception = Assert.Throws<JobPerformanceException>(() => CreatePerformer().Perform(_context.Object));
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => CreatePerformer().Perform(_context.Object));
 
         Assert.IsType<ConcurrencyLimitException>(exception.InnerException);
         _transaction.Verify(x => x.Commit(), Times.Never);
@@ -268,7 +268,7 @@ public class JobInsightsAttributeFacts
                 Thread.Sleep(600);
                 return new Mock<IDisposable>().Object;
             });
-        var durations = new List<long>();
+        List<long> durations = [];
         _transaction
             .Setup(x => x.InsertToList($"insights:{LockedJobsKey}:durations", It.IsAny<string>()))
             .Callback<string, string>((_, value) => durations.Add(long.Parse(value, CultureInfo.InvariantCulture)));
@@ -276,7 +276,7 @@ public class JobInsightsAttributeFacts
         CreatePerformer().Perform(_context.Object);
 
         _transaction.Verify(x => x.IncrementCounter($"insights:{LockedJobsKey}:ok"));
-        var duration = Assert.Single(durations);
+        long duration = Assert.Single(durations);
         Assert.InRange(duration, 0, 300);
     }
 
@@ -295,8 +295,8 @@ public class JobInsightsAttributeFacts
     private static BackgroundJobPerformer CreatePerformer()
     {
         // Insights as UseJobInsights() adds it (global, order -1), around the method's concurrency filters (order -1)
-        var globalFilters = new JobFilterCollection { new JobInsightsAttribute() };
-        var filters = new JobFilterProviderCollection(globalFilters, new JobFilterAttributeFilterProvider());
+        JobFilterCollection globalFilters = new() { new JobInsightsAttribute() };
+        JobFilterProviderCollection filters = new(globalFilters, new JobFilterAttributeFilterProvider());
 
         return new BackgroundJobPerformer(filters, new CoreBackgroundJobPerformer(new JobActivator(), null));
     }

@@ -26,7 +26,7 @@ public sealed class JobClockFacts : IDisposable
     [Fact]
     public void TimeProvider_ThrowsAnException_WhenValueIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobClock.TimeProvider = null);
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobClock.TimeProvider = null);
 
         Assert.Equal("value", exception.ParamName);
     }
@@ -34,7 +34,7 @@ public sealed class JobClockFacts : IDisposable
     [Fact, GlobalLock(Reason = "Changes the clock")]
     public void UseTimeProvider_SetsTheClock()
     {
-        var provider = new FixedTimeProvider(FixedTime);
+        FixedTimeProvider provider = new(FixedTime);
 
         GlobalConfiguration.Configuration.UseTimeProvider(provider);
 
@@ -44,7 +44,7 @@ public sealed class JobClockFacts : IDisposable
     [Fact]
     public void UseTimeProvider_ThrowsAnException_WhenProviderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => GlobalConfiguration.Configuration.UseTimeProvider(null));
 
         Assert.Equal("timeProvider", exception.ParamName);
@@ -55,7 +55,7 @@ public sealed class JobClockFacts : IDisposable
     {
         JobClock.TimeProvider = new FixedTimeProvider(FixedTime);
 
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
 
         Assert.Equal(FixedTime.UtcDateTime, state.EnqueuedAt);
     }

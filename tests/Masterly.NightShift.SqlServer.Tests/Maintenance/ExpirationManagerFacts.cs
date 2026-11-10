@@ -17,9 +17,9 @@ public class ExpirationManagerFacts
     [Fact, CleanDatabase]
     public void Execute_RemovesOutdatedRecords()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         CreateExpirationEntry(connection, DateTime.UtcNow.AddMonths(-1));
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         manager.Execute(_cts.Token);
 
@@ -29,9 +29,9 @@ public class ExpirationManagerFacts
     [Fact, CleanDatabase]
     public void Execute_DoesNotRemoveEntries_WithNoExpirationTimeSet()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         CreateExpirationEntry(connection, null);
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         manager.Execute(_cts.Token);
 
@@ -41,9 +41,9 @@ public class ExpirationManagerFacts
     [Fact, CleanDatabase]
     public void Execute_DoesNotRemoveEntries_WithFreshExpirationTime()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         CreateExpirationEntry(connection, DateTime.UtcNow.AddMonths(1));
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         manager.Execute(_cts.Token);
 
@@ -53,14 +53,14 @@ public class ExpirationManagerFacts
     [Fact, CleanDatabase]
     public void Execute_Processes_AggregatedCounterTable()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].AggregatedCounter ([Key], [Value], ExpireAt) 
 values ('key', 1, @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         // Act
         manager.Execute(_cts.Token);
@@ -72,14 +72,14 @@ values ('key', 1, @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_Processes_JobTable()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt, ExpireAt) 
 values ('', '', getutcdate(), @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         // Act
         manager.Execute(_cts.Token);
@@ -91,16 +91,16 @@ values ('', '', getutcdate(), @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_Processes_StateTable_WhenOptionIsConfigured()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var jobId = CreateJobWithStateHistory(connection);
-        var manager = CreateManager(TimeSpan.FromDays(7));
+        long jobId = CreateJobWithStateHistory(connection);
+        ExpirationManager manager = CreateManager(TimeSpan.FromDays(7));
 
         // Act
         manager.Execute(_cts.Token);
 
         // Assert
-        var states = GetStateNames(connection, jobId);
+        string[] states = GetStateNames(connection, jobId);
 
         Assert.Equal("old-state-1", states[0]);
         Assert.Equal("current-state", states[1]);
@@ -111,16 +111,16 @@ values ('', '', getutcdate(), @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_SkipsTheStateCleanup_OnASchemaOlderThan9()
     {
-        using var connection = CreateConnection();
-        var jobId = CreateJobWithStateHistory(connection);
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
+        using DbConnection connection = CreateConnection();
+        long jobId = CreateJobWithStateHistory(connection);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
 
         // The test database is at the latest schema; pretend detection found version 8
         typeof(SqlServerStorage)
             .GetField("_detectedSchemaVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
             .SetValue(storage, 8);
 
-        var manager = new ExpirationManager(storage, TimeSpan.FromDays(7), TimeSpan.FromTicks(1));
+        ExpirationManager manager = new(storage, TimeSpan.FromDays(7), TimeSpan.FromTicks(1));
 
         manager.Execute(_cts.Token);
         manager.Execute(_cts.Token);
@@ -131,12 +131,12 @@ values ('', '', getutcdate(), @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_CleansUpStates_WhenTheSchemaVersionIsNotKnown()
     {
-        using var connection = CreateConnection();
-        var jobId = CreateJobWithStateHistory(connection);
-        var storage = new SqlServerStorage(
+        using DbConnection connection = CreateConnection();
+        long jobId = CreateJobWithStateHistory(connection);
+        SqlServerStorage storage = new(
             ConnectionUtils.CreateConnection,
             new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
-        var manager = new ExpirationManager(storage, TimeSpan.FromDays(7), TimeSpan.FromTicks(1));
+        ExpirationManager manager = new(storage, TimeSpan.FromDays(7), TimeSpan.FromTicks(1));
 
         manager.Execute(_cts.Token);
 
@@ -147,9 +147,9 @@ values ('', '', getutcdate(), @expireAt)";
     [Fact]
     public void GetDistributedLockKey_IsPrefixedWithTheSchemaName_SoThatStoragesWithDifferentSchemasDoNotShareIt()
     {
-        var options = new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false };
-        var defaultStorage = new SqlServerStorage(ConnectionUtils.GetConnectionString(), options);
-        var reportsStorage = new SqlServerStorage(
+        SqlServerStorageOptions options = new() { PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false };
+        SqlServerStorage defaultStorage = new(ConnectionUtils.GetConnectionString(), options);
+        SqlServerStorage reportsStorage = new(
             ConnectionUtils.GetConnectionString(),
             new SqlServerStorageOptions { SchemaName = "Reports", PrepareSchemaIfNecessary = false, TryAutoDetectSchemaDependentOptions = false });
 
@@ -160,14 +160,14 @@ values ('', '', getutcdate(), @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_Processes_ListTable()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].List ([Key], ExpireAt) 
 values ('key', @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         // Act
         manager.Execute(_cts.Token);
@@ -179,14 +179,14 @@ values ('key', @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_Processes_SetTable()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Score], [Value], ExpireAt) 
 values ('key', 0, '', @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         // Act
         manager.Execute(_cts.Token);
@@ -198,14 +198,14 @@ values ('key', 0, '', @expireAt)";
     [Fact, CleanDatabase]
     public void Execute_Processes_HashTable()
     {
-        using var connection = CreateConnection();
+        using DbConnection connection = CreateConnection();
         // Arrange
-        var createSql = $@"
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].Hash ([Key], [Field], [Value], ExpireAt) 
 values ('key', 'field', '', @expireAt)";
         connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-        var manager = CreateManager();
+        ExpirationManager manager = CreateManager();
 
         // Act
         manager.Execute(_cts.Token);
@@ -217,8 +217,8 @@ values ('key', 'field', '', @expireAt)";
     // A job whose current state is a month old, with two older states: one a day old, one a month old
     private static long CreateJobWithStateHistory(DbConnection connection)
     {
-        var now = DateTime.UtcNow;
-        var createSql = $@"
+        DateTime now = DateTime.UtcNow;
+        string createSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values ('', '', '', getutcdate());
 declare @JobId bigint;
@@ -246,7 +246,7 @@ select @JobId as Id;";
 
     private static void CreateExpirationEntry(DbConnection connection, DateTime? expireAt)
     {
-        var insertSql = $@"
+        string insertSql = $@"
 insert into [{Constants.DefaultSchema}].AggregatedCounter ([Key], [Value], [ExpireAt])
 values (N'key', 1, @expireAt)";
 
@@ -255,7 +255,7 @@ values (N'key', 1, @expireAt)";
 
     private static bool IsEntryExpired(DbConnection connection)
     {
-        var count = connection.Query<int>(
+        int count = connection.Query<int>(
                 $"select count(*) from [{Constants.DefaultSchema}].AggregatedCounter where [Key] = N'key'").Single();
         return count == 0;
     }
@@ -267,7 +267,7 @@ values (N'key', 1, @expireAt)";
 
     private ExpirationManager CreateManager(TimeSpan? stateExpirationTimeout = null)
     {
-        var storage = new SqlServerStorage(ConnectionUtils.CreateConnection);
+        SqlServerStorage storage = new(ConnectionUtils.CreateConnection);
         return new ExpirationManager(storage, stateExpirationTimeout ?? TimeSpan.Zero, TimeSpan.FromTicks(1));
     }
 }

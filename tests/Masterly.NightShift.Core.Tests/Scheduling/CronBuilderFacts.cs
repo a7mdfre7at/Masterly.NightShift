@@ -128,7 +128,7 @@ public class CronBuilderFacts
     [Fact]
     public void At_ExplainsHowToRunEveryFewHoursWithinAWindow()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => Cron.Builder().At(9).EveryHours(2));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => Cron.Builder().At(9).EveryHours(2));
 
         Assert.Equal(
             "At(9, 0) can't be combined with EveryHours(2): At sets fixed times of day. For runs every few hours within a window, " +
@@ -155,7 +155,7 @@ public class CronBuilderFacts
     [Fact]
     public void Conflict_NamesBothCalls()
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => Cron.Builder().EveryMinutes(15).AtMinute(30));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => Cron.Builder().EveryMinutes(15).AtMinute(30));
 
         Assert.Equal("AtMinute(30) conflicts with EveryMinutes(15): both set the minute.", exception.Message);
     }
@@ -187,7 +187,7 @@ public class CronBuilderFacts
     [Fact]
     public void Result_IsValidForTheScheduler()
     {
-        var next = Cron.GetNextOccurrences(Cron.Builder().EveryMinutes(10).Between(9, 17).OnWeekdays(), TimeZoneInfo.Utc, new DateTime(2026, 11, 6, 16, 55, 0, DateTimeKind.Utc), 2);
+        IReadOnlyList<DateTime> next = Cron.GetNextOccurrences(Cron.Builder().EveryMinutes(10).Between(9, 17).OnWeekdays(), TimeZoneInfo.Utc, new DateTime(2026, 11, 6, 16, 55, 0, DateTimeKind.Utc), 2);
 
         Assert.Equal(new DateTime(2026, 11, 6, 17, 0, 0, DateTimeKind.Utc), next[0]);
         Assert.Equal(new DateTime(2026, 11, 6, 17, 10, 0, DateTimeKind.Utc), next[1]); // hour 17 is inclusive

@@ -6,10 +6,10 @@ public class JobFilterAttributeFilterProviderFacts
     public void GetFilters_WithNullJob_ReturnsEmptyList()
     {
         // Arrange
-        var provider = new JobFilterAttributeFilterProvider();
+        JobFilterAttributeFilterProvider provider = new();
 
         // Act
-        var result = provider.GetFilters(null);
+        IEnumerable<JobFilter> result = provider.GetFilters(null);
 
         // Assert
         Assert.Empty(result);
@@ -26,14 +26,14 @@ public class JobFilterAttributeFilterProviderFacts
     public void GetFilters_IncludesAttributesOnClassType()
     {
         // Arrange
-        var job = Job.FromExpression(() => ClassWithTypeAttribute.Method());
-        var provider = new JobFilterAttributeFilterProvider();
+        Job job = Job.FromExpression(() => ClassWithTypeAttribute.Method());
+        JobFilterAttributeFilterProvider provider = new();
 
         // Act
-        var filter = provider.GetFilters(job).Single();
+        JobFilter filter = provider.GetFilters(job).Single();
 
         // Assert
-        var attribute = filter.Instance as MyFilterAttribute;
+        MyFilterAttribute? attribute = filter.Instance as MyFilterAttribute;
         Assert.NotNull(attribute);
         Assert.Equal(JobFilterScope.Type, filter.Scope);
         Assert.Equal(2112, filter.Order);
@@ -52,14 +52,14 @@ public class JobFilterAttributeFilterProviderFacts
     public void GetFilters_IncludesAttributesOMethod()
     {
         // Arrange
-        var job = Job.FromExpression(() => ClassWithActionAttribute.Method());
-        var provider = new JobFilterAttributeFilterProvider();
+        Job job = Job.FromExpression(() => ClassWithActionAttribute.Method());
+        JobFilterAttributeFilterProvider provider = new();
 
         // Act
-        var filter = provider.GetFilters(job).Single();
+        JobFilter filter = provider.GetFilters(job).Single();
 
         // Assert
-        var attribute = filter.Instance as MyFilterAttribute;
+        MyFilterAttribute? attribute = filter.Instance as MyFilterAttribute;
         Assert.NotNull(attribute);
         Assert.Equal(JobFilterScope.Method, filter.Scope);
         Assert.Equal(1234, filter.Order);
@@ -82,11 +82,11 @@ public class JobFilterAttributeFilterProviderFacts
     public void GetFilters_IncludesTypeAttributesFromDerivedTypeWhenMethodIsOnBaseClass()
     {
         // Arrange
-        var job = Job.FromExpression<DerivedClass>(x => x.MyMethod());
-        var provider = new JobFilterAttributeFilterProvider();
+        Job job = Job.FromExpression<DerivedClass>(x => x.MyMethod());
+        JobFilterAttributeFilterProvider provider = new();
 
         // Act
-        var filters = provider.GetFilters(job);
+        IEnumerable<JobFilter> filters = provider.GetFilters(job);
 
         // Assert
         Assert.NotNull(filters.Select(f => f.Instance).Cast<MyFilterAttribute>().Single());
@@ -100,11 +100,11 @@ public class JobFilterAttributeFilterProviderFacts
     public void GetFilters_RetrievesNonCachedAttributesWhenConfiguredNotTo()
     {
         // Arrange
-        var job = Job.FromExpression<DerivedClass>(x => x.MyMethod());
-        var provider = new JobFilterAttributeFilterProvider(false);
+        Job job = Job.FromExpression<DerivedClass>(x => x.MyMethod());
+        JobFilterAttributeFilterProvider provider = new(false);
 
         // Act
-        var filters = provider.GetFilters(job);
+        IEnumerable<JobFilter> filters = provider.GetFilters(job);
 
         // Assert
         Assert.NotNull(filters.Select(f => f.Instance).Cast<MyFilterAttribute>().Single());

@@ -12,16 +12,16 @@ public class FailedStateFacts
     [Fact]
     public void StateName_IsCorrect()
     {
-        var state = new FailedState(new Exception());
+        FailedState state = new(new Exception());
         Assert.Equal(FailedState.StateName, state.Name);
     }
 
     [Fact]
     public void SerializeData_ReturnsCorrectData()
     {
-        var state = new FailedState(new Exception("Message"));
+        FailedState state = new(new Exception("Message"));
 
-        var serializedData = state.SerializeData();
+        Dictionary<string, string> serializedData = state.SerializeData();
 
         Assert.Equal(JobHelper.SerializeDateTime(state.FailedAt), serializedData["FailedAt"]);
         Assert.Equal("System.Exception", serializedData["ExceptionType"]);
@@ -32,7 +32,7 @@ public class FailedStateFacts
     [Fact]
     public void IsFinal_ReturnsFalse()
     {
-        var state = new FailedState(new Exception());
+        FailedState state = new(new Exception());
 
         Assert.False(state.IsFinal);
     }
@@ -40,7 +40,7 @@ public class FailedStateFacts
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = new FailedState(new Exception());
+        FailedState state = new(new Exception());
         Assert.False(state.IgnoreJobLoadException);
     }
 }

@@ -85,11 +85,11 @@ public class BackgroundJobFacts
     public void Schedule_WithPhrase_CreatesAJobInScheduledState_AtTheParsedMoment()
     {
         Initialize();
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         BackgroundJob.Schedule(() => Method(), "in 2 hours");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Method.Name == nameof(Method)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddHours(2) && state.EnqueueAt <= after.AddHours(2))));
@@ -101,7 +101,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns("new-id");
 
-        var jobId = BackgroundJob.Schedule(() => Method(), "in 20 minutes");
+        string? jobId = BackgroundJob.Schedule(() => Method(), "in 20 minutes");
 
         Assert.Equal("new-id", jobId);
     }
@@ -112,7 +112,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
 
-        var jobId = BackgroundJob.Schedule(() => Method(), "in 20 minutes");
+        string? jobId = BackgroundJob.Schedule(() => Method(), "in 20 minutes");
 
         Assert.Null(jobId);
     }
@@ -132,7 +132,7 @@ public class BackgroundJobFacts
     {
         Initialize();
 
-        var exception = Assert.Throws<ArgumentNullException>(() => BackgroundJob.Schedule(() => Method(), (string)null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => BackgroundJob.Schedule(() => Method(), (string)null));
 
         Assert.Equal("when", exception.ParamName);
     }
@@ -141,11 +141,11 @@ public class BackgroundJobFacts
     public void ScheduleAsync_WithPhrase_CreatesAJobInScheduledState_AtTheParsedMoment()
     {
         Initialize();
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         BackgroundJob.Schedule(() => MethodAsync(), "in 3 days");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Method.Name == nameof(MethodAsync)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddDays(3) && state.EnqueueAt <= after.AddDays(3))));
@@ -155,11 +155,11 @@ public class BackgroundJobFacts
     public void ScheduleGeneric_WithPhrase_CreatesAJobInScheduledState_AtTheParsedMoment()
     {
         Initialize();
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         BackgroundJob.Schedule<BackgroundJobFacts>(x => x.Method(), "in 90 seconds");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Type == typeof(BackgroundJobFacts) && job.Method.Name == nameof(Method)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddSeconds(90) && state.EnqueueAt <= after.AddSeconds(90))));
@@ -169,11 +169,11 @@ public class BackgroundJobFacts
     public void ScheduleGenericAsync_WithPhrase_CreatesAJobInScheduledState_AtTheParsedMoment()
     {
         Initialize();
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         BackgroundJob.Schedule<BackgroundJobFacts>(x => x.MethodAsync(), "in 1 week");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Type == typeof(BackgroundJobFacts) && job.Method.Name == nameof(MethodAsync)),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddDays(7) && state.EnqueueAt <= after.AddDays(7))));
@@ -183,14 +183,14 @@ public class BackgroundJobFacts
     public void Schedule_WithQueueAndPhrase_CreatesAJobForThatQueue_InScheduledState_ForEveryShape()
     {
         Initialize();
-        var before = DateTime.UtcNow;
+        DateTime before = DateTime.UtcNow;
 
         BackgroundJob.Schedule("critical", () => Method(), "in 2 hours");
         BackgroundJob.Schedule("critical", () => MethodAsync(), "in 2 hours");
         BackgroundJob.Schedule<BackgroundJobFacts>("critical", x => x.Method(), "in 2 hours");
         BackgroundJob.Schedule<BackgroundJobFacts>("critical", x => x.MethodAsync(), "in 2 hours");
 
-        var after = DateTime.UtcNow;
+        DateTime after = DateTime.UtcNow;
         _client.Verify(x => x.Create(
             It.Is<Job>(job => job.Queue == "critical"),
             It.Is<ScheduledState>(state => state.EnqueueAt >= before.AddHours(2) && state.EnqueueAt <= after.AddHours(2))), Times.Exactly(4));
@@ -227,7 +227,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns("child");
 
-        var jobId = BackgroundJob.ContinueJobWithAll(["p1", "p2"], () => Method());
+        string? jobId = BackgroundJob.ContinueJobWithAll(["p1", "p2"], () => Method());
 
         Assert.Equal("child", jobId);
         _client.Verify(x => x.Create(
@@ -245,7 +245,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
 
-        var jobId = BackgroundJob.ContinueJobWithAll(["p1"], () => Method());
+        string? jobId = BackgroundJob.ContinueJobWithAll(["p1"], () => Method());
 
         Assert.Null(jobId);
     }
@@ -255,7 +255,7 @@ public class BackgroundJobFacts
     {
         Initialize();
 
-        var exception = Assert.Throws<ArgumentNullException>(() => BackgroundJob.ContinueJobWithAll(null, () => Method()));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => BackgroundJob.ContinueJobWithAll(null, () => Method()));
 
         Assert.Equal("parentIds", exception.ParamName);
     }
@@ -321,7 +321,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns("child");
 
-        var jobId = BackgroundJob.ContinueJobWithAny(["p1", "p2"], () => Method());
+        string? jobId = BackgroundJob.ContinueJobWithAny(["p1", "p2"], () => Method());
 
         Assert.Equal("child", jobId);
         _client.Verify(x => x.Create(
@@ -339,7 +339,7 @@ public class BackgroundJobFacts
         Initialize();
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns((string)null);
 
-        var jobId = BackgroundJob.ContinueJobWithAny(["p1"], () => Method());
+        string? jobId = BackgroundJob.ContinueJobWithAny(["p1"], () => Method());
 
         Assert.Null(jobId);
     }
@@ -470,7 +470,7 @@ public class BackgroundJobFacts
     [Fact, GlobalLock]
     public void Reschedule_WithDateTimeOffset_ChangesStateOfAJobToScheduled()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         Initialize();
 
@@ -485,7 +485,7 @@ public class BackgroundJobFacts
     [Fact, GlobalLock]
     public void Reschedule_WithDateTimeOffset_WithFromState_ChangesStateOfAJobToScheduled_WithFromState()
     {
-        var now = DateTimeOffset.Now;
+        DateTimeOffset now = DateTimeOffset.Now;
 
         Initialize();
 
@@ -503,7 +503,7 @@ public class BackgroundJobFacts
         BackgroundJob.ClientFactory = null;
         JobStorage.Current = new Mock<JobStorage>().Object;
 
-        var client = BackgroundJob.ClientFactory();
+        IBackgroundJobClient client = BackgroundJob.ClientFactory();
         Assert.NotNull(client);
     }
 

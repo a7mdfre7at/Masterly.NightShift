@@ -14,7 +14,7 @@ public class DrainModeServerFacts : IDisposable
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(() => _hash);
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
-            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (var pair in pairs) _hash[pair.Key] = pair.Value; });
+            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value; });
         DrainMode.InvalidateCache();
     }
 
@@ -28,7 +28,7 @@ public class DrainModeServerFacts : IDisposable
     {
         DrainMode.PauseServer(_connection.Object, "web-1", "deploying");
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.False(status.Active);
         Assert.Equal("deploying", status.PausedServers["web-1"]);
         Assert.True(status.IsServerPaused("web-1"));
@@ -44,14 +44,14 @@ public class DrainModeServerFacts : IDisposable
     public void Filter_HoldsJobsOnPausedServers_Only()
     {
         DrainMode.PauseServer(_connection.Object, "web-1");
-        var filter = new DrainModeFilter();
+        DrainModeFilter filter = new();
 
-        var held = Elect("1", "web-1");
+        ElectStateContextMock held = Elect("1", "web-1");
         filter.OnStateElection(held.Object);
-        var scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
         Assert.Equal("Held: server 'web-1' is paused", scheduled.Reason);
 
-        var running = Elect("2", "web-2");
+        ElectStateContextMock running = Elect("2", "web-2");
         filter.OnStateElection(running.Object);
         Assert.IsType<ProcessingState>(running.Object.CandidateState);
 
@@ -63,19 +63,19 @@ public class DrainModeServerFacts : IDisposable
     public void PauseServer_WithTheFullServerId_HoldsTheJobsOfThatServer_Only()
     {
         DrainMode.PauseServer(_connection.Object, PausedServerId, "patching");
-        var filter = new DrainModeFilter();
+        DrainModeFilter filter = new();
 
-        var held = Elect("1", PausedServerId);
+        ElectStateContextMock held = Elect("1", PausedServerId);
         filter.OnStateElection(held.Object);
-        var scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(held.Object.CandidateState);
         Assert.Equal($"Held: server '{PausedServerId}' is paused", scheduled.Reason);
 
         // Same machine and process, but another server instance (for example, the same server after a restart)
-        var running = Elect("2", OtherServerId);
+        ElectStateContextMock running = Elect("2", OtherServerId);
         filter.OnStateElection(running.Object);
         Assert.IsType<ProcessingState>(running.Object.CandidateState);
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.IsServerPaused(PausedServerId));
         Assert.False(status.IsServerPaused(OtherServerId));
         Assert.Equal("patching", status.PausedServers[PausedServerId]);
@@ -85,9 +85,9 @@ public class DrainModeServerFacts : IDisposable
     public void PauseServer_WithTheServerNameOnly_DoesNotHoldTheJobsOfThatServer()
     {
         DrainMode.PauseServer(_connection.Object, "web-1");
-        var filter = new DrainModeFilter();
+        DrainModeFilter filter = new();
 
-        var context = Elect("1", PausedServerId);
+        ElectStateContextMock context = Elect("1", PausedServerId);
         filter.OnStateElection(context.Object);
 
         Assert.IsType<ProcessingState>(context.Object.CandidateState);
@@ -107,7 +107,7 @@ public class DrainModeServerFacts : IDisposable
     [Fact]
     public void ClearStaleServerPauses_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => DrainMode.ClearStaleServerPauses(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => DrainMode.ClearStaleServerPauses(null));
 
         Assert.Equal("storage", exception.ParamName);
     }
@@ -117,12 +117,12 @@ public class DrainModeServerFacts : IDisposable
     {
         DrainMode.PauseServer(_connection.Object, PausedServerId, "patching");
         DrainMode.PauseServer(_connection.Object, OtherServerId, "stopped since");
-        var storage = CreateStorage(PausedServerId, "web-2:77:6b4e9c1a-2f3d-4e5f-8a9b-0c1d2e3f4a5b");
+        Mock<JobStorage> storage = CreateStorage(PausedServerId, "web-2:77:6b4e9c1a-2f3d-4e5f-8a9b-0c1d2e3f4a5b");
 
-        var cleared = DrainMode.ClearStaleServerPauses(storage.Object);
+        IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage.Object);
 
         Assert.Equal([OtherServerId], cleared);
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.Equal([PausedServerId], status.PausedServers.Keys);
         Assert.Equal("patching", status.PausedServers[PausedServerId]);
     }
@@ -130,9 +130,9 @@ public class DrainModeServerFacts : IDisposable
     [Fact, StaticLock]
     public void ClearStaleServerPauses_ChangesNothing_WhenNoServerIsPaused()
     {
-        var storage = CreateStorage(PausedServerId);
+        Mock<JobStorage> storage = CreateStorage(PausedServerId);
 
-        var cleared = DrainMode.ClearStaleServerPauses(storage.Object);
+        IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage.Object);
 
         Assert.Empty(cleared);
         storage.Verify(x => x.GetMonitoringApi(), Times.Never);
@@ -143,10 +143,10 @@ public class DrainModeServerFacts : IDisposable
     public void ClearStaleServerPauses_ChangesNothing_WhenEveryPausedServerIsRunning()
     {
         DrainMode.PauseServer(_connection.Object, PausedServerId);
-        var storage = CreateStorage(PausedServerId);
+        Mock<JobStorage> storage = CreateStorage(PausedServerId);
         _connection.Invocations.Clear();
 
-        var cleared = DrainMode.ClearStaleServerPauses(storage.Object);
+        IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage.Object);
 
         Assert.Empty(cleared);
         Assert.True(DrainMode.Read(_connection.Object).IsServerPaused(PausedServerId));
@@ -168,7 +168,7 @@ public class DrainModeServerFacts : IDisposable
         DrainMode.PauseServer(_connection.Object, LongServerId, "draining the node");
 
         Assert.All(_hash.Keys, field => Assert.InRange(field.Length, 1, 100));
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.Equal([LongServerId], status.PausedServers.Keys);
         Assert.Equal("draining the node", status.PausedServers[LongServerId]);
         Assert.True(status.IsServerPaused(LongServerId));
@@ -180,7 +180,7 @@ public class DrainModeServerFacts : IDisposable
     {
         DrainMode.PauseServer(_connection.Object, LongServerId);
 
-        var held = Elect("1", LongServerId);
+        ElectStateContextMock held = Elect("1", LongServerId);
         new DrainModeFilter().OnStateElection(held.Object);
         Assert.IsType<ScheduledState>(held.Object.CandidateState);
         Assert.Null(DrainMode.Read(_connection.Object).PausedServers[LongServerId]);
@@ -196,9 +196,9 @@ public class DrainModeServerFacts : IDisposable
     {
         DrainMode.PauseServer(_connection.Object, LongServerId, "stopped since");
         DrainMode.PauseServer(_connection.Object, PausedServerId, "patching");
-        var storage = CreateStorage(PausedServerId);
+        Mock<JobStorage> storage = CreateStorage(PausedServerId);
 
-        var cleared = DrainMode.ClearStaleServerPauses(storage.Object);
+        IReadOnlyList<string> cleared = DrainMode.ClearStaleServerPauses(storage.Object);
 
         Assert.Equal([LongServerId], cleared);
         Assert.Equal([PausedServerId], DrainMode.Read(_connection.Object).PausedServers.Keys);
@@ -212,10 +212,10 @@ public class DrainModeServerFacts : IDisposable
 
     private Mock<JobStorage> CreateStorage(params string[] runningServerIds)
     {
-        var monitoring = new Mock<IMonitoringApi>();
+        Mock<IMonitoringApi> monitoring = new();
         monitoring.Setup(x => x.Servers()).Returns([.. runningServerIds.Select(id => new ServerDto { Name = id })]);
 
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         storage.Setup(x => x.GetMonitoringApi()).Returns(monitoring.Object);
         return storage;
@@ -223,7 +223,7 @@ public class DrainModeServerFacts : IDisposable
 
     private ElectStateContextMock Elect(string jobId, string serverId)
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.NewStateObject = new ProcessingState(serverId, "worker");

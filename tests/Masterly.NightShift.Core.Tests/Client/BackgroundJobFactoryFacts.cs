@@ -18,9 +18,9 @@ public class BackgroundJobFactoryFacts
 
     public BackgroundJobFactoryFacts()
     {
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<IStorageConnection>();
-        var state = new Mock<IState>();
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        Mock<IState> state = new();
         _backgroundJob = new BackgroundJobMock();
 
         _context = new Mock<CreateContext>(storage.Object, connection.Object, _backgroundJob.Job, state.Object)
@@ -40,7 +40,7 @@ public class BackgroundJobFactoryFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFilterProviderIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobFactory(null, _innerFactory.Object));
 
         Assert.Equal("filterProvider", exception.ParamName);
@@ -49,7 +49,7 @@ public class BackgroundJobFactoryFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenInnerFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobFactory(_filterProvider.Object, null));
 
         Assert.Equal("innerFactory", exception.ParamName);
@@ -58,9 +58,9 @@ public class BackgroundJobFactoryFacts
     [Fact]
     public void Run_ThrowsAnException_WhenContextIsNull()
     {
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => factory.Create(null));
 
         Assert.Equal("context", exception.ParamName);
@@ -69,7 +69,7 @@ public class BackgroundJobFactoryFacts
     [Fact]
     public void Run_CallsInnerFactory_ToCreateAJob()
     {
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         factory.Create(_context.Object);
 
@@ -81,9 +81,9 @@ public class BackgroundJobFactoryFacts
     [Fact]
     public void Run_ReturnsJobIdentifier()
     {
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
-        var result = factory.Create(_context.Object);
+        BackgroundJob? result = factory.Create(_context.Object);
 
         Assert.Equal(_backgroundJob.Id, result.Id);
     }
@@ -94,7 +94,7 @@ public class BackgroundJobFactoryFacts
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         Assert.Throws<InvalidOperationException>(() => factory.Create(_context.Object));
     }
@@ -103,13 +103,13 @@ public class BackgroundJobFactoryFacts
     public void Run_CallsExceptionFilter_OnException()
     {
         // Arrange
-        var filter = new Mock<IClientExceptionFilter>();
+        Mock<IClientExceptionFilter> filter = new();
         _filters.Add(filter.Object);
 
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -124,8 +124,8 @@ public class BackgroundJobFactoryFacts
     public void Run_CallsExceptionFilters_InReverseOrder()
     {
         // Arrange
-        var filter1 = new Mock<IClientExceptionFilter>();
-        var filter2 = new Mock<IClientExceptionFilter>();
+        Mock<IClientExceptionFilter> filter1 = new();
+        Mock<IClientExceptionFilter> filter2 = new();
 
         filter2.Setup(x => x.OnClientException(It.IsAny<ClientExceptionContext>())).InSequence();
         filter1.Setup(x => x.OnClientException(It.IsAny<ClientExceptionContext>())).InSequence();
@@ -137,7 +137,7 @@ public class BackgroundJobFactoryFacts
             .Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -153,16 +153,16 @@ public class BackgroundJobFactoryFacts
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws<InvalidOperationException>();
 
-        var filter = new Mock<IClientExceptionFilter>();
+        Mock<IClientExceptionFilter> filter = new();
         filter.Setup(x => x.OnClientException(It.IsAny<ClientExceptionContext>()))
             .Callback((ClientExceptionContext x) => x.ExceptionHandled = true);
 
         _filters.Add(filter.Object);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
-        var jobId = factory.Create(_context.Object);
+        BackgroundJob? jobId = factory.Create(_context.Object);
 
         Assert.Null(jobId);
     }
@@ -171,7 +171,7 @@ public class BackgroundJobFactoryFacts
     public void Run_CallsClientFilters_BeforeAndAfterTheCreationOfAJob()
     {
         // Arrange
-        var filter = new Mock<IClientFilter>();
+        Mock<IClientFilter> filter = new();
         _filters.Add(filter.Object);
 
         filter.Setup(x => x.OnCreating(It.IsNotNull<CreatingContext>())).InSequence();
@@ -181,7 +181,7 @@ public class BackgroundJobFactoryFacts
 
         filter.Setup(x => x.OnCreated(It.IsNotNull<CreatedContext>())).InSequence();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         factory.Create(_context.Object);
@@ -193,8 +193,8 @@ public class BackgroundJobFactoryFacts
     public void Run_WrapsFilterCalls_OneIntoAnother()
     {
         // Arrange
-        var outerFilter = new Mock<IClientFilter>();
-        var innerFilter = new Mock<IClientFilter>();
+        Mock<IClientFilter> outerFilter = new();
+        Mock<IClientFilter> innerFilter = new();
 
         _filters.Add(outerFilter.Object);
         _filters.Add(innerFilter.Object);
@@ -204,7 +204,7 @@ public class BackgroundJobFactoryFacts
         innerFilter.Setup(x => x.OnCreated(It.IsAny<CreatedContext>())).InSequence();
         outerFilter.Setup(x => x.OnCreated(It.IsAny<CreatedContext>())).InSequence();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         factory.Create(_context.Object);
@@ -216,16 +216,16 @@ public class BackgroundJobFactoryFacts
     public void Run_DoesNotCallBoth_CreateJob_And_OnCreated_WhenFilterCancelsThis_AndReturnsNullJobIdentifier()
     {
         // Arrange
-        var filter = new Mock<IClientFilter>();
+        Mock<IClientFilter> filter = new();
         _filters.Add(filter.Object);
 
         filter.Setup(x => x.OnCreating(It.IsAny<CreatingContext>()))
             .Callback((CreatingContext x) => x.Canceled = true);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
-        var jobId = factory.Create(_context.Object);
+        BackgroundJob? jobId = factory.Create(_context.Object);
 
         // Assert
         Assert.Null(jobId);
@@ -241,8 +241,8 @@ public class BackgroundJobFactoryFacts
     public void Run_TellsOuterFilter_AboutTheCancellationOfCreation()
     {
         // Arrange
-        var outerFilter = new Mock<IClientFilter>();
-        var innerFilter = new Mock<IClientFilter>();
+        Mock<IClientFilter> outerFilter = new();
+        Mock<IClientFilter> innerFilter = new();
 
         _filters.Add(outerFilter.Object);
         _filters.Add(innerFilter.Object);
@@ -250,7 +250,7 @@ public class BackgroundJobFactoryFacts
         innerFilter.Setup(x => x.OnCreating(It.IsAny<CreatingContext>()))
             .Callback((CreatingContext context) => context.Canceled = true);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         factory.Create(_context.Object);
@@ -263,13 +263,13 @@ public class BackgroundJobFactoryFacts
     public void Run_DoesNotCall_CreateJob_And_OnCreated_WhenExceptionOccured_DuringCreatingPhase()
     {
         // Arrange
-        var filter = new Mock<IClientFilter>();
+        Mock<IClientFilter> filter = new();
         _filters.Add(filter.Object);
 
         filter.Setup(x => x.OnCreating(It.IsAny<CreatingContext>()))
             .Throws<InvalidOperationException>();
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -287,14 +287,14 @@ public class BackgroundJobFactoryFacts
     public void Run_TellsFiltersAboutException_WhenItIsOccured_DuringTheCreationOfAJob()
     {
         // Arrange
-        var filter = new Mock<IClientFilter>();
+        Mock<IClientFilter> filter = new();
         _filters.Add(filter.Object);
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws(exception);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -309,17 +309,17 @@ public class BackgroundJobFactoryFacts
     public void Run_TellsOuterFilters_AboutAllExceptions()
     {
         // Arrange
-        var outerFilter = new Mock<IClientFilter>();
-        var innerFilter = new Mock<IClientFilter>();
+        Mock<IClientFilter> outerFilter = new();
+        Mock<IClientFilter> innerFilter = new();
 
         _filters.Add(outerFilter.Object);
         _filters.Add(innerFilter.Object);
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws(exception);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         Assert.Throws<InvalidOperationException>(
@@ -332,20 +332,20 @@ public class BackgroundJobFactoryFacts
     public void Run_DoesNotThrow_HandledExceptions_AndReturnsNullJobIdentifier()
     {
         // Arrange
-        var filter = new Mock<IClientFilter>();
+        Mock<IClientFilter> filter = new();
         _filters.Add(filter.Object);
 
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws(exception);
 
         filter.Setup(x => x.OnCreated(It.Is<CreatedContext>(context => context.Exception == exception)))
             .Callback((CreatedContext x) => x.ExceptionHandled = true);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
-        var jobId = factory.Create(_context.Object);
+        BackgroundJob? jobId = factory.Create(_context.Object);
 
         // Assert
         Assert.Null(jobId);
@@ -355,8 +355,8 @@ public class BackgroundJobFactoryFacts
     public void Run_TellsOuterFilter_EvenAboutHandledException()
     {
         // Arrange
-        var outerFilter = new Mock<IClientFilter>();
-        var innerFilter = new Mock<IClientFilter>();
+        Mock<IClientFilter> outerFilter = new();
+        Mock<IClientFilter> innerFilter = new();
 
         _filters.Add(outerFilter.Object);
         _filters.Add(innerFilter.Object);
@@ -367,7 +367,7 @@ public class BackgroundJobFactoryFacts
         innerFilter.Setup(x => x.OnCreated(It.IsAny<CreatedContext>()))
             .Callback((CreatedContext x) => x.ExceptionHandled = true);
 
-        var factory = CreateFactory();
+        BackgroundJobFactory factory = CreateFactory();
 
         // Act
         factory.Create(_context.Object);

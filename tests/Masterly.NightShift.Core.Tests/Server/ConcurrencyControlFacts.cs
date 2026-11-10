@@ -10,16 +10,16 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResource_ThrowsAnException_WhenJobIsNull()
         {
-            var exception = Assert.Throws<ArgumentNullException>(() => ConcurrencyControl.FormatResource("x", null));
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => ConcurrencyControl.FormatResource("x", null));
             Assert.Equal("job", exception.ParamName);
         }
 
         [Fact]
         public void FormatResource_ThrowsFormatException_NamingTheTemplate_WhenItRefersToAMissingArgument()
         {
-            var job = Job.FromExpression(() => Sample("a"));
+            Job job = Job.FromExpression(() => Sample("a"));
 
-            var exception = Assert.Throws<FormatException>(() => ConcurrencyControl.FormatResource("tenant-{3}", job));
+            FormatException exception = Assert.Throws<FormatException>(() => ConcurrencyControl.FormatResource("tenant-{3}", job));
 
             Assert.Contains("`tenant-{3}`", exception.Message);
             Assert.IsType<FormatException>(exception.InnerException);
@@ -28,7 +28,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResource_FormatsTheTemplate_WithTheJobArguments()
         {
-            var job = Job.FromExpression(() => Sample("Contoso"));
+            Job job = Job.FromExpression(() => Sample("Contoso"));
 
             Assert.Equal("tenant-contoso", ConcurrencyControl.FormatResource("tenant-{0}", job));
         }
@@ -36,8 +36,8 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResourceKey_ReturnsResourcesThatFit_Unchanged()
         {
-            var tenant = new string('a', 91 - "tenant-".Length);
-            var job = Job.FromExpression(() => Sample(tenant));
+            string tenant = new('a', 91 - "tenant-".Length);
+            Job job = Job.FromExpression(() => Sample(tenant));
 
             Assert.Equal("tenant-" + tenant, ConcurrencyControl.FormatResourceKey("tenant-{0}", job, 91));
         }
@@ -45,9 +45,9 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResourceKey_ShortensLongResources_ToAPrefixAndAHashOfTheWholeText()
         {
-            var first = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('a', 200) + "1")), 91);
-            var same = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('A', 200) + "1")), 91);
-            var other = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('a', 200) + "2")), 91);
+            string first = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('a', 200) + "1")), 91);
+            string same = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('A', 200) + "1")), 91);
+            string other = ConcurrencyControl.FormatResourceKey("tenant-{0}", Job.FromExpression(() => Sample(new string('a', 200) + "2")), 91);
 
             Assert.Equal(91, first.Length);
             Assert.StartsWith("tenant-aaaa", first, StringComparison.Ordinal);
@@ -59,7 +59,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResourceKey_LeavesTheDefaultResourceUnchanged()
         {
-            var resource = ConcurrencyControl.FormatResourceKey(null, Job.FromExpression(() => Sample(null)), 91);
+            string resource = ConcurrencyControl.FormatResourceKey(null, Job.FromExpression(() => Sample(null)), 91);
 
             Assert.Equal("masterly.nightshift.core.tests.server.concurrencycontrolfacts.sample(system.string)", resource);
         }
@@ -67,8 +67,8 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void FormatResource_GivesSameNamedTypesInOtherNamespaces_DifferentDefaultResources()
         {
-            var billing = ConcurrencyControl.FormatResource(null, Job.FromExpression(() => Billing.ReportJob.Run()));
-            var shipping = ConcurrencyControl.FormatResource(null, Job.FromExpression(() => Shipping.ReportJob.Run()));
+            string billing = ConcurrencyControl.FormatResource(null, Job.FromExpression(() => Billing.ReportJob.Run()));
+            string shipping = ConcurrencyControl.FormatResource(null, Job.FromExpression(() => Shipping.ReportJob.Run()));
 
             Assert.Equal("masterly.nightshift.core.tests.server.billing.reportjob.run()", billing);
             Assert.Equal("masterly.nightshift.core.tests.server.shipping.reportjob.run()", shipping);
@@ -77,8 +77,8 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void GetMethodIdentity_IncludesTheParameterTypes_SoOverloadsDiffer()
         {
-            var byNumber = ConcurrencyControl.GetMethodIdentity(Job.FromExpression(() => Overloaded(1)));
-            var byText = ConcurrencyControl.GetMethodIdentity(Job.FromExpression(() => Overloaded("1")));
+            string byNumber = ConcurrencyControl.GetMethodIdentity(Job.FromExpression(() => Overloaded(1)));
+            string byText = ConcurrencyControl.GetMethodIdentity(Job.FromExpression(() => Overloaded("1")));
 
             Assert.Equal("Masterly.NightShift.Core.Tests.Server.ConcurrencyControlFacts.Overloaded(System.Int32)", byNumber);
             Assert.Equal("Masterly.NightShift.Core.Tests.Server.ConcurrencyControlFacts.Overloaded(System.String)", byText);
@@ -87,7 +87,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void GetMethodIdentity_NamesGenericArguments_NestedTypes_AndArrays_WithTheirNamespaces()
         {
-            var identity = ConcurrencyControl.GetMethodIdentity(Job.FromExpression<Billing.Outer<Shipping.ReportJob>.Inner<int>>(
+            string identity = ConcurrencyControl.GetMethodIdentity(Job.FromExpression<Billing.Outer<Shipping.ReportJob>.Inner<int>>(
                 x => x.Handle<Billing.ReportJob>(null, null)));
 
             Assert.Equal(
@@ -105,11 +105,11 @@ namespace Masterly.NightShift.Core.Tests.Server
             Assert.Equal(83, CircuitBreakerAttribute.MaxResourceLength);
             Assert.Equal(88, PreventDuplicatesAttribute.MaxFingerprintLength);
 
-            var longest = ConcurrencyControl.ShortenResource(new string('x', 500), CircuitBreakerAttribute.MaxResourceLength);
+            string longest = ConcurrencyControl.ShortenResource(new string('x', 500), CircuitBreakerAttribute.MaxResourceLength);
             Assert.Equal(100, $"circuit:{longest}:failures".Length);
 
             // The window is part of the rate limit key; the longest window has ten digits
-            var longestRateLimit = ConcurrencyControl.ShortenResource(new string('x', 500), RateLimitAttribute.MaxResourceLength);
+            string longestRateLimit = ConcurrencyControl.ShortenResource(new string('x', 500), RateLimitAttribute.MaxResourceLength);
             Assert.Equal(100, $"ratelimit:{longestRateLimit}:{int.MaxValue}".Length);
         }
 
@@ -118,7 +118,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [InlineData(91)]
         public void ThrottleResources_ThatFitTheirKey_KeepTheirExactName(int length)
         {
-            var resource = new string('r', length);
+            string resource = new('r', length);
 
             Assert.Equal(resource, ConcurrencyControl.ShortenResource(resource, ThrottleAttribute.MaxResourceLength));
         }
@@ -128,7 +128,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         {
             // Keys already in storage were built this way, so it must not change: the prefix, '~', and the first
             // 16 bytes of SHA-256 over the UTF-8 resource as lowercase hex
-            var resource = "resource:" + new string('x', 100);
+            string resource = "resource:" + new string('x', 100);
 
             Assert.Equal(
                 "resource:xxxxxxxxxxxxxxxxxx~7f3782a675eae3a65bd5326f9b9d3a7a",
@@ -139,9 +139,9 @@ namespace Masterly.NightShift.Core.Tests.Server
         public void ShortenResource_DoesNotCutASurrogatePairInTwo()
         {
             // Every character is half of a surrogate pair, so the cut must move to keep pairs whole
-            var resource = string.Concat(Enumerable.Repeat("\U0001F600", 100));
+            string resource = string.Concat(Enumerable.Repeat("\U0001F600", 100));
 
-            var shortened = ConcurrencyControl.ShortenResource(resource, 64);
+            string shortened = ConcurrencyControl.ShortenResource(resource, 64);
 
             Assert.False(char.IsHighSurrogate(shortened[shortened.IndexOf('~') - 1]));
             Assert.True(shortened.Length <= 64);
@@ -150,7 +150,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void GetStateChanger_ReturnsTheWorkersStateChanger_FromTheItems()
         {
-            var stateChanger = new Mock<IBackgroundJobStateChanger>().Object;
+            IBackgroundJobStateChanger stateChanger = new Mock<IBackgroundJobStateChanger>().Object;
             _context.Object.Items[ConcurrencyControl.StateChangerItem] = stateChanger;
 
             Assert.Same(stateChanger, ConcurrencyControl.GetStateChanger(_context.Object));
@@ -165,8 +165,8 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void Reschedule_UsesTheWorkersStateChanger_AndTellsTheWorkerTheJobLeftProcessing()
         {
-            var stateChanger = new Mock<IBackgroundJobStateChanger>();
-            var performing = _context.GetPerformingContext();
+            Mock<IBackgroundJobStateChanger> stateChanger = new();
+            PerformingContext performing = _context.GetPerformingContext();
             performing.Items[ConcurrencyControl.StateChangerItem] = stateChanger.Object;
 
             ConcurrencyControl.Reschedule(performing, new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc), "busy");
@@ -180,15 +180,15 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void Reschedule_TriesAgain_AfterATransientStorageError_InsteadOfFailingTheRun()
         {
-            var stateChanger = new Mock<IBackgroundJobStateChanger>();
-            var attempts = 0;
+            Mock<IBackgroundJobStateChanger> stateChanger = new();
+            int attempts = 0;
             stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Returns(() =>
             {
                 if (++attempts == 1) throw new InvalidOperationException("deadlock victim");
                 return new ScheduledState(DateTime.UtcNow);
             });
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-            var performing = _context.GetPerformingContext();
+            PerformingContext performing = _context.GetPerformingContext();
             performing.Items[ConcurrencyControl.StateChangerItem] = stateChanger.Object;
 
             ConcurrencyControl.Reschedule(performing, new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc), "busy");
@@ -202,15 +202,15 @@ namespace Masterly.NightShift.Core.Tests.Server
         public void Reschedule_LeavesTheJobAlone_WhenAnAttemptThatReportedAnError_HadCommitted()
         {
             // The second attempt expects Processing, finds the job already Scheduled, and changes nothing
-            var stateChanger = new Mock<IBackgroundJobStateChanger>();
-            var attempts = 0;
+            Mock<IBackgroundJobStateChanger> stateChanger = new();
+            int attempts = 0;
             stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(c => c.ExpectedStates.Contains(ProcessingState.StateName)))).Returns(() =>
             {
                 if (++attempts == 1) throw new TimeoutException("the commit's answer was lost");
                 return null;
             });
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-            var performing = _context.GetPerformingContext();
+            PerformingContext performing = _context.GetPerformingContext();
             performing.Items[ConcurrencyControl.StateChangerItem] = stateChanger.Object;
 
             ConcurrencyControl.Reschedule(performing, new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc), "busy");
@@ -223,10 +223,10 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void Reschedule_ThrowsTheLastError_AfterThreeFailedAttempts()
         {
-            var stateChanger = new Mock<IBackgroundJobStateChanger>();
+            Mock<IBackgroundJobStateChanger> stateChanger = new();
             stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Throws(new InvalidOperationException("storage is down"));
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-            var performing = _context.GetPerformingContext();
+            PerformingContext performing = _context.GetPerformingContext();
             performing.Items[ConcurrencyControl.StateChangerItem] = stateChanger.Object;
 
             Assert.Throws<InvalidOperationException>(() => ConcurrencyControl.Reschedule(performing, DateTime.UtcNow, "busy"));
@@ -240,10 +240,10 @@ namespace Masterly.NightShift.Core.Tests.Server
         public void Reschedule_StopsTrying_WhenShutdownIsRequested()
         {
             // The worker requeues the job when the run ends with OperationCanceledException during shutdown
-            var stateChanger = new Mock<IBackgroundJobStateChanger>();
+            Mock<IBackgroundJobStateChanger> stateChanger = new();
             stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Throws(new InvalidOperationException("storage is down"));
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(new CancellationToken(true));
-            var performing = _context.GetPerformingContext();
+            PerformingContext performing = _context.GetPerformingContext();
             performing.Items[ConcurrencyControl.StateChangerItem] = stateChanger.Object;
 
             Assert.Throws<OperationCanceledException>(() => ConcurrencyControl.Reschedule(performing, DateTime.UtcNow, "busy"));
@@ -254,8 +254,8 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void GetExpiringTransaction_ReturnsTheTransaction_OnlyWhenTheStorageSupportsTheExtendedApi()
         {
-            var transaction = new Mock<JobStorageTransaction>().Object;
-            var storage = new Mock<JobStorage>();
+            JobStorageTransaction transaction = new Mock<JobStorageTransaction>().Object;
+            Mock<JobStorage> storage = new();
 
             Assert.Null(ConcurrencyControl.GetExpiringTransaction(storage.Object, transaction));
             Assert.Null(ConcurrencyControl.GetExpiringTransaction(null, transaction));
@@ -296,7 +296,7 @@ namespace Masterly.NightShift.Core.Tests.Server
         [Fact]
         public void Skip_CancelsThePerformance_AndRecordsTheReason()
         {
-            var performing = _context.GetPerformingContext();
+            PerformingContext performing = _context.GetPerformingContext();
 
             ConcurrencyControl.Skip(performing, "busy");
 

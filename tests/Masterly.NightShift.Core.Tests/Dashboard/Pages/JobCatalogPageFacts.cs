@@ -24,7 +24,7 @@ public class JobCatalogPageFacts : IDisposable
     [Fact, StaticLock]
     public void Render_ListsTheCatalogGroupedByType_WithSummaryAndFilter()
     {
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains($"{Encode(Strings.CatalogPage_Title)} <small class=\"text-muted\">{Encode(Strings.CatalogPage_Hint)}</small>", html);
         Assert.Contains($"placeholder=\"{Encode(Strings.CatalogPage_Search)}\"", html);
@@ -38,7 +38,7 @@ public class JobCatalogPageFacts : IDisposable
     [Fact, StaticLock]
     public void Render_DescribesEachMethod_WithParametersFiltersAndFlags()
     {
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains($"data-search=\"{typeof(CatalogPageJobs).FullName} Import path count mode\"", html);
         Assert.Contains("<code class=\"hf-catalog-method\">Import</code>", html);
@@ -56,7 +56,7 @@ public class JobCatalogPageFacts : IDisposable
     {
         SetupInsight("Import", succeeded: 8, failed: 2, durations: ["300", "200", "100"]);
 
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains($"<span title=\"{Encode(Strings.InsightsPage_Table_Runs)}\">10&times;</span>", html);
         Assert.Contains($"<span class=\"text-muted\" title=\"{Encode(Strings.InsightsPage_Table_Median)}\">", html);
@@ -68,7 +68,7 @@ public class JobCatalogPageFacts : IDisposable
     {
         SetupInsight("SendAsync", succeeded: 4, failed: 0, durations: ["50"]);
 
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains($"<span title=\"{Encode(Strings.InsightsPage_Table_Runs)}\">4&times;</span>", html);
         Assert.DoesNotContain($"title=\"{Encode(Strings.InsightsPage_Table_Failed)}\"", html);
@@ -90,7 +90,7 @@ public class JobCatalogPageFacts : IDisposable
     [Fact, StaticLock]
     public void Render_OffersFormFieldsForNullableBoolsAndFlags()
     {
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains(Encode("{\"name\":\"enabled\",\"type\":\"bool?\",\"input\":\"select\""), html);
         Assert.Contains(Encode("\"options\":[\"true\",\"false\"],\"nullable\":true,\"multiple\":false"), html);
@@ -101,7 +101,7 @@ public class JobCatalogPageFacts : IDisposable
     [Fact, StaticLock]
     public void Render_WhenNotReadOnly_OffersARunButtonPerMethodAndTheRunner()
     {
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains("class=\"btn btn-sm btn-primary js-catalog-run\"", html);
         Assert.Contains("data-method=\"Import\"", html);
@@ -120,7 +120,7 @@ public class JobCatalogPageFacts : IDisposable
     {
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new JobCatalogPage());
+        string html = _renderer.Render(new JobCatalogPage());
 
         Assert.Contains("<code class=\"hf-catalog-method\">Import</code>", html);
         Assert.DoesNotContain("js-catalog-run", html);
@@ -129,7 +129,7 @@ public class JobCatalogPageFacts : IDisposable
 
     private void SetupInsight(string method, long succeeded, long failed, string[] durations)
     {
-        var key = Entry(method).InsightsKey;
+        string key = Entry(method).InsightsKey;
         _recorded.Add(key);
 
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash($"insights:{key}"))

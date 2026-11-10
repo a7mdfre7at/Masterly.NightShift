@@ -11,7 +11,7 @@ public class AwaitingStateFacts
     [Fact]
     public void NameProperty_ReturnsStateName()
     {
-        var state = CreateState();
+        AwaitingState state = CreateState();
         Assert.Equal(AwaitingState.StateName, state.Name);
     }
 
@@ -27,9 +27,9 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void SerializeData_ReturnsCorrectData_Before170()
     {
-        var state = CreateState();
+        AwaitingState state = CreateState();
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal(state.ParentId, data["ParentId"]);
         Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
@@ -40,9 +40,9 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeData_ReturnsCorrectData_After170()
     {
-        var state = CreateState();
+        AwaitingState state = CreateState();
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal(state.ParentId, data["ParentId"]);
         Assert.Equal("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}", data["NextState"]);
@@ -53,14 +53,14 @@ public class AwaitingStateFacts
     [Fact]
     public void IsFinal_ReturnsFalse()
     {
-        var state = CreateState();
+        AwaitingState state = CreateState();
         Assert.False(state.IsFinal);
     }
 
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = CreateState();
+        AwaitingState state = CreateState();
         Assert.False(state.IgnoreJobLoadException);
     }
 
@@ -69,9 +69,9 @@ public class AwaitingStateFacts
     {
         SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var nextStateSerialized = SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.User);
+        string nextStateSerialized = SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.User);
 
-        var nextState = SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal) as EnqueuedState;
+        EnqueuedState? nextState = SerializationHelper.Deserialize<IState>(nextStateSerialized, SerializationOption.TypedInternal) as EnqueuedState;
         Assert.NotNull(nextState);
         Assert.NotEqual(default, nextState.EnqueuedAt);
     }
@@ -79,9 +79,9 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var state = new AwaitingState("parent");
+        AwaitingState state = new("parent");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
@@ -91,9 +91,9 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var state = new AwaitingState("parent");
+        AwaitingState state = new("parent");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":0}",
@@ -103,8 +103,8 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact]
     public void JsonDeserialize_CanHandlePreviousFormat()
     {
-        var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":1,\"Name\":\"Awaiting\"}";
-        var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
+        string json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"},\"Options\":1,\"Name\":\"Awaiting\"}";
+        AwaitingState? state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
 
         Assert.Equal("parent", state.ParentId);
         Assert.Equal("Enqueued", state.NextState.Name);
@@ -113,8 +113,8 @@ public class AwaitingStateFacts
     [DataCompatibilityRangeFact]
     public void JsonDeserialize_CanHandleNewFormat()
     {
-        var json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}}";
-        var state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
+        string json = "{\"$type\":\"Masterly.NightShift.States.AwaitingState, Masterly.NightShift.Core\",\"ParentId\":\"parent\",\"NextState\":{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}}";
+        AwaitingState? state = SerializationHelper.Deserialize<AwaitingState>(json, SerializationOption.TypedInternal);
 
         Assert.Equal("parent", state.ParentId);
         Assert.Null(state.Reason);

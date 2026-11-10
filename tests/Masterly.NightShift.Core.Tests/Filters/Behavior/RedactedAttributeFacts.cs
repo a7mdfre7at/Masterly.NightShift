@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Server;
 
@@ -12,7 +13,7 @@ public class RedactedAttributeFacts
     [Fact]
     public void IsRedacted_RecognizesTheAttribute()
     {
-        var parameters = typeof(RedactedAttributeFacts).GetMethod(nameof(Connect)).GetParameters();
+        ParameterInfo[] parameters = typeof(RedactedAttributeFacts).GetMethod(nameof(Connect)).GetParameters();
 
         Assert.False(RedactedAttribute.IsRedacted(parameters[0]));
         Assert.True(RedactedAttribute.IsRedacted(parameters[1]));
@@ -22,9 +23,9 @@ public class RedactedAttributeFacts
     [Fact]
     public void JobMethodCallRenderer_MasksRedactedArguments()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
 
-        var html = JobMethodCallRenderer.Render(job).ToString();
+        string html = JobMethodCallRenderer.Render(job).ToString();
 
         Assert.DoesNotContain("hunter2", html);
         Assert.Contains(RedactedAttribute.Mask, html);
@@ -36,9 +37,9 @@ public class RedactedAttributeFacts
     [Fact]
     public void JobCodeRenderer_LeavesRedactedArgumentsOut()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
 
-        var code = JobCodeRenderer.Render(job);
+        string code = JobCodeRenderer.Render(job);
 
         Assert.DoesNotContain("hunter2", code);
         Assert.Contains("/* password: redacted */ \"\"", code);
@@ -48,9 +49,9 @@ public class RedactedAttributeFacts
     [Fact]
     public void JobCatalog_FormatArguments_SkipsRedactedParameters()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
 
-        var arguments = JobCatalog.FormatArguments(job);
+        IReadOnlyList<string?> arguments = JobCatalog.FormatArguments(job);
 
         Assert.Equal(new[] { "db.local", null, "1433" }, arguments.ToArray());
     }
@@ -58,9 +59,9 @@ public class RedactedAttributeFacts
     [Fact]
     public void JobDisplayName_ShowsTheMask_ForARedactedArgument()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
 
-        var name = new JobDisplayNameAttribute("Connect to {0} with {1} on port {2}").Format(null, job);
+        string name = new JobDisplayNameAttribute("Connect to {0} with {1} on port {2}").Format(null, job);
 
         Assert.Equal($"Connect to db.local with {RedactedAttribute.Mask} on port 1433", name);
     }
@@ -68,7 +69,7 @@ public class RedactedAttributeFacts
     [Fact]
     public void Hash_IsStable_Short_AndDiffersBetweenValues()
     {
-        var hash = RedactedAttribute.Hash("hunter2");
+        string hash = RedactedAttribute.Hash("hunter2");
 
         Assert.Equal(hash, RedactedAttribute.Hash("hunter2"));
         Assert.NotEqual(hash, RedactedAttribute.Hash("hunter3"));
@@ -86,10 +87,10 @@ public class RedactedAttributeFacts
     [Fact]
     public void ResourceTemplates_UseAHash_ForARedactedArgument()
     {
-        var job = Job.FromExpression(() => Connect("DB.local", "hunter2", 1433));
-        var other = Job.FromExpression(() => Connect("DB.local", "letmein", 1433));
+        Job job = Job.FromExpression(() => Connect("DB.local", "hunter2", 1433));
+        Job other = Job.FromExpression(() => Connect("DB.local", "letmein", 1433));
 
-        var resource = ConcurrencyControl.FormatResource("connect-{0}-{1}-{2}", job);
+        string resource = ConcurrencyControl.FormatResource("connect-{0}-{1}-{2}", job);
 
         Assert.Equal($"connect-db.local-{RedactedAttribute.Hash("hunter2")}-1433", resource);
         Assert.NotEqual(resource, ConcurrencyControl.FormatResource("connect-{0}-{1}-{2}", other));
@@ -98,9 +99,9 @@ public class RedactedAttributeFacts
     [Fact]
     public void PreventDuplicates_Template_UsesAHash_ForARedactedArgument()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
 
-        var fingerprint = new PreventDuplicatesAttribute("connect:{1}").GetFingerprint(job);
+        string fingerprint = new PreventDuplicatesAttribute("connect:{1}").GetFingerprint(job);
 
         Assert.Equal($"connect:{RedactedAttribute.Hash("hunter2")}", fingerprint);
     }

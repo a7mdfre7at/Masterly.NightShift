@@ -14,7 +14,7 @@ public class FailedJobsPageFacts
     [Fact]
     public void Render_WithoutFailedJobs_ShowsTheSuccessMessage()
     {
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains(Encode(Strings.FailedJobsPage_NoJobs), html);
         Assert.DoesNotContain("js-jobs-list", html);
@@ -25,7 +25,7 @@ public class FailedJobsPageFacts
     {
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("data-url=\"/jobs/failed/export\" data-filename=\"nightshift-failed-jobs.csv\"", html);
         Assert.Contains("data-ajax=\"/jobs/failed/delete-all\"", html);
@@ -43,7 +43,7 @@ public class FailedJobsPageFacts
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
         _renderer.Request.Query[RazorPage.ListRefreshQuery] = "1";
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("js-jobs-list", html);
         Assert.DoesNotContain("<html", html);
@@ -61,7 +61,7 @@ public class FailedJobsPageFacts
         });
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("data-url=\"/jobs/failed/export\"", html);
         Assert.Contains("class=\"hf-card hf-clusters\"", html);
@@ -80,7 +80,7 @@ public class FailedJobsPageFacts
             { "3", Failed("TimeoutException", "Too slow") }
         });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains(Encode(string.Format(Strings.FailedJobsPage_Clusters_Hint, 500)), html);
         Assert.Contains("data-cluster=\"InvalidOperationException|FailedPageJobs.Work\"", html);
@@ -105,7 +105,7 @@ public class FailedJobsPageFacts
             { "2", Failed("InvalidOperationException", null, failedAt: null) }
         });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("<span class=\"hf-cluster-exception\">InvalidOperationException</span>", html);
         Assert.DoesNotContain("hf-cluster-message", html);
@@ -122,7 +122,7 @@ public class FailedJobsPageFacts
             { "2", Failed("TimeoutException", "Too slow") }
         });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.DoesNotContain("hf-clusters", html);
     }
@@ -133,7 +133,7 @@ public class FailedJobsPageFacts
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
         SetupNotes("1", new JobNote { User = "bob", Text = "ticket OPS-1", Acknowledges = true });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains($"<span class=\"label label-info hf-ack\" title=\"bob: ticket OPS-1\"><span class=\"glyphicon glyphicon-ok\"></span> {Encode(Strings.FailedJobsPage_Acknowledged)}</span>", html);
     }
@@ -144,7 +144,7 @@ public class FailedJobsPageFacts
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
         SetupNotes("1", new JobNote { Text = "", Acknowledges = true });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains($"<span class=\"label label-info hf-ack\" title=\"{Encode(Strings.Common_Anonymous)}\">", html);
     }
@@ -155,7 +155,7 @@ public class FailedJobsPageFacts
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
         SetupNotes("1", new JobNote { User = "bob", Text = "looking into it" });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.DoesNotContain("hf-ack", html);
     }
@@ -163,8 +163,8 @@ public class FailedJobsPageFacts
     [Fact]
     public void Render_ReadsTheNotes_OfTheFirstHundredRowsOnly()
     {
-        var jobs = new Dictionary<string, FailedJobDto>();
-        for (var i = 1; i <= 150; i++) jobs.Add(i.ToString(), Failed("InvalidOperationException", "Boom"));
+        Dictionary<string, FailedJobDto> jobs = [];
+        for (int i = 1; i <= 150; i++) jobs.Add(i.ToString(), Failed("InvalidOperationException", "Boom"));
         SetupJobs(jobs);
         _renderer.Request.Query["count"] = "500";
 
@@ -179,7 +179,7 @@ public class FailedJobsPageFacts
     {
         SetupJobs(new Dictionary<string, FailedJobDto> { { "1", Failed("InvalidOperationException", "Boom") } });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains("from=0&amp;count=1000\">" + Encode(1000.ToString("N0")) + "</a>", html);
         Assert.DoesNotContain("count=5000", html);
@@ -194,7 +194,7 @@ public class FailedJobsPageFacts
             { "2", new FailedJobDto { Job = SampleJob(), InFailedState = false } }
         });
 
-        var html = _renderer.Render(new FailedJobsPage());
+        string html = _renderer.Render(new FailedJobsPage());
 
         Assert.Contains(Encode(Strings.Common_JobExpired), html);
         Assert.DoesNotContain("hf-ack", html);

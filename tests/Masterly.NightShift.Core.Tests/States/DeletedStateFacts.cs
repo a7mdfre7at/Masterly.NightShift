@@ -5,16 +5,16 @@ public class DeletedStateFacts
     [Fact]
     public void StateName_ReturnsDeleted()
     {
-        var result = DeletedState.StateName;
+        string result = DeletedState.StateName;
         Assert.Equal("Deleted", result);
     }
 
     [Fact]
     public void NameProperty_ReturnsStateName()
     {
-        var state = CreateState();
+        DeletedState state = CreateState();
 
-        var result = state.Name;
+        string result = state.Name;
 
         Assert.Equal(DeletedState.StateName, result);
     }
@@ -22,9 +22,9 @@ public class DeletedStateFacts
     [Fact]
     public void IsFinalProperty_ReturnsTrue()
     {
-        var state = CreateState();
+        DeletedState state = CreateState();
 
-        var result = state.IsFinal;
+        bool result = state.IsFinal;
 
         Assert.True(result);
     }
@@ -32,9 +32,9 @@ public class DeletedStateFacts
     [Fact]
     public void IgnoreExceptions_ReturnsTrue()
     {
-        var state = CreateState();
+        DeletedState state = CreateState();
 
-        var result = state.IgnoreJobLoadException;
+        bool result = state.IgnoreJobLoadException;
 
         Assert.True(result);
     }
@@ -42,7 +42,7 @@ public class DeletedStateFacts
     [Fact]
     public void DeletedAtProperty_ReturnsCurrentUtcDate()
     {
-        var state = CreateState();
+        DeletedState state = CreateState();
 
         Assert.True(DateTime.UtcNow.AddMinutes(-1) < state.DeletedAt);
         Assert.True(state.DeletedAt < DateTime.UtcNow.AddMinutes(1));
@@ -51,9 +51,9 @@ public class DeletedStateFacts
     [Fact]
     public void SerializeData_ReturnsSerializedStateData()
     {
-        var state = CreateState();
+        DeletedState state = CreateState();
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Single(data);
         Assert.True(JobHelper.DeserializeDateTime(data["DeletedAt"]) != default);
@@ -62,9 +62,9 @@ public class DeletedStateFacts
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var state = new DeletedState();
+        DeletedState state = new();
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",
@@ -74,9 +74,9 @@ public class DeletedStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var state = new DeletedState();
+        DeletedState state = new();
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.DeletedState, Masterly.NightShift.Core\"}",

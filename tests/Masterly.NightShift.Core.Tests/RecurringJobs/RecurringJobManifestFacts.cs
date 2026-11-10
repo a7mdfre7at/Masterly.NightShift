@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
@@ -18,7 +19,7 @@ public class RecurringJobManifestFacts
     public RecurringJobManifestFacts()
     {
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(() => [.. _hashes.Keys.Select(k => k["recurring-job:".Length..])]);
-        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns<string>(key => _hashes.TryGetValue(key, out var hash) ? hash : null);
+        _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns<string>(key => _hashes.TryGetValue(key, out Dictionary<string, string>? hash) ? hash : null);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _transaction
             .Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
@@ -33,7 +34,7 @@ public class RecurringJobManifestFacts
 
     private void AddExisting(string id, string cron, string timeZone = null, bool paused = false, string queue = null, string recurringQueue = "default")
     {
-        var job = Job.FromExpression(() => Report(id));
+        Job job = Job.FromExpression(() => Report(id));
         _hashes["recurring-job:" + id] = new Dictionary<string, string>
         {
             { "Cron", cron },
@@ -58,7 +59,7 @@ public class RecurringJobManifestFacts
 
     private Mock<JobStorage> CreateStorage(bool jobQueues)
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         storage.Setup(x => x.HasFeature(JobStorageFeatures.JobQueueProperty)).Returns(jobQueues);
         return storage;
@@ -78,11 +79,11 @@ public class RecurringJobManifestFacts
         AddExisting("nightly", "30 2 * * *", "Europe/Berlin", paused: true);
         AddExisting("hourly", "0 * * * *", queue: "reports");
 
-        var json = RecurringJobManifest.Export(_connection.Object);
-        var document = JsonNode.Parse(json);
+        string json = RecurringJobManifest.Export(_connection.Object);
+        JsonNode? document = JsonNode.Parse(json);
 
         Assert.Equal(1, document["version"].GetValue<int>());
-        var entries = document["recurringJobs"].AsArray();
+        JsonArray entries = document["recurringJobs"].AsArray();
         Assert.Equal(["hourly", "nightly"], entries.Select(e => e["id"].GetValue<string>()));
         Assert.Equal("reports", entries[0]["queue"].GetValue<string>());
         Assert.Null(entries[0]["timeZone"]);
@@ -97,7 +98,7 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Export_MasksRedactedArguments_WhenAsked_AndKeepsThemOtherwise()
     {
-        var job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
+        Job job = Job.FromExpression(() => Connect("db.local", "hunter2", 1433));
         _hashes["recurring-job:connect"] = new Dictionary<string, string>
         {
             { "Cron", "0 * * * *" },
@@ -106,8 +107,8 @@ public class RecurringJobManifestFacts
             { "Queue", "default" },
         };
 
-        var masked = RecurringJobManifest.Export(_connection.Object, maskRedacted: true);
-        var plain = RecurringJobManifest.Export(_connection.Object);
+        string masked = RecurringJobManifest.Export(_connection.Object, maskRedacted: true);
+        string plain = RecurringJobManifest.Export(_connection.Object);
 
         Assert.DoesNotContain("hunter2", masked);
         Assert.Contains("db.local", masked);
@@ -125,9 +126,9 @@ public class RecurringJobManifestFacts
             { "TimeZoneId", "UTC" },
         };
 
-        var masked = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object, maskRedacted: true));
+        JsonNode? masked = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object, maskRedacted: true));
 
-        var entry = Assert.Single(masked["recurringJobs"].AsArray());
+        JsonNode? entry = Assert.Single(masked["recurringJobs"].AsArray());
         Assert.Equal("Run", entry["job"]["method"].GetValue<string>());
         Assert.Null(entry["job"]["arguments"]);
     }
@@ -146,10 +147,10 @@ public class RecurringJobManifestFacts
     {
         AddExisting("nightly", "30 2 * * *", BerlinTimeZoneId, paused: true);
         AddExisting("hourly", "0 * * * *");
-        var json = RecurringJobManifest.Export(_connection.Object);
+        string json = RecurringJobManifest.Export(_connection.Object);
         _hashes.Remove("recurring-job:hourly");
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
         Assert.Equal(["hourly"], result.Added);
         Assert.Equal(["nightly"], result.Updated);
@@ -166,7 +167,7 @@ public class RecurringJobManifestFacts
     public void Apply_Prunes_WhenAsked_AndReportsBadEntries()
     {
         AddExisting("old", "* * * * *");
-        var json = @"{ ""recurringJobs"": [
+        string json = @"{ ""recurringJobs"": [
                 { ""id"": ""good"", ""cron"": ""0 1 * * *"", ""job"": { ""type"": """ + typeof(RecurringJobManifestFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + @""", ""method"": ""Report"", ""parameterTypes"": ""[\""System.String\""]"", ""arguments"": ""[\""\\\""x\\\""\""]"" } },
                 { ""id"": ""bad-type"", ""cron"": ""0 1 * * *"", ""job"": { ""type"": ""Nope.Missing, Nope"", ""method"": ""Report"" } },
                 { ""cron"": ""0 1 * * *"", ""job"": { ""type"": ""x"", ""method"": ""y"" } },
@@ -174,7 +175,7 @@ public class RecurringJobManifestFacts
                 { ""id"": ""bad-zone"", ""cron"": ""0 1 * * *"", ""timeZone"": ""Mars/Olympus"", ""job"": { ""type"": """ + typeof(RecurringJobManifestFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + @""", ""method"": ""Report"", ""parameterTypes"": ""[\""System.String\""]"", ""arguments"": ""[\""\\\""x\\\""\""]"" } }
             ] }";
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: true);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: true);
 
         Assert.Equal(["good"], result.Added);
         Assert.Equal(["old"], result.Removed);
@@ -192,9 +193,9 @@ public class RecurringJobManifestFacts
     [InlineData(@"{ ""id"": ""a"", ""cron"": ""  "", ""job"": { ""type"": ""T, A"", ""method"": ""Report"" } }", "The entry needs a \"cron\" expression.")]
     public void Apply_ReportsEntriesWithoutAJobOrACron_WithoutCallingTheManager(string entry, string message)
     {
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, "{ \"recurringJobs\": [ " + entry + " ] }");
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, "{ \"recurringJobs\": [ " + entry + " ] }");
 
-        var error = Assert.Single(result.Errors);
+        RecurringJobManifestError error = Assert.Single(result.Errors);
         Assert.Equal("a", error.Id);
         Assert.Equal(message, error.Message);
         Assert.Empty(result.Added);
@@ -213,13 +214,13 @@ public class RecurringJobManifestFacts
     public void Export_WithoutAConnection_ReadsJobStorageCurrent_AndDisposesTheConnection()
     {
         AddExisting("hourly", "0 * * * *");
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
         JobStorage.Current = storage.Object;
 
-        var json = RecurringJobManifest.Export();
+        string json = RecurringJobManifest.Export();
 
-        var entry = Assert.Single(JsonNode.Parse(json)["recurringJobs"].AsArray());
+        JsonNode? entry = Assert.Single(JsonNode.Parse(json)["recurringJobs"].AsArray());
         Assert.Equal("hourly", entry["id"].GetValue<string>());
         Assert.Equal("0 * * * *", entry["cron"].GetValue<string>());
         _connection.Verify(x => x.Dispose());
@@ -229,14 +230,14 @@ public class RecurringJobManifestFacts
     public void Apply_WithoutAManager_UsesJobStorageCurrent_ToPrune()
     {
         AddExisting("old", "* * * * *");
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        Mock<IWriteOnlyTransaction> transaction = new();
         _connection.Setup(x => x.AcquireDistributedLock("lock:recurring-job:old", It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         JobStorage.Current = storage.Object;
 
-        var result = RecurringJobManifest.Apply("{ \"recurringJobs\": [] }", prune: true);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply("{ \"recurringJobs\": [] }", prune: true);
 
         Assert.Equal(["old"], result.Removed);
         transaction.Verify(x => x.RemoveHash("recurring-job:old"));
@@ -248,10 +249,10 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_DoesNotTouchPauseState_WhenTheManagerCannotPause()
     {
-        var manager = new Mock<IRecurringJobManager>();
-        var json = "{ \"recurringJobs\": [ { \"id\": \"a\", \"cron\": \"* * * * *\", \"paused\": true, \"job\": { \"type\": \"" + typeof(RecurringJobManifestFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + "\", \"method\": \"Report\", \"parameterTypes\": \"[\\\"System.String\\\"]\", \"arguments\": \"[\\\"\\\\\\\"x\\\\\\\"\\\"]\" } } ] }";
+        Mock<IRecurringJobManager> manager = new();
+        string json = "{ \"recurringJobs\": [ { \"id\": \"a\", \"cron\": \"* * * * *\", \"paused\": true, \"job\": { \"type\": \"" + typeof(RecurringJobManifestFacts).AssemblyQualifiedName.Replace("\"", "\\\"") + "\", \"method\": \"Report\", \"parameterTypes\": \"[\\\"System.String\\\"]\", \"arguments\": \"[\\\"\\\\\\\"x\\\\\\\"\\\"]\" } } ] }";
 
-        var result = RecurringJobManifest.Apply(manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(manager.Object, _connection.Object, json);
 
         Assert.Equal(["a"], result.Added);
         manager.Verify(x => x.AddOrUpdate("a", It.IsAny<Job>(), "* * * * *", It.IsAny<RecurringJobOptions>()));
@@ -262,7 +263,7 @@ public class RecurringJobManifestFacts
     {
         AddExisting("a", "0 1 * * *", paused: true);
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a")));
 
         Assert.Equal(["a"], result.Updated);
         _manager.Verify(x => x.Pause(It.IsAny<string>()), Times.Never);
@@ -272,7 +273,7 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_PausesOrResumes_WhenTheEntrySaysSo()
     {
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(
             Entry("paused", "\"paused\": true, "),
             Entry("active", "\"paused\": false, ")));
 
@@ -286,7 +287,7 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Parse_ReadsAMissingPausedField_AsNull()
     {
-        var entries = RecurringJobManifest.Parse(Manifest(Entry("a"), Entry("b", "\"paused\": false, ")));
+        IReadOnlyList<RecurringJobManifestEntry> entries = RecurringJobManifest.Parse(Manifest(Entry("a"), Entry("b", "\"paused\": false, ")));
 
         Assert.Null(entries[0].Paused);
         Assert.False(entries[1].Paused);
@@ -300,7 +301,7 @@ public class RecurringJobManifestFacts
         AddExisting("recurring-queue", "0 * * * *", recurringQueue: "billing");
         AddExisting("both", "0 * * * *", queue: "reports", recurringQueue: "low");
 
-        var entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+        JsonArray entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
 
         Assert.Equal(["both", "default-queue", "job-queue", "recurring-queue"], entries.Select(e => e["id"].GetValue<string>()));
         Assert.Equal("low", entries[0]["queue"].GetValue<string>());
@@ -315,7 +316,7 @@ public class RecurringJobManifestFacts
     [InlineData("\"queue\": \" \", ")]
     public void Apply_RegistersTheJobWithoutAQueue_WhenTheEntryHasNoQueueOrTheDefaultOne(string fields)
     {
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", fields)));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", fields)));
 
         Assert.Empty(result.Errors);
         _manager.Verify(x => x.AddOrUpdate("a", It.Is<Job>(j => j.Queue == null), "0 1 * * *",
@@ -326,10 +327,10 @@ public class RecurringJobManifestFacts
     public void Apply_RoundTripsAnExport_OnAStorageWithoutPerJobQueues()
     {
         AddExisting("hourly", "0 * * * *");
-        var json = RecurringJobManifest.Export(_connection.Object);
-        var manager = CreateManager(CreateStorage(jobQueues: false).Object);
+        string json = RecurringJobManifest.Export(_connection.Object);
+        RecurringJobManager manager = CreateManager(CreateStorage(jobQueues: false).Object);
 
-        var result = RecurringJobManifest.Apply(manager, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(manager, _connection.Object, json);
 
         Assert.Empty(result.Errors);
         Assert.Equal(["hourly"], result.Updated);
@@ -338,12 +339,12 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_PutsTheQueueInTheJob_WhenTheStorageSupportsPerJobQueues()
     {
-        var manager = CreateManager(CreateStorage(jobQueues: true).Object);
+        RecurringJobManager manager = CreateManager(CreateStorage(jobQueues: true).Object);
 
-        var result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"queue\": \"reports\", ")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"queue\": \"reports\", ")));
 
         Assert.Empty(result.Errors);
-        var written = _writes["recurring-job:a"];
+        Dictionary<string, string> written = _writes["recurring-job:a"];
         Assert.Equal("reports", InvocationData.DeserializePayload(written["Job"]).Queue);
         Assert.Equal("default", written["Queue"]);
     }
@@ -351,12 +352,12 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_UsesTheRecurringJobsOwnQueue_WhenTheStorageHasNoPerJobQueues()
     {
-        var manager = CreateManager(CreateStorage(jobQueues: false).Object);
+        RecurringJobManager manager = CreateManager(CreateStorage(jobQueues: false).Object);
 
-        var result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"queue\": \"reports\", ")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"queue\": \"reports\", ")));
 
         Assert.Empty(result.Errors);
-        var written = _writes["recurring-job:a"];
+        Dictionary<string, string> written = _writes["recurring-job:a"];
         Assert.Null(InvocationData.DeserializePayload(written["Job"]).Queue);
         Assert.Equal("reports", written["Queue"]);
     }
@@ -364,12 +365,12 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_ResolvesTimeZones_WithTheManagersResolver()
     {
-        var plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
-        var resolver = new Mock<ITimeZoneResolver>();
+        TimeZoneInfo plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
+        Mock<ITimeZoneResolver> resolver = new();
         resolver.Setup(x => x.GetTimeZoneById("plus-two")).Returns(plusTwo);
-        var manager = CreateManager(CreateStorage(jobQueues: true).Object, resolver.Object);
+        RecurringJobManager manager = CreateManager(CreateStorage(jobQueues: true).Object, resolver.Object);
 
-        var result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"timeZone\": \"plus-two\", ")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(manager, _connection.Object, Manifest(Entry("a", "\"timeZone\": \"plus-two\", ")));
 
         Assert.Empty(result.Errors);
         Assert.Equal("plus-two", _writes["recurring-job:a"]["TimeZoneId"]);
@@ -378,14 +379,14 @@ public class RecurringJobManifestFacts
     [Fact, GlobalLock(Reason = "Sets the global time zone resolver")]
     public void Apply_ResolvesTimeZones_WithTheGlobalResolver_WhenTheManagerIsNotARecurringJobManager()
     {
-        var plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
-        var resolver = new Mock<ITimeZoneResolver>();
+        TimeZoneInfo plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
+        Mock<ITimeZoneResolver> resolver = new();
         resolver.Setup(x => x.GetTimeZoneById("plus-two")).Returns(plusTwo);
         GlobalConfiguration.Configuration.UseTimeZoneResolver(resolver.Object);
 
         try
         {
-            var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", "\"timeZone\": \"plus-two\", ")));
+            RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", "\"timeZone\": \"plus-two\", ")));
 
             Assert.Empty(result.Errors);
             _manager.Verify(x => x.AddOrUpdate("a", It.IsAny<Job>(), "0 1 * * *", It.Is<RecurringJobOptions>(o => o.TimeZone == plusTwo)));
@@ -407,7 +408,7 @@ public class RecurringJobManifestFacts
             { "Queue", "default" },
         };
 
-        var entry = Assert.Single(JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray());
+        JsonNode? entry = Assert.Single(JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray());
 
         Assert.Equal("orphan", entry["id"].GetValue<string>());
         Assert.Equal("0 3 * * *", entry["cron"].GetValue<string>());
@@ -426,7 +427,7 @@ public class RecurringJobManifestFacts
             { "Job", new InvocationData("Missing.Jobs, Missing", "Run", "[]", "[]").SerializePayload() },
         };
 
-        var entry = Assert.Single(JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray());
+        JsonNode? entry = Assert.Single(JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray());
 
         Assert.Equal("[]", entry["job"]["parameterTypes"].GetValue<string>());
         Assert.Equal("[]", entry["job"]["arguments"].GetValue<string>());
@@ -440,9 +441,9 @@ public class RecurringJobManifestFacts
             { "Cron", "0 3 * * *" },
             { "Job", new InvocationData("Missing.Jobs, Missing", "Run", "[]", "[]").SerializePayload() },
         };
-        var json = RecurringJobManifest.Export(_connection.Object);
+        string json = RecurringJobManifest.Export(_connection.Object);
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: true);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: true);
 
         Assert.Empty(result.Removed);
         Assert.Equal("orphan", Assert.Single(result.Errors).Id);
@@ -454,17 +455,17 @@ public class RecurringJobManifestFacts
     {
         AddExisting("good", "0 * * * *");
         _hashes["recurring-job:broken"] = new Dictionary<string, string> { { "Cron", "0 3 * * *" } };
-        var recording = new RecordingLogProvider();
+        RecordingLogProvider recording = new();
 
         // Restores the late-bound provider afterwards, so loggers created by later tests keep working
         using (recording.Use())
         {
-            var entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+            JsonArray entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
 
             Assert.Equal("good", Assert.Single(entries)["id"].GetValue<string>());
         }
 
-        var warning = Assert.Single(recording.Entries, m => m.Level == LogLevel.Warn);
+        RecordingLogProvider.LogEntry warning = Assert.Single(recording.Entries, m => m.Level == LogLevel.Warn);
         Assert.Contains("'broken'", warning.Message);
     }
 
@@ -473,7 +474,7 @@ public class RecurringJobManifestFacts
     [InlineData("\"ignorable\"", MisfireHandlingMode.Ignorable)]
     public void Apply_PassesADefinedMisfireHandling_ToTheManager(string value, MisfireHandlingMode expected)
     {
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", "\"misfireHandling\": " + value + ", ")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("a", "\"misfireHandling\": " + value + ", ")));
 
         Assert.Equal(["a"], result.Added);
         _manager.Verify(x => x.AddOrUpdate("a", It.IsAny<Job>(), "0 1 * * *", It.Is<RecurringJobOptions>(o => o.MisfireHandling == expected)));
@@ -483,11 +484,11 @@ public class RecurringJobManifestFacts
     public void Apply_ReportsAnUndefinedMisfireHandling_WithoutRegisteringTheEntry()
     {
         // The lenient enum reader accepts any number; storing it would leave a job no server can read
-        var json = Manifest(Entry("bad", "\"misfireHandling\": 7, "), Entry("good"));
+        string json = Manifest(Entry("bad", "\"misfireHandling\": 7, "), Entry("good"));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
-        var error = Assert.Single(result.Errors);
+        RecurringJobManifestError error = Assert.Single(result.Errors);
         Assert.Equal("bad", error.Id);
         Assert.Equal("\"misfireHandling\" 7 is not defined. Use 0 (Relaxed), 1 (Strict) or 2 (Ignorable).", error.Message);
         Assert.Equal(["good"], result.Added);
@@ -497,11 +498,11 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_RejectsAMethodTheApplicationDoesNotUseAsAJob()
     {
-        var json = Manifest(ManifestOnlyEntry("new-method", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.NeverUsedAsAJob)));
+        string json = Manifest(ManifestOnlyEntry("new-method", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.NeverUsedAsAJob)));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
-        var error = Assert.Single(result.Errors);
+        RecurringJobManifestError error = Assert.Single(result.Errors);
         Assert.Equal("new-method", error.Id);
         Assert.StartsWith("RecurringJobManifestFacts.ManifestOnlyJobs.NeverUsedAsAJob is not a method this application uses as a job", error.Message);
         Assert.Contains("allowAnyMethod: true", error.Message);
@@ -512,11 +513,11 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_RejectsAFrameworkMethod_ThatNoJobUses()
     {
-        var json = Manifest(@"{ ""id"": ""x"", ""cron"": ""0 0 31 2 *"", ""paused"": true,
+        string json = Manifest(@"{ ""id"": ""x"", ""cron"": ""0 0 31 2 *"", ""paused"": true,
                 ""job"": { ""type"": ""System.Diagnostics.Process, System.Diagnostics.Process"", ""method"": ""Start"",
                            ""parameterTypes"": ""[\""System.String\"",\""System.String\""]"", ""arguments"": ""[\""\\\""cmd.exe\\\""\"",\""\\\""/c echo hi\\\""\""]"" } }");
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
         Assert.Contains("Process.Start is not a method this application uses as a job", Assert.Single(result.Errors).Message);
         _manager.Verify(x => x.AddOrUpdate(It.IsAny<string>(), It.IsAny<Job>(), It.IsAny<string>(), It.IsAny<RecurringJobOptions>()), Times.Never);
@@ -526,9 +527,9 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_AcceptsAnyMethod_WhenAllowed()
     {
-        var json = Manifest(ManifestOnlyEntry("new-method", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.NeverUsedAsAJob)));
+        string json = Manifest(ManifestOnlyEntry("new-method", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.NeverUsedAsAJob)));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: false, allowAnyMethod: true);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json, prune: false, allowAnyMethod: true);
 
         Assert.Empty(result.Errors);
         Assert.Equal(["new-method"], result.Added);
@@ -538,15 +539,15 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_AcceptsTheMethodOfAnExistingRecurringJob_UnderAnotherId()
     {
-        var method = typeof(ManifestOnlyJobs).GetMethod(nameof(ManifestOnlyJobs.UsedByAStoredRecurringJob));
+        MethodInfo? method = typeof(ManifestOnlyJobs).GetMethod(nameof(ManifestOnlyJobs.UsedByAStoredRecurringJob));
         _hashes["recurring-job:existing"] = new Dictionary<string, string>
         {
             { "Cron", "0 1 * * *" },
             { "Job", InvocationData.SerializeJob(new Job(method, "first")).SerializePayload() },
         };
-        var json = Manifest(ManifestOnlyEntry("copy", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.UsedByAStoredRecurringJob)));
+        string json = Manifest(ManifestOnlyEntry("copy", typeof(ManifestOnlyJobs), nameof(ManifestOnlyJobs.UsedByAStoredRecurringJob)));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
         Assert.Empty(result.Errors);
         Assert.Equal(["copy"], result.Added);
@@ -558,9 +559,9 @@ public class RecurringJobManifestFacts
         JobCatalog.Add<CatalogOnlyJobs>();
         try
         {
-            var json = Manifest(ManifestOnlyEntry("catalog", typeof(CatalogOnlyJobs), nameof(CatalogOnlyJobs.Run)));
+            string json = Manifest(ManifestOnlyEntry("catalog", typeof(CatalogOnlyJobs), nameof(CatalogOnlyJobs.Run)));
 
-            var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+            RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
             Assert.Empty(result.Errors);
             Assert.Equal(["catalog"], result.Added);
@@ -577,7 +578,7 @@ public class RecurringJobManifestFacts
         // Report is used in a job expression in this assembly, so the source generator emitted its invoker
         Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(RecurringJobManifestFacts).GetMethod(nameof(Report)), out _));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("generated")));
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, Manifest(Entry("generated")));
 
         Assert.Empty(result.Errors);
         Assert.Equal(["generated"], result.Added);
@@ -592,7 +593,7 @@ public class RecurringJobManifestFacts
         _hashes["recurring-job:windowed"]["EndAt"] = JobHelper.SerializeDateTime(new DateTime(2026, 12, 31, 22, 59, 59, DateTimeKind.Utc));
         _hashes["recurring-job:open"]["EndAt"] = string.Empty;
 
-        var entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+        JsonArray entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
 
         Assert.Null(entries[0]["startAt"]);
         Assert.Null(entries[0]["endAt"]);
@@ -603,9 +604,9 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_PassesTheWindow_ToTheManager_ReadingADateWithoutAnOffsetAsUtc()
     {
-        var json = Manifest(Entry("a", "\"startAt\": \"2026-12-01T00:00:00+02:00\", \"endAt\": \"2026-12-31T23:00:00\", "));
+        string json = Manifest(Entry("a", "\"startAt\": \"2026-12-01T00:00:00+02:00\", \"endAt\": \"2026-12-31T23:00:00\", "));
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
         Assert.Empty(result.Errors);
         _manager.Verify(x => x.AddOrUpdate("a", It.IsAny<Job>(), "0 1 * * *", It.Is<RecurringJobOptions>(o =>
@@ -616,7 +617,7 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_RegistersWithoutAWindow_AnEntryOfAnOlderManifest()
     {
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, "{ \"version\": 1, \"recurringJobs\": [ " + Entry("a") + " ] }");
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, "{ \"version\": 1, \"recurringJobs\": [ " + Entry("a") + " ] }");
 
         Assert.Empty(result.Errors);
         Assert.Null(RecurringJobManifest.Parse(Manifest(Entry("a")))[0].StartAt);
@@ -630,9 +631,9 @@ public class RecurringJobManifestFacts
         AddExisting("windowed", "0 9 * * *");
         _hashes["recurring-job:windowed"]["StartAt"] = JobHelper.SerializeDateTime(new DateTime(2026, 12, 1, 0, 0, 0, 250, DateTimeKind.Utc));
         _hashes["recurring-job:windowed"]["EndAt"] = JobHelper.SerializeDateTime(new DateTime(2026, 12, 31, 23, 0, 0, DateTimeKind.Utc));
-        var json = RecurringJobManifest.Export(_connection.Object);
+        string json = RecurringJobManifest.Export(_connection.Object);
 
-        var result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
 
         Assert.Empty(result.Errors);
         _manager.Verify(x => x.AddOrUpdate("windowed", It.IsAny<Job>(), "0 9 * * *", It.Is<RecurringJobOptions>(o =>
@@ -643,7 +644,7 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Parse_RejectsADateItCannotRead()
     {
-        var exception = Assert.Throws<FormatException>(() => RecurringJobManifest.Parse(Manifest(Entry("a", "\"endAt\": \"next friday\", "))));
+        FormatException exception = Assert.Throws<FormatException>(() => RecurringJobManifest.Parse(Manifest(Entry("a", "\"endAt\": \"next friday\", "))));
 
         Assert.Contains("next friday", exception.Message);
     }
@@ -651,14 +652,14 @@ public class RecurringJobManifestFacts
     [Fact]
     public void Apply_ReportsAWindowThatEndsBeforeItStarts_WithoutStoppingTheOtherEntries()
     {
-        var storage = CreateStorage(jobQueues: true);
-        var json = Manifest(
+        Mock<JobStorage> storage = CreateStorage(jobQueues: true);
+        string json = Manifest(
             Entry("bad", "\"startAt\": \"2026-12-31T00:00:00Z\", \"endAt\": \"2026-12-01T00:00:00Z\", "),
             Entry("good", "\"startAt\": \"2026-12-01T00:00:00Z\", "));
 
-        var result = RecurringJobManifest.Apply(CreateManager(storage.Object), _connection.Object, json, prune: false, allowAnyMethod: true);
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(CreateManager(storage.Object), _connection.Object, json, prune: false, allowAnyMethod: true);
 
-        var error = Assert.Single(result.Errors);
+        RecurringJobManifestError error = Assert.Single(result.Errors);
         Assert.Equal("bad", error.Id);
         Assert.Contains("must be later than StartAt", error.Message);
         Assert.Equal(["good"], result.Added);

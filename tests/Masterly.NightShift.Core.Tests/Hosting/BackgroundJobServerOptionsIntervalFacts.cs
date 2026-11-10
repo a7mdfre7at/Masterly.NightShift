@@ -11,9 +11,9 @@ public class BackgroundJobServerOptionsIntervalFacts
     [InlineData(-1)]
     public void HeartbeatInterval_ThrowsAnException_WhenNotPositive(int milliseconds)
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.HeartbeatInterval = TimeSpan.FromMilliseconds(milliseconds));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.HeartbeatInterval = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Contains("HeartbeatInterval must be greater than zero", exception.Message, StringComparison.Ordinal);
     }
@@ -23,9 +23,9 @@ public class BackgroundJobServerOptionsIntervalFacts
     [InlineData(-1)]
     public void ServerCheckInterval_ThrowsAnException_WhenNotPositive(int milliseconds)
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.ServerCheckInterval = TimeSpan.FromMilliseconds(milliseconds));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.ServerCheckInterval = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Contains("ServerCheckInterval must be greater than zero", exception.Message, StringComparison.Ordinal);
     }
@@ -35,9 +35,9 @@ public class BackgroundJobServerOptionsIntervalFacts
     [InlineData(-1)]
     public void ServerTimeout_ThrowsAnException_WhenNotPositive(int milliseconds)
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.ServerTimeout = TimeSpan.FromMilliseconds(milliseconds));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.ServerTimeout = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Contains("ServerTimeout must be greater than zero", exception.Message, StringComparison.Ordinal);
     }
@@ -47,9 +47,9 @@ public class BackgroundJobServerOptionsIntervalFacts
     [InlineData(-5000)]
     public void CancellationCheckInterval_ThrowsAnException_WhenNotPositive(int milliseconds)
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.CancellationCheckInterval = TimeSpan.FromMilliseconds(milliseconds));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => options.CancellationCheckInterval = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Contains("CancellationCheckInterval must be greater than zero", exception.Message, StringComparison.Ordinal);
     }
@@ -57,7 +57,7 @@ public class BackgroundJobServerOptionsIntervalFacts
     [Fact]
     public void CancellationCheckInterval_ThrowsAnException_WhenLongerThanAWaitCanBe()
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => options.CancellationCheckInterval = TimeSpan.FromMilliseconds((double)int.MaxValue + 1));
     }
@@ -65,7 +65,7 @@ public class BackgroundJobServerOptionsIntervalFacts
     [Fact]
     public void CancellationCheckInterval_ThrowsAnException_WhenInfinite()
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => options.CancellationCheckInterval = System.Threading.Timeout.InfiniteTimeSpan);
     }
@@ -73,7 +73,7 @@ public class BackgroundJobServerOptionsIntervalFacts
     [Fact]
     public void Intervals_AcceptTheSmallestPositiveValue_AndKeepTheirDefaults()
     {
-        var options = new BackgroundJobServerOptions();
+        BackgroundJobServerOptions options = new();
 
         Assert.Equal(TimeSpan.FromSeconds(5), options.CancellationCheckInterval);
 

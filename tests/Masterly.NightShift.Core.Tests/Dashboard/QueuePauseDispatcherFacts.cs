@@ -22,7 +22,7 @@ public class QueuePauseDispatcherFacts : IDisposable
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
-                foreach (var pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
             });
         DrainMode.InvalidateCache();
     }
@@ -35,7 +35,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly()
     {
-        var context = Create("/queues/pause/critical", PauseRoute, readOnly: true);
+        DashboardContextStub context = Create("/queues/pause/critical", PauseRoute, readOnly: true);
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -46,7 +46,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets405_ForNonPostRequests()
     {
-        var context = Create("/queues/pause/critical", PauseRoute, method: "GET");
+        DashboardContextStub context = Create("/queues/pause/critical", PauseRoute, method: "GET");
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -57,7 +57,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact]
     public async Task Dispatch_Sets422_WhenTheQueueIsBlank()
     {
-        var context = Create("/queues/pause/ ", PauseRoute);
+        DashboardContextStub context = Create("/queues/pause/ ", PauseRoute);
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -68,12 +68,12 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_PausesTheUnescapedQueue_WithTheTrimmedReason()
     {
-        var context = Create("/queues/pause/Critical Emails", PauseRoute, reason: "  smtp down  ");
+        DashboardContextStub context = Create("/queues/pause/Critical Emails", PauseRoute, reason: "  smtp down  ");
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
         Assert.Equal(204, context.Response.StatusCode);
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.IsQueuePaused("critical emails"));
         Assert.Equal("smtp down", status.PausedQueues["critical emails"]);
         Assert.False(status.Active);
@@ -83,7 +83,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_PausesTheQueue_WithoutAReason_WhenNoneIsGiven()
     {
-        var context = Create("/queues/pause/default", PauseRoute);
+        DashboardContextStub context = Create("/queues/pause/default", PauseRoute);
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -95,7 +95,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_TruncatesTheReason_To200Characters()
     {
-        var context = Create("/queues/pause/default", PauseRoute, reason: new string('q', 300));
+        DashboardContextStub context = Create("/queues/pause/default", PauseRoute, reason: new string('q', 300));
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -106,7 +106,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     public async Task Dispatch_ResumesAPausedQueue()
     {
         _hash[DrainMode.QueueFieldPrefix + "critical"] = "smtp down";
-        var context = Create("/queues/resume/CRITICAL", ResumeRoute);
+        DashboardContextStub context = Create("/queues/resume/CRITICAL", ResumeRoute);
 
         await new QueuePauseDispatcher(pause: false).Dispatch(context);
 
@@ -117,7 +117,7 @@ public class QueuePauseDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_RecordsTheQueueAndTheReason_InTheAuditLog()
     {
-        var context = Create("/queues/pause/reports", PauseRoute, reason: "month end");
+        DashboardContextStub context = Create("/queues/pause/reports", PauseRoute, reason: "month end");
 
         await new QueuePauseDispatcher(pause: true).Dispatch(context);
 
@@ -128,7 +128,7 @@ public class QueuePauseDispatcherFacts : IDisposable
 
     private DashboardContextStub Create(string path, string route, string method = "POST", bool readOnly = false, string reason = null)
     {
-        var request = new DashboardRequestStub(method, path);
+        DashboardRequestStub request = new(method, path);
         if (reason != null) request.Form["reason"] = [reason];
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)

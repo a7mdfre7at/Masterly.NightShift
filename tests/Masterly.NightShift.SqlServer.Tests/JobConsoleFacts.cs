@@ -13,14 +13,14 @@ public class JobConsoleFacts
     public void Writes_FromSeveralThreads_Succeed_WhileTheWorkerConnectionHoldsADistributedLock()
     {
         // [DisableConcurrentExecution] holds a lock on the worker's connection for the whole run
-        var storage = CreateStorage();
-        var jobId = CreateJob(storage);
-        var errors = new ConcurrentQueue<Exception>();
+        SqlServerStorage storage = CreateStorage();
+        string jobId = CreateJob(storage);
+        ConcurrentQueue<Exception> errors = new();
 
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         using (connection.AcquireDistributedLock($"console-test:{jobId}", TimeSpan.FromSeconds(5)))
         {
-            var console = CreateContext(storage, connection, jobId).Console;
+            IJobConsole console = CreateContext(storage, connection, jobId).Console;
 
             Parallel.For(0, 100, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i =>
             {
@@ -37,7 +37,7 @@ public class JobConsoleFacts
         }
 
         Assert.Empty(errors);
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
             Assert.Equal(50, JobConsole.ReadEntries(connection, jobId).Count);
             Assert.NotNull(JobConsole.ReadProgress(connection, jobId));
@@ -47,14 +47,14 @@ public class JobConsoleFacts
     [Fact, CleanDatabase]
     public void Checkpoints_SurviveTheConsoleBeingTrimmed()
     {
-        var storage = CreateStorage();
-        var jobId = CreateJob(storage);
-        var ran = 0;
+        SqlServerStorage storage = CreateStorage();
+        string jobId = CreateJob(storage);
+        int ran = 0;
 
         Perform(storage, jobId, console =>
         {
             console.Resume("download", () => ran++);
-            for (var i = 0; i < JobConsole.DefaultMaxLines + 10; i++) console.WriteLine($"row {i}");
+            for (int i = 0; i < JobConsole.DefaultMaxLines + 10; i++) console.WriteLine($"row {i}");
         });
         Perform(storage, jobId, console => console.Resume("download", () => ran++));
 
@@ -64,15 +64,15 @@ public class JobConsoleFacts
     [Fact, CleanDatabase]
     public void RequeuingASucceededJob_RunsItsResumeStepsAgain()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var jobId = CreateJob(storage);
-        var ran = 0;
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        string jobId = CreateJob(storage);
+        int ran = 0;
 
         Perform(storage, jobId, console => console.Resume("download", () => ran++));
         Assert.True(client.ChangeState(jobId, new SucceededState(null, 0, 0)));
 
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.True(connection.GetListTtl(JobConsole.GetConsoleKey(jobId)) > TimeSpan.Zero);
             Assert.True(connection.GetListTtl(JobConsole.GetCheckpointsKey(jobId)) > TimeSpan.Zero);
@@ -82,7 +82,7 @@ public class JobConsoleFacts
         Perform(storage, jobId, console => console.Resume("download", () => ran++));
 
         Assert.Equal(2, ran);
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.True(connection.GetListTtl(JobConsole.GetConsoleKey(jobId)) < TimeSpan.Zero);
             Assert.True(connection.GetListTtl(JobConsole.GetCheckpointsKey(jobId)) < TimeSpan.Zero);
@@ -92,10 +92,10 @@ public class JobConsoleFacts
     [Fact, CleanDatabase]
     public void RequeuingAFailedJob_SkipsTheStepsThatFinished()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var jobId = CreateJob(storage);
-        var ran = 0;
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        string jobId = CreateJob(storage);
+        int ran = 0;
 
         Perform(storage, jobId, console => console.Resume("download", () => ran++));
         // The global AutomaticRetry filter may turn Failed into Scheduled; neither is final
@@ -121,14 +121,14 @@ public class JobConsoleFacts
     /// <summary>One attempt, with the job data a worker would load.</summary>
     private static void Perform(JobStorage storage, string jobId, Action<IJobConsole> body)
     {
-        using var connection = storage.GetConnection();
+        using IStorageConnection connection = storage.GetConnection();
         body(CreateContext(storage, connection, jobId).Console);
     }
 
     private static PerformContext CreateContext(JobStorage storage, IStorageConnection connection, string jobId)
     {
-        var data = connection.GetJobData(jobId);
-        var job = new BackgroundJob(jobId, data.Job, data.CreatedAt, data.ParametersSnapshot);
+        JobData? data = connection.GetJobData(jobId);
+        BackgroundJob job = new(jobId, data.Job, data.CreatedAt, data.ParametersSnapshot);
         return new PerformContext(storage, connection, job, new JobCancellationToken(false));
     }
 

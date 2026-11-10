@@ -13,7 +13,7 @@ public class JobActivatorFacts
     [Fact, GlobalLock]
     public void GetCurrent_ReturnsPreviouslySetValue()
     {
-        var activator = new JobActivator();
+        JobActivator activator = new();
         JobActivator.Current = activator;
 
         Assert.Same(activator, JobActivator.Current);
@@ -22,9 +22,9 @@ public class JobActivatorFacts
     [Fact]
     public void BeginScope_ThrowsArgumentNullException_WhenPerformContextIsNull()
     {
-        var activator = new JobActivator();
+        JobActivator activator = new();
 
-        var exception = Assert.Throws<ArgumentNullException>(() => activator.BeginScope((PerformContext)null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => activator.BeginScope((PerformContext)null));
 
         Assert.Equal("context", exception.ParamName);
     }
@@ -32,9 +32,9 @@ public class JobActivatorFacts
     [Fact]
     public void DefaultActivator_CanCreateInstanceOfClassWithDefaultConstructor()
     {
-        var activator = new JobActivator();
+        JobActivator activator = new();
 
-        var instance = activator.ActivateJob(typeof(DefaultConstructor));
+        object? instance = activator.ActivateJob(typeof(DefaultConstructor));
 
         Assert.NotNull(instance);
     }
@@ -42,7 +42,7 @@ public class JobActivatorFacts
     [Fact]
     public void DefaultActivator_ThrowAnException_IfThereIsNoDefaultConstructor()
     {
-        var activator = new JobActivator();
+        JobActivator activator = new();
 
         Assert.Throws<MissingMethodException>(
             () => activator.ActivateJob(typeof(CustomConstructor)));

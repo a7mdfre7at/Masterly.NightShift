@@ -12,7 +12,7 @@ public class RetryLaterFacts : IDisposable
     {
         AutomaticRetryAttribute.Clock = () => _now;
 
-        _connection.Setup(x => x.GetJobParameter("id", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out var value) ? value : null);
+        _connection.Setup(x => x.GetJobParameter("id", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out string? value) ? value : null);
         _connection.Setup(x => x.SetJobParameter("id", It.IsAny<string>(), It.IsAny<string>())).Callback<string, string, string>((_, name, value) => _parameters[name] = value);
 
         _context.ApplyContext.BackgroundJob.Id = "id";
@@ -50,12 +50,12 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateElection_SchedulesForTheRequestedMoment_WithoutUsingAnAttempt()
     {
-        var filter = new AutomaticRetryAttribute { Attempts = 3 };
+        AutomaticRetryAttribute filter = new() { Attempts = 3 };
         _context.ApplyContext.NewStateObject = new FailedState(new RetryLaterException(TimeSpan.FromMinutes(10), "Partner API is busy"));
 
         filter.OnStateElection(_context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
         Assert.Equal(_now.AddMinutes(10), scheduled.EnqueueAt);
         Assert.StartsWith("Retry later (1 of 100): Partner API is busy", scheduled.Reason);
         Assert.Equal("1", _parameters[AutomaticRetryAttribute.RetryLaterCountParameter]);
@@ -65,7 +65,7 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateElection_EnqueuesImmediately_WhenTheMomentHasPassed()
     {
-        var filter = new AutomaticRetryAttribute();
+        AutomaticRetryAttribute filter = new();
         _context.ApplyContext.NewStateObject = new FailedState(new RetryLaterException(_now.AddMinutes(-1)));
 
         filter.OnStateElection(_context.Object);
@@ -76,7 +76,7 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateElection_CountsTheRequests()
     {
-        var filter = new AutomaticRetryAttribute();
+        AutomaticRetryAttribute filter = new();
         _parameters[AutomaticRetryAttribute.RetryLaterCountParameter] = "41";
         _context.ApplyContext.NewStateObject = new FailedState(new RetryLaterException(TimeSpan.FromSeconds(30)));
 
@@ -89,13 +89,13 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateElection_FallsBackToTheUsualRetry_OnceTheRequestsAreUsedUp()
     {
-        var filter = new AutomaticRetryAttribute { MaxRetryLaterRequests = 2, Attempts = 5, DelaysInSeconds = [7] };
+        AutomaticRetryAttribute filter = new() { MaxRetryLaterRequests = 2, Attempts = 5, DelaysInSeconds = [7] };
         _parameters[AutomaticRetryAttribute.RetryLaterCountParameter] = "2";
         _context.ApplyContext.NewStateObject = new FailedState(new RetryLaterException(TimeSpan.FromHours(1)));
 
         filter.OnStateElection(_context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
         Assert.StartsWith("Retry attempt 1 of 5", scheduled.Reason);
         Assert.Equal("1", _parameters["RetryCount"]);
         Assert.Equal("2", _parameters[AutomaticRetryAttribute.RetryLaterCountParameter]);
@@ -104,7 +104,7 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateElection_TreatsTheExceptionAsAnyOther_WhenDisabled()
     {
-        var filter = new AutomaticRetryAttribute { MaxRetryLaterRequests = 0, Attempts = 0 };
+        AutomaticRetryAttribute filter = new() { MaxRetryLaterRequests = 0, Attempts = 0 };
         _context.ApplyContext.NewStateObject = new FailedState(new RetryLaterException(TimeSpan.FromHours(1)));
 
         filter.OnStateElection(_context.Object);
@@ -123,8 +123,8 @@ public class RetryLaterFacts : IDisposable
     [Fact]
     public void OnStateApplied_AddsRetryLaterJobs_ToTheRetriesSet()
     {
-        var filter = new AutomaticRetryAttribute();
-        var applyContext = new ApplyStateContextMock { NewStateObject = new ScheduledState(_now.AddMinutes(1)) { Reason = "Retry later (1 of 100): busy" } };
+        AutomaticRetryAttribute filter = new();
+        ApplyStateContextMock applyContext = new() { NewStateObject = new ScheduledState(_now.AddMinutes(1)) { Reason = "Retry later (1 of 100): busy" } };
         applyContext.BackgroundJob.Id = "id";
 
         filter.OnStateApplied(applyContext.Object, _transaction.Object);

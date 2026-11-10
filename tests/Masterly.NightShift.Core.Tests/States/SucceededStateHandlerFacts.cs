@@ -14,14 +14,14 @@ public class SucceededStateHandlerFacts
     [Fact]
     public void ShouldWorkOnlyWithSucceededState()
     {
-        var handler = new SucceededState.Handler();
+        SucceededState.Handler handler = new();
         Assert.Equal(SucceededState.StateName, handler.StateName);
     }
 
     [Fact]
     public void Apply_ShouldIncrease_SucceededCounter()
     {
-        var handler = new SucceededState.Handler();
+        SucceededState.Handler handler = new();
         handler.Apply(_context.Object, _transactionMock.Object);
 
         _transactionMock.Verify(x => x.IncrementCounter("stats:succeeded"), Times.Once);
@@ -30,7 +30,7 @@ public class SucceededStateHandlerFacts
     [Fact]
     public void Unapply_ShouldDecrementStatistics()
     {
-        var handler = new SucceededState.Handler();
+        SucceededState.Handler handler = new();
         handler.Unapply(_context.Object, _transactionMock.Object);
 
         _transactionMock.Verify(x => x.DecrementCounter("stats:succeeded"), Times.Once);

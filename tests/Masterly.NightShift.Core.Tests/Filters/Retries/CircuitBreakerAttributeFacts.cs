@@ -22,7 +22,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     {
         _timestamp = JobHelper.ToTimestamp(_now);
 
-        foreach (var connection in new[] { _performContext.Connection, _electContext.ApplyContext.Connection })
+        foreach (Mock<IStorageConnection>? connection in new[] { _performContext.Connection, _electContext.ApplyContext.Connection })
         {
             connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
             connection.Setup(x => x.GetAllItemsFromSet(FailuresKey)).Returns(_failures);
@@ -56,7 +56,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RecordsAFailure_WithoutOpening_BelowTheThreshold()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
@@ -71,7 +71,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_OpensTheCircuit_AtTheThreshold()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
@@ -85,11 +85,11 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsFailures_ThatAnotherFilterTurnedIntoRetries()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
-        var context = _electContext.Object;
+        ElectStateContext context = _electContext.Object;
         context.CandidateState = new ScheduledState(TimeSpan.FromMinutes(1));
 
         attribute.OnStateElection(context);
@@ -110,11 +110,11 @@ public class CircuitBreakerAttributeFacts : IDisposable
     public void OnStateElection_DoesNotCount_FailuresInWhichTheDependencyWasNeverCalled(Exception exception)
     {
         // Six jobs waiting for DisableConcurrentExecution's lock must not open the circuit of a healthy service
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(exception);
-        var context = _electContext.Object;
+        ElectStateContext context = _electContext.Object;
         context.CandidateState = new ScheduledState(TimeSpan.FromMinutes(1));
 
         attribute.OnStateElection(context);
@@ -127,7 +127,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotReopenTheCircuit_WhenTheProbeFailsWithoutCallingTheDependency()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "JobId");
         _electContext.ApplyContext.NewStateObject = new FailedState(new DistributedLockTimeoutException("lock"));
 
@@ -140,7 +140,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsTheExcludedExceptions_WhenExceptOnIsEmpty()
     {
-        var attribute = new CircuitBreakerAttribute("resource", 3, 60, 120) { ExceptOn = Type.EmptyTypes };
+        CircuitBreakerAttribute attribute = new("resource", 3, 60, 120) { ExceptOn = Type.EmptyTypes };
         _electContext.ApplyContext.NewStateObject = new FailedState(new DistributedLockTimeoutException("lock"));
 
         attribute.OnStateElection(_electContext.Object);
@@ -151,13 +151,13 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsOnlyTheListedExceptions_WhenOnlyOnIsGiven()
     {
-        var attribute = new CircuitBreakerAttribute("resource", 3, 60, 120) { OnlyOn = [typeof(TimeoutException)] };
+        CircuitBreakerAttribute attribute = new("resource", 3, 60, 120) { OnlyOn = [typeof(TimeoutException)] };
 
         _electContext.ApplyContext.NewStateObject = new FailedState(new InvalidOperationException());
         attribute.OnStateElection(_electContext.Object);
         _transaction.Verify(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>()), Times.Never);
 
-        var timedOut = new ElectStateContextMock();
+        ElectStateContextMock timedOut = new();
         timedOut.ApplyContext.Connection = _electContext.ApplyContext.Connection;
         timedOut.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample());
         timedOut.ApplyContext.NewStateObject = new FailedState(new TimeoutException());
@@ -168,7 +168,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact]
     public void ExceptOn_ByDefault_ListsTheFailuresInWhichTheDependencyWasNeverCalled()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
 
         Assert.Empty(attribute.OnlyOn);
         Assert.Equal([typeof(ConcurrencyLimitException), typeof(DistributedLockTimeoutException), typeof(RetryLaterException)], attribute.ExceptOn);
@@ -177,7 +177,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_PutsAHeldJobBackInItsQueue_WhenItIsEnqueuedAgain()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.OldStateName = ScheduledState.StateName;
         _electContext.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { { DrainModeFilter.HeldQueueParameter, "\"emails\"" } };
         _electContext.ApplyContext.NewStateObject = new EnqueuedState();
@@ -190,8 +190,8 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_IgnoresFailuresOutsideTheWindow()
     {
-        var attribute = Create();
-        var old = $"{_timestamp - 61}:a";
+        CircuitBreakerAttribute attribute = Create();
+        string old = $"{_timestamp - 61}:a";
         _failures.Add(old);
         _failures.Add($"{_timestamp - 62}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
@@ -205,7 +205,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNothing_ForOtherStates()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new EnqueuedState();
 
         attribute.OnStateElection(_electContext.Object);
@@ -216,8 +216,8 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_LetsJobsThrough_WhenTheCircuitIsClosed()
     {
-        var attribute = Create();
-        var performing = _performContext.GetPerformingContext();
+        CircuitBreakerAttribute attribute = Create();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -228,9 +228,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReschedulesJobs_WhileTheCircuitIsOpen()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         Open(openedSecondsAgo: 30);
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -244,9 +244,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_HalfOpensTheCircuit_AfterTheOpenPeriod_AndLetsTheJobThrough()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         Open(openedSecondsAgo: 121);
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -260,14 +260,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_WritesTheProbeAgain_AfterATransientStorageError()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         Open(openedSecondsAgo: 121);
-        var commits = 0;
+        int commits = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
             if (++commits == 1) throw new InvalidOperationException("deadlock victim");
         });
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -280,10 +280,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_ReschedulesOtherJobs_WhileTheProbeRuns()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "probe-job");
         ProbeState(ProcessingState.StateName);
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -299,7 +299,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_DoesNotOverwriteTheProbesVerdict_CommittedWhileItChecks()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "probe-job");
 
         // The probe succeeds and closes the circuit right after this job read the circuit
@@ -310,7 +310,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
                 _circuit = new Dictionary<string, string> { { "State", CircuitBreakerAttribute.ClosedState } };
                 return new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() };
             });
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -321,9 +321,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerforming_LetsTheProbeRunAgain_WithoutWritingAnything()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "JobId");
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -338,10 +338,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [InlineData("Scheduled")]
     public void OnPerforming_TakesOverAsTheProbe_WhenTheProbeIsNoLongerRunning(string probeState)
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "probe-job");
         ProbeState(probeState);
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -355,14 +355,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     public void OnPerforming_ChoosesTheProbe_OnFreshDataUnderTheLock()
     {
         // Another server made its job the probe between the first read and the lock
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         Open(openedSecondsAgo: 121);
         ProbeState(ProcessingState.StateName);
         _performContext.Connection
             .Setup(x => x.AcquireDistributedLock("circuit:resource:lock", It.IsAny<TimeSpan>()))
             .Callback(() => HalfOpen(probe: "probe-job"))
             .Returns(new Mock<IDisposable>().Object);
-        var performing = _performContext.GetPerformingContext();
+        PerformingContext performing = _performContext.GetPerformingContext();
 
         attribute.OnPerforming(performing);
 
@@ -375,7 +375,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     {
         HalfOpen(probe: "probe-job");
 
-        var state = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
+        CircuitBreakerAttribute.CircuitState state = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
 
         Assert.Equal(CircuitBreakerAttribute.HalfOpenState, state.State);
         Assert.Equal("probe-job", state.ProbeJobId);
@@ -384,7 +384,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_IgnoresTheSuccessOfAnotherJob_WhileTheProbeRuns()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "probe-job");
         _electContext.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
@@ -396,7 +396,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_OnlyRecordsTheFailureOfAnotherJob_WhileTheProbeRuns()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "probe-job");
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
@@ -412,7 +412,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ClosesTheCircuit_WhenTheRecordedProbeSucceeds()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "JobId");
         _electContext.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
@@ -426,7 +426,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ReopensTheCircuit_WhenTheRecordedProbeFails()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "JobId");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
@@ -439,14 +439,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ClosesTheCircuit_WhenTheProbeSucceeds()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen();
         _failures.Add($"{_timestamp - 10}:a");
         _electContext.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
         attribute.OnStateElection(_electContext.Object);
 
-        var transaction = _electContext.ApplyContext.Transaction;
+        Mock<IWriteOnlyTransaction> transaction = _electContext.ApplyContext.Transaction;
         transaction.Verify(x => x.SetRangeInHash(CircuitKey, It.Is<IEnumerable<KeyValuePair<string, string>>>(
             pairs => pairs.Any(p => p.Key == "State" && p.Value == CircuitBreakerAttribute.ClosedState))));
         transaction.Verify(x => x.RemoveFromSet(FailuresKey, $"{_timestamp - 10}:a"));
@@ -455,7 +455,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ReopensTheCircuit_WhenTheProbeFails()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
@@ -469,7 +469,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotRecordFailures_ForSuccessfulJobs_OnClosedCircuits()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
 
         attribute.OnStateElection(_electContext.Object);
@@ -480,7 +480,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void ReadCircuit_ReturnsClosed_WhenNothingIsStored()
     {
-        var state = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
+        CircuitBreakerAttribute.CircuitState state = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
 
         Assert.Equal(CircuitBreakerAttribute.ClosedState, state.State);
         Assert.Equal(0, state.Failures);
@@ -506,7 +506,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact]
     public void Ctor_WithoutResource_LeavesTheResourceToTheJobTypeAndMethod()
     {
-        var attribute = new CircuitBreakerAttribute(3, 60, 120);
+        CircuitBreakerAttribute attribute = new(3, 60, 120);
 
         Assert.Null(attribute.Resource);
         Assert.Equal(3, attribute.FailureThreshold);
@@ -518,7 +518,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     public void OnStateElection_UsesTheFullTypeName_MethodAndParameterTypes_AsTheDefaultResource()
     {
         const string defaultFailuresKey = "circuit:masterly.nightshift.core.tests.circuitbreakerattributefacts.sample():failures";
-        var attribute = new CircuitBreakerAttribute(3, 60, 120);
+        CircuitBreakerAttribute attribute = new(3, 60, 120);
         _electContext.ApplyContext.Connection.Setup(x => x.GetAllItemsFromSet(defaultFailuresKey)).Returns([]);
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
@@ -531,7 +531,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnPerformed_DoesNotTouchTheStorage()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
 
         attribute.OnPerformed(_performContext.GetPerformedContext());
 
@@ -542,16 +542,16 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RaisesACircuitOpenedAlert_WhenTheThresholdIsReached()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
 
-        var alert = Assert.Single(sink.Received);
+        Alert alert = Assert.Single(sink.Received);
         Assert.Equal(AlertKind.CircuitOpened, alert.Kind);
         Assert.Equal("Circuit 'resource' is open", alert.Title);
         Assert.Equal("3 failure(s) within 60 seconds; jobs are held for 120 seconds.", alert.Message);
@@ -562,15 +562,15 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RaisesACircuitOpenedAlert_WhenTheProbeFails()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
 
-        var alert = Assert.Single(sink.Received);
+        Alert alert = Assert.Single(sink.Received);
         Assert.Equal(AlertKind.CircuitOpened, alert.Kind);
         Assert.Equal("3 failure(s) within 60 seconds; jobs are held for 120 seconds.", alert.Message);
     }
@@ -578,9 +578,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotRaiseAnAlert_BelowTheThreshold()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
@@ -591,9 +591,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RaisesTheAlert_OnlyAfterTheOpenStateIsCommitted()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _transaction.Setup(x => x.Commit()).Callback(() => Assert.Empty(sink.Received));
@@ -608,9 +608,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_OpensTheCircuitAndAlertsOnce_WhenTheStateChangeIsRetried()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         StoreHashWrites();
@@ -628,14 +628,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsTheFailure_UnderTheCircuitLock()
     {
-        var attribute = Create();
-        var locked = false;
+        CircuitBreakerAttribute attribute = Create();
+        bool locked = false;
         _electContext.ApplyContext.Connection
             .Setup(x => x.AcquireDistributedLock("circuit:resource:lock", It.IsAny<TimeSpan>()))
             .Returns(() =>
             {
                 locked = true;
-                var handle = new Mock<IDisposable>();
+                Mock<IDisposable> handle = new();
                 handle.Setup(x => x.Dispose()).Callback(() => locked = false);
                 return handle.Object;
             });
@@ -651,7 +651,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_StoresWhenTheOpenPeriodEnds()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
@@ -668,7 +668,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
         Open(openedSecondsAgo: 5);
         _circuit["OpenUntil"] = (_timestamp + 115).ToString();
 
-        var circuit = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
+        CircuitBreakerAttribute.CircuitState circuit = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
 
         Assert.Equal(_now.AddSeconds(115), circuit.OpenUntil);
     }
@@ -680,7 +680,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 100}:b");
 
-        var circuit = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
+        CircuitBreakerAttribute.CircuitState circuit = CircuitBreakerAttribute.ReadCircuit(_performContext.Connection.Object, "resource");
 
         Assert.Equal(1, circuit.Failures);
         Assert.Equal(CircuitBreakerAttribute.ClosedState, circuit.State);
@@ -699,8 +699,8 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ForgetsAQuietClosedCircuit_WhenAJobSucceeds()
     {
-        var attribute = Create();
-        var stale = $"{_timestamp - 500}:a";
+        CircuitBreakerAttribute attribute = Create();
+        string stale = $"{_timestamp - 500}:a";
         _failures.Add(stale);
         _circuit = new Dictionary<string, string>
         {
@@ -721,7 +721,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotFailTheSuccess_WhenAQuietCircuitCannotBeForgotten()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _circuit = new Dictionary<string, string>
         {
             { "State", CircuitBreakerAttribute.ClosedState },
@@ -740,7 +740,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_KeepsListingACircuit_ClosedLessThanItsRetentionAgo()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _circuit = new Dictionary<string, string>
         {
             { "State", CircuitBreakerAttribute.ClosedState },
@@ -758,7 +758,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_KeepsListingACircuit_WithFailuresInTheWindow()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _circuit = new Dictionary<string, string> { { "WindowSeconds", "60" } };
         _electContext.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
@@ -771,10 +771,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ExpiresTheFailures_WithTheWindow_WhenTheStorageSupportsIt()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _electContext.ApplyContext.Connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
         _electContext.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
@@ -787,10 +787,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_KeepsTheHashOfAnOpenCircuit_WhenTheStorageSupportsExpiration()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _electContext.ApplyContext.Connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
         _electContext.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
@@ -804,9 +804,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotExpireAnything_WhenTheStorageDoesNotSupportIt()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _electContext.ApplyContext.Connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         attribute.OnStateElection(_electContext.Object);
@@ -819,8 +819,8 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_ShortensTheKeys_OfALongResource()
     {
-        var attribute = new CircuitBreakerAttribute("partner-{0}", 3, 60, 120);
-        var partner = new string('p', 95);
+        CircuitBreakerAttribute attribute = new("partner-{0}", 3, 60, 120);
+        string partner = new('p', 95);
         _electContext.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => ForPartner(partner));
         _electContext.ApplyContext.Connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns([]);
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
@@ -836,14 +836,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_WaitsForTheCommit_BeforeRaisingTheAlertOfAFailedProbe()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         HalfOpen(probe: "JobId");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         // Last, because reading Object builds the context from the setup above
-        var afterCommit = new PostCommitActions();
+        PostCommitActions afterCommit = new();
         _electContext.ApplyContext.Object.AfterCommit = afterCommit;
 
         attribute.OnStateElection(_electContext.Object);
@@ -856,15 +856,15 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_RaisesTheAlertOfAnOpenedCircuit_OnlyWhenTheStateChangeIsOver()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
         // Last, because reading Object builds the context from the setup above
-        var afterCommit = new PostCommitActions();
+        PostCommitActions afterCommit = new();
         _electContext.ApplyContext.Object.AfterCommit = afterCommit;
 
         attribute.OnStateElection(_electContext.Object);
@@ -877,13 +877,13 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_StillRaisesTheAlertOfAnOpenedCircuit_WhenTheJobsStateChangeFails()
     {
-        var sink = new RecordingSink();
+        RecordingSink sink = new();
         Alerts.AddSink(sink);
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _failures.Add($"{_timestamp - 10}:a");
         _failures.Add($"{_timestamp - 20}:b");
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
-        var afterCommit = new PostCommitActions();
+        PostCommitActions afterCommit = new();
         _electContext.ApplyContext.Object.AfterCommit = afterCommit;
 
         attribute.OnStateElection(_electContext.Object);
@@ -896,9 +896,9 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotCountAFailureTwice_WhenTheStateChangeIsRetriedInALaterSecond()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         StoreFailureWrites();
-        var failed = new FailedState(new Exception());
+        FailedState failed = new(new Exception());
         _electContext.ApplyContext.NewStateObject = failed;
 
         attribute.OnStateElection(_electContext.Object);
@@ -912,18 +912,18 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_DoesNotCountAFailureTwice_WhenAnotherFilterTurnedItIntoARetry()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         StoreFailureWrites();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
-        var first = new ElectStateContext(_electContext.ApplyContext.Object)
+        ElectStateContext first = new(_electContext.ApplyContext.Object)
         {
             CandidateState = new ScheduledState(TimeSpan.FromMinutes(1))
         };
         attribute.OnStateElection(first);
 
         ConcurrencyControl.Clock = () => _now.AddSeconds(1);
-        var retried = new ElectStateContext(_electContext.ApplyContext.Object)
+        ElectStateContext retried = new(_electContext.ApplyContext.Object)
         {
             CandidateState = new ScheduledState(TimeSpan.FromMinutes(1))
         };
@@ -935,14 +935,14 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsTheNextFailureOfTheSameJob_AsANewFailure()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         StoreFailureWrites();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
         attribute.OnStateElection(_electContext.Object);
 
         ConcurrencyControl.Clock = () => _now.AddSeconds(30);
-        var first = _electContext.ApplyContext.Object;
-        var next = new ApplyStateContext(first.Storage, first.Connection, first.Transaction, first.BackgroundJob, new FailedState(new Exception()), null, EmptyProfiler.Instance, first.StateMachine);
+        ApplyStateContext first = _electContext.ApplyContext.Object;
+        ApplyStateContext next = new(first.Storage, first.Connection, first.Transaction, first.BackgroundJob, new FailedState(new Exception()), null, EmptyProfiler.Instance, first.StateMachine);
         attribute.OnStateElection(new ElectStateContext(next));
 
         Assert.Equal([$"{_timestamp}:JobId", $"{_timestamp + 30}:JobId"], _failures.OrderBy(x => x));
@@ -951,7 +951,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
     [Fact, StaticLock]
     public void OnStateElection_CountsTheFailureAgain_WhenItsFirstCommitFailed()
     {
-        var attribute = Create();
+        CircuitBreakerAttribute attribute = Create();
         _transaction.SetupSequence(x => x.Commit()).Throws(new TimeoutException()).Pass();
         _electContext.ApplyContext.NewStateObject = new FailedState(new Exception());
 
@@ -983,7 +983,7 @@ public class CircuitBreakerAttributeFacts : IDisposable
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
                 _circuit ??= [];
-                foreach (var pair in pairs) _circuit[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs) _circuit[pair.Key] = pair.Value;
             });
     }
 

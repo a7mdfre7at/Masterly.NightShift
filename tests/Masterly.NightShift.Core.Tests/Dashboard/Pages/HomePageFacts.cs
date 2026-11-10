@@ -18,7 +18,7 @@ public class HomePageFacts
     {
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Succeeded = 12, Failed = 3, Deleted = 1 });
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"<h3>{Encode(Strings.HomePage_RealtimeGraph)}</h3>", html);
         Assert.Contains("id=\"realtimeGraph\" data-succeeded=\"12\" data-failed=\"3\" data-deleted=\"1\"", html);
@@ -28,7 +28,7 @@ public class HomePageFacts
     [Fact]
     public void Render_Always_ShowsTheActivityFeedPlaceholder()
     {
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"{Encode(Strings.HomePage_Activity)} <small class=\"text-muted\">{Encode(Strings.HomePage_Activity_Hint)}</small>", html);
         Assert.Contains($"data-url=\"/activity\" data-job-url=\"/jobs/details/\" data-empty=\"{Encode(Strings.HomePage_Activity_Empty)}\"", html);
@@ -38,12 +38,12 @@ public class HomePageFacts
     [Fact]
     public void Render_ByDefault_ShowsTheHourlyHistory()
     {
-        var succeeded = new Dictionary<DateTime, long> { { Hour, 5 } };
-        var failed = new Dictionary<DateTime, long> { { Hour, 2 } };
+        Dictionary<DateTime, long> succeeded = new() { { Hour, 5 } };
+        Dictionary<DateTime, long> failed = new() { { Hour, 2 } };
         _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(succeeded);
         _renderer.Monitoring.Setup(x => x.HourlyFailedJobs()).Returns(failed);
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-default active\">{Encode(Strings.Common_PeriodDay)}</a>", html);
         Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-default \">{Encode(Strings.Common_PeriodWeek)}</a>", html);
@@ -58,11 +58,11 @@ public class HomePageFacts
     [Fact]
     public void Render_ForTheWeek_ShowsTheDailyHistory()
     {
-        var succeeded = new Dictionary<DateTime, long> { { Hour.Date, 50 } };
+        Dictionary<DateTime, long> succeeded = new() { { Hour.Date, 50 } };
         _renderer.Monitoring.Setup(x => x.SucceededByDatesCount()).Returns(succeeded);
         _renderer.Request.Query["period"] = "WEEK";
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"<a href=\"?period=day\" class=\"btn btn-sm btn-default \">", html);
         Assert.Contains($"<a href=\"?period=week\" class=\"btn btn-sm btn-default active\">", html);
@@ -76,7 +76,7 @@ public class HomePageFacts
     {
         _renderer.Request.Query["period"] = "month";
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"<h3>{Encode(Strings.HomePage_HistoryGraph)}</h3>", html);
         Assert.DoesNotContain("historyGraph", html);
@@ -88,8 +88,8 @@ public class HomePageFacts
     [InlineData("week")]
     public void Render_WhenTheStorageGraphsDeletedJobs_IncludesThem(string period)
     {
-        var deleted = new Dictionary<DateTime, long> { { Hour, 7 } };
-        var monitor = new Mock<JobStorageMonitor>();
+        Dictionary<DateTime, long> deleted = new() { { Hour, 7 } };
+        Mock<JobStorageMonitor> monitor = new();
         monitor.Setup(x => x.GetStatistics()).Returns(new StatisticsDto());
         monitor.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long>());
         monitor.Setup(x => x.HourlyFailedJobs()).Returns(new Dictionary<DateTime, long>());
@@ -101,7 +101,7 @@ public class HomePageFacts
         _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Monitoring.DeletedStateGraphs)).Returns(true);
         _renderer.Request.Query["period"] = period;
 
-        var html = _renderer.Render(new HomePage());
+        string html = _renderer.Render(new HomePage());
 
         Assert.Contains($"data-deleted=\"{Encode(JsonSerializer.Serialize(deleted))}\"", html);
     }
@@ -109,12 +109,12 @@ public class HomePageFacts
     [Fact, GlobalLock(Reason = "Changes HomePage.Metrics")]
     public void Render_WithoutHomeMetrics_LeavesTheKpiGridOut()
     {
-        var saved = new List<DashboardMetric>(HomePage.Metrics);
+        List<DashboardMetric> saved = [.. HomePage.Metrics];
         HomePage.Metrics.Clear();
 
         try
         {
-            var html = _renderer.Render(new HomePage());
+            string html = _renderer.Render(new HomePage());
 
             Assert.DoesNotContain("hf-kpi-grid", html);
         }
@@ -127,14 +127,14 @@ public class HomePageFacts
     [Fact, GlobalLock(Reason = "Changes HomePage.Metrics")]
     public void Render_WithHomeMetrics_ShowsThemAsBlocks()
     {
-        var saved = new List<DashboardMetric>(HomePage.Metrics);
+        List<DashboardMetric> saved = [.. HomePage.Metrics];
         HomePage.Metrics.Clear();
         HomePage.Metrics.Add(DashboardMetrics.ServerCount);
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Servers = 0 });
 
         try
         {
-            var html = _renderer.Render(new HomePage());
+            string html = _renderer.Render(new HomePage());
 
             Assert.Contains("<div class=\"hf-kpi-grid\">", html);
             Assert.Contains("<div class=\"metric-body\" data-metric=\"servers:count\">", html);

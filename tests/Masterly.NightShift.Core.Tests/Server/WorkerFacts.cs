@@ -47,7 +47,7 @@ public class WorkerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenQueuesCollectionNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new Worker(null, _performer.Object, _stateChanger.Object));
 
         Assert.Equal("queues", exception.ParamName);
@@ -56,7 +56,7 @@ public class WorkerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenPerformanceProcessIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new Worker(_queues, null, _stateChanger.Object));
 
         Assert.Equal("performer", exception.ParamName);
@@ -65,7 +65,7 @@ public class WorkerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStateChangeProcess_IsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new Worker(_queues, _performer.Object, null));
 
         Assert.Equal("stateChanger", exception.ParamName);
@@ -74,7 +74,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_TakesConnectionAndReleasesIt()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -85,7 +85,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_FetchesAJobAndRemovesItFromQueue()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -103,7 +103,7 @@ public class WorkerFacts
             .Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Throws<InvalidOperationException>();
 
-        var worker = CreateWorker(1);
+        Worker worker = CreateWorker(1);
 
         Assert.Throws<InvalidOperationException>(
             () => worker.Execute(_context.Object));
@@ -119,7 +119,7 @@ public class WorkerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(y => y.NewState.Name != FailedState.StateName)))
             .Throws<InvalidOperationException>();
 
-        var worker = CreateWorker(1);
+        Worker worker = CreateWorker(1);
 
         worker.Execute(_context.Object);
 
@@ -148,7 +148,7 @@ public class WorkerFacts
             .InSequence()
             .Returns<StateChangeContext>(context => context.NewState);
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -159,7 +159,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_SetsCurrentServer_ToProcessingState()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -170,7 +170,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_ProcessesOnlyJobs_InEnqueued_Scheduled_AndProcessingStates()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -185,7 +185,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_DoesNotDisableFilters_DuringNormalOperation()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -201,7 +201,7 @@ public class WorkerFacts
             .Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is ProcessingState)))
             .Returns<IState>(null);
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -213,7 +213,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_Runs_PerformanceProcess()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -226,14 +226,14 @@ public class WorkerFacts
     public void Execute_DoesNotMoveAJob_ToTheFailedState_ButRequeuesIt_WhenProcessThrowsOperationCanceled_DuringShutdownOnly()
     {
         // Arrange
-        var cts = new CancellationTokenSource();
+        CancellationTokenSource cts = new();
         _context.StoppedTokenSource = cts;
 
         _performer.Setup(x => x.Perform(It.IsAny<PerformContext>()))
             .Callback(cts.Cancel)
             .Throws<OperationCanceledException>();
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         Assert.Throws<OperationCanceledException>(() => worker.Execute(_context.Object));
@@ -252,7 +252,7 @@ public class WorkerFacts
         _performer.Setup(x => x.Perform(It.IsAny<PerformContext>()))
             .Throws<OperationCanceledException>();
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -271,7 +271,7 @@ public class WorkerFacts
         _performer.Setup(x => x.Perform(It.IsAny<PerformContext>()))
             .Throws<JobAbortedException>();
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -286,7 +286,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_MovesJob_ToSuccessfulState_OnlyIfItIsInProcessingState()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         worker.Execute(_context.Object);
 
@@ -298,7 +298,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_PassesCustomData_BetweenContexts_OnSucceededStateTransition()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => ctx.Items.Add("Key", "Value"));
 
@@ -313,12 +313,12 @@ public class WorkerFacts
     public void Execute_MovesJob_ToFailedState_IfThereWasInternalException()
     {
         // Arrange
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _performer
             .Setup(x => x.Perform(It.IsAny<PerformContext>()))
             .Throws(exception);
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -334,7 +334,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_DoesNotPassCustomData_BetweenContexts_OnFailedStateTransition()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => ctx.Items.Add("Key", "Value"))
             .Throws<Exception>();
@@ -350,12 +350,12 @@ public class WorkerFacts
     public void Execute_MovesJob_ToFailedState_IfThereWasUserException()
     {
         // Arrange
-        var exception = new InvalidOperationException();
+        InvalidOperationException exception = new();
         _performer
             .Setup(x => x.Perform(It.IsAny<PerformContext>()))
             .Throws(new JobPerformanceException("hello", exception));
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -374,7 +374,7 @@ public class WorkerFacts
         _connection.Setup(x => x.GetJobData(JobId))
             .Returns(new JobData { LoadException = new JobLoadException("asd", new Exception()) });
 
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
 
         // Act
         worker.Execute(_context.Object);
@@ -388,14 +388,14 @@ public class WorkerFacts
     [Fact]
     public void Execute_CopiesTheItems_UnderTheLockTheConsoleTakes()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         Thread background = null;
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx =>
             {
                 // A thread the job started still works with the shared items (creating the console, for
                 // example) when the job method returns
-                using var locked = new ManualResetEventSlim();
+                using ManualResetEventSlim locked = new();
                 background = new Thread(() =>
                 {
                     lock (ctx.Items)
@@ -420,7 +420,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_GivesFiltersItsStateChanger_ButDoesNotPassItOnAsCustomData()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         object seen = null;
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => seen = ConcurrencyControl.GetStateChanger(ctx));
@@ -436,9 +436,9 @@ public class WorkerFacts
     [Fact]
     public void Execute_DisposesWhatAFilterKeptOpen_AfterTheStateChangeThatFollowsTheJob()
     {
-        var worker = CreateWorker();
-        var events = new List<string>();
-        var resource = new Mock<IDisposable>();
+        Worker worker = CreateWorker();
+        List<string> events = [];
+        Mock<IDisposable> resource = new();
         resource.Setup(x => x.Dispose()).Callback(() => events.Add("disposed"));
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => ((ICollection<IDisposable>)ctx.Items[Worker.DisposeAfterStateChangeItem]).Add(resource.Object));
@@ -460,8 +460,8 @@ public class WorkerFacts
     [Fact]
     public void Execute_DisposesWhatAFilterKeptOpen_WhenTheStateChangeFails()
     {
-        var worker = CreateWorker(1);
-        var resource = new Mock<IDisposable>();
+        Worker worker = CreateWorker(1);
+        Mock<IDisposable> resource = new();
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => ((ICollection<IDisposable>)ctx.Items[Worker.DisposeAfterStateChangeItem]).Add(resource.Object));
         _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => !(ctx.NewState is ProcessingState))))
@@ -476,7 +476,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_LeavesTheStateAlone_WhenAFilterRescheduledTheJob()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx =>
             {
@@ -497,7 +497,7 @@ public class WorkerFacts
     [Fact]
     public void Execute_StillDeletesAJob_CanceledByAFilterWithoutRescheduling()
     {
-        var worker = CreateWorker();
+        Worker worker = CreateWorker();
         _performer.Setup(x => x.Perform(It.IsNotNull<PerformContext>()))
             .Callback<PerformContext>(ctx => ctx.Items[BackgroundJobPerformer.ContextCanceledKey] = "ThrottleAttribute");
 

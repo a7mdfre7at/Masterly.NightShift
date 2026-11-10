@@ -39,7 +39,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobServer(_serverOptions, (JobStorage)null));
 
         Assert.Equal("storage", exception.ParamName);
@@ -48,7 +48,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenOptionsAreNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobServer(null, _jobStorage.Object));
 
         Assert.Equal("options", exception.ParamName);
@@ -57,7 +57,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenAdditionalProcessesAreNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobServer(_serverOptions, _jobStorage.Object, null));
 
         Assert.Equal("additionalProcesses", exception.ParamName);
@@ -66,9 +66,9 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenOnlySomeCustomServicesAreGiven()
     {
-        var factory = new Mock<IBackgroundJobFactory>();
-        var performer = new Mock<IBackgroundJobPerformer>();
-        var stateChanger = new Mock<IBackgroundJobStateChanger>();
+        Mock<IBackgroundJobFactory> factory = new();
+        Mock<IBackgroundJobPerformer> performer = new();
+        Mock<IBackgroundJobStateChanger> stateChanger = new();
 
         Assert.Equal("performer", Assert.Throws<ArgumentNullException>(() => new BackgroundJobServer(
             _serverOptions, _jobStorage.Object, [], null, null, factory.Object, null, stateChanger.Object)).ParamName);
@@ -81,7 +81,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_StartsTheServer_ThatAnnouncesItsQueuesAndWorkerCount_AndRemovesItselfOnShutdown()
     {
-        var announced = new ManualResetEventSlim();
+        ManualResetEventSlim announced = new();
         string serverId = null;
         ServerContext serverContext = null;
         _storageConnection
@@ -93,7 +93,7 @@ public class BackgroundJobServerFacts
                 announced.Set();
             });
 
-        using (var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object, []))
+        using (BackgroundJobServer server = new(_serverOptions, _jobStorage.Object, []))
         {
             Assert.True(announced.Wait(WaitTimeout, TestContext.Current.CancellationToken));
 
@@ -110,8 +110,8 @@ public class BackgroundJobServerFacts
     [Fact]
     public void Ctor_WithCustomServices_RunsTheAdditionalProcesses()
     {
-        var executed = new ManualResetEventSlim();
-        var process = new Mock<IBackgroundProcess>();
+        ManualResetEventSlim executed = new();
+        Mock<IBackgroundProcess> process = new();
         process
             .Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>()))
             .Callback<BackgroundProcessContext>(context =>
@@ -120,7 +120,7 @@ public class BackgroundJobServerFacts
                 context.StoppingToken.WaitHandle.WaitOne();
             });
 
-        using (var server = new BackgroundJobServer(
+        using (BackgroundJobServer server = new(
             _serverOptions,
             _jobStorage.Object,
             [process.Object],
@@ -142,7 +142,7 @@ public class BackgroundJobServerFacts
     [Fact]
     public async Task DisposeAsync_StopsTheServerAndDisposesIt()
     {
-        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+        BackgroundJobServer server = new(_serverOptions, _jobStorage.Object);
 
         await server.DisposeAsync();
 
@@ -152,10 +152,10 @@ public class BackgroundJobServerFacts
     [Fact]
     public async Task DisposeAsync_DoesNothing_WhenCalledAgain()
     {
-        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+        BackgroundJobServer server = new(_serverOptions, _jobStorage.Object);
         await server.DisposeAsync();
 
-        var exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
+        Exception? exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
 
         Assert.Null(exception);
     }
@@ -163,10 +163,10 @@ public class BackgroundJobServerFacts
     [Fact]
     public async Task DisposeAsync_DoesNothing_AfterDispose()
     {
-        var server = new BackgroundJobServer(_serverOptions, _jobStorage.Object);
+        BackgroundJobServer server = new(_serverOptions, _jobStorage.Object);
         server.Dispose();
 
-        var exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
+        Exception? exception = await Record.ExceptionAsync(async () => await server.DisposeAsync());
 
         Assert.Null(exception);
     }

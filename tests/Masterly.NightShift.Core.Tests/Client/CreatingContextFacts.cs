@@ -15,7 +15,7 @@ public class CreatingContextFacts
     [Fact]
     public void Ctor_CanceledProperty_IsFalseByDefault()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         Assert.False(context.Canceled);
     }
@@ -23,8 +23,8 @@ public class CreatingContextFacts
     [Fact]
     public void SetJobParameter_ThrowsAnException_WhenParameterNameIsNull()
     {
-        var context = CreateContext();
-        var exception = Assert.Throws<ArgumentNullException>(
+        CreatingContext context = CreateContext();
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => context.SetJobParameter(null, null));
 
         Assert.Equal("name", exception.ParamName);
@@ -33,7 +33,7 @@ public class CreatingContextFacts
     [Fact]
     public void SetJobParameter_AcceptsNullValues()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         // Does noto throw
         context.SetJobParameter("name", null);
@@ -42,7 +42,7 @@ public class CreatingContextFacts
     [Fact]
     public void SetJobParameter_CanBeCalledTwice_WithTheSameName()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
         context.SetJobParameter("name", null);
 
         // Does not throw
@@ -52,7 +52,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ThrowsAnException_WhenParameterNameIsNull()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => context.GetJobParameter<int>(null));
     }
@@ -60,7 +60,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ReturnsDefaultValue_IfParameterDoesNotExists()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         Assert.Equal(default, context.GetJobParameter<int>("one"));
         Assert.Equal(default, context.GetJobParameter<string>("two"));
@@ -69,7 +69,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ReturnsTheValue_ThatWasSetByTheCorrespondingMethod()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
         context.SetJobParameter("name", "value");
 
         Assert.Equal("value", context.GetJobParameter<string>("name"));
@@ -78,7 +78,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ReturnsTheValue_OfTheSpecifiedParameterNameOnly()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         context.SetJobParameter("name1", "value1");
         context.SetJobParameter("name2", "value2");
@@ -89,7 +89,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ReturnsTheFreshestValue_WhenTwoSetOperationsPerformed()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         context.SetJobParameter("name", "oldValue");
         context.SetJobParameter("name", "newValue");
@@ -100,7 +100,7 @@ public class CreatingContextFacts
     [Fact]
     public void GetJobParameter_ThrowsAnException_WhenParameterCouldNotBeDeserialized()
     {
-        var context = CreateContext();
+        CreatingContext context = CreateContext();
 
         context.SetJobParameter("name", "value");
 
@@ -114,12 +114,12 @@ public class CreatingContextFacts
 
     private static CreatingContext CreateContext()
     {
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<IStorageConnection>();
-        var job = Job.FromExpression(() => TestMethod());
-        var state = new Mock<IState>();
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        Job job = Job.FromExpression(() => TestMethod());
+        Mock<IState> state = new();
 
-        var createContext = new CreateContext(storage.Object, connection.Object, job, state.Object);
+        CreateContext createContext = new(storage.Object, connection.Object, job, state.Object);
         return new CreatingContext(createContext);
     }
 }

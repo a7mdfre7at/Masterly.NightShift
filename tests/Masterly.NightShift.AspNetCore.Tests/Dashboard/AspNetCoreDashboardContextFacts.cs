@@ -9,10 +9,10 @@ public class AspNetCoreDashboardContextFacts
     [Fact]
     public void GetUserName_ReturnsTheName_OfAnAuthenticatedUser()
     {
-        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")], "Test"));
-        var context = CreateContext(user);
+        ClaimsPrincipal user = new(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")], "Test"));
+        AspNetCoreDashboardContext context = CreateContext(user);
 
-        var name = context.GetUserName();
+        string? name = context.GetUserName();
 
         Assert.Equal("alice", name);
     }
@@ -21,10 +21,10 @@ public class AspNetCoreDashboardContextFacts
     public void GetUserName_ReturnsNull_ForAnAnonymousUser()
     {
         // No authentication type means the identity is not authenticated, even with a name claim
-        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")]));
-        var context = CreateContext(user);
+        ClaimsPrincipal user = new(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")]));
+        AspNetCoreDashboardContext context = CreateContext(user);
 
-        var name = context.GetUserName();
+        string? name = context.GetUserName();
 
         Assert.Null(name);
     }
@@ -32,16 +32,16 @@ public class AspNetCoreDashboardContextFacts
     [Fact]
     public void GetUserName_ReturnsNull_WhenTheUserHasNoIdentity()
     {
-        var context = CreateContext(new ClaimsPrincipal());
+        AspNetCoreDashboardContext context = CreateContext(new ClaimsPrincipal());
 
-        var name = context.GetUserName();
+        string? name = context.GetUserName();
 
         Assert.Null(name);
     }
 
     private static AspNetCoreDashboardContext CreateContext(ClaimsPrincipal user)
     {
-        var httpContext = new DefaultHttpContext
+        DefaultHttpContext httpContext = new()
         {
             User = user,
             RequestServices = new ServiceCollection().BuildServiceProvider()

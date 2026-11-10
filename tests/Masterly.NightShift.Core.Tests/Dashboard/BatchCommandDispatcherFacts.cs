@@ -8,12 +8,12 @@ public class BatchCommandDispatcherFacts
     [Fact]
     public void Dispatch_Sets401StatusCode_WhenNotPermitted()
     {
-        var options = new DashboardOptions
+        DashboardOptions options = new()
         {
             IsReadOnlyFunc = _ => true
         };
-        var context = new DashboardContextStub(options);
-        var dispatcher = new BatchCommandDispatcher((ctx, str) => { });
+        DashboardContextStub context = new(options);
+        BatchCommandDispatcher dispatcher = new((ctx, str) => { });
         dispatcher.Dispatch(context);
         Assert.Equal(401, context.Response.StatusCode);
     }
@@ -21,11 +21,11 @@ public class BatchCommandDispatcherFacts
     [Fact]
     public async Task Dispatch_Sets405_AndRunsNothing_ForNonPostRequests()
     {
-        var storage = new Mock<JobStorage>();
-        var request = new DashboardRequestStub("GET", "/jobs/failed/requeue");
+        Mock<JobStorage> storage = new();
+        DashboardRequestStub request = new("GET", "/jobs/failed/requeue");
         request.Form["jobs[]"] = ["1"];
-        var context = new DashboardContextStub(new DashboardOptions(), request, storage.Object);
-        var called = new List<string>();
+        DashboardContextStub context = new(new DashboardOptions(), request, storage.Object);
+        List<string> called = [];
 
         await new BatchCommandDispatcher((_, jobId) => called.Add(jobId)).Dispatch(context);
 
@@ -37,12 +37,12 @@ public class BatchCommandDispatcherFacts
     [Fact]
     public async Task Dispatch_RunsTheCommandForEveryJob_AndAnswers204_ForPostRequests()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(new Mock<JobStorageConnection> { DefaultValue = DefaultValue.Mock }.Object);
-        var request = new DashboardRequestStub("POST", "/jobs/failed/requeue");
+        DashboardRequestStub request = new("POST", "/jobs/failed/requeue");
         request.Form["jobs[]"] = ["1", "2"];
-        var context = new DashboardContextStub(new DashboardOptions(), request, storage.Object);
-        var called = new List<string>();
+        DashboardContextStub context = new(new DashboardOptions(), request, storage.Object);
+        List<string> called = [];
 
         await new BatchCommandDispatcher((_, jobId) => called.Add(jobId)).Dispatch(context);
 
@@ -55,17 +55,17 @@ public class BatchCommandDispatcherFacts
     {
         // "Trigger now" in a dashboard-only app: RecurringJobManager wraps the JobLoadException. It answered
         // 500, and the jobs triggered before it weren't audited.
-        var audit = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        List<string> audit = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(connection.Object);
-        var request = new DashboardRequestStub("POST", "/recurring/trigger");
+        DashboardRequestStub request = new("POST", "/recurring/trigger");
         request.Form["jobs[]"] = ["a", "shop", "b"];
-        var context = new DashboardContextStub(new DashboardOptions(), request, storage.Object);
-        var called = new List<string>();
+        DashboardContextStub context = new(new DashboardOptions(), request, storage.Object);
+        List<string> called = [];
 
         await new BatchCommandDispatcher((_, id) =>
         {
@@ -76,7 +76,7 @@ public class BatchCommandDispatcherFacts
         Assert.Equal(422, context.Response.StatusCode);
         Assert.Contains("shop (Could not resolve assembly 'Shop.Web'.)", context.Response.Text);
         Assert.Equal(new[] { "a", "b" }, called);
-        var entry = Assert.Single(audit);
+        string entry = Assert.Single(audit);
         Assert.Contains("\"s\":422", entry);
         Assert.Contains("2 of 3 done", entry);
     }
@@ -84,23 +84,23 @@ public class BatchCommandDispatcherFacts
     [Fact, StaticLock]
     public async Task Dispatch_RecordsWhatWasDone_WhenAnotherErrorStopsIt()
     {
-        var audit = new List<string>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        List<string> audit = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(connection.Object);
-        var request = new DashboardRequestStub("POST", "/recurring/trigger");
+        DashboardRequestStub request = new("POST", "/recurring/trigger");
         request.Form["jobs[]"] = ["a", "b"];
-        var context = new DashboardContextStub(new DashboardOptions(), request, storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), request, storage.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => new BatchCommandDispatcher((_, id) =>
         {
             if (id == "b") throw new InvalidOperationException("storage down");
         }).Dispatch(context));
 
-        var entry = Assert.Single(audit);
+        string entry = Assert.Single(audit);
         Assert.Contains("\"s\":500", entry);
         Assert.Contains("1 of 2 done", entry);
     }

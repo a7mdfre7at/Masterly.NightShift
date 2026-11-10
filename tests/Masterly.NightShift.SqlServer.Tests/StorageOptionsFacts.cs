@@ -5,7 +5,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Ctor_SetsTheDefaultOptions()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
         Assert.True(options.QueuePollInterval == TimeSpan.Zero);
         Assert.True(options.InvisibilityTimeout > TimeSpan.Zero);
@@ -18,7 +18,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Ctor_DefaultsSqlClientFactory_ToMicrosoftDataSqlClient()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
         Assert.Same(Microsoft.Data.SqlClient.SqlClientFactory.Instance, options.SqlClientFactory);
     }
@@ -26,9 +26,9 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_SqlClientFactory_ThrowsAnException_WhenValueIsNull()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentNullException>(() => options.SqlClientFactory = null);
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => options.SqlClientFactory = null);
 
         Assert.Equal("value", exception.ParamName);
     }
@@ -36,7 +36,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_QueuePollInterval_DoesNotThrow_WhenGivenIntervalIsEqualToZero()
     {
-        var options = new SqlServerStorageOptions
+        SqlServerStorageOptions options = new()
         {
             QueuePollInterval = TimeSpan.Zero
         };
@@ -45,7 +45,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_QueuePollInterval_ShouldThrowAnException_WhenGivenIntervalIsNegative()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
         Assert.Throws<ArgumentException>(
             () => options.QueuePollInterval = TimeSpan.FromSeconds(-1));
     }
@@ -53,7 +53,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_QueuePollInterval_SetsTheValue()
     {
-        var options = new SqlServerStorageOptions { QueuePollInterval = TimeSpan.FromSeconds(1) };
+        SqlServerStorageOptions options = new() { QueuePollInterval = TimeSpan.FromSeconds(1) };
         Assert.Equal(TimeSpan.FromSeconds(1), options.QueuePollInterval);
     }
 
@@ -61,9 +61,9 @@ public class StorageOptionsFacts
     [InlineData(null), InlineData(""), InlineData("   ")]
     public void Set_SchemaName_ThrowsAnException_WhenValueIsNullOrWhiteSpace(string schemaName)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentException>(() => options.SchemaName = schemaName);
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => options.SchemaName = schemaName);
 
         Assert.Equal("value", exception.ParamName);
         Assert.Equal("HangFire", options.SchemaName);
@@ -72,14 +72,14 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_SchemaName_SetsTheValue()
     {
-        var options = new SqlServerStorageOptions { SchemaName = "NightShift" };
+        SqlServerStorageOptions options = new() { SchemaName = "NightShift" };
         Assert.Equal("NightShift", options.SchemaName);
     }
 
     [Fact]
     public void Set_SchemaName_ThrowsAnException_WhenSetAgainToAnEmptyValue()
     {
-        var options = new SqlServerStorageOptions { SchemaName = "NightShift" };
+        SqlServerStorageOptions options = new() { SchemaName = "NightShift" };
 
         Assert.Throws<ArgumentException>(() => options.SchemaName = "");
         Assert.Equal("NightShift", options.SchemaName);
@@ -89,9 +89,9 @@ public class StorageOptionsFacts
     [InlineData(0), InlineData(-1)]
     public void Set_CountersAggregateInterval_ThrowsAnException_WhenValueIsNotPositive(int seconds)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => options.CountersAggregateInterval = TimeSpan.FromSeconds(seconds));
 
         Assert.Equal("value", exception.ParamName);
@@ -100,7 +100,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_CountersAggregateInterval_ThrowsAnException_WhenValueIsGreaterThanIntMaxValueMilliseconds()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.CountersAggregateInterval = TimeSpan.FromMilliseconds(int.MaxValue + 1L));
@@ -109,7 +109,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_CountersAggregateInterval_SetsTheValue()
     {
-        var options = new SqlServerStorageOptions { CountersAggregateInterval = TimeSpan.FromSeconds(30) };
+        SqlServerStorageOptions options = new() { CountersAggregateInterval = TimeSpan.FromSeconds(30) };
         Assert.Equal(TimeSpan.FromSeconds(30), options.CountersAggregateInterval);
     }
 
@@ -120,9 +120,9 @@ public class StorageOptionsFacts
     [InlineData("Tab\tStop")]
     public void Set_SchemaName_ThrowsAnException_WhenValueContainsCharactersTheInstallScriptCantHandle(string schemaName)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentException>(() => options.SchemaName = schemaName);
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => options.SchemaName = schemaName);
 
         Assert.Equal("value", exception.ParamName);
         Assert.Equal("HangFire", options.SchemaName);
@@ -131,9 +131,9 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_SchemaName_ThrowsAnException_WhenValueIsLongerThan128Characters()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentException>(() => options.SchemaName = new string('s', 129));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => options.SchemaName = new string('s', 129));
 
         Assert.Contains("128", exception.Message);
         Assert.Equal("HangFire", options.SchemaName);
@@ -146,15 +146,15 @@ public class StorageOptionsFacts
     [InlineData("app.v2_$#@")]
     public void Set_SchemaName_AcceptsNames_ThatWorkAsDelimitedIdentifiers(string schemaName)
     {
-        var options = new SqlServerStorageOptions { SchemaName = schemaName };
+        SqlServerStorageOptions options = new() { SchemaName = schemaName };
         Assert.Equal(schemaName, options.SchemaName);
     }
 
     [Fact]
     public void Set_SchemaName_AcceptsA128CharacterName()
     {
-        var schemaName = new string('s', 128);
-        var options = new SqlServerStorageOptions { SchemaName = schemaName };
+        string schemaName = new('s', 128);
+        SqlServerStorageOptions options = new() { SchemaName = schemaName };
         Assert.Equal(schemaName, options.SchemaName);
     }
 
@@ -163,7 +163,7 @@ public class StorageOptionsFacts
     [InlineData("O'Brien")]
     public void GetInstallScript_ThrowsAnException_ForASchemaNameThatWouldNeedEscaping(string schemaName)
     {
-        var exception = Assert.Throws<ArgumentException>(() => SqlServerObjectsInstaller.GetInstallScript(schemaName, false));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => SqlServerObjectsInstaller.GetInstallScript(schemaName, false));
 
         Assert.Equal("schema", exception.ParamName);
     }
@@ -171,7 +171,7 @@ public class StorageOptionsFacts
     [Fact]
     public void GetInstallScript_UsesTheDefaultSchema_WhenNoneIsGiven()
     {
-        var script = SqlServerObjectsInstaller.GetInstallScript(null, false);
+        string script = SqlServerObjectsInstaller.GetInstallScript(null, false);
 
         Assert.Contains("[HangFire].[Job]", script);
         Assert.DoesNotContain("$(HangFireSchema)", script);
@@ -181,9 +181,9 @@ public class StorageOptionsFacts
     [InlineData(0), InlineData(500), InlineData(999), InlineData(-1000)]
     public void Set_SlidingInvisibilityTimeout_ThrowsAnException_WhenValueIsShorterThanOneSecond(int milliseconds)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => options.SlidingInvisibilityTimeout = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Equal("value", exception.ParamName);
@@ -193,7 +193,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_SlidingInvisibilityTimeout_AcceptsOneSecond_AndNull()
     {
-        var options = new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(1) };
+        SqlServerStorageOptions options = new() { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(1) };
         Assert.Equal(TimeSpan.FromSeconds(1), options.SlidingInvisibilityTimeout);
 
         options.SlidingInvisibilityTimeout = null;
@@ -204,9 +204,9 @@ public class StorageOptionsFacts
     [InlineData(0), InlineData(500), InlineData(-5000)]
     public void Set_CommandTimeout_ThrowsAnException_WhenValueIsShorterThanOneSecond(int milliseconds)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => options.CommandTimeout = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Equal("value", exception.ParamName);
@@ -216,7 +216,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_CommandTimeout_AcceptsOneSecond_AndNull()
     {
-        var options = new SqlServerStorageOptions { CommandTimeout = TimeSpan.FromSeconds(1) };
+        SqlServerStorageOptions options = new() { CommandTimeout = TimeSpan.FromSeconds(1) };
         Assert.Equal(TimeSpan.FromSeconds(1), options.CommandTimeout);
 
         options.CommandTimeout = null;
@@ -227,9 +227,9 @@ public class StorageOptionsFacts
     [InlineData(0), InlineData(500), InlineData(-5000)]
     public void Set_CommandBatchMaxTimeout_ThrowsAnException_WhenValueIsShorterThanOneSecond(int milliseconds)
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
             () => options.CommandBatchMaxTimeout = TimeSpan.FromMilliseconds(milliseconds));
 
         Assert.Equal("value", exception.ParamName);
@@ -239,7 +239,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Set_CommandBatchMaxTimeout_AcceptsOneSecond_AndNull()
     {
-        var options = new SqlServerStorageOptions { CommandBatchMaxTimeout = TimeSpan.FromSeconds(1) };
+        SqlServerStorageOptions options = new() { CommandBatchMaxTimeout = TimeSpan.FromSeconds(1) };
         Assert.Equal(TimeSpan.FromSeconds(1), options.CommandBatchMaxTimeout);
 
         options.CommandBatchMaxTimeout = null;
@@ -249,7 +249,7 @@ public class StorageOptionsFacts
     [Fact]
     public void Ctor_SetsTheDefaults_OfSchemaDependentOptions()
     {
-        var options = new SqlServerStorageOptions();
+        SqlServerStorageOptions options = new();
 
         Assert.False(options.DisableGlobalLocks);
         Assert.False(options.UseIgnoreDupKeyOption);

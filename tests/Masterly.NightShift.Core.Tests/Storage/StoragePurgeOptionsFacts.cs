@@ -5,7 +5,7 @@ public class StoragePurgeOptionsFacts
     [Fact]
     public void Ctor_KeepsEverythingButTheJobData_ByDefault()
     {
-        var options = new StoragePurgeOptions();
+        StoragePurgeOptions options = new();
 
         Assert.True(options.KeepRecurringJobs);
         Assert.True(options.KeepServers);

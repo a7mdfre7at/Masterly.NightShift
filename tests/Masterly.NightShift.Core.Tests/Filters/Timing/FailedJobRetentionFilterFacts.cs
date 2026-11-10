@@ -22,20 +22,20 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void OnStateUnapplied_SetsTheExpiration_ForTheFailedStateOnly()
     {
-        var filter = new FailedJobRetentionFilter(TimeSpan.FromDays(30));
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        FailedJobRetentionFilter filter = new(TimeSpan.FromDays(30));
+        Mock<IWriteOnlyTransaction> transaction = new();
 
-        var failed = new ApplyStateContextMock { NewStateObject = new FailedState(new InvalidOperationException()), JobExpirationTimeout = TimeSpan.FromDays(1) };
+        ApplyStateContextMock failed = new() { NewStateObject = new FailedState(new InvalidOperationException()), JobExpirationTimeout = TimeSpan.FromDays(1) };
         filter.OnStateUnapplied(failed.Object, transaction.Object);
         Assert.Equal(TimeSpan.FromDays(30), failed.Object.JobExpirationTimeout);
         Assert.True(failed.Object.ExpireInNonFinalState);
 
-        var scheduled = new ApplyStateContextMock { NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)), JobExpirationTimeout = TimeSpan.FromDays(1) };
+        ApplyStateContextMock scheduled = new() { NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)), JobExpirationTimeout = TimeSpan.FromDays(1) };
         filter.OnStateUnapplied(scheduled.Object, transaction.Object);
         Assert.Equal(TimeSpan.FromDays(1), scheduled.Object.JobExpirationTimeout);
         Assert.False(scheduled.Object.ExpireInNonFinalState);
 
-        var succeeded = new ApplyStateContextMock { NewStateObject = new SucceededState(null, 1, 1), JobExpirationTimeout = TimeSpan.FromDays(1) };
+        ApplyStateContextMock succeeded = new() { NewStateObject = new SucceededState(null, 1, 1), JobExpirationTimeout = TimeSpan.FromDays(1) };
         filter.OnStateUnapplied(succeeded.Object, transaction.Object);
         Assert.Equal(TimeSpan.FromDays(1), succeeded.Object.JobExpirationTimeout);
         Assert.False(succeeded.Object.ExpireInNonFinalState);
@@ -44,7 +44,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_ExpiresAFailedJob_InTheSameTransaction()
     {
-        var transaction = ApplyState(new FailedState(new InvalidOperationException()), new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
+        Mock<JobStorageTransaction> transaction = ApplyState(new FailedState(new InvalidOperationException()), new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
 
         transaction.Verify(x => x.ExpireJob(JobId, TimeSpan.FromDays(30)));
         transaction.Verify(x => x.PersistJob(It.IsAny<string>()), Times.Never);
@@ -53,7 +53,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_PersistsAFailedJob_WithoutRetention()
     {
-        var transaction = ApplyState(new FailedState(new InvalidOperationException()));
+        Mock<JobStorageTransaction> transaction = ApplyState(new FailedState(new InvalidOperationException()));
 
         transaction.Verify(x => x.PersistJob(JobId));
         transaction.Verify(x => x.ExpireJob(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
@@ -62,7 +62,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_DoesNotExpireAFailure_ThatAutomaticRetryTurnsIntoARetry()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new FailedState(new InvalidOperationException()),
             new AutomaticRetryAttribute { Attempts = 3 },
             new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
@@ -75,7 +75,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_ExpiresTheJob_WhenAutomaticRetryGivesUp()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new FailedState(new InvalidOperationException()),
             new AutomaticRetryAttribute { Attempts = 0 },
             new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
@@ -88,7 +88,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_PersistsTheJobAgain_WhenItLeavesTheFailedState()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new EnqueuedState(),
             FailedState.StateName,
             new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
@@ -100,7 +100,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_UsesTheStorageExpiration_WhenAFailedJobIsDeleted()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new DeletedState(),
             FailedState.StateName,
             new FailedJobRetentionFilter(TimeSpan.FromDays(30)));
@@ -111,7 +111,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_PrefersThePerMethodExpireAfter_AndExpiresTheConsoleWithIt()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new FailedState(new InvalidOperationException()),
             new JobFilter(new FailedJobRetentionFilter(TimeSpan.FromDays(30)), JobFilterScope.Global, null),
             new JobFilter(new JobConsoleStateFilter(), JobFilterScope.Global, null),
@@ -126,7 +126,7 @@ public class FailedJobRetentionFilterFacts
     [Fact]
     public void StateMachine_KeepsTheGlobalRetention_WhenThePerMethodExpireAfterLeavesFailedJobsOut()
     {
-        var transaction = ApplyState(
+        Mock<JobStorageTransaction> transaction = ApplyState(
             new FailedState(new InvalidOperationException()),
             new JobFilter(new FailedJobRetentionFilter(TimeSpan.FromDays(30)), JobFilterScope.Global, null),
             new JobFilter(new ExpireAfterAttribute(days: 7), JobFilterScope.Method, null));
@@ -151,11 +151,11 @@ public class FailedJobRetentionFilterFacts
 
     private static Mock<JobStorageTransaction> ApplyState(IState newState, string oldStateName, JobFilter[] filters)
     {
-        var filterProvider = new Mock<IJobFilterProvider>();
+        Mock<IJobFilterProvider> filterProvider = new();
         filterProvider.Setup(x => x.GetFilters(It.IsAny<Job>())).Returns(filters);
 
-        var transaction = new Mock<JobStorageTransaction>();
-        var context = new ApplyStateContextMock
+        Mock<JobStorageTransaction> transaction = new();
+        ApplyStateContextMock context = new()
         {
             NewStateObject = newState,
             OldStateName = oldStateName,
@@ -165,11 +165,11 @@ public class FailedJobRetentionFilterFacts
         };
         context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
 
-        var coreStateMachine = new CoreStateMachine(static (_, stateName) => new CoreStateMachine.StateHandlersCollection(
+        CoreStateMachine coreStateMachine = new(static (_, stateName) => new CoreStateMachine.StateHandlersCollection(
             [],
             [],
             stateName));
-        var stateMachine = new StateMachine(new JobFilterProviderCollection(filterProvider.Object), coreStateMachine);
+        StateMachine stateMachine = new(new JobFilterProviderCollection(filterProvider.Object), coreStateMachine);
 
         stateMachine.ApplyState(context.Object);
         return transaction;

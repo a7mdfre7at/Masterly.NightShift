@@ -23,7 +23,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTransactionJob(null, _connection.Object, _transaction.Object, JobId, Queue));
 
         Assert.Equal("storage", exception.ParamName);
@@ -32,7 +32,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTransactionJob(_storage.Object, null, _transaction.Object, JobId, Queue));
 
         Assert.Equal("connection", exception.ParamName);
@@ -41,7 +41,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTransactionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTransactionJob(_storage.Object, _connection.Object, null, JobId, Queue));
 
         Assert.Equal("transaction", exception.ParamName);
@@ -50,7 +50,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenJobIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTransactionJob(_storage.Object, _connection.Object, _transaction.Object, null, Queue));
 
         Assert.Equal("jobId", exception.ParamName);
@@ -59,7 +59,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenQueueIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTransactionJob(_storage.Object, _connection.Object, _transaction.Object, JobId, null));
 
         Assert.Equal("queue", exception.ParamName);
@@ -68,7 +68,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Ctor_CorrectlySets_AllInstanceProperties()
     {
-        var fetchedJob = new SqlServerTransactionJob(_storage.Object, _connection.Object, _transaction.Object, JobId, Queue);
+        SqlServerTransactionJob fetchedJob = new(_storage.Object, _connection.Object, _transaction.Object, JobId, Queue);
 
         Assert.Equal(JobId, fetchedJob.JobId);
         Assert.Equal(Queue, fetchedJob.Queue);
@@ -78,7 +78,7 @@ public class SqlServerTransactionJobFacts
     public void RemoveFromQueue_CommitsTheTransaction()
     {
         // Arrange
-        var processingJob = CreateFetchedJob("1", "default");
+        SqlServerTransactionJob processingJob = CreateFetchedJob("1", "default");
 
         // Act
         processingJob.RemoveFromQueue();
@@ -91,7 +91,7 @@ public class SqlServerTransactionJobFacts
     public void Requeue_RollsbackTheTransaction()
     {
         // Arrange
-        var processingJob = CreateFetchedJob("1", "default");
+        SqlServerTransactionJob processingJob = CreateFetchedJob("1", "default");
 
         // Act
         processingJob.Requeue();
@@ -103,7 +103,7 @@ public class SqlServerTransactionJobFacts
     [Fact]
     public void Dispose_DisposesTheTransactionAndConnection()
     {
-        var processingJob = CreateFetchedJob("1", "queue");
+        SqlServerTransactionJob processingJob = CreateFetchedJob("1", "queue");
 
         // Act
         processingJob.Dispose();

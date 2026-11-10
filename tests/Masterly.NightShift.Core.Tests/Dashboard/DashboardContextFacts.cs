@@ -8,14 +8,14 @@ public class DashboardContextFacts
     [Fact, GlobalLock(Reason = "Sets the global time zone resolver")]
     public void GetRecurringJobManager_UsesTheGlobalTimeZoneResolver_WhenTheOptionsHaveNone()
     {
-        var resolver = new Mock<ITimeZoneResolver>().Object;
+        ITimeZoneResolver resolver = new Mock<ITimeZoneResolver>().Object;
         GlobalConfiguration.Configuration.UseTimeZoneResolver(resolver);
 
         try
         {
-            var context = new DashboardContextStub(new DashboardOptions());
+            DashboardContextStub context = new(new DashboardOptions());
 
-            var manager = Assert.IsType<RecurringJobManager>(context.GetRecurringJobManager());
+            RecurringJobManager manager = Assert.IsType<RecurringJobManager>(context.GetRecurringJobManager());
 
             Assert.Same(resolver, manager.TimeZoneResolver);
         }
@@ -28,15 +28,15 @@ public class DashboardContextFacts
     [Fact, GlobalLock(Reason = "Sets the global time zone resolver")]
     public void GetRecurringJobManager_PrefersTheResolverFromTheOptions()
     {
-        var global = new Mock<ITimeZoneResolver>().Object;
-        var fromOptions = new Mock<ITimeZoneResolver>().Object;
+        ITimeZoneResolver global = new Mock<ITimeZoneResolver>().Object;
+        ITimeZoneResolver fromOptions = new Mock<ITimeZoneResolver>().Object;
         GlobalConfiguration.Configuration.UseTimeZoneResolver(global);
 
         try
         {
-            var context = new DashboardContextStub(new DashboardOptions { TimeZoneResolver = fromOptions });
+            DashboardContextStub context = new(new DashboardOptions { TimeZoneResolver = fromOptions });
 
-            var manager = Assert.IsType<RecurringJobManager>(context.GetRecurringJobManager());
+            RecurringJobManager manager = Assert.IsType<RecurringJobManager>(context.GetRecurringJobManager());
 
             Assert.Same(fromOptions, manager.TimeZoneResolver);
         }
@@ -49,7 +49,7 @@ public class DashboardContextFacts
     [Fact]
     public void AntiforgeryTokens_AreGenerated_OnlyWhenFirstRead_AndOnlyOnce()
     {
-        var context = new TokenContext();
+        TokenContext context = new();
 
         Assert.Equal(0, context.Generated);
 
@@ -62,7 +62,7 @@ public class DashboardContextFacts
     [Fact]
     public void AntiforgeryTokens_AreNotGenerated_WhenAValueWasSet()
     {
-        var context = new TokenContext { AntiforgeryToken = "given" };
+        TokenContext context = new() { AntiforgeryToken = "given" };
 
         Assert.Equal("given", context.AntiforgeryToken);
         Assert.Null(context.AntiforgeryHeader);
@@ -72,7 +72,7 @@ public class DashboardContextFacts
     [Fact]
     public void AntiforgeryTokens_AreNull_WhenTheHostGeneratesNone()
     {
-        var context = new DashboardContextStub(new DashboardOptions());
+        DashboardContextStub context = new(new DashboardOptions());
 
         Assert.Null(context.AntiforgeryHeader);
         Assert.Null(context.AntiforgeryToken);

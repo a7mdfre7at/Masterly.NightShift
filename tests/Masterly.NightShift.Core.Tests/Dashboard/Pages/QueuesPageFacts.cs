@@ -13,7 +13,7 @@ public class QueuesPageFacts
     [Fact]
     public void Render_WithoutQueues_ShowsTheWarning()
     {
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains(Encode(Strings.QueuesPage_NoQueues), html);
         Assert.DoesNotContain("table-striped", html);
@@ -24,7 +24,7 @@ public class QueuesPageFacts
     {
         SetupQueues(Queue("default", length: 0));
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<a href=\"/jobs/enqueued/default\">default</a>", html);
         Assert.Contains($"<em>{Encode(Strings.Common_NotAvailable)}</em>", html);
@@ -40,7 +40,7 @@ public class QueuesPageFacts
     {
         SetupQueues(Queue("default", length: 5));
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<td>5</td>", html);
         Assert.Contains("<em class=\"text-muted\">&ndash;</em>", html);
@@ -53,7 +53,7 @@ public class QueuesPageFacts
     {
         SetupQueues(Queue("my queue", length: 0));
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<tr class=\"\">", html);
         Assert.Contains("data-ajax=\"/queues/pause/my%20queue\"", html);
@@ -68,7 +68,7 @@ public class QueuesPageFacts
         SetupControlHash(new Dictionary<string, string> { { "Queue:default", "" } });
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.DoesNotContain("hf-queue-actions", html);
         Assert.DoesNotContain("/queues/pause/", html);
@@ -81,7 +81,7 @@ public class QueuesPageFacts
         SetupQueues(Queue("emails", length: 3));
         SetupControlHash(new Dictionary<string, string> { { "Queue:emails", "SMTP <down>" } });
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<tr class=\"hf-queue-paused\">", html);
         Assert.Contains($"<span class=\"label label-warning text-uppercase\" title=\"SMTP &lt;down&gt;\">{Encode(Strings.QueuesPage_Paused)}</span>", html);
@@ -95,7 +95,7 @@ public class QueuesPageFacts
         SetupQueues(Queue("critical", length: 24, fetched: 3));
         SetupHealth("critical", lastStartedAt: _now.AddMinutes(-1), startedPerMinute: 2, "100", "200", "300");
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("<a href=\"/jobs/enqueued/fetched/critical\">", html);
         Assert.Contains($"<span title=\"{Encode(Strings.QueuesPage_Table_Latency_Hint)}\">", html);
@@ -111,7 +111,7 @@ public class QueuesPageFacts
         SetupQueues(Queue("stuck", length: 5));
         SetupHealth("stuck", lastStartedAt: _now.AddHours(-1), startedPerMinute: 0);
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains($"<span class=\"label label-danger text-uppercase\" title=\"{Encode(Strings.QueuesPage_Stalled_Tooltip)}\">{Encode(Strings.QueuesPage_Stalled)}</span>", html);
         Assert.Contains("<span class=\"text-muted\">&infin;</span>", html);
@@ -125,7 +125,7 @@ public class QueuesPageFacts
         SetupHealth("stuck", lastStartedAt: _now.AddHours(-1), startedPerMinute: 0);
         SetupControlHash(new Dictionary<string, string> { { "Drain", "1" } });
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.DoesNotContain(Encode(Strings.QueuesPage_Stalled_Tooltip), html);
     }
@@ -140,7 +140,7 @@ public class QueuesPageFacts
             { "3", null }
         }));
 
-        var html = _renderer.Render(new QueuesPage());
+        string html = _renderer.Render(new QueuesPage());
 
         Assert.Contains("table table-condensed table-inner", html);
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);

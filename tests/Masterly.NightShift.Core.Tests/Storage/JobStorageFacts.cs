@@ -27,7 +27,7 @@ public class JobStorageFacts
     [Fact, GlobalLock(Reason = "Access static JobStorage.Current member")]
     public void GetCurrent_ReturnsCurrentValue_WhenInitialized()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         JobStorage.Current = storage.Object;
 
         Assert.Same(storage.Object, JobStorage.Current);
@@ -48,8 +48,8 @@ public class JobStorageFacts
     [Fact]
     public void JobExpirationTimeout_ThrowsAnException_WhenValueIsNegative()
     {
-        var negative = TimeSpan.FromSeconds(-1);
-        var exception = Assert.Throws<ArgumentException>(() => _storage.Object.JobExpirationTimeout = negative);
+        TimeSpan negative = TimeSpan.FromSeconds(-1);
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => _storage.Object.JobExpirationTimeout = negative);
 
         Assert.StartsWith("JobStorage.JobExpirationTimeout value should be equal or greater than zero.", exception.Message);
 

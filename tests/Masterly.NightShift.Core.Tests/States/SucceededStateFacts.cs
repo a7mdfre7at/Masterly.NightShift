@@ -13,16 +13,16 @@ public class SucceededStateFacts
     [Fact]
     public void NameProperty_ReturnsStateName()
     {
-        var state = CreateState();
+        SucceededState state = CreateState();
         Assert.Equal(SucceededState.StateName, state.Name);
     }
 
     [Fact]
     public void SerializeData_ReturnsCorrectData()
     {
-        var state = CreateState();
+        SucceededState state = CreateState();
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal("\"Returned  value\"", data["Result"]);
         Assert.Equal(JobHelper.SerializeDateTime(state.SucceededAt), data["SucceededAt"]);
@@ -33,9 +33,9 @@ public class SucceededStateFacts
     [Fact]
     public void SerializeData_DoesNotAppendEntry_ForNullResult()
     {
-        var state = new SucceededState(null, 0, 0);
+        SucceededState state = new(null, 0, 0);
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.False(data.ContainsKey("Result"));
     }
@@ -43,10 +43,10 @@ public class SucceededStateFacts
     [Fact]
     public void SerializeData_CorrectlyHandlesResults_ThatCantBeSerialized()
     {
-        var process = new Process();
-        var state = new SucceededState(process, 0, 0);
+        Process process = new();
+        SucceededState state = new(process, 0, 0);
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Contains("Can not serialize", data["Result"]);
     }
@@ -54,23 +54,23 @@ public class SucceededStateFacts
     [Fact]
     public void IsFinal_ReturnsTrue()
     {
-        var state = CreateState();
+        SucceededState state = CreateState();
         Assert.True(state.IsFinal);
     }
 
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = CreateState();
+        SucceededState state = CreateState();
         Assert.False(state.IgnoreJobLoadException);
     }
 
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var state = new SucceededState(null, 1, 2);
+        SucceededState state = new(null, 1, 2);
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.SucceededState, Masterly.NightShift.Core\",\"Latency\":1,\"PerformanceDuration\":2}",
@@ -80,9 +80,9 @@ public class SucceededStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var state = new SucceededState(null, 1, 2);
+        SucceededState state = new(null, 1, 2);
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.SucceededState, Masterly.NightShift.Core\",\"Latency\":1,\"PerformanceDuration\":2}",

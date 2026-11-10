@@ -23,9 +23,9 @@ public class BatchCommandsFacts
     [Fact]
     public void RequeueFailed_ReturnsNull_AndChangesNothing_WhenTheBatchIsUnknown()
     {
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.RequeueFailed(context, "missing");
+        BulkJobResult? result = BatchCommands.RequeueFailed(context, "missing");
 
         Assert.Null(result);
         _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
@@ -34,9 +34,9 @@ public class BatchCommandsFacts
     [Fact]
     public void DeletePending_ReturnsNull_AndChangesNothing_WhenTheBatchIsUnknown()
     {
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.DeletePending(context, "missing");
+        BulkJobResult? result = BatchCommands.DeletePending(context, "missing");
 
         Assert.Null(result);
         _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
@@ -46,9 +46,9 @@ public class BatchCommandsFacts
     public void RequeueFailed_RequeuesOnlyTheFailedJobs_ExpectingTheFailedState()
     {
         SetupBatch(BatchId, ("1", FailedState.StateName), ("2", SucceededState.StateName), ("3", ProcessingState.StateName), ("4", FailedState.StateName));
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.RequeueFailed(context, BatchId);
+        BulkJobResult? result = BatchCommands.RequeueFailed(context, BatchId);
 
         Assert.Equal(2, result.Processed);
         Assert.True(result.Complete);
@@ -66,9 +66,9 @@ public class BatchCommandsFacts
             ("3", DeletedState.StateName),
             ("4", ProcessingState.StateName),
             ("5", AwaitingState.StateName));
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.DeletePending(context, BatchId);
+        BulkJobResult? result = BatchCommands.DeletePending(context, BatchId);
 
         Assert.Equal(3, result.Processed);
         // A job that finishes between the read and the change must not be deleted
@@ -84,9 +84,9 @@ public class BatchCommandsFacts
         SetupBatch(BatchId, ("1", ProcessingState.StateName));
         _connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetJobsKey(BatchId))).Returns(["1", "expired"]);
         _connection.Setup(x => x.GetJobData("expired")).Returns((JobData)null);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.DeletePending(context, BatchId);
+        BulkJobResult? result = BatchCommands.DeletePending(context, BatchId);
 
         Assert.Equal(1, result.Processed);
         _client.Verify(x => x.ChangeState("expired", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
@@ -97,9 +97,9 @@ public class BatchCommandsFacts
     public void RequeueFailed_ReturnsTrue_ForAnEmptyBatch()
     {
         SetupBatch(BatchId);
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.RequeueFailed(context, BatchId);
+        BulkJobResult? result = BatchCommands.RequeueFailed(context, BatchId);
 
         Assert.Equal(0, result.Processed);
         Assert.True(result.Complete);
@@ -111,9 +111,9 @@ public class BatchCommandsFacts
     {
         // ASP.NET Core decodes the path before routing, except "%2F"
         SetupBatch("nightly/import 100%", ("7", FailedState.StateName));
-        var context = Create();
+        DashboardContextStub context = Create();
 
-        var result = BatchCommands.RequeueFailed(context, "nightly%2Fimport 100%");
+        BulkJobResult? result = BatchCommands.RequeueFailed(context, "nightly%2Fimport 100%");
 
         Assert.Equal(1, result.Processed);
         _storage.Verify(x => x.GetReadOnlyConnection());
@@ -124,7 +124,7 @@ public class BatchCommandsFacts
     public async Task RequeueFailedRoute_AnswersWhatItDid_AndRequeuesTheFailedJobs()
     {
         SetupBatch(BatchId, ("1", FailedState.StateName));
-        var context = Create("/batches/requeue-failed/" + BatchId);
+        DashboardContextStub context = Create("/batches/requeue-failed/" + BatchId);
 
         await Dispatch(context);
 
@@ -136,7 +136,7 @@ public class BatchCommandsFacts
     [Fact]
     public async Task DeleteRoute_Answers422_ForAnUnknownBatch()
     {
-        var context = Create("/batches/delete/missing");
+        DashboardContextStub context = Create("/batches/delete/missing");
 
         await Dispatch(context);
 
@@ -147,7 +147,7 @@ public class BatchCommandsFacts
     public async Task DeleteRoute_Answers401_ForReadOnlyDashboards()
     {
         SetupBatch(BatchId, ("1", ProcessingState.StateName));
-        var context = Create("/batches/delete/" + BatchId, readOnly: true);
+        DashboardContextStub context = Create("/batches/delete/" + BatchId, readOnly: true);
 
         await Dispatch(context);
 
@@ -160,12 +160,12 @@ public class BatchCommandsFacts
     {
         // A batch of 100,000 jobs was handled in one request, past any proxy timeout
         SetupBatch(BatchId, ("1", ProcessingState.StateName), ("2", ProcessingState.StateName), ("3", ProcessingState.StateName));
-        var context = Create();
-        var budget = JobListCommands.TimeBudget;
+        DashboardContextStub context = Create();
+        TimeSpan budget = JobListCommands.TimeBudget;
         JobListCommands.TimeBudget = TimeSpan.Zero;
         try
         {
-            var result = BatchCommands.DeletePending(context, BatchId);
+            BulkJobResult? result = BatchCommands.DeletePending(context, BatchId);
 
             Assert.Equal(1, result.Processed);
             Assert.False(result.Complete);
@@ -180,8 +180,8 @@ public class BatchCommandsFacts
 
     private void SetupBatch(string batchId, params (string Id, string State)[] jobs)
     {
-        var ids = new HashSet<string>();
-        foreach (var (Id, State) in jobs)
+        HashSet<string> ids = [];
+        foreach ((string? Id, string? State) in jobs)
         {
             ids.Add(Id);
             _connection.Setup(x => x.GetJobData(Id)).Returns(new JobData { State = State });
@@ -193,7 +193,7 @@ public class BatchCommandsFacts
 
     private static Task Dispatch(DashboardContextStub context)
     {
-        var route = DashboardRoutes.Routes.FindDispatcher(context.Request.Path);
+        Tuple<IDashboardDispatcher, System.Text.RegularExpressions.Match>? route = DashboardRoutes.Routes.FindDispatcher(context.Request.Path);
         context.UriMatch = route.Item2;
         return route.Item1.Dispatch(context);
     }

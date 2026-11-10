@@ -19,7 +19,7 @@ public class SqlServerConnectionFacts
     {
         _queue = new Mock<IPersistentJobQueue>();
 
-        var provider = new Mock<IPersistentJobQueueProvider>();
+        Mock<IPersistentJobQueueProvider> provider = new();
         provider.Setup(x => x.GetJobQueue())
             .Returns(_queue.Object);
 
@@ -29,7 +29,7 @@ public class SqlServerConnectionFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerConnection(null));
 
         Assert.Equal("storage", exception.ParamName);
@@ -40,8 +40,8 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var token = new CancellationToken();
-            var queues = new[] { "default" };
+            CancellationToken token = new();
+            string[] queues = ["default"];
 
             connection.FetchNextJob(queues, token);
 
@@ -54,8 +54,8 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var token = new CancellationToken();
-            var anotherProvider = new Mock<IPersistentJobQueueProvider>();
+            CancellationToken token = new();
+            Mock<IPersistentJobQueueProvider> anotherProvider = new();
             _providers.Add(anotherProvider.Object, ["critical"]);
 
             Assert.Throws<InvalidOperationException>(
@@ -68,7 +68,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var transaction = connection.CreateWriteTransaction();
+            IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
             Assert.NotNull(transaction);
         });
     }
@@ -78,7 +78,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            using var @lock = connection.AcquireDistributedLock("1", TimeSpan.FromSeconds(1));
+            using IDisposable @lock = connection.AcquireDistributedLock("1", TimeSpan.FromSeconds(1));
             Assert.NotNull(@lock);
         });
     }
@@ -88,7 +88,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
             () => connection.AcquireDistributedLock("", TimeSpan.FromMinutes(5)));
 
             Assert.Equal("resource", exception.ParamName);
@@ -98,13 +98,13 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_AcquiresExclusiveApplicationLock_OnSession()
     {
-        using var sql = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(sql);
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(sql);
 
-        using (var connection = new SqlServerConnection(storage))
+        using (SqlServerConnection connection = new(storage))
         using (connection.AcquireDistributedLock("hello", TimeSpan.FromMinutes(5)))
         {
-            var lockMode = sql.Query<string>(
+            string lockMode = sql.Query<string>(
                 $"select applock_mode('public', '{Constants.DefaultSchema}:hello', 'session')").Single();
 
             Assert.Equal("Exclusive", lockMode);
@@ -114,10 +114,10 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_ThrowsAnException_IfLockCanNotBeGranted()
     {
-        var releaseLock = new ManualResetEventSlim(false);
-        var lockAcquired = new ManualResetEventSlim(false);
+        ManualResetEventSlim releaseLock = new(false);
+        ManualResetEventSlim lockAcquired = new(false);
 
-        var thread = new Thread(
+        Thread thread = new(
             () => UseConnection(connection1 =>
             {
                 using (connection1.AcquireDistributedLock("exclusive", TimeSpan.Zero))
@@ -148,7 +148,7 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_KeepsLongResourcesApart_WhenTheyShareTheirFirst255Characters()
     {
-        var sharedPrefix = new string('r', 300);
+        string sharedPrefix = new('r', 300);
 
         UseConnection(connection1 => UseConnection(connection2 =>
         {
@@ -164,7 +164,7 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void AcquireDistributedLock_ReleasesALongResource_OnDispose()
     {
-        var resource = new string('r', 300);
+        string resource = new('r', 300);
 
         UseConnection(connection1 => UseConnection(connection2 =>
         {
@@ -182,10 +182,10 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var distributedLock = connection.AcquireDistributedLock("hello", TimeSpan.FromMinutes(5));
+            IDisposable distributedLock = connection.AcquireDistributedLock("hello", TimeSpan.FromMinutes(5));
             distributedLock.Dispose();
 
-            var lockMode = sql.Query<string>(
+            string lockMode = sql.Query<string>(
                 $"select applock_mode('public', '{Constants.DefaultSchema}:hello', 'session')").Single();
 
             Assert.Equal("NoLock", lockMode);
@@ -210,7 +210,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.CreateExpiredJob(
                     null,
                     new Dictionary<string, string>(),
@@ -226,7 +226,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.CreateExpiredJob(
                     Job.FromExpression(() => SampleMethod("hello")),
                     null,
@@ -243,10 +243,10 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var parameters = Enumerable.Range(1, parameterCount - 1).ToDictionary(i => $"Key{i}", i => "Value");
+            Dictionary<string, string> parameters = Enumerable.Range(1, parameterCount - 1).ToDictionary(i => $"Key{i}", i => "Value");
             parameters.Add(new string('n', 41), "Value");
 
-            var exception = Assert.Throws<ArgumentException>(() => connection.CreateExpiredJob(
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("hello")),
                 parameters,
                 DateTime.UtcNow,
@@ -269,7 +269,7 @@ public class SqlServerConnectionFacts
                 DateTime.UtcNow,
                 TimeSpan.MaxValue);
 
-            var sqlJob = sql.Query($"select * from [{Constants.DefaultSchema}].Job").Single();
+            dynamic sqlJob = sql.Query($"select * from [{Constants.DefaultSchema}].Job").Single();
             Assert.Equal(new DateTime(9999, 12, 31), sqlJob.ExpireAt);
         }, useBatching: false);
     }
@@ -280,14 +280,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -301,14 +301,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -323,14 +323,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" }, { "Key3", "Value3" } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -346,14 +346,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" }, { "Key3", "Value3" }, { "Key4", "Value4" } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -370,14 +370,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" }, { "Key3", "Value3" }, { "Key4", "Value4" }, { "Key5", "Value5" } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -395,14 +395,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", null } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -416,14 +416,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", null }, { "Key2", null } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -438,14 +438,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", null }, { "Key2", null }, { "Key3", null } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -461,14 +461,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", null }, { "Key2", null }, { "Key3", null }, { "Key4", null } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -485,14 +485,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", null }, { "Key2", null }, { "Key3", null }, { "Key4", null }, { "Key5", null } },
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -510,14 +510,14 @@ public class SqlServerConnectionFacts
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string>(), 
                 createdAt,
                 TimeSpan.FromDays(1));
 
-            var parameters = sql
+            Dictionary<string, string> parameters = sql
                 .Query($"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id = jobId })
                 .ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -537,7 +537,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var result = connection.GetJobData("1");
+            JobData? result = connection.GetJobData("1");
             Assert.Null(result);
         });
     }
@@ -547,7 +547,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var result = connection.GetJobData("some-non-long-id");
+            JobData? result = connection.GetJobData("some-non-long-id");
             Assert.Null(result);
         });
     }
@@ -564,7 +564,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var result = connection.GetStateData("1");
+            StateData? result = connection.GetStateData("1");
             Assert.Null(result);
         });
     }
@@ -574,7 +574,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var result = connection.GetStateData("some-non-long-id");
+            StateData? result = connection.GetStateData("some-non-long-id");
             Assert.Null(result);
         });
     }
@@ -584,7 +584,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.SetJobParameter(null, "name", "value"));
 
             Assert.Equal("id", exception.ParamName);
@@ -596,7 +596,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.SetJobParameter("1", null, "value"));
 
             Assert.Equal("name", exception.ParamName);
@@ -608,7 +608,7 @@ public class SqlServerConnectionFacts
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.SetJobParameter("1", new string('n', 41), "value"));
 
             Assert.Equal("name", exception.ParamName);
@@ -619,7 +619,7 @@ public class SqlServerConnectionFacts
     [Fact, CleanDatabase]
     public void SetParameter_StoresAName_OfExactly40Characters()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
 values ('', '', getutcdate())
 select scope_identity() as Id";
@@ -627,7 +627,7 @@ select scope_identity() as Id";
         UseConnections((sql, connection) =>
         {
             string jobId = sql.Query(arrangeSql).Single().Id.ToString();
-            var name = new string('n', 40);
+            string name = new('n', 40);
 
             connection.SetJobParameter(jobId, name, "Value");
 
@@ -638,19 +638,19 @@ select scope_identity() as Id";
     [Fact, CleanDatabase]
     public void SetParameters_CreatesNewParameter_WhenParameterWithTheGivenNameDoesNotExists()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
 values ('', '', getutcdate())
 select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            var job = sql.Query(arrangeSql).Single();
+            dynamic job = sql.Query(arrangeSql).Single();
             string jobId = job.Id.ToString();
 
             connection.SetJobParameter(jobId, "Name", "Value");
 
-            var parameter = sql.Query(
+            dynamic parameter = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id and Name = @name",
                 new { id = jobId, name = "Name" }).Single();
 
@@ -661,20 +661,20 @@ select scope_identity() as Id";
     [Fact, CleanDatabase]
     public void SetParameter_UpdatesValue_WhenParameterWithTheGivenName_AlreadyExists()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
 values ('', '', getutcdate())
 select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            var job = sql.Query(arrangeSql).Single();
+            dynamic job = sql.Query(arrangeSql).Single();
             string jobId = job.Id.ToString();
 
             connection.SetJobParameter(jobId, "Name", "Value");
             connection.SetJobParameter(jobId, "Name", "AnotherValue");
 
-            var parameter = sql.Query(
+            dynamic parameter = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id and Name = @name",
                 new { id = jobId, name = "Name" }).Single();
 
@@ -685,19 +685,19 @@ select scope_identity() as Id";
     [Fact, CleanDatabase]
     public void SetParameter_CanAcceptNulls_AsValues()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
 values ('', '', getutcdate())
 select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            var job = sql.Query(arrangeSql).Single();
+            dynamic job = sql.Query(arrangeSql).Single();
             string jobId = job.Id.ToString();
 
             connection.SetJobParameter(jobId, "Name", null);
 
-            var parameter = sql.Query(
+            dynamic parameter = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id and Name = @name",
                 new { id = jobId, name = "Name" }).Single();
 
@@ -721,7 +721,7 @@ select scope_identity() as Id").Single().Id.ToString();
 
                 connection.SetJobParameter(jobId, "Name", "Value");
 
-                var parameter = sql.Query(
+                dynamic parameter = sql.Query(
                     $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @jobId and Name = N'Name'",
                     new { jobId }).Single();
 
@@ -743,7 +743,7 @@ select scope_identity() as Id").Single().Id.ToString();
             UseConnections((sql, connection) =>
             {
                 sql.Execute("SET XACT_ABORT ON");
-                var onOrOff = setIgnoreDupKey ? "ON" : "OFF";
+                string onOrOff = setIgnoreDupKey ? "ON" : "OFF";
                 sql.Execute($"ALTER TABLE [{Constants.DefaultSchema}].[JobParameter] REBUILD WITH (IGNORE_DUP_KEY = {onOrOff})");
 
                 string jobId1 = sql.Query($@"
@@ -762,14 +762,14 @@ select scope_identity() as Id").Single().Id.ToString();
 
                 connection.SetJobParameter(jobId1, "Name1", "Value2");
 
-                var parameters1 = sql.Query(
+                Dictionary<string, string> parameters1 = sql.Query(
                     $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @jobId1",
                     new { jobId1 }).ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
                 Assert.Equal("Value2", parameters1["Name1"]);
                 Assert.Equal("Value1", parameters1["Name2"]);
 
-                var parameters2 = sql.Query(
+                Dictionary<string, string> parameters2 = sql.Query(
                     $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @jobId2",
                     new { jobId2 }).ToDictionary(x => (string)x.Name, x => (string)x.Value);
 
@@ -787,7 +787,7 @@ select scope_identity() as Id").Single().Id.ToString();
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetJobParameter(null, "hello"));
 
             Assert.Equal("id", exception.ParamName);
@@ -799,7 +799,7 @@ select scope_identity() as Id").Single().Id.ToString();
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetJobParameter("1", null));
 
             Assert.Equal("name", exception.ParamName);
@@ -811,7 +811,7 @@ select scope_identity() as Id").Single().Id.ToString();
     {
         UseConnection(connection =>
         {
-            var value = connection.GetJobParameter("1", "hello");
+            string? value = connection.GetJobParameter("1", "hello");
             Assert.Null(value);
         });
     }
@@ -821,7 +821,7 @@ select scope_identity() as Id").Single().Id.ToString();
     {
         UseConnection(connection =>
         {
-            var result = connection.GetJobParameter("some-non-long-id", "name");
+            string? result = connection.GetJobParameter("some-non-long-id", "name");
             Assert.Null(result);
         });
     }
@@ -829,7 +829,7 @@ select scope_identity() as Id").Single().Id.ToString();
     [Fact, CleanDatabase]
     public void GetParameter_ReturnsParameterValue_WhenJobExists()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 declare @id bigint
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, CreatedAt)
 values ('', '', getutcdate())
@@ -840,11 +840,11 @@ select @id";
 
         UseConnections((sql, connection) =>
         {
-            var id = sql.Query<long>(
+            long id = sql.Query<long>(
                 arrangeSql,
                 new { name = "name", value = "value" }).Single();
 
-            var value = connection.GetJobParameter(id.ToString(), "name");
+            string? value = connection.GetJobParameter(id.ToString(), "name");
 
             Assert.Equal("value", value);
         }, useBatching: false);
@@ -855,7 +855,7 @@ select @id";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetFirstByLowestScoreFromSet(null, 0, 1));
 
             Assert.Equal("key", exception.ParamName);
@@ -867,7 +867,7 @@ select @id";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.GetFirstByLowestScoreFromSet("key", 0, -1));
 
             Assert.Equal("toScore", exception.ParamName);
@@ -879,7 +879,7 @@ select @id";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetFirstByLowestScoreFromSet(
+            string? result = connection.GetFirstByLowestScoreFromSet(
                 "key", 0, 1);
 
             Assert.Null(result);
@@ -891,7 +891,7 @@ select @id";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.GetFirstByLowestScoreFromSet("key", 0, 1, -1));
 
             Assert.Equal("count", exception.ParamName);
@@ -903,7 +903,7 @@ select @id";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetFirstByLowestScoreFromSet("key", 0, 1, 10);
+            List<string> result = connection.GetFirstByLowestScoreFromSet("key", 0, 1, 10);
             Assert.Empty(result);
         });
     }
@@ -911,7 +911,7 @@ select @id";
     [Fact, CleanDatabase]
     public void GetFirstByLowestScoreFromSet_ReturnsN_WhenMoreThanNExist()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], Score, Value)
 values 
 ('key', 1.0, '1234'),
@@ -922,8 +922,8 @@ values
         UseConnections((sql, connection) =>
         {
             sql.Execute(arrangeSql);
-            
-            var result = connection.GetFirstByLowestScoreFromSet("key", -10.0, 10.0, 2);
+
+            List<string> result = connection.GetFirstByLowestScoreFromSet("key", -10.0, 10.0, 2);
             
             Assert.Equal(2, result.Count);
             Assert.Equal("890", result.ElementAt(0));
@@ -934,7 +934,7 @@ values
     [Fact, CleanDatabase]
     public void GetFirstByLowestScoreFromSet_ReturnsN_WhenMoreThanNExist_And_RequestedCountIsGreaterThanN()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], Score, Value)
 values 
 ('key', 1.0, '1234'),
@@ -945,8 +945,8 @@ values
         UseConnections((sql, connection) =>
         {
             sql.Execute(arrangeSql);
-            
-            var result = connection.GetFirstByLowestScoreFromSet("another-key", -10.0, 10.0, 5);
+
+            List<string> result = connection.GetFirstByLowestScoreFromSet("another-key", -10.0, 10.0, 5);
             
             Assert.Single(result);
             Assert.Equal("abcd", result.First());
@@ -956,7 +956,7 @@ values
     [Fact, CleanDatabase]
     public void GetFirstByLowestScoreFromSet_ReturnsTheValueWithTheLowestScore()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], Score, Value)
 values 
 ('key', 1.0, '1.0'),
@@ -968,7 +968,7 @@ values
         {
             sql.Execute(arrangeSql);
 
-            var result = connection.GetFirstByLowestScoreFromSet("key", -1.0, 3.0);
+            string? result = connection.GetFirstByLowestScoreFromSet("key", -1.0, 3.0);
             
             Assert.Equal("-1.0", result);
         }, useBatching: false);
@@ -979,7 +979,7 @@ values
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.AnnounceServer(null, new ServerContext()));
 
             Assert.Equal("serverId", exception.ParamName);
@@ -991,7 +991,7 @@ values
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.AnnounceServer("server", null));
 
             Assert.Equal("context", exception.ParamName);
@@ -1003,14 +1003,14 @@ values
     {
         UseConnections((sql, connection) =>
         {
-            var context1 = new ServerContext
+            ServerContext context1 = new()
             {
                 Queues = ["critical", "default"],
                 WorkerCount = 4
             };
             connection.AnnounceServer("server", context1);
 
-            var server = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
+            dynamic server = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
             Assert.Equal("server", server.Id);
             Assert.True(((string)server.Data).StartsWith(
                 "{\"WorkerCount\":4,\"Queues\":[\"critical\",\"default\"],\"StartedAt\":"),
@@ -1019,13 +1019,13 @@ values
             Assert.True(DateTime.UtcNow.AddHours(-1) < server.LastHeartbeat &&
                         server.LastHeartbeat < DateTime.UtcNow.AddHours(1));
 
-            var context2 = new ServerContext
+            ServerContext context2 = new()
             {
                 Queues = ["default"],
                 WorkerCount = 1000 
             };
             connection.AnnounceServer("server", context2);
-            var sameServer = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
+            dynamic sameServer = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
             Assert.Equal("server", sameServer.Id);
             Assert.Contains("1000", sameServer.Data);
         }, useBatching: false);
@@ -1037,9 +1037,9 @@ values
         UseConnections((sql, connection) =>
         {
             // A server name of 158 characters, the process id and a GUID: 201 characters
-            var serverId = new string('s', 158) + ":12345:" + Guid.NewGuid();
+            string serverId = new string('s', 158) + ":12345:" + Guid.NewGuid();
 
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.AnnounceServer(serverId, new ServerContext { Queues = ["default"], WorkerCount = 1 }));
 
             Assert.Equal("serverId", exception.ParamName);
@@ -1054,7 +1054,7 @@ values
     {
         UseConnections((sql, connection) =>
         {
-            var serverId = new string('s', 157) + ":12345:" + Guid.NewGuid();
+            string serverId = new string('s', 157) + ":12345:" + Guid.NewGuid();
             Assert.Equal(200, serverId.Length);
 
             connection.AnnounceServer(serverId, new ServerContext { Queues = ["default"], WorkerCount = 1 });
@@ -1074,7 +1074,7 @@ values
     [Fact, CleanDatabase]
     public void RemoveServer_RemovesAServerRecord()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Server (Id, Data, LastHeartbeat)
 values 
 ('Server1', '', getutcdate()),
@@ -1086,7 +1086,7 @@ values
 
             connection.RemoveServer("Server1");
 
-            var server = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
+            dynamic server = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
             Assert.NotEqual("Server1", server.Id, StringComparer.OrdinalIgnoreCase);
         }, useBatching: false);
     }
@@ -1101,7 +1101,7 @@ values
     [Fact, CleanDatabase]
     public void Heartbeat_UpdatesLastHeartbeat_OfTheServerWithGivenId()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Server (Id, Data, LastHeartbeat)
 values
 ('server1', '', '2012-12-12 12:12:12'),
@@ -1113,7 +1113,7 @@ values
 
             connection.Heartbeat("server1");
 
-            var servers = sql.Query($"select * from [{Constants.DefaultSchema}].Server")
+            Dictionary<string, DateTime> servers = sql.Query($"select * from [{Constants.DefaultSchema}].Server")
                 .ToDictionary(x => (string)x.Id, x => (DateTime)x.LastHeartbeat);
 
             Assert.NotEqual(2012, servers["server1"].Year);
@@ -1134,7 +1134,7 @@ values
     [Fact, CleanDatabase]
     public void RemoveTimedOutServers_DoItsWorkPerfectly()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Server (Id, Data, LastHeartbeat)
 values (@id, '', @heartbeat)";
 
@@ -1150,7 +1150,7 @@ values (@id, '', @heartbeat)";
 
             connection.RemoveTimedOutServers(TimeSpan.FromHours(15));
 
-            var liveServer = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
+            dynamic liveServer = sql.Query($"select * from [{Constants.DefaultSchema}].Server").Single();
             Assert.Equal("server2", liveServer.Id);
         }, useBatching: false);
     }
@@ -1167,7 +1167,7 @@ values (@id, '', @heartbeat)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetAllItemsFromSet("some-set");
+            HashSet<string> result = connection.GetAllItemsFromSet("some-set");
 
             Assert.NotNull(result);
             Assert.Empty(result);
@@ -1177,7 +1177,7 @@ values (@id, '', @heartbeat)";
     [Fact, CleanDatabase]
     public void GetAllItemsFromSet_ReturnsAllItems()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], Score, Value)
 values (@key, 0.0, @value)";
 
@@ -1192,7 +1192,7 @@ values (@key, 0.0, @value)";
             });
 
             // Act
-            var result = connection.GetAllItemsFromSet("some-set");
+            HashSet<string> result = connection.GetAllItemsFromSet("some-set");
 
             // Assert
             Assert.Equal(2, result.Count);
@@ -1206,7 +1206,7 @@ values (@key, 0.0, @value)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.SetRangeInHash(null, []));
 
             Assert.Equal("key", exception.ParamName);
@@ -1218,7 +1218,7 @@ values (@key, 0.0, @value)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.SetRangeInHash("some-hash", null));
 
             Assert.Equal("keyValuePairs", exception.ParamName);
@@ -1230,7 +1230,7 @@ values (@key, 0.0, @value)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.SetRangeInHash(
                 "123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_12345",
                 new Dictionary<string, string> { { "field", "value" } }));
@@ -1245,7 +1245,7 @@ values (@key, 0.0, @value)";
     {
         UseConnections((sql, connection) =>
         {
-            var exception = Assert.Throws<ArgumentException>(
+            ArgumentException exception = Assert.Throws<ArgumentException>(
                 () => connection.SetRangeInHash(
                     "some-hash",
                     new Dictionary<string, string> { { "short", "value" }, { new string('f', 101), "value" } }));
@@ -1268,7 +1268,7 @@ values (@key, 0.0, @value)";
                 { "Key2", "Value2" }
             });
 
-            var result = sql.Query(
+            Dictionary<string, string> result = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].Hash where [Key] = @key",
                 new { key = "some-hash" })
                 .ToDictionary(x => (string)x.Field, x => (string)x.Value);
@@ -1289,7 +1289,7 @@ values (@key, 0.0, @value)";
                 { "Key1", null }
             });
 
-            var result = sql.Query(
+            Dictionary<string, string> result = sql.Query(
                     $"select * from [{Constants.DefaultSchema}].Hash where [Key] = @key",
                     new { key = "some-hash" })
                 .ToDictionary(x => (string)x.Field, x => (string)x.Value);
@@ -1309,7 +1309,7 @@ values (@key, 0.0, @value)";
                 { "Key", "Value" }
             });
 
-            var result = sql.QuerySingle<string>($"select APPLOCK_MODE( 'public' , 'HangFire:Hash:Lock' , 'Session' )");
+            string result = sql.QuerySingle<string>($"select APPLOCK_MODE( 'public' , 'HangFire:Hash:Lock' , 'Session' )");
             Assert.Equal("NoLock", result);
         }, useBatching);
     }
@@ -1329,7 +1329,7 @@ values (@key, 0.0, @value)";
                     { "key", "value" }
                 });
 
-                var result = sql
+                Dictionary<string, string> result = sql
                     .Query($"select * from [{Constants.DefaultSchema}].Hash where [Key] = N'some-hash'")
                     .ToDictionary(x => (string)x.Field, x => (string)x.Value);
 
@@ -1351,7 +1351,7 @@ values (@key, 0.0, @value)";
         {
             UseConnections((sql, connection) =>
             {
-                var onOrOff = setIgnoreDupKey ? "ON" : "OFF";
+                string onOrOff = setIgnoreDupKey ? "ON" : "OFF";
                 sql.Execute($"ALTER TABLE [{Constants.DefaultSchema}].[Hash] REBUILD WITH (IGNORE_DUP_KEY = {onOrOff})");
                 sql.Execute($@"insert into [{Constants.DefaultSchema}].Hash([Key], Field, Value) VALUES
 (N'some-hash', N'key1', N'value1'),
@@ -1363,14 +1363,14 @@ values (@key, 0.0, @value)";
                     { "key1", "value2" }
                 });
 
-                var someResult = sql
+                Dictionary<string, string> someResult = sql
                     .Query($"select * from [{Constants.DefaultSchema}].Hash where [Key] = N'some-hash'")
                     .ToDictionary(x => (string)x.Field, x => (string)x.Value);
 
                 Assert.Equal("value2", someResult["key1"]);
                 Assert.Equal("value1", someResult["key2"]);
 
-                var othrResult = sql
+                Dictionary<string, string> othrResult = sql
                     .Query($"select * from [{Constants.DefaultSchema}].Hash where [Key] = N'othr-hash'")
                     .ToDictionary(x => (string)x.Field, x => (string)x.Value);
 
@@ -1395,7 +1395,7 @@ values (@key, 0.0, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetAllEntriesFromHash("some-hash");
+            Dictionary<string, string>? result = connection.GetAllEntriesFromHash("some-hash");
             Assert.Null(result);
         });
     }
@@ -1403,7 +1403,7 @@ values (@key, 0.0, @value)";
     [Fact, CleanDatabase]
     public void GetAllEntriesFromHash_ReturnsAllKeysAndTheirValues()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Hash ([Key], [Field], [Value])
 values (@key, @field, @value)";
 
@@ -1418,7 +1418,7 @@ values (@key, @field, @value)";
             });
 
             // Act
-            var result = connection.GetAllEntriesFromHash("some-hash");
+            Dictionary<string, string>? result = connection.GetAllEntriesFromHash("some-hash");
 
             // Assert
             Assert.NotNull(result);
@@ -1443,7 +1443,7 @@ values (@key, @field, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetSetCount("my-set");
+            long result = connection.GetSetCount("my-set");
             Assert.Equal(0, result);
         });
     }
@@ -1451,7 +1451,7 @@ values (@key, @field, @value)";
     [Fact, CleanDatabase]
     public void GetSetCount_ReturnsNumberOfElements_InASet()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@key, @value, 0.0)";
 
@@ -1464,7 +1464,7 @@ values (@key, @value, 0.0)";
                 new { key = "set-1", value = "value-2" }
             });
 
-            var result = connection.GetSetCount("set-1");
+            long result = connection.GetSetCount("set-1");
 
             Assert.Equal(2, result);
         }, useBatching: false);
@@ -1475,7 +1475,7 @@ values (@key, @value, 0.0)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetSetCount((IEnumerable<string>) null, 10));
 
             Assert.Equal("keys", exception.ParamName);
@@ -1487,7 +1487,7 @@ values (@key, @value, 0.0)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
                 () => connection.GetSetCount([], -10));
 
             Assert.Equal("limit", exception.ParamName);
@@ -1499,7 +1499,7 @@ values (@key, @value, 0.0)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetSetCount([], 10);
+            long result = connection.GetSetCount([], 10);
             Assert.Equal(0, result);
         });
     }
@@ -1509,7 +1509,7 @@ values (@key, @value, 0.0)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetSetCount(new [] { "set-1", "set-2" }.AsEnumerable(), 10);
+            long result = connection.GetSetCount(new [] { "set-1", "set-2" }.AsEnumerable(), 10);
             Assert.Equal(0, result);
         });
     }
@@ -1517,7 +1517,7 @@ values (@key, @value, 0.0)";
     [Fact, CleanDatabase]
     public void GetSetCount_Limited_ReturnsTheSum_OfGivenSetCardinalities()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, 0.0)";
 
@@ -1532,7 +1532,7 @@ values (@Key, @Value, 0.0)";
                 new { Key = "set-3", Value = "1" }
             });
 
-            var result = connection.GetSetCount(new [] { "set-1", "set-2" }.AsEnumerable(), 10);
+            long result = connection.GetSetCount(new [] { "set-1", "set-2" }.AsEnumerable(), 10);
             Assert.Equal(4, result);
         }, useBatching: false);
     }
@@ -1540,7 +1540,7 @@ values (@Key, @Value, 0.0)";
     [Fact, CleanDatabase]
     public void GetSetCount_Limited_LimitValue_IsConsidered()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, 0.0)";
 
@@ -1555,7 +1555,7 @@ values (@Key, @Value, 0.0)";
                 new { Key = "set-3", Value = "1" }
             });
 
-            var result = connection.GetSetCount(new [] { "set-1", "set-2", "set-4" }.AsEnumerable(), 2);
+            long result = connection.GetSetCount(new [] { "set-1", "set-2", "set-4" }.AsEnumerable(), 2);
             Assert.Equal(2, result);
         }, useBatching: false);
     }
@@ -1572,7 +1572,7 @@ values (@Key, @Value, 0.0)";
     [Fact, CleanDatabase]
     public void GetRangeFromSet_ReturnsPagedElements_SortedByScore()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, @Score)";
 
@@ -1589,7 +1589,7 @@ values (@Key, @Value, @Score)";
                 new { Key = "set-1", Value = "1", Score = 1.0D },
             });
 
-            var result = connection.GetRangeFromSet("set-1", 2, 4);
+            List<string> result = connection.GetRangeFromSet("set-1", 2, 4);
 
             Assert.Equal(new [] { "3", "4", "5" }, result);
         }, useBatching: false);
@@ -1599,7 +1599,7 @@ values (@Key, @Value, @Score)";
     public void GetRangeFromSet_ReturnsTheSameOrder_ForARangeNearTheEndOfALongSet()
     {
         // Pairs of members share a score, and their values break the tie; ranges near the end are read from the end
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 ;with n as (select top (1500) row_number() over (order by (select null)) - 1 as i from sys.all_objects a cross join sys.all_objects b)
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 select N'long-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;";
@@ -1621,7 +1621,7 @@ select N'long-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;";
     {
         // The ranges end past the counting threshold, but the set is more than twice as long: the count stops
         // early and the rows are numbered from the start
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 ;with n as (select top (5000) row_number() over (order by (select null)) - 1 as i from sys.all_objects a cross join sys.all_objects b)
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;";
@@ -1652,7 +1652,7 @@ select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;"
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetSetContains(null, "value"));
             
             Assert.Equal("key", exception.ParamName);
@@ -1664,7 +1664,7 @@ select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;"
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetSetContains("key", null));
 
             Assert.Equal("value", exception.ParamName);
@@ -1676,7 +1676,7 @@ select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;"
     {
         UseConnection(connection =>
         {
-            var result = connection.GetSetContains("non-existing-set", "some-value");
+            bool result = connection.GetSetContains("non-existing-set", "some-value");
             Assert.False(result);
         });
     }
@@ -1684,7 +1684,7 @@ select N'longer-set', right(N'000' + cast(i as nvarchar(10)), 4), i / 2 from n;"
     [Fact, CleanDatabase]
     public void GetSetContains_ReturnsTrue_WhenGivenSetExists_AndContainsTheValue()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, 0.0)";
 
@@ -1698,7 +1698,7 @@ values (@Key, @Value, 0.0)";
             });
 
             // Act
-            var result = connection.GetSetContains("my-set", "2");
+            bool result = connection.GetSetContains("my-set", "2");
 
             // Assert
             Assert.True(result);
@@ -1708,7 +1708,7 @@ values (@Key, @Value, 0.0)";
     [Fact, CleanDatabase]
     public void GetSetContains_ReturnsFalse_WhenGivenSetExists_ButContainsOtherValues()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, 0.0)";
 
@@ -1722,7 +1722,7 @@ values (@Key, @Value, 0.0)";
             });
 
             // Act
-            var result = connection.GetSetContains("my-set", "3");
+            bool result = connection.GetSetContains("my-set", "3");
 
             // Assert
             Assert.False(result);
@@ -1732,7 +1732,7 @@ values (@Key, @Value, 0.0)";
     [Fact, CleanDatabase]
     public void GetSetContains_ReturnsFalse_WhenAnotherSetContainsTheValue()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [Score])
 values (@Key, @Value, 0.0)";
 
@@ -1746,7 +1746,7 @@ values (@Key, @Value, 0.0)";
             });
 
             // Act
-            var result = connection.GetSetContains("my-set", "2");
+            bool result = connection.GetSetContains("my-set", "2");
 
             // Assert
             Assert.False(result);
@@ -1758,7 +1758,7 @@ values (@Key, @Value, 0.0)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetCounter("my-counter");
+            long result = connection.GetCounter("my-counter");
             Assert.Equal(0, result);
         });
     }
@@ -1766,7 +1766,7 @@ values (@Key, @Value, 0.0)";
     [Fact, CleanDatabase]
     public void GetCounter_ReturnsSumOfValues_InCounterTable()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Counter ([Key], [Value])
 values (@key, @value)";
 
@@ -1781,7 +1781,7 @@ values (@key, @value)";
             });
 
             // Act
-            var result = connection.GetCounter("counter-1");
+            long result = connection.GetCounter("counter-1");
 
             // Assert
             Assert.Equal(2, result);
@@ -1791,7 +1791,7 @@ values (@key, @value)";
     [Fact, CleanDatabase]
     public void GetCounter_IncludesValues_FromCounterAggregateTable()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].AggregatedCounter ([Key], [Value])
 values (@key, @value)";
 
@@ -1805,7 +1805,7 @@ values (@key, @value)";
             });
 
             // Act
-            var result = connection.GetCounter("counter-1");
+            long result = connection.GetCounter("counter-1");
 
             Assert.Equal(12, result);
         }, useBatching: false);
@@ -1825,7 +1825,7 @@ values (@key, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetHashCount("my-hash");
+            long result = connection.GetHashCount("my-hash");
             Assert.Equal(0, result);
         });
     }
@@ -1833,7 +1833,7 @@ values (@key, @value)";
     [Fact, CleanDatabase]
     public void GetHashCount_ReturnsNumber_OfHashFields()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Hash ([Key], [Field])
 values (@key, @field)";
 
@@ -1848,7 +1848,7 @@ values (@key, @field)";
             });
 
             // Act
-            var result = connection.GetHashCount("hash-1");
+            long result = connection.GetHashCount("hash-1");
 
             // Assert
             Assert.Equal(2, result);
@@ -1870,7 +1870,7 @@ values (@key, @field)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetHashTtl("my-hash");
+            TimeSpan result = connection.GetHashTtl("my-hash");
             Assert.True(result < TimeSpan.Zero);
         });
     }
@@ -1878,7 +1878,7 @@ values (@key, @field)";
     [Fact, CleanDatabase]
     public void GetHashTtl_ReturnsExpirationTimeForHash()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Hash ([Key], [Field], [ExpireAt])
 values (@key, @field, @expireAt)";
 
@@ -1892,7 +1892,7 @@ values (@key, @field, @expireAt)";
             });
 
             // Act
-            var result = connection.GetHashTtl("hash-1");
+            TimeSpan result = connection.GetHashTtl("hash-1");
 
             // Assert
             Assert.True(TimeSpan.FromMinutes(59) < result);
@@ -1915,7 +1915,7 @@ values (@key, @field, @expireAt)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetListCount("my-list");
+            long result = connection.GetListCount("my-list");
             Assert.Equal(0, result);
         });
     }
@@ -1923,7 +1923,7 @@ values (@key, @field, @expireAt)";
     [Fact, CleanDatabase]
     public void GetListCount_ReturnsTheNumberOfListElements()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].List ([Key])
 values (@key)";
 
@@ -1938,7 +1938,7 @@ values (@key)";
             });
 
             // Act
-            var result = connection.GetListCount("list-1");
+            long result = connection.GetListCount("list-1");
 
             // Assert
             Assert.Equal(2, result);
@@ -1960,7 +1960,7 @@ values (@key)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetListTtl("my-list");
+            TimeSpan result = connection.GetListTtl("my-list");
             Assert.True(result < TimeSpan.Zero);
         });
     }
@@ -1968,7 +1968,7 @@ values (@key)";
     [Fact, CleanDatabase]
     public void GetListTtl_ReturnsExpirationTimeForList()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].List ([Key], [ExpireAt])
 values (@key, @expireAt)";
 
@@ -1982,7 +1982,7 @@ values (@key, @expireAt)";
             });
 
             // Act
-            var result = connection.GetListTtl("list-1");
+            TimeSpan result = connection.GetListTtl("list-1");
 
             // Assert
             Assert.True(TimeSpan.FromMinutes(59) < result);
@@ -1995,7 +1995,7 @@ values (@key, @expireAt)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetValueFromHash(null, "name"));
 
             Assert.Equal("key", exception.ParamName);
@@ -2007,7 +2007,7 @@ values (@key, @expireAt)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetValueFromHash("key", null));
 
             Assert.Equal("name", exception.ParamName);
@@ -2019,7 +2019,7 @@ values (@key, @expireAt)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetValueFromHash("my-hash", "name");
+            string? result = connection.GetValueFromHash("my-hash", "name");
             Assert.Null(result);
         });
     }
@@ -2027,7 +2027,7 @@ values (@key, @expireAt)";
     [Fact, CleanDatabase]
     public void GetValueFromHash_ReturnsValue_OfAGivenField()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Hash ([Key], [Field], [Value])
 values (@key, @field, @value)";
 
@@ -2042,7 +2042,7 @@ values (@key, @field, @value)";
             });
 
             // Act
-            var result = connection.GetValueFromHash("hash-1", "field-1");
+            string? result = connection.GetValueFromHash("hash-1", "field-1");
 
             // Assert
             Assert.Equal("1", result);
@@ -2054,7 +2054,7 @@ values (@key, @field, @value)";
     {
         UseConnection(connection =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => connection.GetRangeFromList(null, 0, 1));
 
             Assert.Equal("key", exception.ParamName);
@@ -2066,7 +2066,7 @@ values (@key, @field, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetRangeFromList("my-list", 0, 1);
+            List<string> result = connection.GetRangeFromList("my-list", 0, 1);
             Assert.Empty(result);
         });
     }
@@ -2074,7 +2074,7 @@ values (@key, @field, @value)";
     [Fact, CleanDatabase]
     public void GetRangeFromList_ReturnsAllEntries_WithinGivenBounds()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].List ([Key], [Value])
 values (@key, @value)";
 
@@ -2091,7 +2091,7 @@ values (@key, @value)";
             });
 
             // Act
-            var result = connection.GetRangeFromList("list-1", 1, 2);
+            List<string> result = connection.GetRangeFromList("list-1", 1, 2);
             
             // Assert
             Assert.Equal(new [] { "4", "3" }, result);
@@ -2113,7 +2113,7 @@ values (@key, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetAllItemsFromList("my-list");
+            List<string> result = connection.GetAllItemsFromList("my-list");
             Assert.Empty(result);
         });
     }
@@ -2121,7 +2121,7 @@ values (@key, @value)";
     [Fact, CleanDatabase]
     public void GetAllItemsFromList_ReturnsAllItems_FromAGivenList()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].List ([Key], Value)
 values (@key, @value)";
 
@@ -2136,7 +2136,7 @@ values (@key, @value)";
             });
 
             // Act
-            var result = connection.GetAllItemsFromList("list-1");
+            List<string> result = connection.GetAllItemsFromList("list-1");
 
             // Assert
             Assert.Equal(new [] { "3", "1" }, result);
@@ -2157,7 +2157,7 @@ values (@key, @value)";
     {
         UseConnection(connection =>
         {
-            var result = connection.GetSetTtl("my-set");
+            TimeSpan result = connection.GetSetTtl("my-set");
             Assert.True(result < TimeSpan.Zero);
         });
     }
@@ -2165,7 +2165,7 @@ values (@key, @value)";
     [Fact, CleanDatabase]
     public void GetSetTtl_ReturnsExpirationTime_OfAGivenSet()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].[Set] ([Key], [Value], [ExpireAt], [Score])
 values (@key, @value, @expireAt, 0.0)";
 
@@ -2179,7 +2179,7 @@ values (@key, @value, @expireAt, 0.0)";
             });
 
             // Act
-            var result = connection.GetSetTtl("set-1");
+            TimeSpan result = connection.GetSetTtl("set-1");
 
             // Assert
             Assert.True(TimeSpan.FromMinutes(59) < result);
@@ -2196,8 +2196,8 @@ values (@key, @value, @expireAt, 0.0)";
             sql.Query($"DBCC CHECKIDENT('[{Constants.DefaultSchema}].Job', RESEED, {int.MaxValue + 1L});");
 
             // Act
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string>(),
                 createdAt,
@@ -2211,7 +2211,7 @@ values (@key, @value, @expireAt, 0.0)";
     [Fact, CleanDatabase]
     public void SetJobParameter_CreatesNewParameter_WhenJobIdIsLongValue()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 SET IDENTITY_INSERT [{Constants.DefaultSchema}].Job ON
 insert into [{Constants.DefaultSchema}].Job (Id, InvocationData, Arguments, CreatedAt)
 values (@jobId, '', '', getutcdate())";
@@ -2224,7 +2224,7 @@ values (@jobId, '', '', getutcdate())";
 
             connection.SetJobParameter((int.MaxValue + 1L).ToString(), "Name", "Value");
 
-            var parameter = sql.Query(
+            dynamic parameter = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id and Name = @name",
                 new { id = int.MaxValue + 1L, name = "Name" }).Single();
 
@@ -2246,7 +2246,7 @@ values (@jobId, '', '', getutcdate())";
     [Fact, CleanDatabase]
     public void GetJobParameter_ReturnsParameterValue_WhenJobIdIsLong()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 SET IDENTITY_INSERT [{Constants.DefaultSchema}].Job ON
 insert into [{Constants.DefaultSchema}].Job (Id, InvocationData, Arguments, CreatedAt)
 values (@jobId, '', '', getutcdate())
@@ -2264,7 +2264,7 @@ values (@jobId, @name, @value)";
                     name = "name", value = "value"
                 });
 
-            var value = connection.GetJobParameter((int.MaxValue + 1L).ToString(), "name");
+            string? value = connection.GetJobParameter((int.MaxValue + 1L).ToString(), "name");
 
             Assert.Equal("value", value);
         }, useBatching: false);
@@ -2275,8 +2275,8 @@ values (@jobId, @name, @value)";
     {
         UseConnection(connection =>
         {
-            var dateTime = connection.GetUtcDateTime();
-            var currentDateTime = DateTime.UtcNow;
+            DateTime dateTime = connection.GetUtcDateTime();
+            DateTime currentDateTime = DateTime.UtcNow;
 
             Assert.Equal(DateTimeKind.Utc, dateTime.Kind);
             Assert.True(currentDateTime.AddMinutes(-1) < dateTime, dateTime.ToString(CultureInfo.CurrentCulture));
@@ -2288,14 +2288,14 @@ values (@jobId, @name, @value)";
     public void HandlesChangingProcessOfStateDataSerialization()
     {
         GlobalConfiguration.Configuration.UseSerializerSettings(SerializerSettingsHelper.DangerousSettings);
-        var stateData = new Dictionary<string, string>
+        Dictionary<string, string> stateData = new()
         {
             { "key1", "value1" },
             { "key2", null }
         };
-        var serializedData = SerializationHelper.Serialize(stateData, SerializationOption.User);
+        string serializedData = SerializationHelper.Serialize(stateData, SerializationOption.User);
 
-        var deserializedStateData = SerializationHelper.Deserialize<Dictionary<string, string>>(serializedData);
+        Dictionary<string, string>? deserializedStateData = SerializationHelper.Deserialize<Dictionary<string, string>>(serializedData);
 
         Assert.NotNull(deserializedStateData);
         Assert.Equal(2, deserializedStateData.Count);
@@ -2306,21 +2306,21 @@ values (@jobId, @name, @value)";
 
     private void UseConnections(Action<DbConnection, SqlServerConnection> action, bool useBatching)
     {
-        using var sqlConnection = ConnectionUtils.CreateConnection();
-        var storage = new SqlServerStorage(
+        using DbConnection sqlConnection = ConnectionUtils.CreateConnection();
+        SqlServerStorage storage = new(
             ConnectionUtils.CreateConnection,
             new SqlServerStorageOptions { CommandBatchMaxTimeout = useBatching ? TimeSpan.FromMinutes(1) : (TimeSpan?)null });
 
-        using var connection = new SqlServerConnection(storage);
+        using SqlServerConnection connection = new(storage);
         action(sqlConnection, connection);
     }
 
     private void UseConnection(Action<SqlServerConnection> action)
     {
-        var storage = new Mock<SqlServerStorage>((Func<DbConnection>)(() => ConnectionUtils.CreateConnection()));
+        Mock<SqlServerStorage> storage = new((Func<DbConnection>)(() => ConnectionUtils.CreateConnection()));
         storage.Setup(x => x.QueueProviders).Returns(_providers);
 
-        using var connection = new SqlServerConnection(storage.Object);
+        using SqlServerConnection connection = new(storage.Object);
         action(connection);
     }
 
@@ -2334,8 +2334,8 @@ values (@jobId, @name, @value)";
     {
         UseConnections((sql, connection) =>
         {
-            var createdAt = new DateTime(2012, 12, 12);
-            var jobId = connection.CreateExpiredJob(
+            DateTime createdAt = new(2012, 12, 12);
+            string jobId = connection.CreateExpiredJob(
                 Job.FromExpression(() => SampleMethod("Hello")),
                 new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" }, { "Key3", "Value3" } },
                 createdAt,
@@ -2344,16 +2344,16 @@ values (@jobId, @name, @value)";
             Assert.NotNull(jobId);
             Assert.NotEmpty(jobId);
 
-            var sqlJob = sql.Query($"select * from [{Constants.DefaultSchema}].Job").Single();
+            dynamic sqlJob = sql.Query($"select * from [{Constants.DefaultSchema}].Job").Single();
             Assert.Equal(jobId, sqlJob.Id.ToString());
             Assert.Equal(createdAt, sqlJob.CreatedAt);
             Assert.Null((int?) sqlJob.StateId);
             Assert.Null((string) sqlJob.StateName);
 
-            var invocationData = InvocationData.DeserializePayload((string)sqlJob.InvocationData);
+            InvocationData invocationData = InvocationData.DeserializePayload((string)sqlJob.InvocationData);
             invocationData.Arguments = sqlJob.Arguments;
 
-            var job = invocationData.DeserializeJob();
+            Job job = invocationData.DeserializeJob();
             Assert.Equal(typeof(SqlServerConnectionFacts), job.Type);
             Assert.Equal("SampleMethod", job.Method.Name);
             Assert.Equal("Hello", job.Args[0]);
@@ -2361,7 +2361,7 @@ values (@jobId, @name, @value)";
             Assert.True(createdAt.AddDays(1).AddMinutes(-1) < sqlJob.ExpireAt);
             Assert.True(sqlJob.ExpireAt < createdAt.AddDays(1).AddMinutes(1));
 
-            var parameters = sql.Query(
+            Dictionary<string, string> parameters = sql.Query(
                 $"select * from [{Constants.DefaultSchema}].JobParameter where JobId = @id",
                 new { id = jobId })
                 .ToDictionary(x => (string) x.Name, x => (string) x.Value);
@@ -2375,14 +2375,14 @@ values (@jobId, @name, @value)";
     [Fact, CleanDatabase]
     public void GetJobData_ReturnsJobLoadException_IfThereWasADeserializationException()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values (@invocationData, @arguments, @stateName, getutcdate())
 select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            var jobId = sql.Query(
+            dynamic jobId = sql.Query(
                 arrangeSql,
                 new
                 {
@@ -2391,7 +2391,7 @@ select scope_identity() as Id";
                     arguments = "[\"Arguments\"]"
                 }).Single();
 
-            var result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
 
             Assert.NotNull(result.LoadException);
         }, useBatching: false);
@@ -2400,7 +2400,7 @@ select scope_identity() as Id";
     [Fact, CleanDatabase]
     public void GetJobData_ReturnsResultWithParameters_WhenJobAndParametersExist()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values (@invocationData, @arguments, @stateName, getutcdate())
 declare @id bigint = scope_identity();
@@ -2410,9 +2410,9 @@ select @id as Id";
 
         UseConnections((sql, connection) =>
         {
-            var job = Job.FromExpression(() => SampleMethod("wrong"));
+            Job job = Job.FromExpression(() => SampleMethod("wrong"));
 
-            var jobId = sql.Query(
+            dynamic jobId = sql.Query(
                 arrangeSql,
                 new
                 {
@@ -2421,7 +2421,7 @@ select @id as Id";
                     arguments = "[\"Arguments\"]"
                 }).Single();
 
-            var result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
 
             Assert.NotNull(result);
             Assert.Equal("SampleMethod", result.Job.Method.Name);
@@ -2434,16 +2434,16 @@ select @id as Id";
     [Fact, CleanDatabase]
     public void GetJobData_ReturnsResult_WhenJobExists()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values (@invocationData, @arguments, @stateName, getutcdate())
 select scope_identity() as Id";
 
         UseConnections((sql, connection) =>
         {
-            var job = Job.FromExpression(() => SampleMethod("wrong"));
+            Job job = Job.FromExpression(() => SampleMethod("wrong"));
 
-            var jobId = sql.Query(
+            dynamic jobId = sql.Query(
                 arrangeSql,
                 new
                 {
@@ -2452,7 +2452,7 @@ select scope_identity() as Id";
                     arguments = "[\"Arguments\"]"
                 }).Single();
 
-            var result = connection.GetJobData(((long)jobId.Id).ToString());
+            JobData? result = connection.GetJobData(((long)jobId.Id).ToString());
 
             Assert.NotNull(result);
             Assert.NotNull(result.Job);
@@ -2468,14 +2468,14 @@ select scope_identity() as Id";
     [Fact, CleanDatabase]
     public void GetJobData_ReturnsResult_WhenJobIdIsLongValue()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 SET IDENTITY_INSERT [{Constants.DefaultSchema}].Job ON;
 insert into [{Constants.DefaultSchema}].Job (Id, InvocationData, Arguments, StateName, CreatedAt)
 values (@jobId, @invocationData, '[""Arguments""]', 'Succeeded', getutcdate());";
 
         UseConnections((sql, connection) =>
         {
-            var job = Job.FromExpression(() => SampleMethod("hello"));
+            Job job = Job.FromExpression(() => SampleMethod("hello"));
 
             sql.Query(
                 arrangeSql,
@@ -2485,7 +2485,7 @@ values (@jobId, @invocationData, '[""Arguments""]', 'Succeeded', getutcdate());"
                     invocationData = TestJson.ToJson(InvocationData.SerializeJob(job)),
                 });
 
-            var result = connection.GetJobData((int.MaxValue + 1L).ToString());
+            JobData? result = connection.GetJobData((int.MaxValue + 1L).ToString());
 
             Assert.NotNull(result);
             Assert.NotNull(result.Job);
@@ -2495,7 +2495,7 @@ values (@jobId, @invocationData, '[""Arguments""]', 'Succeeded', getutcdate());"
     [Fact, CleanDatabase]
     public void GetStateData_ReturnsCorrectData()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values ('', '', '', getutcdate());
 declare @JobId bigint;
@@ -2511,16 +2511,16 @@ select @JobId as Id;";
 
         UseConnections((sql, connection) =>
         {
-            var data = new Dictionary<string, string>
+            Dictionary<string, string> data = new()
             {
                 { "Key", "Value" }
             };
 
-            var jobId = (long)sql.Query(
+            long jobId = (long)sql.Query(
                 arrangeSql,
                 new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) }).Single().Id;
 
-            var result = connection.GetStateData(jobId.ToString());
+            StateData? result = connection.GetStateData(jobId.ToString());
 
             Assert.NotNull(result);
 
@@ -2533,7 +2533,7 @@ select @JobId as Id;";
     [Fact, CleanDatabase]
     public void GetStateData_ReturnsCorrectData_WhenJobIdAndStateIdAreLongValues()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 SET IDENTITY_INSERT [{Constants.DefaultSchema}].Job ON
 insert into [{Constants.DefaultSchema}].Job (Id, InvocationData, Arguments, StateName, CreatedAt)
 values (@jobId, '', '', '', getutcdate());
@@ -2547,7 +2547,7 @@ update [{Constants.DefaultSchema}].Job set StateId = @stateId;";
 
         UseConnections((sql, connection) =>
         {
-            var data = new Dictionary<string, string>
+            Dictionary<string, string> data = new()
             {
                 { "Key", "Value" }
             };
@@ -2561,7 +2561,7 @@ update [{Constants.DefaultSchema}].Job set StateId = @stateId;";
                     data = TestJson.ToJson(data)
                 });
 
-            var result = connection.GetStateData((int.MaxValue + 1L).ToString());
+            StateData? result = connection.GetStateData((int.MaxValue + 1L).ToString());
 
             Assert.NotNull(result);
         }, useBatching: false);
@@ -2570,7 +2570,7 @@ update [{Constants.DefaultSchema}].Job set StateId = @stateId;";
     [Fact, CleanDatabase]
     public void GetStateData_ReturnsCorrectData_WhenPropertiesAreCamelcased()
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].Job (InvocationData, Arguments, StateName, CreatedAt)
 values ('', '', '', getutcdate());
 declare @JobId bigint;
@@ -2586,16 +2586,16 @@ select @JobId as Id;";
 
         UseConnections((sql, connection) =>
         {
-            var data = new Dictionary<string, string>
+            Dictionary<string, string> data = new()
             {
                 { "key", "Value" }
             };
 
-            var jobId = (long)sql.Query(
+            long jobId = (long)sql.Query(
                 arrangeSql,
                 new { name = "Name", reason = "Reason", @data = TestJson.ToJson(data) }).Single().Id;
 
-            var result = connection.GetStateData(jobId.ToString());
+            StateData? result = connection.GetStateData(jobId.ToString());
             Assert.NotNull(result);
 
             Assert.Equal("Value", result.Data["Key"]);
@@ -2607,13 +2607,13 @@ select @JobId as Id;";
     {
         GlobalConfiguration.Configuration.UseSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var initialJob = Job.FromExpression(() => Console.WriteLine());
-        var invocationData = InvocationData.SerializeJob(initialJob);
+        Job initialJob = Job.FromExpression(() => Console.WriteLine());
+        InvocationData invocationData = InvocationData.SerializeJob(initialJob);
 
-        var serializedInvocationData = SerializationHelper.Serialize(invocationData, SerializationOption.User);
+        string serializedInvocationData = SerializationHelper.Serialize(invocationData, SerializationOption.User);
 
-        var deserializedStateData = SerializationHelper.Deserialize<InvocationData>(serializedInvocationData);
-        var deserializedJob = deserializedStateData.DeserializeJob();
+        InvocationData? deserializedStateData = SerializationHelper.Deserialize<InvocationData>(serializedInvocationData);
+        Job deserializedJob = deserializedStateData.DeserializeJob();
 
         Assert.Equal(initialJob.Args, deserializedJob.Args);
         Assert.Equal(initialJob.Method, deserializedJob.Method);

@@ -24,7 +24,7 @@ public class CreateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new CreateContext(null, _connection.Object, _job, _state.Object));
 
         Assert.Equal("storage", exception.ParamName);
@@ -33,7 +33,7 @@ public class CreateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new CreateContext(_storage.Object, null, _job, _state.Object));
 
         Assert.Equal("connection", exception.ParamName);
@@ -42,7 +42,7 @@ public class CreateContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenJobIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new CreateContext(_storage.Object, _connection.Object, null, _state.Object));
 
         Assert.Equal("job", exception.ParamName);
@@ -58,7 +58,7 @@ public class CreateContextFacts
     [Fact]
     public void Ctor_CorrectlyInitializes_AllProperties()
     {
-        var context = CreateContext();
+        CreateContext context = CreateContext();
 
         Assert.Same(_storage.Object, context.Storage);
         Assert.Same(_connection.Object, context.Connection);
@@ -72,8 +72,8 @@ public class CreateContextFacts
     [Fact]
     public void CopyCtor_CopiesItemsDictionary_FromTheGivenContext()
     {
-        var context = CreateContext();
-        var contextCopy = new CreateContext(context);
+        CreateContext context = CreateContext();
+        CreateContext contextCopy = new(context);
 
         Assert.Same(context.Items, contextCopy.Items);
         Assert.Same(context.Parameters, contextCopy.Parameters);

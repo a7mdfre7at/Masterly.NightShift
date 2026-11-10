@@ -43,7 +43,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ServerJobCancellationToken(
                 null, JobId, ServerId, WorkerId, _shutdownCts.Token));
 
@@ -53,7 +53,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void Ctor_ThrowsAnException_WhenJobIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ServerJobCancellationToken(
                 _connection.Object, null, ServerId, WorkerId, _shutdownCts.Token));
 
@@ -63,7 +63,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void Ctor_ThrowsAnException_WhenServerIdIsIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ServerJobCancellationToken(
                 _connection.Object, JobId, null, WorkerId, _shutdownCts.Token));
 
@@ -73,7 +73,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void Ctor_ThrowsAnException_WhenWorkerIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new ServerJobCancellationToken(
                 _connection.Object, JobId, ServerId, null, _shutdownCts.Token));
 
@@ -83,7 +83,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void ShutdownTokenProperty_PointsToValue_LinkedWithShutdownToken()
     {
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         _shutdownCts.Cancel();
         Assert.True(token.ShutdownToken.IsCancellationRequested);
@@ -92,7 +92,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void ThrowIfCancellationRequested_DoesNotThrowOnProcessingJob_IfNoShutdownRequested()
     {
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         // Does not throw
         token.ThrowIfCancellationRequested();
@@ -102,7 +102,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void ThrowIfCancellationRequested_ThrowsOperationCanceled_OnShutdownRequest()
     {
         _shutdownCts.Cancel();
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<OperationCanceledException>(
             token.ThrowIfCancellationRequested);
@@ -112,7 +112,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void ThrowIfCancellationRequested_Throws_IfStateDataDoesNotExist()
     {
         _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<JobAbortedException>(token.ThrowIfCancellationRequested);
     }
@@ -121,7 +121,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void ThrowIfCancellationRequested_ThrowsJobAborted_IfJobIsNotInProcessingState()
     {
         _stateData.Name = "NotProcessing";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<JobAbortedException>(
             token.ThrowIfCancellationRequested);
@@ -131,7 +131,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void ThrowIfCancellationRequested_ThrowsJobAborted_IfServerIdWasChanged()
     {
         _stateData.Data["ServerId"] = "another-server";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<JobAbortedException>(
             token.ThrowIfCancellationRequested);
@@ -141,7 +141,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void ThrowIfCancellationRequested_ThrowsJobAborted_IfWorkerIdWasChanged()
     {
         _stateData.Data["WorkerId"] = "999";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.Throws<JobAbortedException>(
             token.ThrowIfCancellationRequested);
@@ -150,7 +150,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void CancellationToken_IsInitializedAsNotCancelled()
     {
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
     }
@@ -158,7 +158,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void CheckAllCancellationTokens_DoesNotAbortCancellationToken_IfNothingChanged()
     {
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
@@ -171,7 +171,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_AbortsCancellationToken_IfStateDataDoesNotExist()
     {
         _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((StateData)null);
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
@@ -185,7 +185,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_AbortsCancellationToken_IfJobIsNotInProcessingState()
     {
         _stateData.Name = "NotProcessing";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
@@ -199,7 +199,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_AbortsCancellationToken_IfServerIdWasChanged()
     {
         _stateData.Data["ServerId"] = "another-server";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
@@ -213,7 +213,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_AbortsCancellationToken_IfWorkerIdWasChanged()
     {
         _stateData.Data["WorkerId"] = "999";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
@@ -227,7 +227,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_DoesNotAbortJobsFromOtherServers()
     {
         _stateData.Name = "NotProcessing";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
         ServerJobCancellationToken.CheckAllCancellationTokens("another-id", _connection.Object, _cts.Token);
@@ -240,7 +240,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_DoesNotPerformChecks_WhenShutdownTokenWasNotInitialized()
     {
         _stateData.Name = "NotProcessing";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);
 
@@ -252,7 +252,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     public void CheckAllCancellationTokens_DoesNotPerformChecks_WhenJobIsAlreadyAborted()
     {
         _stateData.Name = "NotProcessing";
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
 
         Assert.False(token.ShutdownToken.IsCancellationRequested);
 
@@ -268,7 +268,7 @@ public class ServerJobCancellationTokenFacts : IDisposable
     [Fact]
     public void CheckAllCancellationTokens_PerformsAdditionalChecks_WhenPriorOnesDidNotLeadToAbort()
     {
-        var token = CreateToken();
+        ServerJobCancellationToken token = CreateToken();
         Assert.False(token.ShutdownToken.IsCancellationRequested);
 
         ServerJobCancellationToken.CheckAllCancellationTokens(ServerId, _connection.Object, _cts.Token);

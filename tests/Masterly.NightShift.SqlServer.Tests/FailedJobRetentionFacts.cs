@@ -1,4 +1,6 @@
 extern alias ReferencedDapper;
+
+using System.Data.Common;
 using Masterly.NightShift.Server;
 using ReferencedDapper::Dapper;
 
@@ -13,9 +15,9 @@ public class FailedJobRetentionFacts
     [Fact, CleanDatabase]
     public void AFailedJob_ExpiresAfterItsRetries_AndLeavesNoGhostInTheFailedListOrCount()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var jobId = client.Create(() => RetentionTestJob.Flaky(), new ScheduledState(TimeSpan.FromDays(1)));
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        string? jobId = client.Create(() => RetentionTestJob.Flaky(), new ScheduledState(TimeSpan.FromDays(1)));
         WriteToConsole(storage, jobId);
 
         // The first failure is retried (ChangeState returns false: the job ended up Scheduled, not Failed)
@@ -26,15 +28,15 @@ public class FailedJobRetentionFacts
         // The retry is used up: the job stays failed, with an expiration set in the same transaction
         Assert.True(client.ChangeState(jobId, new FailedState(new InvalidOperationException("boom"))));
         Assert.Equal(FailedState.StateName, GetStateName(jobId));
-        var expireAt = GetExpireAt(jobId);
+        DateTime? expireAt = GetExpireAt(jobId);
         Assert.NotNull(expireAt);
         Assert.InRange(expireAt.Value, DateTime.UtcNow.AddHours(23), DateTime.UtcNow.AddHours(25));
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.True(connection.GetListTtl(JobConsole.GetConsoleKey(jobId)) > TimeSpan.Zero);
         }
 
-        var monitoring = storage.GetMonitoringApi();
+        IMonitoringApi monitoring = storage.GetMonitoringApi();
         Assert.Equal(1, monitoring.FailedCount());
         Assert.Equal(1, monitoring.GetStatistics().Failed);
         Assert.Contains(monitoring.FailedJobs(0, 10), x => x.Key == jobId);
@@ -46,13 +48,13 @@ public class FailedJobRetentionFacts
         Assert.Equal(0, monitoring.FailedCount());
         Assert.Equal(0, monitoring.GetStatistics().Failed);
         Assert.Empty(monitoring.FailedJobs(0, 10));
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
             Assert.Null(connection.GetJobData(jobId));
         }
 
-        using var sql = ConnectionUtils.CreateConnection();
-        var id = long.Parse(jobId);
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        long id = long.Parse(jobId);
         Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].State where JobId = @id", new { id }));
         Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].JobParameter where JobId = @id", new { id }));
         Assert.Equal(0, sql.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].List where [Key] = @key", new { key = JobConsole.GetConsoleKey(jobId) }));
@@ -61,9 +63,9 @@ public class FailedJobRetentionFacts
     [Fact, CleanDatabase]
     public void AFailedJob_RequeuedBeforeItExpires_IsKept()
     {
-        var storage = CreateStorage();
-        var client = new BackgroundJobClient(storage);
-        var jobId = client.Create(() => RetentionTestJob.FailsOnce(), new ScheduledState(TimeSpan.FromDays(1)));
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        string? jobId = client.Create(() => RetentionTestJob.FailsOnce(), new ScheduledState(TimeSpan.FromDays(1)));
         WriteToConsole(storage, jobId);
 
         Assert.True(client.ChangeState(jobId, new FailedState(new InvalidOperationException("boom"))));
@@ -74,14 +76,14 @@ public class FailedJobRetentionFacts
 
         Assert.Equal(EnqueuedState.StateName, GetStateName(jobId));
         Assert.Null(GetExpireAt(jobId));
-        using (var connection = (JobStorageConnection)storage.GetConnection())
+        using (JobStorageConnection connection = (JobStorageConnection)storage.GetConnection())
         {
             Assert.True(connection.GetListTtl(JobConsole.GetConsoleKey(jobId)) < TimeSpan.Zero);
         }
 
         new ExpirationManager(storage, TimeSpan.Zero, TimeSpan.FromTicks(1)).Execute(CancellationToken.None);
 
-        using (var connection = storage.GetConnection())
+        using (IStorageConnection connection = storage.GetConnection())
         {
             Assert.Equal(EnqueuedState.StateName, connection.GetJobData(jobId)?.State);
         }
@@ -98,27 +100,27 @@ public class FailedJobRetentionFacts
 
     private static void WriteToConsole(JobStorage storage, string jobId)
     {
-        using var connection = storage.GetConnection();
-        var data = connection.GetJobData(jobId);
-        var job = new BackgroundJob(jobId, data.Job, data.CreatedAt, data.ParametersSnapshot);
+        using IStorageConnection connection = storage.GetConnection();
+        JobData? data = connection.GetJobData(jobId);
+        BackgroundJob job = new(jobId, data.Job, data.CreatedAt, data.ParametersSnapshot);
         new PerformContext(storage, connection, job, new JobCancellationToken(false)).Console.WriteLine("calling the partner API");
     }
 
     private static string GetStateName(string jobId)
     {
-        using var sql = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
         return sql.ExecuteScalar<string>($"select StateName from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
     }
 
     private static DateTime? GetExpireAt(string jobId)
     {
-        using var sql = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
         return sql.ExecuteScalar<DateTime?>($"select ExpireAt from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
     }
 
     private static void Backdate(string jobId)
     {
-        using var sql = ConnectionUtils.CreateConnection();
+        using DbConnection sql = ConnectionUtils.CreateConnection();
         sql.Execute(
             $@"update [{Constants.DefaultSchema}].Job set ExpireAt = dateadd(minute, -1, getutcdate()) where Id = @id;
 update [{Constants.DefaultSchema}].List set ExpireAt = dateadd(minute, -1, getutcdate()) where [Key] = @key;",

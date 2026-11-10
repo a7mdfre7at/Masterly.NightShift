@@ -23,7 +23,7 @@ internal static class DataCompatibilityRange
 
     static DataCompatibilityRange()
     {
-        var levels = GetAllLevels();
+        CompatibilityLevel[] levels = GetAllLevels();
         PossibleMinLevel = levels.Min();
         PossibleMaxExcludingLevel = levels.Max() + 1;
     }
@@ -32,13 +32,11 @@ internal static class DataCompatibilityRange
         IReadOnlyCollection<IXunitTestCase> testCases,
         IDataCompatibilityRangeAttribute range)
     {
-        var levels = GetAllLevels()
-            .Where(level => level >= range.MinLevel && level < range.MaxExcludingLevel)
-            .ToArray();
+        CompatibilityLevel[] levels = [.. GetAllLevels().Where(level => level >= range.MinLevel && level < range.MaxExcludingLevel)];
 
-        var result = new List<IXunitTestCase>();
+        List<IXunitTestCase> result = [];
 
-        foreach (var testCase in testCases)
+        foreach (IXunitTestCase testCase in testCases)
         {
             // Check the derived type first, it's also an XunitTestCase
             if (testCase is XunitDelayEnumeratedTheoryTestCase theoryTestCase)

@@ -14,13 +14,13 @@ public class ActivityHeatmapFacts
         _connection.Setup(x => x.GetCounter("stats:failed:2026-11-05-14")).Returns(9);
         _connection.Setup(x => x.GetCounter("stats:succeeded:2026-10-30-00")).Returns(3);
 
-        var rows = ActivityHeatmap.Read(_connection.Object, _now);
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> rows = ActivityHeatmap.Read(_connection.Object, _now);
 
         Assert.Equal(7, rows.Count);
         Assert.All(rows, r => Assert.Equal(24, r.Count));
         Assert.Equal(new DateTime(2026, 10, 30, 0, 0, 0, DateTimeKind.Utc), rows[0][0].HourUtc);
         Assert.Equal(3, rows[0][0].Succeeded);
-        var current = rows[6][14];
+        HeatmapCell current = rows[6][14];
         Assert.Equal(7, current.Succeeded);
         Assert.Equal(9, current.Failed);
         Assert.Equal(16, current.Total);
@@ -33,14 +33,14 @@ public class ActivityHeatmapFacts
     [Fact]
     public void Read_FromAStorage_ReusesTheGrid_ForAMinute_WithinTheSameHour()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
         storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(true);
         _connection.Setup(x => x.GetCounter("stats:succeeded:2026-11-05-14")).Returns(7);
 
-        var first = ActivityHeatmap.Read(storage.Object, _now);
-        var second = ActivityHeatmap.Read(storage.Object, _now.AddSeconds(30));
-        var nextHour = ActivityHeatmap.Read(storage.Object, new DateTime(2026, 11, 5, 15, 0, 5, DateTimeKind.Utc));
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> first = ActivityHeatmap.Read(storage.Object, _now);
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> second = ActivityHeatmap.Read(storage.Object, _now.AddSeconds(30));
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> nextHour = ActivityHeatmap.Read(storage.Object, new DateTime(2026, 11, 5, 15, 0, 5, DateTimeKind.Utc));
 
         Assert.Same(first, second);
         Assert.NotSame(second, nextHour);
@@ -51,7 +51,7 @@ public class ActivityHeatmapFacts
     [Fact]
     public void Read_FromAStorage_ReadsAgain_AfterTheCacheDuration()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
 
         ActivityHeatmap.Read(storage.Object, _now);
@@ -64,11 +64,11 @@ public class ActivityHeatmapFacts
     [Fact]
     public void Read_FromAStorageWithoutTheExtendedApi_IsEmpty_AndReadsNoCounter()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
         _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Throws(new NotSupportedException());
 
-        var rows = ActivityHeatmap.Read(storage.Object, _now);
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> rows = ActivityHeatmap.Read(storage.Object, _now);
 
         Assert.True(ActivityHeatmap.IsEmpty(rows));
         _connection.Verify(x => x.GetCounter(It.IsAny<string>()), Times.Never);
@@ -79,7 +79,7 @@ public class ActivityHeatmapFacts
     {
         _connection.Setup(x => x.GetCounter(It.IsAny<string>())).Throws(new NotSupportedException());
 
-        var rows = ActivityHeatmap.Read(_connection.Object, _now);
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> rows = ActivityHeatmap.Read(_connection.Object, _now);
 
         Assert.True(ActivityHeatmap.IsEmpty(rows));
         Assert.Equal(7 * 24, rows.Sum(r => r.Count));
@@ -88,7 +88,7 @@ public class ActivityHeatmapFacts
     [Fact]
     public void Read_IsEmpty_WithoutAStorageConnection()
     {
-        var rows = ActivityHeatmap.Read(new Mock<IStorageConnection>().Object, _now);
+        IReadOnlyList<IReadOnlyList<HeatmapCell>> rows = ActivityHeatmap.Read(new Mock<IStorageConnection>().Object, _now);
 
         Assert.True(ActivityHeatmap.IsEmpty(rows));
         Assert.Equal(1, ActivityHeatmap.Max(rows));

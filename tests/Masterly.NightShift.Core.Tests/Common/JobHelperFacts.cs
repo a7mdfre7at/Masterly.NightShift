@@ -1,4 +1,5 @@
-﻿using Masterly.NightShift.Annotations;
+﻿using System.Reflection;
+using Masterly.NightShift.Annotations;
 
 // ReSharper disable AssignNullToNotNullAttribute
 
@@ -13,7 +14,7 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void ToTimestamp_ReturnsUnixTimestamp_OfTheGivenDateTime()
     {
-        var result = JobHelper.ToTimestamp(
+        long result = JobHelper.ToTimestamp(
             WellKnownDateTime);
 
         Assert.Equal(WellKnownTimestamp, result);
@@ -22,7 +23,7 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void FromTimestamp_ReturnsDateTime_ForGivenTimestamp()
     {
-        var result = JobHelper.FromTimestamp(WellKnownTimestamp);
+        DateTime result = JobHelper.FromTimestamp(WellKnownTimestamp);
 
         Assert.Equal(WellKnownDateTime, result);
     }
@@ -30,21 +31,21 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void ToMillisecondTimestamp_ReturnsTheCorrectResult()
     {
-        var result = JobHelper.ToMillisecondTimestamp(WellKnownDateTime);
+        long result = JobHelper.ToMillisecondTimestamp(WellKnownDateTime);
         Assert.Equal(WellKnownMillisecondTimestamp, result);
     }
 
     [DataCompatibilityRangeFact]
     public void FromMillisecondTimestamp_ReturnsTheCorrectDateTime()
     {
-        var result = JobHelper.FromMillisecondTimestamp(WellKnownMillisecondTimestamp);
+        DateTime result = JobHelper.FromMillisecondTimestamp(WellKnownMillisecondTimestamp);
         Assert.Equal(WellKnownDateTime, result);
     }
 
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsString_InISO8601Format_In_Version_Pre_170()
     {
-        var result = JobHelper.SerializeDateTime(WellKnownDateTime);
+        string result = JobHelper.SerializeDateTime(WellKnownDateTime);
 
         Assert.Equal(WellKnownDateTime.ToString("O"), result);
     }
@@ -52,7 +53,7 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsString_WithMillisecondTimestamp_In_Version_170()
     {
-        var result = JobHelper.SerializeDateTime(WellKnownDateTime);
+        string result = JobHelper.SerializeDateTime(WellKnownDateTime);
 
         Assert.Equal(WellKnownMillisecondTimestamp.ToString(), result);
     }
@@ -60,28 +61,28 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsMillisecondTimestamp_ForRecentDates()
     {
-        var dateTime = DateTime.UtcNow;
-        var result = JobHelper.SerializeDateTime(dateTime);
+        DateTime dateTime = DateTime.UtcNow;
+        string result = JobHelper.SerializeDateTime(dateTime);
 
-        Assert.True(long.TryParse(result, out var timestamp));
+        Assert.True(long.TryParse(result, out long timestamp));
         Assert.Equal(JobHelper.ToMillisecondTimestamp(dateTime), timestamp);
     }
 
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsMillisecondTimestamp_AtLeastUpTo2100()
     {
-        var dateTime = new DateTime(2100, 01, 01, 00, 00, 00, DateTimeKind.Utc);
-        var result = JobHelper.SerializeDateTime(dateTime);
+        DateTime dateTime = new(2100, 01, 01, 00, 00, 00, DateTimeKind.Utc);
+        string result = JobHelper.SerializeDateTime(dateTime);
 
-        Assert.True(long.TryParse(result, out var timestamp));
+        Assert.True(long.TryParse(result, out long timestamp));
         Assert.Equal(JobHelper.ToMillisecondTimestamp(dateTime), timestamp);
     }
 
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsISO8601String_ForConflictingRanges_WithSecondBasedTimestamps()
     {
-        var dateTime = new DateTime(1975, 01, 01, 00, 00, 00, DateTimeKind.Utc);
-        var result = JobHelper.SerializeDateTime(dateTime);
+        DateTime dateTime = new(1975, 01, 01, 00, 00, 00, DateTimeKind.Utc);
+        string result = JobHelper.SerializeDateTime(dateTime);
 
         Assert.False(long.TryParse(result, out _));
         Assert.Equal(dateTime.ToString("O"), result);
@@ -90,8 +91,8 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsISO8601String_WhenTimestampIsNotApplicable()
     {
-        var dateTime = new DateTime(1900, 01, 01, 00, 00, 00, DateTimeKind.Utc);
-        var result = JobHelper.SerializeDateTime(dateTime);
+        DateTime dateTime = new(1900, 01, 01, 00, 00, 00, DateTimeKind.Utc);
+        string result = JobHelper.SerializeDateTime(dateTime);
 
         Assert.False(long.TryParse(result, out _));
         Assert.Equal(dateTime.ToString("O"), result);
@@ -100,8 +101,8 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void SerializeDateTime_ReturnsISO8601String_WithMaxDateTime()
     {
-        var dateTime = DateTime.MaxValue;
-        var result = JobHelper.SerializeDateTime(dateTime);
+        DateTime dateTime = DateTime.MaxValue;
+        string result = JobHelper.SerializeDateTime(dateTime);
 
         Assert.False(long.TryParse(result, out _));
         Assert.Equal(dateTime.ToString("O"), result);
@@ -110,7 +111,7 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void DeserializeDateTime_CanDeserialize_Timestamps()
     {
-        var result = JobHelper.DeserializeDateTime(WellKnownTimestamp.ToString());
+        DateTime result = JobHelper.DeserializeDateTime(WellKnownTimestamp.ToString());
 
         Assert.Equal(WellKnownDateTime, result);
     }
@@ -118,14 +119,14 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void DeserializeDateTime_CanDeserialize_ISO8601Format()
     {
-        var result = JobHelper.DeserializeDateTime(WellKnownDateTime.ToString("o"));
+        DateTime result = JobHelper.DeserializeDateTime(WellKnownDateTime.ToString("o"));
         Assert.Equal(WellKnownDateTime, result);
     }
 
     [DataCompatibilityRangeFact]
     public void DeserializeDateTime_CanDeserialize_MillisecondTimestamp()
     {
-        var result = JobHelper.DeserializeDateTime(WellKnownMillisecondTimestamp.ToString());
+        DateTime result = JobHelper.DeserializeDateTime(WellKnownMillisecondTimestamp.ToString());
         Assert.Equal(WellKnownDateTime, result);
     }
 
@@ -139,7 +140,7 @@ public class JobHelperFacts
     [DataCompatibilityRangeFact]
     public void DeserializeNullableDateTime_ReturnsCorrectValue_OnNonNullString()
     {
-        var result = JobHelper.DeserializeNullableDateTime(WellKnownTimestamp.ToString());
+        DateTime? result = JobHelper.DeserializeNullableDateTime(WellKnownTimestamp.ToString());
         Assert.Equal(WellKnownDateTime, result);
     }
 
@@ -148,12 +149,12 @@ public class JobHelperFacts
     {
         GlobalConfiguration.Configuration.UseSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var method = typeof(BackgroundJob).GetMethod("DoWork");
-        var args = new object[] { "123", "Test" };
-        var job = new Job(typeof(BackgroundJob), method, args);
+        MethodInfo? method = typeof(BackgroundJob).GetMethod("DoWork");
+        object[] args = ["123", "Test"];
+        Job job = new(typeof(BackgroundJob), method, args);
 
-        var invocationData = InvocationData.SerializeJob(job);
-        var deserializedJob = invocationData.DeserializeJob();
+        InvocationData invocationData = InvocationData.SerializeJob(job);
+        Job deserializedJob = invocationData.DeserializeJob();
 
         Assert.Equal(typeof(BackgroundJob), deserializedJob.Type);
         Assert.Equal(method, deserializedJob.Method);

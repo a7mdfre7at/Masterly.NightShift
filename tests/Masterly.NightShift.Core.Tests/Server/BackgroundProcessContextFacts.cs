@@ -20,7 +20,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenServerIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessContext(null, _storage.Object, _properties, _executionId,
                 CancellationToken.None, CancellationToken.None, CancellationToken.None));
 
@@ -30,7 +30,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessContext("server", null, _properties, _executionId,
                 CancellationToken.None, CancellationToken.None, CancellationToken.None));
 
@@ -40,7 +40,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenPropertiesIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundProcessContext("server", _storage.Object, null, _executionId,
                 CancellationToken.None, CancellationToken.None, CancellationToken.None));
 
@@ -50,11 +50,11 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void Ctor_CopiesAllTheValues()
     {
-        using var stopping = new CancellationTokenSource();
-        using var stopped = new CancellationTokenSource();
-        using var shutdown = new CancellationTokenSource();
+        using CancellationTokenSource stopping = new();
+        using CancellationTokenSource stopped = new();
+        using CancellationTokenSource shutdown = new();
 
-        var context = new BackgroundProcessContext("server", _storage.Object, _properties, _executionId,
+        BackgroundProcessContext context = new("server", _storage.Object, _properties, _executionId,
             stopping.Token, stopped.Token, shutdown.Token);
 
         Assert.Equal("server", context.ServerId);
@@ -68,7 +68,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void Properties_AreACaseInsensitiveCopy()
     {
-        var context = CreateContext(CancellationToken.None, CancellationToken.None, CancellationToken.None);
+        BackgroundProcessContext context = CreateContext(CancellationToken.None, CancellationToken.None, CancellationToken.None);
         _properties["other"] = "added later";
 
         Assert.Equal("value", context.Properties["KEY"]);
@@ -78,7 +78,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void IsStoppingAndIsStopped_AreFalse_WhenNoTokenIsCanceled()
     {
-        var context = CreateContext(CancellationToken.None, CancellationToken.None, CancellationToken.None);
+        BackgroundProcessContext context = CreateContext(CancellationToken.None, CancellationToken.None, CancellationToken.None);
 
         Assert.False(context.IsStopping);
         Assert.False(context.IsStopped);
@@ -87,7 +87,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void IsStopping_IsTrue_ButIsStoppedIsFalse_WhenOnlyStoppingTokenIsCanceled()
     {
-        var context = CreateContext(new CancellationToken(true), CancellationToken.None, CancellationToken.None);
+        BackgroundProcessContext context = CreateContext(new CancellationToken(true), CancellationToken.None, CancellationToken.None);
 
         Assert.True(context.IsStopping);
         Assert.False(context.IsStopped);
@@ -96,7 +96,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void IsStoppingAndIsStopped_AreTrue_WhenStoppedTokenIsCanceled()
     {
-        var context = CreateContext(CancellationToken.None, new CancellationToken(true), CancellationToken.None);
+        BackgroundProcessContext context = CreateContext(CancellationToken.None, new CancellationToken(true), CancellationToken.None);
 
         Assert.True(context.IsStopping);
         Assert.True(context.IsStopped);
@@ -105,7 +105,7 @@ public class BackgroundProcessContextFacts
     [Fact]
     public void IsStoppingAndIsStopped_AreTrue_WhenShutdownTokenIsCanceled()
     {
-        var context = CreateContext(CancellationToken.None, CancellationToken.None, new CancellationToken(true));
+        BackgroundProcessContext context = CreateContext(CancellationToken.None, CancellationToken.None, new CancellationToken(true));
 
         Assert.True(context.IsStopping);
         Assert.True(context.IsStopped);

@@ -7,15 +7,15 @@ public class LateBoundLogProviderFacts
     [Fact, StaticLock]
     public void Logger_CreatedBeforeTheProviderIsSet_WritesToTheProviderSetLater()
     {
-        var logger = LogProvider.GetLogger("Tests.Early");
-        var recording = new RecordingLogProvider();
+        ILog logger = LogProvider.GetLogger("Tests.Early");
+        RecordingLogProvider recording = new();
 
         using (UseProvider(recording))
         {
             logger.Warn("written after the provider was set");
         }
 
-        var entry = Assert.Single(recording.Entries);
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries);
         Assert.Equal("Tests.Early", entry.Logger);
         Assert.Equal(LogLevel.Warn, entry.Level);
         Assert.Equal("written after the provider was set", entry.Message);
@@ -24,9 +24,9 @@ public class LateBoundLogProviderFacts
     [Fact, StaticLock]
     public void Logger_FollowsEveryLaterProviderChange()
     {
-        var logger = LogProvider.GetLogger("Tests.Switching");
-        var first = new RecordingLogProvider();
-        var second = new RecordingLogProvider();
+        ILog logger = LogProvider.GetLogger("Tests.Switching");
+        RecordingLogProvider first = new();
+        RecordingLogProvider second = new();
 
         using (UseProvider(first))
         {
@@ -42,7 +42,7 @@ public class LateBoundLogProviderFacts
     [Fact, StaticLock]
     public void Logger_ReportsTheLevelAsDisabled_WhenTheProviderTurnsItOff()
     {
-        var logger = LogProvider.GetLogger("Tests.NoOp");
+        ILog logger = LogProvider.GetLogger("Tests.NoOp");
 
         using (UseProvider(new RecordingLogProvider()))
         {
@@ -55,8 +55,8 @@ public class LateBoundLogProviderFacts
     [Fact, StaticLock]
     public void UseLogProvider_TakesOverAgain_AfterSetCurrentLogProviderReplacedIt()
     {
-        var other = new RecordingLogProvider();
-        var recording = new RecordingLogProvider();
+        RecordingLogProvider other = new();
+        RecordingLogProvider recording = new();
 
         using (UseProvider(other))
         {
@@ -73,8 +73,8 @@ public class LateBoundLogProviderFacts
     [Fact, StaticLock]
     public void Logger_DoesNotThrow_WhenTheProviderCannotCreateALogger()
     {
-        var logger = LogProvider.GetLogger("Tests.Broken");
-        var broken = new Mock<ILogProvider>();
+        ILog logger = LogProvider.GetLogger("Tests.Broken");
+        Mock<ILogProvider> broken = new();
         broken.Setup(x => x.GetLogger(It.IsAny<string>())).Throws(new ObjectDisposedException("LoggerFactory"));
 
         using (UseProvider(new RecordingLogProvider()))
@@ -91,18 +91,18 @@ public class LateBoundLogProviderFacts
     public void RetryFilter_CreatedBeforeTheProviderIsSet_LogsTheRetryToIt()
     {
         // Like the default global filter, it gets its logger when it is constructed
-        var filter = new AutomaticRetryAttribute { Attempts = 1 };
-        var context = new ElectStateContextMock();
+        AutomaticRetryAttribute filter = new() { Attempts = 1 };
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = "42";
         context.ApplyContext.NewStateObject = new FailedState(new InvalidOperationException("boom"));
-        var recording = new RecordingLogProvider();
+        RecordingLogProvider recording = new();
 
         using (UseProvider(recording))
         {
             filter.OnStateElection(context.Object);
         }
 
-        var entry = Assert.Single(recording.Entries, x => x.Logger == typeof(AutomaticRetryAttribute).FullName);
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries, x => x.Logger == typeof(AutomaticRetryAttribute).FullName);
         Assert.Equal(LogLevel.Warn, entry.Level);
         Assert.Contains("'42'", entry.Message);
         Assert.IsType<InvalidOperationException>(entry.Exception);

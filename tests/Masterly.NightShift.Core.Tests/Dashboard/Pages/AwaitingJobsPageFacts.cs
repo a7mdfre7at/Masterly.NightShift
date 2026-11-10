@@ -11,7 +11,7 @@ public class AwaitingJobsPageFacts
     [Fact]
     public void Render_WithoutAwaitingJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains(Encode(Strings.AwaitingJobsPage_NoJobs), html);
         Assert.DoesNotContain("/jobs/awaiting/delete-all", html);
@@ -22,7 +22,7 @@ public class AwaitingJobsPageFacts
     {
         SetupAwaiting();
 
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("data-ajax=\"/jobs/awaiting/delete-all\"", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
@@ -37,7 +37,7 @@ public class AwaitingJobsPageFacts
         SetupAwaiting();
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
         Assert.DoesNotContain("/jobs/awaiting/delete-all", html);
@@ -49,7 +49,7 @@ public class AwaitingJobsPageFacts
     {
         SetupAwaitingIds();
 
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
         Assert.Contains(Encode(Strings.Common_JobExpired), html);
@@ -61,7 +61,7 @@ public class AwaitingJobsPageFacts
         SetupAwaiting();
         _renderer.Connection.Setup(x => x.GetStateData("0")).Returns((StateData)null);
 
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("AwaitingPageJobs.Work", html);
         Assert.DoesNotContain("href=\"/jobs/details/0\"", html);
@@ -78,7 +78,7 @@ public class AwaitingJobsPageFacts
             Data = new Dictionary<string, string> { { "ParentIds", "[\"0\",\"2\"]" } }
         });
 
-        var html = _renderer.Render(new AwaitingJobsPage());
+        string html = _renderer.Render(new AwaitingJobsPage());
 
         Assert.Contains("AwaitingPageJobs.Work", html);
         Assert.DoesNotContain("href=\"/jobs/details/0\"", html);

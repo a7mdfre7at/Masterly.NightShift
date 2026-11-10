@@ -22,14 +22,14 @@ public class ScheduledStateHandlerFacts
     [Fact]
     public void StateName_ShouldBeEqualToScheduledState()
     {
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
         Assert.Equal(ScheduledState.StateName, handler.StateName);
     }
 
     [Fact]
     public void Apply_ShouldAddTheJob_ToTheScheduleSet_WithTheCorrectScore()
     {
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
         handler.Apply(_context.Object, _transaction.Object);
 
         _transaction.Verify(x => x.AddToSet(
@@ -40,7 +40,7 @@ public class ScheduledStateHandlerFacts
     public void Apply_WithJobAndQueueSpecified_ThrowsAnException_WhenRequiredFeatureNotSupported()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "critical");
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
 
         Assert.Throws<NotSupportedException>(
             () => handler.Apply(_context.Object, _transaction.Object));
@@ -51,7 +51,7 @@ public class ScheduledStateHandlerFacts
     {
         _context.Storage.Setup(x => x.HasFeature("Job.Queue")).Returns(true);
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "critical");
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
 
         handler.Apply(_context.Object, _transaction.Object);
 
@@ -64,7 +64,7 @@ public class ScheduledStateHandlerFacts
     [Fact]
     public void Unapply_ShouldRemoveTheJobId_FromTheScheduledSet()
     {
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
         handler.Unapply(_context.Object, _transaction.Object);
 
         _transaction.Verify(x => x.RemoveFromSet("schedule", JobId));
@@ -74,7 +74,7 @@ public class ScheduledStateHandlerFacts
     public void Unapply_WithJobAndQueueSpecified_ThrowsAnException_WhenRequiredFeatureNotSupported()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "critical");
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
 
         Assert.Throws<NotSupportedException>(
             () => handler.Unapply(_context.Object, _transaction.Object));
@@ -85,7 +85,7 @@ public class ScheduledStateHandlerFacts
     {
         _context.Storage.Setup(x => x.HasFeature("Job.Queue")).Returns(true);
         _context.BackgroundJob.Job = Job.FromExpression(() => BackgroundJobMock.SomeMethod(), "critical");
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
 
         handler.Unapply(_context.Object, _transaction.Object);
 
@@ -95,7 +95,7 @@ public class ScheduledStateHandlerFacts
     [Fact]
     public void Apply_ThrowsAnException_WhenGivenStateIsNotScheduledState()
     {
-        var handler = new ScheduledState.Handler();
+        ScheduledState.Handler handler = new();
         _context.NewStateObject = null;
         _context.NewState = new Mock<IState>();
 

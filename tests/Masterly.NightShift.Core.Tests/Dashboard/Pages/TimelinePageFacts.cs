@@ -12,7 +12,7 @@ public class TimelinePageFacts
     [Fact]
     public void Render_WithoutActivity_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new TimelinePage());
+        string html = _renderer.Render(new TimelinePage());
 
         Assert.Contains($"{Encode(Strings.TimelinePage_Title)} <small class=\"text-muted\">{Encode(Strings.TimelinePage_Hint)}</small>", html);
         Assert.Contains($"<div class=\"alert alert-info\">{Encode(Strings.TimelinePage_Empty)}</div>", html);
@@ -27,7 +27,7 @@ public class TimelinePageFacts
             Entry(-60000, "1", ProcessingState.StateName, "srv-1:a", "worker-aaaa-1111"),
             Entry(-50000, "1", SucceededState.StateName));
 
-        var html = _renderer.Render(new TimelinePage());
+        string html = _renderer.Render(new TimelinePage());
 
         Assert.Contains("<p class=\"text-muted hf-tl-summary\">", html);
         Assert.Contains("<i class=\"hf-tl-swatch hf-tl-held\"></i> " + Encode(Strings.TimelinePage_Legend_Held), html);
@@ -50,7 +50,7 @@ public class TimelinePageFacts
             Entry(-30000, "3", ProcessingState.StateName, "srv-2:b", "w3"),
             Entry(-20000, "3", DeletedState.StateName));
 
-        var html = _renderer.Render(new TimelinePage());
+        string html = _renderer.Render(new TimelinePage());
 
         Assert.Equal(2, CountOf(html, "<div class=\"hf-tl-server\">"));
         Assert.Contains("title=\"srv-1:a\">srv-1</span>", html);
@@ -72,7 +72,7 @@ public class TimelinePageFacts
             Entry(-20000, "4", ScheduledState.StateName),
             Entry(-10000, "5", ProcessingState.StateName, "srv", "w5"));
 
-        var html = _renderer.Render(new TimelinePage());
+        string html = _renderer.Render(new TimelinePage());
 
         Assert.Contains("<a class=\"hf-tl-span hf-tl-succeeded\" href=\"/jobs/details/1\" style=\"left: 0%;", html);
         Assert.Contains("class=\"hf-tl-span hf-tl-failed\" href=\"/jobs/details/2\"", html);
@@ -91,14 +91,14 @@ public class TimelinePageFacts
             Entry(-(long)TimeSpan.FromHours(1).TotalMilliseconds, "1", ProcessingState.StateName, "srv", "w1"),
             Entry(-60000, "1", SucceededState.StateName));
 
-        var html = _renderer.Render(new TimelinePage());
+        string html = _renderer.Render(new TimelinePage());
 
         Assert.Contains("class=\"hf-tl-span hf-tl-succeeded\" href=\"/jobs/details/1\" style=\"left: 0%; width: ", html);
     }
 
     private void SetupActivity(params ActivityEntry[] chronological)
     {
-        var newestFirst = Enumerable.Reverse(chronological).Select(x => SerializationHelper.Serialize(x, SerializationOption.User)).ToList();
+        List<string> newestFirst = [.. Enumerable.Reverse(chronological).Select(x => SerializationHelper.Serialize(x, SerializationOption.User))];
         _renderer.Connection.Setup(x => x.GetRangeFromList(ActivityFeed.ListKey, It.IsAny<int>(), It.IsAny<int>())).Returns(newestFirst);
     }
 

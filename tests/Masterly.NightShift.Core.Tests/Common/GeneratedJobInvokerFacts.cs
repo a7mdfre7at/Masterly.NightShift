@@ -15,9 +15,9 @@ public class GeneratedJobInvokerFacts
     public void GeneratedInvoker_IsRegistered_ForMethodsUsedInEnqueueLambdas()
     {
         // The lambda below is what makes the generator emit an invoker for `Jobs.Plain`
-        var job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
+        Job job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
         Assert.Equal(JobInvokerKind.Generated, invoker.Kind);
         Assert.Equal(typeof(Jobs), invoker.Type);
         Assert.Equal("a1", invoker.Invoke(new Jobs(), ["a", 1]));
@@ -26,29 +26,29 @@ public class GeneratedJobInvokerFacts
     [Fact]
     public void GeneratedInvoker_IsRegistered_ForStaticMethods_UsedInStaticLambdas()
     {
-        var job = Job.FromExpression(() => StaticJob(5));
+        Job job = Job.FromExpression(() => StaticJob(5));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
         Assert.Equal(10, invoker.Invoke(null, [5]));
     }
 
     [Fact]
     public async Task GeneratedInvoker_IsRegistered_ForAsyncMethods()
     {
-        var job = Job.FromExpression<Jobs>(x => x.AsyncJob(2));
+        Job job = Job.FromExpression<Jobs>(x => x.AsyncJob(2));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
 
-        var task = Assert.IsAssignableFrom<Task<int>>(invoker.Invoke(new Jobs(), [2]));
+        Task<int> task = Assert.IsAssignableFrom<Task<int>>(invoker.Invoke(new Jobs(), [2]));
         Assert.Equal(4, await task);
     }
 
     [Fact]
     public void GeneratedInvoker_IsRegistered_ForInterfaceMethods()
     {
-        var job = Job.FromExpression<IJobs>(x => x.Describe());
+        Job job = Job.FromExpression<IJobs>(x => x.Describe());
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
         Assert.Equal(typeof(IJobs), invoker.Type);
         Assert.Equal("jobs", invoker.Invoke(new Jobs(), []));
     }
@@ -56,9 +56,9 @@ public class GeneratedJobInvokerFacts
     [Fact]
     public void GeneratedInvoker_IsRegistered_ForConstructedGenericMethods()
     {
-        var job = Job.FromExpression<Jobs>(x => x.Generic<DateTime>(default));
+        Job job = Job.FromExpression<Jobs>(x => x.Generic<DateTime>(default));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
         Assert.Equal([typeof(DateTime)], invoker.GenericArguments);
         Assert.Equal("DateTime", invoker.Invoke(new Jobs(), [null]));
     }
@@ -67,17 +67,17 @@ public class GeneratedJobInvokerFacts
     public void GeneratedInvoker_IsRegistered_ForEveryPublicMethod_OfMarkedTypes()
     {
         // No lambda refers to this method anywhere: the [GenerateJobInvokers] attribute is the only reason
-        var method = typeof(MarkedJobs).GetMethod(nameof(MarkedJobs.NeverReferenced));
+        MethodInfo? method = typeof(MarkedJobs).GetMethod(nameof(MarkedJobs.NeverReferenced));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(method, out JobInvoker? invoker));
         Assert.Equal("never", invoker.Invoke(new MarkedJobs(), []));
     }
 
     [Fact]
     public void GeneratedInvoker_PassesDefaultValue_ForNullValueTypeArguments()
     {
-        var job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
-        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker);
+        Job job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
+        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker);
 
         Assert.Equal("0", invoker.Invoke(new Jobs(), [null, null]));
     }
@@ -85,8 +85,8 @@ public class GeneratedJobInvokerFacts
     [Fact]
     public void GeneratedInvoker_ThrowsTheOriginalException()
     {
-        var job = Job.FromExpression<Jobs>(x => x.Throw());
-        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker);
+        Job job = Job.FromExpression<Jobs>(x => x.Throw());
+        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker);
 
         Assert.Throws<InvalidOperationException>(() => invoker.Invoke(new Jobs(), []));
     }
@@ -94,12 +94,12 @@ public class GeneratedJobInvokerFacts
     [Fact, StaticLock]
     public void Performer_UsesTheGeneratedInvoker()
     {
-        var context = new PerformContextMock();
+        PerformContextMock context = new();
         context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Plain("x", 7));
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
         JobInvokerRegistry.ClearResolved();
 
-        var result = performer.Perform(context.Object);
+        object? result = performer.Perform(context.Object);
 
         Assert.Equal("x7", result);
         Assert.Equal(JobInvokerKind.Generated, JobInvokerRegistry.GetInvoker(context.BackgroundJob.Job.Method).Kind);
@@ -109,9 +109,9 @@ public class GeneratedJobInvokerFacts
     public void GeneratedInvoker_IsRegistered_ForAMethodNamedLikeAKeyword()
     {
         // Before the fix, the generated call `x.event(1)` didn't compile
-        var job = Job.FromExpression<KeywordJobs>(x => x.@event(1));
+        Job job = Job.FromExpression<KeywordJobs>(x => x.@event(1));
 
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? invoker));
         Assert.Equal("event 1", invoker.Invoke(new KeywordJobs(), [1]));
     }
 
@@ -119,10 +119,10 @@ public class GeneratedJobInvokerFacts
     public void GeneratedInvoker_IsRegistered_ForTheMethodsOfAMarkedRecord_ButNotForItsCompilerGeneratedOnes()
     {
         // Before the fix, the generator emitted a call to `<Clone>$()`, which didn't compile
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(MarkedRecord).GetMethod(nameof(MarkedRecord.Build)), out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(MarkedRecord).GetMethod(nameof(MarkedRecord.Build)), out JobInvoker? invoker));
         Assert.Equal("built 3", invoker.Invoke(new MarkedRecord(), [3]));
 
-        foreach (var method in typeof(MarkedRecord).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        foreach (MethodInfo method in typeof(MarkedRecord).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             if (method.Name == nameof(MarkedRecord.Build) || method.IsSpecialName) continue;
             Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(method, out _), $"{method} shouldn't have a generated invoker.");
@@ -142,7 +142,7 @@ public class GeneratedJobInvokerFacts
     public void GeneratedInvoker_IsRegistered_ForTheInstanceMembersOfAMarkedInterface_WithStaticAbstractMembers()
     {
         // Before the fix, the generated call of the static abstract member didn't compile (CS8926)
-        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(IKindJobs).GetMethod(nameof(IKindJobs.Run)), out var invoker));
+        Assert.True(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(IKindJobs).GetMethod(nameof(IKindJobs.Run)), out JobInvoker? invoker));
         Assert.Equal("run", invoker.Invoke(new KindJobs(), []));
         Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(typeof(IKindJobs).GetMethod(nameof(IKindJobs.Kind)), out _));
     }
@@ -150,9 +150,9 @@ public class GeneratedJobInvokerFacts
     [Fact]
     public void GeneratedInvoker_UnboxesAnUnderlyingValue_ForAnEnumParameter_LikeTheCompiledInvoker()
     {
-        var job = Job.FromExpression<Jobs>(x => x.Echo(Color.Red));
-        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var generated);
-        var compiled = CompiledJobInvoker.TryCreate(job.Method);
+        Job job = Job.FromExpression<Jobs>(x => x.Echo(Color.Red));
+        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? generated);
+        CompiledJobInvoker? compiled = CompiledJobInvoker.TryCreate(job.Method);
 
         Assert.Equal("Green", generated.Invoke(new Jobs(), [2]));
         Assert.Equal("Green", compiled.Invoke(new Jobs(), [2]));
@@ -161,9 +161,9 @@ public class GeneratedJobInvokerFacts
     [Fact]
     public void GeneratedInvoker_Throws_ForAValueOfAnotherType_LikeTheCompiledInvoker()
     {
-        var job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
-        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out var generated);
-        var compiled = CompiledJobInvoker.TryCreate(job.Method);
+        Job job = Job.FromExpression<Jobs>(x => x.Plain("a", 1));
+        JobInvokerRegistry.TryGetGeneratedInvoker(job.Method, out JobInvoker? generated);
+        CompiledJobInvoker? compiled = CompiledJobInvoker.TryCreate(job.Method);
 
         // Before the fix, the generated invoker passed 0 instead
         Assert.Throws<InvalidCastException>(() => generated.Invoke(new Jobs(), ["a", 5L]));

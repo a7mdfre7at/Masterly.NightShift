@@ -24,7 +24,7 @@ public class RecurringJobUpdateDispatcherFacts
     [Fact]
     public async Task Dispatch_Sets401_WhenReadOnly()
     {
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => true }, _request);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => true }, _request);
 
         await new RecurringJobUpdateDispatcher().Dispatch(context);
 
@@ -37,7 +37,7 @@ public class RecurringJobUpdateDispatcherFacts
         // The page sends encodeURIComponent("reports/daily"); ASP.NET Core leaves "%2F" encoded
         _request.Form["cron"] = ["0 4 * * *"];
         _manager.Setup(x => x.UpdateSchedule("reports/daily", "0 4 * * *", null, null, null)).Returns(true);
-        var context = new DashboardContextStub(new DashboardOptions(), _request)
+        DashboardContextStub context = new(new DashboardOptions(), _request)
         {
             RecurringJobManager = _manager.Object,
             UriMatch = Regex.Match("/recurring/update/reports%2Fdaily", "/recurring/update/(?<JobId>.+)")
@@ -52,7 +52,7 @@ public class RecurringJobUpdateDispatcherFacts
     [Fact]
     public async Task Dispatch_Sets405_ForNonPostRequests()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET"));
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("GET"));
 
         await new RecurringJobUpdateDispatcher().Dispatch(context);
 
@@ -116,14 +116,14 @@ public class RecurringJobUpdateDispatcherFacts
     [Fact]
     public async Task Dispatch_RecordsTheUpdate_WithStatus200_InTheAuditLog()
     {
-        var audit = new List<string>();
-        var context = AuditedContext(audit);
+        List<string> audit = [];
+        DashboardContextStub context = AuditedContext(audit);
         _request.Form["cron"] = ["0 9 * * *"];
         _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, null, null)).Returns(true);
 
         await new RecurringJobUpdateDispatcher().Dispatch(context);
 
-        var entry = JsonNode.Parse(Assert.Single(audit));
+        JsonNode? entry = JsonNode.Parse(Assert.Single(audit));
         Assert.Equal(200, entry["s"].GetValue<int>());
         Assert.Equal("my-job", entry["g"][0].GetValue<string>());
     }
@@ -131,8 +131,8 @@ public class RecurringJobUpdateDispatcherFacts
     [Fact]
     public async Task Dispatch_RecordsAnUnknownJob_WithStatus404_NotAsASuccess()
     {
-        var audit = new List<string>();
-        var context = AuditedContext(audit);
+        List<string> audit = [];
+        DashboardContextStub context = AuditedContext(audit);
         _request.Form["cron"] = ["0 9 * * *"];
         _manager.Setup(x => x.UpdateSchedule("my-job", "0 9 * * *", null, null, null)).Returns(false);
 
@@ -181,23 +181,23 @@ public class RecurringJobUpdateDispatcherFacts
     public async Task Dispatch_RecordsA422_InTheAuditLog()
     {
         // Failed edits were never audited, although the docs say every posted action is
-        var audit = new List<string>();
+        List<string> audit = [];
         _request.Form["cron"] = ["whenever you like"];
-        var context = AuditedContext(audit);
+        DashboardContextStub context = AuditedContext(audit);
 
         await new RecurringJobUpdateDispatcher().Dispatch(context);
 
         Assert.Equal(422, context.Response.StatusCode);
-        var entry = Assert.Single(audit);
+        string entry = Assert.Single(audit);
         Assert.Contains("\"s\":422", entry);
         Assert.Contains("my-job", entry);
     }
 
     private DashboardContextStub AuditedContext(List<string> audit)
     {
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<JobStorageConnection>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        Mock<JobStorage> storage = new();
+        Mock<JobStorageConnection> connection = new();
+        Mock<IWriteOnlyTransaction> transaction = new();
         storage.Setup(x => x.GetConnection()).Returns(connection.Object);
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
         transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => audit.Add(value));
@@ -215,15 +215,15 @@ public class CronPreviewDispatcherFacts
     [Fact]
     public async Task Dispatch_ReturnsTheResolvedCron_AndNextOccurrences()
     {
-        var request = new DashboardRequestStub("GET", "/recurring/preview");
+        DashboardRequestStub request = new("GET", "/recurring/preview");
         request.Query["cron"] = "every 6 hours";
         request.Query["timezone"] = "UTC";
-        var context = new DashboardContextStub(new DashboardOptions(), request);
+        DashboardContextStub context = new(new DashboardOptions(), request);
 
         await new CronPreviewDispatcher().Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Equal("0 */6 * * *", json["cron"].GetValue<string>());
         Assert.Equal("UTC", json["timeZone"].GetValue<string>());
         Assert.Equal(5, (json["next"].AsArray()).Count);
@@ -233,31 +233,31 @@ public class CronPreviewDispatcherFacts
     [Fact]
     public async Task Dispatch_LeavesOutOccurrences_BeforeTheStart_AndAfterTheEnd()
     {
-        var start = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(10), DateTimeKind.Utc);
-        var request = new DashboardRequestStub("GET", "/recurring/preview");
+        DateTime start = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(10), DateTimeKind.Utc);
+        DashboardRequestStub request = new("GET", "/recurring/preview");
         request.Query["cron"] = "0 * * * *";
         request.Query["start"] = new DateTimeOffset(start).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         request.Query["end"] = new DateTimeOffset(start.AddHours(2)).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
-        var context = new DashboardContextStub(new DashboardOptions(), request);
+        DashboardContextStub context = new(new DashboardOptions(), request);
 
         await new CronPreviewDispatcher().Dispatch(context);
 
-        var next = JsonNode.Parse(context.Response.Text)["next"].AsArray().Select(x => x.GetValue<long>()).ToArray();
+        long[] next = [.. JsonNode.Parse(context.Response.Text)["next"].AsArray().Select(x => x.GetValue<long>())];
         Assert.Equal(new[] { start, start.AddHours(1), start.AddHours(2) }.Select(JobHelper.ToTimestamp).ToArray(), next);
     }
 
     [Fact]
     public async Task Dispatch_IgnoresAStartInThePast_AndAnUnreadableWindow()
     {
-        var request = new DashboardRequestStub("GET", "/recurring/preview");
+        DashboardRequestStub request = new("GET", "/recurring/preview");
         request.Query["cron"] = "0 * * * *";
         request.Query["start"] = new DateTimeOffset(DateTime.UtcNow.AddDays(-3)).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         request.Query["end"] = "soon";
-        var context = new DashboardContextStub(new DashboardOptions(), request);
+        DashboardContextStub context = new(new DashboardOptions(), request);
 
         await new CronPreviewDispatcher().Dispatch(context);
 
-        var next = JsonNode.Parse(context.Response.Text)["next"].AsArray();
+        JsonArray next = JsonNode.Parse(context.Response.Text)["next"].AsArray();
         Assert.Equal(5, next.Count);
         Assert.True(JobHelper.FromTimestamp(next[0].GetValue<long>()) > DateTime.UtcNow.AddMinutes(-1));
     }
@@ -265,9 +265,9 @@ public class CronPreviewDispatcherFacts
     [Fact]
     public async Task Dispatch_ReportsErrors_InTheBody()
     {
-        var request = new DashboardRequestStub("GET", "/recurring/preview");
+        DashboardRequestStub request = new("GET", "/recurring/preview");
         request.Query["cron"] = "not a schedule at all";
-        var context = new DashboardContextStub(new DashboardOptions(), request);
+        DashboardContextStub context = new(new DashboardOptions(), request);
 
         await new CronPreviewDispatcher().Dispatch(context);
 
@@ -278,7 +278,7 @@ public class CronPreviewDispatcherFacts
     [Fact]
     public async Task Dispatch_RequiresASchedule()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET", "/recurring/preview"));
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub("GET", "/recurring/preview"));
 
         await new CronPreviewDispatcher().Dispatch(context);
 

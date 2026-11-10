@@ -2,6 +2,9 @@
 // ReSharper disable AssignNullToNotNullAttribute
 // ReSharper disable UnusedTypeParameter
 
+using System.Reflection;
+using TypeExtensions = Masterly.NightShift.Common.TypeExtensions;
+
 public class ClassWithoutNamespace
 {
 }
@@ -45,7 +48,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ThrowsAnException_WhenTypeIsNull()
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => TypeExtensions.GetNonOpenMatchingMethod(null, "Method", []));
 
             Assert.Equal("type", exception.ParamName);
@@ -54,7 +57,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ThrowsAnException_WhenNameIsNull()
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), null, []));
 
             Assert.Equal("name", exception.ParamName);
@@ -63,7 +66,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethod()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method", []);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method", []);
 
             Assert.Equal("Method", method.Name);
             Assert.Equal(typeof(NonGenericClass), method.DeclaringType);
@@ -72,7 +75,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethodWithNoParameter_WhenParameterTypesIsNull()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method", null);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method", null);
 
             Assert.Equal("Method", method.Name);
             Assert.Equal(typeof(NonGenericClass), method.DeclaringType);
@@ -81,7 +84,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethodWithOneParameter()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
                 [typeof(int)]);
 
             Assert.Equal("Method", method.Name);
@@ -93,7 +96,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethodWithManyParameters()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
                 [typeof(int), typeof(int)]);
 
             Assert.Equal("Method", method.Name);
@@ -106,21 +109,21 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethod_WhenTypeIsInterface()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(IParent), "Method", []);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(IParent), "Method", []);
             Assert.Equal("Method", method.Name);
         }
 
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodDefinedInBaseInterface()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(IChild), "Method", []);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(IChild), "Method", []);
             Assert.Equal("Method", method.Name);
         }
 
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectGenericMethod()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "TrivialGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "TrivialGenericMethod",
                 [typeof(int), typeof(string), typeof(object)]);
 
             Assert.Equal("TrivialGenericMethod", method.Name);
@@ -132,7 +135,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsNull_WhenMethodCouldNotBeFound()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "NonExistingMethod", []);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "NonExistingMethod", []);
 
             Assert.Null(method);
         }
@@ -140,7 +143,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsNull_WhenOveroladedMethodCouldNotBeFound()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
                 [typeof(object), typeof(int)]);
 
             Assert.Null(method);
@@ -149,7 +152,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodNameIsCaseSensitive()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "method", []);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "method", []);
 
             Assert.Null(method);
         }
@@ -157,7 +160,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsNull_WhenMethodParameterTypeIsAssignableFromPassedType()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "Method",
                 [typeof(NonGenericClass)]);
 
             Assert.Null(method);
@@ -166,7 +169,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasParameterWhoseTypeContainsGenericParameter()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
                 [typeof(IEnumerable<int>)]);
 
             Assert.Equal("OtherGenericMethod", method.Name);
@@ -177,7 +180,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasParameterWhoseTypeContainsGenericParameterAndIsComplicated()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
                 [typeof(List<IEnumerable<int>>)]);
 
             Assert.Equal("OtherGenericMethod", method.Name);
@@ -188,7 +191,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasParameterWhoseTypeIsGenericAndContainsTwoGenericParameters()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
                 [typeof(Tuple<int, double>)]);
 
             Assert.Equal("OtherGenericMethod", method.Name);
@@ -199,7 +202,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesNonTrivialOrderOfUsingMethodGenericParametersInMethodParameterTypes()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OneMoreGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OneMoreGenericMethod",
                 [typeof(Tuple<int, double, float>)]);
 
             Assert.Equal("OneMoreGenericMethod", method.Name);
@@ -210,7 +213,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasSomeParametersOfTheSameTypeWhichIsMethodGenericParameter()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(int), typeof(int)]);
 
             Assert.Equal("GenericMethod", method.Name);
@@ -222,7 +225,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasGenericAndNonGenericParameters()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(int), typeof(NonGenericClass), typeof(double)]);
 
             Assert.Equal("GenericMethod", method.Name);
@@ -235,7 +238,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasParameterOfGenericTypeWhichContainsMe()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(Tuple<double, List<int>>)]);
 
             Assert.Equal("GenericMethod", method.Name);
@@ -246,7 +249,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasSomeParametersWhoseTypesContainsTheSameGenericParameter()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(int), typeof(double)]);
 
             Assert.Null(method);
@@ -255,7 +258,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsNull_WhenParameterTypeIsMatchedByGenericTypeAndNotMatchedByGenericArguments()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "OtherGenericMethod",
                 [typeof(List<int>)]);
 
             Assert.Null(method);
@@ -264,7 +267,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethod_WhenParameterTypeIsGenericArray()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(string[])]);
 
             Assert.Equal("GenericMethod", method.Name);
@@ -274,7 +277,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsCorrectMethod_WhenParameterTypeIsComplicatedGenericArray()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(List<int>[])]);
 
             Assert.Equal("GenericMethod", method.Name);
@@ -284,7 +287,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_ReturnsNull_WhenMatchingGenricMethodNotBeFound()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(Tuple<List<int>, string>)]);
 
             Assert.Null(method);
@@ -293,7 +296,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_HandlesMethodHasNoParametersOrTypes()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 []);
 
             Assert.Null(method);
@@ -303,7 +306,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         public void GetNonOpenMatchingMethod_HandlesMethodHasNoParametersOrTypes2()
         {
             // public void GenericMethod<T0, T1>(T0 arg) { }
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(NonGenericClass), "GenericMethod",
                 [typeof(string)]);
 
             Assert.Null(method);
@@ -314,7 +317,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [InlineData(typeof(OverloadsDerivedFirst))]
         public void GetNonOpenMatchingMethod_ReturnsTheExactOverload_WhateverTheDeclarationOrder(Type type)
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", [typeof(OverloadDerived)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", [typeof(OverloadDerived)]);
 
             Assert.Equal(typeof(OverloadDerived), method.GetParameters()[0].ParameterType);
         }
@@ -324,7 +327,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [InlineData(typeof(OverloadsDerivedFirst))]
         public void GetNonOpenMatchingMethod_ReturnsTheExactOverload_ForTheLessDerivedType(Type type)
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", [typeof(OverloadBase)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(type, "Handle", [typeof(OverloadBase)]);
 
             Assert.Equal(typeof(OverloadBase), method.GetParameters()[0].ParameterType);
         }
@@ -334,7 +337,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [InlineData(typeof(OverloadsDerivedFirst))]
         public void GetNonOpenMatchingMethod_PrefersTheExactOverload_OverAnInterfaceOne(Type type)
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(type, "Process", [typeof(OverloadMessage)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(type, "Process", [typeof(OverloadMessage)]);
 
             Assert.Equal(typeof(OverloadMessage), method.GetParameters()[0].ParameterType);
         }
@@ -342,7 +345,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_StillReturnsAnAssignableOverload_WhenNoneIsExact()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Process", [typeof(OtherOverloadMessage)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Process", [typeof(OtherOverloadMessage)]);
 
             Assert.Equal(typeof(IOverloadMessage), method.GetParameters()[0].ParameterType);
         }
@@ -350,7 +353,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_PrefersANonGenericExactOverload_OverAGenericOne()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", [typeof(OverloadDerived)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", [typeof(OverloadDerived)]);
 
             Assert.False(method.IsGenericMethod);
             Assert.Equal(typeof(OverloadDerived), method.GetParameters()[0].ParameterType);
@@ -359,7 +362,7 @@ namespace Masterly.NightShift.Core.Tests.Common
         [Fact]
         public void GetNonOpenMatchingMethod_PrefersAGenericMethodWithExactParameterTypes_OverAnAssignableOverload()
         {
-            var method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", [typeof(OverloadMoreDerived)]);
+            MethodInfo? method = TypeExtensions.GetNonOpenMatchingMethod(typeof(OverloadsBaseFirst), "Run", [typeof(OverloadMoreDerived)]);
 
             Assert.True(method.IsGenericMethod);
             Assert.Equal([typeof(OverloadMoreDerived)], method.GetGenericArguments());

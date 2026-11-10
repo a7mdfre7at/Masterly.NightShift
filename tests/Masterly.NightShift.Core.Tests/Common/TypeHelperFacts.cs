@@ -7,7 +7,7 @@ public class TypeHelperFacts
     [Fact]
     public void DefaultTypeResolver_ResolvesTheCurrentName()
     {
-        var type = TypeHelper.DefaultTypeResolver(typeof(PerformContext).AssemblyQualifiedName);
+        Type type = TypeHelper.DefaultTypeResolver(typeof(PerformContext).AssemblyQualifiedName);
 
         Assert.Equal(typeof(PerformContext), type);
     }
@@ -18,7 +18,7 @@ public class TypeHelperFacts
     [InlineData("Hangfire.Server.PerformContext, HANGFIRE.CORE")]
     public void DefaultTypeResolver_ResolvesTypesStoredBeforeTheRename(string typeName)
     {
-        var type = TypeHelper.DefaultTypeResolver(typeName);
+        Type type = TypeHelper.DefaultTypeResolver(typeName);
 
         Assert.Equal(typeof(PerformContext), type);
     }
@@ -33,7 +33,7 @@ public class TypeHelperFacts
     [Fact]
     public void DefaultTypeResolver_ResolvesGenericArguments_StoredBeforeTheRename()
     {
-        var type = TypeHelper.DefaultTypeResolver(
+        Type type = TypeHelper.DefaultTypeResolver(
             "System.Collections.Generic.List`1[[Hangfire.States.EnqueuedState, Hangfire.Core]], mscorlib");
 
         Assert.Equal(typeof(List<EnqueuedState>), type);
@@ -42,7 +42,7 @@ public class TypeHelperFacts
     [Fact]
     public void IgnoredAssemblyVersionTypeResolver_ResolvesTypesStoredBeforeTheRename()
     {
-        var type = TypeHelper.IgnoredAssemblyVersionTypeResolver(
+        Type type = TypeHelper.IgnoredAssemblyVersionTypeResolver(
             "Hangfire.IJobCancellationToken, Hangfire.Core, Version=1.7.0.0, Culture=neutral, PublicKeyToken=null");
 
         Assert.Equal(typeof(IJobCancellationToken), type);

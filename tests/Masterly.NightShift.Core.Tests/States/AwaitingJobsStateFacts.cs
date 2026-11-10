@@ -14,7 +14,7 @@ public class AwaitingJobsStateFacts
     [Fact]
     public void Ctor_RemovesDuplicatesAndBlanks_AndKeepsOrder()
     {
-        var state = new AwaitingJobsState(["2", "1", "2", "", "3"]);
+        AwaitingJobsState state = new(["2", "1", "2", "", "3"]);
 
         Assert.Equal(["2", "1", "3"], state.ParentIds);
         Assert.IsType<EnqueuedState>(state.NextState);
@@ -25,7 +25,7 @@ public class AwaitingJobsStateFacts
     [Fact]
     public void SharesTheAwaitingStateName_AndIsNotFinal()
     {
-        var state = new AwaitingJobsState(["1"]);
+        AwaitingJobsState state = new(["1"]);
 
         Assert.Equal(AwaitingState.StateName, state.Name);
         Assert.False(state.IsFinal);
@@ -35,9 +35,9 @@ public class AwaitingJobsStateFacts
     [Fact]
     public void SerializeData_ContainsParentsModeOptionsAndNextState()
     {
-        var state = new AwaitingJobsState(["1", "2"], new ScheduledState(TimeSpan.FromMinutes(5)), JobContinuationOptions.OnAnyFinishedState, FanInMode.Any);
+        AwaitingJobsState state = new(["1", "2"], new ScheduledState(TimeSpan.FromMinutes(5)), JobContinuationOptions.OnAnyFinishedState, FanInMode.Any);
 
-        var data = state.SerializeData();
+        Dictionary<string, string> data = state.SerializeData();
 
         Assert.Equal("1", data["ParentId"]);
         Assert.Equal("1,2", data["ParentIds"]);
@@ -49,9 +49,9 @@ public class AwaitingJobsStateFacts
     [Fact]
     public void FromStateData_RoundTrips()
     {
-        var original = new AwaitingJobsState(["a", "b", "c"], new EnqueuedState("critical"), JobContinuationOptions.OnlyOnDeletedState, FanInMode.Any);
+        AwaitingJobsState original = new(["a", "b", "c"], new EnqueuedState("critical"), JobContinuationOptions.OnlyOnDeletedState, FanInMode.Any);
 
-        var restored = AwaitingJobsState.FromStateData(original.SerializeData());
+        AwaitingJobsState? restored = AwaitingJobsState.FromStateData(original.SerializeData());
 
         Assert.NotNull(restored);
         Assert.Equal(original.ParentIds, restored.ParentIds);
@@ -63,7 +63,7 @@ public class AwaitingJobsStateFacts
     [Fact]
     public void FromStateData_ReturnsNull_ForOrdinaryAwaitingStateData()
     {
-        var data = new AwaitingState("parent").SerializeData();
+        Dictionary<string, string> data = new AwaitingState("parent").SerializeData();
 
         Assert.Null(AwaitingJobsState.FromStateData(data));
         Assert.Null(AwaitingJobsState.FromStateData(new Dictionary<string, string>()));

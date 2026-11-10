@@ -1,5 +1,6 @@
 extern alias ReferencedDapper;
 using System.Data;
+using System.Data.Common;
 using ReferencedDapper::Dapper;
 // ReSharper disable AssignNullToNotNullAttribute
 
@@ -14,7 +15,7 @@ public class SqlServerTimeoutJobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new SqlServerTimeoutJob(null, 1, JobId, Queue, FetchedAt));
 
         Assert.Equal("storage", exception.ParamName);
@@ -25,7 +26,7 @@ public class SqlServerTimeoutJobFacts
     {
         UseConnection((sql, storage) =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => new SqlServerTimeoutJob(storage, 1, null, Queue, FetchedAt));
 
             Assert.Equal("jobId", exception.ParamName);
@@ -37,7 +38,7 @@ public class SqlServerTimeoutJobFacts
     {
         UseConnection((sql, storage) =>
         {
-            var exception = Assert.Throws<ArgumentNullException>(
+            ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
                 () => new SqlServerTimeoutJob(storage, 1, JobId, null, FetchedAt));
 
             Assert.Equal("queue", exception.ParamName);
@@ -49,7 +50,7 @@ public class SqlServerTimeoutJobFacts
     {
         UseConnection((sql, storage) =>
         {
-            using var fetchedJob = new SqlServerTimeoutJob(storage, 1, JobId, Queue, FetchedAt);
+            using SqlServerTimeoutJob fetchedJob = new(storage, 1, JobId, Queue, FetchedAt);
             Assert.Equal(1, fetchedJob.Id);
             Assert.Equal(JobId, fetchedJob.JobId);
             Assert.Equal(Queue, fetchedJob.Queue);
@@ -63,15 +64,15 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             processingJob.DisposeTimer();
 
             // Act
             processingJob.RemoveFromQueue();
 
             // Assert
-            var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
+            int count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Equal(0, count);
         });
     }
@@ -86,14 +87,14 @@ public class SqlServerTimeoutJobFacts
             CreateJobQueueRecord(sql, "1", "critical", FetchedAt);
             CreateJobQueueRecord(sql, "2", "default", FetchedAt);
 
-            using var fetchedJob = new SqlServerTimeoutJob(storage, 999, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob fetchedJob = new(storage, 999, "1", "default", FetchedAt);
             fetchedJob.DisposeTimer();
 
             // Act
             fetchedJob.RemoveFromQueue();
 
             // Assert
-            var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
+            int count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Equal(3, count);
         });
     }
@@ -104,15 +105,15 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             processingJob.DisposeTimer();
 
             // Act
             processingJob.Requeue();
 
             // Assert
-            var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
+            dynamic record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Null(record.FetchedAt);
         });
     }
@@ -123,17 +124,17 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             processingJob.DisposeTimer();
             Thread.Sleep(TimeSpan.FromSeconds(2));
             processingJob.ExecuteKeepAliveQueryIfRequired();
 
-            var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
+            dynamic record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
 
             Assert.NotNull(processingJob.FetchedAt);
             Assert.Equal<DateTime?>(processingJob.FetchedAt, record.FetchedAt);
-            var now = DateTime.UtcNow;
+            DateTime now = DateTime.UtcNow;
             Assert.True(now.AddSeconds(-5) < record.FetchedAt, (now - record.FetchedAt).ToString());
         });
     }
@@ -144,8 +145,8 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             Thread.Sleep(TimeSpan.FromSeconds(1));
             processingJob.DisposeTimer();
 
@@ -153,7 +154,7 @@ public class SqlServerTimeoutJobFacts
             processingJob.RemoveFromQueue();
 
             // Assert
-            var count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
+            int count = sql.Query<int>($"select count(*) from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Equal(0, count);
         });
     }
@@ -164,8 +165,8 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             Thread.Sleep(TimeSpan.FromSeconds(1));
             processingJob.DisposeTimer();
 
@@ -173,7 +174,7 @@ public class SqlServerTimeoutJobFacts
             processingJob.Requeue();
 
             // Assert
-            var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
+            dynamic record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Null(record.FetchedAt);
         });
     }
@@ -184,20 +185,20 @@ public class SqlServerTimeoutJobFacts
         UseConnection((sql, storage) =>
         {
             // Arrange
-            var id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
-            using var processingJob = new SqlServerTimeoutJob(storage, id, "1", "default", FetchedAt);
+            int id = CreateJobQueueRecord(sql, "1", "default", FetchedAt);
+            using SqlServerTimeoutJob processingJob = new(storage, id, "1", "default", FetchedAt);
             // Act
             processingJob.Dispose();
 
             // Assert
-            var record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
+            dynamic record = sql.Query($"select * from [{Constants.DefaultSchema}].JobQueue").Single();
             Assert.Null(record.FetchedAt);
         });
     }
 
     private static int CreateJobQueueRecord(IDbConnection connection, string jobId, string queue, DateTime? fetchedAt)
     {
-        var arrangeSql = $@"
+        string arrangeSql = $@"
 insert into [{Constants.DefaultSchema}].JobQueue (JobId, Queue, FetchedAt)
 values (@id, @queue, @fetchedAt);
 select scope_identity() as Id";
@@ -207,11 +208,11 @@ select scope_identity() as Id";
 
     private static void UseConnection(Action<IDbConnection, SqlServerStorage> action)
     {
-        var storage = new SqlServerStorage(
+        SqlServerStorage storage = new(
             ConnectionUtils.CreateConnection,
             new SqlServerStorageOptions { SlidingInvisibilityTimeout = TimeSpan.FromSeconds(5) });
 
-        using var connection = ConnectionUtils.CreateConnection();
+        using DbConnection connection = ConnectionUtils.CreateConnection();
         action(connection, storage);
     }
 }

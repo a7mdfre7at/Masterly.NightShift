@@ -5,28 +5,28 @@ public class EnqueuedStateFacts
     [Fact]
     public void StateName_IsCorrect()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
         Assert.Equal(EnqueuedState.StateName, state.Name);
     }
 
     [Fact]
     public void Ctor_ShouldSetQueue_WhenItWasGiven()
     {
-        var state = new EnqueuedState("critical");
+        EnqueuedState state = new("critical");
         Assert.Equal("critical", state.Queue);
     }
 
     [Fact]
     public void SetQueue_ThrowsAnException_WhenQueueValueIsEmpty()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
         Assert.Throws<ArgumentNullException>(() => state.Queue = string.Empty);
     }
 
     [Fact]
     public void SetQueue_ThrowsAnException_WhenValueIsNotInAGivenFormat()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
 
         Assert.Throws<ArgumentException>(() => state.Queue = "UppercaseLetters");
         Assert.Throws<ArgumentException>(() => state.Queue = "punctuation:un-allowed");
@@ -36,7 +36,7 @@ public class EnqueuedStateFacts
     [Fact]
     public void SetQueue_DoesNotThrowException_WhenValueIsInACorrectFormat()
     {
-        var state = new EnqueuedState
+        EnqueuedState state = new()
         {
             // Does not throw
             Queue = "lowercasedcharacters"
@@ -48,9 +48,9 @@ public class EnqueuedStateFacts
     [Fact]
     public void SerializeData_ReturnsCorrectData()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
 
-        var serializedData = state.SerializeData();
+        Dictionary<string, string> serializedData = state.SerializeData();
 
         Assert.Equal(state.Queue, serializedData["Queue"]);
         Assert.Equal(JobHelper.SerializeDateTime(state.EnqueuedAt), serializedData["EnqueuedAt"]);
@@ -59,7 +59,7 @@ public class EnqueuedStateFacts
     [Fact]
     public void IsFinal_ReturnsFalse()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
 
         Assert.False(state.IsFinal);
     }
@@ -67,7 +67,7 @@ public class EnqueuedStateFacts
     [Fact]
     public void IgnoreExceptions_ReturnsFalse()
     {
-        var state = new EnqueuedState();
+        EnqueuedState state = new();
 
         Assert.False(state.IgnoreJobLoadException);
     }
@@ -75,9 +75,9 @@ public class EnqueuedStateFacts
     [DataCompatibilityRangeFact(MaxExcludingLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_Before170()
     {
-        var state = new EnqueuedState("default");
+        EnqueuedState state = new("default");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}",
@@ -87,9 +87,9 @@ public class EnqueuedStateFacts
     [DataCompatibilityRangeFact(MinLevel = CompatibilityLevel.Version_170)]
     public void JsonSerialize_ReturnsCorrectString_After170()
     {
-        var state = new EnqueuedState("default");
+        EnqueuedState state = new("default");
 
-        var serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
+        string serialized = SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal);
 
         Assert.Equal(
             "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}",
@@ -99,8 +99,8 @@ public class EnqueuedStateFacts
     [DataCompatibilityRangeFact]
     public void JsonDeserialize_CanHandlePreviousFormat()
     {
-        var json = "{\"Queue\":\"critical\",\"EnqueuedAt\":\"2012-04-02T11:22:33.0000000Z\",\"Name\":\"Enqueued\",\"Reason\":\"hello\",\"IsFinal\":false,\"IgnoreJobLoadException\":false}";
-        var state = SerializationHelper.Deserialize<EnqueuedState>(json);
+        string json = "{\"Queue\":\"critical\",\"EnqueuedAt\":\"2012-04-02T11:22:33.0000000Z\",\"Name\":\"Enqueued\",\"Reason\":\"hello\",\"IsFinal\":false,\"IgnoreJobLoadException\":false}";
+        EnqueuedState? state = SerializationHelper.Deserialize<EnqueuedState>(json);
 
         Assert.Equal("critical", state.Queue);
         Assert.Equal("hello", state.Reason);
@@ -109,8 +109,8 @@ public class EnqueuedStateFacts
     [DataCompatibilityRangeFact]
     public void JsonDeserialize_CanHandleNewFormat()
     {
-        var json = "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}";
-        var state = SerializationHelper.Deserialize<EnqueuedState>(json);
+        string json = "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\",\"Queue\":\"default\"}";
+        EnqueuedState? state = SerializationHelper.Deserialize<EnqueuedState>(json);
 
         Assert.Equal("default", state.Queue);
         Assert.Null(state.Reason);
@@ -119,8 +119,8 @@ public class EnqueuedStateFacts
     [DataCompatibilityRangeFact]
     public void JsonDeserialize_CanHandle170Beta1Format_WithDefaultValueForQueue()
     {
-        var json = "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\"}";
-        var state = SerializationHelper.Deserialize<EnqueuedState>(json);
+        string json = "{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core\"}";
+        EnqueuedState? state = SerializationHelper.Deserialize<EnqueuedState>(json);
 
         Assert.Equal("default", state.Queue);
         Assert.Null(state.Reason);

@@ -25,7 +25,7 @@ public class BatchJobBulkFacts
             ("4", ProcessingState.StateName),
             ("5", EnqueuedState.StateName));
 
-        var result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId);
+        BulkJobResult result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId);
 
         Assert.Equal(3, result.Processed);
         Assert.Equal(0, result.Remaining);
@@ -42,7 +42,7 @@ public class BatchJobBulkFacts
         SetupBatch(("1", ProcessingState.StateName), ("2", ProcessingState.StateName));
         _client.Setup(x => x.ChangeState("2", It.IsAny<IState>(), ProcessingState.StateName)).Returns(false);
 
-        var result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId);
+        BulkJobResult result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId);
 
         Assert.Equal(1, result.Processed);
         Assert.True(result.Complete);
@@ -53,7 +53,7 @@ public class BatchJobBulkFacts
     {
         SetupBatch(("1", FailedState.StateName), ("2", SucceededState.StateName), ("3", FailedState.StateName));
 
-        var result = BatchJob.RequeueFailed(_client.Object, _storage.Object, BatchId);
+        BulkJobResult result = BatchJob.RequeueFailed(_client.Object, _storage.Object, BatchId);
 
         Assert.Equal(2, result.Processed);
         Assert.True(result.Complete);
@@ -67,7 +67,7 @@ public class BatchJobBulkFacts
     {
         SetupBatch(("1", ProcessingState.StateName), ("2", ProcessingState.StateName), ("3", ProcessingState.StateName));
 
-        var result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId, TimeSpan.Zero);
+        BulkJobResult result = BatchJob.Cancel(_client.Object, _storage.Object, BatchId, TimeSpan.Zero);
 
         Assert.Equal(1, result.Processed);
         Assert.Equal(2, result.Remaining);
@@ -77,11 +77,11 @@ public class BatchJobBulkFacts
     [Fact]
     public void RequeueFailed_HasNoTimeLimit_ByDefault()
     {
-        var jobs = new List<(string, string)>();
-        for (var i = 0; i < 1200; i++) jobs.Add((i.ToString(), FailedState.StateName));
+        List<(string, string)> jobs = [];
+        for (int i = 0; i < 1200; i++) jobs.Add((i.ToString(), FailedState.StateName));
         SetupBatch([.. jobs]);
 
-        var result = BatchJob.RequeueFailed(_client.Object, _storage.Object, BatchId);
+        BulkJobResult result = BatchJob.RequeueFailed(_client.Object, _storage.Object, BatchId);
 
         Assert.Equal(1200, result.Processed);
         Assert.True(result.Complete);
@@ -90,8 +90,8 @@ public class BatchJobBulkFacts
     [Fact]
     public void CancelAndRequeueFailed_Throw_WhenTheBatchDoesNotExist()
     {
-        var cancel = Assert.Throws<InvalidOperationException>(() => BatchJob.Cancel(_client.Object, _storage.Object, "missing"));
-        var requeue = Assert.Throws<InvalidOperationException>(() => BatchJob.RequeueFailed(_client.Object, _storage.Object, "missing"));
+        InvalidOperationException cancel = Assert.Throws<InvalidOperationException>(() => BatchJob.Cancel(_client.Object, _storage.Object, "missing"));
+        InvalidOperationException requeue = Assert.Throws<InvalidOperationException>(() => BatchJob.RequeueFailed(_client.Object, _storage.Object, "missing"));
 
         Assert.Contains("missing", cancel.Message);
         Assert.Contains("missing", requeue.Message);
@@ -114,8 +114,8 @@ public class BatchJobBulkFacts
         SetupBatch(("1", SucceededState.StateName));
         JobStorage.Current = _storage.Object;
 
-        var canceled = BatchJob.Cancel(BatchId);
-        var requeued = BatchJob.RequeueFailed(BatchId);
+        BulkJobResult canceled = BatchJob.Cancel(BatchId);
+        BulkJobResult requeued = BatchJob.RequeueFailed(BatchId);
 
         Assert.True(canceled.Complete);
         Assert.True(requeued.Complete);
@@ -125,8 +125,8 @@ public class BatchJobBulkFacts
 
     private void SetupBatch(params (string Id, string State)[] jobs)
     {
-        var ids = new HashSet<string>();
-        foreach (var (Id, State) in jobs)
+        HashSet<string> ids = [];
+        foreach ((string? Id, string? State) in jobs)
         {
             ids.Add(Id);
             _connection.Setup(x => x.GetJobData(Id)).Returns(new JobData { State = State });

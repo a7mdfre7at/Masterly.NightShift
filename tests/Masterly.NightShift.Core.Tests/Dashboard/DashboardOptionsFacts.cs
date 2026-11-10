@@ -7,7 +7,7 @@ public class DashboardOptionsFacts
     [Fact]
     public void Ctor_SetsDefaultValues_ForAllOptions()
     {
-        var options = new DashboardOptions();
+        DashboardOptions options = new();
         Assert.Equal("/", options.AppPath);
         Assert.Equal("", options.PrefixPath);
         Assert.NotNull(options.Authorization);

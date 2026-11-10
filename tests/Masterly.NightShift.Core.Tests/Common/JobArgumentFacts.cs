@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using Masterly.NightShift.Annotations;
 
 
@@ -416,14 +417,14 @@ public class JobArgumentFacts
 
     private static void CreateAndPerform<T>(T argumentValue, bool checkJsonOnly = false)
     {
-        var type = typeof(JobArgumentFacts);
-        var methodInfo = type.GetMethod("Method", [typeof(T)]);
+        Type type = typeof(JobArgumentFacts);
+        MethodInfo? methodInfo = type.GetMethod("Method", [typeof(T)]);
 
-        var serializationMethods = new List<Tuple<string, Func<string>>>();
+        List<Tuple<string, Func<string>>> serializationMethods = [];
 
         if (!checkJsonOnly)
         {
-            var converter = TypeDescriptor.GetConverter(typeof(T));
+            TypeConverter converter = TypeDescriptor.GetConverter(typeof(T));
             serializationMethods.Add(new Tuple<string, Func<string>>(
                 "TypeDescriptor",
                 () => converter.ConvertToInvariantString(argumentValue)));
@@ -433,15 +434,15 @@ public class JobArgumentFacts
             "JSON",
             () => SerializationHelper.Serialize(argumentValue, SerializationOption.User)));
 
-        foreach (var method in serializationMethods)
+        foreach (Tuple<string, Func<string>> method in serializationMethods)
         {
-            var data = new InvocationData(
+            InvocationData data = new(
                 methodInfo?.DeclaringType?.AssemblyQualifiedName,
                 methodInfo?.Name,
                 TestJson.ToJson(methodInfo?.GetParameters().Select(x => x.ParameterType).ToArray()),
                 TestJson.ToJson(new[] { method.Item2() }));
 
-            var job = data.DeserializeJob();
+            Job job = data.DeserializeJob();
 
             Assert.Equal(argumentValue, job.Args[0]);
         }

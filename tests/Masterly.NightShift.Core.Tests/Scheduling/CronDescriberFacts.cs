@@ -100,8 +100,8 @@ public class CronDescriberFacts
     [InlineData("0-59/12 * * * *", 12)]
     public void Describe_EveryNMinutes_MatchesTheOccurrences(string cron, int minutes)
     {
-        var from = new DateTime(2026, 11, 9, 0, 0, 0, DateTimeKind.Utc);
-        var occurrences = Cron.GetNextOccurrences(cron, TimeZoneInfo.Utc, from, 200);
+        DateTime from = new(2026, 11, 9, 0, 0, 0, DateTimeKind.Utc);
+        IReadOnlyList<DateTime> occurrences = Cron.GetNextOccurrences(cron, TimeZoneInfo.Utc, from, 200);
 
         Assert.Equal($"Every {minutes} minutes", Cron.Describe(cron));
         Assert.All(occurrences.Zip(occurrences.Skip(1), static (a, b) => b - a), gap => Assert.Equal(TimeSpan.FromMinutes(minutes), gap));
@@ -110,7 +110,7 @@ public class CronDescriberFacts
     [Fact]
     public void Describe_IsTruthful_ForAStepFromTextThatDoesNotDivideTheHour()
     {
-        var cron = Cron.FromText("every 45 minutes");
+        string cron = Cron.FromText("every 45 minutes");
 
         Assert.Equal("*/45 * * * *", cron);
         Assert.Equal("At minutes 0 and 45 past every hour", Cron.Describe(cron));
@@ -120,11 +120,11 @@ public class CronDescriberFacts
     public void BothDayFields_MustMatch_ForTheSchedulerToRun()
     {
         // The describer's "if it is" wording relies on this: Cronos ANDs the day fields, Vixie cron ORs them
-        var expression = CronExpression.Parse("0 12 1 * 1");
-        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        CronExpression expression = CronExpression.Parse("0 12 1 * 1");
+        DateTime from = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var occurrences = expression.GetOccurrences(from, from.AddYears(2), TimeZoneInfo.Utc).ToList();
-        var viaCron = Cron.GetNextOccurrences("0 12 1 * 1", TimeZoneInfo.Utc, from, 3);
+        List<DateTime> occurrences = [.. expression.GetOccurrences(from, from.AddYears(2), TimeZoneInfo.Utc)];
+        IReadOnlyList<DateTime> viaCron = Cron.GetNextOccurrences("0 12 1 * 1", TimeZoneInfo.Utc, from, 3);
 
         Assert.All(occurrences, x => Assert.True(x.Day == 1 && x.DayOfWeek == DayOfWeek.Monday, $"{x:u}"));
         Assert.Equal(new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc), occurrences[0]);
@@ -199,11 +199,11 @@ public class CronDescriberFacts
     [InlineData("15/1,52 * * * *")]
     public void Describe_ListsTheMinutesTheSchedulerRuns_ForAStartWithAStepOfOne(string cron)
     {
-        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var expected = CronExpression.Parse(cron).GetOccurrences(from, from.AddHours(1), TimeZoneInfo.Utc)
+        DateTime from = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        IEnumerable<string> expected = CronExpression.Parse(cron).GetOccurrences(from, from.AddHours(1), TimeZoneInfo.Utc)
             .Select(static x => x.Minute.ToString(CultureInfo.InvariantCulture));
 
-        var described = Regex.Matches(Cron.Describe(cron), @"\d+").Cast<Match>().Select(static x => x.Value);
+        IEnumerable<string> described = Regex.Matches(Cron.Describe(cron), @"\d+").Cast<Match>().Select(static x => x.Value);
 
         Assert.Equal(expected, described);
     }
@@ -232,7 +232,7 @@ public class CronDescriberFacts
     [InlineData("1 2 3 4 5 6 7")]
     public void Describe_ThrowsFormatException_WhenTheFieldCountIsWrong(string cron)
     {
-        var exception = Assert.Throws<FormatException>(() => CronDescriber.Describe(cron));
+        FormatException exception = Assert.Throws<FormatException>(() => CronDescriber.Describe(cron));
 
         Assert.Equal("A CRON expression has 5 or 6 fields.", exception.Message);
     }
@@ -244,7 +244,7 @@ public class CronDescriberFacts
     [InlineData("1#2 0 0 * * *", "1#2")]
     public void Describe_ThrowsFormatException_ForDayTokensOutsideTheDayFields(string cron, string token)
     {
-        var exception = Assert.Throws<FormatException>(() => CronDescriber.Describe(cron));
+        FormatException exception = Assert.Throws<FormatException>(() => CronDescriber.Describe(cron));
 
         Assert.Equal($"'{token}' is not a valid CRON field value.", exception.Message);
     }
@@ -252,7 +252,7 @@ public class CronDescriberFacts
     [Fact]
     public void Describe_ThrowsFormatException_ForAnUnknownName()
     {
-        var exception = Assert.Throws<FormatException>(() => CronDescriber.Describe("0 0 1 FOO *"));
+        FormatException exception = Assert.Throws<FormatException>(() => CronDescriber.Describe("0 0 1 FOO *"));
 
         Assert.Equal("'FOO' is not a valid CRON field value.", exception.Message);
     }

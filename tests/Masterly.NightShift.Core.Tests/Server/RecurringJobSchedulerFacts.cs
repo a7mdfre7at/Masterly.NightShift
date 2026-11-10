@@ -32,7 +32,7 @@ public class RecurringJobSchedulerFacts
 
         // Setting up the successful path
 
-        var timeZone = TimeZoneInfo.Local;
+        TimeZoneInfo timeZone = TimeZoneInfo.Local;
 
         _nowInstantFactory = () => _nowInstant;
 
@@ -85,7 +85,7 @@ public class RecurringJobSchedulerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenJobFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new RecurringJobScheduler(null, _delay, _timeZoneResolver.Object, _nowInstantFactory));
 
@@ -95,7 +95,7 @@ public class RecurringJobSchedulerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTimeZoneResolverIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new RecurringJobScheduler(_factory.Object, _delay, null, _nowInstantFactory));
 
@@ -105,7 +105,7 @@ public class RecurringJobSchedulerFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenNowInstantFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new RecurringJobScheduler(_factory.Object, _delay, _timeZoneResolver.Object, null));
 
@@ -115,10 +115,10 @@ public class RecurringJobSchedulerFacts
     [Fact]
     public void Execute_ThrowsAnException_WhenContextIsNull()
     {
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // ReSharper disable once AssignNullToNotNullAttribute
-        var exception = Assert.Throws<ArgumentNullException>(() => scheduler.Execute(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => scheduler.Execute(null));
 
         Assert.Equal("context", exception.ParamName);
     }
@@ -129,7 +129,7 @@ public class RecurringJobSchedulerFacts
     public void Execute_EnqueuesAJob_WhenItIsTimeToRunIt(bool useJobStorageConnection)
     {
         SetupConnection(useJobStorageConnection);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -142,7 +142,7 @@ public class RecurringJobSchedulerFacts
     public void Execute_RunsThePostCommitActionsOfTheEnqueuedState_OnlyAfterItsCommit()
     {
         SetupConnection(false);
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -151,7 +151,7 @@ public class RecurringJobSchedulerFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Callback(() => calls.Add("commit"));
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -162,7 +162,7 @@ public class RecurringJobSchedulerFacts
     public void Execute_DropsThePostCommitActionsOfTheEnqueuedState_WhenTheCommitFails()
     {
         SetupConnection(false);
-        var calls = new List<string>();
+        List<string> calls = [];
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -171,7 +171,7 @@ public class RecurringJobSchedulerFacts
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("commit failed"));
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         try
         {
@@ -192,7 +192,7 @@ public class RecurringJobSchedulerFacts
     {
         SetupConnection(useJobStorageConnection);
         _recurringJob["V"] = "3";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -206,7 +206,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(batching);
         _recurringJob["V"] = "3";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -227,7 +227,7 @@ public class RecurringJobSchedulerFacts
         SetupConnection(batching);
         _recurringJob["V"] = "3";
         _recurringJob["RetryAttempt"] = "10";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -247,7 +247,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(batching);
         _recurringJob["Misfire"] = "7";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -270,7 +270,7 @@ public class RecurringJobSchedulerFacts
         SetupConnection(batching);
         _recurringJob["V"] = "not a number";
         _recurringJob["RetryAttempt"] = "5";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -293,7 +293,7 @@ public class RecurringJobSchedulerFacts
         _schedule.Insert(0, "unreadable");
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:unreadable"))
             .Returns(new Dictionary<string, string>(_recurringJob) { { "Misfire", "7" } });
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -312,7 +312,7 @@ public class RecurringJobSchedulerFacts
     {
         SetupConnection(useJobStorageConnection);
         _recurringJob["Queue"] = "critical";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -327,13 +327,13 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
 
         // Assert
-        var jobKey = $"recurring-job:{RecurringJobId}";
+        string jobKey = $"recurring-job:{RecurringJobId}";
 
         _transaction.Verify(x => x.SetRangeInHash(
             jobKey,
@@ -371,7 +371,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["V"] = "2";
         _recurringJob["RetryAttempt"] = "0";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -396,7 +396,7 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var scheduler = CreateScheduler(_nowInstant);
+        RecurringJobScheduler scheduler = CreateScheduler(_nowInstant);
 
         // Act
         scheduler.Execute(_context.Object);
@@ -421,10 +421,10 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var time = _nowInstant;
+        DateTime time = _nowInstant;
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(time);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -445,7 +445,7 @@ public class RecurringJobSchedulerFacts
         _schedule.Clear();
         _schedule.Add("non-existing-job");
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -464,7 +464,7 @@ public class RecurringJobSchedulerFacts
         SetupConnection(useJobStorageConnection);
         _recurringJob["Job"] = TestJson.ToJson(new InvocationData("SomeType", "SomeMethod", "Parameters", "arguments"));
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act & Assert does not throw
         scheduler.Execute(_context.Object);
@@ -478,10 +478,10 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(useJobStorageConnection);
 
-        var timeZoneId = PlatformHelper.IsRunningOnWindows() ? "Hawaiian Standard Time" : "Pacific/Honolulu";
-        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        string timeZoneId = PlatformHelper.IsRunningOnWindows() ? "Hawaiian Standard Time" : "Pacific/Honolulu";
+        TimeZoneInfo timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
         _recurringJob["TimeZoneId"] = timeZone.Id;
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act & Assert does not throw
         scheduler.Execute(_context.Object);
@@ -495,7 +495,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(useJobStorageConnection);
         _recurringJob["TimeZoneId"] = "Some garbage";
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -511,10 +511,10 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var createdAt = _nowInstant.AddHours(-3);
+        DateTime createdAt = _nowInstant.AddHours(-3);
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(createdAt);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -530,7 +530,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(useJobStorageConnection);
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -551,7 +551,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(useJobStorageConnection);
         _recurringJob.Remove("CreatedAt");
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -573,12 +573,12 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var nextExecution = _nowInstant.AddHours(-10);
+        DateTime nextExecution = _nowInstant.AddHours(-10);
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(nextExecution);
         _recurringJob.Remove("CreatedAt");
         _recurringJob.Remove("LastExecution");
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -604,7 +604,7 @@ public class RecurringJobSchedulerFacts
             .Setup(x => x.AcquireDistributedLock("recurring-jobs:lock", It.IsAny<TimeSpan>()))
             .Throws(new DistributedLockTimeoutException("recurring-jobs:lock"));
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act & Assert (Does Not Throw)
         scheduler.Execute(_context.Object);
@@ -622,7 +622,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant);
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -638,7 +638,7 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -654,7 +654,7 @@ public class RecurringJobSchedulerFacts
     {
         // Arrange
         SetupConnection(useJobStorageConnection);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -684,7 +684,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(useJobStorageConnection);
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant);
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -716,7 +716,7 @@ public class RecurringJobSchedulerFacts
 
         _factory.Setup(x => x.Create(It.IsAny<CreateContext>())).Throws<InvalidOperationException>();
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -732,7 +732,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(batching);
 
-        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
+        TimeZoneInfo timeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows()
             ? "Hawaiian Standard Time"
             : "Pacific/Honolulu");
 
@@ -745,7 +745,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["TimeZoneId"] = PlatformHelper.IsRunningOnWindows() ? "Pacific/Honolulu" : "Hawaiian Standard Time";
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddHours(18).AddMinutes(30));
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -766,7 +766,7 @@ public class RecurringJobSchedulerFacts
 
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-2));
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -788,7 +788,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Cron"] = "0 0 31 2 *";
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -817,7 +817,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Cron"] = "0 * * * *";
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddDays(-1));
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -848,7 +848,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddHours(-3));
         _recurringJob["Misfire"] = MisfireHandlingMode.Strict.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -887,7 +887,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddHours(-3));
         _recurringJob["Misfire"] = MisfireHandlingMode.Ignorable.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -917,7 +917,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddHours(-3));
         _recurringJob["Misfire"] = MisfireHandlingMode.Ignorable.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -948,7 +948,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddHours(-3));
         _recurringJob["Misfire"] = mode.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -978,7 +978,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["ScheduleChangedAt"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-9));
         _recurringJob["Misfire"] = MisfireHandlingMode.Strict.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -998,12 +998,12 @@ public class RecurringJobSchedulerFacts
         // Arrange: every minute, last run a day ago
         SetupConnection(batching);
 
-        var lastExecution = _nowInstant.AddDays(-1);
+        DateTime lastExecution = _nowInstant.AddDays(-1);
         _recurringJob["Cron"] = "* * * * *";
         _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(lastExecution);
         _recurringJob["Misfire"] = MisfireHandlingMode.Strict.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1034,7 +1034,7 @@ public class RecurringJobSchedulerFacts
         // Stops the scheduler once the job is handled, so it doesn't wait for the next minute
         _transaction.Setup(x => x.Commit()).Callback(_context.StoppingTokenSource.Cancel);
 
-        var scheduler = CreateScheduler(delay: TimeSpan.Zero);
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.Zero);
 
         // Act
         Assert.Throws<OperationCanceledException>(() => scheduler.Execute(_context.Object));
@@ -1056,7 +1056,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Misfire"] = MisfireHandlingMode.Ignorable.ToString("D");
         _transaction.Setup(x => x.Commit()).Callback(_context.StoppingTokenSource.Cancel);
 
-        var scheduler = CreateScheduler(delay: TimeSpan.Zero);
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.Zero);
 
         // Act
         Assert.Throws<OperationCanceledException>(() => scheduler.Execute(_context.Object));
@@ -1078,7 +1078,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["StartAt"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(10));
         _recurringJob["Misfire"] = mode.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1102,7 +1102,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-9));
         _recurringJob["Misfire"] = MisfireHandlingMode.Strict.ToString("D");
 
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1131,7 +1131,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["EndAt"] = JobHelper.SerializeDateTime(_nowInstant);
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
 
@@ -1145,7 +1145,7 @@ public class RecurringJobSchedulerFacts
     [Fact, GlobalLock(Reason = "Sets the global time zone resolver")]
     public void Ctor_WithoutATimeZoneResolver_UsesTheGlobalOne()
     {
-        var resolver = new Mock<ITimeZoneResolver>();
+        Mock<ITimeZoneResolver> resolver = new();
         resolver.Setup(x => x.GetTimeZoneById("plus-two"))
             .Returns(TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two"));
         _recurringJob["TimeZoneId"] = "plus-two";
@@ -1155,7 +1155,7 @@ public class RecurringJobSchedulerFacts
 
         try
         {
-            var scheduler = new RecurringJobScheduler(_factory.Object, _delay);
+            RecurringJobScheduler scheduler = new(_factory.Object, _delay);
 
             scheduler.Execute(_context.Object);
 
@@ -1176,7 +1176,7 @@ public class RecurringJobSchedulerFacts
             .Setup(x => x.GetFirstByLowestScoreFromSet(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<int>()))
             .Throws<NotSupportedException>();
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1199,7 +1199,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(1));
         _recurringJob["V"] = "2";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1221,7 +1221,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["TimeZoneId"] = null;
         _recurringJob["Cron"] = "0 30 15 30 03 *";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1241,7 +1241,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Cron"] = "some garbage";
         _recurringJob["V"] = "2";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1268,7 +1268,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Cron"] = "some garbage";
         _recurringJob["RetryAttempt"] = "10";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1286,7 +1286,7 @@ public class RecurringJobSchedulerFacts
         // Arrange
         SetupConnection(batching);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         _recurringJob["Error"] = "Some error that previously happened";
         _recurringJob["RetryAttempt"] = "10";
@@ -1312,7 +1312,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Job"] = null;
         _recurringJob["V"] = "2";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1346,7 +1346,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Job"] = null;
         _recurringJob["RetryAttempt"] = "1";
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1371,7 +1371,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["Job"] = InvocationData.SerializeJob(
             Job.FromExpression(() => Console.WriteLine())).SerializePayload().Replace("Console", "SomeNonExistingClass");
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1398,7 +1398,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(_nowInstant.AddDays(-1));
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1425,7 +1425,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(_nowInstant.AddDays(-1));
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1452,7 +1452,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(_nowInstant.AddDays(-1));
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1477,7 +1477,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["V"] = "2";
         _factory.Setup(x => x.Create(It.IsAny<CreateContext>())).Throws<InvalidOperationException>();
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1512,7 +1512,7 @@ public class RecurringJobSchedulerFacts
         _recurringJob["CreatedAt"] = JobHelper.SerializeDateTime(_nowInstant.AddDays(-1));
         _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1541,7 +1541,7 @@ public class RecurringJobSchedulerFacts
             .Setup(x => x.Create(It.Is<CreateContext>(ctx => (string)ctx.Parameters["RecurringJobId"] == RecurringJobId)))
             .Throws<InvalidOperationException>();
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1562,7 +1562,7 @@ public class RecurringJobSchedulerFacts
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:AnotherId")).Returns(_recurringJob);
         _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{RecurringJobId}")).Returns<Dictionary<string, string>>(null);
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         scheduler.Execute(_context.Object);
@@ -1579,12 +1579,12 @@ public class RecurringJobSchedulerFacts
     public void Execute_InStrictMode_KeepsTheLastExecution_AtTheLastRunEnqueued_WhenEnqueuingALaterRunFails(bool batching)
     {
         SetupConnection(batching);
-        var first = _nowInstant.AddMinutes(-30).AddHours(-2);
+        DateTime first = _nowInstant.AddMinutes(-30).AddHours(-2);
         UseRecurringJobMissingThreeHourlyRuns(MisfireHandlingMode.Strict);
         CreateJobsNamedAfterTheirTime();
         _stateMachine.Setup(x => x.ApplyState(It.Is<ApplyStateContext>(ctx => ctx.BackgroundJob.Id != JobIdFor(first))))
             .Throws(new InvalidOperationException("Apply state filter failed"));
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         scheduler.Execute(_context.Object);
 
@@ -1600,11 +1600,11 @@ public class RecurringJobSchedulerFacts
     [Fact]
     public void Execute_InStrictMode_CreatesTheRunsAfterAFailedEnqueue_OnTheRetryPass()
     {
-        var enqueued = new List<string>();
+        List<string> enqueued = [];
         UseRecurringJobMissingThreeHourlyRuns(MisfireHandlingMode.Strict);
         CreateJobsNamedAfterTheirTime();
-        var failing = JobIdFor(_nowInstant.AddMinutes(-30).AddHours(-1));
-        var fail = true;
+        string failing = JobIdFor(_nowInstant.AddMinutes(-30).AddHours(-1));
+        bool fail = true;
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
@@ -1615,7 +1615,7 @@ public class RecurringJobSchedulerFacts
         _transaction.Setup(x => x.SetRangeInHash($"recurring-job:{RecurringJobId}", It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, fields) =>
             {
-                foreach (var field in fields) _recurringJob[field.Key] = field.Value;
+                foreach (KeyValuePair<string, string> field in fields) _recurringJob[field.Key] = field.Value;
             });
 
         CreateScheduler(delay: TimeSpan.FromMilliseconds(100)).Execute(_context.Object);
@@ -1640,7 +1640,7 @@ public class RecurringJobSchedulerFacts
         UseRecurringJobMissingThreeHourlyRuns(MisfireHandlingMode.Relaxed);
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Throws(new InvalidOperationException("Apply state filter failed"));
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         scheduler.Execute(_context.Object);
 
@@ -1661,7 +1661,7 @@ public class RecurringJobSchedulerFacts
         _factory.Setup(x => x.Create(It.Is<CreateContext>(ctx =>
                 (long)ctx.Parameters["Time"] == JobHelper.ToTimestamp(_nowInstant.AddMinutes(-30)))))
             .Throws(new InvalidOperationException("Client filter failed"));
-        var scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
+        RecurringJobScheduler scheduler = CreateScheduler(delay: TimeSpan.FromMilliseconds(100));
 
         scheduler.Execute(_context.Object);
 
@@ -1701,7 +1701,7 @@ public class RecurringJobSchedulerFacts
             .Throws<InvalidOperationException>()
             .Pass();
 
-        var scheduler = CreateScheduler();
+        RecurringJobScheduler scheduler = CreateScheduler();
 
         // Act
         Assert.Throws<InvalidOperationException>(() => scheduler.Execute(_context.Object));
@@ -1730,7 +1730,7 @@ public class RecurringJobSchedulerFacts
 
     private RecurringJobScheduler CreateScheduler(DateTime? lastExecution = null, TimeSpan? delay = null)
     {
-        var scheduler = new RecurringJobScheduler(
+        RecurringJobScheduler scheduler = new(
             _factory.Object,
             delay ?? _delay,
             _timeZoneResolver.Object,

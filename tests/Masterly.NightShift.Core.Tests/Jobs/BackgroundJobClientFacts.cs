@@ -15,7 +15,7 @@ public class BackgroundJobClientFacts
 
     public BackgroundJobClientFacts()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         _storage = new Mock<JobStorage>();
         _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
 
@@ -33,7 +33,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobClient(null, _factory.Object, _stateChanger.Object));
 
         Assert.Equal("storage", exception.ParamName);
@@ -42,7 +42,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenFactoryIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobClient(_storage.Object, null, _stateChanger.Object));
 
         Assert.Equal("factory", exception.ParamName);
@@ -51,7 +51,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStateChangerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new BackgroundJobClient(_storage.Object, _factory.Object, null));
 
         Assert.Equal("stateChanger", exception.ParamName);
@@ -69,9 +69,9 @@ public class BackgroundJobClientFacts
     [Fact]
     public void CreateJob_ThrowsAnException_WhenJobIsNull()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => client.Create(null, _state.Object));
 
         Assert.Equal("job", exception.ParamName);
@@ -80,9 +80,9 @@ public class BackgroundJobClientFacts
     [Fact]
     public void CreateJob_ThrowsAnException_WhenStateIsNull()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => client.Create(_job, null));
 
         Assert.Equal("state", exception.ParamName);
@@ -91,7 +91,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void CreateJob_DelegatesBackgroundJobCreation_ToFactory()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
         client.Create(_job, _state.Object);
 
@@ -101,9 +101,9 @@ public class BackgroundJobClientFacts
     [Fact]
     public void CreateJob_ReturnsJobIdentifier()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var id = client.Create(_job, _state.Object);
+        string? id = client.Create(_job, _state.Object);
 
         Assert.Equal("some-job", id);
     }
@@ -111,11 +111,11 @@ public class BackgroundJobClientFacts
     [Fact]
     public void CreateJob_WrapsOccurringExceptions_IntoItsOwnException()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
         _factory.Setup(x => x.Create(It.IsAny<CreateContext>()))
             .Throws<InvalidOperationException>();
 
-        var exception = Assert.Throws<BackgroundJobClientException>(
+        BackgroundJobClientException exception = Assert.Throws<BackgroundJobClientException>(
             () => client.Create(_job, _state.Object));
 
         Assert.NotNull(exception.InnerException);
@@ -125,9 +125,9 @@ public class BackgroundJobClientFacts
     [Fact]
     public void ChangeState_ThrowsAnException_WhenJobIdIsNull()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => client.ChangeState(null, _state.Object, null));
 
         Assert.Equal("jobId", exception.ParamName);
@@ -136,9 +136,9 @@ public class BackgroundJobClientFacts
     [Fact]
     public void ChangeState_ThrowsAnException_WhenStateIsNull()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => client.ChangeState("jobId", null, null));
 
         Assert.Equal("state", exception.ParamName);
@@ -147,7 +147,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void ChangeState_ChangesTheStateOfAJob_ToTheGivenOne()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
         client.ChangeState("job-id", _state.Object, null);
 
@@ -160,7 +160,7 @@ public class BackgroundJobClientFacts
     [Fact]
     public void ChangeState_WithFromState_ChangesTheStateOfAJob_WithFromStateValue()
     {
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
         client.ChangeState("job-id", _state.Object, "State");
 
@@ -175,9 +175,9 @@ public class BackgroundJobClientFacts
     {
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns(_state.Object);
-        var client = CreateClient();
+        BackgroundJobClient client = CreateClient();
 
-        var result = client.ChangeState("job-id", _state.Object, null);
+        bool result = client.ChangeState("job-id", _state.Object, null);
 
         Assert.True(result);
     }

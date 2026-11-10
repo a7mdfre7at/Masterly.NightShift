@@ -5,7 +5,7 @@ public class JobFilterFacts
     [Fact]
     public void GuardClause()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new JobFilter(null, JobFilterScope.Method, null));
 
         Assert.Equal("instance", exception.ParamName);
@@ -15,10 +15,10 @@ public class JobFilterFacts
     public void FilterDoesNotImplementIJobFilter()
     {
         // Arrange
-        var filterInstance = new object();
+        object filterInstance = new();
 
         // Act
-        var filter = new JobFilter(filterInstance, JobFilterScope.Method, null);
+        JobFilter filter = new(filterInstance, JobFilterScope.Method, null);
 
         // Assert
         Assert.Same(filterInstance, filter.Instance);
@@ -30,11 +30,11 @@ public class JobFilterFacts
     public void FilterImplementsIJobFilter()
     {
         // Arrange
-        var filterInstance = new Mock<IJobFilter>();
+        Mock<IJobFilter> filterInstance = new();
         filterInstance.SetupGet(f => f.Order).Returns(42);
 
         // Act
-        var filter = new JobFilter(filterInstance.Object, JobFilterScope.Type, null);
+        JobFilter filter = new(filterInstance.Object, JobFilterScope.Type, null);
 
         // Assert
         Assert.Same(filterInstance.Object, filter.Instance);
@@ -46,11 +46,11 @@ public class JobFilterFacts
     public void ExplicitOrderOverridesIJobFilter()
     {
         // Arrange
-        var filterInstance = new Mock<IJobFilter>();
+        Mock<IJobFilter> filterInstance = new();
         filterInstance.SetupGet(f => f.Order).Returns(42);
 
         // Act
-        var filter = new JobFilter(filterInstance.Object, JobFilterScope.Type, 2112);
+        JobFilter filter = new(filterInstance.Object, JobFilterScope.Type, 2112);
 
         // Assert
         Assert.Same(filterInstance.Object, filter.Instance);

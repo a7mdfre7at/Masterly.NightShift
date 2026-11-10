@@ -23,13 +23,13 @@ public class ActivityDispatcherFacts
     [Fact]
     public async Task Dispatch_ReturnsTheNewestEntries_WithNow()
     {
-        var context = new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("GET"), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => true }, new DashboardRequestStub("GET"), _storage.Object);
 
         await new ActivityDispatcher().Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
         Assert.Equal("application/json", context.Response.ContentType);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.True(json["now"].GetValue<long>() > 0);
         Assert.Equal(ActivityFeed.Enabled, json["enabled"].GetValue<bool>());
         Assert.Equal(3, json["entries"].AsArray().Count);
@@ -40,14 +40,14 @@ public class ActivityDispatcherFacts
     [Fact]
     public async Task Dispatch_HonoursCount_AndSince()
     {
-        var request = new DashboardRequestStub("GET");
+        DashboardRequestStub request = new("GET");
         request.Query["count"] = "10";
         request.Query["since"] = "1500";
-        var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);
 
         await new ActivityDispatcher().Dispatch(context);
 
-        var entries = JsonNode.Parse(context.Response.Text)["entries"];
+        JsonNode? entries = JsonNode.Parse(context.Response.Text)["entries"];
         Assert.Equal(2, entries.AsArray().Count);
         Assert.Equal("b", entries[1]["j"].GetValue<string>());
         _connection.Verify(x => x.GetRangeFromList(ActivityFeed.ListKey, 0, 9));
@@ -56,9 +56,9 @@ public class ActivityDispatcherFacts
     [Fact]
     public async Task Dispatch_ClampsTheCount()
     {
-        var request = new DashboardRequestStub("GET");
+        DashboardRequestStub request = new("GET");
         request.Query["count"] = "100000";
-        var context = new DashboardContextStub(new DashboardOptions(), request, _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), request, _storage.Object);
 
         await new ActivityDispatcher().Dispatch(context);
 

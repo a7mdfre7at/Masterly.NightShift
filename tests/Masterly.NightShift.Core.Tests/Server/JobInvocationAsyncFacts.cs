@@ -32,7 +32,7 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.AlwaysFailsAsync());
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(3, Volatile.Read(ref _calls));
@@ -43,7 +43,7 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SucceedsOnThirdCallAsync());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(3, result);
         Assert.Equal(3, Volatile.Read(ref _calls));
@@ -64,7 +64,7 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.AwaitedAsync());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("done", result);
         Assert.Equal(1, Volatile.Read(ref _entries));
@@ -89,7 +89,7 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.EchoAsync("original"));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("replaced", result);
         Assert.Equal(1, Volatile.Read(ref _entries));
@@ -101,7 +101,7 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.CountedSync());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(2, result);
         Assert.Equal(2, Volatile.Read(ref _calls));
@@ -109,7 +109,7 @@ public class JobInvocationAsyncFacts : IDisposable
 
     private object Perform()
     {
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
         return performer.Perform(_context.Object);
     }
 
@@ -118,7 +118,7 @@ public class JobInvocationAsyncFacts : IDisposable
         [RetryInProcess(2, DelayMilliseconds = 0)]
         public async Task AlwaysFailsAsync()
         {
-            var calls = Interlocked.Increment(ref _calls);
+            int calls = Interlocked.Increment(ref _calls);
             await Task.Yield();
 
             // Before the fix the chain restarted on every retry; stop the test from running forever
@@ -129,7 +129,7 @@ public class JobInvocationAsyncFacts : IDisposable
         [RetryInProcess(2, DelayMilliseconds = 0)]
         public async Task<int> SucceedsOnThirdCallAsync()
         {
-            var calls = Interlocked.Increment(ref _calls);
+            int calls = Interlocked.Increment(ref _calls);
             await Task.Yield();
 
             if (calls < 3) throw new InvalidOperationException("boom");
@@ -210,7 +210,7 @@ public class JobInvocationAsyncFacts : IDisposable
 
             await Task.Yield();
             Log.Add(_name + ":before");
-            var result = await invocation.ProceedAsync();
+            object? result = await invocation.ProceedAsync();
             Log.Add(_name + ":after");
             return result;
         }

@@ -34,7 +34,7 @@ public class JobExportDispatcherFacts
             Properties = new Dictionary<string, string> { { "RetryCount", "2" }, { JobNotes.ParameterName, SerializationHelper.Serialize(new List<JobNote> { new() { Timestamp = 100, Text = "hi", User = "me" } }, SerializationOption.User) } },
             History = [new() { StateName = "Failed", Reason = "boom", CreatedAt = DateTime.UtcNow, Data = new Dictionary<string, string>() }],
         });
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/7", "/jobs/export/(?<JobId>.+)")
         };
@@ -42,7 +42,7 @@ public class JobExportDispatcherFacts
         await new JobExportDispatcher().Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Equal("7", json["id"].GetValue<string>());
         Assert.Equal("Failed", json["state"].GetValue<string>());
         Assert.Equal("Connect", json["job"]["method"].GetValue<string>());
@@ -72,7 +72,7 @@ public class JobExportDispatcherFacts
             },
             History = [],
         });
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/8", "/jobs/export/(?<JobId>.+)")
         };
@@ -81,7 +81,7 @@ public class JobExportDispatcherFacts
 
         Assert.Equal(200, context.Response.StatusCode);
         Assert.DoesNotContain("hunter2", context.Response.Text);
-        var json = JsonNode.Parse(context.Response.Text);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
         Assert.Equal("Connect", json["parameters"]["DBG_Method"].GetValue<string>());
         Assert.Null(json["parameters"]["DBG_Args"]);
         Assert.Null(json["parameters"]["DBG_Payload"]);
@@ -91,7 +91,7 @@ public class JobExportDispatcherFacts
     public async Task JobExport_DecodesAnEncodedSlashInTheJobId()
     {
         _monitor.Setup(x => x.JobDetails("tenant/9")).Returns((JobDetailsDto)null);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/tenant%2F9", "/jobs/export/(?<JobId>.+)")
         };
@@ -104,7 +104,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task JobExport_Answers404_ForUnknownJobs()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/404", "/jobs/export/(?<JobId>.+)")
         };
@@ -117,16 +117,16 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesCsv_PagingThroughTheList()
     {
-        var failed = Enumerable.Range(1, 600).Select(i => new KeyValuePair<string, FailedJobDto>(i.ToString(), new FailedJobDto
+        List<KeyValuePair<string, FailedJobDto>> failed = [.. Enumerable.Range(1, 600).Select(i => new KeyValuePair<string, FailedJobDto>(i.ToString(), new FailedJobDto
         {
             Job = Job.FromExpression(() => Connect("h", "p")),
             InFailedState = true,
             FailedAt = new DateTime(2026, 11, 5, 0, 0, 0, DateTimeKind.Utc).AddSeconds(i),
             ExceptionType = "System.TimeoutException",
             ExceptionMessage = i == 1 ? "a \"quoted\", message\nwith a newline" : "=cmd()",
-        })).ToList();
+        }))];
         _monitor.Setup(x => x.FailedJobs(It.IsAny<int>(), It.IsAny<int>())).Returns<int, int>((from, count) => new JobList<FailedJobDto>(failed.Skip(from).Take(count)));
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/failed/export", "/jobs/failed/export")
         };
@@ -135,7 +135,7 @@ public class JobExportDispatcherFacts
 
         Assert.Equal(200, context.Response.StatusCode);
         Assert.StartsWith("text/csv", context.Response.ContentType);
-        var lines = context.Response.Text.Split(["\r\n"], StringSplitOptions.RemoveEmptyEntries);
+        string[] lines = context.Response.Text.Split(["\r\n"], StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal("Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage", lines[0]);
         Assert.Equal(601, lines.Length);
         Assert.Contains("\"a \"\"quoted\"\", message", context.Response.Text);
@@ -149,7 +149,7 @@ public class JobExportDispatcherFacts
     public async Task ListExport_UsesTheQueue_ForEnqueuedJobs()
     {
         _monitor.Setup(x => x.EnqueuedJobs("emails", 0, 500)).Returns(new JobList<EnqueuedJobDto>([new KeyValuePair<string, EnqueuedJobDto>("1", new EnqueuedJobDto { State = "Enqueued", EnqueuedAt = DateTime.UtcNow })]));
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/enqueued/export/emails", "/jobs/enqueued/export/(?<Queue>.+)")
         };
@@ -168,7 +168,7 @@ public class JobExportDispatcherFacts
             "{\"t\":2000,\"s\":2,\"c\":\"loaded\"}",
             "{\"t\":1000,\"s\":1,\"l\":\"Info\",\"m\":\"starting\"}",
         ]);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/export/8", "/jobs/export/(?<JobId>.+)")
         };
@@ -176,7 +176,7 @@ public class JobExportDispatcherFacts
         await new JobExportDispatcher().Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
-        var console = JsonNode.Parse(context.Response.Text)["console"].AsArray();
+        JsonArray console = JsonNode.Parse(context.Response.Text)["console"].AsArray();
         Assert.Equal(2, console.Count);
         Assert.Equal("starting", console[0]["message"].GetValue<string>());
         Assert.Equal("Info", console[0]["level"].GetValue<string>());
@@ -189,7 +189,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesSucceededJobs_WithTheirDurationInSeconds()
     {
-        var at = new DateTime(2026, 11, 5, 1, 0, 0, DateTimeKind.Utc);
+        DateTime at = new(2026, 11, 5, 1, 0, 0, DateTimeKind.Utc);
         _monitor.Setup(x => x.SucceededJobs(0, 500)).Returns(new JobList<SucceededJobDto>(
         [
             new KeyValuePair<string, SucceededJobDto>("1", new SucceededJobDto { InSucceededState = true, SucceededAt = at, TotalDuration = 1500 }),
@@ -197,7 +197,7 @@ public class JobExportDispatcherFacts
             new KeyValuePair<string, SucceededJobDto>("3", null),
         ]));
 
-        var lines = await ExportAsync("succeeded", "/jobs/succeeded/export");
+        string[] lines = await ExportAsync("succeeded", "/jobs/succeeded/export");
 
         Assert.Equal(new[]
         {
@@ -211,16 +211,16 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesScheduledJobs_WithTheDelayUntilTheyRun()
     {
-        var enqueueAt = DateTime.UtcNow.AddHours(1);
+        DateTime enqueueAt = DateTime.UtcNow.AddHours(1);
         _monitor.Setup(x => x.ScheduledJobs(0, 500)).Returns(new JobList<ScheduledJobDto>(
         [
             new KeyValuePair<string, ScheduledJobDto>("1", new ScheduledJobDto { InScheduledState = true, EnqueueAt = enqueueAt }),
             new KeyValuePair<string, ScheduledJobDto>("2", null),
         ]));
 
-        var lines = await ExportAsync("scheduled", "/jobs/scheduled/export");
+        string[] lines = await ExportAsync("scheduled", "/jobs/scheduled/export");
 
-        var fields = lines[1].Split(',');
+        string[] fields = lines[1].Split(',');
         Assert.Equal("1", fields[0]);
         Assert.Equal("Scheduled", fields[1]);
         Assert.Equal(enqueueAt.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture), fields[3]);
@@ -231,16 +231,16 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesProcessingJobs_WithTheElapsedTimeAndTheServer()
     {
-        var startedAt = DateTime.UtcNow.AddMinutes(-1);
+        DateTime startedAt = DateTime.UtcNow.AddMinutes(-1);
         _monitor.Setup(x => x.ProcessingJobs(0, 500)).Returns(new JobList<ProcessingJobDto>(
         [
             new KeyValuePair<string, ProcessingJobDto>("1", new ProcessingJobDto { InProcessingState = true, StartedAt = startedAt, ServerId = "web-1:42" }),
             new KeyValuePair<string, ProcessingJobDto>("2", new ProcessingJobDto { InProcessingState = false }),
         ]));
 
-        var lines = await ExportAsync("processing", "/jobs/processing/export");
+        string[] lines = await ExportAsync("processing", "/jobs/processing/export");
 
-        var fields = lines[1].Split(',');
+        string[] fields = lines[1].Split(',');
         Assert.Equal("Processing", fields[1]);
         Assert.InRange(double.Parse(fields[4], CultureInfo.InvariantCulture), 59, 120);
         // The server has its own column; it was written under ExceptionType
@@ -252,7 +252,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesDeletedJobs_WhenTheMonitorListsThem()
     {
-        var monitor = new Mock<JobStorageMonitor>();
+        Mock<JobStorageMonitor> monitor = new();
         monitor.Setup(x => x.DeletedJobs(0, 500)).Returns(new JobList<DeletedJobDto>(
         [
             new KeyValuePair<string, DeletedJobDto>("1", new DeletedJobDto { InDeletedState = true, DeletedAt = new DateTime(2026, 11, 5, 2, 0, 0, DateTimeKind.Utc) }),
@@ -260,7 +260,7 @@ public class JobExportDispatcherFacts
         ]));
         _storage.Setup(x => x.GetMonitoringApi()).Returns(monitor.Object);
 
-        var lines = await ExportAsync("deleted", "/jobs/deleted/export");
+        string[] lines = await ExportAsync("deleted", "/jobs/deleted/export");
 
         Assert.Equal(new[]
         {
@@ -273,7 +273,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesOnlyTheHeader_ForDeletedJobs_WhenTheMonitorCanNotListThem()
     {
-        var lines = await ExportAsync("deleted", "/jobs/deleted/export");
+        string[] lines = await ExportAsync("deleted", "/jobs/deleted/export");
 
         Assert.Equal(new[] { "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage" }, lines);
     }
@@ -281,7 +281,7 @@ public class JobExportDispatcherFacts
     [Fact]
     public async Task ListExport_WritesOnlyTheHeader_ForAnUnknownList()
     {
-        var lines = await ExportAsync("archived", "/jobs/archived/export");
+        string[] lines = await ExportAsync("archived", "/jobs/archived/export");
 
         Assert.Equal(new[] { "Id,State,Job,Time,Seconds,Server,ExceptionType,ExceptionMessage" }, lines);
         _monitor.Verify(x => x.FailedJobs(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
@@ -296,9 +296,9 @@ public class JobExportDispatcherFacts
             new KeyValuePair<string, FailedJobDto>("1", new FailedJobDto { InFailedState = true, ExceptionType = "System.Exception", ExceptionMessage = new string('x', 5000) }),
         ]));
 
-        var lines = await ExportAsync("failed", "/jobs/failed/export");
+        string[] lines = await ExportAsync("failed", "/jobs/failed/export");
 
-        var fields = lines[1].Split(',');
+        string[] fields = lines[1].Split(',');
         Assert.Equal("System.Exception", fields[6]);
         Assert.Equal(new string('x', JobListExportDispatcher.MaxMessageLength) + "\u2026", fields[7]);
     }
@@ -307,20 +307,20 @@ public class JobExportDispatcherFacts
     public async Task ListExport_WritesEachPage_AsSoonAsItIsRead()
     {
         // The whole list (up to 10,000 jobs) was held in one string before anything was sent
-        var writes = new List<int>();
+        List<int> writes = [];
         _monitor.Setup(x => x.SucceededJobs(It.IsAny<int>(), It.IsAny<int>())).Returns<int, int>((from, count) =>
         {
             writes.Add(from);
             return new JobList<SucceededJobDto>(Enumerable.Range(from, from < 1000 ? count : 10).Select(i => new KeyValuePair<string, SucceededJobDto>(i.ToString(), new SucceededJobDto())));
         });
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match("/jobs/succeeded/export", "/jobs/succeeded/export")
         };
 
         await new JobListExportDispatcher("succeeded").Dispatch(context);
 
-        var chunks = context.Response.Writes;
+        List<string> chunks = context.Response.Writes;
 
         Assert.Equal(new[] { 0, 500, 1000 }, writes);
         // The header, then one write per page
@@ -330,7 +330,7 @@ public class JobExportDispatcherFacts
 
     private async Task<string[]> ExportAsync(string state, string path)
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object)
         {
             UriMatch = Regex.Match(path, path)
         };

@@ -5,7 +5,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void Ctor_InitializeProperties_WithCorrectValues()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Equal(Math.Min(Environment.ProcessorCount * 5, 20), options.WorkerCount);
         Assert.Equal(EnqueuedState.DefaultQueue, options.Queues[0]);
@@ -19,7 +19,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void WorkerCount_ThrowsAnException_WhenValueIsEqualToZero()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.WorkerCount = 0);
@@ -28,7 +28,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void WorkerCount_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.WorkerCount = -1);
@@ -37,7 +37,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void Queues_ThrowsAnException_WhenValueIsNull()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentNullException>(
             () => options.Queues = null);
@@ -46,7 +46,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void Queues_ThrowsAnException_WhenGivenArrayIsEmpty()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentException>(
             () => options.Queues = []);
@@ -55,7 +55,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerTimeout_ThrowsAnException_WhenValueIsTooLarge()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerTimeout = TimeSpan.FromHours(25));
@@ -64,7 +64,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerTimeout_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerTimeout = TimeSpan.FromHours(-1));
@@ -73,7 +73,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerTimeout_ThrowsAnException_WhenValueIsInfinite()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerTimeout = Timeout.InfiniteTimeSpan);
@@ -82,7 +82,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerCheckInterval_ThrowsAnException_WhenValueIsTooLarge()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerCheckInterval = TimeSpan.FromHours(25));
@@ -91,7 +91,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerCheckInterval_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerCheckInterval = TimeSpan.FromHours(-1));
@@ -100,7 +100,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ServerCheckInterval_ThrowsAnException_WhenValueIsInfinite()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ServerCheckInterval = Timeout.InfiniteTimeSpan);
@@ -109,7 +109,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void HeartbeatInterval_ThrowsAnException_WhenValueIsTooLarge()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.HeartbeatInterval = TimeSpan.FromHours(25));
@@ -118,7 +118,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void HeartbeatInterval_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.HeartbeatInterval = TimeSpan.FromHours(-1));
@@ -127,7 +127,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void HeartbeatInterval_ThrowsAnException_WhenValueIsInfinite()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.HeartbeatInterval = Timeout.InfiniteTimeSpan);
@@ -136,7 +136,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ShutdownTimeout_ThrowsAnException_WhenValueIsTooLarge()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ShutdownTimeout = TimeSpan.FromMilliseconds((double)int.MaxValue + 1));
@@ -145,7 +145,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ShutdownTimeout_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.ShutdownTimeout = TimeSpan.FromHours(-1));
@@ -154,7 +154,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void ShutdownTimeout_DoesNotThrowAnException_WhenValueIsInfinite()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         options.ShutdownTimeout = Timeout.InfiniteTimeSpan;
 
@@ -164,7 +164,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void SchedulePollingInterval_ThrowsAnException_WhenValueIsTooLarge()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.SchedulePollingInterval = TimeSpan.FromMilliseconds((double)int.MaxValue + 1));
@@ -173,7 +173,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void SchedulePollingInterval_ThrowsAnException_WhenValueIsNegative()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.SchedulePollingInterval = TimeSpan.FromHours(-1));
@@ -182,7 +182,7 @@ public class BackgroundJobServerOptionsFacts
     [Fact]
     public void SchedulePollingInterval_ThrowsAnException_WhenValueIsInfinite()
     {
-        var options = CreateOptions();
+        BackgroundJobServerOptions options = CreateOptions();
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => options.SchedulePollingInterval = Timeout.InfiniteTimeSpan);

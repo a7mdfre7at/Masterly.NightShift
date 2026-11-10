@@ -36,9 +36,9 @@ public class RunWindowAttributeFacts : IDisposable
     [InlineData("2026-11-04 23:30", false, "2026-11-05 09:00")]
     public void GetNextStart_ForADaytimeWindow(string now, bool allowed, string next)
     {
-        var attribute = new RunWindowAttribute("09:00-17:00");
+        RunWindowAttribute attribute = new("09:00-17:00");
 
-        var result = attribute.GetNextStart(Utc(now), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc(now), out bool allowedNow);
 
         Assert.Equal(allowed, allowedNow);
         Assert.Equal(Utc(next), result);
@@ -51,9 +51,9 @@ public class RunWindowAttributeFacts : IDisposable
     [InlineData("2026-11-05 12:00", false, "2026-11-05 22:00")]
     public void GetNextStart_ForAnOvernightWindow(string now, bool allowed, string next)
     {
-        var attribute = new RunWindowAttribute("22:00-06:00");
+        RunWindowAttribute attribute = new("22:00-06:00");
 
-        var result = attribute.GetNextStart(Utc(now), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc(now), out bool allowedNow);
 
         Assert.Equal(allowed, allowedNow);
         Assert.Equal(Utc(next), result);
@@ -62,10 +62,10 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void GetNextStart_SkipsWeekends_WhenAsked()
     {
-        var attribute = new RunWindowAttribute("09:00-17:00") { WeekdaysOnly = true };
+        RunWindowAttribute attribute = new("09:00-17:00") { WeekdaysOnly = true };
 
         // Saturday 2026-11-07 10:00 -> Monday 09:00
-        var result = attribute.GetNextStart(Utc("2026-11-07 10:00"), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc("2026-11-07 10:00"), out bool allowedNow);
 
         Assert.False(allowedNow);
         Assert.Equal(Utc("2026-11-09 09:00"), result);
@@ -74,14 +74,14 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void GetNextStart_HonoursTheTimeZone()
     {
-        var attribute = new RunWindowAttribute("09:00-17:00", PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
+        RunWindowAttribute attribute = new("09:00-17:00", PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin");
 
         // 08:30 UTC is 09:30 in Berlin in November: allowed
-        attribute.GetNextStart(Utc("2026-11-04 08:30"), out var allowedNow);
+        attribute.GetNextStart(Utc("2026-11-04 08:30"), out bool allowedNow);
         Assert.True(allowedNow);
 
         // 07:30 UTC is 08:30 in Berlin: next start is 09:00 Berlin = 08:00 UTC
-        var next = attribute.GetNextStart(Utc("2026-11-04 07:30"), out allowedNow);
+        DateTime next = attribute.GetNextStart(Utc("2026-11-04 07:30"), out allowedNow);
         Assert.False(allowedNow);
         Assert.Equal(Utc("2026-11-04 08:00"), next);
     }
@@ -92,9 +92,9 @@ public class RunWindowAttributeFacts : IDisposable
     [InlineData("2026-11-04 01:59", true, "2026-11-04 01:59")]
     public void Blackout_InvertsTheWindow(string now, bool allowed, string next)
     {
-        var attribute = new BlackoutAttribute("02:00-04:00");
+        BlackoutAttribute attribute = new("02:00-04:00");
 
-        var result = attribute.GetNextStart(Utc(now), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc(now), out bool allowedNow);
 
         Assert.Equal(allowed, allowedNow);
         Assert.Equal(Utc(next), result);
@@ -107,9 +107,9 @@ public class RunWindowAttributeFacts : IDisposable
     [InlineData("2026-11-08 12:00", true, "2026-11-08 12:00")]  // Sunday: no blackout
     public void Blackout_AppliesOnWeekdaysOnly_WhenAsked(string now, bool allowed, string next)
     {
-        var attribute = new BlackoutAttribute("09:00-17:00") { WeekdaysOnly = true };
+        BlackoutAttribute attribute = new("09:00-17:00") { WeekdaysOnly = true };
 
-        var result = attribute.GetNextStart(Utc(now), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc(now), out bool allowedNow);
 
         Assert.Equal(allowed, allowedNow);
         Assert.Equal(Utc(next), result);
@@ -122,9 +122,9 @@ public class RunWindowAttributeFacts : IDisposable
     [InlineData("2026-11-09 03:00", false, "2026-11-09 06:00")] // Monday early morning
     public void Blackout_WithWeekdaysOnly_DecidesAnOvernightWindowByTheDayOfTheMoment(string now, bool allowed, string next)
     {
-        var attribute = new BlackoutAttribute("22:00-06:00") { WeekdaysOnly = true };
+        BlackoutAttribute attribute = new("22:00-06:00") { WeekdaysOnly = true };
 
-        var result = attribute.GetNextStart(Utc(now), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc(now), out bool allowedNow);
 
         Assert.Equal(allowed, allowedNow);
         Assert.Equal(Utc(next), result);
@@ -133,9 +133,9 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void Blackout_WithoutWeekdaysOnly_AppliesAtTheWeekendToo()
     {
-        var attribute = new BlackoutAttribute("09:00-17:00");
+        BlackoutAttribute attribute = new("09:00-17:00");
 
-        var result = attribute.GetNextStart(Utc("2026-11-07 10:00"), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc("2026-11-07 10:00"), out bool allowedNow);
 
         Assert.False(allowedNow);
         Assert.Equal(Utc("2026-11-07 17:00"), result);
@@ -144,10 +144,10 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void GetNextStart_OpensAnOvernightWeekdayWindow_AtMidnightOnMonday()
     {
-        var attribute = new RunWindowAttribute("22:00-06:00") { WeekdaysOnly = true };
+        RunWindowAttribute attribute = new("22:00-06:00") { WeekdaysOnly = true };
 
         // Sunday 23:00 is inside the window but on a Sunday; Monday 00:00 is inside it and on a weekday
-        var result = attribute.GetNextStart(Utc("2026-11-08 23:00"), out var allowedNow);
+        DateTime result = attribute.GetNextStart(Utc("2026-11-08 23:00"), out bool allowedNow);
 
         Assert.False(allowedNow);
         Assert.Equal(Utc("2026-11-09 00:00"), result);
@@ -172,16 +172,16 @@ public class RunWindowAttributeFacts : IDisposable
     public void OnStateElection_ReschedulesJobsOutsideTheWindow_AndLeavesOthersAlone()
     {
         RunWindowAttribute.Clock = () => Utc("2026-11-04 20:00");
-        var attribute = new RunWindowAttribute("09:00-17:00");
+        RunWindowAttribute attribute = new("09:00-17:00");
 
         attribute.OnStateElection(_context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
         Assert.Equal(Utc("2026-11-05 09:00"), scheduled.EnqueueAt);
         Assert.Contains("09:00-17:00", scheduled.Reason);
 
         RunWindowAttribute.Clock = () => Utc("2026-11-04 10:00");
-        var inside = new ElectStateContextMock();
+        ElectStateContextMock inside = new();
         inside.ApplyContext.BackgroundJob.Id = "2";
         inside.ApplyContext.NewStateObject = new ProcessingState("srv", "w");
 
@@ -199,7 +199,7 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void TimeZoneId_IsTheGivenTimeZone()
     {
-        var timeZoneId = PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin";
+        string timeZoneId = PlatformHelper.IsRunningOnWindows() ? "W. Europe Standard Time" : "Europe/Berlin";
 
         Assert.Equal(timeZoneId, new RunWindowAttribute("09:00-17:00", timeZoneId).TimeZoneId);
     }
@@ -208,7 +208,7 @@ public class RunWindowAttributeFacts : IDisposable
     public void OnStateElection_IgnoresOtherStates()
     {
         RunWindowAttribute.Clock = () => Utc("2026-11-04 20:00");
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = "3";
         context.ApplyContext.NewStateObject = new EnqueuedState();
 
@@ -221,9 +221,9 @@ public class RunWindowAttributeFacts : IDisposable
     public void GetNextStart_ReturnsTheEndOfTheGap_WhenTheWindowOpensInTheSkippedHour()
     {
         // On 2026-03-29 Berlin clocks jump from 02:00 to 03:00 (01:00 UTC), so 02:00 doesn't exist that night
-        var attribute = new RunWindowAttribute("02:00-04:00", BerlinTimeZoneId);
+        RunWindowAttribute attribute = new("02:00-04:00", BerlinTimeZoneId);
 
-        var next = attribute.GetNextStart(Utc("2026-03-29 00:30"), out var allowed);
+        DateTime next = attribute.GetNextStart(Utc("2026-03-29 00:30"), out bool allowed);
 
         Assert.False(allowed);
         Assert.Equal(Utc("2026-03-29 01:00"), next);
@@ -232,9 +232,9 @@ public class RunWindowAttributeFacts : IDisposable
     [Fact]
     public void GetNextStart_ReturnsTheEndOfTheGap_WhenABlackoutEndsInTheSkippedHour()
     {
-        var attribute = new BlackoutAttribute("00:00-02:30", BerlinTimeZoneId);
+        BlackoutAttribute attribute = new("00:00-02:30", BerlinTimeZoneId);
 
-        var next = attribute.GetNextStart(Utc("2026-03-29 00:30"), out var allowed);
+        DateTime next = attribute.GetNextStart(Utc("2026-03-29 00:30"), out bool allowed);
 
         Assert.False(allowed);
         Assert.Equal(Utc("2026-03-29 01:00"), next);
@@ -244,13 +244,13 @@ public class RunWindowAttributeFacts : IDisposable
     public void OnStateElection_SchedulesTheJob_WhenTheWindowOpensInTheSkippedHour()
     {
         RunWindowAttribute.Clock = () => Utc("2026-03-29 00:30");
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = "4";
         context.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
 
         new RunWindowAttribute("02:00-04:00", BerlinTimeZoneId).OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal(Utc("2026-03-29 01:00"), scheduled.EnqueueAt);
     }
 
@@ -259,9 +259,9 @@ public class RunWindowAttributeFacts : IDisposable
     {
         // On 2026-10-25 Berlin clocks go back from 03:00 CEST to 02:00 CET (01:00 UTC): 02:30 happens at 00:30 UTC
         // and again at 01:30 UTC. At 02:10 CEST the window opens twenty minutes later, not an hour and twenty.
-        var attribute = new RunWindowAttribute("02:30-04:00", BerlinTimeZoneId);
+        RunWindowAttribute attribute = new("02:30-04:00", BerlinTimeZoneId);
 
-        var next = attribute.GetNextStart(Utc("2026-10-25 00:10"), out var allowed);
+        DateTime next = attribute.GetNextStart(Utc("2026-10-25 00:10"), out bool allowed);
 
         Assert.False(allowed);
         Assert.Equal(Utc("2026-10-25 00:30"), next);
@@ -271,9 +271,9 @@ public class RunWindowAttributeFacts : IDisposable
     public void GetNextStart_PicksTheSecondPass_WhenTheFirstOneIsOver()
     {
         // 01:10 UTC is 02:10 CET, the second pass of that hour: the blackout ends at the second 02:30
-        var attribute = new BlackoutAttribute("02:00-02:30", BerlinTimeZoneId);
+        BlackoutAttribute attribute = new("02:00-02:30", BerlinTimeZoneId);
 
-        var next = attribute.GetNextStart(Utc("2026-10-25 01:10"), out var allowed);
+        DateTime next = attribute.GetNextStart(Utc("2026-10-25 01:10"), out bool allowed);
 
         Assert.False(allowed);
         Assert.Equal(Utc("2026-10-25 01:30"), next);
@@ -283,13 +283,13 @@ public class RunWindowAttributeFacts : IDisposable
     public void OnStateElection_SchedulesTheJob_ForTheFirstPassOfTheRepeatedHour()
     {
         RunWindowAttribute.Clock = () => Utc("2026-10-25 00:10");
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.BackgroundJob.Id = "5";
         context.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
 
         new RunWindowAttribute("02:30-04:00", BerlinTimeZoneId).OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal(Utc("2026-10-25 00:30"), scheduled.EnqueueAt);
     }
 

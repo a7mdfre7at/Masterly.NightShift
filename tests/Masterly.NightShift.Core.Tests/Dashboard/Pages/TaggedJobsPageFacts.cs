@@ -17,7 +17,7 @@ public class TaggedJobsPageFacts
     [Fact]
     public void Ctor_KeepsTheTag()
     {
-        var page = new TaggedJobsPage("Billing");
+        TaggedJobsPage page = new("Billing");
 
         Assert.Equal("Billing", page.Tag);
     }
@@ -25,7 +25,7 @@ public class TaggedJobsPageFacts
     [Fact]
     public void Render_WithoutJobs_ShowsTheEmptyMessageAndBreadcrumbs()
     {
-        var html = _renderer.Render(new TaggedJobsPage("urgent"));
+        string html = _renderer.Render(new TaggedJobsPage("urgent"));
 
         Assert.Contains($"<div class=\"hf-topbar-title\">{Encode(string.Format(Strings.TaggedJobsPage_Title, "urgent"))}</div>", html);
         Assert.Contains("href=\"/tags\"", html);
@@ -41,7 +41,7 @@ public class TaggedJobsPageFacts
         SetupJob("1");
         SetupJob("2");
 
-        var html = _renderer.Render(new TaggedJobsPage("Urgent"));
+        string html = _renderer.Render(new TaggedJobsPage("Urgent"));
 
         Assert.Contains("<span class=\"hf-tag hf-tag-lg\"><span class=\"glyphicon glyphicon-tag\"></span> Urgent <span class=\"hf-tag-count\">2</span></span>", html);
         Assert.Contains("<td class=\"min-width\"><a href=\"/jobs/details/1\">#1</a></td>", html);
@@ -59,7 +59,7 @@ public class TaggedJobsPageFacts
         _renderer.Request.Query["from"] = "0";
         _renderer.Request.Query["count"] = "10";
 
-        var html = _renderer.Render(new TaggedJobsPage("urgent"));
+        string html = _renderer.Render(new TaggedJobsPage("urgent"));
 
         Assert.Contains(Encode(string.Format(Strings.TaggedJobsPage_Expired, 1)), html);
         Assert.Contains("data-ajax=\"/tags/forget-expired/urgent?from=0&amp;count=10\"", html);
@@ -75,7 +75,7 @@ public class TaggedJobsPageFacts
         SetupTag("tags:urgent", "9");
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new TaggedJobsPage("urgent"));
+        string html = _renderer.Render(new TaggedJobsPage("urgent"));
 
         Assert.Contains(Encode(string.Format(Strings.TaggedJobsPage_Expired, 1)), html);
         Assert.Contains(Encode(Strings.TaggedJobsPage_NoJobs), html);

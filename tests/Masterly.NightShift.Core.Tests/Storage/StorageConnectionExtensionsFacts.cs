@@ -20,7 +20,7 @@ public class StorageConnectionExtensionsFacts
                 { "LastJobId", string.Empty}
             }).Verifiable();
 
-        var result = _connection.Object.GetRecurringJobs().Single();
+        RecurringJobDto result = _connection.Object.GetRecurringJobs().Single();
 
         Assert.Null(result.LastJobState);
         _connection.VerifyAll();
@@ -29,7 +29,7 @@ public class StorageConnectionExtensionsFacts
     [Fact]
     public void AcquireDistributedJobLock_AcquiresALock_WithTheCorrectResource()
     {
-        var timeout = TimeSpan.FromSeconds(5);
+        TimeSpan timeout = TimeSpan.FromSeconds(5);
 
         _connection.Object.AcquireDistributedJobLock("some-id", timeout);
 
@@ -42,7 +42,7 @@ public class StorageConnectionExtensionsFacts
     public void GetRecurringJobs_WithGivenIdentifiers_QueriesForCorrespondingJobs()
     {
         // Act
-        var result = _connection.Object.GetRecurringJobs(["a", "b"]);
+        List<RecurringJobDto> result = _connection.Object.GetRecurringJobs(["a", "b"]);
 
         // Assert
         Assert.Equal(2, result.Count);
@@ -66,7 +66,7 @@ public class StorageConnectionExtensionsFacts
                 { "CreatedAt", null }
             }).Verifiable();
 
-        var result = _connection.Object.GetRecurringJobs();
+        List<RecurringJobDto> result = _connection.Object.GetRecurringJobs();
         Assert.Null(result[0].LastExecution);
         Assert.Null(result[0].NextExecution);
         Assert.Null(result[0].CreatedAt);
@@ -82,7 +82,7 @@ public class StorageConnectionExtensionsFacts
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
             .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "Misfire", stored } });
 
-        var result = _connection.Object.GetRecurringJobs(["a"]).Single();
+        RecurringJobDto result = _connection.Object.GetRecurringJobs(["a"]).Single();
 
         Assert.Equal(expected, result.MisfireHandling);
     }
@@ -97,7 +97,7 @@ public class StorageConnectionExtensionsFacts
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
             .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "Misfire", stored } });
 
-        var result = _connection.Object.GetRecurringJobs(["a"]).Single();
+        RecurringJobDto result = _connection.Object.GetRecurringJobs(["a"]).Single();
 
         Assert.Equal(MisfireHandlingMode.Relaxed, result.MisfireHandling);
     }
@@ -108,7 +108,7 @@ public class StorageConnectionExtensionsFacts
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
             .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" } });
 
-        var result = _connection.Object.GetRecurringJobs(["a"]).Single();
+        RecurringJobDto result = _connection.Object.GetRecurringJobs(["a"]).Single();
 
         Assert.Equal(MisfireHandlingMode.Relaxed, result.MisfireHandling);
         Assert.False(result.Paused);
@@ -123,7 +123,7 @@ public class StorageConnectionExtensionsFacts
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
             .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "Paused", stored } });
 
-        var result = _connection.Object.GetRecurringJobs(["a"]).Single();
+        RecurringJobDto result = _connection.Object.GetRecurringJobs(["a"]).Single();
 
         Assert.Equal(expected, result.Paused);
     }

@@ -17,7 +17,7 @@ public class NavigationMenuFacts
     [Fact]
     public void Items_ListTheSectionsInOrder_WithTheirUrlsAndIcons()
     {
-        var items = CreateItems("/");
+        List<MenuItem> items = CreateItems("/");
 
         Assert.Equal(BuiltInUrls, items.Select(x => x.Url));
         Assert.Equal(
@@ -28,7 +28,7 @@ public class NavigationMenuFacts
     [Fact]
     public void Items_UseTheLocalizedSectionNames()
     {
-        var items = CreateItems("/");
+        List<MenuItem> items = CreateItems("/");
 
         Assert.Equal(
             [
@@ -43,7 +43,7 @@ public class NavigationMenuFacts
     [Fact]
     public void Items_CarryTheCountersShownInTheSidebar()
     {
-        var items = CreateItems("/").ToDictionary(x => x.Url);
+        Dictionary<string, MenuItem> items = CreateItems("/").ToDictionary(x => x.Url);
 
         Assert.Equal(
             [DashboardMetrics.EnqueuedCountOrNull, DashboardMetrics.FailedCountOrNull],
@@ -69,7 +69,7 @@ public class NavigationMenuFacts
     [InlineData("/audit", "/audit")]
     public void Items_ForARequestPath_MarkOnlyTheMatchingSectionActive(string path, string expectedUrl)
     {
-        var items = CreateItems(path);
+        List<MenuItem> items = CreateItems(path);
 
         Assert.Equal([expectedUrl], items.Where(x => x.Active).Select(x => x.Url));
     }
@@ -80,15 +80,15 @@ public class NavigationMenuFacts
     [InlineData("/servers/web-1")]
     public void Items_ForAPathOutsideTheSections_MarkNothingActive(string path)
     {
-        var items = CreateItems(path);
+        List<MenuItem> items = CreateItems(path);
 
         Assert.DoesNotContain(items, x => x.Active);
     }
 
     private static List<MenuItem> CreateItems(string path)
     {
-        var renderer = new PageRenderer();
-        var page = new TagsPage();
+        PageRenderer renderer = new();
+        TagsPage page = new();
         page.Assign(new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("GET", path), renderer.Storage.Object));
 
         return [.. NavigationMenu.Items

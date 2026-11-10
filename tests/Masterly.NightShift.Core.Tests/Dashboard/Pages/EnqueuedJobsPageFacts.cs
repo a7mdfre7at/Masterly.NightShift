@@ -12,7 +12,7 @@ public class EnqueuedJobsPageFacts
     [Fact]
     public void Render_WithoutEnqueuedJobs_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new EnqueuedJobsPage("critical"));
+        string html = _renderer.Render(new EnqueuedJobsPage("critical"));
 
         Assert.Contains(Encode(Strings.EnqueuedJobsPage_NoJobs), html);
         Assert.DoesNotContain("/jobs/enqueued/delete-all/", html);
@@ -23,7 +23,7 @@ public class EnqueuedJobsPageFacts
     {
         SetupJobs("my queue");
 
-        var html = _renderer.Render(new EnqueuedJobsPage("my queue"));
+        string html = _renderer.Render(new EnqueuedJobsPage("my queue"));
 
         Assert.Contains("data-ajax=\"/jobs/enqueued/delete-all/my%20queue\"", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
@@ -36,7 +36,7 @@ public class EnqueuedJobsPageFacts
     {
         SetupJobs("my queue");
 
-        var html = _renderer.Render(new EnqueuedJobsPage("my queue"));
+        string html = _renderer.Render(new EnqueuedJobsPage("my queue"));
 
         Assert.Contains("<button type=\"button\" class=\"btn btn-sm btn-default js-download\" data-url=\"/jobs/enqueued/export/my%20queue\" data-filename=\"nightshift-enqueued-jobs-my queue.csv\">", html);
         Assert.Contains(Encode(Strings.Common_DownloadCsv), html);
@@ -45,7 +45,7 @@ public class EnqueuedJobsPageFacts
     [Fact]
     public void Render_WithoutEnqueuedJobs_HasNoCsvButton()
     {
-        var html = _renderer.Render(new EnqueuedJobsPage("critical"));
+        string html = _renderer.Render(new EnqueuedJobsPage("critical"));
 
         Assert.DoesNotContain("/jobs/enqueued/export/", html);
     }
@@ -56,7 +56,7 @@ public class EnqueuedJobsPageFacts
         SetupJobs("critical");
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new EnqueuedJobsPage("critical"));
+        string html = _renderer.Render(new EnqueuedJobsPage("critical"));
 
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
         Assert.DoesNotContain("/jobs/enqueued/delete-all/", html);

@@ -30,7 +30,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTheTypeIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new Job(null, _method, _arguments));
 
@@ -40,7 +40,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTheMethodIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new Job(_type, null, _arguments));
 
@@ -50,7 +50,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenTheTypeDoesNotContainTheGivenMethod()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new Job(typeof(Job), _method, _arguments));
 
         Assert.Equal("type", exception.ParamName);
@@ -59,7 +59,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenArgumentsArrayIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             // ReSharper disable once AssignNullToNotNullAttribute
             () => new Job(_type, _method, (object[])null));
 
@@ -69,14 +69,14 @@ public class JobFacts
     [Fact]
     public void Ctor_DoesNotThrow_WhenQueueIsNull()
     {
-        var job = new Job(_type, _method, _arguments, null);
+        Job job = new(_type, _method, _arguments, null);
         Assert.NotNull(job);
     }
 
     [Fact]
     public void Ctor_ThrowsAnException_WhenQueueValidationFails()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new Job(_type, _method, _arguments, "&^*%"));
 
         Assert.Equal("queue", exception.ParamName);
@@ -85,7 +85,7 @@ public class JobFacts
     [Fact]
     public void Ctor_InitializesAllProperties()
     {
-        var job = new Job(_type, _method, _arguments);
+        Job job = new(_type, _method, _arguments);
 
         Assert.Same(_type, job.Type);
         Assert.Same(_method, job.Method);
@@ -96,7 +96,7 @@ public class JobFacts
     [Fact]
     public void Ctor_WithQueue_InitializesAllTheProperties()
     {
-        var job = new Job(_type, _method, _arguments, _queue);
+        Job job = new(_type, _method, _arguments, _queue);
 
         Assert.Same(_type, job.Type);
         Assert.Same(_method, job.Method);
@@ -107,7 +107,7 @@ public class JobFacts
     [Fact]
     public void Ctor_HasDefaultValueForArguments()
     {
-        var job = new Job(_type, _method);
+        Job job = new(_type, _method);
 
         Assert.Empty(InvocationData.SerializeArguments(job.Method, job.Args));
     }
@@ -115,7 +115,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenArgumentCountIsNotEqualToParameterCount()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new Job(_type, _method, ["hello!"]));
 
         Assert.Contains("count", exception.Message);
@@ -124,7 +124,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenMethodContains_UnassignedGenericTypeParameters()
     {
-        var method = _type.GetMethod("GenericMethod");
+        MethodInfo? method = _type.GetMethod("GenericMethod");
 
         Assert.Throws<NotSupportedException>(
             () => new Job(_type, method, ["hello!"]));
@@ -133,10 +133,10 @@ public class JobFacts
     [Fact]
     public void Ctor_CanUsePropertyValues_OfAnotherJob_AsItsArguments()
     {
-        var method = _type.GetMethod("MethodWithArguments");
-        var job = new Job(_type, method, "hello", 456);
+        MethodInfo? method = _type.GetMethod("MethodWithArguments");
+        Job job = new(_type, method, "hello", 456);
 
-        var anotherJob = new Job(job.Type, job.Method, job.Args);
+        Job anotherJob = new(job.Type, job.Method, job.Args);
 
         Assert.Equal(_type, anotherJob.Type);
         Assert.Equal(method, anotherJob.Method);
@@ -147,7 +147,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_Action_ThrowsException_WhenNullExpressionProvided()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => Job.FromExpression((Expression<Action>)null));
 
         Assert.Equal("methodCall", exception.ParamName);
@@ -156,7 +156,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_Action_DoesNotThrowAnException_WhenNullQueueProvided()
     {
-        var job = Job.FromExpression(() => Console.WriteLine(), null);
+        Job job = Job.FromExpression(() => Console.WriteLine(), null);
         Assert.NotNull(job);
     }
 
@@ -171,7 +171,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_Action_ReturnsTheJob()
     {
-        var job = Job.FromExpression(() => Console.WriteLine());
+        Job job = Job.FromExpression(() => Console.WriteLine());
 
         Assert.Equal(typeof(Console), job.Type);
         Assert.Equal("WriteLine", job.Method.Name);
@@ -181,7 +181,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_ActionWithQueue_ReturnsTheJobWithQueueSet()
     {
-        var job = Job.FromExpression(() => Console.WriteLine(), "critical");
+        Job job = Job.FromExpression(() => Console.WriteLine(), "critical");
 
         Assert.Equal(typeof(Console), job.Type);
         Assert.Equal("WriteLine", job.Method.Name);
@@ -191,7 +191,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_Func_ThrowsException_WhenNullExpressionProvided()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => Job.FromExpression((Expression<Func<Task>>)null));
 
         Assert.Equal("methodCall", exception.ParamName);
@@ -200,14 +200,14 @@ public class JobFacts
     [Fact]
     public void FromExpression_Func_DoesNotThrowAnException_WhenNullQueueProvided()
     {
-        var job = Job.FromExpression(() => AsyncMethod(), null);
+        Job job = Job.FromExpression(() => AsyncMethod(), null);
         Assert.NotNull(job);
     }
 
     [Fact]
     public void FromExpression_Func_ReturnsTheJob()
     {
-        var job = Job.FromExpression(() => AsyncMethod());
+        Job job = Job.FromExpression(() => AsyncMethod());
 
         Assert.Equal(typeof(JobFacts), job.Type);
         Assert.Equal("AsyncMethod", job.Method.Name);
@@ -217,7 +217,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_FuncWithQueue_ReturnsTheJobWithQueueSet()
     {
-        var job = Job.FromExpression(() => AsyncMethod(), "critical");
+        Job job = Job.FromExpression(() => AsyncMethod(), "critical");
 
         Assert.Equal(typeof(JobFacts), job.Type);
         Assert.Equal("AsyncMethod", job.Method.Name);
@@ -227,10 +227,10 @@ public class JobFacts
     [Fact]
     public void FromExpression_ConvertsDateTimeRepresentation_ToIso8601Format()
     {
-        var date = new DateTime(2014, 5, 30, 12, 0, 0, 777);
-        var expected = date.ToString("o");
+        DateTime date = new(2014, 5, 30, 12, 0, 0, 777);
+        string expected = date.ToString("o");
 
-        var job = Job.FromExpression(() => MethodWithDateTimeArgument(date));
+        Job job = Job.FromExpression(() => MethodWithDateTimeArgument(date));
 
         Assert.Equal(expected, InvocationData.SerializeArguments(job.Method, job.Args)[0]);
     }
@@ -238,7 +238,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_ConvertsArgumentsToJson()
     {
-        var job = Job.FromExpression(() => MethodWithArguments("123", 1));
+        Job job = Job.FromExpression(() => MethodWithArguments("123", 1));
 
         Assert.Equal("\"123\"", InvocationData.SerializeArguments(job.Method, job.Args)[0]);
         Assert.Equal("1", InvocationData.SerializeArguments(job.Method, job.Args)[1]);
@@ -247,7 +247,7 @@ public class JobFacts
     [Fact]
     public void FromExpression_ConvertsObjectArgumentsToJson()
     {
-        var job = Job.FromExpression(() => MethodWithObjectArgument("hello"));
+        Job job = Job.FromExpression(() => MethodWithObjectArgument("hello"));
 
         Assert.Equal("\"hello\"", InvocationData.SerializeArguments(job.Method, job.Args)[0]);
     }
@@ -255,13 +255,13 @@ public class JobFacts
     [Fact]
     public void FromExpression_ReturnValueDoesNotDepend_OnCurrentCulture()
     {
-        var date = DateTime.UtcNow;
+        DateTime date = DateTime.UtcNow;
 
         CultureHelper.SetCurrentCulture("en-US");
-        var enJob = Job.FromExpression(() => MethodWithDateTimeArgument(date));
+        Job enJob = Job.FromExpression(() => MethodWithDateTimeArgument(date));
 
         CultureHelper.SetCurrentCulture("ru-RU");
-        var ruJob = Job.FromExpression(() => MethodWithDateTimeArgument(date));
+        Job ruJob = Job.FromExpression(() => MethodWithDateTimeArgument(date));
 
         Assert.Equal(InvocationData.SerializeArguments(enJob.Method, enJob.Args)[0], InvocationData.SerializeArguments(ruJob.Method, ruJob.Args)[0]);
     }
@@ -269,7 +269,7 @@ public class JobFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenMethodIsAsyncVoid()
     {
-        var method = typeof(JobFacts).GetMethod(nameof(AsyncVoidMethod));
+        MethodInfo? method = typeof(JobFacts).GetMethod(nameof(AsyncVoidMethod));
 
         Assert.Throws<NotSupportedException>(
             () => new Job(typeof(JobFacts), method, []));
@@ -278,7 +278,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_Action_ThrowsException_WhenNullExpressionIsProvided()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => Job.FromExpression((Expression<Action<JobFacts>>)null));
 
         Assert.Equal("methodCall", exception.ParamName);
@@ -287,14 +287,14 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_Action_DoesNotThrowAnException_WhenNullQueueIsProvided()
     {
-        var job = Job.FromExpression<Instance>(x => x.Method(), null);
+        Job job = Job.FromExpression<Instance>(x => x.Method(), null);
         Assert.NotNull(job);
     }
 
     [Fact]
     public void FromInstanceExpression_Func_ThrowsException_WhenNullExpressionIsProvided()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => Job.FromExpression((Expression<Func<JobFacts, Task>>)null));
 
         Assert.Equal("methodCall", exception.ParamName);
@@ -303,7 +303,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_Func_DoesNotThrowAnException_WhenNullQueueIsProvided()
     {
-        var job = Job.FromExpression<Instance>(x => x.FunctionReturningTask(), null);
+        Job job = Job.FromExpression<Instance>(x => x.FunctionReturningTask(), null);
         Assert.NotNull(job);
     }
 
@@ -318,7 +318,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_Action_ReturnsCorrectResult()
     {
-        var job = Job.FromExpression<Instance>(x => x.Method());
+        Job job = Job.FromExpression<Instance>(x => x.Method());
 
         Assert.Equal(typeof(Instance), job.Type);
         Assert.Equal("Method", job.Method.Name);
@@ -328,7 +328,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_ActionWithQueue_ReturnsCorrectResultWithQueueSet()
     {
-        var job = Job.FromExpression<Instance>(x => x.Method(), "critical");
+        Job job = Job.FromExpression<Instance>(x => x.Method(), "critical");
 
         Assert.Equal(typeof(Instance), job.Type);
         Assert.Equal("Method", job.Method.Name);
@@ -338,7 +338,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_Func_ReturnsCorrectResult()
     {
-        var job = Job.FromExpression<Instance>(x => x.FunctionReturningTask());
+        Job job = Job.FromExpression<Instance>(x => x.FunctionReturningTask());
 
         Assert.Equal(typeof(Instance), job.Type);
         Assert.Equal("FunctionReturningTask", job.Method.Name);
@@ -348,7 +348,7 @@ public class JobFacts
     [Fact]
     public void FromInstanceExpression_FuncWithQueue_ReturnsCorrectResultWithQueueSet()
     {
-        var job = Job.FromExpression<Instance>(x => x.FunctionReturningTask(), "critical");
+        Job job = Job.FromExpression<Instance>(x => x.FunctionReturningTask(), "critical");
 
         Assert.Equal(typeof(Instance), job.Type);
         Assert.Equal("FunctionReturningTask", job.Method.Name);
@@ -359,7 +359,7 @@ public class JobFacts
     public void FromNonGenericExpression_InfersType_FromAGivenObject()
     {
         IDisposable instance = new Instance();
-        var job = Job.FromExpression(() => instance.Dispose());
+        Job job = Job.FromExpression(() => instance.Dispose());
 
         Assert.Equal(typeof(Instance), job.Type);
     }
@@ -368,7 +368,7 @@ public class JobFacts
     public void FromNonGenericExpression_InfersACorrectMethod_FromAGivenObject_WhenInterfaceTreeIsUsed()
     {
         IDisposable instance = new Instance();
-        var job = Job.FromExpression(() => instance.Dispose());
+        Job job = Job.FromExpression(() => instance.Dispose());
 
         Assert.Equal(typeof(Instance), job.Method.DeclaringType);
     }
@@ -388,7 +388,7 @@ public class JobFacts
         IServiceInterface<MyDerivedClass> service = new MyBaseClassService();
         MyDerivedClass myClass = new();
 
-        var job = Job.FromExpression(() => service.MyMethod(myClass));
+        Job job = Job.FromExpression(() => service.MyMethod(myClass));
 
         Assert.Equal(typeof(MyBaseClassService), job.Type);
         Assert.Equal("MyMethod", job.Method.Name);
@@ -399,7 +399,7 @@ public class JobFacts
     public void FromScopedExpression_HandlesGenericMethods()
     {
         CommandDispatcher dispatcher = new();
-        var job = Job.FromExpression(() => dispatcher.DispatchTyped(123));
+        Job job = Job.FromExpression(() => dispatcher.DispatchTyped(123));
 
         Assert.Equal(typeof(CommandDispatcher), job.Type);
         Assert.Equal(typeof(CommandDispatcher), job.Method.DeclaringType);
@@ -409,7 +409,7 @@ public class JobFacts
     public void FromScopedExpression_HandlesMethodsDeclaredInBaseClasse()
     {
         DerivedInstance instance = new();
-        var job = Job.FromExpression(() => instance.Method());
+        Job job = Job.FromExpression(() => instance.Method());
 
         Assert.Equal(typeof(DerivedInstance), job.Type);
         Assert.Equal(typeof(Instance), job.Method.DeclaringType);
@@ -474,7 +474,7 @@ public class JobFacts
     [Fact]
     public void DeserializeArguments_ThrowsJsonException_WhenAStoredArgumentCanNotBeRead()
     {
-        var method = typeof(JobFacts).GetMethod("MethodWithDateTimeArgument");
+        MethodInfo? method = typeof(JobFacts).GetMethod("MethodWithDateTimeArgument");
 
         Assert.ThrowsAny<JsonException>(
             () => InvocationData.DeserializeArguments(method, [TestJson.ToJson("sdfa")]));
@@ -483,9 +483,9 @@ public class JobFacts
     [Fact]
     public void GetTypeFilterAttributes_ReturnsCorrectAttributes()
     {
-        var job = Job.FromExpression<Instance>(x => x.Method());
-        var nonCachedAttributes = job.GetTypeFilterAttributes(false).ToArray();
-        var cachedAttributes = job.GetTypeFilterAttributes(true).ToArray();
+        Job job = Job.FromExpression<Instance>(x => x.Method());
+        JobFilterAttribute[] nonCachedAttributes = [.. job.GetTypeFilterAttributes(false)];
+        JobFilterAttribute[] cachedAttributes = [.. job.GetTypeFilterAttributes(true)];
 
         Assert.Single(nonCachedAttributes);
         Assert.Single(cachedAttributes);
@@ -497,9 +497,9 @@ public class JobFacts
     [Fact]
     public void GetMethodFilterAttributes_ReturnsCorrectAttributes()
     {
-        var job = Job.FromExpression<Instance>(x => x.Method());
-        var nonCachedAttributes = job.GetMethodFilterAttributes(false).ToArray();
-        var cachedAttributes = job.GetMethodFilterAttributes(true).ToArray();
+        Job job = Job.FromExpression<Instance>(x => x.Method());
+        JobFilterAttribute[] nonCachedAttributes = [.. job.GetMethodFilterAttributes(false)];
+        JobFilterAttribute[] cachedAttributes = [.. job.GetMethodFilterAttributes(true)];
 
         Assert.Single(nonCachedAttributes);
         Assert.Single(cachedAttributes);
@@ -595,7 +595,7 @@ public class JobFacts
     [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global")]
     public Task AsyncMethod()
     {
-        var source = new TaskCompletionSource<bool>();
+        TaskCompletionSource<bool> source = new();
         return source.Task;
     }
 

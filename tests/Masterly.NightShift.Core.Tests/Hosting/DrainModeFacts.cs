@@ -17,7 +17,7 @@ public class DrainModeFacts : IDisposable
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
                 _hash ??= [];
-                foreach (var pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
             });
 
         DrainMode.Clock = () => _now;
@@ -36,7 +36,7 @@ public class DrainModeFacts : IDisposable
     [Fact, StaticLock]
     public void Read_ReturnsInactive_WithoutTheHash()
     {
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
 
         Assert.False(status.Active);
         Assert.Null(status.Since);
@@ -48,7 +48,7 @@ public class DrainModeFacts : IDisposable
     {
         DrainMode.Enable(_connection.Object, "deploy 2.0");
 
-        var status = DrainMode.Read(_connection.Object);
+        DrainModeStatus status = DrainMode.Read(_connection.Object);
         Assert.True(status.Active);
         Assert.Equal(_now, status.Since);
         Assert.Equal("deploy 2.0", status.Reason);
@@ -83,13 +83,13 @@ public class DrainModeFacts : IDisposable
     public void GetStatus_KeepsOneCachePerStorage()
     {
         DrainMode.CacheDuration = TimeSpan.FromMinutes(5);
-        var drained = CreateConnection(new Dictionary<string, string> { { "Drain", "1" }, { "DrainReason", "storage A maintenance" } });
-        var running = CreateConnection(null);
-        var storageA = new Mock<JobStorage>().Object;
-        var storageB = new Mock<JobStorage>().Object;
+        Mock<IStorageConnection> drained = CreateConnection(new Dictionary<string, string> { { "Drain", "1" }, { "DrainReason", "storage A maintenance" } });
+        Mock<IStorageConnection> running = CreateConnection(null);
+        JobStorage storageA = new Mock<JobStorage>().Object;
+        JobStorage storageB = new Mock<JobStorage>().Object;
 
         Assert.True(DrainMode.GetStatus(storageA, drained.Object).Active);
-        var statusB = DrainMode.GetStatus(storageB, running.Object);
+        DrainModeStatus statusB = DrainMode.GetStatus(storageB, running.Object);
 
         Assert.False(statusB.Active);
         Assert.Null(statusB.Reason);
@@ -101,7 +101,7 @@ public class DrainModeFacts : IDisposable
     public void InvalidateCache_ForgetsTheAnswerOfEveryStorage()
     {
         DrainMode.CacheDuration = TimeSpan.FromMinutes(5);
-        var storage = new Mock<JobStorage>().Object;
+        JobStorage storage = new Mock<JobStorage>().Object;
         Assert.True(DrainMode.GetStatus(storage, CreateConnection(new Dictionary<string, string> { { "Drain", "1" } }).Object).Active);
 
         DrainMode.InvalidateCache();
@@ -120,10 +120,10 @@ public class DrainModeFacts : IDisposable
     public void Filter_ReadsTheSwitchOfTheJobsStorage_WhenTwoStoragesShareTheProcess()
     {
         DrainMode.CacheDuration = TimeSpan.FromMinutes(5);
-        var drainedJob = new ElectStateContextMock();
+        ElectStateContextMock drainedJob = new();
         drainedJob.ApplyContext.Connection = CreateConnection(new Dictionary<string, string> { { "Drain", "1" } });
         drainedJob.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
-        var otherJob = new ElectStateContextMock();
+        ElectStateContextMock otherJob = new();
         otherJob.ApplyContext.Connection = CreateConnection(null);
         otherJob.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
 
@@ -136,7 +136,7 @@ public class DrainModeFacts : IDisposable
 
     private static Mock<IStorageConnection> CreateConnection(Dictionary<string, string> hash)
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(hash);
         return connection;
     }
@@ -146,13 +146,13 @@ public class DrainModeFacts : IDisposable
     {
         _hash = new Dictionary<string, string> { { "Drain", "1" } };
         DrainMode.HoldInterval = TimeSpan.FromSeconds(45);
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
 
         new DrainModeFilter().OnStateElection(context.Object);
 
-        var scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal(DrainModeFilter.HeldReason, scheduled.Reason);
         Assert.InRange(scheduled.EnqueueAt, DateTime.UtcNow.AddSeconds(40), DateTime.UtcNow.AddSeconds(50));
     }
@@ -160,7 +160,7 @@ public class DrainModeFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_LetsTheJobRun_WhenTheSwitchIsOff()
     {
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.NewStateObject = new ProcessingState("server", "worker");
 
@@ -173,7 +173,7 @@ public class DrainModeFacts : IDisposable
     public void Filter_IgnoresOtherStates_WithoutReadingTheStorage()
     {
         _hash = new Dictionary<string, string> { { "Drain", "1" } };
-        var context = new ElectStateContextMock();
+        ElectStateContextMock context = new();
         context.ApplyContext.Connection = _connection;
         context.ApplyContext.NewStateObject = new EnqueuedState();
 
@@ -186,7 +186,7 @@ public class DrainModeFacts : IDisposable
     [Fact]
     public void Filter_IsRegisteredGlobally_WithTheOtherDefaults()
     {
-        var filters = GlobalJobFilters.Filters.Select(x => x.Instance.GetType()).ToList();
+        List<Type> filters = [.. GlobalJobFilters.Filters.Select(x => x.Instance.GetType())];
 
         Assert.Contains(typeof(DrainModeFilter), filters);
         Assert.Contains(typeof(ActivityFeedFilter), filters);

@@ -1,4 +1,5 @@
 // Endpoint routing (MapNightShiftDashboard...) is in the net8.0 and later builds only
+using System.Reflection;
 using System.Text;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Dashboard;
@@ -13,7 +14,7 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     [Fact]
     public void MapNightShiftDashboard_ThrowsAnException_WhenEndpointsIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => NightShiftEndpointRouteBuilderExtensions.MapNightShiftDashboard(null));
 
         Assert.Equal("endpoints", exception.ParamName);
@@ -22,9 +23,9 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     [Fact]
     public void MapNightShiftDashboard_ThrowsAnException_WhenPatternIsNull()
     {
-        var app = CreateApplication(addNightShift: true);
+        WebApplication app = CreateApplication(addNightShift: true);
 
-        var exception = Assert.Throws<ArgumentNullException>(() => app.MapNightShiftDashboard((string)null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => app.MapNightShiftDashboard((string)null));
 
         Assert.Equal("pattern", exception.ParamName);
     }
@@ -32,9 +33,9 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     [Fact]
     public void MapNightShiftDashboard_ThrowsAnException_WhenNightShiftServicesWereNotAdded()
     {
-        var app = CreateApplication(addNightShift: false);
+        WebApplication app = CreateApplication(addNightShift: false);
 
-        var exception = Assert.Throws<InvalidOperationException>(() => app.MapNightShiftDashboard());
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => app.MapNightShiftDashboard());
 
         Assert.Contains("AddNightShift", exception.Message);
     }
@@ -42,7 +43,7 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     [Fact]
     public void MapNightShiftDashboard_MapsEveryPathUnderThePattern()
     {
-        var app = CreateApplication(addNightShift: true);
+        WebApplication app = CreateApplication(addNightShift: true);
 
         app.MapNightShiftDashboard("/jobs");
 
@@ -52,12 +53,12 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     [Fact]
     public async Task MapNightShiftDashboardWithNoAuthorizationFilters_AnswersThePingRoute()
     {
-        var app = CreateApplication(addNightShift: true);
+        WebApplication app = CreateApplication(addNightShift: true);
         app.MapNightShiftDashboardWithNoAuthorizationFilters();
-        var httpContext = new DefaultHttpContext { RequestServices = app.Services };
+        DefaultHttpContext httpContext = new() { RequestServices = app.Services };
         httpContext.Request.Method = "GET";
         httpContext.Request.Path = "/nightshift/ping";
-        var body = new MemoryStream();
+        MemoryStream body = new();
         httpContext.Response.Body = body;
 
         await GetEndpoint(app).RequestDelegate(httpContext);
@@ -70,20 +71,20 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
     public void CopyOptions_CopiesEverySettableProperty()
     {
         // A property added to DashboardOptions must also be copied, or MapNightShiftDashboardWithNoAuthorizationFilters loses it
-        var source = new DashboardOptions();
-        var expected = new Dictionary<string, object>();
+        DashboardOptions source = new();
+        Dictionary<string, object> expected = [];
 
-        foreach (var property in typeof(DashboardOptions).GetProperties().Where(static p => p.CanRead && p.CanWrite))
+        foreach (PropertyInfo? property in typeof(DashboardOptions).GetProperties().Where(static p => p.CanRead && p.CanWrite))
         {
-            var value = SampleValue(property.PropertyType, property.GetValue(source));
+            object value = SampleValue(property.PropertyType, property.GetValue(source));
             property.SetValue(source, value);
             expected[property.Name] = value;
         }
 
-        var copy = NightShiftEndpointRouteBuilderExtensions.CopyOptions(source);
+        DashboardOptions copy = NightShiftEndpointRouteBuilderExtensions.CopyOptions(source);
 
         Assert.NotSame(source, copy);
-        foreach (var pair in expected)
+        foreach (KeyValuePair<string, object> pair in expected)
         {
             Assert.Equal(pair.Value, typeof(DashboardOptions).GetProperty(pair.Key).GetValue(copy));
         }
@@ -106,7 +107,7 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
 
     private static WebApplication CreateApplication(bool addNightShift)
     {
-        var builder = WebApplication.CreateBuilder();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
 
         if (addNightShift)
         {

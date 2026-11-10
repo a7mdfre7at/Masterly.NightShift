@@ -30,7 +30,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenStorageIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateChangeContext(
                 null,
                 _connection.Object,
@@ -43,7 +43,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateChangeContext(
                 _storage.Object,
                 null,
@@ -56,7 +56,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenBackgroundJobIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateChangeContext(
                 _storage.Object,
                 _connection.Object,
@@ -69,7 +69,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenNewStateIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateChangeContext(
                 _storage.Object,
                 _connection.Object,
@@ -82,7 +82,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenProfilerIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => new StateChangeContext(
                 _storage.Object,
                 _connection.Object,
@@ -100,7 +100,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor1_CorrectlySets_AllTheProperties()
     {
-        var context = new StateChangeContext(
+        StateChangeContext context = new(
             _storage.Object,
             _connection.Object,
             JobId,
@@ -119,7 +119,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor2_CorrectlySets_AllTheProperties()
     {
-        var context = new StateChangeContext(
+        StateChangeContext context = new(
             _storage.Object,
             _connection.Object,
             JobId,
@@ -139,7 +139,7 @@ public class StateChangeContextFacts
     [Fact]
     public void Ctor3_CorrectlySets_AllTheProperties()
     {
-        var context = new StateChangeContext(
+        StateChangeContext context = new(
             _storage.Object,
             _connection.Object,
             JobId,
@@ -160,7 +160,7 @@ public class StateChangeContextFacts
     [Fact]
     public void InternalCtor_CorrectlySets_AllTheProperties()
     {
-        var context = new StateChangeContext(
+        StateChangeContext context = new(
             _storage.Object,
             _connection.Object,
             JobId,

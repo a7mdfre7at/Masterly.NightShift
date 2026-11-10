@@ -30,19 +30,19 @@ public class CreatedContextFacts
 
     private CreatedContext CreateContext()
     {
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<IStorageConnection>();
-        var job = Job.FromExpression(() => TestMethod());
-        var state = new Mock<IState>();
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        Job job = Job.FromExpression(() => TestMethod());
+        Mock<IState> state = new();
 
-        var createContext = new CreateContext(storage.Object, connection.Object, job, state.Object);
+        CreateContext createContext = new(storage.Object, connection.Object, job, state.Object);
         return new CreatedContext(createContext, _backgroundJob.Object, true, _exception);
     }
 
     [Fact]
     public void Ctor_CorrectlySetsAllProperties()
     {
-        var context = CreateContext();
+        CreatedContext context = CreateContext();
 
         Assert.True(context.Canceled);
         Assert.Same(_exception, context.Exception);

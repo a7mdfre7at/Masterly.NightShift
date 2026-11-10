@@ -15,9 +15,9 @@ public class JobParameterInjectionFilterFacts
     [Fact]
     public void OnPerforming_ThrowsArgumentNullException_WhenContextIsNull()
     {
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
-        var exception = Assert.Throws<ArgumentNullException>(() => filter.OnPerforming(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => filter.OnPerforming(null));
 
         Assert.Equal("context", exception.ParamName);
     }
@@ -26,7 +26,7 @@ public class JobParameterInjectionFilterFacts
     public void OnPerforming_HandlesParameterlessMethods_WithoutDoingAnything()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Parameterless());
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -37,7 +37,7 @@ public class JobParameterInjectionFilterFacts
     public void OnPerforming_DoesNotModifyNonDecoratedParameters()
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => NonDecorated("hello", 1));
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -51,7 +51,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(null));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns("\"Hello!\"");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -63,7 +63,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(default(int)));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns("12345");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -75,7 +75,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated("NonNull"));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns("\"Hello!\"");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -87,7 +87,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(123456));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns("54321");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -99,7 +99,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(0));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns<string>(null);
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -111,7 +111,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(123456));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns<string>(null);
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -123,7 +123,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(null));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Result123")).Returns("adk;hg");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         Assert.ThrowsAny<JsonException>(() => filter.OnPerforming(_context.GetPerformingContext()));
     }
@@ -133,7 +133,7 @@ public class JobParameterInjectionFilterFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression(() => DecoratedWithFromResult(null));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "AntecedentResult")).Returns("\"Result\"");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -146,7 +146,7 @@ public class JobParameterInjectionFilterFacts
         _context.BackgroundJob.Job = Job.FromExpression(() => Decorated(null, null));
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Param1")).Returns("\"Value1\"");
         _context.Connection.Setup(x => x.GetJobParameter(_context.BackgroundJob.Id, "Param2")).Returns("2");
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
 
         filter.OnPerforming(_context.GetPerformingContext());
 
@@ -157,7 +157,7 @@ public class JobParameterInjectionFilterFacts
     [Fact]
     public void OnPerformed_DoesNotThrow_AnyException()
     {
-        var filter = CreateFilter();
+        JobParameterInjectionFilter filter = CreateFilter();
         filter.OnPerformed(_context.GetPerformedContext());
     }
 

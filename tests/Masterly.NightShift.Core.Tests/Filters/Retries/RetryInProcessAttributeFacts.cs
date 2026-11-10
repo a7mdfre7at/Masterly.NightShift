@@ -34,7 +34,7 @@ public class RetryInProcessAttributeFacts
     [InlineData(4, 1000)]
     public void GetDelay_GrowsLinearly(int attempt, int expectedMilliseconds)
     {
-        var attribute = new RetryInProcessAttribute(10);
+        RetryInProcessAttribute attribute = new(10);
 
         Assert.Equal(TimeSpan.FromMilliseconds(expectedMilliseconds), attribute.GetDelay(attempt));
     }
@@ -43,7 +43,7 @@ public class RetryInProcessAttributeFacts
     public void GetDelay_NeverExceedsWhatAWaitAccepts()
     {
         // An hour times a million attempts would overflow the wait, which would then throw instead of the job's exception
-        var attribute = new RetryInProcessAttribute(int.MaxValue) { DelayMilliseconds = RetryInProcessAttribute.MaxDelayMilliseconds };
+        RetryInProcessAttribute attribute = new(int.MaxValue) { DelayMilliseconds = RetryInProcessAttribute.MaxDelayMilliseconds };
 
         Assert.Equal(TimeSpan.FromMilliseconds(int.MaxValue), attribute.GetDelay(1000000));
         Assert.Equal(TimeSpan.FromMilliseconds(int.MaxValue), attribute.GetDelay(int.MaxValue));
@@ -54,7 +54,7 @@ public class RetryInProcessAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SucceedsOnThirdCall());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("ok", result);
         Assert.Equal(3, _calls);
@@ -65,7 +65,7 @@ public class RetryInProcessAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.AsyncSucceedsOnSecondCall());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(2, result);
         Assert.Equal(2, _calls);
@@ -76,7 +76,7 @@ public class RetryInProcessAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.AlwaysFails());
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(3, _calls);
@@ -107,7 +107,7 @@ public class RetryInProcessAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.AsksToRetryLater());
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<RetryLaterException>(exception.InnerException);
         Assert.Equal(1, _calls);
@@ -138,10 +138,10 @@ public class RetryInProcessAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.RecordsItsThread());
         Threads.Clear();
-        var workerThreadId = 0;
+        int workerThreadId = 0;
         Exception failure = null;
 
-        var worker = new Thread(() =>
+        Thread worker = new(() =>
         {
             workerThreadId = Environment.CurrentManagedThreadId;
             failure = Record.Exception(() => Perform());
@@ -166,7 +166,7 @@ public class RetryInProcessAttributeFacts
 
     private object Perform()
     {
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
         return performer.Perform(_context.Object);
     }
 

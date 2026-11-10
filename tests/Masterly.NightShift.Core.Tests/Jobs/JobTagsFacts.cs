@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using Masterly.NightShift.Client;
 
 namespace Masterly.NightShift.Core.Tests;
 
@@ -16,7 +17,7 @@ public class JobTagsFacts : IDisposable
         JobTags.Clock = () => _now;
 
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
-        _connection.Setup(x => x.GetJobParameter("job-1", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out var value) ? value : null);
+        _connection.Setup(x => x.GetJobParameter("job-1", It.IsAny<string>())).Returns<string, string>((_, name) => _parameters.TryGetValue(name, out string? value) ? value : null);
         _connection.Setup(x => x.SetJobParameter("job-1", It.IsAny<string>(), It.IsAny<string>())).Callback<string, string, string>((_, name, value) => _parameters[name] = value);
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>())).Callback<string, string, double>((key, value, score) => _setAdds.Add((key, value, score)));
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => _setAdds.Add((key, value, 0)));
@@ -33,11 +34,11 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Add_AndRemove_ReadAndWriteTheTags_UnderALockOfTheirOwn()
     {
-        var calls = new List<string>();
-        var handle = new Mock<IDisposable>();
+        List<string> calls = [];
+        Mock<IDisposable> handle = new();
         handle.Setup(x => x.Dispose()).Callback(() => calls.Add("release"));
         _connection.Setup(x => x.AcquireDistributedLock("job:job-1:tags-lock", JobTags.LockTimeout)).Callback(() => calls.Add("lock")).Returns(handle.Object);
-        _connection.Setup(x => x.GetJobParameter("job-1", JobTags.ParameterName)).Callback(() => calls.Add("read")).Returns(() => _parameters.TryGetValue(JobTags.ParameterName, out var value) ? value : null);
+        _connection.Setup(x => x.GetJobParameter("job-1", JobTags.ParameterName)).Callback(() => calls.Add("read")).Returns(() => _parameters.TryGetValue(JobTags.ParameterName, out string? value) ? value : null);
         _connection.Setup(x => x.SetJobParameter("job-1", JobTags.ParameterName, It.IsAny<string>())).Callback<string, string, string>((_, name, value) =>
         {
             calls.Add("write");
@@ -83,7 +84,7 @@ public class JobTagsFacts : IDisposable
     [InlineData("   ")]
     public void TagAttribute_GetTag_ReturnsNull_WhenTheArgumentLeavesNothing(string customer)
     {
-        var job = Job.FromExpression(() => Import(customer, 3));
+        Job job = Job.FromExpression(() => Import(customer, 3));
 
         Assert.Null(new TagAttribute("{0}").GetTag(job));
         Assert.Equal("customer:", new TagAttribute("customer:{0}").GetTag(job));
@@ -92,9 +93,9 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_GetTag_ShortensLongValues_IntoDistinctStableTags()
     {
-        var first = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('a', 150) + "1", 3)));
-        var again = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('A', 150) + "1", 3)));
-        var second = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('a', 150) + "2", 3)));
+        string? first = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('a', 150) + "1", 3)));
+        string? again = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('A', 150) + "1", 3)));
+        string? second = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(new string('a', 150) + "2", 3)));
 
         Assert.Equal(JobTags.MaxLength, first.Length);
         Assert.StartsWith(new string('a', JobTags.MaxLength - 17) + "~", first, StringComparison.Ordinal);
@@ -108,9 +109,9 @@ public class JobTagsFacts : IDisposable
     public void TagAttribute_GetTag_DoesNotSplitASurrogatePair_WhenShortening()
     {
         // The high surrogate lands on the last character of the readable prefix
-        var value = new string('a', JobTags.MaxLength - 18) + "\U0001F600" + new string('b', 40);
+        string value = new string('a', JobTags.MaxLength - 18) + "\U0001F600" + new string('b', 40);
 
-        var tag = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(value, 3)));
+        string? tag = new TagAttribute("{0}").GetTag(Job.FromExpression(() => Import(value, 3)));
 
         Assert.False(char.IsHighSurrogate(tag[tag.IndexOf('~') - 1]));
         Assert.True(tag.Length <= JobTags.MaxLength);
@@ -119,10 +120,10 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_SkipsATagThatComesOutEmpty_InsteadOfFailingCreation()
     {
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import(null, 3)) };
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import(null, 3)) };
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
-        var creating = context.GetCreatingContext();
-        var attribute = new TagAttribute("{0}");
+        CreatingContext creating = context.GetCreatingContext();
+        TagAttribute attribute = new("{0}");
 
         attribute.OnCreating(creating);
         attribute.OnCreated(context.GetCreatedContext("job-1"));
@@ -135,15 +136,15 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_IndexesAShortenedTag_ForALongArgument()
     {
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import(new string('c', 300), 3)) };
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import(new string('c', 300), 3)) };
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
-        var creating = context.GetCreatingContext();
-        var attribute = new TagAttribute("customer:{0}");
+        CreatingContext creating = context.GetCreatingContext();
+        TagAttribute attribute = new("customer:{0}");
 
         attribute.OnCreating(creating);
         attribute.OnCreated(context.GetCreatedContext("job-1"));
 
-        var tag = Assert.Single(creating.GetJobParameter<string[]>(JobTags.ParameterName));
+        string tag = Assert.Single(creating.GetJobParameter<string[]>(JobTags.ParameterName));
         Assert.Equal(JobTags.MaxLength, tag.Length);
         Assert.Contains((JobTags.GetKey(tag), "job-1", (double)JobHelper.ToTimestamp(_now)), _setAdds);
     }
@@ -160,7 +161,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Lookups_AcceptTagsLongerThanTheLimit()
     {
-        var tag = new string('x', JobTags.MaxLength + 5);
+        string tag = new('x', JobTags.MaxLength + 5);
         _connection.Setup(x => x.GetSetCount(JobTags.GetKey(tag))).Returns(1);
 
         Assert.Equal(1, JobTags.Count(_connection.Object, tag));
@@ -173,7 +174,7 @@ public class JobTagsFacts : IDisposable
     {
         _connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(["b", "c", "a"]);
 
-        var names = JobTags.GetNames(_connection.Object);
+        IReadOnlyList<string> names = JobTags.GetNames(_connection.Object);
 
         Assert.Equal(["a", "b", "c"], names);
         _connection.Verify(x => x.GetSetCount(It.IsAny<string>()), Times.Never);
@@ -182,7 +183,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Reads_FallBackToTheBasicApi_WhenTheStorageHasNoExtendedApi()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
         connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(["a"]);
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(["1", "2"]);
 
@@ -194,7 +195,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Delete_RemovesTheMembersOneByOne_WhenTheTransactionCanNotRemoveASet()
     {
-        var transaction = new Mock<JobStorageTransaction> { CallBase = true };
+        Mock<JobStorageTransaction> transaction = new() { CallBase = true };
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
         _connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(["1"]);
 
@@ -208,7 +209,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_ResolvesTemplates_FromTheArguments()
     {
-        var job = Job.FromExpression(() => Import("Contoso", 3));
+        Job job = Job.FromExpression(() => Import("Contoso", 3));
 
         Assert.Equal("customer:contoso", new TagAttribute("customer:{0}").GetTag(job));
         Assert.Equal("import", new TagAttribute("import").GetTag(job));
@@ -218,31 +219,31 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_OnCreating_AccumulatesTags_InTheParameter()
     {
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import("Contoso", 3)) };
-        var creating = context.GetCreatingContext();
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import("Contoso", 3)) };
+        CreatingContext creating = context.GetCreatingContext();
 
         new TagAttribute("import").OnCreating(creating);
         new TagAttribute("customer:{0}").OnCreating(creating);
         new TagAttribute("import").OnCreating(creating);
 
-        var tags = creating.GetJobParameter<string[]>(JobTags.ParameterName);
+        string[]? tags = creating.GetJobParameter<string[]>(JobTags.ParameterName);
         Assert.Equal(new[] { "customer:contoso", "import" }, tags);
     }
 
     [Fact, StaticLock]
     public void TagAttribute_OnCreated_LogsAWarning_InsteadOfFailingCreation_WhenIndexingFails()
     {
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import("Contoso", 3)) };
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import("Contoso", 3)) };
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _transaction.Setup(x => x.Commit()).Throws(new TimeoutException("deadlock victim"));
-        var log = new RecordingLogProvider();
+        RecordingLogProvider log = new();
 
         using (log.Use())
         {
             new TagAttribute("customer:{0}").OnCreated(context.GetCreatedContext("job-1"));
         }
 
-        var entry = Assert.Single(log.Entries, x => x.Logger.EndsWith(nameof(TagAttribute), StringComparison.Ordinal));
+        RecordingLogProvider.LogEntry entry = Assert.Single(log.Entries, x => x.Logger.EndsWith(nameof(TagAttribute), StringComparison.Ordinal));
         Assert.Equal(Masterly.NightShift.Logging.LogLevel.Warn, entry.Level);
         Assert.IsType<TimeoutException>(entry.Exception);
         Assert.Contains("job-1", entry.Message);
@@ -264,7 +265,7 @@ public class JobTagsFacts : IDisposable
     public void TagAttribute_TagsTheJob_WhenTheApplicationsOptionsDoNotKnowStringArrays()
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(string)) });
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import("Contoso", 3)) };
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import("Contoso", 3)) };
         IDictionary<string, string> stored = null;
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(new Mock<IWriteOnlyTransaction>().Object);
         context.Connection
@@ -304,9 +305,9 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void TagAttribute_OnCreated_IndexesTheJob_UnlessCreationFailed()
     {
-        var context = new CreateContextMock { Job = Job.FromExpression(() => Import("Contoso", 3)) };
+        CreateContextMock context = new() { Job = Job.FromExpression(() => Import("Contoso", 3)) };
         context.Connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
-        var attribute = new TagAttribute("customer:{0}");
+        TagAttribute attribute = new("customer:{0}");
 
         attribute.OnCreated(context.GetCreatedContext("job-1", canceled: true));
         attribute.OnCreated(context.GetCreatedContext("job-1", exception: new InvalidOperationException()));
@@ -350,7 +351,7 @@ public class JobTagsFacts : IDisposable
         _connection.Setup(x => x.GetSetCount("tags:b")).Returns(9);
         _connection.Setup(x => x.GetSetCount("tags:c")).Returns(2);
 
-        var all = JobTags.GetAll(_connection.Object);
+        IReadOnlyList<JobTagSummary> all = JobTags.GetAll(_connection.Object);
 
         Assert.Equal(["b", "a", "c"], all.Select(x => x.Tag));
         Assert.Equal(9, all[0].Count);
@@ -362,7 +363,7 @@ public class JobTagsFacts : IDisposable
         _connection.Setup(x => x.GetSetCount("tags:a")).Returns(10);
         _connection.Setup(x => x.GetRangeFromSet("tags:a", 5, 7)).Returns(["6", "7", "8"]);
 
-        var ids = JobTags.GetJobIds(_connection.Object, "A", from: 2, count: 3);
+        IReadOnlyList<string> ids = JobTags.GetJobIds(_connection.Object, "A", from: 2, count: 3);
 
         Assert.Equal(["8", "7", "6"], ids);
     }
@@ -388,7 +389,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Delete_RemovesTheSet_AndTheIndexEntry()
     {
-        var storageTransaction = new Mock<JobStorageTransaction>();
+        Mock<JobStorageTransaction> storageTransaction = new();
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(storageTransaction.Object);
 
         JobTags.Delete(_connection.Object, "A");
@@ -401,7 +402,7 @@ public class JobTagsFacts : IDisposable
     [Fact, GlobalLock(Reason = "Uses JobStorage.Current instance")]
     public void Add_WithoutConnection_TagsTheJob_InTheCurrentStorage_AndDisposesTheConnection()
     {
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         JobStorage.Current = storage.Object;
 
@@ -446,7 +447,7 @@ public class JobTagsFacts : IDisposable
     {
         _parameters[JobTags.ParameterName] = "[\"import\",\"region:eu\"]";
 
-        var tags = JobTags.GetTags(_connection.Object, "job-1");
+        IReadOnlyList<string> tags = JobTags.GetTags(_connection.Object, "job-1");
 
         Assert.Equal(["import", "region:eu"], tags);
     }
@@ -454,7 +455,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void GetTags_ReturnsAnEmptyList_WhenTheJobHasNoTags()
     {
-        var tags = JobTags.GetTags(_connection.Object, "job-1");
+        IReadOnlyList<string> tags = JobTags.GetTags(_connection.Object, "job-1");
 
         Assert.Empty(tags);
     }
@@ -469,12 +470,12 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void GetAll_CountsSetMembers_OnALegacyConnection()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("tags")).Returns(["a", "b"]);
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(["1"]);
         connection.Setup(x => x.GetAllItemsFromSet("tags:b")).Returns(["1", "2", "3"]);
 
-        var all = JobTags.GetAll(connection.Object);
+        IReadOnlyList<JobTagSummary> all = JobTags.GetAll(connection.Object);
 
         Assert.Equal(["b", "a"], all.Select(x => x.Tag));
         Assert.Equal([3, 1], all.Select(x => x.Count));
@@ -485,7 +486,7 @@ public class JobTagsFacts : IDisposable
     {
         _connection.Setup(x => x.GetSetCount("tags:region:eu")).Returns(7);
 
-        var count = JobTags.Count(_connection.Object, " Region:EU ");
+        long count = JobTags.Count(_connection.Object, " Region:EU ");
 
         Assert.Equal(7, count);
     }
@@ -493,10 +494,10 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Count_CountsTheSetMembers_OnALegacyConnection()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(["1", "2"]);
 
-        var count = JobTags.Count(connection.Object, "A");
+        long count = JobTags.Count(connection.Object, "A");
 
         Assert.Equal(2, count);
     }
@@ -504,10 +505,10 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Count_ReturnsZero_WhenALegacyConnectionHasNoSet()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns((HashSet<string>)null);
 
-        var count = JobTags.Count(connection.Object, "a");
+        long count = JobTags.Count(connection.Object, "a");
 
         Assert.Equal(0, count);
     }
@@ -515,7 +516,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void Count_ThrowsAnException_WhenConnectionIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => JobTags.Count(null, "a"));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => JobTags.Count(null, "a"));
 
         Assert.Equal("connection", exception.ParamName);
     }
@@ -523,10 +524,10 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void GetJobIds_OnALegacyConnection_ReturnsAPage_NewestFirst()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns(["1", "2", "3", "4", "5"]);
 
-        var ids = JobTags.GetJobIds(connection.Object, "a", from: 1, count: 2);
+        IReadOnlyList<string> ids = JobTags.GetJobIds(connection.Object, "a", from: 1, count: 2);
 
         Assert.Equal(["4", "3"], ids);
     }
@@ -534,7 +535,7 @@ public class JobTagsFacts : IDisposable
     [Fact]
     public void GetJobIds_OnALegacyConnection_ReturnsNothing_WhenTheSetIsMissing()
     {
-        var connection = new Mock<IStorageConnection>();
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetAllItemsFromSet("tags:a")).Returns((HashSet<string>)null);
 
         Assert.Empty(JobTags.GetJobIds(connection.Object, "a", from: 0, count: 10));

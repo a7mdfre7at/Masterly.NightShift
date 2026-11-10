@@ -15,7 +15,7 @@ internal sealed class RecordingLogProvider : ILogProvider
     /// <summary>Makes this the provider of every Masterly.NightShift logger until the result is disposed.</summary>
     public IDisposable Use()
     {
-        var previous = LateBoundLogProvider.Target;
+        ILogProvider? previous = LateBoundLogProvider.Target;
         LateBoundLogProvider.Use(this);
 
         return new Restore(previous);

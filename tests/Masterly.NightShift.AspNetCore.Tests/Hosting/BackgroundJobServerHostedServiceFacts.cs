@@ -21,7 +21,7 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StartAsync_WaitsForTheApplicationToStart_BeforeStartingTheServer()
     {
-        using var service = new BackgroundJobServerHostedService(
+        using BackgroundJobServerHostedService service = new(
                    _storage.Object, _options, [], _lifetime);
         await service.StartAsync(CancellationToken.None);
         _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
@@ -34,7 +34,7 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StartAsync_StartsTheServerAtOnce_WithoutALifetime()
     {
-        using var service = new BackgroundJobServerHostedService(
+        using BackgroundJobServerHostedService service = new(
                    _storage.Object, _options, []);
         await service.StartAsync(CancellationToken.None);
 
@@ -44,7 +44,7 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StopAsync_ReturnsAtOnce_WhenTheApplicationNeverStarted()
     {
-        using var service = new BackgroundJobServerHostedService(
+        using BackgroundJobServerHostedService service = new(
                    _storage.Object, _options, [], _lifetime);
         await service.StartAsync(CancellationToken.None);
 
@@ -56,13 +56,13 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StopAsync_StopsAServer_ThatAlreadyGotTheStopSignalFromTheLifetime()
     {
-        using var service = new BackgroundJobServerHostedService(
+        using BackgroundJobServerHostedService service = new(
                    _storage.Object, _options, [], _lifetime);
         await service.StartAsync(CancellationToken.None);
         _lifetime.RaiseStarted();
         _lifetime.RaiseStopping();
 
-        var stopping = service.StopAsync(CancellationToken.None);
+        Task stopping = service.StopAsync(CancellationToken.None);
 
         Assert.True(await Task.WhenAny(stopping, Task.Delay(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)) == stopping);
     }
@@ -70,14 +70,14 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task AddNightShiftServer_StartsTheServer_OnlyAfterTheApplicationStarted()
     {
-        var services = new ServiceCollection()
+        IServiceCollection services = new ServiceCollection()
             .AddSingleton(_storage.Object)
             .AddSingleton<IHostApplicationLifetime>(_lifetime)
             .AddNightShift(_ => { })
             .AddNightShiftServer(x => x.WorkerCount = 1);
 
-        using var provider = services.BuildServiceProvider();
-        var hostedService = provider.GetServices<IHostedService>().Single();
+        using ServiceProvider provider = services.BuildServiceProvider();
+        IHostedService hostedService = provider.GetServices<IHostedService>().Single();
         await hostedService.StartAsync(CancellationToken.None);
         _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
 
@@ -90,9 +90,9 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StoppingAsync_SendsTheStopSignal_BeforeStopAsync()
     {
-        using var fetching = new ManualResetEventSlim();
-        using var stopped = new ManualResetEventSlim();
-        var connection = new Mock<IStorageConnection>();
+        using ManualResetEventSlim fetching = new();
+        using ManualResetEventSlim stopped = new();
+        Mock<IStorageConnection> connection = new();
         connection
             .Setup(x => x.FetchNextJob(It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
             .Returns<string[], CancellationToken>((_, token) =>
@@ -104,7 +104,7 @@ public class BackgroundJobServerHostedServiceFacts
                 return null;
             });
         _storage.Setup(x => x.GetConnection()).Returns(connection.Object);
-        using var service = new BackgroundJobServerHostedService(_storage.Object, _options, []);
+        using BackgroundJobServerHostedService service = new(_storage.Object, _options, []);
         await service.StartAsync(CancellationToken.None);
         Assert.True(fetching.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
 
@@ -116,9 +116,9 @@ public class BackgroundJobServerHostedServiceFacts
     [Fact]
     public async Task StoppingAsync_DoesNothing_WhenTheServerDidNotStart()
     {
-        using var service = new BackgroundJobServerHostedService(_storage.Object, _options, [], _lifetime);
+        using BackgroundJobServerHostedService service = new(_storage.Object, _options, [], _lifetime);
 
-        var exception = await Record.ExceptionAsync(() => service.StoppingAsync(CancellationToken.None));
+        Exception? exception = await Record.ExceptionAsync(() => service.StoppingAsync(CancellationToken.None));
 
         Assert.Null(exception);
     }

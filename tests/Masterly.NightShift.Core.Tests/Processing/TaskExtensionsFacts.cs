@@ -19,7 +19,7 @@ public class TaskExtensionsFacts
     [Fact]
     public async Task WaitOneAsync_ThrowsArgNullException_WhenWaitHandleIsNull()
     {
-        var exception = await Assert.ThrowsAsync<ArgumentNullException>(
+        ArgumentNullException exception = await Assert.ThrowsAsync<ArgumentNullException>(
             async () => await TaskExtensions.WaitOneAsync(null, TimeSpan.Zero, CancellationToken.None));
 
         Assert.Equal("waitHandle", exception.ParamName);
@@ -30,7 +30,7 @@ public class TaskExtensionsFacts
     {
         _cts.Cancel();
 
-        var exception = await Assert.ThrowsAsync<OperationCanceledException>(
+        OperationCanceledException exception = await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await TaskExtensions.WaitOneAsync(_mre, TimeSpan.Zero, _cts.Token));
 
         Assert.Equal(_cts.Token, exception.CancellationToken);
@@ -42,7 +42,7 @@ public class TaskExtensionsFacts
         _cts.Cancel();
         _mre.Set();
 
-        var exception = await Assert.ThrowsAsync<OperationCanceledException>(
+        OperationCanceledException exception = await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await TaskExtensions.WaitOneAsync(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
 
         Assert.Equal(_cts.Token, exception.CancellationToken);
@@ -53,7 +53,7 @@ public class TaskExtensionsFacts
     {
         _mre.Set();
 
-        var result = await TaskExtensions.WaitOneAsync(_mre, Timeout.InfiniteTimeSpan, _cts.Token);
+        bool result = await TaskExtensions.WaitOneAsync(_mre, Timeout.InfiniteTimeSpan, _cts.Token);
 
         Assert.True(result);
     }
@@ -63,7 +63,7 @@ public class TaskExtensionsFacts
     {
         _mre.Set();
 
-        var result = await TaskExtensions.WaitOneAsync(_mre, TimeSpan.Zero, _cts.Token);
+        bool result = await TaskExtensions.WaitOneAsync(_mre, TimeSpan.Zero, _cts.Token);
 
         Assert.True(result);
     }
@@ -71,7 +71,7 @@ public class TaskExtensionsFacts
     [Fact]
     public async Task WaitOneAsync_ReturnsFalseImmediately_WhenNotSignaled_AndTimeoutIsZero()
     {
-        var result = await TaskExtensions.WaitOneAsync(_mre, TimeSpan.Zero, _cts.Token);
+        bool result = await TaskExtensions.WaitOneAsync(_mre, TimeSpan.Zero, _cts.Token);
 
         Assert.False(result);
     }
@@ -79,9 +79,9 @@ public class TaskExtensionsFacts
     [Fact]
     public async Task WaitOneAsync_WaitsAndReturnsFalse_WhenNotSignaled_AndNonNullTimeout()
     {
-        using var mre = new ManualResetEvent(false);
-        var sw = Stopwatch.StartNew();
-        var result = await TaskExtensions.WaitOneAsync(mre, TimeSpan.FromMilliseconds(500), CancellationToken.None);
+        using ManualResetEvent mre = new(false);
+        Stopwatch sw = Stopwatch.StartNew();
+        bool result = await TaskExtensions.WaitOneAsync(mre, TimeSpan.FromMilliseconds(500), CancellationToken.None);
         sw.Stop();
 
         Assert.False(result, "result != false");
@@ -92,10 +92,10 @@ public class TaskExtensionsFacts
     [Fact]
     public async Task WaitOneAsync_WaitsAndThrowsTaskCanceled_WhenNotSignaled_AndCancellationTokenIsCanceled()
     {
-        var sw = Stopwatch.StartNew();
+        Stopwatch sw = Stopwatch.StartNew();
         _cts.CancelAfter(TimeSpan.FromMilliseconds(500));
 
-        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
             async () => await TaskExtensions.WaitOneAsync(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
         sw.Stop();
 
@@ -106,7 +106,7 @@ public class TaskExtensionsFacts
     [Fact]
     public void WaitOne_ThrowsArgNullException_WhenWaitHandleIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => TaskExtensions.WaitOne(null, TimeSpan.Zero, CancellationToken.None));
 
         Assert.Equal("waitHandle", exception.ParamName);
@@ -117,7 +117,7 @@ public class TaskExtensionsFacts
     {
         _cts.Cancel();
 
-        var exception = Assert.Throws<OperationCanceledException>(
+        OperationCanceledException exception = Assert.Throws<OperationCanceledException>(
             () => TaskExtensions.WaitOne(_mre, TimeSpan.Zero, _cts.Token));
 
         Assert.Equal(_cts.Token, exception.CancellationToken);
@@ -129,7 +129,7 @@ public class TaskExtensionsFacts
         _cts.Cancel();
         _mre.Set();
 
-        var exception = Assert.Throws<OperationCanceledException>(
+        OperationCanceledException exception = Assert.Throws<OperationCanceledException>(
             () => TaskExtensions.WaitOne(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
 
         Assert.Equal(_cts.Token, exception.CancellationToken);
@@ -140,7 +140,7 @@ public class TaskExtensionsFacts
     {
         _mre.Set();
 
-        var result = TaskExtensions.WaitOne(_mre, Timeout.InfiniteTimeSpan, _cts.Token);
+        bool result = TaskExtensions.WaitOne(_mre, Timeout.InfiniteTimeSpan, _cts.Token);
 
         Assert.True(result);
     }
@@ -150,7 +150,7 @@ public class TaskExtensionsFacts
     {
         _mre.Set();
 
-        var result = TaskExtensions.WaitOne(_mre, TimeSpan.Zero, _cts.Token);
+        bool result = TaskExtensions.WaitOne(_mre, TimeSpan.Zero, _cts.Token);
 
         Assert.True(result);
     }
@@ -158,7 +158,7 @@ public class TaskExtensionsFacts
     [Fact]
     public void WaitOne_ReturnsFalseImmediately_WhenNotSignaled_AndTimeoutIsZero()
     {
-        var result = TaskExtensions.WaitOne(_mre, TimeSpan.Zero, CancellationToken.None);
+        bool result = TaskExtensions.WaitOne(_mre, TimeSpan.Zero, CancellationToken.None);
 
         Assert.False(result);
     }
@@ -166,9 +166,9 @@ public class TaskExtensionsFacts
     [Fact]
     public void WaitOne_WaitsAndReturnsFalse_WhenNotSignaled_AndNonNullTimeout()
     {
-        using var mre = new ManualResetEvent(false);
-        var sw = Stopwatch.StartNew();
-        var result = TaskExtensions.WaitOne(mre, TimeSpan.FromMilliseconds(500), CancellationToken.None);
+        using ManualResetEvent mre = new(false);
+        Stopwatch sw = Stopwatch.StartNew();
+        bool result = TaskExtensions.WaitOne(mre, TimeSpan.FromMilliseconds(500), CancellationToken.None);
         sw.Stop();
 
         Assert.False(result, "result != false");
@@ -179,10 +179,10 @@ public class TaskExtensionsFacts
     [Fact]
     public void WaitOne_WaitsAndThrowsTaskCanceled_WhenNotSignaled_AndCancellationTokenIsCanceled()
     {
-        var sw = Stopwatch.StartNew();
+        Stopwatch sw = Stopwatch.StartNew();
         _cts.CancelAfter(TimeSpan.FromMilliseconds(500));
 
-        var exception = Assert.ThrowsAny<OperationCanceledException>(
+        OperationCanceledException exception = Assert.ThrowsAny<OperationCanceledException>(
             () => TaskExtensions.WaitOne(_mre, Timeout.InfiniteTimeSpan, _cts.Token));
         sw.Stop();
 

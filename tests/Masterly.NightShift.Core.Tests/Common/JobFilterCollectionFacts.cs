@@ -18,7 +18,7 @@ public class JobFilterCollectionFacts
     [Fact]
     public void AddRejectsNonFilterInstances()
     {
-        foreach (var instance in AddRejectsNonFilterInstancesData)
+        foreach (object[] instance in AddRejectsNonFilterInstancesData)
         {
             // Act + Assert
             Assert.Throws<InvalidOperationException>(() => _collection.Add(instance));
@@ -29,14 +29,14 @@ public class JobFilterCollectionFacts
     public void AddAcceptsFilterInstances()
     {
         // Arrange
-        var filters = new object[] {
+        List<object> filters = [
             GetFilterInstance<IClientFilter>(),
             GetFilterInstance<IServerFilter>(),
             GetFilterInstance<IClientExceptionFilter>(),
             GetFilterInstance<IServerExceptionFilter>(),
             GetFilterInstance<IApplyStateFilter>(),
             GetFilterInstance<IElectStateFilter>()
-        }.ToList();
+        ];
 
         // Act
         filters.ForEach(_collection.Add);
@@ -115,7 +115,7 @@ public class JobFilterCollectionFacts
     {
         // Arrange
         _collection.Add(_filterInstance);
-        var provider = (IJobFilterProvider)_collection;
+        IJobFilterProvider provider = (IJobFilterProvider)_collection;
 
         // Act
         IEnumerable<JobFilter> result = provider.GetFilters(null);

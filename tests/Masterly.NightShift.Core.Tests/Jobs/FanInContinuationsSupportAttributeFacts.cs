@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Masterly.NightShift.Core.Tests;
 
 public class FanInContinuationsSupportAttributeFacts
@@ -11,14 +13,14 @@ public class FanInContinuationsSupportAttributeFacts
 
     public FanInContinuationsSupportAttributeFacts()
     {
-        var connection = _context.ApplyContext.Connection;
+        Mock<IStorageConnection> connection = _context.ApplyContext.Connection;
 
         connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
         connection.Setup(x => x.GetJobData(It.IsAny<string>())).Returns<string>(id => id.StartsWith("missing") ? null : new JobData { CreatedAt = DateTime.UtcNow });
         connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns<string>(id =>
-            _states.TryGetValue(id, out var name) ? new StateData { Name = name, Data = StateDataFor(id) } : null);
+            _states.TryGetValue(id, out string? name) ? new StateData { Name = name, Data = StateDataFor(id) } : null);
         connection.Setup(x => x.GetJobParameter(It.IsAny<string>(), Parameter)).Returns<string, string>((id, _) =>
-            _parameters.TryGetValue(id, out var value) ? value : null);
+            _parameters.TryGetValue(id, out string? value) ? value : null);
         connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), Parameter, It.IsAny<string>()))
             .Callback<string, string, string>((id, _, value) => _parameters[id] = value);
     }
@@ -27,7 +29,7 @@ public class FanInContinuationsSupportAttributeFacts
 
     private Dictionary<string, string> StateDataFor(string id)
     {
-        return _stateData.TryGetValue(id, out var data) ? data : [];
+        return _stateData.TryGetValue(id, out Dictionary<string, string>? data) ? data : [];
     }
 
     private FanInContinuationsSupportAttribute Create()
@@ -133,7 +135,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_StartsTheChild_WhenItWasTheLastParent()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
@@ -151,7 +153,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DoesNothing_WhileOtherParentsAreStillRunning()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
@@ -168,7 +170,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DeletesTheChild_WhenTheParentFailedTheCondition()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
@@ -199,7 +201,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_TreatsAMissingParentAsDeleted()
     {
-        var awaiting = new AwaitingJobsState(["parent", "missing-other"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
+        AwaitingJobsState awaiting = new(["parent", "missing-other"], new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
@@ -237,10 +239,10 @@ public class FanInContinuationsSupportAttributeFacts
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnDeletedState, "Deleted,", "Start")]
     public void Evaluate_DecidesFromTheParentStates(FanInMode mode, JobContinuationOptions options, string states, string expected)
     {
-        var names = states.Split(',');
-        var awaiting = new AwaitingJobsState(["a", "b"], new EnqueuedState(), options, mode);
+        string[] names = states.Split(',');
+        AwaitingJobsState awaiting = new(["a", "b"], new EnqueuedState(), options, mode);
 
-        var decision = Create().Evaluate(awaiting, id => names[id == "a" ? 0 : 1] == "" ? null : names[id == "a" ? 0 : 1]);
+        FanInContinuationsSupportAttribute.Decision decision = Create().Evaluate(awaiting, id => names[id == "a" ? 0 : 1] == "" ? null : names[id == "a" ? 0 : 1]);
 
         Assert.Equal(expected, decision.ToString());
     }
@@ -250,7 +252,7 @@ public class FanInContinuationsSupportAttributeFacts
     {
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "c2", "c1" });
 
-        var children = FanInContinuationsSupportAttribute.ReadChildren(_context.ApplyContext.Connection.Object, "parent");
+        IReadOnlyList<string> children = FanInContinuationsSupportAttribute.ReadChildren(_context.ApplyContext.Connection.Object, "parent");
 
         Assert.Equal(["c2", "c1"], children);
     }
@@ -258,7 +260,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void ReadChildren_ReturnsAnEmptyList_WhenTheJobHasNoChildren()
     {
-        var children = FanInContinuationsSupportAttribute.ReadChildren(_context.ApplyContext.Connection.Object, "parent");
+        IReadOnlyList<string> children = FanInContinuationsSupportAttribute.ReadChildren(_context.ApplyContext.Connection.Object, "parent");
 
         Assert.Empty(children);
     }
@@ -275,7 +277,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ThrowsAnException_WhenContextIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => Create().OnStateElection(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => Create().OnStateElection(null));
 
         Assert.Equal("context", exception.ParamName);
     }
@@ -310,7 +312,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_RetriesReadingTheChildState_UntilItIsInitialized()
     {
-        var awaiting = new AwaitingJobsState(["parent"]);
+        AwaitingJobsState awaiting = new(["parent"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "slow-child" });
         _context.ApplyContext.Connection.SetupSequence(x => x.GetStateData("slow-child"))
             .Returns((StateData)null)
@@ -328,7 +330,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_UsesTheParametersSnapshot_InsteadOfStorage()
     {
-        var awaiting = new AwaitingJobsState(["parent"]);
+        AwaitingJobsState awaiting = new(["parent"]);
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
         _context.ApplyContext.BackgroundJob.Id = "parent";
@@ -347,13 +349,13 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DecidesTheChildrenOnlyAfterTheCommit()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
         _states["parent"] = ProcessingState.StateName;
         _states["other"] = SucceededState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
 
@@ -372,7 +374,7 @@ public class FanInContinuationsSupportAttributeFacts
     {
         // Both parents are elected Succeeded while the other one is still Processing in storage, then both
         // commit. Deciding during the election, each saw the other unfinished and nobody started the child.
-        var awaiting = new AwaitingJobsState(["p1", "p2"]);
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
         _parameters["p1"] = SerializationHelper.Serialize(new List<string> { "child" });
         _parameters["p2"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
@@ -380,13 +382,13 @@ public class FanInContinuationsSupportAttributeFacts
         _states["p1"] = ProcessingState.StateName;
         _states["p2"] = ProcessingState.StateName;
 
-        var first = new ElectStateContextMock();
+        ElectStateContextMock first = new();
         first.ApplyContext.Connection = _context.ApplyContext.Connection;
-        var second = new ElectStateContextMock();
+        ElectStateContextMock second = new();
         second.ApplyContext.Connection = _context.ApplyContext.Connection;
-        var firstAfterCommit = UsePostCommitActions(first, "p1", new SucceededState(null, 0, 0));
-        var secondAfterCommit = UsePostCommitActions(second, "p2", new SucceededState(null, 0, 0));
-        var filter = Create();
+        PostCommitActions firstAfterCommit = UsePostCommitActions(first, "p1", new SucceededState(null, 0, 0));
+        PostCommitActions secondAfterCommit = UsePostCommitActions(second, "p2", new SucceededState(null, 0, 0));
+        FanInContinuationsSupportAttribute filter = Create();
 
         filter.OnStateElection(first.Object);
         filter.OnStateElection(second.Object);
@@ -402,12 +404,12 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_ReadsItsOwnCommittedState_AfterTheCommit()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
         _states["other"] = SucceededState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
         _states["parent"] = EnqueuedState.StateName; // requeued before the actions ran
@@ -419,7 +421,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DoesNotQueueAnything_WhenThereAreNoChildren()
     {
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
         afterCommit.Run();
@@ -431,7 +433,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_AfterTheCommit_KeepsDecidingOtherChildren_WhenOneKeepsFailing()
     {
-        var awaiting = new AwaitingJobsState(["parent"]);
+        AwaitingJobsState awaiting = new(["parent"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "broken", "child" });
         _states["broken"] = AwaitingState.StateName;
         _stateData["broken"] = awaiting.SerializeData();
@@ -439,7 +441,7 @@ public class FanInContinuationsSupportAttributeFacts
         _stateData["child"] = awaiting.SerializeData();
         _states["parent"] = SucceededState.StateName;
         _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(c => c.BackgroundJobId == "broken"))).Throws(new InvalidOperationException("storage down"));
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
         afterCommit.Run();
@@ -451,9 +453,9 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_ReadsTheParentsSharedByChildren_OnlyOnce()
     {
-        var awaiting = new AwaitingJobsState(["parent", "other"]);
+        AwaitingJobsState awaiting = new(["parent", "other"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "c1", "c2" });
-        foreach (var child in new[] { "c1", "c2" })
+        foreach (string? child in new[] { "c1", "c2" })
         {
             _states[child] = AwaitingState.StateName;
             _stateData[child] = awaiting.SerializeData();
@@ -461,7 +463,7 @@ public class FanInContinuationsSupportAttributeFacts
 
         _states["parent"] = SucceededState.StateName;
         _states["other"] = SucceededState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
         afterCommit.Run();
@@ -474,7 +476,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_StopsAtTheFirstUnfinishedParent_StartingFromTheLast()
     {
-        var awaiting = new AwaitingJobsState(["p1", "p2", "parent", "p4", "p5"]);
+        AwaitingJobsState awaiting = new(["p1", "p2", "parent", "p4", "p5"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
@@ -508,15 +510,15 @@ public class FanInContinuationsSupportAttributeFacts
     public void Evaluate_ForAFinishedParent_ReadsItFirst_ThenTheOthersFromTheLast(FanInMode mode, JobContinuationOptions options, string states, string expected)
     {
         // states: the finished parent "b", then "c", then "a"
-        var names = states.Split(',');
-        var order = new[] { "b", "c", "a" };
-        var awaiting = new AwaitingJobsState(["a", "b", "c"], new EnqueuedState(), options, mode);
-        var read = new List<string>();
+        string[] names = states.Split(',');
+        string[] order = ["b", "c", "a"];
+        AwaitingJobsState awaiting = new(["a", "b", "c"], new EnqueuedState(), options, mode);
+        List<string> read = [];
 
-        var decision = Create().Evaluate(awaiting, id =>
+        FanInContinuationsSupportAttribute.Decision decision = Create().Evaluate(awaiting, id =>
         {
             read.Add(id);
-            var name = names[Array.IndexOf(order, id)];
+            string name = names[Array.IndexOf(order, id)];
             return name == "" ? null : name;
         }, "b");
 
@@ -527,7 +529,7 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact, StaticLock]
     public void OnStateElection_ParentBranch_SkipsAChildWhoseStateIsNotStoredInTime_WithoutWaitingLong()
     {
-        var budget = FanInContinuationsSupportAttribute.DecisionRoundBudget;
+        TimeSpan budget = FanInContinuationsSupportAttribute.DecisionRoundBudget;
         FanInContinuationsSupportAttribute.DecisionRoundBudget = TimeSpan.FromMilliseconds(300);
 
         try
@@ -535,7 +537,7 @@ public class FanInContinuationsSupportAttributeFacts
             _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "slow-child" });
             _context.ApplyContext.BackgroundJob.Id = "parent";
             _context.ApplyContext.NewStateObject = new SucceededState(null, 0, 0);
-            var started = System.Diagnostics.Stopwatch.StartNew();
+            Stopwatch started = System.Diagnostics.Stopwatch.StartNew();
 
             Create().OnStateElection(_context.Object);
 
@@ -551,18 +553,18 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact, StaticLock]
     public void OnStateElection_ParentBranch_AfterTheCommit_StopsRetryingAChild_WhenTheRoundBudgetIsSpent()
     {
-        var budget = FanInContinuationsSupportAttribute.DecisionRoundBudget;
+        TimeSpan budget = FanInContinuationsSupportAttribute.DecisionRoundBudget;
         FanInContinuationsSupportAttribute.DecisionRoundBudget = TimeSpan.FromMilliseconds(800);
 
         try
         {
-            var awaiting = new AwaitingJobsState(["parent"]);
+            AwaitingJobsState awaiting = new(["parent"]);
             _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "broken" });
             _states["broken"] = AwaitingState.StateName;
             _stateData["broken"] = awaiting.SerializeData();
             _states["parent"] = SucceededState.StateName;
             _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Throws(new InvalidOperationException("storage down"));
-            var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+            PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
             Create().OnStateElection(_context.Object);
             afterCommit.Run();
@@ -579,10 +581,10 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ChildBranch_DecidesItselfAfterItsCommit_WhenAParentFinishedMeanwhile()
     {
-        var awaiting = new AwaitingJobsState(["p1", "p2"]);
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
         _states["p1"] = SucceededState.StateName;
         _states["p2"] = ProcessingState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "child", awaiting);
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
 
         Create().OnStateElection(_context.Object);
 
@@ -602,10 +604,10 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ChildBranch_LeavesTheChildAwaiting_AfterItsCommit_WhileAParentStillRuns()
     {
-        var awaiting = new AwaitingJobsState(["p1", "p2"]);
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
         _states["p1"] = SucceededState.StateName;
         _states["p2"] = ProcessingState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "child", awaiting);
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
 
         Create().OnStateElection(_context.Object);
         _states["child"] = AwaitingState.StateName;
@@ -618,9 +620,9 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ChildBranch_DoesNotQueueACheck_WhenDecidedRightAway()
     {
-        var awaiting = new AwaitingJobsState(["p1"]);
+        AwaitingJobsState awaiting = new(["p1"]);
         _states["p1"] = SucceededState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "child", awaiting);
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
 
         Create().OnStateElection(_context.Object);
         afterCommit.Run();
@@ -632,11 +634,11 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DecidesTheChildren_WhenTheCommitWentThroughButThrew()
     {
-        var awaiting = new AwaitingJobsState(["parent"]);
+        AwaitingJobsState awaiting = new(["parent"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
 
         Create().OnStateElection(_context.Object);
         _states["parent"] = SucceededState.StateName; // committed, but the reply was lost
@@ -650,13 +652,13 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ParentBranch_DecidesNothing_WithoutWaitingForChildren_WhenTheCommitFailed()
     {
-        var awaiting = new AwaitingJobsState(["parent"]);
+        AwaitingJobsState awaiting = new(["parent"]);
         _parameters["parent"] = SerializationHelper.Serialize(new List<string> { "child", "slow-child" });
         _states["child"] = AwaitingState.StateName;
         _stateData["child"] = awaiting.SerializeData();
         _states["parent"] = ProcessingState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
-        var started = System.Diagnostics.Stopwatch.StartNew();
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "parent", new SucceededState(null, 0, 0));
+        Stopwatch started = System.Diagnostics.Stopwatch.StartNew();
 
         Create().OnStateElection(_context.Object);
         afterCommit.RunAfterFailure();
@@ -670,10 +672,10 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ChildBranch_DecidesItself_WhenItsCommitWentThroughButThrew()
     {
-        var awaiting = new AwaitingJobsState(["p1", "p2"]);
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
         _states["p1"] = SucceededState.StateName;
         _states["p2"] = ProcessingState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "child", awaiting);
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
 
         Create().OnStateElection(_context.Object);
 
@@ -691,10 +693,10 @@ public class FanInContinuationsSupportAttributeFacts
     [Fact]
     public void OnStateElection_ChildBranch_DecidesNothing_WhenItsCommitFailed()
     {
-        var awaiting = new AwaitingJobsState(["p1", "p2"]);
+        AwaitingJobsState awaiting = new(["p1", "p2"]);
         _states["p1"] = SucceededState.StateName;
         _states["p2"] = ProcessingState.StateName;
-        var afterCommit = UsePostCommitActions(_context, "child", awaiting);
+        PostCommitActions afterCommit = UsePostCommitActions(_context, "child", awaiting);
 
         Create().OnStateElection(_context.Object);
         _states["p2"] = SucceededState.StateName;
@@ -743,7 +745,7 @@ public class FanInContinuationsSupportAttributeFacts
 
     private static PostCommitActions UsePostCommitActions(ElectStateContextMock context, string jobId, IState candidate)
     {
-        var afterCommit = new PostCommitActions();
+        PostCommitActions afterCommit = new();
         context.ApplyContext.BackgroundJob.Id = jobId;
         context.ApplyContext.NewStateObject = candidate;
         context.ApplyContext.Object.AfterCommit = afterCommit;

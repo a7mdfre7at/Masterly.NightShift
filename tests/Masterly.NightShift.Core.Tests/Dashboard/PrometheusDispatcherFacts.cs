@@ -31,13 +31,13 @@ public class PrometheusDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public async Task Dispatch_WritesTheExpositionFormat()
     {
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
 
         await new PrometheusDispatcher().Dispatch(context);
 
         Assert.Equal(200, context.Response.StatusCode);
         Assert.StartsWith("text/plain; version=0.0.4", context.Response.ContentType);
-        var text = context.Response.Text;
+        string text = context.Response.Text;
         Assert.Contains("# TYPE nightshift_jobs gauge\n", text);
         Assert.Contains("nightshift_jobs{state=\"enqueued\"} 12\n", text);
         Assert.Contains("nightshift_jobs{state=\"failed\"} 3\n", text);
@@ -53,13 +53,13 @@ public class PrometheusDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public void Render_CountsLateRecurringJobs_FromTheHealthCheck()
     {
-        var now = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+        DateTime now = new(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(["nightly", "weekly", "on-time"]);
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:nightly")).Returns(new Dictionary<string, string> { { "Cron", "0 1 * * *" }, { "NextExecution", JobHelper.SerializeDateTime(now.AddHours(-2)) } });
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:weekly")).Returns(new Dictionary<string, string> { { "Cron", "0 1 * * 1" }, { "NextExecution", JobHelper.SerializeDateTime(now.AddMinutes(-10)) } });
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:on-time")).Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "NextExecution", JobHelper.SerializeDateTime(now.AddMinutes(1)) } });
 
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), now);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), now);
 
         Assert.Contains("# TYPE nightshift_recurring_jobs_late gauge\n", text);
         Assert.Contains("nightshift_recurring_jobs_late 2\n", text);
@@ -68,7 +68,7 @@ public class PrometheusDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public void Render_ReportsZeroLateRecurringJobs_WhenAllAreOnSchedule()
     {
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
 
         Assert.Contains("nightshift_recurring_jobs_late 0\n", text);
     }
@@ -78,7 +78,7 @@ public class PrometheusDispatcherFacts : IDisposable
     {
         _connection.Setup(x => x.GetAllItemsFromSet(QueueInsights.IndexKey)).Throws(new InvalidOperationException("boom"));
 
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
 
         Assert.Contains("# insights unavailable: InvalidOperationException\n", text);
         Assert.Contains("nightshift_jobs{state=\"enqueued\"} 12\n", text);
@@ -97,11 +97,11 @@ public class PrometheusDispatcherFacts : IDisposable
         _connection.Setup(x => x.GetAllItemsFromSet(QueueInsights.IndexKey)).Returns(["default"]);
         _connection.Setup(x => x.GetAllEntriesFromHash("queue:default:insights")).Returns([]);
         _connection.Setup(x => x.GetAllItemsFromList("queue:default:latency")).Returns(["1000", "3000"]);
-        var context = new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
 
         await new PrometheusDispatcher().Dispatch(context);
 
-        var text = context.Response.Text;
+        string text = context.Response.Text;
         Assert.Contains("nightshift_method_runs_total{method=\"App.Jobs.Send\",result=\"succeeded\"} 7\n", text);
         Assert.Contains("nightshift_method_runs_total{method=\"App.Jobs.Send\",result=\"failed\"} 1\n", text);
         Assert.Contains("nightshift_method_duration_seconds{method=\"App.Jobs.Send\",quantile=\"0.5\"} 0.2\n", text);
@@ -112,13 +112,13 @@ public class PrometheusDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public void Render_WritesEveryFamily_AsOneGroup_AfterItsTypeLine()
     {
-        foreach (var method in new[] { "A.Run", "B.Run" })
+        foreach (string? method in new[] { "A.Run", "B.Run" })
         {
             _connection.Setup(x => x.GetAllEntriesFromHash($"insights:{method}")).Returns(new Dictionary<string, string> { { "LastDurationMs", "10" } });
             _connection.Setup(x => x.GetAllItemsFromList($"insights:{method}:durations")).Returns(["100"]);
         }
 
-        foreach (var queue in new[] { "critical", "default" })
+        foreach (string? queue in new[] { "critical", "default" })
         {
             _connection.Setup(x => x.GetAllEntriesFromHash($"queue:{queue}:insights")).Returns([]);
             _connection.Setup(x => x.GetAllItemsFromList($"queue:{queue}:latency")).Returns(["1000"]);
@@ -127,12 +127,12 @@ public class PrometheusDispatcherFacts : IDisposable
         _connection.Setup(x => x.GetAllItemsFromSet(JobInsightsAttribute.IndexKey)).Returns(["A.Run", "B.Run"]);
         _connection.Setup(x => x.GetAllItemsFromSet(QueueInsights.IndexKey)).Returns(["critical", "default"]);
 
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
 
-        var finished = new HashSet<string>();
-        var typed = new HashSet<string>();
+        HashSet<string> finished = [];
+        HashSet<string> typed = [];
         string current = null;
-        foreach (var line in text.Split('\n').Where(l => l.Length > 0))
+        foreach (string? line in text.Split('\n').Where(l => l.Length > 0))
         {
             if (line.StartsWith("# TYPE ", StringComparison.Ordinal))
             {
@@ -142,7 +142,7 @@ public class PrometheusDispatcherFacts : IDisposable
 
             if (line.StartsWith("#", StringComparison.Ordinal)) continue;
 
-            var family = line.Split('{', ' ')[0];
+            string family = line.Split('{', ' ')[0];
             Assert.Contains(family, typed);
             if (family != current)
             {
@@ -163,15 +163,14 @@ public class PrometheusDispatcherFacts : IDisposable
         _connection.Setup(x => x.GetAllEntriesFromHash("insights:A.Run")).Returns(new Dictionary<string, string> { { "LastDurationMs", "10" } });
         _connection.Setup(x => x.GetAllItemsFromList("insights:A.Run:durations")).Returns(["100"]);
 
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
 
         // OpenMetrics parsers name a counter's family without its "_total" suffix, and reject a scrape where
         // that name is also another family's ("nightshift_jobs" gauge next to a "nightshift_jobs_total" counter)
-        var families = text.Split('\n')
+        List<string> families = [.. text.Split('\n')
             .Where(static l => l.StartsWith("# TYPE ", StringComparison.Ordinal))
             .Select(static l => l.Split(' '))
-            .Select(static p => p[3] == "counter" && p[2].EndsWith("_total", StringComparison.Ordinal) ? p[2][..^"_total".Length] : p[2])
-            .ToList();
+            .Select(static p => p[3] == "counter" && p[2].EndsWith("_total", StringComparison.Ordinal) ? p[2][..^"_total".Length] : p[2])];
 
         Assert.Contains("nightshift_jobs", families);
         Assert.Contains("nightshift_jobs_finished", families);
@@ -185,7 +184,7 @@ public class PrometheusDispatcherFacts : IDisposable
         _storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
         _connection.Setup(x => x.GetAllItemsFromSet(JobInsightsAttribute.IndexKey)).Returns(["App.Jobs.Send"]);
 
-        var text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
+        string text = PrometheusDispatcher.Render(_storage.Object, new DashboardOptions(), DateTime.UtcNow);
 
         Assert.Contains("nightshift_jobs{state=\"enqueued\"} 12\n", text);
         Assert.DoesNotContain("nightshift_method_runs_total", text);
@@ -195,11 +194,11 @@ public class PrometheusDispatcherFacts : IDisposable
     [Fact, StaticLock]
     public void RenderCached_ReusesTheText_ForTheCacheDuration()
     {
-        var options = new DashboardOptions();
-        var now = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+        DashboardOptions options = new();
+        DateTime now = new(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
 
-        var first = PrometheusDispatcher.RenderCached(_storage.Object, options, now);
-        var second = PrometheusDispatcher.RenderCached(_storage.Object, options, now.AddSeconds(3));
+        string first = PrometheusDispatcher.RenderCached(_storage.Object, options, now);
+        string second = PrometheusDispatcher.RenderCached(_storage.Object, options, now.AddSeconds(3));
         PrometheusDispatcher.RenderCached(_storage.Object, options, now.Add(DashboardHealth.CacheDuration).AddSeconds(1));
 
         Assert.Same(first, second);

@@ -9,8 +9,8 @@ internal sealed class ServerStub : IServer
 {
     public ServerStub(IEnumerable<string> addresses)
     {
-        var feature = new AddressesFeature();
-        foreach (var address in addresses)
+        AddressesFeature feature = new();
+        foreach (string address in addresses)
         {
             feature.Addresses.Add(address);
         }

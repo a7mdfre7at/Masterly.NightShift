@@ -35,7 +35,7 @@ public class ActivityFeedFacts : IDisposable
 
     private ApplyStateContextMock CreateContext(IState state, string oldStateName = null)
     {
-        var context = new ApplyStateContextMock { NewStateObject = state, OldStateName = oldStateName };
+        ApplyStateContextMock context = new() { NewStateObject = state, OldStateName = oldStateName };
         context.Storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
         return context;
     }
@@ -43,12 +43,12 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_WritesAnEntry_InATransactionOfItsOwn_NeverInTheStateTransaction()
     {
-        var context = CreateContext(new ProcessingState("server-1", "worker"), "Enqueued");
+        ApplyStateContextMock context = CreateContext(new ProcessingState("server-1", "worker"), "Enqueued");
         context.BackgroundJob.Id = "42";
 
         new ActivityFeedFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
-        var entry = JsonNode.Parse(Assert.Single(_inserted));
+        JsonNode? entry = JsonNode.Parse(Assert.Single(_inserted));
         Assert.Equal("42", entry["j"].GetValue<string>());
         Assert.Equal("Processing", entry["s"].GetValue<string>());
         Assert.Equal("Enqueued", entry["o"].GetValue<string>());
@@ -62,8 +62,8 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_WaitsForTheCommit_WhenTheStateChangeHasPostCommitActions()
     {
-        var context = CreateContext(new EnqueuedState());
-        var afterCommit = new PostCommitActions();
+        ApplyStateContextMock context = CreateContext(new EnqueuedState());
+        PostCommitActions afterCommit = new();
         context.Object.AfterCommit = afterCommit;
 
         new ActivityFeedFilter().OnStateApplied(context.Object, context.Transaction.Object);
@@ -78,8 +78,8 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_DoesNotFailTheStateChange_WhenTheStorageFails_AndLogsAWarning()
     {
-        var provider = new RecordingLogProvider();
-        var context = CreateContext(new EnqueuedState());
+        RecordingLogProvider provider = new();
+        ApplyStateContextMock context = CreateContext(new EnqueuedState());
         _feedTransaction.Setup(x => x.Commit()).Throws(new InvalidOperationException("deadlock victim"));
 
         using (provider.Use())
@@ -93,7 +93,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_OnStateUnapplied_WritesNothing()
     {
-        var context = CreateContext(new ProcessingState("server-1", "worker"), "Enqueued");
+        ApplyStateContextMock context = CreateContext(new ProcessingState("server-1", "worker"), "Enqueued");
 
         new ActivityFeedFilter().OnStateUnapplied(context.Object, context.Transaction.Object);
 
@@ -104,12 +104,12 @@ public class ActivityFeedFacts : IDisposable
     [Fact, StaticLock]
     public void Filter_RecordsTheReason_AndSkipsEmptyFields()
     {
-        var context = CreateContext(new DeletedState { Reason = "Held" });
+        ApplyStateContextMock context = CreateContext(new DeletedState { Reason = "Held" });
         context.BackgroundJob.Job = null;
 
         new ActivityFeedFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
-        var entry = JsonNode.Parse(Assert.Single(_inserted));
+        JsonNode? entry = JsonNode.Parse(Assert.Single(_inserted));
         Assert.Equal("Held", entry["r"].GetValue<string>());
         Assert.Null(entry["m"]);
         Assert.Null(entry["o"]);
@@ -120,7 +120,7 @@ public class ActivityFeedFacts : IDisposable
     public void Filter_DoesNothing_WhenDisabled()
     {
         ActivityFeed.Enabled = false;
-        var context = CreateContext(new EnqueuedState());
+        ApplyStateContextMock context = CreateContext(new EnqueuedState());
 
         new ActivityFeedFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -135,7 +135,7 @@ public class ActivityFeedFacts : IDisposable
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new EmptyResolver() });
         try
         {
-            var context = CreateContext(new EnqueuedState());
+            ApplyStateContextMock context = CreateContext(new EnqueuedState());
 
             new ActivityFeedFilter().OnStateApplied(context.Object, context.Transaction.Object);
 
@@ -151,11 +151,11 @@ public class ActivityFeedFacts : IDisposable
     public void Writer_TrimsOnItsFirstWrite_ThenOnceEveryTrimIntervalEntries()
     {
         ActivityFeed.MaxEntries = 50;
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
-        var writer = ActivityFeedWriter.For(storage.Object);
+        ActivityFeedWriter writer = ActivityFeedWriter.For(storage.Object);
 
-        for (var i = 0; i < ActivityFeedWriter.TrimInterval + 1; i++)
+        for (int i = 0; i < ActivityFeedWriter.TrimInterval + 1; i++)
         {
             writer.Add($"{{\"t\":{i}}}");
         }
@@ -169,15 +169,15 @@ public class ActivityFeedFacts : IDisposable
     public void Writer_WritesEveryQueuedEntry_InOrder_InOneTransaction()
     {
         ActivityFeedWriter.Schedule = _scheduled.Add;
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
-        var writer = ActivityFeedWriter.For(storage.Object);
+        ActivityFeedWriter writer = ActivityFeedWriter.For(storage.Object);
 
         writer.Add("1");
         writer.Add("2");
         writer.Add("3");
 
-        var flush = Assert.Single(_scheduled);
+        Action flush = Assert.Single(_scheduled);
         flush();
 
         Assert.Equal(new[] { "1", "2", "3" }, _inserted);
@@ -189,9 +189,9 @@ public class ActivityFeedFacts : IDisposable
     public void Writer_StartsANewFlush_AfterTheLastOneFinished()
     {
         ActivityFeedWriter.Schedule = _scheduled.Add;
-        var storage = new Mock<JobStorage>();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
-        var writer = ActivityFeedWriter.For(storage.Object);
+        ActivityFeedWriter writer = ActivityFeedWriter.For(storage.Object);
 
         writer.Add("1");
         _scheduled.Single()();
@@ -206,14 +206,14 @@ public class ActivityFeedFacts : IDisposable
     public void Writer_DropsEntries_BeyondTheLimit_AndWarnsOnce()
     {
         ActivityFeedWriter.Schedule = _scheduled.Add;
-        var provider = new RecordingLogProvider();
-        var storage = new Mock<JobStorage>();
+        RecordingLogProvider provider = new();
+        Mock<JobStorage> storage = new();
         storage.Setup(x => x.GetConnection()).Returns(_feedConnection.Object);
-        var writer = ActivityFeedWriter.For(storage.Object);
+        ActivityFeedWriter writer = ActivityFeedWriter.For(storage.Object);
 
         using (provider.Use())
         {
-            for (var i = 0; i < ActivityFeedWriter.MaxPending + 5; i++)
+            for (int i = 0; i < ActivityFeedWriter.MaxPending + 5; i++)
             {
                 writer.Add("x");
             }
@@ -228,7 +228,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact]
     public void Read_ReturnsEntries_NewestFirst_SkippingGarbage()
     {
-        var connection = new Mock<JobStorageConnection>();
+        Mock<JobStorageConnection> connection = new();
         connection.Setup(x => x.GetRangeFromList(ActivityFeed.ListKey, 0, 2)).Returns(
         [
             "{\"t\":3,\"j\":\"c\",\"s\":\"Succeeded\"}",
@@ -236,7 +236,7 @@ public class ActivityFeedFacts : IDisposable
             "{\"t\":1,\"j\":\"a\",\"s\":\"Enqueued\",\"m\":\"X.Y\"}",
         ]);
 
-        var entries = ActivityFeed.Read(connection.Object, 3);
+        IReadOnlyList<ActivityEntry> entries = ActivityFeed.Read(connection.Object, 3);
 
         Assert.Equal(2, entries.Count);
         Assert.Equal("c", entries[0].JobId);
@@ -250,10 +250,10 @@ public class ActivityFeedFacts : IDisposable
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { Converters = { new HexInt64Converter() } });
         try
         {
-            var connection = new Mock<JobStorageConnection>();
+            Mock<JobStorageConnection> connection = new();
             connection.Setup(x => x.GetRangeFromList(ActivityFeed.ListKey, 0, 0)).Returns(["{\"t\":\"0x10\",\"j\":\"a\",\"s\":\"Enqueued\"}"]);
 
-            var entry = Assert.Single(ActivityFeed.Read(connection.Object, 1));
+            ActivityEntry entry = Assert.Single(ActivityFeed.Read(connection.Object, 1));
 
             Assert.Equal(16, entry.Timestamp);
         }
@@ -273,7 +273,7 @@ public class ActivityFeedFacts : IDisposable
     [Fact]
     public void Read_ReturnsNothing_WhenTheStorageCannotReadLists()
     {
-        var connection = new Mock<JobStorageConnection> { CallBase = true };
+        Mock<JobStorageConnection> connection = new() { CallBase = true };
 
         Assert.Empty(ActivityFeed.Read(connection.Object, 10));
     }

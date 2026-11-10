@@ -11,7 +11,7 @@ public class RetriesPageFacts
     [Fact]
     public void Render_WithoutRetries_ShowsTheEmptyMessage()
     {
-        var html = _renderer.Render(new RetriesPage());
+        string html = _renderer.Render(new RetriesPage());
 
         Assert.Contains(Encode(Strings.RetriesPage_NoJobs), html);
         Assert.DoesNotContain("/retries/delete-all", html);
@@ -22,7 +22,7 @@ public class RetriesPageFacts
     {
         SetupRetries();
 
-        var html = _renderer.Render(new RetriesPage());
+        string html = _renderer.Render(new RetriesPage());
 
         Assert.Contains("data-ajax=\"/retries/delete-all\"", html);
         Assert.Contains($"data-confirm=\"{Encode(Strings.Common_DeleteAllConfirm)}\"", html);
@@ -37,7 +37,7 @@ public class RetriesPageFacts
         SetupRetries();
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
 
-        var html = _renderer.Render(new RetriesPage());
+        string html = _renderer.Render(new RetriesPage());
 
         Assert.Contains("<a href=\"/jobs/details/1\">#1</a>", html);
         Assert.DoesNotContain("/retries/delete-all", html);

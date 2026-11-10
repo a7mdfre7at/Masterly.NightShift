@@ -14,7 +14,7 @@ public class GloabalConfigurationExtensionsFacts
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        var result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, SerializationOption.User);
+        string result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, SerializationOption.User);
         Assert.Equal(@"{""stringProperty"":""Value""}", result);
     }
 
@@ -26,7 +26,7 @@ public class GloabalConfigurationExtensionsFacts
             settings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
 
-        var result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, SerializationOption.User);
+        string result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, SerializationOption.User);
         Assert.Equal(@"{""stringProperty"":""Value""}", result);
     }
 
@@ -38,7 +38,7 @@ public class GloabalConfigurationExtensionsFacts
             settings.Converters.Add(new JsonStringEnumConverter());
         });
 
-        var result = SerializationHelper.Serialize(DayOfWeek.Tuesday, SerializationOption.User);
+        string result = SerializationHelper.Serialize(DayOfWeek.Tuesday, SerializationOption.User);
 
         Assert.Equal("\"Tuesday\"", result);
         Assert.Equal(DayOfWeek.Tuesday, SerializationHelper.Deserialize<DayOfWeek>(result, SerializationOption.User));
@@ -52,7 +52,7 @@ public class GloabalConfigurationExtensionsFacts
             settings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
 
-        var result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, typeof(object), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new CustomClass { StringProperty = "Value" }, typeof(object), SerializationOption.User);
 
         Assert.Equal(
             $@"{{""$type"":""{typeof(CustomClass).FullName}, Masterly.NightShift.Core.Tests"",""stringProperty"":""Value""}}",
@@ -67,7 +67,7 @@ public class GloabalConfigurationExtensionsFacts
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        var result = SerializationHelper.Deserialize<CustomClass>(@"{""StringProperty"":""Value""}", SerializationOption.User);
+        CustomClass? result = SerializationHelper.Deserialize<CustomClass>(@"{""StringProperty"":""Value""}", SerializationOption.User);
 
         Assert.Equal("Value", result.StringProperty);
     }
@@ -75,12 +75,12 @@ public class GloabalConfigurationExtensionsFacts
     [Fact, GlobalLock(Reason = "Changes GlobalJobInterceptors")]
     public void UseJobInterceptor_AddsTheInterceptorGlobally_AndReturnsTheSameConfiguration()
     {
-        var interceptor = new Mock<IJobInterceptor>().Object;
-        var configuration = GlobalConfiguration.Configuration;
+        IJobInterceptor interceptor = new Mock<IJobInterceptor>().Object;
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
 
         try
         {
-            var result = configuration.UseJobInterceptor(interceptor);
+            IGlobalConfiguration result = configuration.UseJobInterceptor(interceptor);
 
             Assert.Same(configuration, result);
             Assert.Contains(interceptor, GlobalJobInterceptors.Interceptors);
@@ -101,13 +101,13 @@ public class GloabalConfigurationExtensionsFacts
     [Fact, GlobalLock(Reason = "Changes GlobalJobFilters")]
     public void UseJobInsights_RegistersTheInsightsAndQueueInsightsFilters()
     {
-        var configuration = GlobalConfiguration.Configuration;
-        var before = GlobalJobFilters.Filters.Select(x => x.Instance).ToList();
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
+        List<object> before = [.. GlobalJobFilters.Filters.Select(x => x.Instance)];
         object[] added = [];
 
         try
         {
-            var result = configuration.UseJobInsights();
+            IGlobalConfiguration result = configuration.UseJobInsights();
             added = [.. GlobalJobFilters.Filters.Select(x => x.Instance).Except(before)];
 
             Assert.Collection(
@@ -118,21 +118,21 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (var filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
         }
     }
 
     [Fact, GlobalLock(Reason = "Changes GlobalJobFilters")]
     public void UseJobInsights_AddsItsFiltersOnce_WhenCalledAgain()
     {
-        var configuration = GlobalConfiguration.Configuration;
-        var before = GlobalJobFilters.Filters.Select(x => x.Instance).ToList();
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
+        List<object> before = [.. GlobalJobFilters.Filters.Select(x => x.Instance)];
         object[] added = [];
 
         try
         {
-            var first = configuration.UseJobInsights();
-            var second = configuration.UseJobInsights();
+            IGlobalConfiguration first = configuration.UseJobInsights();
+            IGlobalConfiguration second = configuration.UseJobInsights();
             added = [.. GlobalJobFilters.Filters.Select(x => x.Instance).Except(before)];
 
             Assert.Equal(2, added.Length);
@@ -144,15 +144,15 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (var filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
         }
     }
 
     [Fact, GlobalLock(Reason = "Changes GlobalJobFilters")]
     public void UseResultsInContinuations_AddsItsFiltersOnce_WhenCalledAgain()
     {
-        var configuration = GlobalConfiguration.Configuration;
-        var before = GlobalJobFilters.Filters.Select(x => x.Instance).ToList();
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
+        List<object> before = [.. GlobalJobFilters.Filters.Select(x => x.Instance)];
         object[] added = [];
 
         try
@@ -168,37 +168,37 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (var filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
         }
     }
 
     [Fact, GlobalLock(Reason = "Changes GlobalJobFilters")]
     public void UseFailedJobRetention_AddsTheFilterOnce_AndCallingAgainChangesThePeriod()
     {
-        var configuration = GlobalConfiguration.Configuration;
-        var before = GlobalJobFilters.Filters.Select(x => x.Instance).ToList();
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
+        List<object> before = [.. GlobalJobFilters.Filters.Select(x => x.Instance)];
         object[] added = [];
 
         try
         {
-            var result = configuration.UseFailedJobRetention(TimeSpan.FromDays(30));
+            IGlobalConfiguration result = configuration.UseFailedJobRetention(TimeSpan.FromDays(30));
             configuration.UseFailedJobRetention(TimeSpan.FromDays(7));
             added = [.. GlobalJobFilters.Filters.Select(x => x.Instance).Except(before)];
 
             Assert.Same(configuration, result);
-            var filter = Assert.IsType<FailedJobRetentionFilter>(Assert.Single(added));
+            FailedJobRetentionFilter filter = Assert.IsType<FailedJobRetentionFilter>(Assert.Single(added));
             Assert.Equal(TimeSpan.FromDays(7), filter.Retention);
         }
         finally
         {
-            foreach (var filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
         }
     }
 
     [Fact, GlobalLock(Reason = "Reads GlobalJobFilters")]
     public void UseFailedJobRetention_RejectsInvalidArguments_WithoutAddingAFilter()
     {
-        var before = GlobalJobFilters.Filters.Count;
+        int before = GlobalJobFilters.Filters.Count;
 
         Assert.Throws<ArgumentNullException>("configuration", () => GlobalConfigurationExtensions.UseFailedJobRetention(null, TimeSpan.FromDays(1)));
         Assert.Throws<ArgumentOutOfRangeException>("retention", () => GlobalConfiguration.Configuration.UseFailedJobRetention(TimeSpan.Zero));
@@ -217,13 +217,13 @@ public class GloabalConfigurationExtensionsFacts
     [Fact, GlobalLock(Reason = "Changes ActivityFeed and GlobalJobFilters")]
     public void UseActivityFeed_TurnsTheFeedOn_WithTheFilterRegisteredOnce()
     {
-        var removed = GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance).ToList();
-        foreach (var filter in removed) GlobalJobFilters.Filters.Remove(filter);
+        List<object> removed = [.. GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance)];
+        foreach (object filter in removed) GlobalJobFilters.Filters.Remove(filter);
         ActivityFeed.Enabled = false;
 
         try
         {
-            var result = GlobalConfiguration.Configuration.UseActivityFeed().UseActivityFeed(300);
+            IGlobalConfiguration result = GlobalConfiguration.Configuration.UseActivityFeed().UseActivityFeed(300);
 
             Assert.NotNull(result);
             Assert.True(ActivityFeed.Enabled);
@@ -234,8 +234,8 @@ public class GloabalConfigurationExtensionsFacts
         {
             ActivityFeed.Enabled = false;
             ActivityFeed.MaxEntries = 1000;
-            foreach (var filter in GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance).ToList()) GlobalJobFilters.Filters.Remove(filter);
-            foreach (var filter in removed) GlobalJobFilters.Filters.Add(filter);
+            foreach (object? filter in GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance).ToList()) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in removed) GlobalJobFilters.Filters.Add(filter);
         }
     }
 
@@ -260,14 +260,14 @@ public class GloabalConfigurationExtensionsFacts
     [InlineData(true)]
     public void UseCompiledJobInvokers_SetsTheRegistrySwitch(bool enabled)
     {
-        var previous = JobInvokerRegistry.UseCompiledInvokers;
-        var configuration = GlobalConfiguration.Configuration;
+        bool previous = JobInvokerRegistry.UseCompiledInvokers;
+        IGlobalConfiguration configuration = GlobalConfiguration.Configuration;
 
         try
         {
             JobInvokerRegistry.UseCompiledInvokers = !enabled;
 
-            var result = configuration.UseCompiledJobInvokers(enabled);
+            IGlobalConfiguration result = configuration.UseCompiledJobInvokers(enabled);
 
             Assert.Same(configuration, result);
             Assert.Equal(enabled, JobInvokerRegistry.UseCompiledInvokers);

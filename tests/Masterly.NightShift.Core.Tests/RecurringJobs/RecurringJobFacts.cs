@@ -48,7 +48,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void Pause_PausesTheRecurringJob_ThroughTheManager()
     {
-        var result = RecurringJob.Pause(RecurringJobId);
+        bool result = RecurringJob.Pause(RecurringJobId);
 
         Assert.True(result);
         Assert.Equal("1", _writes.Single()["Paused"]);
@@ -60,7 +60,7 @@ public class RecurringJobFacts : IDisposable
     {
         _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
 
-        var result = RecurringJob.Pause(RecurringJobId);
+        bool result = RecurringJob.Pause(RecurringJobId);
 
         Assert.False(result);
         _transaction.Verify(x => x.Commit(), Times.Never);
@@ -69,7 +69,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void Pause_ThrowsAnException_WhenIdIsNull()
     {
-        var exception = Assert.Throws<ArgumentNullException>(() => RecurringJob.Pause(null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => RecurringJob.Pause(null));
 
         Assert.Equal("recurringJobId", exception.ParamName);
     }
@@ -80,7 +80,7 @@ public class RecurringJobFacts : IDisposable
         _hash["Paused"] = "1";
         _hash["NextExecution"] = string.Empty;
 
-        var result = RecurringJob.Resume(RecurringJobId);
+        bool result = RecurringJob.Resume(RecurringJobId);
 
         Assert.True(result);
         Assert.Equal("0", _writes.Single()["Paused"]);
@@ -91,7 +91,7 @@ public class RecurringJobFacts : IDisposable
     {
         _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
 
-        var result = RecurringJob.Resume(RecurringJobId);
+        bool result = RecurringJob.Resume(RecurringJobId);
 
         Assert.False(result);
         Assert.Empty(_writes);
@@ -100,10 +100,10 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void UpdateSchedule_ChangesTheCronExpression_ThroughTheManager()
     {
-        var result = RecurringJob.UpdateSchedule(RecurringJobId, "0 18 * * *");
+        bool result = RecurringJob.UpdateSchedule(RecurringJobId, "0 18 * * *");
 
         Assert.True(result);
-        var written = _writes.Single();
+        Dictionary<string, string> written = _writes.Single();
         Assert.Equal("0 18 * * *", written["Cron"]);
         Assert.Equal(JobHelper.SerializeDateTime(_now.AddHours(6)), written["NextExecution"]);
     }
@@ -111,10 +111,10 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void UpdateSchedule_ForwardsTheQueueAndMisfireHandling()
     {
-        var result = RecurringJob.UpdateSchedule(RecurringJobId, null, queue: "critical", misfireHandling: MisfireHandlingMode.Strict);
+        bool result = RecurringJob.UpdateSchedule(RecurringJobId, null, queue: "critical", misfireHandling: MisfireHandlingMode.Strict);
 
         Assert.True(result);
-        var written = _writes.Single();
+        Dictionary<string, string> written = _writes.Single();
         Assert.Equal("critical", written["Queue"]);
         Assert.Equal(((int)MisfireHandlingMode.Strict).ToString(), written["Misfire"]);
         Assert.False(written.ContainsKey("Cron"));
@@ -123,7 +123,7 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Access RecurringJob.ManagerFactory member")]
     public void UpdateSchedule_ThrowsAnException_WhenCronExpressionIsInvalid()
     {
-        var exception = Assert.Throws<ArgumentException>(() => RecurringJob.UpdateSchedule(RecurringJobId, "not a cron"));
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => RecurringJob.UpdateSchedule(RecurringJobId, "not a cron"));
 
         Assert.Equal("cronExpression", exception.ParamName);
         Assert.Empty(_writes);
@@ -134,7 +134,7 @@ public class RecurringJobFacts : IDisposable
     {
         _connection.Setup(x => x.GetAllEntriesFromHash(HashKey)).Returns((Dictionary<string, string>)null);
 
-        var result = RecurringJob.UpdateSchedule(RecurringJobId, "0 18 * * *");
+        bool result = RecurringJob.UpdateSchedule(RecurringJobId, "0 18 * * *");
 
         Assert.False(result);
         Assert.Empty(_writes);
@@ -143,8 +143,8 @@ public class RecurringJobFacts : IDisposable
     [Fact, GlobalLock(Reason = "Sets JobStorage.Current and the global time zone resolver")]
     public void AddOrUpdate_UsesTheGlobalTimeZoneResolver_WithTheDefaultManager()
     {
-        var plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
-        var resolver = new Mock<ITimeZoneResolver>();
+        TimeZoneInfo plusTwo = TimeZoneInfo.CreateCustomTimeZone("plus-two", TimeSpan.FromHours(2), "plus two", "plus two");
+        Mock<ITimeZoneResolver> resolver = new();
         resolver.Setup(x => x.GetTimeZoneById("plus-two")).Returns(plusTwo);
         RecurringJob.ManagerFactory = null;
         JobStorage.Current = _storage.Object;

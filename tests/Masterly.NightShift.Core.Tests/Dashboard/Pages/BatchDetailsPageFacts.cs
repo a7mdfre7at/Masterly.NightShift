@@ -14,7 +14,7 @@ public class BatchDetailsPageFacts
     public void Ctor_DecodesOnlyAnEncodedSlash_InTheId()
     {
         // ASP.NET Core has already decoded everything else in the path
-        var page = new BatchDetailsPage("nightly%2Fimport %41");
+        BatchDetailsPage page = new("nightly%2Fimport %41");
 
         Assert.Equal("nightly/import %41", page.Id);
     }
@@ -24,7 +24,7 @@ public class BatchDetailsPageFacts
     {
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(BatchId))).Returns((Dictionary<string, string>)null);
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_Expired, BatchId)), html);
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_Title, BatchId)), html);
@@ -42,7 +42,7 @@ public class BatchDetailsPageFacts
         SetupJobs("11", "12");
         SetupJob("11", SucceededState.StateName);
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("Nightly import", html);
         Assert.Contains("label label-info text-uppercase\">" + H(Strings.BatchesPage_State_Running), html);
@@ -68,7 +68,7 @@ public class BatchDetailsPageFacts
     {
         SetupBatch([], total: 1, counts: []);
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("<title>" + H(string.Format(Strings.BatchDetailsPage_Title, BatchId)), html);
         Assert.DoesNotContain(H(Strings.BatchesPage_Table_Created) + " <span data-moment=", html);
@@ -79,7 +79,7 @@ public class BatchDetailsPageFacts
     {
         SetupBatch([], total: 2, counts: new Dictionary<string, long> { { SucceededState.StateName, 2 } });
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("label label-success text-uppercase\">" + H(Strings.BatchesPage_State_Finished), html);
         Assert.Contains("hf-batch-actions", html);
@@ -92,7 +92,7 @@ public class BatchDetailsPageFacts
     {
         SetupBatch([], total: 2, counts: new Dictionary<string, long> { { SucceededState.StateName, 1 }, { FailedState.StateName, 1 } });
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("label label-danger text-uppercase\">" + H(Strings.BatchesPage_State_Failed), html);
         Assert.Contains("data-ajax=\"/batches/requeue-failed/b-1\"", html);
@@ -106,7 +106,7 @@ public class BatchDetailsPageFacts
         _renderer.Options = new DashboardOptions { IsReadOnlyFunc = _ => true };
         SetupBatch([], total: 2, counts: new Dictionary<string, long> { { FailedState.StateName, 2 } });
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.DoesNotContain("hf-batch-actions", html);
         Assert.DoesNotContain("/batches/requeue-failed/", html);
@@ -119,7 +119,7 @@ public class BatchDetailsPageFacts
         _renderer.Connection.Setup(x => x.GetAllItemsFromSet(BatchJob.GetContinuationsKey(BatchId))).Returns(["21", "22"]);
         SetupJob("21", AwaitingState.StateName);
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains("id=\"batch-continuations\"", html);
         Assert.Contains("href=\"/jobs/details/21\"", html);
@@ -137,7 +137,7 @@ public class BatchDetailsPageFacts
         _renderer.Request.Query["from"] = "20";
         _renderer.Request.Query["count"] = "10";
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 20, 29), Times.Once);
         _renderer.Connection.Verify(x => x.GetRangeFromSet(BatchJob.GetJobsKey(BatchId), 0, int.MaxValue - 1), Times.Never);
@@ -152,7 +152,7 @@ public class BatchDetailsPageFacts
         _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
         SetupBatch([], total: 750, counts: []);
 
-        var html = _renderer.Render(new BatchDetailsPage(BatchId));
+        string html = _renderer.Render(new BatchDetailsPage(BatchId));
 
         Assert.Contains(H(string.Format(Strings.BatchDetailsPage_MoreJobs, 250)), html);
         Assert.DoesNotContain("btn-group paginator", html);
@@ -163,7 +163,7 @@ public class BatchDetailsPageFacts
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(BatchId))).Returns(hash);
         _renderer.Connection.Setup(x => x.GetCounter(BatchJob.GetTotalKey(BatchId))).Returns(total);
 
-        foreach (var count in counts)
+        foreach (KeyValuePair<string, long> count in counts)
         {
             _renderer.Connection.Setup(x => x.GetCounter(BatchJob.GetStateKey(BatchId, count.Key))).Returns(count.Value);
         }

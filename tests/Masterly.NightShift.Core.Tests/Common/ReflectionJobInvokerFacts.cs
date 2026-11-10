@@ -7,7 +7,7 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Ctor_DescribesTheMethod_AsAReflectionInvoker()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
 
         Assert.Equal(JobInvokerKind.Reflection, invoker.Kind);
         Assert.Equal(typeof(Jobs), invoker.Type);
@@ -17,9 +17,9 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Invoke_ThrowsAnException_WhenArgumentsAreNull()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
 
-        var exception = Assert.Throws<ArgumentNullException>(() => invoker.Invoke(new Jobs(), null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => invoker.Invoke(new Jobs(), null));
 
         Assert.Equal("arguments", exception.ParamName);
     }
@@ -27,9 +27,9 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Invoke_CallsInstanceMethods_AndReturnsTheResult()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
 
-        var result = invoker.Invoke(new Jobs(), ["a", 1]);
+        object? result = invoker.Invoke(new Jobs(), ["a", 1]);
 
         Assert.Equal("a1", result);
     }
@@ -37,9 +37,9 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Invoke_CallsStaticMethods_AndReturnsNullForVoid()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.StaticVoid)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.StaticVoid)));
 
-        var result = invoker.Invoke(null, []);
+        object? result = invoker.Invoke(null, []);
 
         Assert.Null(result);
     }
@@ -47,9 +47,9 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Invoke_ThrowsTheJobsOwnException_InsteadOfTargetInvocationException()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.Throw)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.Throw)));
 
-        var exception = Assert.Throws<InvalidOperationException>(() => invoker.Invoke(new Jobs(), []));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => invoker.Invoke(new Jobs(), []));
 
         Assert.Equal("boom", exception.Message);
         Assert.Contains(nameof(Jobs.Throw), exception.StackTrace);
@@ -58,7 +58,7 @@ public class ReflectionJobInvokerFacts
     [Fact]
     public void Invoke_LetsArgumentMismatchesThrough_Unwrapped()
     {
-        var invoker = new ReflectionJobInvoker(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
+        ReflectionJobInvoker invoker = new(typeof(Jobs).GetMethod(nameof(Jobs.Concat)));
 
         Assert.Throws<ArgumentException>(() => invoker.Invoke(new Jobs(), [1, "a"]));
     }

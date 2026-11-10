@@ -26,7 +26,7 @@ public class WallboardPageFacts
     public void Render_ShowsTheTimeInTheViewersZone_WithTheDateScript_AndLabelsTheFallbackAsUtc()
     {
         // The wallboard loaded no script, so the storage's UTC time showed as if it were local
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Matches("<script src=\"/js-intl[0-9]+\"></script>", html);
         Assert.Contains("NightShiftIntl.format(", html);
@@ -40,7 +40,7 @@ public class WallboardPageFacts
         _queues.Add(Queue("default", 0));
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Processing = 3, Enqueued = 1234, Scheduled = 2, Failed = 0 });
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.StartsWith("<!DOCTYPE html>", html.TrimStart());
         Assert.DoesNotContain("navbar", html);
@@ -66,7 +66,7 @@ public class WallboardPageFacts
     {
         _renderer.Options = new DashboardOptions { DashboardTitle = "<b>Ops</b>" };
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("– Masterly.NightShift Dashboard</title>", html);
         Assert.Contains("<span><b>Ops</b></span>", html);
@@ -77,7 +77,7 @@ public class WallboardPageFacts
     {
         _renderer.Options = new DashboardOptions { DashboardTitle = "Ops board" };
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("– Ops board</title>", html);
     }
@@ -88,7 +88,7 @@ public class WallboardPageFacts
         AddServer("srv-1", DateTime.UtcNow, "default");
         AddServer("srv-2", DateTime.UtcNow.AddMinutes(-10), "default");
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("hf-wallboard hf-wb-warn", html);
         Assert.Contains(H(Strings.WallboardPage_Degraded), html);
@@ -102,7 +102,7 @@ public class WallboardPageFacts
     {
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Throws(new InvalidOperationException("storage is down"));
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("hf-wallboard hf-wb-down", html);
         Assert.Contains(H(Strings.WallboardPage_Unhealthy), html);
@@ -114,7 +114,7 @@ public class WallboardPageFacts
     [Fact]
     public void Render_StillListsRunningJobs_WhenTheBoardIsUnhealthyOnlyBecauseOfServers()
     {
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("hf-wb-down", html);
         Assert.Contains("<li>servers: no servers are registered</li>", html);
@@ -125,11 +125,11 @@ public class WallboardPageFacts
     public void Render_ShowsALowSuccessRate_AsBad()
     {
         // The previous hour only counts for the part of it within the last 60 minutes; older hours not at all
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long> { { now, 80 }, { now.AddHours(-1), 0 }, { now.AddHours(-2), 1000 } });
         _renderer.Monitoring.Setup(x => x.HourlyFailedJobs()).Returns(new Dictionary<DateTime, long> { { now, 20 } });
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("<section class=\"hf-wb-tile hf-wb-tile-bad\">", html);
         Assert.Contains("<div class=\"hf-wb-value\">" + 80.0.ToString("0.#", CultureInfo.CurrentCulture) + "%</div>", html);
@@ -141,7 +141,7 @@ public class WallboardPageFacts
     {
         _renderer.Monitoring.Setup(x => x.HourlySucceededJobs()).Returns(new Dictionary<DateTime, long> { { DateTime.UtcNow, 50 } });
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("<section class=\"hf-wb-tile hf-wb-tile-good\">", html);
         Assert.Contains("<div class=\"hf-wb-value\">100%</div>", html);
@@ -152,7 +152,7 @@ public class WallboardPageFacts
     {
         _renderer.Monitoring.Setup(x => x.GetStatistics()).Returns(new StatisticsDto { Failed = 7 });
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Equal(1, CountOf(html, "hf-wb-tile-bad"));
         Assert.Contains("<div class=\"hf-wb-value\">7</div>", html);
@@ -170,7 +170,7 @@ public class WallboardPageFacts
         AddQueueHealth("critical", startedPerMinute: 5);
         AddQueueHealth("default", startedPerMinute: 0);
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.True(html.IndexOf(">critical ", StringComparison.Ordinal) < html.IndexOf(">default ", StringComparison.Ordinal));
         Assert.True(html.IndexOf(">default ", StringComparison.Ordinal) < html.IndexOf(">low ", StringComparison.Ordinal));
@@ -188,7 +188,7 @@ public class WallboardPageFacts
     [Fact]
     public void Render_ShowsRunningJobs_WithProgressFromTheirUsualDuration()
     {
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
         AddInsight(Job.FromExpression(() => SampleJobs.Quick()), 10000);
         AddInsight(Job.FromExpression(() => SampleJobs.Long()), 3600000);
         _renderer.Monitoring.Setup(x => x.ProcessingJobs(0, 8)).Returns(new JobList<ProcessingJobDto>(
@@ -200,7 +200,7 @@ public class WallboardPageFacts
             Processing("5", null),
         ]));
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.DoesNotContain(H(Strings.WallboardPage_NothingRunning), html);
         Assert.Equal(3, CountOf(html, "<div class=\"hf-wb-job\">"));
@@ -222,7 +222,7 @@ public class WallboardPageFacts
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("circuit:payments")).Returns(new Dictionary<string, string> { { "State", CircuitBreakerAttribute.OpenState } });
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("circuit:mail")).Returns(new Dictionary<string, string> { { "State", CircuitBreakerAttribute.ClosedState } });
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("<li>" + H(string.Format(Strings.WallboardPage_OpenCircuits, "payments")) + "</li>", html);
     }
@@ -233,7 +233,7 @@ public class WallboardPageFacts
         AddServer("srv-1", DateTime.UtcNow, "default");
         _renderer.Storage.Setup(x => x.GetReadOnlyConnection()).Throws(new InvalidOperationException("no connection"));
 
-        var html = _renderer.Render(new WallboardPage());
+        string html = _renderer.Render(new WallboardPage());
 
         Assert.Contains("hf-wb-warn", html);
         Assert.Contains("<li>recurring: could not read the recurring jobs, see the log</li>", html);
@@ -260,8 +260,8 @@ public class WallboardPageFacts
 
     private void AddInsight(Job job, long durationMs)
     {
-        var key = JobInsightsAttribute.GetKey(job);
-        var duration = durationMs.ToString(CultureInfo.InvariantCulture);
+        string key = JobInsightsAttribute.GetKey(job);
+        string duration = durationMs.ToString(CultureInfo.InvariantCulture);
 
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash($"insights:{key}")).Returns(new Dictionary<string, string> { { "LastDurationMs", duration } });
         _renderer.Connection.Setup(x => x.GetAllItemsFromList($"insights:{key}:durations")).Returns([duration, duration, duration]);
@@ -274,7 +274,7 @@ public class WallboardPageFacts
 
     private static string Duration(TimeSpan duration)
     {
-        var page = new WallboardPage();
+        WallboardPage page = new();
         page.Assign(new DashboardContextStub(new DashboardOptions()));
         return new HtmlHelper(page).ToHumanDuration(duration, false);
     }

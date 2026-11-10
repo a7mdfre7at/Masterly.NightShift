@@ -23,7 +23,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Intercepted>(x => x.Method());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("result", result);
         Assert.Equal(
@@ -58,7 +58,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Intercepted>(x => x.Echo("original"));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("replaced", result);
     }
@@ -68,7 +68,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Intercepted>(x => x.Skipped());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("short-circuit", result);
         Assert.DoesNotContain("skipped", Log);
@@ -79,7 +79,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Intercepted>(x => x.Counted());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(3, result);
         Assert.Equal(3, Log.FindAll(x => x == "counted").Count);
@@ -90,7 +90,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<AsyncIntercepted>(x => x.AsyncMethod(20));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(21, result);
         Assert.Equal(new[] { "async:before", "async-method", "async:after" }, Log);
@@ -101,7 +101,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<AsyncIntercepted>(x => x.AsyncVoid());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Null(result);
         Assert.Equal(new[] { "async:before", "async-void", "async:after" }, Log);
@@ -112,7 +112,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<AsyncIntercepted>(x => x.SyncWithAsyncInterceptor());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("sync", result);
         Assert.Equal(new[] { "async:before", "sync", "async:after" }, Log);
@@ -123,7 +123,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<AsyncIntercepted>(x => x.ValueTaskMethod());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal(5, result);
     }
@@ -133,7 +133,7 @@ public class JobInterceptorFacts : IDisposable
     {
         _context.BackgroundJob.Job = Job.FromExpression<Intercepted>(x => x.Throwing());
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Contains("type:exception", Log);
@@ -165,7 +165,7 @@ public class JobInterceptorFacts : IDisposable
     [Fact, StaticLock]
     public void GlobalJobInterceptors_Remove_RemovesRegisteredInterceptor()
     {
-        var interceptor = new LoggingInterceptor("x");
+        LoggingInterceptor interceptor = new("x");
         GlobalJobInterceptors.Add(interceptor);
 
         Assert.True(GlobalJobInterceptors.Remove(interceptor));
@@ -175,7 +175,7 @@ public class JobInterceptorFacts : IDisposable
 
     private object Perform()
     {
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
         return performer.Perform(_context.Object);
     }
 
@@ -254,7 +254,7 @@ public class JobInterceptorFacts : IDisposable
             Log.Add(_name + ":before");
             try
             {
-                var result = invocation.Proceed();
+                object? result = invocation.Proceed();
                 Log.Add(_name + ":after");
                 return result;
             }
@@ -273,7 +273,7 @@ public class JobInterceptorFacts : IDisposable
         protected override async Task<object> InterceptAsync(JobInvocation invocation)
         {
             Log.Add(_name + ":before");
-            var result = await invocation.ProceedAsync();
+            object? result = await invocation.ProceedAsync();
             Log.Add(_name + ":after");
             return result;
         }
@@ -299,8 +299,8 @@ public class JobInterceptorFacts : IDisposable
     {
         public override object Intercept(JobInvocation invocation)
         {
-            var sum = 0;
-            for (var i = 0; i < 3; i++)
+            int sum = 0;
+            for (int i = 0; i < 3; i++)
             {
                 sum += (int)invocation.Proceed();
             }
@@ -316,7 +316,7 @@ public class JobInterceptorFacts : IDisposable
         public object Intercept(JobInvocation invocation)
         {
             Log.Add(_name + ":before");
-            var result = invocation.Proceed();
+            object? result = invocation.Proceed();
             Log.Add(_name + ":after");
             return result;
         }

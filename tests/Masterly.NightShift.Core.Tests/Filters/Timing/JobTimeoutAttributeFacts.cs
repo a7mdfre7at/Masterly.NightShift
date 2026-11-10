@@ -23,7 +23,7 @@ public class JobTimeoutAttributeFacts
     public void Ctor_ThrowsAnException_WhenTimeoutIsLongerThanATimerAccepts()
     {
         // 60 days: CancelAfter would throw on every run, before the job method is called
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => new JobTimeoutAttribute(60 * 24 * 3600));
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => new JobTimeoutAttribute(60 * 24 * 3600));
 
         Assert.Contains("2147483", exception.Message, StringComparison.Ordinal);
         Assert.Throws<ArgumentOutOfRangeException>(() => new JobTimeoutAttribute(JobTimeoutAttribute.MaxTimeoutInSeconds + 1));
@@ -35,7 +35,7 @@ public class JobTimeoutAttributeFacts
         Assert.Equal(2147483, JobTimeoutAttribute.MaxTimeoutInSeconds);
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.LongestTimeout(default));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("done", result);
     }
@@ -48,7 +48,7 @@ public class JobTimeoutAttributeFacts
             .Setup(x => x.SetJobParameter("JobId", JobTimeoutAttribute.TimeoutExceededParameter, It.IsAny<string>()))
             .Throws(new InvalidOperationException("storage is down"));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("late", result);
     }
@@ -58,7 +58,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Fast(default));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("done", result);
     }
@@ -68,7 +68,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.Slow(default));
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<TimeoutException>(exception.InnerException);
     }
@@ -78,7 +78,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SlowWithJobToken(null));
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
         Assert.IsType<TimeoutException>(exception.InnerException);
     }
@@ -88,7 +88,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SlowWithoutToken());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("late", result);
         _context.Connection.Verify(x => x.SetJobParameter("JobId", JobTimeoutAttribute.TimeoutExceededParameter, It.IsNotNull<string>()));
@@ -99,7 +99,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.TimesOutOnceWithJobToken(null));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("second attempt", result);
         Assert.Equal(2, _attempts);
@@ -110,7 +110,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.TimesOutOnceWithToken(default));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("second attempt", result);
         Assert.Equal(2, _attempts);
@@ -121,7 +121,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.TimesOutOnceWithJobTokenAsync(null));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("second attempt", result);
         Assert.Equal(2, _attempts);
@@ -132,7 +132,7 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.TimesOutOnceWithTokenAsync(default));
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("second attempt", result);
         Assert.Equal(2, _attempts);
@@ -141,12 +141,12 @@ public class JobTimeoutAttributeFacts
     [Fact, StaticLock]
     public void Perform_RestoresTheOriginalTokens_AfterTheCall()
     {
-        var original = new Mock<IJobCancellationToken>().Object;
-        var arguments = new object[] { original, CancellationToken.None };
-        var job = Job.FromExpression<Jobs>(x => x.TakesBothTokens(null, default));
+        IJobCancellationToken original = new Mock<IJobCancellationToken>().Object;
+        object[] arguments = [original, CancellationToken.None];
+        Job job = Job.FromExpression<Jobs>(x => x.TakesBothTokens(null, default));
         _context.BackgroundJob.Job = job;
-        var invoker = new ReflectionJobInvoker(job.Method);
-        var invocation = new JobInvocation(_context.Object, invoker, new Jobs(), arguments, [new JobTimeoutAttribute(5)]);
+        ReflectionJobInvoker invoker = new(job.Method);
+        JobInvocation invocation = new(_context.Object, invoker, new Jobs(), arguments, [new JobTimeoutAttribute(5)]);
 
         invocation.Proceed();
 
@@ -159,9 +159,9 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<ShortClassTimeout>(x => x.WaitForToken(default));
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
-        var timeout = Assert.IsType<TimeoutException>(exception.InnerException);
+        TimeoutException timeout = Assert.IsType<TimeoutException>(exception.InnerException);
         Assert.Equal("Timed out after 1 seconds (JobTimeout)", timeout.Message);
     }
 
@@ -170,9 +170,9 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<ShortClassTimeout>(x => x.WaitForJobToken(null));
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
-        var timeout = Assert.IsType<TimeoutException>(exception.InnerException);
+        TimeoutException timeout = Assert.IsType<TimeoutException>(exception.InnerException);
         Assert.Equal("Timed out after 1 seconds (JobTimeout)", timeout.Message);
     }
 
@@ -181,9 +181,9 @@ public class JobTimeoutAttributeFacts
     {
         _context.BackgroundJob.Job = Job.FromExpression<LongClassTimeout>(x => x.WaitForToken(default));
 
-        var exception = Assert.Throws<JobPerformanceException>(() => Perform());
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
 
-        var timeout = Assert.IsType<TimeoutException>(exception.InnerException);
+        TimeoutException timeout = Assert.IsType<TimeoutException>(exception.InnerException);
         Assert.Equal("Timed out after 1 seconds (JobTimeout)", timeout.Message);
     }
 
@@ -193,7 +193,7 @@ public class JobTimeoutAttributeFacts
         // The outer two seconds are exceeded too, but the inner second is what the parameter keeps
         _context.BackgroundJob.Job = Job.FromExpression<TwoSecondClassTimeout>(x => x.SleepWithoutToken());
 
-        var result = Perform();
+        object result = Perform();
 
         Assert.Equal("late", result);
         _context.Connection.Verify(x => x.SetJobParameter("JobId", JobTimeoutAttribute.TimeoutExceededParameter, It.Is<string>(v => v.Contains("00:00:01"))), Times.Once);
@@ -203,15 +203,15 @@ public class JobTimeoutAttributeFacts
     [Fact]
     public void IsAborted_SeesThroughTheTokensWrappedByNestedTimeouts()
     {
-        var serverId = $"job-timeout-facts-{Guid.NewGuid()}";
-        var connection = new Mock<IStorageConnection>();
+        string serverId = $"job-timeout-facts-{Guid.NewGuid()}";
+        Mock<IStorageConnection> connection = new();
         connection.Setup(x => x.GetStateData("JobId")).Returns((StateData)null);
         ServerJobCancellationToken.AddServer(serverId);
 
         try
         {
-            using var serverToken = new ServerJobCancellationToken(connection.Object, "JobId", serverId, "worker", CancellationToken.None);
-            var wrapped = new JobTimeoutAttribute.LinkedJobCancellationToken(
+            using ServerJobCancellationToken serverToken = new(connection.Object, "JobId", serverId, "worker", CancellationToken.None);
+            JobTimeoutAttribute.LinkedJobCancellationToken wrapped = new(
                 new JobTimeoutAttribute.LinkedJobCancellationToken(serverToken, serverToken.ShutdownToken),
                 serverToken.ShutdownToken);
 
@@ -230,7 +230,7 @@ public class JobTimeoutAttributeFacts
 
     private object Perform()
     {
-        var performer = new CoreBackgroundJobPerformer(new JobActivator(), null);
+        CoreBackgroundJobPerformer performer = new(new JobActivator(), null);
         return performer.Perform(_context.Object);
     }
 
@@ -306,7 +306,7 @@ public class JobTimeoutAttributeFacts
         [JobTimeout(1)]
         public string SlowWithJobToken(IJobCancellationToken token)
         {
-            for (var i = 0; i < 300; i++)
+            for (int i = 0; i < 300; i++)
             {
                 token.ThrowIfCancellationRequested();
                 Thread.Sleep(100);

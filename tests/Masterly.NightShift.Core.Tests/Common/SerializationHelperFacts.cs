@@ -20,28 +20,28 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Serialize_ReturnsCorrectResult_WhenValueIsString()
     {
-        var result = SerializationHelper.Serialize("Simple string");
+        string result = SerializationHelper.Serialize("Simple string");
         Assert.Equal("\"Simple string\"", result);
     }
 
     [DataCompatibilityRangeFact]
     public void Serialize_ReturnsCorrectValue_WhenValueIsCustomObject()
     {
-        var result = SerializationHelper.Serialize(new ClassA("B"));
+        string result = SerializationHelper.Serialize(new ClassA("B"));
         Assert.Equal(@"{""PropertyA"":""B""}", result);
     }
 
     [DataCompatibilityRangeFact]
     public void Serialize_KeepsNonAsciiText_Readable()
     {
-        var result = SerializationHelper.Serialize("مرحبا ü");
+        string result = SerializationHelper.Serialize("مرحبا ü");
         Assert.Equal("\"مرحبا ü\"", result);
     }
 
     [DataCompatibilityRangeFact]
     public void Serialize_IncludesTheTypeName_WhenOptionIsTypedInternal_AndTheValueIsDeclaredAsObject()
     {
-        var result = SerializationHelper.Serialize<object>(new ClassA("B"), SerializationOption.TypedInternal);
+        string result = SerializationHelper.Serialize<object>(new ClassA("B"), SerializationOption.TypedInternal);
         Assert.Equal($@"{{""$type"":""{ClassAType}"",""PropertyA"":""B""}}", result);
     }
 
@@ -50,7 +50,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var result = SerializationHelper.Serialize(new ClassA("A"), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new ClassA("A"), SerializationOption.User);
         Assert.Equal(@"{""propertyA"":""A""}", result);
     }
 
@@ -59,7 +59,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var result = SerializationHelper.Serialize(new ClassA("A"));
+        string result = SerializationHelper.Serialize(new ClassA("A"));
         Assert.Equal(@"{""propertyA"":""A""}", result);
     }
 
@@ -68,7 +68,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var result = SerializationHelper.Serialize(new ClassA("A"));
+        string result = SerializationHelper.Serialize(new ClassA("A"));
         Assert.Equal(@"{""PropertyA"":""A""}", result);
     }
 
@@ -77,7 +77,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
 
-        var result = SerializationHelper.Serialize(new ClassB { StringValue = "hi" }, SerializationOption.TypedInternal);
+        string result = SerializationHelper.Serialize(new ClassB { StringValue = "hi" }, SerializationOption.TypedInternal);
         Assert.Equal(@"{""StringValue"":""hi"",""DefaultValue"":0}", result);
     }
 
@@ -85,10 +85,10 @@ public class SerializationHelperFacts
     public void Serialize_ProducesJson_ThatPlainSystemTextJsonCanRead()
     {
         SerializationHelper.SetUserSerializerSettings(SerializerSettingsHelper.DangerousSettings);
-        var initialObject = new ClassA("A");
+        ClassA initialObject = new("A");
 
-        var result = SerializationHelper.Serialize(initialObject);
-        var resultingObject = JsonSerializer.Deserialize<ClassA>(result, new JsonSerializerOptions(SerializerSettingsHelper.DangerousSettings) { PropertyNameCaseInsensitive = true });
+        string result = SerializationHelper.Serialize(initialObject);
+        ClassA? resultingObject = JsonSerializer.Deserialize<ClassA>(result, new JsonSerializerOptions(SerializerSettingsHelper.DangerousSettings) { PropertyNameCaseInsensitive = true });
 
         Assert.Equal(initialObject.PropertyA, resultingObject.PropertyA);
     }
@@ -98,7 +98,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { Converters = { new DayMonthYearConverter() } });
 
-        var result = SerializationHelper.Serialize(new ClassB { StringValue = "B", DateTimeValue = new DateTime(1961, 4, 12) });
+        string result = SerializationHelper.Serialize(new ClassB { StringValue = "B", DateTimeValue = new DateTime(1961, 4, 12) });
         Assert.Equal(@"{""StringValue"":""B"",""DefaultValue"":0,""DateTimeValue"":""1961-04-12T00:00:00""}", result);
     }
 
@@ -107,7 +107,7 @@ public class SerializationHelperFacts
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-        var result = SerializationHelper.Serialize(new ClassA("hello"), typeof(ClassA), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new ClassA("hello"), typeof(ClassA), SerializationOption.User);
 
         Assert.Equal("{\"PropertyA\":\"hello\"}", result);
     }
@@ -117,7 +117,7 @@ public class SerializationHelperFacts
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-        var result = SerializationHelper.Serialize(new ClassA("hello"), typeof(object), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new ClassA("hello"), typeof(object), SerializationOption.User);
 
         Assert.Equal($"{{\"$type\":\"{ClassAType}\",\"PropertyA\":\"hello\"}}", result);
     }
@@ -125,7 +125,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Serialize_WithDefaultUserSettings_DoesNotIncludeTypeProperty_EvenWhenTheValueIsDeclaredAsObject()
     {
-        var result = SerializationHelper.Serialize(new ClassA("hello"), typeof(object), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new ClassA("hello"), typeof(object), SerializationOption.User);
 
         Assert.Equal("{\"PropertyA\":\"hello\"}", result);
     }
@@ -135,11 +135,11 @@ public class SerializationHelperFacts
     {
         IState state = new EnqueuedState("critical") { Reason = "test" };
 
-        var json = SerializationHelper.Serialize(state, SerializationOption.TypedInternal);
-        var result = SerializationHelper.Deserialize<IState>(json, SerializationOption.TypedInternal);
+        string json = SerializationHelper.Serialize(state, SerializationOption.TypedInternal);
+        IState? result = SerializationHelper.Deserialize<IState>(json, SerializationOption.TypedInternal);
 
         Assert.StartsWith("{\"$type\":\"Masterly.NightShift.States.EnqueuedState, Masterly.NightShift.Core", json);
-        var enqueued = Assert.IsType<EnqueuedState>(result);
+        EnqueuedState enqueued = Assert.IsType<EnqueuedState>(result);
         Assert.Equal("critical", enqueued.Queue);
         Assert.Equal("test", enqueued.Reason);
     }
@@ -147,11 +147,11 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ReadsAState_StoredInThePreviousFormat()
     {
-        var json = "{\"$type\":\"Masterly.NightShift.States.ScheduledState, Masterly.NightShift.Core\",\"EnqueueAt\":\"2026-11-05T10:00:00Z\",\"Reason\":\"later\"}";
+        string json = "{\"$type\":\"Masterly.NightShift.States.ScheduledState, Masterly.NightShift.Core\",\"EnqueueAt\":\"2026-11-05T10:00:00Z\",\"Reason\":\"later\"}";
 
-        var result = SerializationHelper.Deserialize<IState>(json, SerializationOption.TypedInternal);
+        IState? result = SerializationHelper.Deserialize<IState>(json, SerializationOption.TypedInternal);
 
-        var scheduled = Assert.IsType<ScheduledState>(result);
+        ScheduledState scheduled = Assert.IsType<ScheduledState>(result);
         Assert.Equal(new DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Utc), scheduled.EnqueueAt);
         Assert.Equal("later", scheduled.Reason);
     }
@@ -173,7 +173,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ReadsQuotedNumbers_AndMatchesPropertyNamesIgnoringCase()
     {
-        var result = SerializationHelper.Deserialize<ClassB>("{\"stringvalue\":\"x\",\"defaultValue\":\"42\"}");
+        ClassB? result = SerializationHelper.Deserialize<ClassB>("{\"stringvalue\":\"x\",\"defaultValue\":\"42\"}");
 
         Assert.Equal("x", result.StringValue);
         Assert.Equal(42, result.DefaultValue);
@@ -188,7 +188,7 @@ public class SerializationHelperFacts
     [InlineData("{\"a\":1}", typeof(JsonElement))]
     public void Deserialize_ReadsValuesDeclaredAsObject_AsPrimitivesWherePossible(string json, Type expected)
     {
-        var result = SerializationHelper.Deserialize<object>(json);
+        object? result = SerializationHelper.Deserialize<object>(json);
 
         Assert.IsType(expected, result);
     }
@@ -196,7 +196,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ReadsAnArray_WrappedWithTypeAndValues()
     {
-        var result = SerializationHelper.Deserialize<string[]>("{\"$type\":\"System.String[], mscorlib\",\"$values\":[\"a\",\"b\"]}");
+        string[]? result = SerializationHelper.Deserialize<string[]>("{\"$type\":\"System.String[], mscorlib\",\"$values\":[\"a\",\"b\"]}");
 
         Assert.Equal(new[] { "a", "b" }, result);
     }
@@ -204,8 +204,8 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Serialize_WritesTypes_AsTheirNames_AndDeserializeReadsThemBack()
     {
-        var json = SerializationHelper.Serialize(new[] { typeof(string) });
-        var result = SerializationHelper.Deserialize<Type[]>(json);
+        string json = SerializationHelper.Serialize(new[] { typeof(string) });
+        Type[]? result = SerializationHelper.Deserialize<Type[]>(json);
 
         Assert.Equal([typeof(string)], result);
     }
@@ -213,7 +213,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ReturnsNull_WhenValueIsNull()
     {
-        var result = SerializationHelper.Deserialize(null, typeof(string));
+        object? result = SerializationHelper.Deserialize(null, typeof(string));
         Assert.Null(result);
     }
 
@@ -221,21 +221,21 @@ public class SerializationHelperFacts
     public void Deserialize_ThrowsException_WhenTypeIsNull()
     {
         // ReSharper disable once AssignNullToNotNullAttribute
-        var exception = Assert.Throws<ArgumentNullException>(() => SerializationHelper.Deserialize("someString", null));
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => SerializationHelper.Deserialize("someString", null));
         Assert.Equal("type", exception.ParamName);
     }
 
     [DataCompatibilityRangeFact]
     public void Deserialize_ReturnsCorrectValue_WhenValueIsString()
     {
-        var result = SerializationHelper.Deserialize("\"hello\"", typeof(string));
+        object? result = SerializationHelper.Deserialize("\"hello\"", typeof(string));
         Assert.Equal("hello", result);
     }
 
     [DataCompatibilityRangeFact]
     public void Deserialize_ReturnsCorrectObject_WhenTypeIsCustomClass()
     {
-        var value = SerializationHelper.Deserialize(@"{""PropertyA"":""A""}", typeof(ClassA)) as ClassA;
+        ClassA? value = SerializationHelper.Deserialize(@"{""PropertyA"":""A""}", typeof(ClassA)) as ClassA;
 
         Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
@@ -244,9 +244,9 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_IgnoresTheTypeName_WhenTheTypeIsKnown()
     {
-        var valueJson = $@"{{""$type"":""{ClassAType}"",""PropertyA"":""A""}}";
+        string valueJson = $@"{{""$type"":""{ClassAType}"",""PropertyA"":""A""}}";
 
-        var value = SerializationHelper.Deserialize(valueJson, typeof(ClassA), SerializationOption.TypedInternal) as ClassA;
+        ClassA? value = SerializationHelper.Deserialize(valueJson, typeof(ClassA), SerializationOption.TypedInternal) as ClassA;
 
         Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
@@ -258,7 +258,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { Converters = { new DayMonthYearConverter() } });
 
-        var value = SerializationHelper.Deserialize("{\"StringValue\":\"B\",\"DateTimeValue\":\"12041961\"}", typeof(ClassB)) as ClassB;
+        ClassB? value = SerializationHelper.Deserialize("{\"StringValue\":\"B\",\"DateTimeValue\":\"12041961\"}", typeof(ClassB)) as ClassB;
 
         Assert.NotNull(value);
         Assert.Equal("B", value.StringValue);
@@ -276,28 +276,28 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void DeserializeGeneric_ReturnsNull_WhenValueIsNull()
     {
-        var result = SerializationHelper.Deserialize<object>(null);
+        object? result = SerializationHelper.Deserialize<object>(null);
         Assert.Null(result);
     }
 
     [DataCompatibilityRangeFact]
     public void DeserializeGeneric_ReturnsDefaultValue_WhenGenericArgumentIsValueType()
     {
-        var result = SerializationHelper.Deserialize<int>(null);
+        int result = SerializationHelper.Deserialize<int>(null);
         Assert.Equal(0, result);
     }
 
     [DataCompatibilityRangeFact]
     public void DeserializeGeneric_ReturnsCorrectValue_WhenValueIsString()
     {
-        var result = SerializationHelper.Deserialize<string>("\"hello\"");
+        string? result = SerializationHelper.Deserialize<string>("\"hello\"");
         Assert.Equal("hello", result);
     }
 
     [DataCompatibilityRangeFact]
     public void DeserializeGeneric_ReturnsCorrectObject_WhenTypeIsCustomClass()
     {
-        var value = SerializationHelper.Deserialize<ClassA>(@"{""PropertyA"":""A""}");
+        ClassA? value = SerializationHelper.Deserialize<ClassA>(@"{""PropertyA"":""A""}");
 
         Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
@@ -306,7 +306,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void DeserializeGeneric_ReturnsCorrectObject_WhenOptionsIsTypedInternal()
     {
-        var value = SerializationHelper.Deserialize<ClassA>(@"{""PropertyA"":""A""}", SerializationOption.TypedInternal);
+        ClassA? value = SerializationHelper.Deserialize<ClassA>(@"{""PropertyA"":""A""}", SerializationOption.TypedInternal);
 
         Assert.NotNull(value);
         Assert.Equal("A", value.PropertyA);
@@ -317,7 +317,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { Converters = { new DayMonthYearConverter() } });
 
-        var value = SerializationHelper.Deserialize<ClassB>("{\"DateTimeValue\":\"01022003\"}", SerializationOption.TypedInternal);
+        ClassB? value = SerializationHelper.Deserialize<ClassB>("{\"DateTimeValue\":\"01022003\"}", SerializationOption.TypedInternal);
 
         Assert.Equal(new DateTime(2003, 2, 1), value.DateTimeValue);
     }
@@ -331,7 +331,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Serialize_WritesTheActualType_WhenTheDeclaredTypeIsAnInterface()
     {
-        var result = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
 
         Assert.Equal($@"{{""$type"":""{ClassAType}"",""PropertyA"":""B""}}", result);
     }
@@ -339,20 +339,20 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void Deserialize_ReadsTheActualType_WhenTheDeclaredTypeIsAnInterface()
     {
-        var result = SerializationHelper.Deserialize($@"{{""$type"":""{ClassAType}"",""PropertyA"":""B""}}", typeof(IClass), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize($@"{{""$type"":""{ClassAType}"",""PropertyA"":""B""}}", typeof(IClass), SerializationOption.User);
 
-        var value = Assert.IsType<ClassA>(result);
+        ClassA value = Assert.IsType<ClassA>(result);
         Assert.Equal("B", value.PropertyA);
     }
 
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void SerializeAndDeserialize_RoundTripAValue_DeclaredAsAnAbstractClass()
     {
-        var json = SerializationHelper.Serialize(new Circle { Name = "wheel", Radius = 2.5 }, typeof(Shape), SerializationOption.User);
-        var result = SerializationHelper.Deserialize(json, typeof(Shape), SerializationOption.User);
+        string json = SerializationHelper.Serialize(new Circle { Name = "wheel", Radius = 2.5 }, typeof(Shape), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize(json, typeof(Shape), SerializationOption.User);
 
         Assert.StartsWith($@"{{""$type"":""{CircleType}"",", json);
-        var circle = Assert.IsType<Circle>(result);
+        Circle circle = Assert.IsType<Circle>(result);
         Assert.Equal("wheel", circle.Name);
         Assert.Equal(2.5, circle.Radius);
     }
@@ -362,8 +362,8 @@ public class SerializationHelperFacts
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-        var json = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
-        var result = SerializationHelper.Deserialize(json, typeof(IClass), SerializationOption.User);
+        string json = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize(json, typeof(IClass), SerializationOption.User);
 
         Assert.Equal($@"{{""$type"":""{ClassAType}"",""PropertyA"":""B""}}", json);
         Assert.Equal("B", Assert.IsType<ClassA>(result).PropertyA);
@@ -374,11 +374,11 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var json = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
-        var result = SerializationHelper.Deserialize(json, typeof(IClass), SerializationOption.User);
+        string json = SerializationHelper.Serialize(new ClassA("B"), typeof(IClass), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize(json, typeof(IClass), SerializationOption.User);
 
         // The default encoder of these options escapes '+' in the type name
-        using var document = JsonDocument.Parse(json);
+        using JsonDocument document = JsonDocument.Parse(json);
         Assert.Equal(ClassAType, document.RootElement.GetProperty("$type").GetString());
         Assert.Equal("B", document.RootElement.GetProperty("propertyA").GetString());
         Assert.Equal("B", Assert.IsType<ClassA>(result).PropertyA);
@@ -389,7 +389,7 @@ public class SerializationHelperFacts
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-        var result = SerializationHelper.Serialize(new DerivedOrder { Id = 1, Extra = "x" }, typeof(Order), SerializationOption.User);
+        string result = SerializationHelper.Serialize(new DerivedOrder { Id = 1, Extra = "x" }, typeof(Order), SerializationOption.User);
 
         Assert.Equal(@"{""Extra"":""x"",""Id"":1}", result);
     }
@@ -399,8 +399,8 @@ public class SerializationHelperFacts
     {
         GlobalConfiguration.Configuration.UseRecommendedSerializerSettings();
 
-        var json = SerializationHelper.Serialize(new List<int> { 1, 2 }, typeof(IEnumerable<int>), SerializationOption.User);
-        var result = SerializationHelper.Deserialize(json, typeof(IEnumerable<int>), SerializationOption.User);
+        string json = SerializationHelper.Serialize(new List<int> { 1, 2 }, typeof(IEnumerable<int>), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize(json, typeof(IEnumerable<int>), SerializationOption.User);
 
         Assert.Equal("[1,2]", json);
         Assert.Equal([1, 2], Assert.IsAssignableFrom<IEnumerable<int>>(result));
@@ -409,8 +409,8 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void SerializeAndDeserialize_UseTheSystemTextJsonDiscriminator_WhenPolymorphismIsConfigured()
     {
-        var json = SerializationHelper.Serialize(new Square { Side = 2 }, typeof(IPolygon), SerializationOption.User);
-        var result = SerializationHelper.Deserialize(json, typeof(IPolygon), SerializationOption.User);
+        string json = SerializationHelper.Serialize(new Square { Side = 2 }, typeof(IPolygon), SerializationOption.User);
+        object? result = SerializationHelper.Deserialize(json, typeof(IPolygon), SerializationOption.User);
 
         Assert.Equal(@"{""$type"":""square"",""Side"":2}", json);
         Assert.Equal(2, Assert.IsType<Square>(result).Side);
@@ -425,7 +425,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ThrowsJsonException_WhenAValueDeclaredAsAnInterface_HasNoTypeName()
     {
-        var exception = Assert.Throws<JsonException>(
+        JsonException exception = Assert.Throws<JsonException>(
             () => SerializationHelper.Deserialize(@"{""PropertyA"":""B""}", typeof(IClass), SerializationOption.User));
 
         Assert.Contains("\"$type\"", exception.Message);
@@ -434,7 +434,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void Deserialize_ThrowsJsonException_WhenTheTypeName_IsNotAssignableToTheDeclaredType()
     {
-        var json = $@"{{""$type"":""{CircleType}"",""Radius"":1}}";
+        string json = $@"{{""$type"":""{CircleType}"",""Radius"":1}}";
 
         Assert.Throws<JsonException>(() => SerializationHelper.Deserialize(json, typeof(IClass), SerializationOption.User));
     }
@@ -447,7 +447,7 @@ public class SerializationHelperFacts
             GlobalConfiguration.Configuration.UseTypeResolver(
                 name => name == "OldCompany.ClassA, OldCompany" ? typeof(ClassA) : TypeHelper.DefaultTypeResolver(name));
 
-            var result = SerializationHelper.Deserialize(
+            object? result = SerializationHelper.Deserialize(
                 @"{""$type"":""OldCompany.ClassA, OldCompany"",""PropertyA"":""B""}", typeof(IClass), SerializationOption.User);
 
             Assert.Equal("B", Assert.IsType<ClassA>(result).PropertyA);
@@ -463,7 +463,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var result = SerializationHelper.Deserialize<Invoice>(
+        Invoice? result = SerializationHelper.Deserialize<Invoice>(
             @"{""CustomerId"":""42"",""Currency"":""EUR"",""Note"":""paid"",}", SerializationOption.User);
 
         Assert.Equal(42, result.CustomerId);
@@ -476,7 +476,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        var result = SerializationHelper.Serialize(new Invoice { CustomerId = 42, Currency = "EUR", Note = "paid" }, SerializationOption.User);
+        string result = SerializationHelper.Serialize(new Invoice { CustomerId = 42, Currency = "EUR", Note = "paid" }, SerializationOption.User);
 
         Assert.Equal(@"{""customerId"":42,""currency"":""EUR""}", result);
     }
@@ -486,10 +486,10 @@ public class SerializationHelperFacts
     {
         // Case-insensitive reading can't describe this type, so it is read with the options it was written with
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions());
-        var json = SerializationHelper.Serialize(new CaseCollision { Name = "a", NAME = "b" }, SerializationOption.User);
+        string json = SerializationHelper.Serialize(new CaseCollision { Name = "a", NAME = "b" }, SerializationOption.User);
 
-        var first = SerializationHelper.Deserialize<CaseCollision>(json, SerializationOption.User);
-        var second = SerializationHelper.Deserialize<CaseCollision>(json, SerializationOption.User);
+        CaseCollision? first = SerializationHelper.Deserialize<CaseCollision>(json, SerializationOption.User);
+        CaseCollision? second = SerializationHelper.Deserialize<CaseCollision>(json, SerializationOption.User);
 
         Assert.Equal(@"{""Name"":""a"",""NAME"":""b""}", json);
         Assert.Equal("a", first.Name);
@@ -500,7 +500,7 @@ public class SerializationHelperFacts
     [Fact, CleanSerializerSettings]
     public void SetUserSerializerSettings_DoesNotChangeTheGivenOptions()
     {
-        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         SerializationHelper.SetUserSerializerSettings(options);
         SerializationHelper.Deserialize<Invoice>(@"{""CustomerId"":42}", SerializationOption.User);
@@ -514,7 +514,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact]
     public void GetInternalSettings_ReturnsAModifiableCopy_OfTheInternalOptions()
     {
-        var options = SerializationHelper.GetInternalSettings();
+        JsonSerializerOptions options = SerializationHelper.GetInternalSettings();
 
         Assert.False(options.IsReadOnly);
         Assert.Equal(JsonIgnoreCondition.WhenWritingNull, options.DefaultIgnoreCondition);
@@ -528,8 +528,8 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void UserData_KeepsMembersEqualToTheirDefaultValue_WithTheDefaultOptions()
     {
-        var json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
-        var result = SerializationHelper.Deserialize<ReportRequest>(json, SerializationOption.User);
+        string json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
+        ReportRequest? result = SerializationHelper.Deserialize<ReportRequest>(json, SerializationOption.User);
 
         Assert.Equal(@"{""Days"":30,""Limit"":0}", json);
         Assert.Equal(30, result.Days);
@@ -541,8 +541,8 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetRecommendedSerializerSettings(null);
 
-        var json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
-        var result = SerializationHelper.Deserialize<ReportRequest>(json, SerializationOption.User);
+        string json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
+        ReportRequest? result = SerializationHelper.Deserialize<ReportRequest>(json, SerializationOption.User);
 
         Assert.Equal(@"{""Days"":30,""Limit"":0}", json);
         Assert.Equal(30, result.Days);
@@ -552,7 +552,7 @@ public class SerializationHelperFacts
     [DataCompatibilityRangeFact, CleanSerializerSettings]
     public void InternalData_KeepsMembersOfOtherTypes_EqualToTheirDefaultValue()
     {
-        var json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 });
+        string json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 });
 
         Assert.Equal(@"{""Days"":30,""Limit"":0}", json);
     }
@@ -565,7 +565,7 @@ public class SerializationHelperFacts
         // What the previous serializer stored with DefaultValueHandling.IgnoreAndPopulate
         if (recommended) SerializationHelper.SetRecommendedSerializerSettings(null);
 
-        var result = SerializationHelper.Deserialize<ReportRequest>("{}", SerializationOption.User);
+        ReportRequest? result = SerializationHelper.Deserialize<ReportRequest>("{}", SerializationOption.User);
 
         Assert.Equal(30, result.Days);
         Assert.Equal(0, result.Limit);
@@ -574,7 +574,7 @@ public class SerializationHelperFacts
     [Fact]
     public void InternalData_GetsTheDefaultValue_OfMembersMissingFromTheJson()
     {
-        var result = SerializationHelper.Deserialize<ReportRequest>(@"{""Days"":7}");
+        ReportRequest? result = SerializationHelper.Deserialize<ReportRequest>(@"{""Days"":7}");
 
         Assert.Equal(7, result.Days);
         Assert.Equal(0, result.Limit);
@@ -583,7 +583,7 @@ public class SerializationHelperFacts
     [Fact, CleanSerializerSettings]
     public void UserData_KeepsConstructorParameters_WhenMembersHaveADefaultValue()
     {
-        var result = SerializationHelper.Deserialize<BoundReport>(@"{""Days"":5}", SerializationOption.User);
+        BoundReport? result = SerializationHelper.Deserialize<BoundReport>(@"{""Days"":5}", SerializationOption.User);
 
         Assert.Equal(5, result.Days);
         Assert.Equal(7, result.Window);
@@ -592,7 +592,7 @@ public class SerializationHelperFacts
     [Fact, CleanSerializerSettings]
     public void UserData_StillCallsTheTypesOwnOnDeserializing_AfterSettingTheDefaultValues()
     {
-        var result = SerializationHelper.Deserialize<CallbackReport>(@"{""Days"":3}", SerializationOption.User);
+        CallbackReport? result = SerializationHelper.Deserialize<CallbackReport>(@"{""Days"":3}", SerializationOption.User);
 
         Assert.Equal(30, result.DaysWhenDeserializing);
         Assert.Equal(3, result.Days);
@@ -603,7 +603,7 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions());
 
-        var json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
+        string json = SerializationHelper.Serialize(new ReportRequest { Days = 30, Limit = 0 }, SerializationOption.User);
 
         Assert.Equal(@"{""Days"":30,""Limit"":0}", json);
     }
@@ -687,10 +687,10 @@ public class SerializationHelperFacts
     public void SerializeJob_AndDeserializeJob_Work_WhenTheApplicationResolverOnlyKnowsTheArgumentTypes()
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(int), typeof(string)) });
-        var job = Job.FromExpression(() => JobService.Run(5, "a"));
+        Job job = Job.FromExpression(() => JobService.Run(5, "a"));
 
-        var data = InvocationData.SerializeJob(job);
-        var back = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
+        InvocationData data = InvocationData.SerializeJob(job);
+        Job back = InvocationData.DeserializePayload(data.SerializePayload()).DeserializeJob();
 
         Assert.Equal(5, back.Args[0]);
         Assert.Equal("a", back.Args[1]);
@@ -701,9 +701,9 @@ public class SerializationHelperFacts
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(int)) });
 
-        var stateData = SerializationHelper.Serialize(new Dictionary<string, string> { ["Queue"] = "default" });
-        var list = SerializationHelper.Serialize(new List<string> { "a" });
-        var exception = SerializationHelper.Serialize(new ExceptionInfo(new InvalidOperationException("boom")), SerializationOption.User);
+        string stateData = SerializationHelper.Serialize(new Dictionary<string, string> { ["Queue"] = "default" });
+        string list = SerializationHelper.Serialize(new List<string> { "a" });
+        string exception = SerializationHelper.Serialize(new ExceptionInfo(new InvalidOperationException("boom")), SerializationOption.User);
 
         Assert.Equal("{\"Queue\":\"default\"}", stateData);
         Assert.Equal("[\"a\"]", list);
@@ -722,7 +722,7 @@ public class SerializationHelperFacts
     public void DeserializePayload_ReadsAPayloadInTheVersion170Format_WhenTheApplicationResolverDoesNotKnowStringArrays()
     {
         SerializationHelper.SetUserSerializerSettings(new JsonSerializerOptions { TypeInfoResolver = new KnownTypesResolver(typeof(int), typeof(string)) });
-        var payload = SerializationHelper.SerializeInternal(new Dictionary<string, object>
+        string? payload = SerializationHelper.SerializeInternal(new Dictionary<string, object>
         {
             ["t"] = typeof(JobService).AssemblyQualifiedName,
             ["m"] = nameof(JobService.Run),
@@ -730,7 +730,7 @@ public class SerializationHelperFacts
             ["a"] = new[] { "5", "\"a\"" },
         });
 
-        var job = InvocationData.DeserializePayload(payload).DeserializeJob();
+        Job job = InvocationData.DeserializePayload(payload).DeserializeJob();
 
         Assert.Equal(5, job.Args[0]);
         Assert.Equal("a", job.Args[1]);

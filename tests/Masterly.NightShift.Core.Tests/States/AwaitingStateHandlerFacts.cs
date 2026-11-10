@@ -14,14 +14,14 @@ public class AwaitingStateHandlerFacts
     [Fact]
     public void ShouldWorkOnlyWithAwaitingState()
     {
-        var handler = new AwaitingState.Handler();
+        AwaitingState.Handler handler = new();
         Assert.Equal(AwaitingState.StateName, handler.StateName);
     }
 
     [Fact]
     public void Apply_ShouldAddToSet_Awaiting()
     {
-        var handler = new AwaitingState.Handler();
+        AwaitingState.Handler handler = new();
         handler.Apply(_context.Object, _transactionMock.Object);
 
         _transactionMock.Verify(x => x.AddToSet("awaiting", "JobId", It.IsAny<double>()), Times.Once);
@@ -30,7 +30,7 @@ public class AwaitingStateHandlerFacts
     [Fact]
     public void Unapply_ShouldRemoveFromSet_Awaiting()
     {
-        var handler = new AwaitingState.Handler();
+        AwaitingState.Handler handler = new();
         handler.Unapply(_context.Object, _transactionMock.Object);
 
         _transactionMock.Verify(x => x.RemoveFromSet("awaiting", "JobId"), Times.Once);

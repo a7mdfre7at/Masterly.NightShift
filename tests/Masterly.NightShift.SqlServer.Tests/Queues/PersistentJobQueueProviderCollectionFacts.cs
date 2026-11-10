@@ -22,9 +22,9 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void Enumeration_IncludesTheDefaultProvider()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
 
-        var result = collection.ToArray();
+        IPersistentJobQueueProvider[] result = [.. collection];
 
         Assert.Single(result);
         Assert.Same(_defaultProvider.Object, result[0]);
@@ -33,9 +33,9 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void GetProvider_ReturnsTheDefaultProvider_WhenProviderCanNotBeResolvedByQueue()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
 
-        var provider = collection.GetProvider("queue");
+        IPersistentJobQueueProvider provider = collection.GetProvider("queue");
 
         Assert.Same(_defaultProvider.Object, provider);
     }
@@ -43,9 +43,9 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void Add_ThrowsAnException_WhenProviderIsNull()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => collection.Add(null, Queues));
 
         Assert.Equal("provider", exception.ParamName);
@@ -54,9 +54,9 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void Add_ThrowsAnException_WhenQueuesCollectionIsNull()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
 
-        var exception = Assert.Throws<ArgumentNullException>(
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(
             () => collection.Add(_provider.Object, null));
 
         Assert.Equal("queues", exception.ParamName);
@@ -65,7 +65,7 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void Enumeration_ContainsAddedProvider()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
 
         collection.Add(_provider.Object, Queues);
 
@@ -75,11 +75,11 @@ public class PersistentJobQueueProviderCollectionFacts
     [Fact]
     public void GetProvider_CanBeResolved_ByAnyQueue()
     {
-        var collection = CreateCollection();
+        PersistentJobQueueProviderCollection collection = CreateCollection();
         collection.Add(_provider.Object, Queues);
 
-        var provider1 = collection.GetProvider("default");
-        var provider2 = collection.GetProvider("critical");
+        IPersistentJobQueueProvider provider1 = collection.GetProvider("default");
+        IPersistentJobQueueProvider provider2 = collection.GetProvider("critical");
 
         Assert.NotSame(_defaultProvider.Object, provider1);
         Assert.Same(provider1, provider2);

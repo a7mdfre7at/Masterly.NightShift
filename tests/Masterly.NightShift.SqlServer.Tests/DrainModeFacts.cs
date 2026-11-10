@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.SqlServer.Tests;
 
@@ -17,14 +19,14 @@ public class DrainModeFacts
     [Fact, CleanDatabase]
     public void PauseServer_WithALongServerId_IsReadBackWithTheFullId_AndResumeServerClearsIt()
     {
-        var storage = CreateStorage();
+        SqlServerStorage storage = CreateStorage();
 
         try
         {
-            using var connection = storage.GetConnection();
+            using IStorageConnection connection = storage.GetConnection();
             DrainMode.PauseServer(connection, LongServerId, "draining the node");
 
-            var status = DrainMode.Read(connection);
+            DrainModeStatus status = DrainMode.Read(connection);
             Assert.Equal([LongServerId], status.PausedServers.Keys);
             Assert.Equal("draining the node", status.PausedServers[LongServerId]);
 
@@ -41,24 +43,24 @@ public class DrainModeFacts
     [Fact, CleanDatabase]
     public void PausedQueue_HoldsEveryJobOfTheQueue_AndPutsThemBackInIt_WhenResumed()
     {
-        var storage = CreateStorage();
-        var holdInterval = DrainMode.HoldInterval;
+        SqlServerStorage storage = CreateStorage();
+        TimeSpan holdInterval = DrainMode.HoldInterval;
         QueueJobs.Reset();
 
         try
         {
             DrainMode.HoldInterval = TimeSpan.FromSeconds(1);
 
-            using (var connection = storage.GetConnection())
+            using (IStorageConnection connection = storage.GetConnection())
             {
                 DrainMode.PauseQueue(connection, "emails", "SMTP outage");
             }
 
-            var client = new BackgroundJobClient(storage);
+            BackgroundJobClient client = new(storage);
 
             // A queue of the job's own, and a queue given only by the Enqueued state
-            var ownQueue = client.Enqueue("emails", () => QueueJobs.Run("own"));
-            var stateQueue = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
+            string? ownQueue = client.Enqueue("emails", () => QueueJobs.Run("own"));
+            string? stateQueue = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
 
             // The server listens to "emails" only: a job sent back to "default" would never run
             using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 2, Queues = ["emails"], SchedulePollingInterval = TimeSpan.FromMilliseconds(500) }, storage))
@@ -68,7 +70,7 @@ public class DrainModeFacts
                     "The jobs weren't held in time.");
                 Assert.Empty(QueueJobs.Runs);
 
-                using (var connection = storage.GetConnection())
+                using (IStorageConnection connection = storage.GetConnection())
                 {
                     DrainMode.ResumeQueue(connection, "emails");
                 }
@@ -90,15 +92,15 @@ public class DrainModeFacts
     [Fact, CleanDatabase]
     public void HeldJob_GoesBackToItsStateQueueOnce_AndALaterRetryGoesWhereItWouldWithoutTheHold()
     {
-        var storage = CreateStorage();
-        var stateChanger = new BackgroundJobStateChanger();
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobStateChanger stateChanger = new();
 
         try
         {
-            var client = new BackgroundJobClient(storage);
-            var jobId = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
+            BackgroundJobClient client = new(storage);
+            string? jobId = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
 
-            using var connection = storage.GetConnection();
+            using IStorageConnection connection = storage.GetConnection();
             DrainMode.PauseQueue(connection, "emails");
 
             // A worker picks the job up while its queue is paused: it is held instead
@@ -127,30 +129,30 @@ public class DrainModeFacts
     [Fact, CleanDatabase]
     public void ThrottleHold_OfAJobWhoseQueueCameFromItsState_PutsItBackInThatQueue()
     {
-        var storage = CreateStorage();
-        var stateChanger = new BackgroundJobStateChanger();
-        var client = new BackgroundJobClient(storage);
-        var jobId = client.Create(() => QueueJobs.Throttled(), new EnqueuedState("emails"));
-        var otherJobId = client.Create(() => QueueJobs.Run("other"), new EnqueuedState());
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobStateChanger stateChanger = new();
+        BackgroundJobClient client = new(storage);
+        string? jobId = client.Create(() => QueueJobs.Throttled(), new EnqueuedState("emails"));
+        string? otherJobId = client.Create(() => QueueJobs.Run("other"), new EnqueuedState());
 
-        using var connection = storage.GetConnection();
+        using IStorageConnection connection = storage.GetConnection();
         // Another job, which is running, holds the only slot
         stateChanger.ChangeState(new StateChangeContext(storage, connection, otherJobId, CreateProcessingState(), EnqueuedState.StateName));
 
-        using (var transaction = connection.CreateWriteTransaction())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            var now = JobHelper.ToTimestamp(DateTime.UtcNow);
+            long now = JobHelper.ToTimestamp(DateTime.UtcNow);
             transaction.AddToSet("throttle:held-queue-facts", $"{now}:{otherJobId}", now);
             transaction.Commit();
         }
 
         // What a worker does: move the job to Processing, then perform it with the same background job
-        var processing = new StateChangeContext(storage, connection, jobId, CreateProcessingState(), EnqueuedState.StateName);
+        StateChangeContext processing = new(storage, connection, jobId, CreateProcessingState(), EnqueuedState.StateName);
         stateChanger.ChangeState(processing);
 
-        var token = new Mock<IJobCancellationToken>();
+        Mock<IJobCancellationToken> token = new();
         token.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
-        var performing = new PerformingContext(new PerformContext(storage, connection, processing.ProcessedJob, token.Object));
+        PerformingContext performing = new(new PerformContext(storage, connection, processing.ProcessedJob, token.Object));
 
         new ThrottleAttribute("held-queue-facts").OnPerforming(performing);
 
@@ -168,28 +170,28 @@ public class DrainModeFacts
     {
         // A shutdown interrupted both jobs: they come back from the queue still in the Processing state, which
         // names no queue, so the queue is read from the Enqueued state in their history
-        var storage = CreateStorage();
-        var stateChanger = new BackgroundJobStateChanger();
-        var client = new BackgroundJobClient(storage);
-        var stateQueue = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
-        var attributeQueue = client.Create(() => QueueJobs.QueuedByAttribute(), new EnqueuedState());
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobStateChanger stateChanger = new();
+        BackgroundJobClient client = new(storage);
+        string? stateQueue = client.Create(() => QueueJobs.Run("state"), new EnqueuedState("emails"));
+        string? attributeQueue = client.Create(() => QueueJobs.QueuedByAttribute(), new EnqueuedState());
 
         try
         {
-            using var connection = storage.GetConnection();
-            foreach (var jobId in new[] { stateQueue, attributeQueue })
+            using IStorageConnection connection = storage.GetConnection();
+            foreach (string? jobId in new[] { stateQueue, attributeQueue })
             {
                 stateChanger.ChangeState(new StateChangeContext(storage, connection, jobId, CreateProcessingState(), EnqueuedState.StateName));
             }
 
             DrainMode.PauseQueue(connection, "emails");
 
-            foreach (var jobId in new[] { stateQueue, attributeQueue })
+            foreach (string? jobId in new[] { stateQueue, attributeQueue })
             {
                 // Another worker fetches the requeued job
                 stateChanger.ChangeState(new StateChangeContext(storage, connection, jobId, CreateProcessingState(), ProcessingState.StateName));
 
-                var state = connection.GetStateData(jobId);
+                StateData? state = connection.GetStateData(jobId);
                 Assert.Equal(ScheduledState.StateName, state.Name);
                 Assert.Equal("Held: queue 'emails' is paused", state.Reason);
                 Assert.Equal("\"emails\"", connection.GetJobParameter(jobId, DrainModeFilter.HeldQueueParameter));
@@ -197,7 +199,7 @@ public class DrainModeFacts
 
             DrainMode.ResumeQueue(connection, "emails");
 
-            foreach (var jobId in new[] { stateQueue, attributeQueue })
+            foreach (string? jobId in new[] { stateQueue, attributeQueue })
             {
                 stateChanger.ChangeState(new StateChangeContext(storage, connection, jobId, new EnqueuedState(), ScheduledState.StateName));
                 Assert.Equal("emails", connection.GetStateData(jobId).Data["Queue"]);
@@ -212,13 +214,13 @@ public class DrainModeFacts
     // The constructor is internal: workers create the state
     private static ProcessingState CreateProcessingState()
     {
-        var ctor = typeof(ProcessingState).GetConstructors(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Single();
+        ConstructorInfo ctor = typeof(ProcessingState).GetConstructors(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Single();
         return (ProcessingState)ctor.Invoke(["server", "worker"]);
     }
 
     private static bool WasHeld(JobStorage storage, string jobId)
     {
-        var details = storage.GetMonitoringApi().JobDetails(jobId);
+        JobDetailsDto? details = storage.GetMonitoringApi().JobDetails(jobId);
         return details.History.Any(x => x.Reason == "Held: queue 'emails' is paused");
     }
 

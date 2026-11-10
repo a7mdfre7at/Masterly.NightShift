@@ -14,9 +14,9 @@ public class AspNetCoreDashboardRequestFacts
     public async Task GetFormValuesAsync_ReturnsNoValues_WhenThePostHasNoBody()
     {
         // What jQuery's $.post(url) sends without data: no body and no Content-Type
-        var request = new AspNetCoreDashboardRequest(CreateHttpContext("POST", contentType: null, body: null));
+        AspNetCoreDashboardRequest request = new(CreateHttpContext("POST", contentType: null, body: null));
 
-        var values = await request.GetFormValuesAsync("reason");
+        IList<string> values = await request.GetFormValuesAsync("reason");
 
         Assert.Empty(values);
     }
@@ -24,9 +24,9 @@ public class AspNetCoreDashboardRequestFacts
     [Fact]
     public async Task GetFormValuesAsync_ReturnsNoValues_WhenTheBodyIsNotAForm()
     {
-        var request = new AspNetCoreDashboardRequest(CreateHttpContext("POST", "application/json", "{\"reason\":\"x\"}"));
+        AspNetCoreDashboardRequest request = new(CreateHttpContext("POST", "application/json", "{\"reason\":\"x\"}"));
 
-        var values = await request.GetFormValuesAsync("reason");
+        IList<string> values = await request.GetFormValuesAsync("reason");
 
         Assert.Empty(values);
     }
@@ -34,9 +34,9 @@ public class AspNetCoreDashboardRequestFacts
     [Fact]
     public async Task GetFormValuesAsync_ReturnsNoValues_ForAGet()
     {
-        var request = new AspNetCoreDashboardRequest(CreateHttpContext("GET", contentType: null, body: null));
+        AspNetCoreDashboardRequest request = new(CreateHttpContext("GET", contentType: null, body: null));
 
-        var values = await request.GetFormValuesAsync("metrics[]");
+        IList<string> values = await request.GetFormValuesAsync("metrics[]");
 
         Assert.Empty(values);
     }
@@ -44,9 +44,9 @@ public class AspNetCoreDashboardRequestFacts
     [Fact]
     public async Task GetFormValuesAsync_ReadsTheField_WhenTheBodyIsAForm()
     {
-        var request = new AspNetCoreDashboardRequest(CreateHttpContext("POST", "application/x-www-form-urlencoded", "reason=smtp+down&other=1"));
+        AspNetCoreDashboardRequest request = new(CreateHttpContext("POST", "application/x-www-form-urlencoded", "reason=smtp+down&other=1"));
 
-        var values = await request.GetFormValuesAsync("reason");
+        IList<string> values = await request.GetFormValuesAsync("reason");
 
         Assert.Equal(["smtp down"], values);
     }
@@ -55,19 +55,19 @@ public class AspNetCoreDashboardRequestFacts
     public async Task TheMiddleware_PausesAQueue_WhenTheScriptPostsWithoutABody()
     {
         // The Queues page's Pause button: $.post(url) with no reason. It answered 500 before.
-        var storage = new Mock<JobStorage>();
-        var connection = new Mock<IStorageConnection>();
-        var transaction = new Mock<IWriteOnlyTransaction>();
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        Mock<IWriteOnlyTransaction> transaction = new();
         storage.Setup(x => x.GetConnection()).Returns(connection.Object);
         storage.Setup(x => x.GetReadOnlyConnection()).Returns(connection.Object);
         connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
 
-        var httpContext = CreateHttpContext("POST", contentType: null, body: null);
+        HttpContext httpContext = CreateHttpContext("POST", contentType: null, body: null);
         httpContext.Request.Path = "/queues/pause/default";
         httpContext.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
 
-        var options = new DashboardOptions { Authorization = [] };
-        var middleware = new AspNetCoreDashboardMiddleware(_ => Task.CompletedTask, storage.Object, options, DashboardRoutes.Routes);
+        DashboardOptions options = new() { Authorization = [] };
+        AspNetCoreDashboardMiddleware middleware = new(_ => Task.CompletedTask, storage.Object, options, DashboardRoutes.Routes);
 
         await middleware.Invoke(httpContext);
 
@@ -77,7 +77,7 @@ public class AspNetCoreDashboardRequestFacts
 
     private static HttpContext CreateHttpContext(string method, string contentType, string body)
     {
-        var httpContext = new DefaultHttpContext
+        DefaultHttpContext httpContext = new()
         {
             RequestServices = new ServiceCollection().BuildServiceProvider(),
         };
@@ -92,7 +92,7 @@ public class AspNetCoreDashboardRequestFacts
 
         if (body != null)
         {
-            var bytes = Encoding.UTF8.GetBytes(body);
+            byte[] bytes = Encoding.UTF8.GetBytes(body);
             httpContext.Request.Body = new MemoryStream(bytes);
             httpContext.Request.ContentLength = bytes.Length;
         }
