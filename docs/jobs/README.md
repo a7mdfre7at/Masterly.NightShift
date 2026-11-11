@@ -6,6 +6,7 @@ A background job is a method call that Masterly.NightShift stores and runs later
 |---|---|
 | [Fire-and-forget jobs](fire-and-forget.md) | `Enqueue` in all its forms, queues, `Create` with an explicit state, `BackgroundJobClient`, why a job ID can be `null` |
 | [Job classes](typed-handlers.md) | `IJob` and `IJobHandler<TArgs>`: jobs created from a class or an arguments object, with the work in a class of its own |
+| [Job functions](job-functions.md) | `[JobFunction("name")]` and delegates registered in DI, created by name with a checked payload: `EnqueueFunction`, `ScheduleFunction`, `AddOrUpdateFunction` |
 | [Delayed jobs](delayed-jobs.md) | `Schedule` with a `TimeSpan`, a `DateTimeOffset` or a plain-English phrase such as `"tomorrow at 9am"` (`TimeText`) |
 | [Schedule policies](schedule-policies.md) | Business calendars (days, hours, holidays) stored by name, that move, skip or reject delayed jobs and leave out recurring occurrences |
 | [Continuations](continuations.md) | `ContinueJobWith`, `JobContinuationOptions`, passing a parent's result or exception with `[FromResult]` / `[FromException]` |
@@ -56,7 +57,9 @@ Outside dependency injection, the static facade does the same: `BackgroundJob.En
 | Run a workflow of steps and parallel branches, with a success and a failure path | `JobChain.StartWith(...).Then(...).ThenMany(...).ThenAfterAll(...)` | [Chains](chains.md) |
 | Follow a group of jobs and continue after all of them | `BatchJob.StartNew`, `BatchJob.ContinueWith` | [Fan-in and batches](fan-in-and-batches.md) |
 | Run it on a schedule | `RecurringJob.AddOrUpdate` | [Recurring jobs](../recurring-jobs/README.md) |
+| Run a job by name, from code that doesn't know its type | `EnqueueFunction("name", payload)` | [Job functions](job-functions.md) |
 | Stop, rerun or move a job | `Delete`, `Requeue`, `Reschedule`, `ChangeState` | [Managing jobs](managing-jobs.md) |
+| Cancel every pending job of a method or a function | `storage.DeletePendingJobs<T>()`, `DeletePendingFunctionJobs(name)` | [Managing jobs](managing-jobs.md#delete-pending-jobs) |
 | Read a job's state or result | `storage.GetJobState`, `storage.TryGetResult` | [Managing jobs](managing-jobs.md#a-jobs-state-and-result) |
 | Retry every failed job | `storage.RequeueFailedJobs` | [Managing jobs](managing-jobs.md#retry-every-failed-job) |
 

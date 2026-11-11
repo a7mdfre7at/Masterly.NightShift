@@ -135,6 +135,26 @@ Without the feature, these members throw `NotSupportedException`.
 
 To read a job's state and act on it without a state change slipping in between, hold the job's state lock, the one every state change takes: `connection.AcquireDistributedJobLock(jobId, timeout)` (`StorageConnectionExtensions`, namespace `Masterly.NightShift.Storage`) returns an `IDisposable`, and throws `DistributedLockTimeoutException` when it can't get the lock in time. Hold it briefly: every state change of that job waits for it.
 
+### Delete pending jobs
+
+Extension methods on `JobStorage` that delete jobs which haven't started: every queue's enqueued jobs, the scheduled jobs and, on storages that list them (SQL Server does), the continuations waiting for their parents.
+
+| Method | Deletes |
+|---|---|
+| `DeletePendingJobs<T>(string? methodName = null)` | The pending jobs of `T`'s methods (or of `T`'s subtypes), or of one method |
+| `DeletePendingFunctionJobs(string functionName)` | The pending jobs of a method marked with [`[JobFunction]`](job-functions.md) |
+| `DeletePendingJobs(Func<PendingJob, bool> filter, string? reason = null)` | The pending jobs a condition selects |
+| `GetPendingJobs()` | Nothing: lists them as `PendingJob` (`Id`, `State`, `Job`, `Queue`, `EnqueueAt`) |
+
+Each returns the number of jobs deleted. A job is deleted only from the state it was listed in, so a job a worker took meanwhile runs, and continuations are deleted before the other jobs, so deleting a parent doesn't start them.
+
+```csharp
+int canceled = storage.DeletePendingJobs<NewsletterService>(nameof(NewsletterService.Send));
+int cleared = storage.DeletePendingJobs(x => x.Queue == "imports" && x.State == "Enqueued", "Import backlog cleared");
+```
+
+Listing reads the monitoring API page by page, so on a large backlog it takes a while; it isn't for request paths.
+
 ## More examples
 
 ### Cancel a reminder that hasn't been sent yet

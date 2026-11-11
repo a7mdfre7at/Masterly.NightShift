@@ -68,6 +68,20 @@ public static class RecurringJob
     }
 
     /// <summary>
+    /// Registers or updates a recurring job that runs a <see cref="JobFunction"/> by name, with a payload checked now.
+    /// See <see cref="RecurringJobFunctions"/>.
+    /// </summary>
+    public static void AddOrUpdateFunction(
+        [NotNull] string recurringJobId,
+        [NotNull] string name,
+        [CanBeNull] object? payload,
+        [NotNull] string cronExpression,
+        [CanBeNull] RecurringJobOptions? options = null)
+    {
+        ManagerFactory().AddOrUpdateFunction(recurringJobId, name, payload, cronExpression, options);
+    }
+
+    /// <summary>
     /// Registers or updates a recurring job that creates <paramref name="chain"/> at each occurrence. See
     /// <see cref="RecurringJobChains"/>.
     /// </summary>

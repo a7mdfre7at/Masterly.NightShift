@@ -32,6 +32,7 @@ const sidebars = {
     section('Jobs', 'jobs', [
       'fire-and-forget',
       'typed-handlers',
+      'job-functions',
       'delayed-jobs',
       'schedule-policies',
       'continuations',

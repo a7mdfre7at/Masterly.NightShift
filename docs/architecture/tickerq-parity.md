@@ -83,14 +83,16 @@ Per-step retries and timeouts come from each method's attributes, as for any job
 | `TickerFunctionContext.ParentId` | Port | `PerformContext.ParentId` for continuations and chain steps. |
 | Parent result to child | Done | `UseResultsInContinuations()`, `[FromResult]`. |
 
-## Phase 5: Functions
+## Phase 5: Functions (done)
+
+A method function's job is an ordinary job of the method; a delegate function's job calls `DelegateJobFunctionRunner`, so every server must register the delegate.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
 | `ITickerFunction<TRequest>`, `MapTicker<T>()` | Done | `IJob`, `IJobHandler<TArgs>`, `AddNightShiftJobHandler<T>()`. |
-| `[TickerFunction("name")]`, schedule by name | Port | `[JobFunction("name")]`, `BackgroundJob.EnqueueFunction(name, payload)` / `ScheduleFunction`, with the payload checked against the parameter at creation. |
-| Delegate registration `MapTicker("name", handler)` | Port | Named delegate jobs registered in DI. |
-| `CancelPendingAsync<TFunction>()`, `DeleteAsync(filter)` | Port | Delete the pending jobs of a method, or those a filter selects. |
+| `[TickerFunction("name")]`, schedule by name | Port | `[JobFunction("name")]`, `JobFunctions.Add`/`AddAssembly`, `EnqueueFunction(name, payload)` / `ScheduleFunction` / `AddOrUpdateFunction`, with the payload checked at creation. |
+| Delegate registration `MapTicker("name", handler)` | Port | `services.AddNightShiftFunction(name, handler)` and `AddNightShiftFunction<TPayload>`; `AddNightShiftFunctions(assemblies)`. |
+| `CancelPendingAsync<TFunction>()`, `DeleteAsync(filter)` | Port | `storage.DeletePendingJobs<T>()`, `DeletePendingFunctionJobs(name)`, `DeletePendingJobs(filter)`, `GetPendingJobs()`. |
 | Add, reschedule, run now, rerun, batch add | Done | `Schedule`, `Reschedule`, `Requeue`, `Trigger`, `EnqueueMany`. |
 
 ## Phase 6: Reliability and cluster
