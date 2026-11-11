@@ -1,0 +1,144 @@
+# TickerQ parity
+
+What NightShift takes from TickerQ, phase by phase. The sources are TickerQ's open-source docs
+(<https://tickerq.net/docs>) and its commercial 5.x docs (<https://tickerq.net/docs/5.x>). TickerQ 5.x is
+source-available under a commercial license, so every feature is built from its documented behaviour; no TickerQ
+code is copied.
+
+Status:
+- **Done**: NightShift already does it.
+- **Enhance**: NightShift does part of it; the phase adds the rest.
+- **Port**: new in NightShift.
+
+Every phase follows the rules in `CLAUDE.md`: storage writes only through existing primitives, no new members on the
+storage or client interfaces, `HasFeature` checks before optional members, no hot keys inside state transactions,
+dashboard writes through POST commands with the read-only check, strings in all 15 locales, and docs pages in
+`docs/` with `website/sidebars.js` and the section's `README.md` table updated.
+
+## Testing rules for every phase
+
+- Every public member gets unit tests: happy path, each error path (null and invalid arguments), and the edge
+  cases (empty, zero, already in the target state, concurrent callers where it matters).
+- Filters are tested through `ElectStateContextMock` / `PerformContextMock` and, where the behaviour depends on the
+  whole pipeline (filters, performer, worker, state machine), end to end on SQL Server in
+  `tests/Masterly.NightShift.SqlServer.Tests`.
+- Dashboard pages are rendered with `PageRenderer`; dispatchers are tested for the read-only check and bad input.
+- NetCore and AspNetCore additions are tested in `tests/Masterly.NightShift.AspNetCore.Tests`.
+- A phase is done when `dotnet build Masterly.NightShift.slnx -c Release` has no warnings, the Core, SqlServer and
+  AspNetCore tests pass on `net8.0` and `net10.0`, and `npm run build` in `website/` passes.
+
+## Phase 1: Job execution control (done)
+
+`TerminateJobException(Canceled)` is NightShift's `context.RequestCancellation()`: the job ends itself as canceled, without a retry.
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| `TickerFunctionContext.ScheduledFor` | Port | `PerformContext.ScheduledFor`: the intended run time of a delayed job (new `ScheduledFor` parameter written at creation) or of a recurring job's occurrence (`Time` parameter); `null` for a fire-and-forget job. |
+| `TickerFunctionContext.IsDue` (on-time vs late) | Port | `PerformContext.Lateness`: how long after `ScheduledFor` (or after creation) the run started. `PerformContext.RecurringJobId`. |
+| Late starts `WhenMissed(SkipAfter(window))` | Port | `[SkipIfLate("00:05:00")]`: a run that starts later than the window is deleted with the reason `Skipped: ...`, without running or using a retry. Checked once per job, so a manual requeue or a retry runs. |
+| `TerminateExecutionException` (skip, fail without retry), `context.RequestCancellation()` | Port | `TerminateJobException(reason, TerminateJobOutcome.Skipped / Canceled / Failed)`: Skipped and Canceled delete the job (`Skipped: ...`, `Canceled: ...`), Failed fails it without retries. Telemetry reports `skipped`. |
+| Timeout cancellation is terminal and uses no retry | Enhance | `[JobTimeout(seconds, OnTimeout = JobTimeoutAction.Retry / Fail / Cancel)]`. |
+| `ITickerExceptionHandler` (`HandleExceptionAsync`, `HandleCanceledExceptionAsync`) | Port | `IJobExceptionHandler` with `OnJobException` (every failed attempt) and `OnJobCanceled`; `UseJobExceptionHandler(handler)`, and `AddNightShiftJobExceptionHandler<T>()` in DI (a scope per call). A handler that throws is logged and never changes the job. |
+| `GetOutcomeAsync` | Done | `storage.GetJobState(id)`, `storage.TryGetResult<T>(id, out result)`. |
+| `WaitForCompletionAsync(id, timeout)` | Port | `storage.WaitForCompletionAsync(id, timeout, ct)` and `JobStateInfo.IsFinal`. |
+
+## Phase 2: Scheduling
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| `SeedCronTickers` | Enhance | `RecurringJobSet` / `AddNightShiftRecurringJobs` with `%Section:Key%` schedules exist. Add: a removed declaration is paused ("retired") instead of deleted when asked, a **From code** badge on the dashboard. |
+| `SeedTimeTickers` (one-time startup work, once per key) | Port | `RecurringJobSet.Once("key", ...)` / `AddNightShiftStartupJobs`: created once per key (hash `seeded-once`). |
+| Per-schedule `WhenMissed(SkipAfter)` | Port | `RecurringJobOptions.SkipAfter` (stored with the recurring job, copied to the job) and `ScheduleOptions.SkipAfter` for delayed jobs, using the Phase 1 check. |
+| Cron catch-up `RunLatest` | Enhance | `MisfireHandlingMode.RunLatestWithin`: only the newest missed slot inside `SkipAfter`. |
+| Default cron time zone | Port | `UseDefaultRecurringJobTimeZone(tz)`. |
+| Cron occurrence history | Port | Run history per recurring job (last 50 runs, including slots skipped by a policy or overlap) and `RecurringJobHistory.Read`. |
+| `GetNextOccurrencesAsync` | Enhance | `RecurringJob.GetNextOccurrences(id, count)` from code. |
+| `ITickerClock` | Done | `JobClock`, `UseTimeProvider`. |
+
+## Phase 3: Schedule policies (business calendars)
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| Named, stored, revisioned calendars | Enhance | `[RunWindow]` and `[Blackout]` exist. Add `SchedulePolicies`: `AllowWeekdays`, `AllowBetween`, `ExcludeDate`, `ExcludeAnnualDate`, `ExcludeDatesFrom(IScheduleDateProvider)`, `Require`/`ExceptWhen`, time zone; stored in hash `policy:{name}` with a revision; `Upsert`, `Update(expectedRevision)`, `Delete(expectedRevision)`, `Evaluate`, `FindNextAllowed`, `PreviewCron`. |
+| `WhenBlocked`: Reject, Skip, MoveForward | Port | For delayed jobs (`ScheduleOptions.Policy`); blocked recurring occurrences are left out. Run now and requeue bypass the policy. |
+| `SeedSchedulePolicies` | Port | Declared in code, reconciled at start-up. |
+| Policies page with a cron preview | Port | Dashboard page (Phase 8). |
+
+## Phase 4: Continuations and chains
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| `RunCondition.OnFailure`, `InProgress` | Port | `JobContinuationOptions.OnlyOnFailedState`, `OnlyOnProcessingState`; non-matching continuations stay Awaiting when the parent fails. |
+| `ThenMany` joins: AfterAll, AnyFailed, AnyFailedOrCancelled, AllCompleted | Enhance | `ContinueJobWithAll/Any` exist; add the other join modes. |
+| `AddChainAsync` builder | Port | `JobChain.StartWith(...).Then(...).ThenMany(...).ThenAfterAll(...)` with per-step retries and timeout. |
+| `RetryFromAsync` | Port | `JobChain.RetryFrom(stepJobId)`: reruns a settled chain from a step without re-running its ancestors. |
+| Chain delete behaviour, `ReplaceChainAsync` | Port | `Cascade` / `Restrict`, `JobChain.Replace`. |
+| Recurring chains | Port | `RecurringJob.AddOrUpdateChain(id, chain, cron)`. |
+| `TickerFunctionContext.ParentId` | Port | `PerformContext.ParentId` for continuations and chain steps. |
+| Parent result to child | Done | `UseResultsInContinuations()`, `[FromResult]`. |
+
+## Phase 5: Functions
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| `ITickerFunction<TRequest>`, `MapTicker<T>()` | Done | `IJob`, `IJobHandler<TArgs>`, `AddNightShiftJobHandler<T>()`. |
+| `[TickerFunction("name")]`, schedule by name | Port | `[JobFunction("name")]`, `BackgroundJob.EnqueueFunction(name, payload)` / `ScheduleFunction`, with the payload checked against the parameter at creation. |
+| Delegate registration `MapTicker("name", handler)` | Port | Named delegate jobs registered in DI. |
+| `CancelPendingAsync<TFunction>()`, `DeleteAsync(filter)` | Port | Delete the pending jobs of a method, or those a filter selects. |
+| Add, reschedule, run now, rerun, batch add | Done | `Schedule`, `Reschedule`, `Requeue`, `Trigger`, `EnqueueMany`. |
+
+## Phase 6: Reliability and cluster
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| `OnStale` / `MaxStaleRestarts` | Port | A job restarted N times because its server died fails instead of looping (`BackgroundJobServerOptions.MaxStaleRestarts`, default 3). |
+| Lease fencing | Enhance | The move out of Processing also checks the server id. |
+| Reconciliation epoch | Port | Opt-in `UseDeploymentFencing()`: servers of an older deployment stop taking jobs. |
+| Manual start, start/stop/restart | Port | `StartMode = Manual` and `IBackgroundJobServerControl`. |
+| `LongRunning` priority | Port | `[LongRunning]` and a separate worker pool (`LongRunningWorkerCount`). |
+| Per-status retention | Enhance | `[ExpireAfter]` exists; add a global `UseJobRetention(...)` per state. |
+| Payload compression | Port | Opt-in `UseArgumentCompression(minBytes)`; reading always decompresses. |
+| Application namespace, node id, queue-only mode, shutdown drain | Done | Storage schema/prefix, `ServerName`, no server, `StopTimeout`. |
+
+## Phase 7: Observability and alerts
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| Execution logs (captured `ILogger` lines) | Enhance | The logging scope exists; add capture into the job console with level, category exclusions, redaction, size limits and lifecycle lines. |
+| Telemetry lifecycle counters | Enhance | Add retried, skipped, canceled, stale-recovered counters, a lateness histogram and span events. |
+| Monitors: daily deadline, long-running, repeated failures, recovery | Port | New alert kinds and a monitor process with incident and recovery states. |
+| Alert rules with function filters, templates, delivery history | Port | Managed on a dashboard Integrations page, secrets protected. |
+| Slack, Teams, webhooks | Done | `WebhookAlertSink`. |
+
+## Phase 8: Dashboard
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| Cron occurrence history | Port | `/recurring/details/{id}`. |
+| Chain view and builder | Port | Graph with aggregate status, merged logs, retry from a step; a builder in the Catalog. |
+| Schedule policies page | Port | Cards, editor, preview of the next 20 runs. |
+| Drafts and chain templates | Port | Saved run forms and saved chains. |
+| Test run (no job created) | Port | `PerformContext.IsTestRun`, from the Catalog and the chain builder. |
+| About page | Port | Effective configuration and registered functions. |
+| Read-only users, host auth, diagnostics, search, live view | Done | `IsReadOnlyFunc`, authorization filters, `/health`, command palette, live polling. |
+
+## Phase 9: Storage packages
+
+| TickerQ | Status | NightShift |
+|---|---|---|
+| Conformance suite | Port | One shared suite run against every storage, SQL Server included. |
+| In-memory store | Port | `Masterly.NightShift.InMemory`. |
+| EF Core store and transactional scheduling (`StageAsync`) | Port | `Masterly.NightShift.EntityFrameworkCore`: jobs commit or roll back with `SaveChanges`. |
+| Redis store | Port | `Masterly.NightShift.Redis`. |
+| MongoDB store | Port | `Masterly.NightShift.MongoDB`. |
+
+## Not ported
+
+| TickerQ | Why |
+|---|---|
+| AI assistant | Needs a language-model provider: a new dependency and a way for job data to leave the system. It would be a separate package, not a port. |
+| TickerQ Hub, remote JS SDK | A hosted service and SDKs in other languages, not a library feature. The shared storage is NightShift's way to share jobs between applications. |
+| Licensing | NightShift is MIT/LGPL; a license gate would only add a way for jobs to stop silently. |
+| SignalR push | The dashboard in Core is host-agnostic, and live polling already refreshes pages. TickerQ's SignalR messages are only refresh hints too. A push channel in the ASP.NET Core package stays an option if polling load becomes a problem. |
+| Native AOT | NightShift jobs are serialized method calls, resolved by type name and read through reflection-based JSON. AOT would need source-generated JSON contexts for every argument and state type, and it wouldn't speed up job throughput, which the database decides. |
+| Request contract validation | Expression jobs are checked by the compiler. Named functions (Phase 5) bring a JSON payload back, and that phase checks it at creation. |

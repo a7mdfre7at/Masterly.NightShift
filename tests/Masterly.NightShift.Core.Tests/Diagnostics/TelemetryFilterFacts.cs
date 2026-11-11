@@ -214,6 +214,42 @@ public sealed class TelemetryFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnPerformed_ReportsSkipped_WithoutMarkingTheSpanAsFailed()
+    {
+        ListenToActivities();
+        ListenToMetrics();
+        TelemetryFilter filter = new();
+        JobPerformanceException skipped = new("Job failed", new TerminateJobException("nothing to do"));
+
+        filter.OnPerforming(_performContext.GetPerformingContext());
+        filter.OnPerformed(_performContext.GetPerformedContext(exception: skipped));
+
+        Activity span = Assert.Single(_activities);
+        Assert.Equal(ActivityStatusCode.Unset, span.Status);
+        Assert.Equal(TelemetryFilter.OutcomeSkipped, span.GetTagItem("nightshift.job.outcome"));
+        Assert.Null(span.GetTagItem("error.type"));
+
+        (string Instrument, double Value, Dictionary<string, object> Tags) duration = Assert.Single(_measurements, x => x.Instrument == "nightshift.job.duration");
+        Assert.Equal("skipped", duration.Tags["nightshift.job.outcome"]);
+    }
+
+    [Fact]
+    public void OnPerformed_ReportsAJobTerminatedAsFailed_AsFailed()
+    {
+        ListenToActivities();
+        TelemetryFilter filter = new();
+        JobPerformanceException failed = new("Job failed", new TerminateJobException("invalid input", TerminateJobOutcome.Failed));
+
+        filter.OnPerforming(_performContext.GetPerformingContext());
+        filter.OnPerformed(_performContext.GetPerformedContext(exception: failed));
+
+        Activity span = Assert.Single(_activities);
+        Assert.Equal(ActivityStatusCode.Error, span.Status);
+        Assert.Equal(TelemetryFilter.OutcomeFailed, span.GetTagItem("nightshift.job.outcome"));
+        Assert.Equal(typeof(TerminateJobException).FullName, span.GetTagItem("error.type"));
+    }
+
+    [Fact]
     public void OnPerforming_DoesNotQueryTheStorage_WhenNobodyListens()
     {
         TelemetryFilter filter = new();

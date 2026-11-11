@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift;
@@ -9,6 +10,8 @@ public static class JobStorageExtensions
 {
     private const string RequeueReason = "Requeued with RequeueFailedJobs";
     private const string ResultKey = "Result";
+    private static readonly TimeSpan FirstPollDelay = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan MaxPollDelay = TimeSpan.FromSeconds(1);
 
     /// <param name="storage">The storage.</param>
     extension([NotNull] JobStorage storage)
@@ -79,23 +82,65 @@ public static class JobStorageExtensions
             ArgumentNullException.ThrowIfNull(storage);
             ArgumentNullException.ThrowIfNull(jobId);
 
-            using IStorageConnection connection = storage.GetReadOnlyConnection();
-            JobData? jobData = connection.GetJobData(jobId);
-            if (jobData == null) return null;
+            return ReadJobState(storage, jobId, out _);
+        }
 
-            StateData? stateData = connection.GetStateData(jobId);
-            if (stateData == null) return null;
+        /// <summary>
+        /// Waits until a job is completed (<see cref="JobStateInfo.IsCompleted"/>: succeeded, failed or deleted) or
+        /// <paramref name="timeout"/> has passed, and returns its state. The state is read with
+        /// <see cref="GetJobState(JobStorage, string)"/> every 50 milliseconds at first, then less often, up to once
+        /// a second.
+        /// </summary>
+        /// <param name="jobId">The job's id.</param>
+        /// <param name="timeout">How long to wait, or <see cref="Timeout.InfiniteTimeSpan"/> to wait until the job completes.</param>
+        /// <param name="cancellationToken">Stops the wait.</param>
+        /// <returns>
+        /// The job's state: completed, or the state it is in when the time is up. <c>null</c> when the job doesn't
+        /// exist or expired.
+        /// </returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeout"/> is negative and not infinite.</exception>
+        /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+        /// <remarks>
+        /// A failed job counts as completed, because a job only stays failed once its retries are used up; a job
+        /// that will be retried is in the <c>Scheduled</c> state instead. Waiting doesn't keep the job alive, and
+        /// the storage is read from the calling process, so it works from any process that can reach the storage.
+        /// </remarks>
+        public async Task<JobStateInfo?> WaitForCompletionAsync(
+            [NotNull] string jobId,
+            TimeSpan timeout,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(jobId);
 
-            Dictionary<string, string> data = new(StringComparer.OrdinalIgnoreCase);
-            if (stateData.Data != null)
+            if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
             {
-                foreach (KeyValuePair<string, string> entry in stateData.Data)
-                {
-                    data[entry.Key] = entry.Value;
-                }
+                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout can't be negative, except Timeout.InfiniteTimeSpan.");
             }
 
-            return new JobStateInfo(stateData.Name, stateData.Reason, data, jobData.CreatedAt);
+            Stopwatch elapsed = Stopwatch.StartNew();
+            TimeSpan delay = FirstPollDelay;
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                JobStateInfo? state = ReadJobState(storage, jobId, out bool exists);
+                if (!exists) return null;
+                if (state is { IsCompleted: true }) return state;
+
+                TimeSpan wait = delay;
+                if (timeout != Timeout.InfiniteTimeSpan)
+                {
+                    TimeSpan remaining = timeout - elapsed.Elapsed;
+                    if (remaining <= TimeSpan.Zero) return state;
+                    if (remaining < wait) wait = remaining;
+                }
+
+                await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+
+                delay = delay + delay < MaxPollDelay ? delay + delay : MaxPollDelay;
+            }
         }
 
         /// <summary>
@@ -142,5 +187,28 @@ public static class JobStorageExtensions
             result = SerializationHelper.Deserialize<T>(serialized, SerializationOption.User);
             return true;
         }
+    }
+
+    // The job's state, or null when the job doesn't exist (exists is false) or has no state yet (exists is true)
+    private static JobStateInfo? ReadJobState(JobStorage storage, string jobId, out bool exists)
+    {
+        using IStorageConnection connection = storage.GetReadOnlyConnection();
+        JobData? jobData = connection.GetJobData(jobId);
+        exists = jobData != null;
+        if (jobData == null) return null;
+
+        StateData? stateData = connection.GetStateData(jobId);
+        if (stateData == null) return null;
+
+        Dictionary<string, string> data = new(StringComparer.OrdinalIgnoreCase);
+        if (stateData.Data != null)
+        {
+            foreach (KeyValuePair<string, string> entry in stateData.Data)
+            {
+                data[entry.Key] = entry.Value;
+            }
+        }
+
+        return new JobStateInfo(stateData.Name, stateData.Reason, data, jobData.CreatedAt);
     }
 }

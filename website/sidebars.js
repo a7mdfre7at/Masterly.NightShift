@@ -66,6 +66,7 @@ const sidebars = {
     section('Monitoring', 'monitoring', [
       'opentelemetry',
       'alerts-and-webhooks',
+      'exception-handlers',
       'audit-log-and-activity',
       'insights',
       'health-checks',

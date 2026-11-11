@@ -142,6 +142,117 @@ public class PerformContextFacts
         Assert.Equal(2, context.RetryCount);
     }
 
+    [Fact]
+    public void ScheduledFor_ReadsTheParameterOfADelayedJob()
+    {
+        DateTime scheduledFor = new(2026, 11, 20, 9, 30, 0, 250, DateTimeKind.Utc);
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(scheduledFor).ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+        Assert.Equal(scheduledFor, CreateContext().ScheduledFor);
+    }
+
+    [Fact]
+    public void ScheduledFor_ReadsTheOccurrenceOfARecurringJob()
+    {
+        DateTime occurrence = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            ["Time"] = JobHelper.ToTimestamp(occurrence).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["RecurringJobId"] = "\"nightly\"",
+        };
+
+        PerformContext context = CreateContext();
+
+        Assert.Equal(occurrence, context.ScheduledFor);
+        Assert.Equal("nightly", context.RecurringJobId);
+    }
+
+    [Fact]
+    public void ScheduledFor_AndRecurringJobId_AreNull_ForAFireAndForgetJob()
+    {
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+
+        PerformContext context = CreateContext();
+
+        Assert.Null(context.ScheduledFor);
+        Assert.Null(context.RecurringJobId);
+        _connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Lateness_IsMeasuredFromScheduledFor()
+    {
+        DateTime scheduledFor = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        _backgroundJob.CreatedAt = scheduledFor.AddDays(-1);
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(scheduledFor).ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+        PerformContext context = WithClock(scheduledFor.AddMinutes(7), CreateContext);
+
+        Assert.Equal(scheduledFor.AddMinutes(7), context.StartedAt);
+        Assert.Equal(TimeSpan.FromMinutes(7), context.Lateness);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Lateness_IsMeasuredFromCreation_WithoutScheduledFor()
+    {
+        DateTime createdAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        _backgroundJob.CreatedAt = createdAt;
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+
+        PerformContext context = WithClock(createdAt.AddSeconds(90), CreateContext);
+
+        Assert.Equal(TimeSpan.FromSeconds(90), context.Lateness);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Lateness_IsNeverNegative()
+    {
+        DateTime createdAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        _backgroundJob.CreatedAt = createdAt;
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+
+        PerformContext context = WithClock(createdAt.AddSeconds(-5), CreateContext);
+
+        Assert.Equal(TimeSpan.Zero, context.Lateness);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void CopyCtor_KeepsTheStartTime()
+    {
+        DateTime startedAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        PerformContext context = WithClock(startedAt, CreateContext);
+
+        PerformContext copy = WithClock(startedAt.AddHours(1), () => new PerformContext(context));
+
+        Assert.Equal(startedAt, copy.StartedAt);
+    }
+
+    private static T WithClock<T>(DateTime now, Func<T> action)
+    {
+        TimeProvider previous = JobClock.TimeProvider;
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(now));
+
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            JobClock.TimeProvider = previous;
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
     private PerformContext CreateContext()
     {
         return new PerformContext(

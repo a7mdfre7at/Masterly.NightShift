@@ -14,8 +14,10 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System.Collections.Frozen;
+using System.Globalization;
 using System.Runtime.ExceptionServices;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Client;
 
@@ -179,11 +181,21 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
 
     private static Dictionary<string, string?> SerializeParameters(CreateContext context)
     {
-        return context.Parameters.ToDictionary(
+        Dictionary<string, string?> parameters = context.Parameters.ToDictionary(
             static x => x.Key,
             static x => InternalParameters.Contains(x.Key)
                 ? SerializationHelper.SerializeInternal(x.Value)
                 : SerializationHelper.Serialize(x.Value, SerializationOption.User));
+
+        // The moment a delayed job is meant to run, read by PerformContext.ScheduledFor. Retries schedule the job
+        // again through the state machine, not here, so they keep the original moment.
+        if (context.InitialState is ScheduledState scheduled && !parameters.ContainsKey(PerformContext.ScheduledForParameter))
+        {
+            parameters[PerformContext.ScheduledForParameter] =
+                JobHelper.ToMillisecondTimestamp(scheduled.EnqueueAt).ToString(CultureInfo.InvariantCulture);
+        }
+
+        return parameters;
     }
 
     private BackgroundJob? CreateBackgroundJobTwoSteps(CreateContext context, Dictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)

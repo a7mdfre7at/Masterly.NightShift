@@ -103,7 +103,22 @@ public class CircuitBreakerAttributeFacts : IDisposable
         [new ConcurrencyLimitException("resource", "All slots stayed in use")],
         [new DistributedLockTimeoutException("lock")],
         [new RetryLaterException(TimeSpan.FromMinutes(1))],
+        // A job that skipped or canceled itself didn't fail
+        [new TerminateJobException("nothing to do")],
+        [new TerminateJobException("stopped", TerminateJobOutcome.Canceled)],
+        [new JobPerformanceException("wrapped", new TerminateJobException("nothing to do"))],
     ];
+
+    [Fact, StaticLock]
+    public void OnStateElection_Counts_AJobTerminatedAsFailed()
+    {
+        CircuitBreakerAttribute attribute = Create();
+        _electContext.ApplyContext.NewStateObject = new FailedState(new TerminateJobException("Invalid input", TerminateJobOutcome.Failed));
+
+        attribute.OnStateElection(_electContext.Object);
+
+        _transaction.Verify(x => x.AddToSet(FailuresKey, $"{_timestamp}:JobId", _timestamp));
+    }
 
     [Theory, StaticLock]
     [MemberData(nameof(FailuresWithoutCallingTheDependency))]

@@ -20,8 +20,8 @@ This page helps you choose between them. To move an existing app, read [Migratin
 | **Concurrency limits and rate limits** | `[DisableConcurrentExecution]`. Semaphores and rate limiters are paid (Hangfire Ace) | Included: `[Throttle]`, `[RateLimit]` |
 | **Circuit breaker** | Not included | Included: `[CircuitBreaker]` |
 | **Duplicate prevention** | Not included | Included: `[PreventDuplicates]` |
-| **Timing rules** | `[LatencyTimeout]` | `[LatencyTimeout]`, `[JobTimeout]`, `[Deadline]`, `[RunWindow]`, `[Blackout]` |
-| **Retries** | `[AutomaticRetry]` | `[AutomaticRetry]`, `RetryLaterException`, `[RetryInProcess]` |
+| **Timing rules** | `[LatencyTimeout]` | `[LatencyTimeout]`, `[JobTimeout]`, `[Deadline]`, `[RunWindow]`, `[Blackout]`, `[SkipIfLate]` |
+| **Retries** | `[AutomaticRetry]` | `[AutomaticRetry]`, `RetryLaterException`, `TerminateJobException`, `[RetryInProcess]` |
 | **Wrapping the method call** | Filters only | Filters and interceptors |
 | **Progress, console, resume after failure** | Not included (community packages) | Included: `IJobConsole`, checkpoints |
 | **Plain-English times** | Not included | `"tomorrow at 9am"`, `"every 10 minutes from 9am to 5pm on weekdays"` |

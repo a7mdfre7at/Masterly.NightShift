@@ -22,6 +22,13 @@ internal enum JobOutcome
     RetryLater,
 
     /// <summary>
+    /// The job ended itself with <see cref="TerminateJobException"/> as <see cref="TerminateJobOutcome.Skipped"/>:
+    /// it had nothing to do. One terminated as <see cref="TerminateJobOutcome.Canceled"/> is <see cref="Canceled"/>,
+    /// and one terminated as <see cref="TerminateJobOutcome.Failed"/> is <see cref="Failed"/>.
+    /// </summary>
+    Skipped,
+
+    /// <summary>
     /// The job method never ran: a server filter gave up waiting for a concurrency slot or a distributed lock
     /// (<see cref="ConcurrencyLimitException"/> from <c>[Throttle]</c> or <c>[RateLimit]</c>,
     /// <see cref="DistributedLockTimeoutException"/> from <c>[DisableConcurrentExecution]</c>). The worker still
@@ -58,6 +65,16 @@ internal static class JobOutcomes
 
         Exception thrown = Unwrap(exception);
         if (thrown is RetryLaterException) return JobOutcome.RetryLater;
+
+        if (thrown is TerminateJobException terminate)
+        {
+            return terminate.Outcome switch
+            {
+                TerminateJobOutcome.Skipped => JobOutcome.Skipped,
+                TerminateJobOutcome.Canceled => JobOutcome.Canceled,
+                _ => JobOutcome.Failed,
+            };
+        }
 
         // A wait for a slot or a lock that timed out before the performer called the method. The same exception
         // thrown by the method itself (its own lock timed out) is a failure of the method.

@@ -12,6 +12,7 @@ Some features are on by default; the others take one call each. Most must be tur
 | Daily and hourly job counts (home page graphs) | yes | nothing to do | |
 | Traces and metrics | no | `UseTelemetry()` | every process that creates or performs jobs |
 | Alerts | no | `UseWebhookAlerts(url)` or `UseAlerts(sink)` | every process that performs jobs |
+| Exception handlers | no | `AddNightShiftJobExceptionHandler<T>()` or `UseJobExceptionHandler(handler)` | every process that performs jobs |
 | Insights | no | `UseJobInsights()` | every process that performs jobs |
 | Activity feed | no | `UseActivityFeed()` | every process that changes job states |
 | Health check | no | `AddHealthChecks().AddNightShift()` | the process that answers probes |
@@ -21,6 +22,7 @@ Some features are on by default; the others take one call each. Most must be tur
 |---|---|
 | [OpenTelemetry](opentelemetry.md) | `UseTelemetry()`, the `Masterly.NightShift` activity source and meter, span names and attributes, instruments, trace propagation from the creating request to the job, SDK setup. |
 | [Alerts and webhooks](alerts-and-webhooks.md) | Alerts for failed jobs, missed deadlines and opened circuits; `UseWebhookAlerts` with JSON, Slack, Discord or Teams payloads; writing an `IAlertSink`. |
+| [Exception handlers](exception-handlers.md) | `IJobExceptionHandler`: every failed attempt and canceled run in one place, for an error tracker; `AddNightShiftJobExceptionHandler<T>()` with scoped services, `UseJobExceptionHandler`. |
 | [Audit log and activity feed](audit-log-and-activity.md) | `AuditLog` (who did what on the dashboard) and `ActivityFeed` (every state transition, turned on with `UseActivityFeed()`), what they store, what they cost, and how to read, size or turn them off. |
 | [Insights](insights.md) | `UseJobInsights()`: per-method run counts and durations, per-queue wait times and drain estimates, daily and hourly history, anomaly detection, the Prometheus `/metrics` endpoint. |
 | [Health checks and probes](health-checks.md) | `AddNightShift()` for ASP.NET Core health checks (cluster or this process), `MapNightShiftHealth` and `MapNightShiftMetrics` outside the dashboard, what `/health` checks and costs. |

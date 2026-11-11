@@ -21,6 +21,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     internal const string OutcomeFailed = "failed";
     internal const string OutcomeCanceled = "canceled";
     internal const string OutcomeRetryLater = "retry_later";
+    internal const string OutcomeSkipped = "skipped";
 
     private const string CreateActivityKey = "Masterly.NightShift.Telemetry.CreateActivity";
     private const string ProcessActivityKey = "Masterly.NightShift.Telemetry.ProcessActivity";
@@ -218,6 +219,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         {
             JobOutcome.Canceled => OutcomeCanceled,
             JobOutcome.RetryLater => OutcomeRetryLater,
+            JobOutcome.Skipped => OutcomeSkipped,
             // The worker records an attempt whose concurrency wait timed out as failed, so the metrics do too;
             // error.type (ConcurrencyLimitException, DistributedLockTimeoutException) tells it apart
             JobOutcome.NotRun or JobOutcome.Failed => OutcomeFailed,

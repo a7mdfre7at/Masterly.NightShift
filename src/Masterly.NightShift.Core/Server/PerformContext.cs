@@ -27,6 +27,7 @@ public class PerformContext
         : this(context.Storage, context.Connection, context.BackgroundJob, context.CancellationToken, context.Profiler, context.ServerId, context.Items)
     {
         Performer = context.Performer;
+        StartedAt = context.StartedAt;
     }
 
     public PerformContext(
@@ -53,9 +54,22 @@ public class PerformContext
         CancellationToken = cancellationToken ?? throw new ArgumentNullException(nameof(cancellationToken));
         Profiler = profiler ?? throw new ArgumentNullException(nameof(profiler));
         ServerId = serverId;
+        StartedAt = JobClock.UtcNow;
 
         Items = items ?? new Dictionary<string, object>();
     }
+
+    /// <summary>
+    /// The job parameter with the moment a delayed job was scheduled for, as a Unix time in milliseconds. Written
+    /// when the job is created in the <see cref="ScheduledState"/>.
+    /// </summary>
+    public const string ScheduledForParameter = "ScheduledFor";
+
+    /// <summary>The job parameter with the occurrence of the recurring job that created the job, as a Unix time in seconds.</summary>
+    internal const string RecurringTimeParameter = "Time";
+
+    /// <summary>The job parameter with the identifier of the recurring job that created the job.</summary>
+    internal const string RecurringJobIdParameter = "RecurringJobId";
 
     [CanBeNull]
     public JobStorage? Storage { get; }
@@ -90,6 +104,48 @@ public class PerformContext
     /// Gets how many times the job has been retried by <see cref="AutomaticRetryAttribute"/>: 0 on its first run.
     /// </summary>
     public int RetryCount => GetJobParameter<int>("RetryCount", allowStale: true);
+
+    /// <summary>
+    /// Gets when this run of the job started, in UTC: when the server created the context, just before the
+    /// server filters and the job method run.
+    /// </summary>
+    public DateTime StartedAt { get; }
+
+    /// <summary>
+    /// Gets the moment the job was meant to run, in UTC: the time a delayed job was scheduled for, or the
+    /// occurrence of the recurring job that created it. <c>null</c> for any other job, such as a fire-and-forget
+    /// job or a continuation. Retries don't change it.
+    /// </summary>
+    /// <remarks>Read from the parameters the worker loaded with the job, so it costs no storage round trip.</remarks>
+    public DateTime? ScheduledFor
+    {
+        get
+        {
+            long? scheduledFor = GetJobParameter<long?>(ScheduledForParameter, allowStale: true);
+            if (scheduledFor.HasValue) return JobHelper.FromMillisecondTimestamp(scheduledFor.Value);
+
+            long? occurrence = GetJobParameter<long?>(RecurringTimeParameter, allowStale: true);
+            return occurrence.HasValue ? JobHelper.FromTimestamp(occurrence.Value) : null;
+        }
+    }
+
+    /// <summary>
+    /// Gets how late this run started: the time from <see cref="ScheduledFor"/> to <see cref="StartedAt"/>, or, for a
+    /// job without <see cref="ScheduledFor"/>, from its creation to <see cref="StartedAt"/>. Never negative. A retry
+    /// is measured from the same moment, so its lateness includes the earlier attempts.
+    /// </summary>
+    public TimeSpan Lateness
+    {
+        get
+        {
+            TimeSpan lateness = StartedAt - (ScheduledFor ?? BackgroundJob.CreatedAt);
+            return lateness > TimeSpan.Zero ? lateness : TimeSpan.Zero;
+        }
+    }
+
+    /// <summary>Gets the identifier of the recurring job that created the job, or <c>null</c>.</summary>
+    [CanBeNull]
+    public string? RecurringJobId => GetJobParameter<string>(RecurringJobIdParameter, allowStale: true);
 
     /// <summary>
     /// Gets the console the job reports progress, lines and checkpoints to. Shared by every context created

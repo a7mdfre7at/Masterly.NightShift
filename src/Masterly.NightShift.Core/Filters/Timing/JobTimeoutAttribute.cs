@@ -3,8 +3,28 @@ using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift;
 
+/// <summary>What <see cref="JobTimeoutAttribute"/> does with a job that ran out of time.</summary>
+public enum JobTimeoutAction
+{
+    /// <summary>
+    /// The job fails with a <see cref="TimeoutException"/>, and <see cref="AutomaticRetryAttribute"/> retries it like
+    /// any other failure. The default.
+    /// </summary>
+    Retry = 0,
+
+    /// <summary>The job fails with the timeout as its exception, without retries.</summary>
+    Fail = 1,
+
+    /// <summary>
+    /// The job is deleted with the reason <c>Canceled: Timed out after ...</c>, without retries, as
+    /// <see cref="TerminateJobOutcome.Canceled"/> does.
+    /// </summary>
+    Cancel = 2,
+}
+
 /// <summary>
-/// Cancels a job that runs longer than the given time and fails it with a <see cref="TimeoutException"/>.
+/// Cancels a job that runs longer than the given time and fails it with a <see cref="TimeoutException"/>, or, as
+/// <see cref="OnTimeout"/> says, fails it without retries or deletes it as canceled.
 /// </summary>
 /// <remarks>
 /// <para>The timeout is delivered through the job method's <see cref="CancellationToken"/> or
@@ -55,6 +75,17 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     /// <summary>Gets the maximum run time.</summary>
     public TimeSpan Timeout { get; }
 
+    /// <summary>
+    /// Gets or sets what happens to a job that ran out of time: retried as a failure (the default), failed without
+    /// retries, or deleted as canceled.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value isn't a defined <see cref="JobTimeoutAction"/>.</exception>
+    public JobTimeoutAction OnTimeout
+    {
+        get;
+        set => field = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown timeout action.");
+    }
+
     /// <inheritdoc />
     protected override async Task<object?> InterceptAsync(JobInvocation invocation)
     {
@@ -86,7 +117,14 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
         catch (OperationCanceledException) when (timer.IsCancellationRequested && !shutdownToken.IsCancellationRequested && !invocation.Context.CancellationToken.IsAborted())
         {
             // Kept short: retry reasons are cut to about 100 characters on the dashboard and in storage
-            throw new TimeoutException($"Timed out after {FormatTimeout()} (JobTimeout)");
+            TimeoutException timeout = new($"Timed out after {FormatTimeout()} (JobTimeout)");
+
+            throw OnTimeout switch
+            {
+                JobTimeoutAction.Fail => new TerminateJobException(timeout.Message, TerminateJobOutcome.Failed, timeout),
+                JobTimeoutAction.Cancel => new TerminateJobException(timeout.Message, TerminateJobOutcome.Canceled, timeout),
+                _ => timeout,
+            };
         }
         finally
         {

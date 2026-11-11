@@ -286,6 +286,9 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     {
         if (exception == null) return true;
 
+        // A job that skipped or canceled itself didn't fail; one that failed on purpose did
+        if (TerminateJobFilter.Find(exception) is { DeletesJob: true }) return false;
+
         Type exceptionType = exception.GetType();
         Type[] onlyOn = OnlyOn;
         Type[] exceptOn = ExceptOn;

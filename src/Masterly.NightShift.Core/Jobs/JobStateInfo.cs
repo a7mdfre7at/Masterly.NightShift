@@ -26,4 +26,14 @@ public sealed record JobStateInfo(
     /// </summary>
     [NotNull]
     public IReadOnlyDictionary<string, string> Data { get; } = Data ?? throw new ArgumentNullException(nameof(Data));
+
+    /// <summary>
+    /// Gets whether the job is done: <c>Succeeded</c>, <c>Failed</c> (its retries are used up, since a job that will
+    /// be retried is <c>Scheduled</c>) or <c>Deleted</c> (canceled, skipped or deleted). A failed job can still be
+    /// requeued by hand. Custom states are never completed.
+    /// </summary>
+    public bool IsCompleted =>
+        SucceededState.StateName.Equals(Name, StringComparison.OrdinalIgnoreCase) ||
+        FailedState.StateName.Equals(Name, StringComparison.OrdinalIgnoreCase) ||
+        DeletedState.StateName.Equals(Name, StringComparison.OrdinalIgnoreCase);
 }

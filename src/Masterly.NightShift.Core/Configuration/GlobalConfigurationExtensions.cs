@@ -592,6 +592,38 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Calls <paramref name="handler"/> for the exceptions of every background job: each failed attempt, and each
+        /// canceled run. See <see cref="IJobExceptionHandler"/>. Each call adds a handler.
+        /// </summary>
+        /// <param name="handler">The handler.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseJobExceptionHandler([NotNull] IJobExceptionHandler handler)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(handler);
+
+            GlobalJobFilters.Filters.Add(new JobExceptionHandlerFilter(handler));
+            return configuration;
+        }
+
+        /// <summary>
+        /// Calls <paramref name="onException"/> for each failed attempt of every background job, and
+        /// <paramref name="onCanceled"/>, when given, for each canceled run. See <see cref="IJobExceptionHandler"/>.
+        /// </summary>
+        /// <param name="onException">Called for each failed attempt.</param>
+        /// <param name="onCanceled">Called for each canceled run, or <c>null</c> to ignore them.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseJobExceptionHandler(
+            [NotNull] Action<JobExceptionContext> onException,
+            [CanBeNull] Action<JobExceptionContext>? onCanceled = null)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(onException);
+
+            return configuration.UseJobExceptionHandler(new DelegateJobExceptionHandler(onException, onCanceled));
+        }
+
+        /// <summary>
         /// Chooses whether job methods without a generated invoker are called through a delegate compiled
         /// once per method (the default) or through reflection. See <see cref="JobInvokerRegistry"/>.
         /// </summary>

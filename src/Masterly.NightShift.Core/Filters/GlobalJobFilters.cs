@@ -29,6 +29,7 @@ public static class GlobalJobFilters
         // a collection initializer or collection expression would only set after adding them all.
         Filters = new JobFilterCollection();
         Filters.Add(new CaptureCultureAttribute());
+        Filters.Add(new TerminateJobFilter());
         Filters.Add(new AutomaticRetryAttribute());
         Filters.Add(new StatisticsHistoryAttribute());
         Filters.Add(new ContinuationsSupportAttribute());

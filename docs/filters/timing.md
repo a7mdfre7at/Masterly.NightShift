@@ -1,6 +1,6 @@
 # Timing
 
-These filters deal with time: how long a job may run (`JobTimeout`), when it should be done by (`Deadline`), how long it may wait before it is pointless (`LatencyTimeout`), what time of day it may start (`RunWindow`, `Blackout`), and how long its data is kept after it finishes (`ExpireAfter`).
+These filters deal with time: how long a job may run (`JobTimeout`), when it should be done by (`Deadline`), how long it may wait before it is pointless (`LatencyTimeout`, `SkipIfLate`), what time of day it may start (`RunWindow`, `Blackout`), and how long its data is kept after it finishes (`ExpireAfter`).
 
 ## Quick example
 
@@ -29,22 +29,34 @@ Pass `CancellationToken.None` when you create the job; the server substitutes a 
 | `JobTimeout` | The start of the run | The job's cancellation token fires; the job fails with `TimeoutException` and is retried | Yes, if the method observes its token |
 | `Deadline` | The job's creation | Nothing is stopped; late jobs are flagged in the dashboard and a late finish is recorded and alerted | No |
 | `LatencyTimeout` | The job's creation | A job picked up too late is deleted instead of run | It never starts |
+| `SkipIfLate` | The moment the job was meant to run (`ScheduledFor`), or its creation | A run that starts too late is deleted as skipped; checked once, so a retry or a requeue runs | It never starts |
 | `RunWindow` / `Blackout` | The clock | A job picked up at the wrong time of day is rescheduled for the next allowed moment | It never starts until allowed |
 | `ExpireAfter` | The job's end | Changes how long a finished job is kept in storage; with `IncludeFailed`, also a failed one | No |
 
 ## JobTimeoutAttribute
 
-Cancels a job that runs longer than the given number of seconds and fails it with a `TimeoutException` (message: `Timed out after 10 minutes (JobTimeout)`). `AutomaticRetry` then retries it like any other failure.
+Cancels a job that runs longer than the given number of seconds and fails it with a `TimeoutException` (message: `Timed out after 10 minutes (JobTimeout)`). `AutomaticRetry` then retries it like any other failure, unless `OnTimeout` says otherwise.
 
 | Parameter / property | Type | Default | Meaning |
 |----------------------|------|---------|---------|
 | `timeoutInSeconds` (constructor) | `int` | required | Maximum run time in seconds. From 1 to `JobTimeoutAttribute.MaxTimeoutInSeconds` (2,147,483 seconds, about 24.8 days); other values throw `ArgumentOutOfRangeException` when the attribute is read. |
 | `Timeout` | `TimeSpan` | | The timeout as a `TimeSpan`. |
+| `OnTimeout` | `JobTimeoutAction` | `Retry` | What happens to a job that ran out of time: `Retry` fails it with the `TimeoutException`, and `AutomaticRetry` retries it. `Fail` fails it without retries. `Cancel` deletes it with the reason `Canceled: Timed out after ...`, without retries. An unknown value throws `ArgumentOutOfRangeException`. |
 | `Order` | `int` | `0` | Position among interceptors; lower runs outermost. |
 
 Related members: `JobTimeoutAttribute.TimeoutExceededParameter` (`"TimeoutExceeded"`) and `MaxTimeoutInSeconds` (`2147483`). The limit is `Int32.MaxValue` milliseconds, about 24.8 days, as in Hangfire. For longer work, use a [`Deadline`](#deadlineattribute), which cancels nothing.
 
 The method must accept a cancellation parameter and observe it. A method without one can't be interrupted: it runs to the end and succeeds, and the overrun is recorded in the `TimeoutExceeded` job parameter. If the storage fails to record it, a warning is logged and the job still succeeds.
+
+`Fail` and `Cancel` end the job with a [`TerminateJobException`](retries.md#terminatejobexception) that keeps the `TimeoutException` as its inner exception. Use `Cancel` for work that is pointless once it ran too long, such as a preview that a user stopped waiting for:
+
+```csharp
+public class PreviewService
+{
+    [JobTimeout(30, OnTimeout = JobTimeoutAction.Cancel)]
+    public Task RenderPreview(int documentId, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+```
 
 ### With IJobCancellationToken
 
@@ -175,6 +187,38 @@ public class NotificationService
 }
 ```
 
+## SkipIfLateAttribute
+
+Skips a run that starts too late. A report due at 09:00 that only gets a worker at 11:30, after an outage, is usually better skipped than sent:
+
+```csharp
+using Masterly.NightShift;
+
+public class ReportService
+{
+    [SkipIfLate("00:30:00")]
+    public Task SendMorningReport() => Task.CompletedTask;
+}
+
+RecurringJob.AddOrUpdate<ReportService>("morning-report", x => x.SendMorningReport(), "0 9 * * *");
+```
+
+When the run starts more than the window after the moment the job was meant to run, it is deleted with the reason `Skipped: started 2.5 h late, more than the 30 min allowed`, without running and without a retry. Continuations that wait for the Deleted state start, and telemetry reports the run as `skipped`.
+
+| Parameter / property | Type | Default | Meaning |
+|----------------------|------|---------|---------|
+| `window` (constructor) | `string` | required | The longest lateness allowed, as a time span such as `"00:30:00"` or `"1.00:00:00"`. Text that isn't a time span throws `ArgumentException`; zero or a negative span throws `ArgumentOutOfRangeException`. |
+| `windowInSeconds` (constructor) | `int` | required | The same in seconds; it must be positive. |
+| `Window` | `TimeSpan` | | The window. |
+
+Related member: `SkipIfLateAttribute.CheckedParameter` (`"LateStartChecked"`).
+
+"Meant to run" is [`PerformContext.ScheduledFor`](../jobs/job-arguments.md#the-runs-scheduled-time-and-lateness): the time a delayed job was scheduled for, or the occurrence of a recurring job. A job without it, such as a fire-and-forget job, is measured from its creation, so the attribute also skips a job that waited too long in its queue.
+
+How it works: a server filter. Just before the job method would run, it compares `PerformContext.Lateness` with the window and records the check in the `LateStartChecked` job parameter, so each job is checked once. A retry of a job that passed the check runs however late it is, and so does a job requeued by hand after it was skipped, from the dashboard or with `Requeue`. The check costs one parameter write per job that has the attribute.
+
+`SkipIfLate` and [`LatencyTimeout`](#latencytimeoutattribute) differ in what they count from: `LatencyTimeout` counts from the job's creation and checks every run, so it can't be used on a delayed or recurring job whose wait is planned; `SkipIfLate` counts from the moment the job was meant to run, and checks once.
+
 ## RunWindowAttribute and BlackoutAttribute
 
 `[RunWindow]` lets a job start only inside a daily time window; `[Blackout]` keeps it from starting inside one. A job picked up at the wrong time goes back to the **Scheduled** state for the next allowed moment, with the reason in its history, so heavy work waits for the night and customer-facing work waits for office hours without any code in the job.
@@ -284,7 +328,7 @@ public class PartnerSync
 
 ## Things to know
 
-- **`LatencyTimeout` and `Deadline` count from creation.** For a job scheduled an hour ahead, an hour has already passed when it becomes due; `[LatencyTimeout(600)]` on it would delete it every time. Retry back-offs, rescheduling by [`Throttle`](concurrency.md#throttleattribute) or `RunWindow`, and time spent in a paused queue all count too.
+- **`LatencyTimeout` and `Deadline` count from creation.** For a job scheduled an hour ahead, an hour has already passed when it becomes due; `[LatencyTimeout(600)]` on it would delete it every time. Use `[SkipIfLate]` for delayed and recurring jobs. Retry back-offs, rescheduling by [`Throttle`](concurrency.md#throttleattribute) or `RunWindow`, and time spent in a paused queue all count too.
 - **`JobTimeout` needs a cancellation parameter.** Without one the job is not stopped, only marked with `TimeoutExceeded`.
 - **`JobTimeout` and `RetryInProcess` nest by `Order`.** Both default to `Order = 0`; set `Order` to choose which one is outermost. With the timeout outside, it covers all in-process attempts; inside, each attempt gets its own timeout, and a `TimeoutException` is retried in process because it is not an `OperationCanceledException`.
 - **Interceptors are not de-duplicated.** A `[JobTimeout]` on the class and another on the method both apply, nested, with a `CancellationToken` parameter as with an `IJobCancellationToken` one: the token the method gets is canceled by whichever timeout expires first, and the `TimeoutException` names that one (`Timed out after 1 seconds (JobTimeout)`). For a method without a cancellation parameter, `TimeoutExceeded` records the shorter timeout that was exceeded.

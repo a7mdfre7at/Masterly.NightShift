@@ -97,6 +97,51 @@ public class CoreBackgroundJobFactoryFacts
     }
 
     [Fact]
+    public void CreateJob_WritesTheScheduledForParameter_ForADelayedJob()
+    {
+        DateTime enqueueAt = new(2026, 11, 20, 9, 30, 0, DateTimeKind.Utc);
+        CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new ScheduledState(enqueueAt));
+
+        CreateFactory().Create(context);
+
+        string expected = JobHelper.ToMillisecondTimestamp(enqueueAt).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _context.Connection.Verify(x => x.CreateExpiredJob(
+            _context.Job,
+            It.Is<Dictionary<string, string>>(d => d[Masterly.NightShift.Server.PerformContext.ScheduledForParameter] == expected),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>()));
+    }
+
+    [Fact]
+    public void CreateJob_DoesNotWriteTheScheduledForParameter_ForOtherJobs()
+    {
+        CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new EnqueuedState());
+
+        CreateFactory().Create(context);
+
+        _context.Connection.Verify(x => x.CreateExpiredJob(
+            _context.Job,
+            It.Is<Dictionary<string, string>>(d => !d.ContainsKey(Masterly.NightShift.Server.PerformContext.ScheduledForParameter)),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>()));
+    }
+
+    [Fact]
+    public void CreateJob_KeepsAScheduledForParameter_SetByAClientFilter()
+    {
+        CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new ScheduledState(TimeSpan.FromHours(1)));
+        context.Parameters[Masterly.NightShift.Server.PerformContext.ScheduledForParameter] = 42L;
+
+        CreateFactory().Create(context);
+
+        _context.Connection.Verify(x => x.CreateExpiredJob(
+            _context.Job,
+            It.Is<Dictionary<string, string>>(d => d[Masterly.NightShift.Server.PerformContext.ScheduledForParameter] == "42"),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>()));
+    }
+
+    [Fact]
     public void CreateJob_ChangesTheStateOfACreatedJob()
     {
         CoreBackgroundJobFactory factory = CreateFactory();

@@ -1,6 +1,6 @@
 # Retries
 
-A job that throws is retried automatically, with growing pauses between attempts. This page explains the default policy and how to change it per job or globally, how a job can ask to run again at a given moment (`RetryLaterException`), how to retry quickly inside the same worker (`RetryInProcess`), and how to stop hammering a dependency that keeps failing (`CircuitBreaker`).
+A job that throws is retried automatically, with growing pauses between attempts. This page explains the default policy and how to change it per job or globally, how a job can ask to run again at a given moment (`RetryLaterException`), how it can end itself without a retry (`TerminateJobException`), how to retry quickly inside the same worker (`RetryInProcess`), and how to stop hammering a dependency that keeps failing (`CircuitBreaker`).
 
 ## Quick example
 
@@ -30,6 +30,7 @@ If `SendWelcome` throws, the job is scheduled again up to three times. After the
 | Short glitches that usually clear in a second (deadlocks, connection resets) | `RetryInProcess`, with `AutomaticRetry` behind it |
 | A shared dependency is down and every job against it would fail | `CircuitBreaker` |
 | Failures that retrying can't fix (bad input) | `AutomaticRetry` with `ExceptOn`, or `Attempts = 0` |
+| The job finds out it has nothing to do, or that it can never succeed | Throw `TerminateJobException` |
 
 They combine. This job retries database glitches in place, stops when the ERP system keeps failing, and otherwise retries five times with back-off:
 
@@ -264,6 +265,51 @@ public class ReportService
 
 How it is handled: the filter adds one to the `RetryLaterCount` job parameter and schedules the job with the reason `Retry later (3 of 100): <reason>`. A moment in the past enqueues the job at once. Once the job has asked more than `MaxRetryLaterRequests` times (100 by default), the exception counts as an ordinary failure and the usual retry rules apply, so a job that keeps asking still ends eventually. Without `AutomaticRetryAttribute` (for example after you removed it globally), the exception is a failure like any other.
 
+## TerminateJobException
+
+Throw `TerminateJobException` from a job to end it now, without a retry. Its outcome says how the job ends:
+
+| Outcome | The job | Use it when |
+|---------|---------|-------------|
+| `TerminateJobOutcome.Skipped` (the default) | is deleted with the reason `Skipped: <reason>` | there is nothing to do: the invoice is already paid, the file was already imported |
+| `TerminateJobOutcome.Canceled` | is deleted with the reason `Canceled: <reason>` | the job decided to stop, for example because the user who asked for it closed their account |
+| `TerminateJobOutcome.Failed` | fails at once, without retries | retrying can't help: the input is invalid, a record it needs was deleted |
+
+```csharp
+using Masterly.NightShift;
+
+public class BillingService(IInvoiceRepository invoices, IPaymentGateway payments)
+{
+    public async Task ChargeInvoice(int invoiceId, CancellationToken cancellationToken)
+    {
+        Invoice? invoice = await invoices.FindAsync(invoiceId, cancellationToken);
+        if (invoice == null)
+        {
+            throw new TerminateJobException($"Invoice {invoiceId} no longer exists", TerminateJobOutcome.Failed);
+        }
+
+        if (invoice.IsPaid)
+        {
+            throw new TerminateJobException("The invoice is already paid");
+        }
+
+        await payments.ChargeAsync(invoice, cancellationToken);
+    }
+}
+```
+
+| Constructor | Meaning |
+|-------------|---------|
+| `TerminateJobException(string reason)` | Ends the job as `Skipped`. |
+| `TerminateJobException(string reason, TerminateJobOutcome outcome)` | Ends the job with the given outcome. |
+| `TerminateJobException(string reason, TerminateJobOutcome outcome, Exception? innerException)` | The same, keeping the exception that led to the decision. |
+
+A `null`, empty or white-space reason throws `ArgumentException`, and an unknown outcome `ArgumentOutOfRangeException`. The `Outcome` and `DeletesJob` properties tell the outcome apart.
+
+How it is handled: `TerminateJobFilter`, a global filter with `Order = 5` (before `AutomaticRetryAttribute`), turns the Failed state of a skipped or canceled job into Deleted with its reason, cut to 100 characters. `AutomaticRetryAttribute` never retries a job that threw `TerminateJobException`, so one terminated as `Failed` stays Failed. The exception can also be thrown by a server filter's `OnPerforming`, which is how [`[SkipIfLate]`](timing.md#skipiflateattribute) skips a run.
+
+A deleted job starts the continuations that wait for the Deleted state, and doesn't count as a failure for [`CircuitBreaker`](#circuitbreakerattribute) or [Insights](../monitoring/insights.md). Telemetry reports a skipped run with the outcome `skipped` and a canceled one with `canceled` (see [OpenTelemetry](../monitoring/opentelemetry.md)); a job terminated as `Failed` counts as failed everywhere.
+
 ## RetryInProcessAttribute
 
 `[RetryInProcess]` retries the job method right away, inside the same worker, when it throws. Nothing is written to storage between attempts and the job never enters the Failed state. Use it for short, transient errors such as a deadlock or a dropped connection, and keep `AutomaticRetry` for longer outages.
@@ -419,7 +465,7 @@ While the probe runs, each other job on the resource is rescheduled every tenth 
 ## Things to know
 
 - Even with retries disabled, a job can run more than once: NightShift guarantees at-least-once processing, so a job interrupted by a crash or a shutdown is picked up again. Make jobs safe to repeat, or see [IdempotentCompletion](concurrency.md#idempotentcompletionattribute).
-- A job that times out with [`JobTimeout`](timing.md#jobtimeoutattribute) fails with a `TimeoutException` and is retried like any other failure.
+- A job that times out with [`JobTimeout`](timing.md#jobtimeoutattribute) fails with a `TimeoutException` and is retried like any other failure, unless `OnTimeout` says to fail it without retries or delete it as canceled.
 - `OnlyOn` and `ExceptOn` (of `AutomaticRetry` and of `CircuitBreaker`) look at the exception that failed the job, thrown by the job method or by a filter, not at a wrapper.
 - The circuit breaker's failure window and open period use the clock of each server that records or checks them. Keep the clocks of all servers in sync (NTP), or failures recorded by a server whose clock is behind leave the window early.
 - [`LatencyTimeout`](timing.md#latencytimeoutattribute) and [`Deadline`](timing.md#deadlineattribute) count from the job's creation, so long retry back-offs count against them.

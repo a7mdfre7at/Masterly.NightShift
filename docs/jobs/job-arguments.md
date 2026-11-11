@@ -104,6 +104,9 @@ The members of `PerformContext` a job uses most:
 |---|---|
 | `BackgroundJob` (`BackgroundJob`) | The running job: `Id`, `CreatedAt` (UTC) and `Job`, its type, method, arguments and queue |
 | `RetryCount` (`int`) | How many times [`[AutomaticRetry]`](../filters/retries.md) has retried the job; 0 on its first run |
+| `ScheduledFor` (`DateTime?`) | When the job was meant to run, in UTC: the time a delayed job was scheduled for, or the occurrence of the recurring job that created it; `null` for other jobs. See [below](#the-runs-scheduled-time-and-lateness) |
+| `StartedAt` (`DateTime`), `Lateness` (`TimeSpan`) | When this run started (UTC), and how long after `ScheduledFor` (or the job's creation) that was |
+| `RecurringJobId` (`string?`) | The id of the recurring job that created the job, or `null` |
 | `GetJobParameter<T>(string name)` | Reads a job parameter with your serializer options; `default` when it isn't set |
 | `SetJobParameter(string name, object value)` | Writes a job parameter right away |
 | `Console` (`IJobConsole`) | The same console an `IJobConsole` parameter receives |
@@ -186,6 +189,41 @@ jobs.Enqueue<AuditJobs>(x => x.Record("password-reset", null!, null!));
 ```
 
 Progress, console lines, checkpoints and resumable steps are described in [Progress, console and checkpoints](progress-and-console.md).
+
+### The run's scheduled time and lateness
+
+`PerformContext.ScheduledFor` tells a job the moment it was meant to run, which isn't always when it starts. A recurring job due at 09:00 that starts at 09:00:02 still sees 09:00, so a daily report covers the right day even when it starts late:
+
+```csharp
+using Masterly.NightShift.Server;
+
+public class ReportJobs
+{
+    public void Daily(PerformContext context)
+    {
+        DateTime due = context.ScheduledFor ?? context.StartedAt;
+        DateTime day = due.Date.AddDays(-1);
+
+        if (context.Lateness > TimeSpan.FromHours(1))
+        {
+            context.Console.WriteLine(JobConsoleLevel.Warning, $"Started {context.Lateness} late");
+        }
+
+        // build the report for 'day'
+    }
+}
+
+RecurringJob.AddOrUpdate<ReportJobs>("daily-report", x => x.Daily(null!), "0 9 * * *");
+```
+
+| Member | Meaning |
+|---|---|
+| `ScheduledFor` | For a delayed job, the time it was scheduled for (the `ScheduledFor` job parameter, written when the job is created in the Scheduled state). For a job created by a recurring job, the occurrence it was created for (the `Time` parameter). `null` for a fire-and-forget job, a continuation or a job created in any other state. Retries don't change it. |
+| `StartedAt` | When this run started, in UTC: when the server created the context, before the server filters and the job method ran. |
+| `Lateness` | `StartedAt` minus `ScheduledFor`, or minus the job's creation time when `ScheduledFor` is `null`. Never negative. A retry is measured from the same moment, so its lateness includes the earlier attempts. |
+| `RecurringJobId` | The id of the recurring job that created the job. |
+
+All of them are read from the parameters the worker loaded with the job, so they cost no storage round trip. To skip runs that start too late, use [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute).
 
 ### Reading job parameters
 

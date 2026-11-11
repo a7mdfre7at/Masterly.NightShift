@@ -123,10 +123,15 @@ Without the feature, these members throw `NotSupportedException`.
 | Method | Returns |
 |---|---|
 | `storage.GetJobState(string jobId)` | `JobStateInfo?`: the current state's `Name`, `Reason` and `Data` (by name, ignoring case), and the job's `JobCreatedAt`. `null` when the job doesn't exist, expired, or has no state yet. |
+| `storage.WaitForCompletionAsync(string jobId, TimeSpan timeout, CancellationToken cancellationToken = default)` | `Task<JobStateInfo?>`: waits until the job is completed (`IsCompleted`) or `timeout` has passed, and returns its state then. `null` when the job doesn't exist or expired. `Timeout.InfiniteTimeSpan` waits until the job completes; another negative timeout throws `ArgumentOutOfRangeException`, and a canceled token throws `OperationCanceledException`. |
 | `storage.TryGetResult<T>(string jobId, out T? result)` | `true` with the value the job returned, read from its `Succeeded` state with your serializer options. `false` when the job doesn't exist, hasn't succeeded, returned nothing (`void`, `Task` or `null`), or returned a value that couldn't be serialized. It throws `JsonException` when the stored value can't be read as `T`. |
 | `storage.RequeueFailedJobs(Func<FailedJobDto, bool>? filter = null, TimeSpan? timeBudget = null)` | Requeues every failed job, or those the filter selects, and returns a `BulkJobResult` (`Processed`, `Remaining`, `Complete`). An overload takes the `IBackgroundJobClient` to use. |
 
-`GetJobState` and `TryGetResult` read through `storage.GetReadOnlyConnection()`. For more, `storage.GetConnection()` returns a connection; dispose it when done. `GetStateData(jobId)` returns the current state, `GetJobData(jobId)` the job itself (`Job`, `State`, `CreatedAt`, `ParametersSnapshot`, and `LoadException` when its type or method can't be loaded), and `GetJobParameter(jobId, name)` one parameter, as stored JSON.
+`JobStateInfo.IsCompleted` is `true` for the `Succeeded`, `Failed` and `Deleted` states. A failed job counts as completed because a job only stays failed once its retries are used up: one that will be retried is `Scheduled`. A completed failed job can still be requeued by hand.
+
+`WaitForCompletionAsync` reads the state every 50 milliseconds at first, then less often, up to once a second. It runs in the calling process and needs only access to the storage, so a web app can wait for a job a server elsewhere runs. Waiting doesn't change or keep the job.
+
+`GetJobState`, `WaitForCompletionAsync` and `TryGetResult` read through `storage.GetReadOnlyConnection()`. For more, `storage.GetConnection()` returns a connection; dispose it when done. `GetStateData(jobId)` returns the current state, `GetJobData(jobId)` the job itself (`Job`, `State`, `CreatedAt`, `ParametersSnapshot`, and `LoadException` when its type or method can't be loaded), and `GetJobParameter(jobId, name)` one parameter, as stored JSON.
 
 To read a job's state and act on it without a state change slipping in between, hold the job's state lock, the one every state change takes: `connection.AcquireDistributedJobLock(jobId, timeout)` (`StorageConnectionExtensions`, namespace `Masterly.NightShift.Storage`) returns an `IDisposable`, and throws `DistributedLockTimeoutException` when it can't get the lock in time. Hold it briefly: every state change of that job waits for it.
 
@@ -226,6 +231,23 @@ Without the extension, read it through a connection:
 ```csharp
 using IStorageConnection connection = storage.GetReadOnlyConnection();
 StateData? state = connection.GetStateData(id);
+```
+
+### Wait for a job and use its result
+
+```csharp
+string? jobId = jobs.Enqueue<ImportService>(x => x.ImportAsync(fileId, CancellationToken.None));
+
+JobStateInfo? state = await storage.WaitForCompletionAsync(jobId!, TimeSpan.FromMinutes(2), cancellationToken);
+
+if (state is { Name: "Succeeded" } && storage.TryGetResult(jobId!, out int rows))
+{
+    Console.WriteLine($"imported {rows} rows");
+}
+else if (state is { IsCompleted: false })
+{
+    Console.WriteLine($"still {state.Name} after two minutes");
+}
 ```
 
 ### A job's result

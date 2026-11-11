@@ -75,6 +75,29 @@ public class JobOutcomeFacts
     }
 
     [Fact]
+    public void Classify_ReturnsSkipped_ForAJobTerminatedAsSkipped()
+    {
+        Assert.Equal(JobOutcome.Skipped, ClassifyTerminated(TerminateJobOutcome.Skipped));
+    }
+
+    [Fact]
+    public void Classify_ReturnsCanceled_ForAJobTerminatedAsCanceled()
+    {
+        Assert.Equal(JobOutcome.Canceled, ClassifyTerminated(TerminateJobOutcome.Canceled));
+    }
+
+    [Fact]
+    public void Classify_ReturnsFailed_ForAJobTerminatedAsFailed()
+    {
+        Assert.Equal(JobOutcome.Failed, ClassifyTerminated(TerminateJobOutcome.Failed));
+    }
+
+    private JobOutcome ClassifyTerminated(TerminateJobOutcome outcome)
+    {
+        return JobOutcomes.Classify(_context.GetPerformedContext(exception: Wrap(new TerminateJobException("reason", outcome))));
+    }
+
+    [Fact]
     public void Classify_ReturnsFailed_ForAnyOtherException()
     {
         PerformedContext context = _context.GetPerformedContext(exception: Wrap(new InvalidOperationException()));

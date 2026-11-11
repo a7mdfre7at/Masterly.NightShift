@@ -137,6 +137,117 @@ public class JobStorageExtensionsFacts
         Assert.Throws<ArgumentNullException>("jobId", () => _storage.Object.GetJobState(null));
     }
 
+    [Theory]
+    [InlineData("Succeeded", true)]
+    [InlineData("Failed", true)]
+    [InlineData("Deleted", true)]
+    [InlineData("deleted", true)]
+    [InlineData("Enqueued", false)]
+    [InlineData("Scheduled", false)]
+    [InlineData("Processing", false)]
+    [InlineData("Awaiting", false)]
+    [InlineData("MyCustomState", false)]
+    public void IsCompleted_IsTrueOnlyForSucceededFailedAndDeleted(string state, bool completed)
+    {
+        JobStateInfo info = new(state, null, new Dictionary<string, string>(), DateTime.UtcNow);
+
+        Assert.Equal(completed, info.IsCompleted);
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ReturnsAtOnce_WhenTheJobIsCompleted()
+    {
+        SetupStates(SucceededState.StateName);
+
+        JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(SucceededState.StateName, state?.Name);
+        _connection.Verify(x => x.GetStateData(JobId), Times.Once);
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_WaitsUntilTheJobCompletes()
+    {
+        SetupStates(EnqueuedState.StateName, ProcessingState.StateName, FailedState.StateName);
+
+        JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(FailedState.StateName, state?.Name);
+        _connection.Verify(x => x.GetStateData(JobId), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_KeepsWaiting_WhileTheJobHasNoStateYet()
+    {
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { CreatedAt = DateTime.UtcNow });
+        _connection.SetupSequence(x => x.GetStateData(JobId))
+            .Returns((StateData)null)
+            .Returns(new StateData { Name = DeletedState.StateName, Data = new Dictionary<string, string>() });
+
+        JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(DeletedState.StateName, state?.Name);
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ReturnsTheCurrentState_WhenTheTimeIsUp()
+    {
+        SetupStates(ProcessingState.StateName);
+
+        JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ProcessingState.StateName, state?.Name);
+        Assert.False(state.IsCompleted);
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ReadsOnce_WithAZeroTimeout()
+    {
+        SetupStates(ProcessingState.StateName);
+
+        JobStateInfo? state = await _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ProcessingState.StateName, state?.Name);
+        _connection.Verify(x => x.GetStateData(JobId), Times.Once);
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ReturnsNull_WhenTheJobDoesNotExist()
+    {
+        Assert.Null(await _storage.Object.WaitForCompletionAsync("missing", TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ThrowsOperationCanceled_WhenCanceled()
+    {
+        SetupStates(ProcessingState.StateName);
+        using CancellationTokenSource cancellation = new(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _storage.Object.WaitForCompletionAsync(JobId, Timeout.InfiniteTimeSpan, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task WaitForCompletionAsync_ThrowsOnInvalidArguments()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>("storage", () => JobStorageExtensions.WaitForCompletionAsync(null, JobId, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>("jobId", () => _storage.Object.WaitForCompletionAsync(null, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>("timeout", () => _storage.Object.WaitForCompletionAsync(JobId, TimeSpan.FromSeconds(-5), TestContext.Current.CancellationToken));
+    }
+
+    // The job's state is each of the given ones in turn, and stays in the last one
+    private void SetupStates(params string[] states)
+    {
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { CreatedAt = DateTime.UtcNow });
+
+        int index = 0;
+        _connection.Setup(x => x.GetStateData(JobId)).Returns(() => new StateData
+        {
+            Name = states[Math.Min(index++, states.Length - 1)],
+            Data = new Dictionary<string, string>(),
+        });
+    }
+
     [Fact]
     public void TryGetResult_ReadsTheResultOfASucceededJob()
     {

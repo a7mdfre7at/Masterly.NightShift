@@ -221,10 +221,11 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 
 ### Default global filters
 
-`GlobalJobFilters.Filters` holds five more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
+`GlobalJobFilters.Filters` holds six more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
 
 | Filter | Does |
 |---|---|
+| `TerminateJobFilter` | Deletes a job that threw `TerminateJobException` as skipped or canceled, instead of failing it |
 | `FanInContinuationsSupportAttribute` | Drives `ContinueJobWithAll`/`ContinueJobWithAny` |
 | `JobConsoleStateFilter` | Expires a job's console lists (`job:{id}:console`, `job:{id}:checkpoints`) together with the job, only for jobs whose console wrote to storage and only on storages with `ExtendedApi` |
 | `DrainModeFilter` | Holds jobs while processing is paused from the dashboard or with `DrainMode` |
@@ -242,6 +243,7 @@ New features store their data in the existing primitives, under new keys. Most a
 | `audit` list | Someone acts through the dashboard (requeue, delete, trigger...), unless `AuditLog.Enabled` is `false` |
 | `stats:{state}:yyyy-MM-dd-HH` counters | Every job finishes, as before, but `StatisticsHistoryAttribute` now keeps them for eight days instead of one (168 per state instead of 24), so the Insights heatmap can show a week |
 | `hangfire:control` hash | Processing, a queue or a server is paused |
+| `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
 
 `RecurringJobDto` has four new properties to match: `Paused`, `MisfireHandling`, `StartAt` and `EndAt`. The keys each feature writes are listed on its page and in the [architecture blueprint](architecture/blueprints/nightshift-next.md). Keys built from user input are bounded to fit SQL Server's limits (100 characters for keys, 256 for set values).
@@ -285,6 +287,7 @@ The export routes are registered before the list pages whose patterns would also
 - **`[DisableConcurrentExecution]` lock names longer than 200 characters** are shortened to their first 167 characters, `~` and 32 hexadecimal digits of their SHA-256. SQL Server cut such names, so two resources sharing their first ~245 characters got the same lock. Shorter names don't change.
 - **A storage error while releasing a `[DisableConcurrentExecution]` lock** is logged as a warning instead of failing a job that has already run.
 - **`AutomaticRetryAttribute` treats `RetryLaterException` specially.** This only matters if you throw the new exception: see [Retries](filters/retries.md).
+- **`AutomaticRetryAttribute` never retries a job that threw `TerminateJobException`.** This only matters if you throw the new exception: see [TerminateJobException](filters/retries.md#terminatejobexception).
 
 ### Server and hosting
 

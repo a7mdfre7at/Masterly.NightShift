@@ -84,6 +84,53 @@ public class JobTimeoutAttributeFacts
     }
 
     [Fact, StaticLock]
+    public void SlowJobs_FailWithoutRetries_WhenOnTimeoutIsFail()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<OnTimeoutJobs>(x => x.SlowFail(default));
+
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
+
+        TerminateJobException terminate = Assert.IsType<TerminateJobException>(exception.InnerException);
+        Assert.Equal(TerminateJobOutcome.Failed, terminate.Outcome);
+        Assert.IsType<TimeoutException>(terminate.InnerException);
+        Assert.StartsWith("Timed out after 1 seconds", terminate.Message, StringComparison.Ordinal);
+    }
+
+    [Fact, StaticLock]
+    public void SlowJobs_AreCanceled_WhenOnTimeoutIsCancel()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<OnTimeoutJobs>(x => x.SlowCancel(default));
+
+        JobPerformanceException exception = Assert.Throws<JobPerformanceException>(() => Perform());
+
+        TerminateJobException terminate = Assert.IsType<TerminateJobException>(exception.InnerException);
+        Assert.Equal(TerminateJobOutcome.Canceled, terminate.Outcome);
+        Assert.IsType<TimeoutException>(terminate.InnerException);
+    }
+
+    [Fact, StaticLock]
+    public void FastJobs_CompleteNormally_WhateverOnTimeoutSays()
+    {
+        _context.BackgroundJob.Job = Job.FromExpression<OnTimeoutJobs>(x => x.FastCancel(default));
+
+        Assert.Equal("done", Perform());
+    }
+
+    [Fact]
+    public void OnTimeout_DefaultsToRetry()
+    {
+        Assert.Equal(JobTimeoutAction.Retry, new JobTimeoutAttribute(5).OnTimeout);
+    }
+
+    [Fact]
+    public void OnTimeout_ThrowsAnException_WhenTheValueIsUnknown()
+    {
+        JobTimeoutAttribute attribute = new(5);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => attribute.OnTimeout = (JobTimeoutAction)42);
+    }
+
+    [Fact, StaticLock]
     public void SlowJobs_WithoutCancellationParameter_Succeed_ButRecordTheOverrun()
     {
         _context.BackgroundJob.Job = Job.FromExpression<Jobs>(x => x.SlowWithoutToken());
@@ -277,6 +324,30 @@ public class JobTimeoutAttributeFacts
         {
             Thread.Sleep(2200);
             return "late";
+        }
+    }
+
+    public class OnTimeoutJobs
+    {
+        [JobTimeout(1, OnTimeout = JobTimeoutAction.Fail)]
+        public async Task<string> SlowFail(CancellationToken token)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
+            return "never";
+        }
+
+        [JobTimeout(1, OnTimeout = JobTimeoutAction.Cancel)]
+        public async Task<string> SlowCancel(CancellationToken token)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
+            return "never";
+        }
+
+        [JobTimeout(5, OnTimeout = JobTimeoutAction.Cancel)]
+        public string FastCancel(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return "done";
         }
     }
 

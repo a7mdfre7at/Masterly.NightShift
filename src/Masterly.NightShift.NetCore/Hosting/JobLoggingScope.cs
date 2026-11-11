@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Runtime.CompilerServices;
 using System.Text;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
@@ -83,7 +82,7 @@ internal static class JobLoggingScope
         ArgumentNullException.ThrowIfNull(services);
 
         // Options registered as a singleton may be passed to the factory again; one scope per job is enough
-        if (filterProvider is ScopeFilterProvider) return filterProvider;
+        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is ScopeFilter)) return filterProvider;
 
         NightShiftJobLoggingOptions? options = services.GetService<NightShiftJobLoggingOptions>();
         if (options != null && !options.BeginScope) return filterProvider;
@@ -91,34 +90,9 @@ internal static class JobLoggingScope
         ILoggerFactory? loggerFactory = services.GetService<ILoggerFactory>();
         if (loggerFactory == null) return filterProvider;
 
-        return new ScopeFilterProvider(
+        return new ServerFilterProvider(
             filterProvider ?? JobFilterProviders.Providers,
             new ScopeFilter(loggerFactory.CreateLogger(LoggerName)));
-    }
-
-    private sealed class ScopeFilterProvider(IJobFilterProvider inner, JobLoggingScope.ScopeFilter filter) : IJobFilterProvider
-    {
-        private readonly IJobFilterProvider _inner = inner;
-        private readonly JobFilter _filter = new(filter, JobFilterScope.Global, null);
-        private readonly ConditionalWeakTable<JobFilter[], JobFilter[]> _combined = [];
-
-        public IEnumerable<JobFilter> GetFilters(Job? job)
-        {
-            IEnumerable<JobFilter> inner = _inner.GetFilters(job);
-
-            // The default providers return one shared array per job method, so the combined list is kept per array
-            return inner is JobFilter[] shared
-                ? _combined.GetValue(shared, CombineShared)
-                : Combine(inner);
-        }
-
-        private JobFilter[] CombineShared(JobFilter[] inner) => Combine(inner);
-
-        // First, so the scope also covers the other server filters and what they log
-        private JobFilter[] Combine(IEnumerable<JobFilter> inner)
-        {
-            return [_filter, .. inner];
-        }
     }
 
     /// <summary>

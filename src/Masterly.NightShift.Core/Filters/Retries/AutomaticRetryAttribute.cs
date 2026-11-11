@@ -266,6 +266,12 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
             return;
         }
 
+        if (TerminateJobFilter.Find(failedState.Exception) != null)
+        {
+            // The job ended itself: deleted as skipped or canceled by TerminateJobFilter, or failed on purpose
+            return;
+        }
+
         if (failedState.Exception is RetryLaterException retryLater && TryRetryLater(context, retryLater))
         {
             return;

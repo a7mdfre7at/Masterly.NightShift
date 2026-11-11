@@ -4,9 +4,9 @@ Filters are attributes and classes that run around a background job's life: when
 
 | Page | What it covers |
 |------|----------------|
-| [Retries](retries.md) | `AutomaticRetry` (the default retry policy), `AttemptsExceededAction`, `RetryLaterException`, `RetryInProcess`, `CircuitBreaker` |
+| [Retries](retries.md) | `AutomaticRetry` (the default retry policy), `AttemptsExceededAction`, `RetryLaterException`, `TerminateJobException`, `RetryInProcess`, `CircuitBreaker` |
 | [Concurrency](concurrency.md) | `DisableConcurrentExecution`, `Throttle`, `RateLimit`, `ConcurrencyAction`, `PreventDuplicates`, `IdempotentCompletion` |
-| [Timing](timing.md) | `JobTimeout`, `Deadline`, `LatencyTimeout`, `RunWindow`, `Blackout`, `ExpireAfter` |
+| [Timing](timing.md) | `JobTimeout`, `Deadline`, `LatencyTimeout`, `SkipIfLate`, `RunWindow`, `Blackout`, `ExpireAfter` |
 | [Behavior](behavior.md) | `Queue`, `JobDisplayName`, `CaptureCulture`, `LogInvocation`, `Redacted` |
 | [Custom filters](custom-filters.md) | Writing client, server, election, apply and exception filters, interceptors and state handlers, and registering them |
 
@@ -37,6 +37,7 @@ The job goes to the `critical` queue and is retried at most three times instead 
 |--------------|-----|------|
 | Change how often and how long a failed job is retried | `[AutomaticRetry]` | [Retries](retries.md#automaticretryattribute) |
 | Let the job say "run me again at this time" | throw `RetryLaterException` | [Retries](retries.md#retrylaterexception) |
+| End a job without retries: nothing to do, or it can never work | throw `TerminateJobException` | [Retries](retries.md#terminatejobexception) |
 | Retry a short glitch (deadlock, dropped connection) at once, in the same worker | `[RetryInProcess]` | [Retries](retries.md#retryinprocessattribute) |
 | Stop running jobs against a dependency that keeps failing | `[CircuitBreaker]` | [Retries](retries.md#circuitbreakerattribute) |
 | Run at most N copies at a time | `[Throttle]` (or `[DisableConcurrentExecution]` for a blocking lock) | [Concurrency](concurrency.md#throttleattribute) |
@@ -46,6 +47,7 @@ The job goes to the `critical` queue and is retried at most three times instead 
 | Stop a run that takes too long | `[JobTimeout]` | [Timing](timing.md#jobtimeoutattribute) |
 | See jobs that finish later than expected, without stopping them | `[Deadline]` | [Timing](timing.md#deadlineattribute) |
 | Drop a job that waited too long to start | `[LatencyTimeout]` | [Timing](timing.md#latencytimeoutattribute) |
+| Skip a delayed or recurring run that starts too late | `[SkipIfLate]` | [Timing](timing.md#skipiflateattribute) |
 | Run only at night, or never during a maintenance window | `[RunWindow]`, `[Blackout]` | [Timing](timing.md#runwindowattribute-and-blackoutattribute) |
 | Keep a job's data longer or shorter after it finishes | `[ExpireAfter]` | [Timing](timing.md#expireafterattribute) |
 | Send a job to a specific queue | `[Queue]` | [Behavior](behavior.md#queueattribute) |

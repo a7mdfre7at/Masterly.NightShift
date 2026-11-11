@@ -104,7 +104,7 @@ The source and the meter both report the version of the `Masterly.NightShift.Cor
 | `nightshift.job.name` | both | `{Type}.{Method}`, the same value as in the span name |
 | `code.function.name` | both | `{Namespace.Type}.{Method}`, the full type name and the method |
 | `nightshift.job.state` | `create` | the initial state: `Enqueued`, `Scheduled`, `Awaiting`, ... |
-| `nightshift.job.outcome` | `process` | `succeeded`, `failed`, `canceled` or `retry_later` (see below) |
+| `nightshift.job.outcome` | `process` | `succeeded`, `failed`, `canceled`, `retry_later` or `skipped` (see below) |
 | `error.type` | both, on failure | the full type name of the exception |
 
 On failure the span status is set to `Error` with the exception message, and an `exception` event is added (`exception.type`, `exception.message`, `exception.stacktrace`). Apps on .NET 10 get the package's `net10.0` build, which adds it with `Activity.AddException`. Apps on .NET 8 and .NET 9 get the `net8.0` build (there is no `net9.0` build), which adds the same event by hand. Exceptions thrown by the job method reach server filters wrapped in a `JobPerformanceException`; the span reports the original exception instead.
@@ -114,8 +114,9 @@ The outcome of a `process` span is:
 | Outcome | When |
 |---|---|
 | `succeeded` | the job method returned, or a server filter marked its exception as handled |
-| `canceled` | a server filter canceled the execution, a state change aborted the job while it ran (it was deleted or requeued, for example), or the server shut down while it ran and the job stopped with an `OperationCanceledException`; the job is enqueued again after a shutdown |
+| `canceled` | a server filter canceled the execution, a state change aborted the job while it ran (it was deleted or requeued, for example), or the server shut down while it ran and the job stopped with an `OperationCanceledException`; the job is enqueued again after a shutdown. Also a job that threw `TerminateJobException` with `TerminateJobOutcome.Canceled`; the span status is not `Error` |
 | `retry_later` | the job threw `RetryLaterException` to ask to run again later; the span status is not `Error` |
+| `skipped` | the job threw `TerminateJobException` (outcome `Skipped`, the default), or `[SkipIfLate]` found it started too late; it is deleted without a retry, and the span status is not `Error`. A job terminated as `Failed` has the outcome `failed` |
 | `failed` | any other exception, including an `OperationCanceledException` the job threw while the server was not shutting down (a timeout of its own, for example); the span status is `Error`. That includes an attempt whose method never ran because `[Throttle]`, `[RateLimit]` or `[DisableConcurrentExecution]` gave up waiting for a slot or a lock, because the worker records that attempt as failed too: `error.type` (`Masterly.NightShift.ConcurrencyLimitException`, `Masterly.NightShift.Storage.DistributedLockTimeoutException`) tells it apart, and its duration includes the wait. Insights leaves such an attempt out |
 
 A `create` span is marked as failed when creating the job threw an exception that no client filter handled, for example because the storage was down.
