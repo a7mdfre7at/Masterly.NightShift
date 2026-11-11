@@ -35,6 +35,7 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     private readonly IBackgroundJobPerformer? _performer;
     private readonly IBackgroundJobStateChanger? _stateChanger;
 
+    private readonly NightShiftLock _startLock = new();
     private IBackgroundProcessingServer? _processingServer;
 
     /// <summary>
@@ -126,6 +127,9 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     /// <param name="cancellationToken">Not used.</param>
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // A manual server waits for IBackgroundJobServerControl.StartAsync
+        if (_options.StartMode == ServerStartMode.Manual) return Task.CompletedTask;
+
         if (_hostApplicationLifetime != null)
         {
             // https://github.com/HangfireIO/Hangfire/issues/2117
@@ -194,6 +198,41 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         _processingServer?.Dispose();
         _processingServer = null;
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Whether the server runs.</summary>
+    internal bool IsRunning => Volatile.Read(ref _processingServer) != null;
+
+    /// <summary>Starts the server when it doesn't run, for <see cref="IBackgroundJobServerControl"/>.</summary>
+    internal void StartServer()
+    {
+        lock (_startLock)
+        {
+            if (_processingServer == null) InitializeProcessingServer();
+        }
+    }
+
+    /// <summary>Stops the server and forgets it, so it can start again, for <see cref="IBackgroundJobServerControl"/>.</summary>
+    internal async Task StopServerAsync(CancellationToken cancellationToken)
+    {
+        IBackgroundProcessingServer? server;
+        lock (_startLock)
+        {
+            server = _processingServer;
+            _processingServer = null;
+        }
+
+        if (server == null) return;
+
+        try
+        {
+            server.SendStop();
+            await server.WaitForShutdownAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            server.Dispose();
+        }
     }
 
     private void InitializeProcessingServer()

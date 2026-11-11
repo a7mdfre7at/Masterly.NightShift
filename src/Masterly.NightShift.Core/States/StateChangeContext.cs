@@ -144,4 +144,10 @@ public class StateChangeContext
 
     [CanBeNull]
     public string? ServerId { get; set; }
+
+    /// <summary>
+    /// The worker moving the job out of Processing, or <c>null</c>. The change is refused when another worker picked
+    /// the job up since (see <see cref="StaleJobFilter"/>).
+    /// </summary>
+    internal string? LeaseHolder { get; init; }
 }

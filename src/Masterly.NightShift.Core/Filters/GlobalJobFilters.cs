@@ -42,6 +42,8 @@ public static class GlobalJobFilters
         // Does nothing until the feed is turned on (UseActivityFeed or ActivityFeed.Enabled)
         Filters.Add(new ActivityFeedFilter());
         Filters.Add(new BatchSupportAttribute());
+        // Counts restarts after a server stopped, and records the worker that took the job over
+        Filters.Add(new StaleJobFilter());
 #pragma warning restore IDE0028
     }
 

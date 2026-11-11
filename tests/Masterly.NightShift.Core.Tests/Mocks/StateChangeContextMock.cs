@@ -29,7 +29,10 @@ public class StateChangeContextMock
                 CancellationToken,
                 EmptyProfiler.Instance,
                 ServerId,
-                CustomData));
+                CustomData)
+            {
+                LeaseHolder = LeaseHolder,
+            });
     }
 
     public Mock<JobStorage> Storage { get; set; }
@@ -43,6 +46,7 @@ public class StateChangeContextMock
     public CancellationToken CancellationToken { get; set; }
     public string ServerId { get; set; }
     public IReadOnlyDictionary<string, object> CustomData { get; set; }
+    public string LeaseHolder { get; set; }
 
     public StateChangeContext Object => _context.Value;
 }

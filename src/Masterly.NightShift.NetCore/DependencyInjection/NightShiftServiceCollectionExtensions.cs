@@ -317,6 +317,7 @@ public static class NightShiftServiceCollectionExtensions
         [CanBeNull] JobStorage? storage,
         [CanBeNull] IEnumerable<IBackgroundProcess>? additionalProcesses)
     {
+        AddServerControl(services);
         services.AddTransient<IHostedService, BackgroundJobServerHostedService>(provider =>
         {
             BackgroundJobServerOptions options = provider.GetService<BackgroundJobServerOptions>() ?? new BackgroundJobServerOptions();
@@ -332,6 +333,7 @@ public static class NightShiftServiceCollectionExtensions
         [CanBeNull] IEnumerable<IBackgroundProcess>? additionalProcesses,
         [NotNull] Action<IServiceProvider, BackgroundJobServerOptions> optionsAction)
     {
+        AddServerControl(services);
         services.AddTransient<IHostedService, BackgroundJobServerHostedService>(provider =>
         {
             BackgroundJobServerOptions options = new();
@@ -367,6 +369,13 @@ public static class NightShiftServiceCollectionExtensions
         }
     }
 
+    // One control for every server of the container, which the servers join as the host creates them
+    private static void AddServerControl(IServiceCollection services)
+    {
+        services.TryAddSingleton<BackgroundJobServerControl>();
+        services.TryAddSingleton<IBackgroundJobServerControl>(static provider => provider.GetRequiredService<BackgroundJobServerControl>());
+    }
+
     private static BackgroundJobServerHostedService CreateBackgroundJobServerHostedService(
         IServiceProvider provider,
         JobStorage? storage,
@@ -389,8 +398,9 @@ public static class NightShiftServiceCollectionExtensions
         // Hosts that don't register it start the server at once
         IHostApplicationLifetime? lifetime = provider.GetService<IHostApplicationLifetime>();
 
-        return new BackgroundJobServerHostedService(
-            storage, options, additionalProcesses, factory, performer, stateChanger, lifetime);
+        BackgroundJobServerHostedService service = new(storage, options, additionalProcesses, factory, performer, stateChanger, lifetime);
+        provider.GetService<BackgroundJobServerControl>()?.Register(service);
+        return service;
     }
 
     /// <summary>

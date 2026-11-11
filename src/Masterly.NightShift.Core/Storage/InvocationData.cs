@@ -71,7 +71,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
             if (Arguments != null && !Arguments.Equals("[]", StringComparison.Ordinal))
             {
-                string[]? argumentsArray = SerializationHelper.Deserialize<string[]>(Arguments);
+                string[]? argumentsArray = SerializationHelper.Deserialize<string[]>(ArgumentCompression.Decompress(Arguments));
                 arguments = DeserializeArguments(method, argumentsArray);
             }
             else
@@ -107,7 +107,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
         string arguments = job.Args.Count == 0
             ? "[]"
-            : SerializationHelper.Serialize(SerializeArguments(job.Method, job.Args));
+            : ArgumentCompression.Compress(SerializationHelper.Serialize(SerializeArguments(job.Method, job.Args)));
 
         return new InvocationData(typeName, methodName, parameterTypes, arguments, job.Queue);
     }
@@ -171,7 +171,7 @@ public class InvocationData(string type, string method, string? parameterTypes, 
         if (GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170))
         {
             string[] parameterTypes = DeserializeParameterTypesArray(TypeHelper.CurrentTypeSerializer, ParameterTypes!); // A readable payload has them
-            string[]? arguments = excludeArguments ? null : SerializationHelper.Deserialize<string[]>(Arguments);
+            string[]? arguments = excludeArguments ? null : SerializationHelper.Deserialize<string[]>(ArgumentCompression.Decompress(Arguments));
 
             return SerializationHelper.Serialize(new JobPayload
             {

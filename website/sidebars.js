@@ -60,6 +60,7 @@ const sidebars = {
       'server-options',
       'queues-and-workers',
       'drain-mode',
+      'reliability',
       'keep-alive',
       'dependency-injection',
       'background-processes',

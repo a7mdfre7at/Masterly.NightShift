@@ -163,7 +163,8 @@ public class Worker : IBackgroundProcess
                     transactionalAck ? fetchedJob : null,
                     out _,
                     CancellationToken.None,
-                    context.ShutdownToken);
+                    context.ShutdownToken,
+                    WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()));
             }
 
             // Checkpoint #4. The job was performed, and it is in the one
@@ -226,7 +227,8 @@ public class Worker : IBackgroundProcess
         IFetchedJob? completeJob,
         out BackgroundJob? backgroundJob,
         CancellationToken initializeToken,
-        CancellationToken abortToken)
+        CancellationToken abortToken,
+        string? leaseHolder = null)
     {
         Exception? exception = null;
 
@@ -251,7 +253,10 @@ public class Worker : IBackgroundProcess
                     initializeToken,
                     _profiler,
                     context.ServerId,
-                    customData);
+                    customData)
+                {
+                    LeaseHolder = leaseHolder,
+                };
 
                 IState? resultingState = _stateChanger.ChangeState(stateChangeContext);
 
@@ -285,7 +290,10 @@ public class Worker : IBackgroundProcess
             completeJob,
             initializeToken,
             _profiler,
-            context.ServerId);
+            context.ServerId)
+        {
+            LeaseHolder = leaseHolder,
+        };
 
         IState? failedResult = _stateChanger.ChangeState(failedStateContext);
         backgroundJob = failedStateContext.ProcessedJob;

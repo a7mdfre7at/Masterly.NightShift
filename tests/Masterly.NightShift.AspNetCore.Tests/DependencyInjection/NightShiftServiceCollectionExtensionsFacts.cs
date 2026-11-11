@@ -155,6 +155,8 @@ public class NightShiftServiceCollectionExtensionsFacts
             { "NightShift:Server:ServerTimeout", "00:10:00" },
             { "NightShift:Server:CancellationCheckInterval", "00:00:03" },
             { "NightShift:Server:MaxDegreeOfParallelismForSchedulers", "2" },
+            { "NightShift:Server:LongRunningWorkerCount", "4" },
+            { "NightShift:Server:StartMode", "manual" },
         });
 
         BackgroundJobServerOptions options = ResolveServerOptions(configuration.GetSection("NightShift:Server"));
@@ -171,6 +173,8 @@ public class NightShiftServiceCollectionExtensionsFacts
         Assert.Equal(TimeSpan.FromMinutes(10), options.ServerTimeout);
         Assert.Equal(TimeSpan.FromSeconds(3), options.CancellationCheckInterval);
         Assert.Equal(2, options.MaxDegreeOfParallelismForSchedulers);
+        Assert.Equal(4, options.LongRunningWorkerCount);
+        Assert.Equal(ServerStartMode.Manual, options.StartMode);
     }
 
     [Fact]

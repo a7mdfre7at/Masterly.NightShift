@@ -7,6 +7,7 @@ The background job server is the part of Masterly.NightShift that runs your jobs
 | [Server options](server-options.md) | Every `BackgroundJobServerOptions` property: workers, queues, timeouts, polling, heartbeats, activator, filters. |
 | [Queues and workers](queues-and-workers.md) | Queue order and priority, the `Queue` attribute, choosing a queue per job, several servers, worker counts for CPU- and I/O-bound jobs, graceful shutdown. |
 | [Drain mode](drain-mode.md) | Pause processing for the whole cluster, one queue or one server, without stopping anything. |
+| [Reliability and cluster](reliability.md) | Jobs whose server died: the restart limit and lease fencing; deployment fencing; starting and stopping servers from code; a pool for long jobs; retention per state and argument compression. |
 | [Keep-alive](keep-alive.md) | Keep IIS from shutting down an idle application, the `/ping` route, and what the host must still do. |
 | [Dependency injection](dependency-injection.md) | `AddNightShift` and `AddNightShiftServer`, the container-backed job activator, a scope per job, factories, and running without a container. |
 | [Background processes](background-processes.md) | Your own code running in a loop on the server (`IBackgroundProcess`, `IBackgroundProcessAsync`), `BackgroundProcessingServer` and its options. |

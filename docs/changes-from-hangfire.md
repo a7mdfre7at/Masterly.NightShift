@@ -221,7 +221,7 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 
 ### Default global filters
 
-`GlobalJobFilters.Filters` holds eight more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
+`GlobalJobFilters.Filters` holds nine more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
 
 | Filter | Does |
 |---|---|
@@ -233,6 +233,7 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 | `DrainModeFilter` | Holds jobs while processing is paused from the dashboard or with `DrainMode` |
 | `ActivityFeedFilter` | Does nothing until `UseActivityFeed()` turns the activity feed on |
 | `BatchSupportAttribute` | Keeps batch counters, only for jobs that carry the `BatchId` job parameter |
+| `StaleJobFilter` | Counts the restarts of a job picked up again after its server stopped (`StaleRestarts` parameter), records the worker that took it over (`Lease`), and fails it past `UseStaleRestartLimit` (no limit by default). Writes nothing for a job that wasn't picked up again |
 
 `ContinuationsSupportAttribute` also acts when a job fails for good or starts processing, and `FanInContinuationsSupportAttribute` when it fails for good, to start the continuations that ask for it (`OnlyOnFailedState`, `OnlyOnProcessingState`, the failure joins). For a job without continuations they read the parameters loaded with the job: nothing more on SQL Server, one read on a storage that doesn't load them.
 
@@ -252,6 +253,8 @@ New features store their data in the existing primitives, under new keys. Most a
 | `chain:{id}` hash, `chains` set, `recurring-chain:{id}` hash | A `JobChain` is created (kept 30 days), or a recurring chain runs |
 | `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
+| `StaleRestarts` and `Lease` job parameters | A job is picked up again after its server stopped while it ran. A worker's move out of Processing is refused while the lease names another worker |
+| `nightshift:deployment` hash | `UseDeploymentFencing` is on and a server checks its deployment |
 | `schedule-policy:{name}` hash, `schedule-policies` set | A schedule policy is saved (`SaveSchedulePolicy`, `RecurringJobSet.AddPolicy`); the `Policy` hash field of a recurring job and the `Policy` and `WhenBlocked` job parameters name it |
 
 `RecurringJobDto` has four new properties to match: `Paused`, `MisfireHandling`, `StartAt` and `EndAt`. The keys each feature writes are listed on its page and in the [architecture blueprint](architecture/blueprints/nightshift-next.md). Keys built from user input are bounded to fit SQL Server's limits (100 characters for keys, 256 for set values).

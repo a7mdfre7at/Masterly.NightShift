@@ -22,6 +22,8 @@ internal static class BackgroundJobServerOptionsBinder
         Read(configuration, nameof(options.ServerTimeout), ParseTimeSpan, value => options.ServerTimeout = value);
         Read(configuration, nameof(options.CancellationCheckInterval), ParseTimeSpan, value => options.CancellationCheckInterval = value);
         Read(configuration, nameof(options.MaxDegreeOfParallelismForSchedulers), ParseInt32, value => options.MaxDegreeOfParallelismForSchedulers = value);
+        Read(configuration, nameof(options.LongRunningWorkerCount), ParseInt32, value => options.LongRunningWorkerCount = value);
+        Read(configuration, nameof(options.StartMode), static text => Enum.Parse<ServerStartMode>(text, ignoreCase: true), value => options.StartMode = value);
         ReadQueues(configuration, options);
     }
 

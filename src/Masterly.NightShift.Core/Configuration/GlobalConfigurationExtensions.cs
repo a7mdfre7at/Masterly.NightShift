@@ -358,6 +358,86 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Fails a job for good once it was picked up again more than <paramref name="maxRestarts"/> times because its
+        /// server stopped or died while it ran, instead of letting it loop through the cluster. A server stopping
+        /// gracefully puts its running jobs back too, so set the limit above the number of deployments a long job may
+        /// see. See <see cref="StaleJobFilter"/>.
+        /// </summary>
+        /// <param name="maxRestarts">The restarts allowed, 0 or more, or <c>null</c> for no limit (the default).</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseStaleRestartLimit(int? maxRestarts)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            StaleJobFilter.MaxRestarts = maxRestarts;
+            return configuration;
+        }
+
+        /// <summary>
+        /// Sets how long finished jobs are kept, per state: <c>UseJobRetention(o => { o.Succeeded = TimeSpan.FromHours(6); o.Deleted = TimeSpan.FromDays(7); })</c>.
+        /// A per-method <see cref="ExpireAfterAttribute"/> wins. Calling it again replaces the retention.
+        /// </summary>
+        /// <param name="configure">Sets the retention of each state.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseJobRetention([NotNull] Action<JobRetentionOptions> configure)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(configure);
+
+            JobRetentionOptions options = new();
+            configure(options);
+
+            JobRetentionFilter filter = (JobRetentionFilter)AddGlobalFilterOnce(
+                static registered => registered is JobRetentionFilter,
+                () => new JobRetentionFilter(options.States));
+            filter.Update(options.States);
+
+            if (options.Failed is { } failed)
+            {
+                configuration.UseFailedJobRetention(failed);
+            }
+
+            return configuration;
+        }
+
+        /// <summary>
+        /// Compresses the stored arguments of new jobs that are at least <paramref name="minLength"/> characters long,
+        /// as GZip in base64 behind the marker <c>gz:</c>. Compressed arguments are always read back, so it can be turned
+        /// off later; servers of earlier versions can't read them, so turn it on once every server runs this version.
+        /// </summary>
+        /// <param name="minLength">
+        /// The length from which arguments are compressed, 1 or more, 1,024 by default; <c>null</c> turns compression
+        /// off (compressed arguments are still read).
+        /// </param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseArgumentCompression(int? minLength = 1024)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            ArgumentCompression.MinLength = minLength;
+            return configuration;
+        }
+
+        /// <summary>
+        /// Turns on <see cref="DeploymentFencing"/>: servers created afterwards record their deployment, and servers of
+        /// an older deployment stop taking jobs once a newer one runs.
+        /// </summary>
+        /// <param name="deploymentId">
+        /// The deployment, up to 64 characters, different for every release; <c>null</c> for the entry assembly's
+        /// informational version (or version).
+        /// </param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseDeploymentFencing([CanBeNull] string? deploymentId = null)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            DeploymentFencing.DeploymentId = deploymentId == null
+                ? DeploymentFencing.GetDefaultDeploymentId()
+                : DeploymentFencing.NormalizeDeploymentId(deploymentId, nameof(deploymentId));
+            return configuration;
+        }
+
+        /// <summary>
         /// Registers a provider of dates that schedule policies exclude with <see cref="SchedulePolicy.ExcludeDatesFrom"/>,
         /// such as public holidays, under a name. Register it in every process that schedules or runs jobs following
         /// such a policy: where it is missing, the policy allows no instant. Registering another provider under the

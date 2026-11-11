@@ -126,6 +126,16 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             { "WorkerCount", options.WorkerCount }
         };
 
+        if (options.LongRunningWorkerCount > 0)
+        {
+            properties.Add("LongRunningWorkerCount", options.LongRunningWorkerCount);
+        }
+
+        if (DeploymentFencing.DeploymentId is { } deployment)
+        {
+            properties.Add("Deployment", deployment);
+        }
+
         _logger.Info($"Starting Masterly.NightShift Server using job storage: '{storage}'");
 
         storage.WriteOptionsToLog(_logger);
@@ -220,6 +230,17 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
         }
 
         processes.Add(new Worker(_options.Queues, performer, stateChanger).UseBackgroundPool(_options.WorkerCount, _options.WorkerThreadConfigurationAction));
+
+        // A pool of its own for [LongRunning] jobs, so they never take every worker from the short ones
+        if (_options.LongRunningWorkerCount > 0)
+        {
+            processes.Add(new Worker([LongRunningAttribute.Queue], performer, stateChanger).UseBackgroundPool(_options.LongRunningWorkerCount, _options.WorkerThreadConfigurationAction));
+        }
+
+        if (DeploymentFencing.DeploymentId is { } deploymentId)
+        {
+            processes.Add(new DeploymentFencingProcess(deploymentId).UseBackgroundPool(1));
+        }
 
         if (!_options.IsLightweightServer)
         {

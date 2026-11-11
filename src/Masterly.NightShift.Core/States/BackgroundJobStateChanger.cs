@@ -85,6 +85,12 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     return null;
                 }
 
+                // Another worker picked the job up after this one's server was deemed gone: its run wins
+                if (context.LeaseHolder != null && !StaleJobFilter.IsLeaseHeldBy(jobData.ParametersSnapshot, context.LeaseHolder))
+                {
+                    return null;
+                }
+
                 IState stateToApply = context.NewState;
 
                 try

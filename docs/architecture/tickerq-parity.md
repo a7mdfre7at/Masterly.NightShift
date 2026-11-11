@@ -95,17 +95,19 @@ A method function's job is an ordinary job of the method; a delegate function's 
 | `CancelPendingAsync<TFunction>()`, `DeleteAsync(filter)` | Port | `storage.DeletePendingJobs<T>()`, `DeletePendingFunctionJobs(name)`, `DeletePendingJobs(filter)`, `GetPendingJobs()`. |
 | Add, reschedule, run now, rerun, batch add | Done | `Schedule`, `Reschedule`, `Requeue`, `Trigger`, `EnqueueMany`. |
 
-## Phase 6: Reliability and cluster
+## Phase 6: Reliability and cluster (done)
+
+The restart limit is opt-in (`UseStaleRestartLimit`), not 3 by default: a graceful shutdown puts running jobs back too, so a default limit would fail long jobs during rolling deployments. Fencing uses a `Lease` parameter written only when a job is picked up again, so normal processing costs nothing. Deployment fencing pauses old servers through drain mode; manual epochs aren't ported (deploy with a new id instead).
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| `OnStale` / `MaxStaleRestarts` | Port | A job restarted N times because its server died fails instead of looping (`BackgroundJobServerOptions.MaxStaleRestarts`, default 3). |
-| Lease fencing | Enhance | The move out of Processing also checks the server id. |
-| Reconciliation epoch | Port | Opt-in `UseDeploymentFencing()`: servers of an older deployment stop taking jobs. |
-| Manual start, start/stop/restart | Port | `StartMode = Manual` and `IBackgroundJobServerControl`. |
+| `OnStale` / `MaxStaleRestarts` | Port | `UseStaleRestartLimit(n)` (`StaleJobFilter`): a job picked up again more than n times after its server stopped fails for good. |
+| Lease fencing | Enhance | The worker that takes a job over holds its `Lease`; a former owner's late state change is refused. |
+| Reconciliation epoch | Port | Opt-in `UseDeploymentFencing(id)`: servers of an older deployment pause themselves. |
+| Manual start, start/stop/restart | Port | `StartMode = ServerStartMode.Manual` and `IBackgroundJobServerControl`. |
 | `LongRunning` priority | Port | `[LongRunning]` and a separate worker pool (`LongRunningWorkerCount`). |
-| Per-status retention | Enhance | `[ExpireAfter]` exists; add a global `UseJobRetention(...)` per state. |
-| Payload compression | Port | Opt-in `UseArgumentCompression(minBytes)`; reading always decompresses. |
+| Per-status retention | Enhance | `UseJobRetention(o => ...)` per state; `[ExpireAfter]` wins. |
+| Payload compression | Port | Opt-in `UseArgumentCompression(minLength)`; reading always decompresses. |
 | Application namespace, node id, queue-only mode, shutdown drain | Done | Storage schema/prefix, `ServerName`, no server, `StopTimeout`. |
 
 ## Phase 7: Observability and alerts

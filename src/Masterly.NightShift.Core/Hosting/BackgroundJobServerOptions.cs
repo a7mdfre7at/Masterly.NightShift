@@ -285,4 +285,40 @@ public class BackgroundJobServerOptions
     /// specified in the <see cref="TaskScheduler"/> property.
     /// </summary>
     public int MaxDegreeOfParallelismForSchedulers { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets the number of workers that serve the <c>long-running</c> queue (<see cref="LongRunningAttribute"/>),
+    /// in addition to <see cref="WorkerCount"/>, so long jobs never take every worker from the short ones. 0 (the
+    /// default) adds none: the queue is then served only when it is in <see cref="Queues"/>.
+    /// </summary>
+    public int LongRunningWorkerCount
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets whether a server added with <c>AddNightShiftServer</c> starts with the host
+    /// (<see cref="ServerStartMode.Automatic"/>, the default) or waits for <c>IBackgroundJobServerControl.StartAsync</c>
+    /// (<see cref="ServerStartMode.Manual"/>). A <see cref="BackgroundJobServer"/> created directly always starts at once.
+    /// </summary>
+    public ServerStartMode StartMode
+    {
+        get;
+        set => field = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a ServerStartMode value.");
+    }
+}
+
+/// <summary>When a hosted server starts, see <see cref="BackgroundJobServerOptions.StartMode"/>.</summary>
+public enum ServerStartMode
+{
+    /// <summary>With the host.</summary>
+    Automatic = 0,
+
+    /// <summary>When the application asks, with <c>IBackgroundJobServerControl.StartAsync</c>.</summary>
+    Manual = 1,
 }

@@ -719,6 +719,38 @@ public class BackgroundJobStateChangerFacts
         Assert.True(ran);
     }
 
+    [Fact]
+    public void ChangeState_RefusesTheChange_WhenAnotherWorkerHoldsTheLease()
+    {
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData
+        {
+            State = OldStateName,
+            Job = _job,
+            ParametersSnapshot = new Dictionary<string, string> { [StaleJobFilter.LeaseParameter] = "\"worker-b\"" },
+        });
+        _context.LeaseHolder = "worker-a";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.Null(result);
+        _stateMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("\"worker-a\"")]
+    [InlineData(null)]
+    public void ChangeState_AppliesTheChange_WhenTheWorkerHoldsTheLease_OrThereIsNone(string lease)
+    {
+        Dictionary<string, string> snapshot = [];
+        if (lease != null) snapshot[StaleJobFilter.LeaseParameter] = lease;
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = OldStateName, Job = _job, ParametersSnapshot = snapshot });
+        _context.LeaseHolder = "worker-a";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.NotNull(result);
+    }
+
     private BackgroundJobStateChanger CreateStateChanger()
     {
         return new BackgroundJobStateChanger(_filterProvider.Object, _stateMachine.Object);

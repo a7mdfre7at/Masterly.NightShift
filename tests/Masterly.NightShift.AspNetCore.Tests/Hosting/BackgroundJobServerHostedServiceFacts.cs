@@ -42,6 +42,60 @@ public class BackgroundJobServerHostedServiceFacts
     }
 
     [Fact]
+    public async Task StartAsync_DoesNotStartAManualServer_UntilTheControlStartsIt()
+    {
+        _options.StartMode = ServerStartMode.Manual;
+        using ServiceProvider provider = new ServiceCollection()
+            .AddSingleton(_storage.Object)
+            .AddSingleton(_options)
+            .AddNightShift(_ => { })
+            .AddNightShiftServer()
+            .BuildServiceProvider();
+
+        IHostedService[] hosted = [.. provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>()];
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted[0].StartAsync(CancellationToken.None);
+
+        Assert.False(control.IsRunning);
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
+
+        await control.StartAsync(TestContext.Current.CancellationToken);
+        Assert.True(control.IsRunning);
+
+        await control.StopAsync(TestContext.Current.CancellationToken);
+        Assert.False(control.IsRunning);
+
+        // Started again, as a new server
+        await control.StartAsync(TestContext.Current.CancellationToken);
+        Assert.True(control.IsRunning);
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Exactly(2));
+
+        await control.StopAsync(TestContext.Current.CancellationToken);
+        foreach (IHostedService service in hosted) ((IDisposable)service).Dispose();
+    }
+
+    [Fact]
+    public async Task Control_StopsAnAutomaticServer_TooAsync()
+    {
+        using ServiceProvider provider = new ServiceCollection()
+            .AddSingleton(_storage.Object)
+            .AddSingleton(_options)
+            .AddNightShift(_ => { })
+            .AddNightShiftServer()
+            .BuildServiceProvider();
+
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+        _lifetime.RaiseStarted();
+
+        await control.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(control.IsRunning);
+        hosted.Dispose();
+    }
+
+    [Fact]
     public async Task StopAsync_ReturnsAtOnce_WhenTheApplicationNeverStarted()
     {
         using BackgroundJobServerHostedService service = new(
