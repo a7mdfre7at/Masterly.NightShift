@@ -358,6 +358,24 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Registers a provider of dates that schedule policies exclude with <see cref="SchedulePolicy.ExcludeDatesFrom"/>,
+        /// such as public holidays, under a name. Register it in every process that schedules or runs jobs following
+        /// such a policy: where it is missing, the policy allows no instant. Registering another provider under the
+        /// same name replaces it.
+        /// </summary>
+        /// <param name="name">The provider's name, as policies refer to it.</param>
+        /// <param name="provider">The provider.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseScheduleDateProvider([NotNull] string name, [NotNull] IScheduleDateProvider provider)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(provider);
+
+            ScheduleDateProviders.Set(name, provider);
+            return configuration;
+        }
+
+        /// <summary>
         /// Sets the System.Text.Json options used to serialize user data like job arguments and parameters, or
         /// restores the defaults when <paramref name="settings"/> is <c>null</c>.
         /// <see cref="SerializationHelper.Serialize{T}(T, SerializationOption)"/> with <see cref="SerializationOption.User"/>

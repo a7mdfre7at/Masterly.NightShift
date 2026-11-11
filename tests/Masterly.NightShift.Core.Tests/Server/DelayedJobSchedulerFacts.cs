@@ -100,6 +100,19 @@ public class DelayedJobSchedulerFacts
     }
 
     [Fact]
+    public void Execute_MarksTheEnqueuedState_AsDue()
+    {
+        EnableBatching();
+        _schedule.Add("job-1");
+
+        CreateScheduler().Execute(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+            ctx.BackgroundJobId == "job-1" &&
+            ctx.NewState is EnqueuedState && ((EnqueuedState)ctx.NewState).IsDue)));
+    }
+
+    [Fact]
     public void Execute_MovesJobStateToEnqueued_UsingBatching_WhenAvailable()
     {
         // Arrange

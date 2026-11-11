@@ -507,6 +507,31 @@ public class BackgroundJobFacts
         Assert.NotNull(client);
     }
 
+    [Fact, GlobalLock(Reason = "Access BackgroundJob.ClientFactory member")]
+    public void ScheduleOptionsOverloads_PassTheOptionsToTheClient()
+    {
+        Mock<IBackgroundJobClientV2> client = new();
+        client.Setup(x => x.Storage).Returns(new Mock<JobStorage>().Object);
+        BackgroundJob.ClientFactory = () => client.Object;
+        ScheduleOptions options = new() { Policy = "weekdays" };
+
+        BackgroundJob.Enqueue(() => Method(), options);
+        BackgroundJob.Enqueue<BackgroundJobFacts>(x => x.Method(), options);
+        BackgroundJob.Enqueue(() => MethodAsync(), options);
+        BackgroundJob.Enqueue<BackgroundJobFacts>(x => x.MethodAsync(), options);
+        BackgroundJob.Schedule(() => Method(), TimeSpan.FromHours(1), options);
+        BackgroundJob.Schedule<BackgroundJobFacts>(x => x.Method(), TimeSpan.FromHours(1), options);
+        BackgroundJob.Schedule(() => MethodAsync(), TimeSpan.FromHours(1), options);
+        BackgroundJob.Schedule<BackgroundJobFacts>(x => x.MethodAsync(), TimeSpan.FromHours(1), options);
+        BackgroundJob.Schedule(() => Method(), DateTimeOffset.UtcNow, options);
+        BackgroundJob.Schedule<BackgroundJobFacts>(x => x.Method(), DateTimeOffset.UtcNow, options);
+        BackgroundJob.Schedule(() => MethodAsync(), DateTimeOffset.UtcNow, options);
+        BackgroundJob.Schedule<BackgroundJobFacts>(x => x.MethodAsync(), DateTimeOffset.UtcNow, options);
+
+        client.Verify(x => x.Create(It.IsNotNull<Job>(), It.IsAny<EnqueuedState>(), It.Is<IDictionary<string, object>>(p => (string)p["Policy"] == "weekdays")), Times.Exactly(4));
+        client.Verify(x => x.Create(It.IsNotNull<Job>(), It.IsAny<ScheduledState>(), It.Is<IDictionary<string, object>>(p => (string)p["Policy"] == "weekdays")), Times.Exactly(8));
+    }
+
     private void Initialize()
     {
         BackgroundJob.ClientFactory = () => _client.Object;

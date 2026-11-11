@@ -31,6 +31,8 @@ public static class GlobalJobFilters
         Filters.Add(new CaptureCultureAttribute());
         Filters.Add(new TerminateJobFilter());
         Filters.Add(new LateStartFilter());
+        // Before DrainModeFilter: a due job it moves forward keeps its held queue for the next time
+        Filters.Add(new SchedulePolicyFilter());
         Filters.Add(new AutomaticRetryAttribute());
         Filters.Add(new StatisticsHistoryAttribute());
         Filters.Add(new ContinuationsSupportAttribute());

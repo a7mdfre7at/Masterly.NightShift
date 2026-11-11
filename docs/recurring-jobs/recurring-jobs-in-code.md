@@ -54,11 +54,12 @@ An error from the storage while applying, such as an unreachable database, also 
 | `RemoveUndeclared(scope)` | After applying, also removes stored recurring jobs that aren't declared. See below. |
 | `RetireUndeclared(scope)` | After applying, pauses the jobs a set declared before that this one doesn't, instead of removing them. See below. Can't be combined with `RemoveUndeclared`. |
 | `Once(key, methodCall, delay)` | Declares a job created once for `key`, the first time a set with it is applied. See below. |
+| `AddPolicy(policy)` | Declares a [schedule policy](../jobs/schedule-policies.md#declaring-policies-in-code), saved before the jobs. |
 | `DeclaredIds` | The identifiers declared so far. |
 | `Apply()` | Applies the set to `JobStorage.Current`, for applications without a host. |
 | `Apply(manager, storage)` | Applies the set through the given manager and storage. |
 
-`cron` is a CRON expression or a `%Section:Key%` placeholder. `options` is a [`RecurringJobOptions`](creating-recurring-jobs.md#recurringjoboptions), for the time zone, queue, misfire handling and dates. It is optional. `Apply` returns a `RecurringJobSetResult` with the `Applied`, `Removed` and `Retired` identifiers and the `CreatedOnce` keys.
+`cron` is a CRON expression or a `%Section:Key%` placeholder. `options` is a [`RecurringJobOptions`](creating-recurring-jobs.md#recurringjoboptions), for the time zone, queue, misfire handling and dates. It is optional. `Apply` returns a `RecurringJobSetResult` with the `Applied`, `Removed` and `Retired` identifiers, the `CreatedOnce` keys and the `PoliciesSaved` names.
 
 Applying a set marks each declared job with the `Declared` field of its hash, so `RecurringJobDto.Declared` tells a job declared in code from one created any other way. The field is written the first time only.
 

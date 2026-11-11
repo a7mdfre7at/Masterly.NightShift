@@ -221,12 +221,13 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 
 ### Default global filters
 
-`GlobalJobFilters.Filters` holds seven more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
+`GlobalJobFilters.Filters` holds eight more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
 
 | Filter | Does |
 |---|---|
 | `TerminateJobFilter` | Deletes a job that threw `TerminateJobException` as skipped or canceled, instead of failing it |
 | `LateStartFilter` | Skips a run later than its `SkipAfter` job parameter, only for jobs that carry it; it reads the parameters loaded with the job, never the storage |
+| `SchedulePolicyFilter` | Applies the schedule policy of a job created with `ScheduleOptions.Policy`, at creation and when the delayed job scheduler enqueues it. For other jobs it looks for the `Policy` job parameter when a delayed job is due: in the parameters loaded with the job on SQL Server, with one read on a storage that doesn't load them |
 | `FanInContinuationsSupportAttribute` | Drives `ContinueJobWithAll`/`ContinueJobWithAny` |
 | `JobConsoleStateFilter` | Expires a job's console lists (`job:{id}:console`, `job:{id}:checkpoints`) together with the job, only for jobs whose console wrote to storage and only on storages with `ExtendedApi` |
 | `DrainModeFilter` | Holds jobs while processing is paused from the dashboard or with `DrainMode` |
@@ -247,6 +248,7 @@ New features store their data in the existing primitives, under new keys. Most a
 | `recurring-job:{id}:runs` list | A recurring job creates a run, by its schedule or `Trigger`: the run's job ID, the last 50 kept, written in the same transaction as the run. Removed with the recurring job |
 | `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
+| `schedule-policy:{name}` hash, `schedule-policies` set | A schedule policy is saved (`SaveSchedulePolicy`, `RecurringJobSet.AddPolicy`); the `Policy` hash field of a recurring job and the `Policy` and `WhenBlocked` job parameters name it |
 
 `RecurringJobDto` has four new properties to match: `Paused`, `MisfireHandling`, `StartAt` and `EndAt`. The keys each feature writes are listed on its page and in the [architecture blueprint](architecture/blueprints/nightshift-next.md). Keys built from user input are bounded to fit SQL Server's limits (100 characters for keys, 256 for set values).
 

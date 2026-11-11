@@ -284,6 +284,37 @@ public class GloabalConfigurationExtensionsFacts
         Assert.Throws<ArgumentNullException>("configuration", () => GlobalConfigurationExtensions.UseCompiledJobInvokers(null, true));
     }
 
+    [Fact, GlobalLock(Reason = "Changes the global date providers")]
+    public void UseScheduleDateProvider_RegistersTheProvider_UnderItsLowerCasedName()
+    {
+        Mock<IScheduleDateProvider> provider = new();
+        try
+        {
+            IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+
+            IGlobalConfiguration result = configuration.UseScheduleDateProvider("Public-Holidays", provider.Object);
+
+            Assert.Same(configuration, result);
+            Assert.True(ScheduleDateProviders.TryGet("public-holidays", out IScheduleDateProvider registered));
+            Assert.Same(provider.Object, registered);
+        }
+        finally
+        {
+            ScheduleDateProviders.Clear();
+        }
+    }
+
+    [Fact]
+    public void UseScheduleDateProvider_ThrowsAnException_ForInvalidArguments()
+    {
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+        IScheduleDateProvider provider = new Mock<IScheduleDateProvider>().Object;
+
+        Assert.Throws<ArgumentNullException>("configuration", () => GlobalConfigurationExtensions.UseScheduleDateProvider(null, "p", provider));
+        Assert.Throws<ArgumentNullException>("provider", () => configuration.UseScheduleDateProvider("p", null));
+        Assert.Throws<ArgumentException>("name", () => configuration.UseScheduleDateProvider("not valid", provider));
+    }
+
     public class CustomClass
     {
         public string StringProperty { get; set; }

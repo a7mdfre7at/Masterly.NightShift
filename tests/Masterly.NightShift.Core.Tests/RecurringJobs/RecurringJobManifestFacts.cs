@@ -634,6 +634,44 @@ public class RecurringJobManifestFacts
     }
 
     [Fact]
+    public void Export_WritesThePolicy_AndApplyRoundTripsIt()
+    {
+        AddExisting("office", "0 9 * * *");
+        _hashes["recurring-job:office"]["Policy"] = "business-hours";
+
+        string json = RecurringJobManifest.Export(_connection.Object);
+        JsonArray entries = JsonNode.Parse(json)["recurringJobs"].AsArray();
+        Assert.Equal("business-hours", entries[0]["policy"].GetValue<string>());
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+
+        Assert.Empty(result.Errors);
+        _manager.Verify(x => x.AddOrUpdate("office", It.IsAny<Job>(), "0 9 * * *", It.Is<RecurringJobOptions>(o => o.Policy == "business-hours")));
+    }
+
+    [Fact]
+    public void Export_OmitsThePolicy_WhenThereIsNone()
+    {
+        AddExisting("plain", "0 9 * * *");
+
+        JsonArray entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+
+        Assert.Null(entries[0]["policy"]);
+    }
+
+    [Fact]
+    public void Apply_ReportsAnInvalidPolicyName_AsAnError()
+    {
+        AddExisting("office", "0 9 * * *");
+        _hashes["recurring-job:office"]["Policy"] = "business-hours";
+        string json = RecurringJobManifest.Export(_connection.Object).Replace("business-hours", "not valid", StringComparison.Ordinal);
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+
+        Assert.Equal("office", Assert.Single(result.Errors).Id);
+    }
+
+    [Fact]
     public void Export_OmitsSkipAfter_WhenItIsNotSet()
     {
         AddExisting("plain", "0 9 * * *");

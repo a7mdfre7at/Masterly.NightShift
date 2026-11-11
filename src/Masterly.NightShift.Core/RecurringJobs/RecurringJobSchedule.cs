@@ -10,9 +10,9 @@ public static class RecurringJobSchedule
     extension([NotNull] JobStorage storage)
     {
         /// <summary>
-        /// Lists the next runs of a stored recurring job, as its CRON expression, time zone, start and end dates give
-        /// them, starting after the current time. A paused job, a job past its end and a job that doesn't exist have
-        /// none.
+        /// Lists the next runs of a stored recurring job, as its CRON expression, time zone, start and end dates and
+        /// schedule policy give them, starting after the current time. Occurrences its policy blocks are left out. A
+        /// paused job, a job past its end and a job that doesn't exist have none.
         /// </summary>
         /// <param name="recurringJobId">The recurring job's id.</param>
         /// <param name="count">How many runs to list, from 1 to <see cref="MaxOccurrences"/>.</param>
@@ -27,11 +27,9 @@ public static class RecurringJobSchedule
             ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(count, MaxOccurrences);
 
-            RecurringJobEntity? recurringJob;
-            using (IStorageConnection connection = storage.GetReadOnlyConnection())
-            {
-                recurringJob = connection.GetRecurringJob(recurringJobId);
-            }
+            // The connection stays open while the policy is read
+            using IStorageConnection connection = storage.GetReadOnlyConnection();
+            RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
 
             if (recurringJob?.Cron == null || recurringJob.Paused) return [];
 
@@ -47,6 +45,12 @@ public static class RecurringJobSchedule
         DateTime from = recurringJob.StartAt.HasValue && recurringJob.StartAt.Value > now
             ? recurringJob.StartAt.Value.AddTicks(-1)
             : now;
+
+        if (recurringJob.Policy != null && recurringJob.PolicySource != null)
+        {
+            // From the instant after "from", as Cron.GetNextOccurrences counts
+            return [.. recurringJob.GetNextOccurrences(timeZoneResolver, from.AddTicks(1)).Take(count)];
+        }
 
         List<DateTime> result = [];
 

@@ -97,7 +97,7 @@ public class CreateContext
     /// class are doing their job.
     /// </summary>
     [CanBeNull]
-    public IState? InitialState { get; }
+    public IState? InitialState { get; internal set; }
 
     [NotNull]
     internal IProfiler Profiler { get; }

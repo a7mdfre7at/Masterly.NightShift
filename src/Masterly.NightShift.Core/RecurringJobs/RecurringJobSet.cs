@@ -8,11 +8,13 @@ namespace Masterly.NightShift;
 /// <param name="Removed">The identifiers of the undeclared recurring jobs removed.</param>
 /// <param name="Retired">The identifiers of the undeclared recurring jobs paused by <see cref="RecurringJobSet.RetireUndeclared"/>.</param>
 /// <param name="CreatedOnce">The keys of the jobs <c>Once</c> declared that this call created.</param>
+/// <param name="PoliciesSaved">The names of the schedule policies <see cref="RecurringJobSet.AddPolicy"/> declared that this call created or changed.</param>
 public sealed record RecurringJobSetResult(
     IReadOnlyList<string> Applied,
     IReadOnlyList<string> Removed,
     IReadOnlyList<string> Retired,
-    IReadOnlyList<string> CreatedOnce);
+    IReadOnlyList<string> CreatedOnce,
+    IReadOnlyList<string> PoliciesSaved);
 
 /// <summary>
 /// A set of recurring jobs declared in code and applied together at start-up. A declaration that can't work
@@ -45,6 +47,7 @@ public sealed class RecurringJobSet
     private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
     private readonly List<OnceDeclaration> _once = [];
     private readonly HashSet<string> _onceKeys = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SchedulePolicy> _policies = new(StringComparer.Ordinal);
     private bool _removeUndeclared;
     private bool _retireUndeclared;
     private Func<string, bool>? _removalScope;
@@ -285,6 +288,29 @@ public sealed class RecurringJobSet
         return AddOnce(key, () => Job.FromExpression(methodCall), delay);
     }
 
+    /// <summary>
+    /// Declares a schedule policy, saved before the jobs when the set is applied, so the jobs can follow it. An
+    /// unchanged policy keeps its revision; a changed one replaces the stored one, whoever edited it, and reschedules
+    /// the recurring jobs that follow it. A policy no longer declared stays stored.
+    /// </summary>
+    /// <param name="policy">The policy.</param>
+    /// <returns>This set, to chain calls.</returns>
+    /// <exception cref="InvalidOperationException">A policy of the same name is already declared.</exception>
+    public RecurringJobSet AddPolicy([NotNull] SchedulePolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+
+        if (!_policies.TryAdd(policy.Name, policy))
+        {
+            throw new InvalidOperationException($"Schedule policy '{policy.Name}' is declared more than once.");
+        }
+
+        return this;
+    }
+
+    /// <summary>The names of the declared schedule policies.</summary>
+    public IReadOnlyCollection<string> DeclaredPolicies => _policies.Keys;
+
     /// <summary>Applies the set to <see cref="JobStorage.Current"/> through a new <see cref="RecurringJobManager"/>.</summary>
     /// <returns>What was applied and removed.</returns>
     public RecurringJobSetResult Apply()
@@ -293,9 +319,13 @@ public sealed class RecurringJobSet
     }
 
     /// <summary>
-    /// Registers or updates every declared job and, after <see cref="RemoveUndeclared"/>, removes the undeclared
-    /// ones. An error applying a job stops here and nothing is removed.
+    /// Saves the declared schedule policies, registers or updates every declared job and, after
+    /// <see cref="RemoveUndeclared"/>, removes the undeclared ones. The policies and the policies the jobs follow are
+    /// checked before anything is written. An error applying a job stops here and nothing is removed.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// A declared policy or job refers to a policy that is neither declared nor stored, or the policies form a cycle.
+    /// </exception>
     /// <param name="manager">Registers and removes the jobs.</param>
     /// <param name="storage">The manager's storage, used to list the existing jobs.</param>
     /// <returns>What was applied and removed.</returns>
@@ -305,6 +335,14 @@ public sealed class RecurringJobSet
         ArgumentNullException.ThrowIfNull(storage);
 
         ThrowIfAnyPlaceholderRemains();
+
+        List<SchedulePolicy> policies = OrderPolicies(storage);
+        List<string> policiesSaved = [];
+        foreach (SchedulePolicy policy in policies)
+        {
+            SchedulePolicies.Write(storage, policy, expectedRevision: null, out bool written);
+            if (written) policiesSaved.Add(policy.Name);
+        }
 
         foreach (Declaration declaration in _declarations)
         {
@@ -316,7 +354,59 @@ public sealed class RecurringJobSet
             [.. _declarations.Select(static declaration => declaration.Id)],
             RemoveUndeclaredJobs(manager, storage),
             RetireUndeclaredJobs(manager, storage),
-            CreateOnceJobs(storage));
+            CreateOnceJobs(storage),
+            policiesSaved);
+    }
+
+    // Checks the declared policies and the policies the jobs follow before anything is written, and orders the
+    // declared policies so each one comes after the policies it refers to
+    private List<SchedulePolicy> OrderPolicies(JobStorage storage)
+    {
+        IEnumerable<string> jobPolicies = _declarations
+            .Select(static x => x.Options.Policy)
+            .OfType<string>();
+        if (_policies.Count == 0 && !jobPolicies.Any()) return [];
+
+        using IStorageConnection connection = storage.GetConnection();
+
+        foreach (string name in _policies.Values.SelectMany(static x => x.Required.Concat(x.Excepted)).Concat(jobPolicies).Distinct(StringComparer.Ordinal))
+        {
+            if (!_policies.ContainsKey(name) && !SchedulePolicies.Exists(connection, name))
+            {
+                throw new InvalidOperationException($"Schedule policy '{name}' is used but neither declared nor stored.");
+            }
+        }
+
+        List<SchedulePolicy> ordered = [];
+        Dictionary<string, bool> visited = new(StringComparer.Ordinal);
+
+        foreach (SchedulePolicy policy in _policies.Values.OrderBy(static x => x.Name, StringComparer.Ordinal))
+        {
+            Visit(policy, []);
+        }
+
+        return ordered;
+
+        void Visit(SchedulePolicy policy, List<string> path)
+        {
+            if (visited.TryGetValue(policy.Name, out bool done))
+            {
+                if (done) return;
+                throw new InvalidOperationException($"Schedule policies form a cycle: {string.Join(" -> ", path.Append(policy.Name))}.");
+            }
+
+            visited[policy.Name] = false;
+            foreach (string reference in policy.Required.Concat(policy.Excepted))
+            {
+                if (_policies.TryGetValue(reference, out SchedulePolicy? referenced))
+                {
+                    Visit(referenced, [.. path, policy.Name]);
+                }
+            }
+
+            visited[policy.Name] = true;
+            ordered.Add(policy);
+        }
     }
 
     // Marks the job as declared, and resumes it when it was retired. Writes only what changed, so applying an

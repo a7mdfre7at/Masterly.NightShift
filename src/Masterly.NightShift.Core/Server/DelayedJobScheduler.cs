@@ -286,7 +286,7 @@ public class DelayedJobScheduler : IBackgroundProcess
                     context.Storage,
                     connection,
                     jobId,
-                    new EnqueuedState { Reason = $"Triggered by {ToString()}" },
+                    new EnqueuedState { Reason = $"Triggered by {ToString()}", IsDue = true },
                     [ScheduledState.StateName],
                     disableFilters: false,
                     context.StoppingToken,

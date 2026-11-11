@@ -57,13 +57,15 @@ Seed retirement is opt-in (`RetireUndeclared`), and only touches jobs a set decl
 | `GetNextOccurrencesAsync` | Enhance | `RecurringJob.GetNextOccurrences(id, count)` from code. |
 | `ITickerClock` | Done | `JobClock`, `UseTimeProvider`. |
 
-## Phase 3: Schedule policies (business calendars)
+## Phase 3: Schedule policies (business calendars) (done)
+
+Policies are checked when a job is created and when the delayed job scheduler enqueues it, not when a worker picks it up, so a manual enqueue bypasses them; a job already created whose due time a changed policy now blocks is skipped rather than rejected. The policies page is part of Phase 8.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Named, stored, revisioned calendars | Enhance | `[RunWindow]` and `[Blackout]` exist. Add `SchedulePolicies`: `AllowWeekdays`, `AllowBetween`, `ExcludeDate`, `ExcludeAnnualDate`, `ExcludeDatesFrom(IScheduleDateProvider)`, `Require`/`ExceptWhen`, time zone; stored in hash `policy:{name}` with a revision; `Upsert`, `Update(expectedRevision)`, `Delete(expectedRevision)`, `Evaluate`, `FindNextAllowed`, `PreviewCron`. |
-| `WhenBlocked`: Reject, Skip, MoveForward | Port | For delayed jobs (`ScheduleOptions.Policy`); blocked recurring occurrences are left out. Run now and requeue bypass the policy. |
-| `SeedSchedulePolicies` | Port | Declared in code, reconciled at start-up. |
+| Named, stored, revisioned calendars | Enhance | `[RunWindow]` and `[Blackout]` exist. `SchedulePolicy`: `AllowWeekdays`, `AllowBetween`, `ExcludeDate`, `ExcludeAnnualDate`, `ExcludeDatesFrom(IScheduleDateProvider)`, `Require`/`ExceptWhen`, time zone; stored in hash `schedule-policy:{name}` with a revision; `SaveSchedulePolicy`, `UpdateSchedulePolicy(expectedRevision)`, `DeleteSchedulePolicy(expectedRevision)`, `EvaluateSchedulePolicy`, `FindNextAllowed`, `PreviewSchedulePolicy`. |
+| `WhenBlocked`: Reject, Skip, MoveForward | Port | For fire-and-forget and delayed jobs (`ScheduleOptions.Policy`, `SchedulePolicyFilter`); blocked recurring occurrences are left out (`RecurringJobOptions.Policy`). Enqueue now and requeue bypass the policy. |
+| `SeedSchedulePolicies` | Port | `RecurringJobSet.AddPolicy`, saved at start-up before the jobs; date providers with `UseScheduleDateProvider` / `AddNightShiftScheduleDateProvider<T>`. |
 | Policies page with a cron preview | Port | Dashboard page (Phase 8). |
 
 ## Phase 4: Continuations and chains

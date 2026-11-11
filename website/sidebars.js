@@ -33,6 +33,7 @@ const sidebars = {
       'fire-and-forget',
       'typed-handlers',
       'delayed-jobs',
+      'schedule-policies',
       'continuations',
       'fan-in-and-batches',
       'job-arguments',

@@ -203,6 +203,11 @@ public static class StorageConnectionExtensions
             }
 
             dto.Declared = hash.TryGetValue(RecurringJobSet.DeclaredField, out string? declared) && declared == "1";
+
+            if (hash.TryGetValue(RecurringJobEntity.PolicyField, out string? policy) && !string.IsNullOrWhiteSpace(policy))
+            {
+                dto.Policy = policy;
+            }
             dto.Retired = hash.TryGetValue(RecurringJobSet.RetiredField, out string? retired) && retired == "1";
 
             result.Add(dto);

@@ -215,6 +215,69 @@ public class RecurringJobManagerFacts
     }
 
     [Fact]
+    public void AddOrUpdate_ThrowsAnException_WhenThePolicyIsNotStored()
+    {
+        RecurringJobManager manager = CreateManager();
+
+        ArgumentException exception = Assert.Throws<ArgumentException>("options",
+            () => manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions { Policy = "weekdays" }));
+
+        Assert.Contains("'weekdays'", exception.Message, StringComparison.Ordinal);
+        _transaction.Verify(x => x.Commit(), Times.Never);
+    }
+
+    [Fact]
+    public void AddOrUpdate_StoresThePolicy_AndComputesTheNextRunItAllows()
+    {
+        Dictionary<string, string> policy = new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Monday).ToFields();
+        _connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:weekdays")).Returns(policy);
+        RecurringJobManager manager = CreateManager();
+
+        // _now is Thursday 2017-03-30; the next Monday is April 3rd
+        manager.AddOrUpdate(_id, _job, "0 12 * * *", new RecurringJobOptions { Policy = "Weekdays" });
+
+        _transaction.Verify(x => x.SetRangeInHash(
+            $"recurring-job:{_id}",
+            It.Is<Dictionary<string, string>>(rj =>
+                rj["Policy"] == "weekdays" &&
+                rj["NextExecution"] == JobHelper.SerializeDateTime(new DateTime(2017, 4, 3, 12, 0, 0, DateTimeKind.Utc)))));
+    }
+
+    [Fact]
+    public void AddOrUpdate_TreatsANewPolicy_AsAScheduleChange()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:weekdays")).Returns(new SchedulePolicy("weekdays").ToFields());
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
+            .Returns(new Dictionary<string, string>
+            {
+                { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
+                { "Cron", _cronExpression },
+                { "TimeZoneId", "UTC" },
+                { "CreatedAt", JobHelper.SerializeDateTime(_now.AddDays(-1)) },
+                { "NextExecution", JobHelper.SerializeDateTime(_now.AddMinutes(1)) },
+                { "V", "2" },
+            });
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions { Policy = "weekdays" });
+
+        _transaction.Verify(x => x.SetRangeInHash(
+            $"recurring-job:{_id}",
+            It.Is<Dictionary<string, string>>(rj => rj["Policy"] == "weekdays" && rj.ContainsKey("ScheduleChangedAt"))));
+    }
+
+    [Fact]
+    public void RecurringJobOptions_Policy_IsLowerCased_AndValidated()
+    {
+        RecurringJobOptions options = new() { Policy = "Business-Hours" };
+
+        Assert.Equal("business-hours", options.Policy);
+        Assert.Throws<ArgumentException>("value", () => options.Policy = "not valid");
+        options.Policy = null;
+        Assert.Null(options.Policy);
+    }
+
+    [Fact]
     public void UpdateSchedule_ThrowsAnException_WhenRunLatestIsChosen_ForAJobWithoutSkipAfter()
     {
         _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))

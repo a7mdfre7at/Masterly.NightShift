@@ -60,6 +60,13 @@ public sealed class RecurringJobManifestEntry
     [JsonInclude, JsonPropertyName("skipAfterSeconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? SkipAfterSeconds { get; set; }
 
+    /// <summary>
+    /// The name of the schedule policy the job follows (<see cref="RecurringJobOptions.Policy"/>); none when omitted.
+    /// The policy must be stored before the manifest is applied.
+    /// </summary>
+    [JsonInclude, JsonPropertyName("policy"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Policy { get; set; }
+
     /// <summary>The method to call: type, method name, parameter types and arguments as the storage keeps them.</summary>
     [JsonInclude, JsonPropertyName("job")]
     public RecurringJobManifestJob Job { get; set; } = new RecurringJobManifestJob();
@@ -359,6 +366,7 @@ public static class RecurringJobManifest
                     StartAt = entry.StartAt,
                     EndAt = entry.EndAt,
                     SkipAfter = entry.SkipAfterSeconds.HasValue ? TimeSpan.FromSeconds(entry.SkipAfterSeconds.Value) : null,
+                    Policy = string.IsNullOrWhiteSpace(entry.Policy) ? null : entry.Policy,
                 };
 
                 if (queue != null && !jobQueues)
@@ -433,6 +441,7 @@ public static class RecurringJobManifest
             StartAt = ToUtcOffset(dto.StartAt),
             EndAt = ToUtcOffset(dto.EndAt),
             SkipAfterSeconds = dto.SkipAfter.HasValue ? (long)dto.SkipAfter.Value.TotalSeconds : null,
+            Policy = dto.Policy,
             Job = new RecurringJobManifestJob
             {
                 Type = invocationData.Type,

@@ -48,6 +48,8 @@ Every overload returns `string?`, the new job ID or `null` when a client filter 
 | `Schedule(methodCall, string when)` | Enqueue at the moment the phrase describes, read in `TimeText.DefaultTimeZone`. Throws `FormatException` when the phrase is not understood or lies in the past |
 | `Schedule(string queue, methodCall, string when)` | The same, on the given queue |
 
+With a `ScheduleOptions` as the last argument, `Schedule(methodCall, delay, options)` and `Schedule(methodCall, enqueueAt, options)` also take a schedule policy (a business calendar that moves the job to the next allowed time, skips it or rejects it), a late-start limit (`SkipAfter`) and a queue. See [Schedule policies](schedule-policies.md#delayed-and-fire-and-forget-jobs).
+
 To move a job that already exists to a new moment, use `Reschedule`, described in [Managing jobs](managing-jobs.md#delete-requeue-reschedule-changestate).
 
 ### ScheduledState
@@ -181,6 +183,7 @@ Passing `ScheduledState.StateName` as the expected state means the job is moved 
 ## See also
 
 - [Fire-and-forget jobs](fire-and-forget.md)
+- [Schedule policies](schedule-policies.md)
 - [Managing jobs](managing-jobs.md)
 - [Recurring jobs](../recurring-jobs/README.md)
 - [Cron and schedules](../recurring-jobs/cron-and-schedules.md)

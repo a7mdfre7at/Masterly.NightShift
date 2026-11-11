@@ -376,6 +376,62 @@ public class BackgroundJobFactoryFacts
         outerFilter.Verify(x => x.OnCreated(It.Is<CreatedContext>(context => context.Exception != null)));
     }
 
+    [Fact]
+    public void Create_CreatesTheJobInTheState_AFilterReplacedTheInitialStateWith()
+    {
+        DeletedState replaced = new();
+        Mock<IClientFilter> replacing = new();
+        replacing.Setup(x => x.OnCreating(It.IsAny<CreatingContext>()))
+            .Callback((CreatingContext x) => x.ReplaceInitialState(replaced));
+        Mock<IClientFilter> later = new();
+        _filters.Add(replacing.Object);
+        _filters.Add(later.Object);
+
+        IState? created = null;
+        _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
+            .Callback((CreateContext x) => created = x.InitialState)
+            .Returns(_backgroundJob.Object);
+
+        CreateFactory().Create(_context.Object);
+
+        Assert.Same(replaced, created);
+        later.Verify(x => x.OnCreating(It.Is<CreatingContext>(context => context.InitialState == replaced)));
+    }
+
+    [Fact]
+    public void CreateMany_CreatesEachJobInTheState_AFilterReplacedTheInitialStateWith()
+    {
+        Mock<JobStorage> storage = new();
+        Mock<IStorageConnection> connection = new();
+        CreateContext first = new(storage.Object, connection.Object, _backgroundJob.Job, new EnqueuedState());
+        CreateContext second = new(storage.Object, connection.Object, _backgroundJob.Job, new EnqueuedState());
+        ScheduledState replaced = new(TimeSpan.FromHours(1));
+
+        Mock<IClientFilter> replacing = new();
+        replacing.Setup(x => x.OnCreating(It.Is<CreatingContext>(context => context.Parameters.ContainsKey("move"))))
+            .Callback((CreatingContext x) => x.ReplaceInitialState(replaced));
+        _filters.Add(replacing.Object);
+        second.Parameters["move"] = true;
+
+        List<IState?> created = [];
+        _innerFactory.Setup(x => x.Create(It.IsAny<CreateContext>()))
+            .Callback((CreateContext x) => created.Add(x.InitialState))
+            .Returns(_backgroundJob.Object);
+
+        CreateFactory().CreateMany([first, second]);
+
+        Assert.IsType<EnqueuedState>(created[0]);
+        Assert.Same(replaced, created[1]);
+    }
+
+    [Fact]
+    public void ReplaceInitialState_ThrowsAnException_WhenStateIsNull()
+    {
+        CreatingContext context = new(_context.Object);
+
+        Assert.Throws<ArgumentNullException>("state", () => context.ReplaceInitialState(null));
+    }
+
     [UsedImplicitly]
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
     [SuppressMessage("Performance", "CA1822:Mark members as static")]

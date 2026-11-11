@@ -140,6 +140,9 @@ public static class NightShiftServiceCollectionExtensions
                         ex);
                 }
 
+                // date providers registered in the container, before the callback, which may register others
+                ScheduleDateProviderRegistration.Apply(serviceProvider, configurationInstance);
+
                 // do configuration inside callback
 
                 configuration(serviceProvider, configurationInstance);

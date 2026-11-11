@@ -161,6 +161,12 @@ public class EnqueuedState : IState
     /// <inheritdoc />
     public string? Reason { get; set; }
 
+    /// <summary>
+    /// Whether the delayed job scheduler enqueues the job because it is due, as opposed to someone enqueuing it by
+    /// hand. Schedule policies check the first and let the second through. Not stored.
+    /// </summary>
+    internal bool IsDue { get; init; }
+
     /// <inheritdoc />
     /// <remarks>
     /// Always returns <see langword="false" /> for the <see cref="EnqueuedState"/>.

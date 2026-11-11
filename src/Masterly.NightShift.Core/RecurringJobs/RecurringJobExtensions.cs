@@ -42,7 +42,7 @@ internal static class RecurringJobExtensions
             Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) return null;
 
-            return new RecurringJobEntity(recurringJobId, recurringJob);
+            return new RecurringJobEntity(recurringJobId, recurringJob) { PolicySource = connection };
         }
 
         public RecurringJobEntity GetOrCreateRecurringJob(
@@ -54,7 +54,7 @@ internal static class RecurringJobExtensions
             Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
             if (recurringJob == null || recurringJob.Count == 0) recurringJob = [];
 
-            return new RecurringJobEntity(recurringJobId, recurringJob);
+            return new RecurringJobEntity(recurringJobId, recurringJob) { PolicySource = connection };
         }
     }
 

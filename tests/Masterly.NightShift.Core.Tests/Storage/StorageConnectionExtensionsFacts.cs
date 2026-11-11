@@ -92,9 +92,9 @@ public class StorageConnectionExtensionsFacts
     public void GetRecurringJobs_ReadsSkipAfter_AndTheDeclaredAndRetiredMarks()
     {
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
-            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "600" }, { "Declared", "1" }, { "Retired", "1" } });
+            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "600" }, { "Declared", "1" }, { "Retired", "1" }, { "Policy", "weekdays" } });
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:b"))
-            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "" }, { "Retired", "" } });
+            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "" }, { "Retired", "" }, { "Policy", "" } });
 
         List<RecurringJobDto> result = _connection.Object.GetRecurringJobs(["a", "b"]);
 
@@ -104,6 +104,8 @@ public class StorageConnectionExtensionsFacts
         Assert.Null(result[1].SkipAfter);
         Assert.False(result[1].Declared);
         Assert.False(result[1].Retired);
+        Assert.Equal("weekdays", result[0].Policy);
+        Assert.Null(result[1].Policy);
     }
 
     [Theory]

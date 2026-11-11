@@ -113,6 +113,11 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             RecurringJobEntity recurringJob = connection.GetOrCreateRecurringJob(recurringJobId);
             bool scheduleChanged = false;
 
+            if (options.Policy != null && !SchedulePolicies.Exists(connection, options.Policy))
+            {
+                throw new ArgumentException($"There is no schedule policy named '{options.Policy}'. Save it with SaveSchedulePolicy before registering the job.", nameof(options));
+            }
+
             recurringJob.Job = InvocationData.SerializeJob(job).SerializePayload();
 
             bool meaningChanged = false;
@@ -134,6 +139,14 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             // A new window is a new schedule: Strict doesn't create the runs it would have had before it was set
             if (recurringJob.SetWindow(options.StartAt?.UtcDateTime, options.EndAt?.UtcDateTime))
             {
+                meaningChanged = true;
+                scheduleChanged = true;
+            }
+
+            // Another policy is another schedule: the next run is computed again, without catching up
+            if (!string.Equals(options.Policy, recurringJob.Policy, StringComparison.Ordinal))
+            {
+                recurringJob.Policy = options.Policy;
                 meaningChanged = true;
                 scheduleChanged = true;
             }

@@ -88,6 +88,7 @@ Any other entry is reported in `Errors` with a message that names the method, an
 | `startAt` | string | no | The instant before which the job doesn't run (`RecurringJobOptions.StartAt`), as ISO 8601. Export writes UTC (`2026-11-16T00:00:00Z`) and omits it when the job has no start. On import a value with an offset (`2026-11-16T00:00:00+01:00`) is converted to UTC, and a value without one (`2026-11-16T00:00:00`, `2026-11-16`) is read as UTC. Omitted means no start. |
 | `endAt` | string | no | The instant after which the job doesn't run (`RecurringJobOptions.EndAt`), written and read like `startAt`. Omitted means no end. |
 | `skipAfterSeconds` | number | no | How late a run may start, in seconds (`RecurringJobOptions.SkipAfter`). Omitted means runs start however late; export omits it then. |
+| `policy` | string | no | The name of the [schedule policy](../jobs/schedule-policies.md) the job follows (`RecurringJobOptions.Policy`). It must be stored before the manifest is applied; an entry naming a policy that isn't is reported as an error. Omitted means none. |
 | `job.type` | string | yes | The job's type, as the configured type serializer writes it. With `UseSimpleAssemblyNameTypeSerializer()` this is `Namespace.Type, Assembly`; otherwise it is the full assembly-qualified name. A job the exporting application can't load is written with the type name as stored. |
 | `job.method` | string | yes | The method name. |
 | `job.parameterTypes` | string | no | A JSON array of type names, as a string. Omitted means `[]`. |

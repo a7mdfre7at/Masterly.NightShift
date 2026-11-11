@@ -28,6 +28,17 @@ public class CreatingContext(CreateContext context) : CreateContext(context)
     public bool Canceled { get; set; }
 
     /// <summary>
+    /// Creates the job in another state than the one asked for, such as later than asked, or deleted. The filters
+    /// after this one see the new state. A job created without a state stays without one.
+    /// </summary>
+    /// <param name="state">The state the job is created in.</param>
+    internal void ReplaceInitialState([NotNull] IState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        InitialState = state;
+    }
+
+    /// <summary>
     /// Sets the job parameter of the specified <paramref name="name"/>
     /// to the corresponding <paramref name="value"/>. The value of the
     /// parameter is serialized to a JSON string.

@@ -60,6 +60,13 @@ public class RecurringJobDto
     public TimeSpan? SkipAfter { get; set; }
 
     /// <summary>
+    /// Gets or sets the name of the schedule policy the job follows (<see cref="RecurringJobOptions.Policy"/>), or
+    /// <c>null</c>.
+    /// </summary>
+    [CanBeNull]
+    public string? Policy { get; set; }
+
+    /// <summary>
     /// Gets or sets whether the job was registered by a <see cref="RecurringJobSet"/> (declared in code), so a change
     /// made elsewhere, on the dashboard for example, is replaced by the declaration the next time the set is applied.
     /// </summary>

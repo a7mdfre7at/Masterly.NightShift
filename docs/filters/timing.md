@@ -31,6 +31,7 @@ Pass `CancellationToken.None` when you create the job; the server substitutes a 
 | `LatencyTimeout` | The job's creation | A job picked up too late is deleted instead of run | It never starts |
 | `SkipIfLate` | The moment the job was meant to run (`ScheduledFor`), or its creation | A run that starts too late is deleted as skipped; checked once, so a retry or a requeue runs | It never starts |
 | `RunWindow` / `Blackout` | The clock | A job picked up at the wrong time of day is rescheduled for the next allowed moment | It never starts until allowed |
+| [Schedule policy](../jobs/schedule-policies.md) (not an attribute) | The job's due time, or a recurring occurrence | A stored business calendar (days, hours, holidays) moves, skips or rejects a delayed job and leaves out blocked recurring occurrences | It never starts until allowed |
 | `ExpireAfter` | The job's end | Changes how long a finished job is kept in storage; with `IncludeFailed`, also a failed one | No |
 
 ## JobTimeoutAttribute
@@ -221,7 +222,7 @@ How it works: a server filter. Just before the job method would run, it compares
 
 ## RunWindowAttribute and BlackoutAttribute
 
-`[RunWindow]` lets a job start only inside a daily time window; `[Blackout]` keeps it from starting inside one. A job picked up at the wrong time goes back to the **Scheduled** state for the next allowed moment, with the reason in its history, so heavy work waits for the night and customer-facing work waits for office hours without any code in the job.
+`[RunWindow]` lets a job start only inside a daily time window; `[Blackout]` keeps it from starting inside one. For calendars shared by many jobs, with days, holidays and date providers, stored and editable without a deployment, use [schedule policies](../jobs/schedule-policies.md). A job picked up at the wrong time goes back to the **Scheduled** state for the next allowed moment, with the reason in its history, so heavy work waits for the night and customer-facing work waits for office hours without any code in the job.
 
 ```csharp
 using Masterly.NightShift;

@@ -69,6 +69,22 @@ public class RecurringJobOptions
     public TimeSpan? SkipAfter { get; set; }
 
     /// <summary>
+    /// Gets or sets the name of the stored <see cref="SchedulePolicy"/> the job follows, or <c>null</c>: occurrences
+    /// the policy blocks don't run, and the next run is the next occurrence it allows. The policy must be stored
+    /// (<c>SaveSchedulePolicy</c>) before the job is registered.
+    /// </summary>
+    /// <remarks>
+    /// The policy is checked when an occurrence is due, not when its run starts. Changing the policy reschedules the
+    /// jobs that follow it. Servers of earlier versions ignore it and run every occurrence.
+    /// </remarks>
+    [CanBeNull]
+    public string? Policy
+    {
+        get;
+        set => field = value == null ? null : SchedulePolicy.NormalizeName(value, nameof(value));
+    }
+
+    /// <summary>
     /// Gets or sets the queue the recurring job's runs are enqueued to. Default is <c>default</c>. Prefer the
     /// <c>queue</c> parameter of <c>AddOrUpdate</c>, which stores the queue with the job; this property is for
     /// storages without <see cref="Storage.JobStorageFeatures.JobQueueProperty"/>, where the queue can only be kept with

@@ -294,7 +294,7 @@ public class RecurringJobScheduler : IBackgroundProcess
 
             try
             {
-                recurringJob = new RecurringJobEntity(recurringJobId, hash);
+                recurringJob = new RecurringJobEntity(recurringJobId, hash) { PolicySource = connection };
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {

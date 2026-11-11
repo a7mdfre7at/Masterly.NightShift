@@ -137,8 +137,13 @@ public class BackgroundJobFactory : IBackgroundJobFactory
                 throw failure;
             }
 
-            // Pass 2: the creation itself
+            // Pass 2: the creation itself, in the state the filters left
             List<BulkEntry> pending = [.. entries.Where(static x => !x.Finished)];
+            foreach (BulkEntry entry in pending)
+            {
+                entry.Context.InitialState = entry.PreContext.InitialState;
+            }
+
             BackgroundJob?[] created = [];
 
             try
@@ -341,6 +346,9 @@ public class BackgroundJobFactory : IBackgroundJobFactory
         {
             return InvokeClientFilter(ref enumerator, innerFactory, context, preContext);
         }
+
+        // A filter may have replaced the state the job is created in
+        context.InitialState = preContext.InitialState;
 
         BackgroundJob? backgroundJob = innerFactory.Create(context);
         return new CreatedContext(context, backgroundJob, false, null);

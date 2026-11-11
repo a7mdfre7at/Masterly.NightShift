@@ -53,6 +53,18 @@ public sealed class RecurringJobScheduleFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void GetNextOccurrences_LeavesOutTheOccurrencesThePolicyBlocks()
+    {
+        _hash["Policy"] = "mornings";
+        _connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:mornings"))
+            .Returns(new SchedulePolicy("mornings").AllowBetween("10:00", "12:00").ToFields());
+
+        IReadOnlyList<DateTime> next = _storage.Object.GetNextOccurrences("hourly", 3);
+
+        Assert.Equal([Now.AddMinutes(30), Now.AddMinutes(90), Now.AddDays(1).AddMinutes(30)], next);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
     public void GetNextOccurrences_ReturnsNothing_ForAPausedJob_OrAMissingOne()
     {
         Assert.Empty(_storage.Object.GetNextOccurrences("missing", 5));
