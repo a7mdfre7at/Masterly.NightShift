@@ -12,6 +12,8 @@ Some features are on by default; the others take one call each. Most must be tur
 | Daily and hourly job counts (home page graphs) | yes | nothing to do | |
 | Traces and metrics | no | `UseTelemetry()` | every process that creates or performs jobs |
 | Alerts | no | `UseWebhookAlerts(url)` or `UseAlerts(sink)` | every process that performs jobs |
+| Job monitors (daily deadline, long-running, repeated failures) | no | `UseJobMonitor(monitor)` | every process that performs jobs |
+| Log lines in the job console | no | `AddNightShiftJobLogs()` | every process that performs jobs |
 | Exception handlers | no | `AddNightShiftJobExceptionHandler<T>()` or `UseJobExceptionHandler(handler)` | every process that performs jobs |
 | Insights | no | `UseJobInsights()` | every process that performs jobs |
 | Activity feed | no | `UseActivityFeed()` | every process that changes job states |

@@ -57,7 +57,38 @@ public sealed class WebhookAlertOptions
 
     /// <summary>How many requests may be in flight at once; further alerts are dropped with a warning. Default 16.</summary>
     public int MaxConcurrentRequests { get; set; } = 16;
+
+    /// <summary>
+    /// Which alerts are sent, beyond <see cref="Events"/>: the jobs they are about and a cooldown. <c>null</c>, the
+    /// default, sends every alert of <see cref="Events"/>.
+    /// </summary>
+    public AlertRule? Rule { get; set; }
+
+    /// <summary>
+    /// The message, with placeholders: <c>{{id}}</c>, <c>{{kind}}</c>, <c>{{title}}</c>, <c>{{message}}</c>,
+    /// <c>{{occurredAt}}</c> (ISO 8601, UTC), <c>{{jobId}}</c>, <c>{{method}}</c>, <c>{{resource}}</c>, <c>{{serverId}}</c>
+    /// and <c>{{monitor}}</c>. For <see cref="WebhookFormat.Json"/> it is the whole body, and values are inserted
+    /// JSON-escaped, so put them in quotes; for the other formats it replaces the text, and values are escaped for
+    /// the format. <c>null</c>, the default, uses the built-in message.
+    /// </summary>
+    public string? Template { get; set; }
+
+    /// <summary>
+    /// How long to wait before each new attempt of an alert whose delivery failed. One minute, then two, by default;
+    /// empty turns retries off. Each attempt carries the alert's <see cref="Alert.Id"/>.
+    /// </summary>
+    public IList<TimeSpan> RetryDelays { get; } = [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2)];
 }
+
+/// <summary>One attempt to deliver an alert, as <see cref="WebhookAlertSink.Deliveries"/> lists it.</summary>
+/// <param name="AlertId">The alert's <see cref="Alert.Id"/>.</param>
+/// <param name="Title">The alert's title.</param>
+/// <param name="At">When the attempt ended, UTC.</param>
+/// <param name="Attempt">1 for the first attempt.</param>
+/// <param name="Succeeded">Whether the endpoint accepted it.</param>
+/// <param name="StatusCode">The HTTP status code, or <c>null</c> when no answer came.</param>
+/// <param name="Error">Why it failed, or <c>null</c>.</param>
+public sealed record WebhookDelivery(string AlertId, string Title, DateTime At, int Attempt, bool Succeeded, int? StatusCode, string? Error);
 
 /// <summary>
 /// Posts alerts to an HTTP endpoint without blocking the job that raised them. Register it with
@@ -97,6 +128,7 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     private long _dropped;
     private long _failed;
     private int _disposed;
+    private readonly LinkedList<WebhookDelivery> _deliveries = new();
 
     /// <summary>Creates the sink with its own <see cref="HttpClient"/>.</summary>
     public WebhookAlertSink([NotNull] WebhookAlertOptions options)
@@ -136,11 +168,27 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     /// <summary>Alerts whose request failed or returned a non-success status code.</summary>
     public long Failed => Interlocked.Read(ref _failed);
 
+    /// <summary>The last attempts to deliver alerts, newest first: at most <see cref="MaxDeliveries"/>, kept in memory.</summary>
+    public IReadOnlyList<WebhookDelivery> Deliveries
+    {
+        get
+        {
+            lock (_deliveries)
+            {
+                return [.. _deliveries];
+            }
+        }
+    }
+
+    /// <summary>How many attempts <see cref="Deliveries"/> keeps: 50.</summary>
+    public const int MaxDeliveries = 50;
+
     /// <inheritdoc />
     public void Publish(Alert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
         if ((Options.Events & alert.Kind) == 0) return;
+        if (Options.Rule != null && !Options.Rule.Allows(alert)) return;
 
         if (Volatile.Read(ref _disposed) != 0)
         {
@@ -162,6 +210,11 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     public string CreateBody([NotNull] Alert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
+
+        if (Options.Template != null)
+        {
+            return CreateTemplateBody(alert, Options.Template);
+        }
 
         if (Options.Format == WebhookFormat.Slack)
         {
@@ -201,6 +254,8 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         return JsonSerializer.Serialize(new
         {
             source = "nightshift",
+            id = alert.Id,
+            alert.Monitor,
             alert.Kind,
             alert.Title,
             alert.Message,
@@ -251,7 +306,45 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         return text.ToString();
     }
 
-    private static string CreateTeamsBody(Alert alert)
+    private string CreateTemplateBody(Alert alert, string template)
+    {
+        switch (Options.Format)
+        {
+            case WebhookFormat.Slack:
+                return JsonSerializer.Serialize(new { text = Render(template, alert, EscapeSlack) }, JsonSettings);
+            case WebhookFormat.Discord:
+                string content = Render(template, alert, EscapeDiscord);
+                if (content.Length > DiscordMaxContentLength) content = string.Concat(content.AsSpan(0, DiscordMaxContentLength - 1), "…");
+                return JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() } }, JsonSettings);
+            case WebhookFormat.Teams:
+                return CreateTeamsBody(alert, Render(template, alert, EscapeTeams));
+            default:
+                return Render(template, alert, static value => JsonEncodedText.Encode(value, JsonSettings.Encoder).ToString());
+        }
+    }
+
+    // Replaces the placeholders with the alert's values, each escaped for where it goes
+    internal static string Render(string template, Alert alert, Func<string, string> escape)
+    {
+        StringBuilder text = new(template);
+        Replace("id", alert.Id);
+        Replace("kind", alert.Kind.ToString());
+        Replace("title", alert.Title);
+        Replace("message", alert.Message);
+        Replace("occurredAt", alert.OccurredAt.ToString("o", CultureInfo.InvariantCulture));
+        Replace("jobId", alert.JobId);
+        Replace("method", alert.Method);
+        Replace("resource", alert.Resource);
+        Replace("serverId", alert.ServerId);
+        Replace("monitor", alert.Monitor);
+        return text.ToString();
+
+        void Replace(string name, string? value) => text.Replace("{{" + name + "}}", escape(value ?? string.Empty));
+    }
+
+    private static string CreateTeamsBody(Alert alert) => CreateTeamsBody(alert, null);
+
+    private static string CreateTeamsBody(Alert alert, string? text)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream, new JsonWriterOptions { Encoder = JsonSettings.Encoder }))
@@ -278,7 +371,7 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
             writer.WriteStartObject();
             writer.WriteString("type", "TextBlock");
-            writer.WriteString("text", EscapeTeams(alert.Message));
+            writer.WriteString("text", text ?? EscapeTeams(alert.Message));
             writer.WriteBoolean("wrap", true);
             writer.WriteEndObject();
 
@@ -354,18 +447,45 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
     private async Task SendAndReleaseAsync(Alert alert)
     {
+        bool sent;
         try
         {
-            await SendCoreAsync(alert).ConfigureAwait(false);
+            sent = await SendCoreAsync(alert, attempt: 1).ConfigureAwait(false);
         }
         finally
         {
             // Publish took this slot, so it's released exactly once
             _inFlight.Release();
         }
+
+        // Retries don't hold a slot while they wait
+        for (int retry = 0; !sent && retry < Options.RetryDelays.Count && Volatile.Read(ref _disposed) == 0; retry++)
+        {
+            try
+            {
+                await Task.Delay(Options.RetryDelays[retry], _disposeCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            sent = await SendCoreAsync(alert, attempt: retry + 2).ConfigureAwait(false);
+        }
     }
 
-    private async Task<bool> SendCoreAsync(Alert alert)
+    private void Record(Alert alert, int attempt, bool succeeded, int? statusCode, string? error)
+    {
+        lock (_deliveries)
+        {
+            _deliveries.AddFirst(new WebhookDelivery(alert.Id, alert.Title, JobClock.UtcNow, attempt, succeeded, statusCode, error));
+            if (_deliveries.Count > MaxDeliveries) _deliveries.RemoveLast();
+        }
+    }
+
+    private Task<bool> SendCoreAsync(Alert alert) => SendCoreAsync(alert, attempt: 1);
+
+    private async Task<bool> SendCoreAsync(Alert alert, int attempt)
     {
         TimeSpan timeout = Options.Timeout;
 
@@ -383,6 +503,8 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
             timeoutCts.CancelAfter(timeout);
 
             using HttpResponseMessage response = await _httpClient.SendAsync(request, timeoutCts.Token).ConfigureAwait(false);
+            Record(alert, attempt, response.IsSuccessStatusCode, (int)response.StatusCode, response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode}");
+
             if (response.IsSuccessStatusCode)
             {
                 Interlocked.Increment(ref _sent);
@@ -395,12 +517,14 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         }
         catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
         {
+            Record(alert, attempt, false, null, "The sink was disposed");
             Interlocked.Increment(ref _failed);
             Logger.Warn($"Webhook alert '{alert.Title}' was not sent to {GetLoggableUrl(Options.Url)}: the sink was disposed before an answer came.");
             return false;
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
+            Record(alert, attempt, false, null, $"No answer within {timeout}");
             Interlocked.Increment(ref _failed);
             Logger.Warn($"Webhook alert '{alert.Title}' could not be sent to {GetLoggableUrl(Options.Url)}: no answer within {timeout}.");
             return false;
@@ -408,6 +532,7 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             // HttpClient's exceptions name the host at most, never the path
+            Record(alert, attempt, false, null, ex.Message);
             Interlocked.Increment(ref _failed);
             Logger.WarnException($"Webhook alert '{alert.Title}' could not be sent to {GetLoggableUrl(Options.Url)}.", ex);
             return false;

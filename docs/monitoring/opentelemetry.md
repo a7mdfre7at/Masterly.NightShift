@@ -128,6 +128,12 @@ A `create` span is marked as failed when creating the job threw an exception tha
 | `nightshift.job.created` | `Counter<long>` | `{job}` | `nightshift.job.name`, `nightshift.job.state`, `error.type` (has a value only when creation failed) | Background jobs created. Jobs whose creation was canceled by a client filter are not counted. |
 | `nightshift.job.duration` | `Histogram<double>` | `s` | `nightshift.job.name`, `nightshift.job.outcome`, `error.type` (has a value only when the outcome is `failed`) | Duration of each job execution, including the server filters that run inside the telemetry filter. |
 | `nightshift.job.active` | `UpDownCounter<long>` | `{job}` | `nightshift.job.name` | Jobs being performed right now. |
+| `nightshift.job.completed` | `Counter<long>` | `{job}` | `nightshift.job.name`, `nightshift.job.outcome`, `error.type` | Job executions that ended, by outcome: `succeeded`, `failed`, `skipped`, `canceled`, `retry_later`. |
+| `nightshift.job.retried` | `Counter<long>` | `{job}` | `nightshift.job.name` | Failed attempts that `[AutomaticRetry]` scheduled for a retry. |
+| `nightshift.job.stale_restarts` | `Counter<long>` | `{job}` | `nightshift.job.name` | Jobs picked up again after their server stopped while they ran (see [Reliability](../server/reliability.md#when-a-server-dies-during-a-job)). |
+| `nightshift.job.lateness` | `Histogram<double>` | `s` | `nightshift.job.name`, `nightshift.recurring_job.id` | How late delayed and recurring jobs started after the moment they were scheduled for (`PerformContext.Lateness`), read from the parameters loaded with the job, as SQL Server loads them. Fire-and-forget jobs aren't recorded. |
+
+A `process` span of a run that was skipped or canceled gets an event, `nightshift.job.skipped` or `nightshift.job.canceled`, with the reason in `nightshift.job.reason`.
 
 In the package's `net10.0` build, which apps on .NET 10 get, the histogram advises these bucket boundaries, in seconds, because background jobs run from milliseconds to hours: `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 900, 3600`. Apps on .NET 8 and .NET 9 get the `net8.0` build (there is no `net9.0` build), which creates the histogram without advice, so the SDK uses its default boundaries; see [Histogram buckets on .NET 8 and .NET 9](#histogram-buckets-on-net-8-and-net-9).
 

@@ -18,8 +18,14 @@ public enum AlertKind
     /// <summary>A <see cref="CircuitBreakerAttribute"/> circuit opened.</summary>
     CircuitOpened = 4,
 
+    /// <summary>A <see cref="JobMonitor"/> found something wrong: a missed daily deadline, a job running too long, repeated failures.</summary>
+    MonitorIncident = 8,
+
+    /// <summary>A <see cref="JobMonitor"/> that reported an incident is healthy again.</summary>
+    MonitorRecovered = 16,
+
     /// <summary>Every kind.</summary>
-    All = JobFailed | DeadlineMissed | CircuitOpened,
+    All = JobFailed | DeadlineMissed | CircuitOpened | MonitorIncident | MonitorRecovered,
 }
 
 /// <summary>Something an operator should know about.</summary>
@@ -27,6 +33,14 @@ public sealed class Alert(AlertKind kind, [NotNull] string title, [NotNull] stri
 {
     /// <summary>The kind.</summary>
     public AlertKind Kind { get; } = kind;
+
+    /// <summary>
+    /// A unique id, the same for every delivery of this alert, retries included, so a receiver can drop duplicates.
+    /// </summary>
+    public string Id { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>The monitor that raised it, if any.</summary>
+    public string? Monitor { get; set; }
 
     /// <summary>A one-line title.</summary>
     public string Title { get; } = title ?? throw new ArgumentNullException(nameof(title));

@@ -71,6 +71,12 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
 
         int restarts = (int.TryParse(Read(context, RestartsParameter), NumberStyles.Integer, CultureInfo.InvariantCulture, out int previous) ? previous : 0) + 1;
 
+        if (NightShiftTelemetry.JobsStaleRestarted.Enabled)
+        {
+            Job? job = context.BackgroundJob.Job;
+            NightShiftTelemetry.JobsStaleRestarted.Add(1, new KeyValuePair<string, object?>("nightshift.job.name", job != null ? $"{job.Type.Name}.{job.Method.Name}" : null));
+        }
+
         if (MaxRestarts is { } max && restarts > max)
         {
             string reason = restarts == 1

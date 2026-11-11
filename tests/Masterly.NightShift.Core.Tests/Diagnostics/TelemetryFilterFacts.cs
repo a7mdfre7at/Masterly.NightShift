@@ -457,6 +457,80 @@ public sealed class TelemetryFilterFacts : IDisposable
         ActivitySource.AddActivityListener(_activityListener);
     }
 
+    [Fact]
+    public void OnPerformed_CountsTheCompletedRun_WithItsOutcome_AndAddsASkipEvent()
+    {
+        ListenToActivities();
+        ListenToMetrics();
+        TelemetryFilter filter = new();
+
+        filter.OnPerforming(_performContext.GetPerformingContext());
+        filter.OnPerformed(_performContext.GetPerformedContext(exception: new JobPerformanceException("Job failed", new TerminateJobException("nothing to do"))));
+
+        (string Instrument, double Value, Dictionary<string, object> Tags) completed = Assert.Single(_measurements, x => x.Instrument == "nightshift.job.completed");
+        Assert.Equal(1, completed.Value);
+        Assert.Equal("skipped", completed.Tags["nightshift.job.outcome"]);
+
+        ActivityEvent skipped = Assert.Single(Assert.Single(_activities).Events, x => x.Name == "nightshift.job.skipped");
+        Assert.Equal("nothing to do", skipped.Tags.Single(x => x.Key == "nightshift.job.reason").Value);
+    }
+
+    [Fact]
+    public void OnPerforming_RecordsTheLateness_OfAJobScheduledForAMoment()
+    {
+        ListenToMetrics();
+        _performContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(DateTime.UtcNow.AddMinutes(-2)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+        new TelemetryFilter().OnPerforming(_performContext.GetPerformingContext());
+
+        (string Instrument, double Value, Dictionary<string, object> Tags) lateness = Assert.Single(_measurements, x => x.Instrument == "nightshift.job.lateness");
+        Assert.InRange(lateness.Value, 110, 200);
+    }
+
+    [Fact]
+    public void OnPerforming_RecordsNoLateness_ForAFireAndForgetJob()
+    {
+        ListenToMetrics();
+        _performContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+
+        new TelemetryFilter().OnPerforming(_performContext.GetPerformingContext());
+
+        Assert.DoesNotContain(_measurements, x => x.Instrument == "nightshift.job.lateness");
+    }
+
+    [Fact]
+    public void OnStateApplied_CountsARetry()
+    {
+        ListenToMetrics();
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = ProcessingState.StateName,
+            NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)) { Reason = "Retry attempt 1 of 10: boom" },
+        };
+
+        new TelemetryFilter().OnStateApplied(context.Object, null);
+
+        Assert.Single(_measurements, x => x.Instrument == "nightshift.job.retried");
+    }
+
+    [Fact]
+    public void OnStateApplied_DoesNotCountAHold_AsARetry()
+    {
+        ListenToMetrics();
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = ProcessingState.StateName,
+            NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)) { Reason = "Held: processing is paused" },
+        };
+
+        new TelemetryFilter().OnStateApplied(context.Object, null);
+
+        Assert.DoesNotContain(_measurements, x => x.Instrument == "nightshift.job.retried");
+    }
+
     private void ListenToMetrics()
     {
         _meterListener = new MeterListener

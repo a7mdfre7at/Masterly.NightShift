@@ -110,14 +110,16 @@ The restart limit is opt-in (`UseStaleRestartLimit`), not 3 by default: a gracef
 | Payload compression | Port | Opt-in `UseArgumentCompression(minLength)`; reading always decompresses. |
 | Application namespace, node id, queue-only mode, shutdown drain | Done | Storage schema/prefix, `ServerName`, no server, `StopTimeout`. |
 
-## Phase 7: Observability and alerts
+## Phase 7: Observability and alerts (done)
+
+Connections, rules and templates are configured in code (`UseWebhookAlerts`, `AlertRule`, `WebhookAlertOptions.Template`), so secrets stay in the application's configuration; a dashboard page to manage them isn't ported. Delivery history is in memory per sink.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Execution logs (captured `ILogger` lines) | Enhance | The logging scope exists; add capture into the job console with level, category exclusions, redaction, size limits and lifecycle lines. |
-| Telemetry lifecycle counters | Enhance | Add retried, skipped, canceled, stale-recovered counters, a lateness histogram and span events. |
-| Monitors: daily deadline, long-running, repeated failures, recovery | Port | New alert kinds and a monitor process with incident and recovery states. |
-| Alert rules with function filters, templates, delivery history | Port | Managed on a dashboard Integrations page, secrets protected. |
+| Execution logs (captured `ILogger` lines) | Enhance | `AddNightShiftJobLogs(o => ...)`: level, category exclusions, redaction, size limits, lifecycle lines. |
+| Telemetry lifecycle counters | Enhance | `nightshift.job.completed` (by outcome), `retried`, `stale_restarts`, the `nightshift.job.lateness` histogram, skip and cancel span events. |
+| Monitors: daily deadline, long-running, repeated failures, recovery | Port | `DailyDeadlineMonitor`, `LongRunningMonitor`, `RepeatedFailuresMonitor` with `UseJobMonitor`; `MonitorIncident` and `MonitorRecovered` alerts; `JobMonitors.GetStatus`. |
+| Alert rules with function filters, templates, delivery history | Port | `AlertRule` (kinds, method wildcards, cooldown), `WebhookAlertOptions.Template`, `RetryDelays`, `Deliveries`, `Alert.Id`. |
 | Slack, Teams, webhooks | Done | `WebhookAlertSink`. |
 
 ## Phase 8: Dashboard

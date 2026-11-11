@@ -391,6 +391,7 @@ public static class NightShiftServiceCollectionExtensions
         options.FilterProvider ??= provider.GetService<IJobFilterProvider>();
         options.FilterProvider = ContainerJobExceptionHandlers.AddTo(options.FilterProvider, provider);
         options.FilterProvider = JobLoggingScope.AddTo(options.FilterProvider, provider);
+        options.FilterProvider = JobLogCapture.AddTo(options.FilterProvider, provider);
         options.TimeZoneResolver ??= provider.GetService<ITimeZoneResolver>();
 
         GetInternalServices(provider, out IBackgroundJobFactory? factory, out IBackgroundJobStateChanger? stateChanger, out IBackgroundJobPerformer? performer);

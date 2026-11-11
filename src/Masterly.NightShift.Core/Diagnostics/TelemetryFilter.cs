@@ -151,6 +151,16 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         {
             context.Items[ProcessStartedKey] = Stopwatch.GetTimestamp();
         }
+
+        // Only for jobs meant to run at a moment: a fire-and-forget job has no moment to be late for. Only from the
+        // parameters loaded with the job, so it never queries the storage
+        if (NightShiftTelemetry.JobLateness.Enabled && context.BackgroundJob.ParametersSnapshot != null && context.ScheduledFor.HasValue)
+        {
+            NightShiftTelemetry.JobLateness.Record(
+                context.Lateness.TotalSeconds,
+                Tag("nightshift.job.name", jobName),
+                Tag("nightshift.recurring_job.id", context.RecurringJobId));
+        }
     }
 
     public void OnPerformed(PerformedContext context)
@@ -165,6 +175,11 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         if (context.Items.ContainsKey(ActiveCountedKey))
         {
             NightShiftTelemetry.ActiveJobs.Add(-1, Tag("nightshift.job.name", jobName));
+        }
+
+        if (NightShiftTelemetry.JobsCompleted.Enabled)
+        {
+            NightShiftTelemetry.JobsCompleted.Add(1, Tag("nightshift.job.name", jobName), Tag("nightshift.job.outcome", outcome), Tag("error.type", errorType));
         }
 
         if (context.Items.TryGetValue(ProcessStartedKey, out object? started) && started is long startedAt)
@@ -187,6 +202,14 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
             {
                 SetError(activity, context.Exception!); // A failed run has its exception
             }
+            else if (outcome is OutcomeSkipped or OutcomeCanceled && activity.IsAllDataRequested)
+            {
+                // Why the run ended without doing its work, as an event on the span
+                activity.AddEvent(new ActivityEvent($"nightshift.job.{outcome}", tags: new ActivityTagsCollection
+                {
+                    { "nightshift.job.reason", context.Exception != null ? JobOutcomes.Unwrap(context.Exception).Message : null },
+                }));
+            }
 
             activity.Stop();
         }
@@ -195,6 +218,14 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        // AutomaticRetryAttribute turned the failure of an attempt into a retry
+        if (NightShiftTelemetry.JobsRetried.Enabled &&
+            context.NewState.Reason?.StartsWith("Retry attempt", StringComparison.OrdinalIgnoreCase) == true &&
+            ProcessingState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase))
+        {
+            NightShiftTelemetry.JobsRetried.Add(1, Tag("nightshift.job.name", GetJobName(context.BackgroundJob.Job)));
+        }
 
         if (context.NewState is not ProcessingState) return;
         if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;

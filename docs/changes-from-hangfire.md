@@ -254,6 +254,7 @@ New features store their data in the existing primitives, under new keys. Most a
 | `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
 | `StaleRestarts` and `Lease` job parameters | A job is picked up again after its server stopped while it ran. A worker's move out of Processing is refused while the lease names another worker |
+| `monitor:{name}` hash | A [job monitor](monitoring/job-monitors.md) is registered: the outcomes of its method's jobs and its state |
 | `nightshift:deployment` hash | `UseDeploymentFencing` is on and a server checks its deployment |
 | `schedule-policy:{name}` hash, `schedule-policies` set | A schedule policy is saved (`SaveSchedulePolicy`, `RecurringJobSet.AddPolicy`); the `Policy` hash field of a recurring job and the `Policy` and `WhenBlocked` job parameters name it |
 

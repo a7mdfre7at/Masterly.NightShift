@@ -688,6 +688,43 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Registers a <see cref="JobMonitor"/>: a daily deadline, a long-running limit or a repeated-failures limit for
+        /// the jobs of one method. Servers created afterwards check the monitors every <see cref="JobMonitors.CheckInterval"/>
+        /// and raise <see cref="AlertKind.MonitorIncident"/> and <see cref="AlertKind.MonitorRecovered"/> alerts.
+        /// Register the same monitors in every process that runs jobs, so their outcomes are recorded.
+        /// </summary>
+        /// <param name="monitor">The monitor.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseJobMonitor([NotNull] JobMonitor monitor)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(monitor);
+
+            JobMonitors.Add(monitor);
+            AddGlobalFilterOnce(static filter => filter is JobMonitorFilter, static () => new JobMonitorFilter());
+            return configuration;
+        }
+
+        /// <summary>
+        /// Registers an alert sink that receives only the alerts <paramref name="rule"/> lets through: their kinds, the
+        /// job methods they are about, a cooldown. See <see cref="AlertRule"/>.
+        /// </summary>
+        /// <param name="sink">The sink.</param>
+        /// <param name="rule">Sets the rule.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseAlerts(
+            [NotNull] IAlertSink sink,
+            [NotNull] Action<AlertRule> rule)
+        {
+            ArgumentNullException.ThrowIfNull(sink);
+            ArgumentNullException.ThrowIfNull(rule);
+
+            AlertRule alertRule = new();
+            rule(alertRule);
+            return configuration.UseAlerts(new AlertRuleSink(sink, alertRule));
+        }
+
+        /// <summary>
         /// Registers an alert sink and makes sure <see cref="AlertsFilter"/> is in the global filters, so
         /// <see cref="AlertKind.JobFailed"/> alerts are raised. See <see cref="Alerts"/>.
         /// </summary>

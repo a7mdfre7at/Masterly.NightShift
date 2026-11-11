@@ -102,6 +102,31 @@ console.WriteLine(JobConsoleLevel.Error, "The partner API refused the upload, re
 
 `WriteLine` with a `null` message throws `ArgumentNullException`. `[LogInvocation]` writes the start, the end and any exception of a job method to this console without code in the job, see [Logging](../monitoring/logging.md#loginvocation).
 
+## Log lines in the console
+
+In an application with a container, `AddNightShiftJobLogs` writes the `ILogger` lines a job logs while it runs into its console, so they show on its details page next to its progress, whatever logging the application uses otherwise:
+
+```csharp
+builder.Services.AddNightShiftJobLogs(options =>
+{
+    options.MinimumLevel = LogLevel.Information;
+    options.ExcludedCategories.Add("System.Net.Http");
+    options.MaxLinesPerJob = 500;
+    options.Redact = line => Regex.Replace(line, @"\b\d{16}\b", "****");
+});
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `MinimumLevel` | `Information` | The lowest level captured |
+| `ExcludedCategories` | `Microsoft.EntityFrameworkCore.Database`, `Masterly.NightShift` | Categories left out, by prefix |
+| `MaxLinesPerJob` | 200 | The most lines a run captures (1 to 10,000); a last line says how many were left out |
+| `MaxMessageLength` | 2,048 | The longest line kept (100 to 65,536 characters); longer ones are cut |
+| `Redact` | `null` | Changes each line before it is stored; a line it throws for is left out |
+| `LifecycleLines` | `true` | Adds `[nightshift] Started` (with the attempt) and `[nightshift] Finished in 1.2 s` or `Failed in 1.2 s: ...` lines |
+
+Lines read `[Category] message`, with the last part of the category, and the exception's type and message after the message. The capture follows the job's async code, so lines logged by services the job calls, on any thread of its flow, are captured. It applies to the servers added with `AddNightShiftServer` in the same service collection. Each line is a console write, so keep the level and the limit reasonable for chatty code.
+
 ## Checkpoints and resumable jobs
 
 A checkpoint is a name that says a step is done. Record one after each step, and an attempt that runs again after a failure can tell which steps it may skip. `Resume` and `ResumeAsync` do both:

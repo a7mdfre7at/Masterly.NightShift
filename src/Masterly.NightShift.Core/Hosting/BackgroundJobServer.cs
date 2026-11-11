@@ -242,6 +242,12 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             processes.Add(new DeploymentFencingProcess(deploymentId).UseBackgroundPool(1));
         }
 
+        // Checks the job monitors, one server at a time across the cluster
+        if (JobMonitors.Any)
+        {
+            processes.Add(new JobMonitorProcess().UseBackgroundPool(1));
+        }
+
         if (!_options.IsLightweightServer)
         {
             processes.Add(
