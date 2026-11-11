@@ -36,6 +36,7 @@ const sidebars = {
       'schedule-policies',
       'continuations',
       'fan-in-and-batches',
+      'chains',
       'job-arguments',
       'cancellation',
       'progress-and-console',

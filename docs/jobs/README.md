@@ -9,6 +9,7 @@ A background job is a method call that Masterly.NightShift stores and runs later
 | [Delayed jobs](delayed-jobs.md) | `Schedule` with a `TimeSpan`, a `DateTimeOffset` or a plain-English phrase such as `"tomorrow at 9am"` (`TimeText`) |
 | [Schedule policies](schedule-policies.md) | Business calendars (days, hours, holidays) stored by name, that move, skip or reject delayed jobs and leave out recurring occurrences |
 | [Continuations](continuations.md) | `ContinueJobWith`, `JobContinuationOptions`, passing a parent's result or exception with `[FromResult]` / `[FromException]` |
+| [Chains](chains.md) | `JobChain`: workflows of steps, branches and joins created together, rerun from a step, replaced, deleted, or created by a recurring job |
 | [Fan-in and batches](fan-in-and-batches.md) | `ContinueJobWithAll` / `ContinueJobWithAny`, and `BatchJob` for groups of jobs with progress and a continuation |
 | [Job arguments](job-arguments.md) | What can be passed, how arguments are serialized, how the target instance is created, injected parameters, async methods, return values |
 | [Cancellation](cancellation.md) | `CancellationToken` and `IJobCancellationToken`, server shutdown, deleting a running job |
@@ -52,6 +53,7 @@ Outside dependency injection, the static facade does the same: `BackgroundJob.En
 | Run it only on working days or in business hours | `Schedule(..., new ScheduleOptions { Policy = "business-hours" })` | [Schedule policies](schedule-policies.md) |
 | Run it after another job finished | `ContinueJobWith` | [Continuations](continuations.md) |
 | Run it after several jobs, or the first of them | `ContinueJobWithAll`, `ContinueJobWithAny` | [Fan-in and batches](fan-in-and-batches.md) |
+| Run a workflow of steps and parallel branches, with a success and a failure path | `JobChain.StartWith(...).Then(...).ThenMany(...).ThenAfterAll(...)` | [Chains](chains.md) |
 | Follow a group of jobs and continue after all of them | `BatchJob.StartNew`, `BatchJob.ContinueWith` | [Fan-in and batches](fan-in-and-batches.md) |
 | Run it on a schedule | `RecurringJob.AddOrUpdate` | [Recurring jobs](../recurring-jobs/README.md) |
 | Stop, rerun or move a job | `Delete`, `Requeue`, `Reschedule`, `ChangeState` | [Managing jobs](managing-jobs.md) |

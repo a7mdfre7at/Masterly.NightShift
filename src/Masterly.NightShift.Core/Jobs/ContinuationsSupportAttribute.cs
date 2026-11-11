@@ -88,11 +88,20 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             // Branch for a child background job.
             AddContinuation(context, awaitingState);
         }
-        else if (_knownFinalStates.Contains(context.CandidateState.Name))
+        else if (_knownFinalStates.Contains(context.CandidateState.Name) || IsIntermediateTrigger(context.CandidateState.Name))
         {
-            // Branch for a parent background job.
+            // Branch for a parent background job: a final state, or a final failure or the start of processing,
+            // which start only the continuations waiting for them
             ExecuteContinuationsIfExist(context);
         }
+    }
+
+    // Failed (once no retry is left: this filter runs after AutomaticRetryAttribute) and Processing start the
+    // continuations that ask for them, and leave the others waiting
+    private static bool IsIntermediateTrigger(string stateName)
+    {
+        return FailedState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase) ||
+               ProcessingState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase);
     }
 
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
@@ -145,9 +154,22 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
             StateData? currentState = connection.GetStateData(parentId);
 
-            if (currentState != null && _knownFinalStates.Contains(currentState.Name))
+            // A continuation for a failed or processing parent starts at once when it asks for that state, and
+            // otherwise waits: neither state is final
+            if (currentState != null && !_knownFinalStates.Contains(currentState.Name) &&
+                ShouldStartContinuation(currentState.Name, awaitingState.Options, addedLate: true))
             {
-                bool startImmediately = ShouldStartContinuation(currentState.Name, awaitingState.Options);
+                if (PushResults && FailedState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase) &&
+                    TryGetFailedException(currentState.Data, out string? failedException))
+                {
+                    context.Connection.SetJobParameter(context.BackgroundJob.Id, "AntecedentException", failedException);
+                }
+
+                context.CandidateState = awaitingState.NextState;
+            }
+            else if (currentState != null && _knownFinalStates.Contains(currentState.Name))
+            {
+                bool startImmediately = ShouldStartContinuation(currentState.Name, awaitingState.Options, addedLate: true);
 
                 if (PushResults && startImmediately)
                 {
@@ -200,8 +222,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             if (currentState.Name != AwaitingState.StateName) continue;
 
             IState? nextState;
+            bool start = ShouldStartContinuation(context.CandidateState.Name, continuation.Options, addedLate: false);
 
-            if (!ShouldStartContinuation(context.CandidateState.Name, continuation.Options))
+            // A failure or the start of processing leaves the continuations that wait for another outcome waiting
+            if (!start && IsIntermediateTrigger(context.CandidateState.Name)) continue;
+
+            if (!start)
             {
                 nextState = new DeletedState { Reason = "Continuation condition was not met" };
             }
@@ -242,6 +268,10 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
                 {
                     antecedentException = JobParameterInjectionFilter.DefaultException;
                 }
+            }
+            else if (context.CandidateState is FailedState { Exception: not null } failedState)
+            {
+                antecedentException = SerializationHelper.Serialize(new ExceptionInfo(failedState.Exception), SerializationOption.User);
             }
         }
 
@@ -313,8 +343,35 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         return currentState;
     }
 
-    private bool ShouldStartContinuation(string antecedentStateName, JobContinuationOptions options)
+    // A failed parent's exception, as [FromException] reads it
+    private static bool TryGetFailedException(IDictionary<string, string> data, [NotNullWhen(true)] out string? serialized)
     {
+        serialized = null;
+        if (!data.TryGetValue("ExceptionType", out string? type) || string.IsNullOrEmpty(type)) return false;
+
+        data.TryGetValue("ExceptionMessage", out string? message);
+        serialized = SerializationHelper.Serialize(new ExceptionInfo(type, message, null), SerializationOption.User);
+        return true;
+    }
+
+    // addedLate: the continuation is added after the parent reached this state, so a processing continuation
+    // also starts for a parent that already processed (succeeded or failed)
+    private bool ShouldStartContinuation(string antecedentStateName, JobContinuationOptions options, bool addedLate)
+    {
+        if (options.HasFlag(JobContinuationOptions.OnlyOnFailedState) &&
+            FailedState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState) &&
+            (ProcessingState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase) ||
+             (addedLate && (SucceededState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase) ||
+                            FailedState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase)))))
+        {
+            return true;
+        }
+
         if (options == JobContinuationOptions.OnAnyFinishedState)
         {
             return _knownFinalStates.Contains(antecedentStateName);

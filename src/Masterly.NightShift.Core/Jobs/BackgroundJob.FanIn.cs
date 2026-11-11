@@ -4,6 +4,30 @@ namespace Masterly.NightShift;
 
 public partial class BackgroundJob
 {
+    /// <summary>Creates a job that waits for a set of parents and starts as the join mode says. See <see cref="BackgroundJobClientFanInExtensions"/>.</summary>
+    public static string? ContinueJobWithJoin([NotNull] IEnumerable<string?> parentIds, FanInMode mode, [NotNull, InstantHandle] Expression<Action> methodCall)
+    {
+        return ClientFactory().ContinueJobWithJoin(parentIds, mode, methodCall);
+    }
+
+    /// <summary>Creates a job that waits for a set of parents and starts as the join mode says. See <see cref="BackgroundJobClientFanInExtensions"/>.</summary>
+    public static string? ContinueJobWithJoin([NotNull] IEnumerable<string?> parentIds, FanInMode mode, [NotNull, InstantHandle] Expression<Func<Task>> methodCall)
+    {
+        return ClientFactory().ContinueJobWithJoin(parentIds, mode, methodCall);
+    }
+
+    /// <summary>Creates a job that waits for a set of parents and starts as the join mode says. See <see cref="BackgroundJobClientFanInExtensions"/>.</summary>
+    public static string? ContinueJobWithJoin<T>([NotNull] IEnumerable<string?> parentIds, FanInMode mode, [NotNull, InstantHandle] Expression<Action<T>> methodCall)
+    {
+        return ClientFactory().ContinueJobWithJoin(parentIds, mode, methodCall);
+    }
+
+    /// <summary>Creates a job that waits for a set of parents and starts as the join mode says. See <see cref="BackgroundJobClientFanInExtensions"/>.</summary>
+    public static string? ContinueJobWithJoin<T>([NotNull] IEnumerable<string?> parentIds, FanInMode mode, [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall)
+    {
+        return ClientFactory().ContinueJobWithJoin(parentIds, mode, methodCall);
+    }
+
     /// <summary>Creates a job that starts once <em>every</em> parent has finished. See <see cref="BackgroundJobClientFanInExtensions"/>.</summary>
     public static string? ContinueJobWithAll(
         [NotNull] IEnumerable<string?> parentIds,

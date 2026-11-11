@@ -67,6 +67,20 @@ public static class RecurringJob
         return ManagerFactory().UpdateSchedule(recurringJobId, cronExpression, timeZone, queue, misfireHandling);
     }
 
+    /// <summary>
+    /// Registers or updates a recurring job that creates <paramref name="chain"/> at each occurrence. See
+    /// <see cref="RecurringJobChains"/>.
+    /// </summary>
+    public static void AddOrUpdateChain(
+        [NotNull] string recurringJobId,
+        [NotNull] JobChain chain,
+        [NotNull] string cronExpression,
+        [CanBeNull] RecurringJobOptions? options = null,
+        bool skipWhileRunning = false)
+    {
+        ManagerFactory().AddOrUpdateChain(recurringJobId, chain, cronExpression, options, skipWhileRunning);
+    }
+
     public static void AddOrUpdate(
         [NotNull] string recurringJobId,
         [NotNull, InstantHandle] Expression<Action> methodCall,

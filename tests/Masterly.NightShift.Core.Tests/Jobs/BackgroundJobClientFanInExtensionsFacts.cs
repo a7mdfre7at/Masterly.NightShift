@@ -11,6 +11,38 @@ public class BackgroundJobClientFanInExtensionsFacts
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>())).Returns("child");
     }
 
+    [Theory]
+    [InlineData(FanInMode.AnyFailed)]
+    [InlineData(FanInMode.AnyFailedOrCanceled)]
+    [InlineData(FanInMode.AllCompleted)]
+    [InlineData(FanInMode.Any)]
+    public void ContinueJobWithJoin_CreatesTheJobWaitingInTheGivenMode(FanInMode mode)
+    {
+        string id = _client.Object.ContinueJobWithJoin(["1", null, "2"], mode, () => Method());
+
+        Assert.Equal("child", id);
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.Is<AwaitingJobsState>(state =>
+            state.Mode == mode && state.ParentIds.SequenceEqual(new[] { "1", "2" }) && state.NextState is EnqueuedState)));
+    }
+
+    [Fact]
+    public void ContinueJobWithJoin_ValidatesArguments()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>("mode", () => _client.Object.ContinueJobWithJoin(["1"], (FanInMode)9, () => Method()));
+        Assert.Throws<ArgumentException>(() => _client.Object.ContinueJobWithJoin([null], FanInMode.All, () => Method()));
+        Assert.Throws<ArgumentNullException>(() => ((IBackgroundJobClient)null).ContinueJobWithJoin(["1"], FanInMode.All, () => Method()));
+    }
+
+    [Fact]
+    public void ContinueJobWithJoin_HasOverloadsForEveryKindOfMethod()
+    {
+        _client.Object.ContinueJobWithJoin(["1"], FanInMode.AllCompleted, () => MethodAsync());
+        _client.Object.ContinueJobWithJoin<BackgroundJobClientFanInExtensionsFacts>(["1"], FanInMode.AllCompleted, x => x.Instance());
+        _client.Object.ContinueJobWithJoin<BackgroundJobClientFanInExtensionsFacts>(["1"], FanInMode.AllCompleted, x => x.InstanceAsync());
+
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingJobsState>()), Times.Exactly(3));
+    }
+
     [Fact]
     public void ContinueJobWithAll_ValidatesArguments()
     {

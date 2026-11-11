@@ -77,6 +77,20 @@ Extension methods on `IBackgroundJobClient` (`BackgroundJobClientFanInExtensions
 
 With a `queue`, the child job is stored with that queue; a `null` `nextState` means `Enqueued`.
 
+### ContinueJobWithJoin
+
+`ContinueJobWithJoin(IEnumerable<string?> parentIds, FanInMode mode, methodCall)`, on `IBackgroundJobClient` and `BackgroundJob`, for the four lambda types, creates a child that starts as the join mode says:
+
+| `FanInMode` | The child starts | It is skipped |
+|---|---|---|
+| `All` | Once every parent succeeded | When a parent is deleted |
+| `Any` | At the first parent that succeeded | When every parent was deleted |
+| `AnyFailed` | At the first parent that failed for good (no retry left) | When every parent finished without failing |
+| `AnyFailedOrCanceled` | At the first parent that failed for good or was deleted | When every parent succeeded |
+| `AllCompleted` | Once every parent finished: succeeded, deleted or failed for good | Never |
+
+For the last three, a parent that failed for good counts as finished, and the `JobContinuationOptions` are ignored. A failure join is how a [chain](chains.md) runs its failure path.
+
 When every given parent ID is `null` or empty, the methods throw `ArgumentException`.
 
 ### AwaitingJobsState
@@ -88,7 +102,7 @@ When every given parent ID is `null` or empty, the methods throw `ArgumentExcept
 | `ParentIds` | `IReadOnlyList<string>` | The parents |
 | `NextState` | `IState` | The state applied when the condition is met |
 | `Options` | `JobContinuationOptions` | Which parent outcomes count |
-| `Mode` | `FanInMode` | `All` or `Any` |
+| `Mode` | `FanInMode` | `All`, `Any`, `AnyFailed`, `AnyFailedOrCanceled` or `AllCompleted` |
 | `FromStateData(IDictionary<string, string> data)` | static method | Rebuilds the state from stored state data, or `null` for an ordinary `AwaitingState` |
 
 `FanInContinuationsSupportAttribute.ReadChildren(IStorageConnection connection, string jobId)` lists a parent's fan-in children in registration order.

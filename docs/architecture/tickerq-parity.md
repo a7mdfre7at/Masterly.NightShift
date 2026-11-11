@@ -68,15 +68,17 @@ Policies are checked when a job is created and when the delayed job scheduler en
 | `SeedSchedulePolicies` | Port | `RecurringJobSet.AddPolicy`, saved at start-up before the jobs; date providers with `UseScheduleDateProvider` / `AddNightShiftScheduleDateProvider<T>`. |
 | Policies page with a cron preview | Port | Dashboard page (Phase 8). |
 
-## Phase 4: Continuations and chains
+## Phase 4: Continuations and chains (done)
+
+Per-step retries and timeouts come from each method's attributes, as for any job; a step's options are its continuation options and its queue. Delete behaviours are `Cascade` and `Restrict` (refuses while a step is processing). The chain page and builder are part of Phase 8.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
 | `RunCondition.OnFailure`, `InProgress` | Port | `JobContinuationOptions.OnlyOnFailedState`, `OnlyOnProcessingState`; non-matching continuations stay Awaiting when the parent fails. |
-| `ThenMany` joins: AfterAll, AnyFailed, AnyFailedOrCancelled, AllCompleted | Enhance | `ContinueJobWithAll/Any` exist; add the other join modes. |
-| `AddChainAsync` builder | Port | `JobChain.StartWith(...).Then(...).ThenMany(...).ThenAfterAll(...)` with per-step retries and timeout. |
-| `RetryFromAsync` | Port | `JobChain.RetryFrom(stepJobId)`: reruns a settled chain from a step without re-running its ancestors. |
-| Chain delete behaviour, `ReplaceChainAsync` | Port | `Cascade` / `Restrict`, `JobChain.Replace`. |
+| `ThenMany` joins: AfterAll, AnyFailed, AnyFailedOrCancelled, AllCompleted | Enhance | `FanInMode.AnyFailed`, `AnyFailedOrCanceled`, `AllCompleted` and `ContinueJobWithJoin(parentIds, mode, ...)`. |
+| `AddChainAsync` builder | Port | `JobChain.StartWith(...).Then(...).ThenMany(...).ThenAfterAll(...)`, recorded in `chain:{id}`; `storage.GetChain`. |
+| `RetryFromAsync` | Port | `storage.RetryChainFrom(stepJobId)`: reruns a settled chain from a step without re-running its ancestors. |
+| Chain delete behaviour, `ReplaceChainAsync` | Port | `ChainDeleteBehavior.Cascade` / `Restrict`, `storage.DeleteChain`, `storage.ReplaceChain`. |
 | Recurring chains | Port | `RecurringJob.AddOrUpdateChain(id, chain, cron)`. |
 | `TickerFunctionContext.ParentId` | Port | `PerformContext.ParentId` for continuations and chain steps. |
 | Parent result to child | Done | `UseResultsInContinuations()`, `[FromResult]`. |

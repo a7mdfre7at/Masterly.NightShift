@@ -234,6 +234,8 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 | `ActivityFeedFilter` | Does nothing until `UseActivityFeed()` turns the activity feed on |
 | `BatchSupportAttribute` | Keeps batch counters, only for jobs that carry the `BatchId` job parameter |
 
+`ContinuationsSupportAttribute` also acts when a job fails for good or starts processing, and `FanInContinuationsSupportAttribute` when it fails for good, to start the continuations that ask for it (`OnlyOnFailedState`, `OnlyOnProcessingState`, the failure joins). For a job without continuations they read the parameters loaded with the job: nothing more on SQL Server, one read on a storage that doesn't load them.
+
 **What to do:** update code or tests that assert the exact number of global filters. Code that removes or replaces filters by type is not affected.
 
 ### New storage keys and job parameters
@@ -246,6 +248,8 @@ New features store their data in the existing primitives, under new keys. Most a
 | `stats:{state}:yyyy-MM-dd-HH` counters | Every job finishes, as before, but `StatisticsHistoryAttribute` now keeps them for eight days instead of one (168 per state instead of 24), so the Insights heatmap can show a week |
 | `hangfire:control` hash | Processing, a queue or a server is paused |
 | `recurring-job:{id}:runs` list | A recurring job creates a run, by its schedule or `Trigger`: the run's job ID, the last 50 kept, written in the same transaction as the run. Removed with the recurring job |
+| `ParentId` / `ParentIds` job parameters | A continuation (`ContinueJobWith`) or fan-in continuation is created: its parents, read by `PerformContext.ParentId` and `ParentIds`. Written with the job, in the same command |
+| `chain:{id}` hash, `chains` set, `recurring-chain:{id}` hash | A `JobChain` is created (kept 30 days), or a recurring chain runs |
 | `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
 | `schedule-policy:{name}` hash, `schedule-policies` set | A schedule policy is saved (`SaveSchedulePolicy`, `RecurringJobSet.AddPolicy`); the `Policy` hash field of a recurring job and the `Policy` and `WhenBlocked` job parameters name it |

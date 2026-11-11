@@ -71,6 +71,12 @@ public class PerformContext
     /// <summary>The job parameter with the identifier of the recurring job that created the job.</summary>
     internal const string RecurringJobIdParameter = "RecurringJobId";
 
+    /// <summary>The job parameter with the parent of a continuation, written when it is created.</summary>
+    public const string ParentIdParameter = "ParentId";
+
+    /// <summary>The job parameter with the parents of a fan-in continuation, written when it is created.</summary>
+    public const string ParentIdsParameter = "ParentIds";
+
     [CanBeNull]
     public JobStorage? Storage { get; }
 
@@ -146,6 +152,31 @@ public class PerformContext
     /// <summary>Gets the identifier of the recurring job that created the job, or <c>null</c>.</summary>
     [CanBeNull]
     public string? RecurringJobId => GetJobParameter<string>(RecurringJobIdParameter, allowStale: true);
+
+    /// <summary>
+    /// Gets the parent of a continuation (<c>ContinueJobWith</c>, a chain step after a single step), or <c>null</c>
+    /// for a job that isn't one, a fan-in continuation (see <see cref="ParentIds"/>) or a continuation created by an
+    /// earlier version.
+    /// </summary>
+    [CanBeNull]
+    public string? ParentId => GetJobParameter<string>(ParentIdParameter, allowStale: true);
+
+    /// <summary>
+    /// Gets the parents of a continuation: the parents of a fan-in continuation (<c>ContinueJobWithAll</c>,
+    /// <c>ContinueJobWithAny</c>, a chain step after a group), the single parent of another continuation, or an
+    /// empty list.
+    /// </summary>
+    [NotNull]
+    public IReadOnlyList<string> ParentIds
+    {
+        get
+        {
+            string[]? parents = GetJobParameter<string[]>(ParentIdsParameter, allowStale: true);
+            if (parents is { Length: > 0 }) return parents;
+
+            return ParentId is { } parentId ? [parentId] : [];
+        }
+    }
 
     /// <summary>
     /// Gets the console the job reports progress, lines and checkpoints to. Shared by every context created

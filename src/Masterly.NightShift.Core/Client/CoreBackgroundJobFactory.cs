@@ -195,6 +195,16 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                 JobHelper.ToMillisecondTimestamp(scheduled.EnqueueAt).ToString(CultureInfo.InvariantCulture);
         }
 
+        // The parents of a continuation, read by PerformContext.ParentId and ParentIds, written with the job
+        if (context.InitialState is AwaitingState awaiting && !parameters.ContainsKey(PerformContext.ParentIdParameter))
+        {
+            parameters[PerformContext.ParentIdParameter] = SerializationHelper.Serialize(awaiting.ParentId);
+        }
+        else if (context.InitialState is AwaitingJobsState awaitingJobs && !parameters.ContainsKey(PerformContext.ParentIdsParameter))
+        {
+            parameters[PerformContext.ParentIdsParameter] = SerializationHelper.Serialize(awaitingJobs.ParentIds.ToArray());
+        }
+
         return parameters;
     }
 

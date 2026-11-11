@@ -11,6 +11,56 @@ public static class BackgroundJobClientFanInExtensions
 {
     extension([NotNull] IBackgroundJobClient client)
     {
+        /// <summary>
+        /// Creates a job that waits for a set of parents and starts as the join <paramref name="mode"/> says: once all
+        /// of them succeeded (<see cref="FanInMode.All"/>), at the first success (<see cref="FanInMode.Any"/>), at the
+        /// first failure for good (<see cref="FanInMode.AnyFailed"/>), at the first failure or deletion
+        /// (<see cref="FanInMode.AnyFailedOrCanceled"/>), or once all of them finished whatever the outcome
+        /// (<see cref="FanInMode.AllCompleted"/>). Parent identifiers that are <c>null</c> are skipped.
+        /// </summary>
+        /// <param name="parentIds">The parent jobs, at least one.</param>
+        /// <param name="mode">When the job starts.</param>
+        /// <param name="methodCall">The method call to run.</param>
+        /// <returns>The job's id, or <c>null</c> when a client filter canceled its creation.</returns>
+        public string? ContinueJobWithJoin(
+            [NotNull] IEnumerable<string?> parentIds,
+            FanInMode mode,
+            [NotNull, InstantHandle] Expression<Action> methodCall)
+        {
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
+        }
+
+        /// <inheritdoc cref="ContinueJobWithJoin(IBackgroundJobClient, IEnumerable{string}, FanInMode, Expression{Action})"/>
+        public string? ContinueJobWithJoin(
+            [NotNull] IEnumerable<string?> parentIds,
+            FanInMode mode,
+            [NotNull, InstantHandle] Expression<Func<Task>> methodCall)
+        {
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
+        }
+
+        /// <inheritdoc cref="ContinueJobWithJoin(IBackgroundJobClient, IEnumerable{string}, FanInMode, Expression{Action})"/>
+        public string? ContinueJobWithJoin<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            FanInMode mode,
+            [NotNull, InstantHandle] Expression<Action<T>> methodCall)
+        {
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
+        }
+
+        /// <inheritdoc cref="ContinueJobWithJoin(IBackgroundJobClient, IEnumerable{string}, FanInMode, Expression{Action})"/>
+        public string? ContinueJobWithJoin<T>(
+            [NotNull] IEnumerable<string?> parentIds,
+            FanInMode mode,
+            [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall)
+        {
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
+        }
+
         /// <summary>Creates a job that starts once <em>every</em> parent has finished as <paramref name="options"/> require.</summary>
         public string? ContinueJobWithAll(
             [NotNull] IEnumerable<string?> parentIds,

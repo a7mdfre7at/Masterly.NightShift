@@ -19,10 +19,31 @@ namespace Masterly.NightShift;
 /// Says when a continuation starts: after its parent reaches any final state, only after it succeeds, or only after
 /// it is deleted.
 /// </summary>
+/// <summary>
+/// Which outcomes of the parent start a continuation. The flags combine: <c>OnlyOnSucceededState | OnlyOnFailedState</c>
+/// starts it when the parent succeeds or fails.
+/// </summary>
 [Flags]
 public enum JobContinuationOptions
 {
+    /// <summary>When the parent succeeds or is deleted.</summary>
     OnAnyFinishedState = 0,
+
+    /// <summary>When the parent succeeds.</summary>
     OnlyOnSucceededState = 1,
+
+    /// <summary>When the parent is deleted.</summary>
     OnlyOnDeletedState = 2,
+
+    /// <summary>
+    /// When the parent fails for good, with no retry left. Failed isn't final: a continuation waiting for another
+    /// outcome stays waiting, as the parent may still be requeued and succeed.
+    /// </summary>
+    OnlyOnFailedState = 4,
+
+    /// <summary>
+    /// When the parent starts processing, so the continuation runs alongside it. A continuation added after the parent
+    /// started (it is processing, succeeded or failed) starts at once.
+    /// </summary>
+    OnlyOnProcessingState = 8,
 }

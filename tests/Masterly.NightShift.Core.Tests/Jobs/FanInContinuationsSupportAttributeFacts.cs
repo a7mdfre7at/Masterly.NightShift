@@ -215,6 +215,24 @@ public class FanInContinuationsSupportAttributeFacts
     }
 
     [Fact]
+    public void OnStateElection_ParentBranch_StartsAnAnyFailedChild_WhenTheParentFailsForGood()
+    {
+        _context.ApplyContext.BackgroundJob = new BackgroundJobMock { Id = "p1", ParametersSnapshot = new Dictionary<string, string> { [Parameter] = SerializationHelper.SerializeInternal(new List<string> { "child" }) } };
+        _context.ApplyContext.NewStateObject = new FailedState(new InvalidOperationException());
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData("child")).Returns(new JobData());
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData("child")).Returns(new StateData
+        {
+            Name = AwaitingJobsState.StateName,
+            Data = new AwaitingJobsState(["p1", "p2"], new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, FanInMode.AnyFailed).SerializeData(),
+        });
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData("p1")).Returns(new StateData { Name = FailedState.StateName });
+
+        Create().OnStateElection(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.BackgroundJobId == "child" && ctx.NewState is EnqueuedState)));
+    }
+
+    [Fact]
     public void OnStateElection_IgnoresNonFinalStates_AndOrdinaryAwaitingState()
     {
         _context.ApplyContext.BackgroundJob.Id = "job";
@@ -237,6 +255,17 @@ public class FanInContinuationsSupportAttributeFacts
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnSucceededState, "Deleted,", "Undecided")]
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnSucceededState, "Deleted,Deleted", "Skip")]
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnDeletedState, "Deleted,", "Start")]
+    [InlineData(FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState, "Failed,", "Start")]
+    [InlineData(FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState, "Succeeded,", "Undecided")]
+    [InlineData(FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState, "Succeeded,Deleted", "Skip")]
+    [InlineData(FanInMode.AnyFailedOrCanceled, JobContinuationOptions.OnlyOnSucceededState, "Deleted,", "Start")]
+    [InlineData(FanInMode.AnyFailedOrCanceled, JobContinuationOptions.OnlyOnSucceededState, ",Failed", "Start")]
+    [InlineData(FanInMode.AnyFailedOrCanceled, JobContinuationOptions.OnlyOnSucceededState, "Succeeded,Succeeded", "Skip")]
+    [InlineData(FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState, "Failed,Deleted", "Start")]
+    [InlineData(FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState, "Failed,", "Undecided")]
+    [InlineData(FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState, "Succeeded,Succeeded", "Start")]
+    [InlineData(FanInMode.All, JobContinuationOptions.OnlyOnSucceededState, "Failed,Succeeded", "Undecided")]
+    [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnSucceededState, "Failed,Failed", "Undecided")]
     public void Evaluate_DecidesFromTheParentStates(FanInMode mode, JobContinuationOptions options, string states, string expected)
     {
         string[] names = states.Split(',');
@@ -507,6 +536,10 @@ public class FanInContinuationsSupportAttributeFacts
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnSucceededState, "Deleted,Succeeded,Deleted", "Start")]
     [InlineData(FanInMode.Any, JobContinuationOptions.OnlyOnSucceededState, "Deleted,Deleted,Deleted", "Skip")]
     [InlineData(FanInMode.All, JobContinuationOptions.OnlyOnSucceededState, "Processing,Succeeded,Succeeded", "Undecided")]
+    [InlineData(FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState, "Failed,,", "Start")]
+    [InlineData(FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState, "Succeeded,Succeeded,Deleted", "Skip")]
+    [InlineData(FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState, "Failed,Deleted,Succeeded", "Start")]
+    [InlineData(FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState, "Failed,,Succeeded", "Undecided")]
     public void Evaluate_ForAFinishedParent_ReadsItFirst_ThenTheOthersFromTheLast(FanInMode mode, JobContinuationOptions options, string states, string expected)
     {
         // states: the finished parent "b", then "c", then "a"

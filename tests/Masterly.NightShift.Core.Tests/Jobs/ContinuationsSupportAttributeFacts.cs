@@ -298,6 +298,126 @@ public class ContinuationsSupportAttributeFacts
         Assert.Equal(JobContinuationOptions.OnlyOnSucceededState, continuations[1].Options);
     }
 
+    [Theory]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnFailedState, true)]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData("Failed", JobContinuationOptions.OnAnyFinishedState, false)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnProcessingState, true)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnFailedState, false)]
+    [InlineData("Succeeded", JobContinuationOptions.OnlyOnFailedState, false)]
+    [InlineData("Succeeded", JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnFailedState, true)]
+    public void OnStateElection_StartsOnlyTheMatchingContinuations_OnAFailedOrProcessingParent(string parentState, JobContinuationOptions options, bool starts)
+    {
+        SetUpParentWithContinuation(parentState, options);
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        _stateChanger.Verify(
+            x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.BackgroundJobId == _continuationId && ctx.NewState.Name == "Enqueued")),
+            starts ? Times.Once() : Times.Never());
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Processing")]
+    public void OnStateElection_LeavesTheOtherContinuationsWaiting_OnAFailedOrProcessingParent(string parentState)
+    {
+        SetUpParentWithContinuation(parentState, JobContinuationOptions.OnlyOnSucceededState);
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        // Not deleted either: the parent may still succeed
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_DeletesAFailureContinuation_WhenTheParentSucceeds()
+    {
+        SetUpParentWithContinuation(SucceededState.StateName, JobContinuationOptions.OnlyOnFailedState);
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
+            ctx.BackgroundJobId == _continuationId && ctx.NewState is DeletedState)));
+    }
+
+    [Fact]
+    public void OnStateElection_PassesTheFailedParentsException_WhenResultsArePushed()
+    {
+        SetUpParentWithContinuation(FailedState.StateName, JobContinuationOptions.OnlyOnFailedState);
+        ContinuationsSupportAttribute filter = new(pushResults: true, KnownFinalStates, _stateChanger.Object);
+
+        filter.OnStateElection(_context.Object);
+
+        _context.ApplyContext.Connection.Verify(x => x.SetJobParameter(
+            _continuationId,
+            "AntecedentException",
+            It.Is<string>(value => value.Contains("InvalidOperationException", StringComparison.Ordinal))));
+    }
+
+    [Theory]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnFailedState, true)]
+    [InlineData("Processing", JobContinuationOptions.OnlyOnProcessingState, true)]
+    [InlineData("Succeeded", JobContinuationOptions.OnlyOnProcessingState, true)]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnProcessingState, true)]
+    [InlineData("Deleted", JobContinuationOptions.OnlyOnProcessingState, false)]
+    [InlineData("Failed", JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData("Processing", JobContinuationOptions.OnAnyFinishedState, false)]
+    public void OnStateElection_StartsAContinuationAddedLate_WhenTheParentIsInItsState(string parentState, JobContinuationOptions options, bool starts)
+    {
+        _context.ApplyContext.NewStateObject = new AwaitingState(_parentId, new EnqueuedState(), options);
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_parentId)).Returns(new StateData
+        {
+            Name = parentState,
+            Data = new Dictionary<string, string>(),
+        });
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        if (starts)
+        {
+            Assert.IsType<EnqueuedState>(_context.Object.CandidateState);
+        }
+        else
+        {
+            Assert.IsNotType<EnqueuedState>(_context.Object.CandidateState);
+        }
+    }
+
+    [Fact]
+    public void OnStateElection_KeepsAContinuationWaiting_WhenItIsAddedToAFailedParent_ForAnotherOutcome()
+    {
+        _context.ApplyContext.NewStateObject = new AwaitingState(_parentId, new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState);
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_parentId)).Returns(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() });
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        Assert.IsType<AwaitingState>(_context.Object.CandidateState);
+    }
+
+    private void SetUpParentWithContinuation(string parentState, JobContinuationOptions options)
+    {
+        _context.ApplyContext.BackgroundJob = new BackgroundJobMock { Id = _parentId };
+        _context.ApplyContext.NewStateObject = parentState switch
+        {
+            "Failed" => new FailedState(new InvalidOperationException("boom")),
+            "Processing" => new ProcessingState("server", "worker"),
+            _ => new SucceededState(null, 0, 0),
+        };
+
+        _context.ApplyContext.Connection.Setup(x => x.GetJobData(_continuationId)).Returns(new JobData());
+        _context.ApplyContext.Connection.Setup(x => x.GetStateData(_continuationId)).Returns(new StateData
+        {
+            Name = AwaitingState.StateName,
+            Data = new Dictionary<string, string>
+            {
+                { "NextState", SerializationHelper.Serialize<IState>(new EnqueuedState(), SerializationOption.TypedInternal) }
+            }
+        });
+        _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(_parentId, "Continuations"))
+            .Returns(SerializationHelper.Serialize(new List<Continuation> { new() { JobId = _continuationId, Options = options } }));
+    }
+
     private ContinuationsSupportAttribute CreateFilter()
     {
         return new ContinuationsSupportAttribute(

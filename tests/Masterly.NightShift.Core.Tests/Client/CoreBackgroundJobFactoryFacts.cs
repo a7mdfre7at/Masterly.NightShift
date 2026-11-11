@@ -127,6 +127,35 @@ public class CoreBackgroundJobFactoryFacts
     }
 
     [Fact]
+    public void CreateJob_WritesTheParentIdParameter_ForAContinuation()
+    {
+        CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new AwaitingState("41"));
+
+        CreateFactory().Create(context);
+
+        _context.Connection.Verify(x => x.CreateExpiredJob(
+            _context.Job,
+            It.Is<Dictionary<string, string>>(d => d[Masterly.NightShift.Server.PerformContext.ParentIdParameter] == "\"41\"" &&
+                                                   !d.ContainsKey(Masterly.NightShift.Server.PerformContext.ParentIdsParameter)),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>()));
+    }
+
+    [Fact]
+    public void CreateJob_WritesTheParentIdsParameter_ForAFanInContinuation()
+    {
+        CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new AwaitingJobsState(["1", "2"]));
+
+        CreateFactory().Create(context);
+
+        _context.Connection.Verify(x => x.CreateExpiredJob(
+            _context.Job,
+            It.Is<Dictionary<string, string>>(d => d[Masterly.NightShift.Server.PerformContext.ParentIdsParameter] == "[\"1\",\"2\"]"),
+            It.IsAny<DateTime>(),
+            It.IsAny<TimeSpan>()));
+    }
+
+    [Fact]
     public void CreateJob_KeepsAScheduledForParameter_SetByAClientFilter()
     {
         CreateContext context = new(_context.Storage.Object, _context.Connection.Object, _context.Job, new ScheduledState(TimeSpan.FromHours(1)));

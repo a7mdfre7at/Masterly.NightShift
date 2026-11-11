@@ -35,8 +35,11 @@ if (chargeId != null)
 2. The `ContinuationsSupportAttribute` filter, registered globally by default, adds the child's ID to the parent's `Continuations` job parameter. It takes a distributed lock on the parent while it does so. If the parent does not exist, creation fails with an exception.
 3. If the parent has already finished, the child is decided right away. Otherwise it waits.
 4. When the parent moves to `Succeeded` or `Deleted`, the filter looks at every waiting child. A child whose options accept that outcome moves to its next state; the others move to `Deleted` with the reason "Continuation condition was not met".
+5. When the parent fails for good (no retry left) or starts processing, only the children that ask for that (`OnlyOnFailedState`, `OnlyOnProcessingState`) start; the others keep waiting.
 
-`Failed` is not a finished state. A parent that failed and is out of retries keeps its children waiting until someone requeues it (then it can succeed) or deletes it.
+`Failed` is not a finished state. A parent that failed and is out of retries keeps its other children waiting until someone requeues it (then it can succeed) or deletes it.
+
+The child gets its parent's ID in the `ParentId` job parameter, written with the child, and reads it as `PerformContext.ParentId`. A fan-in continuation has its parents in `ParentIds` (`PerformContext.ParentIds`).
 
 Continuations appear on the dashboard's Awaiting jobs page, and the job details page draws the chain of parents and children.
 
@@ -77,8 +80,12 @@ A `[Flags]` enum that says which outcomes of the parent start the child.
 | `OnlyOnSucceededState` | 1 | `Succeeded` (the default) |
 | `OnlyOnDeletedState` | 2 | `Deleted` |
 | `OnAnyFinishedState` | 0 | `Succeeded` or `Deleted` |
+| `OnlyOnFailedState` | 4 | `Failed` for good, with no retry left |
+| `OnlyOnProcessingState` | 8 | `Processing`: the child runs alongside its parent |
 
-`OnlyOnSucceededState | OnlyOnDeletedState` means the same as `OnAnyFinishedState`. In every other case the child is deleted when the parent finishes.
+`OnlyOnSucceededState | OnlyOnDeletedState` means the same as `OnAnyFinishedState`. The flags combine: `OnlyOnSucceededState | OnlyOnFailedState` starts the child when the parent succeeds or fails. When the parent finishes (`Succeeded` or `Deleted`), a child whose options don't accept that outcome is deleted; when it fails or starts processing, such a child keeps waiting, as the parent may still succeed.
+
+A child added after its parent reached the state it asks for starts at once: `OnlyOnFailedState` for a failed parent, `OnlyOnProcessingState` for a parent that is processing, succeeded or failed. With `UseResultsInContinuations()`, a failed parent's exception reaches `[FromException]`.
 
 ### AwaitingState
 
@@ -213,7 +220,8 @@ This needs `UseResultsInContinuations()`. For an async parent, the result is the
 
 - **The parent ID must not be `null`.** `Enqueue` and friends return `string?`, and `ContinueJobWith` needs a real ID. Check first, as in the examples. (Fan-in methods skip `null` parent IDs instead, see [Fan-in and batches](fan-in-and-batches.md).)
 - **The parent must still exist.** A continuation for an expired or unknown parent fails with `BackgroundJobClientException`; its inner `InvalidOperationException` says "parent background job ... does not exist". Finished jobs expire after one day by default.
-- **Failed parents block.** Continuations wait while the parent is `Failed`. Requeue or delete the parent to decide them.
+- **Failed parents block.** Continuations wait while the parent is `Failed`, except those with `OnlyOnFailedState`. Requeue or delete the parent to decide the others.
+- **A processing continuation starts once,** the first time the parent starts processing. A retry of the parent doesn't start it again.
 - **A continuation can start just before its parent's final state is stored.** The children are moved to their next state while the parent's new state is chosen, before it is committed. A worker can pick a child up a moment before the parent shows `Succeeded`, so don't make the child read its parent's state and expect it final; pass what it needs with `[FromResult]` or as arguments. If that commit then fails, the children have started anyway: the parent's state change is retried, or the parent runs again, but its continuations don't start a second time, because they are no longer `Awaiting`. Deciding after the commit would avoid this, but a crash between the commit and the decision would leave the children waiting forever, which is worse. [Fan-in continuations](fan-in-and-batches.md) decide after the commit instead.
 - **`NextState` is created now.** The state object you pass is stored when the child is created. `new ScheduledState(TimeSpan.FromMinutes(5))` computes its moment at that point, not when the parent finishes, so after a long parent the child is enqueued at once.
 - **Results are serialized.** A return value that can't be serialized is stored as the text "Can not serialize the return value", and `[FromResult]` can't read it. Return small, serializable values; see [Job arguments](job-arguments.md#return-values).
@@ -222,6 +230,7 @@ This needs `UseResultsInContinuations()`. For an async parent, the result is the
 ## See also
 
 - [Fan-in and batches](fan-in-and-batches.md)
+- [Chains](chains.md)
 - [Fire-and-forget jobs](fire-and-forget.md)
 - [Managing jobs](managing-jobs.md)
 - [Retries](../filters/retries.md)

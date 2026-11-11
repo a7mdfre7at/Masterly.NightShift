@@ -171,6 +171,39 @@ public class PerformContextFacts
     }
 
     [Fact]
+    public void ParentId_AndParentIds_ReadTheParentOfAContinuation()
+    {
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string> { [PerformContext.ParentIdParameter] = "\"41\"" };
+
+        PerformContext context = CreateContext();
+
+        Assert.Equal("41", context.ParentId);
+        Assert.Equal(["41"], context.ParentIds);
+    }
+
+    [Fact]
+    public void ParentIds_ReadTheParentsOfAFanInContinuation()
+    {
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string> { [PerformContext.ParentIdsParameter] = "[\"1\",\"2\"]" };
+
+        PerformContext context = CreateContext();
+
+        Assert.Null(context.ParentId);
+        Assert.Equal(["1", "2"], context.ParentIds);
+    }
+
+    [Fact]
+    public void ParentId_AndParentIds_AreEmpty_ForAJobThatIsNotAContinuation()
+    {
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+
+        PerformContext context = CreateContext();
+
+        Assert.Null(context.ParentId);
+        Assert.Empty(context.ParentIds);
+    }
+
+    [Fact]
     public void ScheduledFor_AndRecurringJobId_AreNull_ForAFireAndForgetJob()
     {
         _backgroundJob.ParametersSnapshot = new Dictionary<string, string>();

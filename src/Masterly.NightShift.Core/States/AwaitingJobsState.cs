@@ -13,6 +13,24 @@ public enum FanInMode
 
     /// <summary>The continuation starts as soon as one parent has finished and satisfied the options.</summary>
     Any,
+
+    /// <summary>
+    /// The continuation starts as soon as one parent fails for good (no retry left), for alerting or compensating
+    /// work. It is skipped once every parent finished without failing. The options are ignored.
+    /// </summary>
+    AnyFailed,
+
+    /// <summary>
+    /// The continuation starts as soon as one parent fails for good or is deleted. It is skipped once every parent
+    /// succeeded. The options are ignored.
+    /// </summary>
+    AnyFailedOrCanceled,
+
+    /// <summary>
+    /// The continuation starts once every parent has finished, whatever the outcome: succeeded, deleted or failed for
+    /// good. Never skipped. The options are ignored.
+    /// </summary>
+    AllCompleted,
 }
 
 /// <summary>
