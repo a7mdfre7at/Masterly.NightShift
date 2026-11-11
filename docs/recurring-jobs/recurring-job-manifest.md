@@ -84,9 +84,10 @@ Any other entry is reported in `Errors` with a message that names the method, an
 | `timeZone` | string | no | A time zone ID, resolved as described above. Omitted (or empty) means UTC; export omits it for UTC jobs. |
 | `queue` | string | no | The queue runs are enqueued to. Omitted, empty or `default` means the default queue; export omits it then. |
 | `paused` | boolean | no | `true` pauses the job, `false` resumes it if it was paused. Omitted leaves the paused state as it is (a new job starts active). Export always writes it. |
-| `misfireHandling` | number or name | no | `0`/`Relaxed` (default, omitted on export), `1`/`Strict`, `2`/`Ignorable`. Export writes numbers; names are accepted on import, in any case. Another number is reported as an error for that entry. |
+| `misfireHandling` | number or name | no | `0`/`Relaxed` (default, omitted on export), `1`/`Strict`, `2`/`Ignorable`, `3`/`RunLatest` (needs `skipAfterSeconds`). Export writes numbers; names are accepted on import, in any case. Another number is reported as an error for that entry. |
 | `startAt` | string | no | The instant before which the job doesn't run (`RecurringJobOptions.StartAt`), as ISO 8601. Export writes UTC (`2026-11-16T00:00:00Z`) and omits it when the job has no start. On import a value with an offset (`2026-11-16T00:00:00+01:00`) is converted to UTC, and a value without one (`2026-11-16T00:00:00`, `2026-11-16`) is read as UTC. Omitted means no start. |
 | `endAt` | string | no | The instant after which the job doesn't run (`RecurringJobOptions.EndAt`), written and read like `startAt`. Omitted means no end. |
+| `skipAfterSeconds` | number | no | How late a run may start, in seconds (`RecurringJobOptions.SkipAfter`). Omitted means runs start however late; export omits it then. |
 | `job.type` | string | yes | The job's type, as the configured type serializer writes it. With `UseSimpleAssemblyNameTypeSerializer()` this is `Namespace.Type, Assembly`; otherwise it is the full assembly-qualified name. A job the exporting application can't load is written with the type name as stored. |
 | `job.method` | string | yes | The method name. |
 | `job.parameterTypes` | string | no | A JSON array of type names, as a string. Omitted means `[]`. |

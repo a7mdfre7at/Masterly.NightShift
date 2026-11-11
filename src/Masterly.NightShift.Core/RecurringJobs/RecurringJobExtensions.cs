@@ -114,6 +114,11 @@ internal static class RecurringJobExtensions
             context.Parameters["RecurringJobId"] = recurringJob.RecurringJobId;
             context.Parameters["Time"] = JobHelper.ToTimestamp(now);
 
+            if (recurringJob.SkipAfter.HasValue)
+            {
+                context.Parameters[SkipIfLateAttribute.WindowParameter] = (long)recurringJob.SkipAfter.Value.TotalSeconds;
+            }
+
             BackgroundJob? backgroundJob = factory.Create(context);
 
             recurringJob.LastExecution = now;
@@ -175,6 +180,8 @@ internal static class RecurringJobExtensions
             {
                 AfterCommit = afterCommit
             });
+
+            RecurringJobHistory.RecordRun(transaction, recurringJob.RecurringJobId, backgroundJob.Id);
         }
     }
 }

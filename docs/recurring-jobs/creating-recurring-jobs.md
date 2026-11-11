@@ -83,10 +83,11 @@ Every overload takes the recurring job ID first. Hangfire's overloads without an
 
 | Property | Type | Default | Meaning |
 |----------|------|---------|---------|
-| `TimeZone` | `TimeZoneInfo` | `TimeZoneInfo.Utc` | The time zone the CRON expression is evaluated in. Setting `null` throws `ArgumentNullException`. Its `Id` is what is stored; servers look it up again through `ITimeZoneResolver`. See [Time zones and misfires](time-zones-and-misfires.md). |
-| `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | What to do with runs that were missed while no scheduler was running: `Relaxed` (one catch-up run), `Strict` (one run per missed occurrence) or `Ignorable` (skip them). Any other value makes `AddOrUpdate` throw `ArgumentOutOfRangeException`. See [Time zones and misfires](time-zones-and-misfires.md#misfire-handling). |
+| `TimeZone` | `TimeZoneInfo` | `RecurringJobOptions.DefaultTimeZone` (`TimeZoneInfo.Utc` unless changed with `UseDefaultRecurringJobTimeZone`) | The time zone the CRON expression is evaluated in. Setting `null` throws `ArgumentNullException`. Its `Id` is what is stored; servers look it up again through `ITimeZoneResolver`. See [Time zones and misfires](time-zones-and-misfires.md). |
+| `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | What to do with runs that were missed while no scheduler was running: `Relaxed` (one catch-up run), `Strict` (one run per missed occurrence), `Ignorable` (skip them) or `RunLatest` (only the latest missed occurrence, if no older than `SkipAfter`). Any other value makes `AddOrUpdate` throw `ArgumentOutOfRangeException`. See [Time zones and misfires](time-zones-and-misfires.md#misfire-handling). |
 | `StartAt` | `DateTimeOffset?` | `null` (no start) | The instant before which the job doesn't run. The first run is the first occurrence at or after it (an occurrence exactly at `StartAt` runs), and no misfire handling mode catches up on occurrences before it. See [Start and end dates](#run-only-between-two-dates). |
 | `EndAt` | `DateTimeOffset?` | `null` (no end) | The instant after which the job doesn't run. An occurrence exactly at `EndAt` runs. Once the next occurrence is later, the job leaves the schedule: its next execution is cleared, but it stays registered, so it is still listed and can be triggered, updated or removed. Must be later than `StartAt`. |
+| `SkipAfter` | `TimeSpan?` | `null` (run however late) | How late a run may start. A run that starts more than this after its occurrence is deleted as skipped, like a job with [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute); `RunLatest` needs it. At least one second, stored in whole seconds; a shorter one throws `ArgumentOutOfRangeException`, and `RunLatest` without it `ArgumentException`. See [Late runs](time-zones-and-misfires.md#late-runs-skipafter-and-runlatest). |
 | `QueueName` | `string` | `"default"` | The queue the runs go to, kept with the recurring job. Prefer the `queue` parameter, which stores the queue with the job; use `QueueName` with storages that don't report `JobStorageFeatures.JobQueueProperty`, where the `queue` parameter throws. |
 
 `StartAt` and `EndAt` are absolute instants. They are stored in UTC, to the millisecond, and `TimeZone` doesn't change them: it only decides when the CRON occurrences fall. `AddOrUpdate` throws `ArgumentException` when `EndAt` isn't later than `StartAt`, and `ArgumentOutOfRangeException` when either is before 1970-01-01 UTC. A `StartAt` or `EndAt` in the past is accepted: a job whose end has passed is registered without a next execution, so an application that registers its jobs on every start keeps starting after the end date.
@@ -128,7 +129,7 @@ The stored recurring jobs are read through a storage connection, with extension 
 
 The `JobStorageConnection` overloads need a storage with the extended API (`JobStorage.HasFeature(JobStorageFeatures.ExtendedApi)`; SQL Server has it): cast the connection, `(JobStorageConnection)storage.GetConnection()`. Other storages throw `NotSupportedException` from them.
 
-`RecurringJobDto` has `Id`, `Cron`, `Queue`, `TimeZoneId`, `Job` (the method call, or `null` when it can't be loaded, with the reason in `LoadException`), `NextExecution`, `LastExecution`, `LastJobId`, `LastJobState`, `CreatedAt`, `Error` and `RetryAttempt` (scheduling failures), `Paused`, `MisfireHandling`, `StartAt`, `EndAt` (UTC) and `Removed`. The monitoring API only counts recurring jobs (`GetStatistics().Recurring`); to list them, use these extensions.
+`RecurringJobDto` has `Id`, `Cron`, `Queue`, `TimeZoneId`, `Job` (the method call, or `null` when it can't be loaded, with the reason in `LoadException`), `NextExecution`, `LastExecution`, `LastJobId`, `LastJobState`, `CreatedAt`, `Error` and `RetryAttempt` (scheduling failures), `Paused`, `MisfireHandling`, `StartAt`, `EndAt` (UTC), `SkipAfter`, `Declared` and `Retired` (see [Recurring jobs declared in code](recurring-jobs-in-code.md)) and `Removed`. The monitoring API only counts recurring jobs (`GetStatistics().Recurring`); to list them, use these extensions.
 
 ```csharp
 using Masterly.NightShift;
@@ -141,6 +142,24 @@ using (var connection = storage.GetConnection())
         Console.WriteLine($"{recurringJob.Id}: {recurringJob.Cron}, next {recurringJob.NextExecution:u}, paused: {recurringJob.Paused}");
     }
 }
+```
+
+### Runs and upcoming runs
+
+Every run a recurring job creates, by the scheduler or with `Trigger`, is recorded in the storage list `recurring-job:{id}:runs`, which keeps the last 50 and is removed with the recurring job. Read them, and the coming runs, with extension methods on `JobStorage`:
+
+| Extension | Returns | Meaning |
+|-----------|---------|---------|
+| `storage.GetRecurringJobRuns(string recurringJobId, int count = 50)` | `IReadOnlyList<RecurringJobRun>` | The last runs, newest first: `JobId`, `State`, `CreatedAt`, `ScheduledFor` (the occurrence), `StartedAt` (the last attempt), `Duration` (of a succeeded run), `RetryCount`, `ServerId`, `Reason`, and `Expired` for a job that finished and is gone. Empty on a storage without `JobStorageFeatures.ExtendedApi`. Each run costs one job-details query. `count` must be 1 to 50. |
+| `storage.GetNextOccurrences(string recurringJobId, int count)` | `IReadOnlyList<DateTime>` | The next runs after now, in UTC, from the job's CRON expression, time zone, start and end dates. Empty for a paused job, a job past its end or one that doesn't exist. `count` must be 1 to 1,000. |
+
+```csharp
+foreach (RecurringJobRun run in storage.GetRecurringJobRuns("daily-report", 10))
+{
+    Console.WriteLine($"{run.ScheduledFor:u} {run.State} {run.Duration} {run.Reason}");
+}
+
+IReadOnlyList<DateTime> next = storage.GetNextOccurrences("daily-report", 5);
 ```
 
 ## Recurring job IDs

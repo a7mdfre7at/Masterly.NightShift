@@ -82,8 +82,97 @@ public class RecurringJobEntityFacts
     [Fact]
     public void Ctor_ThrowsAnException_WhenMisfireOption_IsNotWithinAValidRange()
     {
-        _recurringJob["Misfire"] = "3";
+        _recurringJob["Misfire"] = "4";
         Assert.Throws<NotSupportedException>(CreateEntity);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRunLatest_ReturnsOnlyTheLatestMissedOccurrence()
+    {
+        _recurringJob["Misfire"] = "3";
+        _recurringJob["SkipAfter"] = "3600";
+        RecurringJobEntity entity = CreateEntity();
+        DateTime now = _nowInstant.AddSeconds(30);
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, now.AddMinutes(-20), now, TimeSpan.Zero)];
+
+        Assert.Equal([_nowInstant], executions);
+        Assert.Equal(_nowInstant.AddMinutes(1), entity.NextExecution);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRunLatest_ReturnsNothing_WhenTheLatestMissedOccurrenceIsTooOld()
+    {
+        _recurringJob["Cron"] = "0 * * * *";
+        _recurringJob["Misfire"] = "3";
+        _recurringJob["SkipAfter"] = "600";
+        RecurringJobEntity entity = CreateEntity();
+        DateTime now = _nowInstant.AddSeconds(30);
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, now.AddHours(-5), now, TimeSpan.Zero)];
+
+        Assert.Empty(executions);
+        Assert.NotNull(entity.NextExecution);
+        Assert.True(entity.NextExecution > now);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRunLatest_LooksOnlyInsideTheWindow_AfterALongOutage()
+    {
+        _recurringJob["Misfire"] = "3";
+        _recurringJob["SkipAfter"] = "300";
+        RecurringJobEntity entity = CreateEntity();
+        DateTime now = _nowInstant.AddSeconds(30);
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, now.AddDays(-400), now, TimeSpan.Zero)];
+
+        Assert.Equal([_nowInstant], executions);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRunLatest_RunsAnOccurrenceThatIsDueNow()
+    {
+        _recurringJob["Misfire"] = "3";
+        _recurringJob["SkipAfter"] = "60";
+        RecurringJobEntity entity = CreateEntity();
+
+        List<DateTime> executions = [.. entity.ScheduleNext(_timeZoneResolver.Object, _nowInstant.AddSeconds(-1), _nowInstant, TimeSpan.Zero)];
+
+        Assert.Equal([_nowInstant], executions);
+    }
+
+    [Theory]
+    [InlineData("3600", 3600)]
+    [InlineData("0", null)]
+    [InlineData("-5", null)]
+    [InlineData("soon", null)]
+    [InlineData("", null)]
+    public void Ctor_ReadsSkipAfter_InSeconds(string stored, int? seconds)
+    {
+        _recurringJob["SkipAfter"] = stored;
+
+        RecurringJobEntity entity = CreateEntity();
+
+        Assert.Equal(seconds.HasValue ? TimeSpan.FromSeconds(seconds.Value) : null, entity.SkipAfter);
+    }
+
+    [Fact]
+    public void IsChanged_WritesSkipAfter_WhenItIsSet_AndClearsIt_WhenItIsRemoved()
+    {
+        RecurringJobEntity entity = CreateEntity();
+        entity.SkipAfter = TimeSpan.FromMinutes(30);
+
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> set);
+        Assert.Equal("1800", set["SkipAfter"]);
+
+        _recurringJob["SkipAfter"] = "1800";
+        RecurringJobEntity stored = CreateEntity();
+        stored.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> unchanged);
+        Assert.False(unchanged.ContainsKey("SkipAfter"));
+
+        stored.SkipAfter = null;
+        stored.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> cleared);
+        Assert.Equal(string.Empty, cleared["SkipAfter"]);
     }
 
     [Fact]

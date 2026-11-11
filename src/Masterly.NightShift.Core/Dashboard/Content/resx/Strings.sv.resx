@@ -625,6 +625,9 @@
   <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
     <value>Hoppa över dem (ignorable)</value>
   </data>
+  <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
+    <value>Bara den senaste, om den är ny (run latest)</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Kö</value>
   </data>

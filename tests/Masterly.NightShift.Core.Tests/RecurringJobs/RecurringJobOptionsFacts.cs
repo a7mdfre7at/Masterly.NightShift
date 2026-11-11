@@ -40,4 +40,37 @@ public class RecurringJobOptionsFacts
 
         Assert.Equal("value", exception.ParamName);
     }
+
+    [Fact]
+    public void SkipAfter_IsNull_ByDefault()
+    {
+        Assert.Null(new RecurringJobOptions().SkipAfter);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the default time zone")]
+    public void DefaultTimeZone_IsUtc_AndNewOptionsUseIt()
+    {
+        Assert.Same(TimeZoneInfo.Utc, RecurringJobOptions.DefaultTimeZone);
+
+        TimeZoneInfo zone = TimeZoneInfo.CreateCustomTimeZone("Test", TimeSpan.FromHours(3), "Test", "Test");
+
+        try
+        {
+            GlobalConfiguration.Configuration.UseDefaultRecurringJobTimeZone(zone);
+
+            Assert.Same(zone, RecurringJobOptions.DefaultTimeZone);
+            Assert.Same(zone, new RecurringJobOptions().TimeZone);
+        }
+        finally
+        {
+            RecurringJobOptions.DefaultTimeZone = TimeZoneInfo.Utc;
+        }
+    }
+
+    [Fact]
+    public void DefaultTimeZone_ThrowsAnException_WhenValueIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => RecurringJobOptions.DefaultTimeZone = null);
+        Assert.Throws<ArgumentNullException>(() => GlobalConfiguration.Configuration.UseDefaultRecurringJobTimeZone(null));
+    }
 }

@@ -77,6 +77,7 @@ public class StorageConnectionExtensionsFacts
     [InlineData("0", MisfireHandlingMode.Relaxed)]
     [InlineData("1", MisfireHandlingMode.Strict)]
     [InlineData("2", MisfireHandlingMode.Ignorable)]
+    [InlineData("3", MisfireHandlingMode.RunLatest)]
     public void GetRecurringJobs_ReadsTheMisfireHandlingMode(string stored, MisfireHandlingMode expected)
     {
         _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
@@ -85,6 +86,24 @@ public class StorageConnectionExtensionsFacts
         RecurringJobDto result = _connection.Object.GetRecurringJobs(["a"]).Single();
 
         Assert.Equal(expected, result.MisfireHandling);
+    }
+
+    [Fact]
+    public void GetRecurringJobs_ReadsSkipAfter_AndTheDeclaredAndRetiredMarks()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:a"))
+            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "600" }, { "Declared", "1" }, { "Retired", "1" } });
+        _connection.Setup(x => x.GetAllEntriesFromHash("recurring-job:b"))
+            .Returns(new Dictionary<string, string> { { "Cron", "* * * * *" }, { "SkipAfter", "" }, { "Retired", "" } });
+
+        List<RecurringJobDto> result = _connection.Object.GetRecurringJobs(["a", "b"]);
+
+        Assert.Equal(TimeSpan.FromMinutes(10), result[0].SkipAfter);
+        Assert.True(result[0].Declared);
+        Assert.True(result[0].Retired);
+        Assert.Null(result[1].SkipAfter);
+        Assert.False(result[1].Declared);
+        Assert.False(result[1].Retired);
     }
 
     [Theory]

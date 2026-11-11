@@ -10,6 +10,7 @@ public sealed class RecurringJobSetFacts : IDisposable
     private readonly Mock<IRecurringJobManager> _manager = new();
     private readonly Mock<JobStorage> _storage = new();
     private readonly Mock<JobStorageConnection> _connection = new();
+    private readonly Mock<IWriteOnlyTransaction> _transaction = new();
     private readonly Dictionary<string, RecurringJobDto> _stored = new(StringComparer.Ordinal);
 
     public RecurringJobSetFacts()
@@ -17,6 +18,7 @@ public sealed class RecurringJobSetFacts : IDisposable
         JobHandlers.Clear();
 
         _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _connection.Setup(x => x.GetAllItemsFromSet("recurring-jobs")).Returns(() => [.. _stored.Keys]);
         _connection.Setup(x => x.GetAllEntriesFromHash(It.IsAny<string>())).Returns((string key) =>
             new Dictionary<string, string> { ["Cron"] = Cron, ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload() });
@@ -302,6 +304,189 @@ public sealed class RecurringJobSetFacts : IDisposable
         ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new RecurringJobSet().Apply(null, _storage.Object));
 
         Assert.Equal("manager", exception.ParamName);
+    }
+
+    [Fact]
+    public void Apply_MarksADeclaredJob_TheFirstTime()
+    {
+        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+
+        jobs.Apply(_manager.Object, _storage.Object);
+
+        _transaction.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("Declared", "1")))));
+        _transaction.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void Apply_WritesNothingMore_ForAJobAlreadyMarked()
+    {
+        StoreHash("report", declared: true);
+        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+
+        jobs.Apply(_manager.Object, _storage.Object);
+
+        _transaction.Verify(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()), Times.Never);
+    }
+
+    [Fact]
+    public void Apply_ResumesARetiredJob_ThatIsDeclaredAgain()
+    {
+        Mock<IRecurringJobManagerV3> manager = new();
+        StoreHash("report", declared: true, retired: true);
+        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron);
+
+        jobs.Apply(manager.Object, _storage.Object);
+
+        manager.Verify(x => x.Resume("report"));
+        _transaction.Verify(x => x.SetRangeInHash("recurring-job:report", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("Retired", string.Empty)))));
+    }
+
+    [Fact]
+    public void Apply_RetiresUndeclaredJobs_ThatASetDeclared_AndOnlyThem()
+    {
+        Mock<IRecurringJobManagerV3> manager = new();
+        StoreHash("report", declared: true);
+        StoreHash("old", declared: true);
+        StoreHash("made-on-the-dashboard", declared: false);
+        StoreHash("already-retired", declared: true, retired: true);
+        RecurringJobSet jobs = new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared();
+
+        RecurringJobSetResult result = jobs.Apply(manager.Object, _storage.Object);
+
+        Assert.Equal(["old"], result.Retired);
+        manager.Verify(x => x.Pause("old"));
+        manager.Verify(x => x.Pause("made-on-the-dashboard"), Times.Never);
+        manager.Verify(x => x.Pause("report"), Times.Never);
+        manager.Verify(x => x.Pause("already-retired"), Times.Never);
+        manager.Verify(x => x.RemoveIfExists(It.IsAny<string>()), Times.Never);
+        _transaction.Verify(x => x.SetRangeInHash("recurring-job:old", It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("Retired", "1")))));
+    }
+
+    [Fact]
+    public void Apply_RetiresOnlyJobsInTheScope()
+    {
+        Mock<IRecurringJobManagerV3> manager = new();
+        StoreHash("app:old", declared: true);
+        StoreHash("other:old", declared: true);
+        RecurringJobSet jobs = new RecurringJobSet()
+            .Add("app:report", () => Run(), Cron)
+            .RetireUndeclared(static id => id.StartsWith("app:", StringComparison.Ordinal));
+
+        RecurringJobSetResult result = jobs.Apply(manager.Object, _storage.Object);
+
+        Assert.Equal(["app:old"], result.Retired);
+    }
+
+    [Fact]
+    public void Apply_RetiresNothing_WhenNoJobWasDeclared_OrTheManagerCannotPause()
+    {
+        StoreHash("old", declared: true);
+
+        Assert.Empty(new RecurringJobSet().RetireUndeclared().Apply(new Mock<IRecurringJobManagerV3>().Object, _storage.Object).Retired);
+        Assert.Empty(new RecurringJobSet().Add("report", () => Run(), Cron).RetireUndeclared().Apply(_manager.Object, _storage.Object).Retired);
+    }
+
+    [Fact]
+    public void RetireUndeclared_AndRemoveUndeclared_CannotBeCombined()
+    {
+        Assert.Throws<InvalidOperationException>(() => new RecurringJobSet().RemoveUndeclared().RetireUndeclared());
+        Assert.Throws<InvalidOperationException>(() => new RecurringJobSet().RetireUndeclared().RemoveUndeclared());
+    }
+
+    [Fact]
+    public void Apply_CreatesAOnceJob_AndRecordsItsKey()
+    {
+        SetupJobCreation();
+        RecurringJobSet jobs = new RecurringJobSet().Once("seed-roles", () => Run());
+
+        RecurringJobSetResult result = jobs.Apply(_manager.Object, _storage.Object);
+
+        Assert.Equal(["seed-roles"], result.CreatedOnce);
+        _connection.Verify(x => x.AcquireDistributedLock("recurring-job-set:once:lock", It.IsAny<TimeSpan>()));
+        _transaction.Verify(x => x.SetRangeInHash(RecurringJobSet.OnceHashKey, It.Is<IEnumerable<KeyValuePair<string, string>>>(
+            fields => fields.Contains(new KeyValuePair<string, string>("seed-roles", "42")))));
+    }
+
+    [Fact]
+    public void Apply_SkipsAOnceJob_WhoseKeyWasRecorded()
+    {
+        SetupJobCreation();
+        _connection.Setup(x => x.GetAllEntriesFromHash(RecurringJobSet.OnceHashKey)).Returns(new Dictionary<string, string> { ["seed-roles"] = "7" });
+        RecurringJobSet jobs = new RecurringJobSet().Once("seed-roles", () => Run()).Once("seed-users", () => Run());
+
+        RecurringJobSetResult result = jobs.Apply(_manager.Object, _storage.Object);
+
+        Assert.Equal(["seed-users"], result.CreatedOnce);
+        _connection.Verify(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>()), Times.Once);
+    }
+
+    [Fact]
+    public void Apply_SchedulesAOnceJob_WithADelay()
+    {
+        SetupJobCreation();
+        RecurringJobSet jobs = new RecurringJobSet().Once<RecurringJobSetFacts>("warm-cache", x => x.Instance(), TimeSpan.FromMinutes(5));
+
+        jobs.Apply(_manager.Object, _storage.Object);
+
+        _transaction.Verify(x => x.SetJobState("42", It.Is<IState>(state => state is ScheduledState)));
+    }
+
+    [Fact]
+    public void Apply_DoesNotTakeTheLock_WithoutOnceJobs()
+    {
+        new RecurringJobSet().Add("report", () => Run(), Cron).Apply(_manager.Object, _storage.Object);
+
+        _connection.Verify(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Once_ThrowsAnException_WhenTheKeyIsMissing(string key)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new RecurringJobSet().Once(key, () => Run()));
+    }
+
+    [Fact]
+    public void Once_ThrowsAnException_WhenTheKeyIsTooLong_OrTheDelayNegative_OrTheKeyRepeats()
+    {
+        RecurringJobSet jobs = new RecurringJobSet().Once("seed", () => Run());
+
+        Assert.Throws<ArgumentException>(() => jobs.Once(new string('k', 101), () => Run()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => jobs.Once("later", () => Run(), TimeSpan.FromSeconds(-1)));
+        Assert.Throws<InvalidOperationException>(() => jobs.Once("seed", () => Run()));
+    }
+
+    private void StoreHash(string id, bool declared, bool retired = false)
+    {
+        _stored[id] = new RecurringJobDto();
+        Dictionary<string, string> hash = new()
+        {
+            ["Cron"] = Cron,
+            ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
+        };
+
+        if (declared) hash["Declared"] = "1";
+        if (retired) hash["Retired"] = "1";
+
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{id}")).Returns(hash);
+    }
+
+    private void SetupJobCreation()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash(RecurringJobSet.OnceHashKey)).Returns((Dictionary<string, string>)null);
+        _connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
+        _connection.Setup(x => x.CreateExpiredJob(It.IsAny<Job>(), It.IsAny<IDictionary<string, string>>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>())).Returns("42");
+        _connection.Setup(x => x.GetJobData("42")).Returns(new JobData());
+    }
+
+    [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]
+    public void Instance()
+    {
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]

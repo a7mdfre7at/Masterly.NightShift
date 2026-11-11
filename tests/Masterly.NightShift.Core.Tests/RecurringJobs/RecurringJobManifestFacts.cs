@@ -490,7 +490,7 @@ public class RecurringJobManifestFacts
 
         RecurringJobManifestError error = Assert.Single(result.Errors);
         Assert.Equal("bad", error.Id);
-        Assert.Equal("\"misfireHandling\" 7 is not defined. Use 0 (Relaxed), 1 (Strict) or 2 (Ignorable).", error.Message);
+        Assert.Equal("\"misfireHandling\" 7 is not defined. Use 0 (Relaxed), 1 (Strict), 2 (Ignorable) or 3 (RunLatest).", error.Message);
         Assert.Equal(["good"], result.Added);
         _manager.Verify(x => x.AddOrUpdate("bad", It.IsAny<Job>(), It.IsAny<string>(), It.IsAny<RecurringJobOptions>()), Times.Never);
     }
@@ -612,6 +612,35 @@ public class RecurringJobManifestFacts
         _manager.Verify(x => x.AddOrUpdate("a", It.IsAny<Job>(), "0 1 * * *", It.Is<RecurringJobOptions>(o =>
             o.StartAt == new DateTimeOffset(2026, 11, 30, 22, 0, 0, TimeSpan.Zero) &&
             o.EndAt == new DateTimeOffset(2026, 12, 31, 23, 0, 0, TimeSpan.Zero))));
+    }
+
+    [Fact]
+    public void Export_WritesSkipAfter_InSeconds_AndApplyRoundTripsIt()
+    {
+        AddExisting("late", "0 9 * * *");
+        _hashes["recurring-job:late"]["SkipAfter"] = "1800";
+        _hashes["recurring-job:late"]["Misfire"] = "3";
+
+        string json = RecurringJobManifest.Export(_connection.Object);
+        JsonArray entries = JsonNode.Parse(json)["recurringJobs"].AsArray();
+        Assert.Equal(1800, entries[0]["skipAfterSeconds"].GetValue<long>());
+        Assert.Equal(3, entries[0]["misfireHandling"].GetValue<int>());
+
+        RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+
+        Assert.Empty(result.Errors);
+        _manager.Verify(x => x.AddOrUpdate("late", It.IsAny<Job>(), "0 9 * * *", It.Is<RecurringJobOptions>(o =>
+            o.SkipAfter == TimeSpan.FromMinutes(30) && o.MisfireHandling == MisfireHandlingMode.RunLatest)));
+    }
+
+    [Fact]
+    public void Export_OmitsSkipAfter_WhenItIsNotSet()
+    {
+        AddExisting("plain", "0 9 * * *");
+
+        JsonArray entries = JsonNode.Parse(RecurringJobManifest.Export(_connection.Object))["recurringJobs"].AsArray();
+
+        Assert.Null(entries[0]["skipAfterSeconds"]);
     }
 
     [Fact]

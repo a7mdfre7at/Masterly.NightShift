@@ -595,6 +595,9 @@
   <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
     <value>Atla (ignorable)</value>
   </data>
+  <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
+    <value>Yalnızca sonuncusu, yeniyse (run latest)</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Kuyruk</value>
   </data>

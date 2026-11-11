@@ -30,6 +30,7 @@ public static class GlobalJobFilters
         Filters = new JobFilterCollection();
         Filters.Add(new CaptureCultureAttribute());
         Filters.Add(new TerminateJobFilter());
+        Filters.Add(new LateStartFilter());
         Filters.Add(new AutomaticRetryAttribute());
         Filters.Add(new StatisticsHistoryAttribute());
         Filters.Add(new ContinuationsSupportAttribute());

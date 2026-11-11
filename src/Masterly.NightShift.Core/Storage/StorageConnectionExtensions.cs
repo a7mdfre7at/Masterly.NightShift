@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
+using System.Globalization;
+
 namespace Masterly.NightShift.Storage;
 
 /// <summary>
@@ -192,6 +194,16 @@ public static class StorageConnectionExtensions
 
             dto.StartAt = GetWindowValue(hash, RecurringJobEntity.StartAtField);
             dto.EndAt = GetWindowValue(hash, RecurringJobEntity.EndAtField);
+
+            if (hash.TryGetValue(RecurringJobEntity.SkipAfterField, out string? skipAfter) &&
+                long.TryParse(skipAfter, NumberStyles.Integer, CultureInfo.InvariantCulture, out long skipAfterSeconds) &&
+                skipAfterSeconds > 0)
+            {
+                dto.SkipAfter = TimeSpan.FromSeconds(skipAfterSeconds);
+            }
+
+            dto.Declared = hash.TryGetValue(RecurringJobSet.DeclaredField, out string? declared) && declared == "1";
+            dto.Retired = hash.TryGetValue(RecurringJobSet.RetiredField, out string? retired) && retired == "1";
 
             result.Add(dto);
         }

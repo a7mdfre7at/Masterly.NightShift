@@ -99,6 +99,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
         ValidateCronExpression(cronExpression);
         ValidateMisfireHandling(options.MisfireHandling, nameof(options));
         ValidateWindow(options.StartAt, options.EndAt, nameof(options));
+        ValidateSkipAfter(options.SkipAfter, options.MisfireHandling, nameof(options));
 
         if (job.Queue != null && !Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
         {
@@ -144,6 +145,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
             recurringJob.Queue = options.QueueName;
             recurringJob.MisfireHandling = options.MisfireHandling;
+            recurringJob.SkipAfter = options.SkipAfter;
             recurringJob.RetryAttempt = 0;
 
             // A paused job stays paused when the application re-registers it on start-up
@@ -224,7 +226,21 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             throw new ArgumentOutOfRangeException(
                 parameterName,
                 misfireHandling,
-                $"Misfire handling mode {(int)misfireHandling} is not defined. Use Relaxed, Strict or Ignorable.");
+                $"Misfire handling mode {(int)misfireHandling} is not defined. Use Relaxed, Strict, Ignorable or RunLatest.");
+        }
+    }
+
+    // SkipAfter is stored in whole seconds; RunLatest needs it, or it would catch up without a limit
+    internal static void ValidateSkipAfter(TimeSpan? skipAfter, MisfireHandlingMode misfireHandling, [InvokerParameterName] string parameterName)
+    {
+        if (skipAfter.HasValue && skipAfter.Value < TimeSpan.FromSeconds(1))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, skipAfter.Value, "SkipAfter must be at least one second.");
+        }
+
+        if (misfireHandling == MisfireHandlingMode.RunLatest && !skipAfter.HasValue)
+        {
+            throw new ArgumentException("MisfireHandlingMode.RunLatest needs SkipAfter, the age after which a missed occurrence no longer runs.", parameterName);
         }
     }
 
@@ -404,6 +420,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
 
             if (misfireHandling.HasValue)
             {
+                ValidateSkipAfter(recurringJob.SkipAfter, misfireHandling.Value, nameof(misfireHandling));
                 recurringJob.MisfireHandling = misfireHandling.Value;
             }
 
@@ -493,6 +510,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
         {
             transaction.RemoveHash($"recurring-job:{recurringJobId}");
             transaction.RemoveFromSet("recurring-jobs", recurringJobId);
+            RecurringJobHistory.Remove(transaction, recurringJobId);
 
             transaction.Commit();
         }

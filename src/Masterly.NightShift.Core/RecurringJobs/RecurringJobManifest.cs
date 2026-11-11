@@ -53,6 +53,13 @@ public sealed class RecurringJobManifestEntry
     [JsonInclude, JsonPropertyName("endAt"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? EndAt { get; set; }
 
+    /// <summary>
+    /// How late a run may start, in seconds (<see cref="RecurringJobOptions.SkipAfter"/>); runs start however late
+    /// when omitted.
+    /// </summary>
+    [JsonInclude, JsonPropertyName("skipAfterSeconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? SkipAfterSeconds { get; set; }
+
     /// <summary>The method to call: type, method name, parameter types and arguments as the storage keeps them.</summary>
     [JsonInclude, JsonPropertyName("job")]
     public RecurringJobManifestJob Job { get; set; } = new RecurringJobManifestJob();
@@ -328,7 +335,7 @@ public static class RecurringJobManifest
 
             if (!Enum.IsDefined(entry.MisfireHandling))
             {
-                errors.Add(new RecurringJobManifestError(id, $"\"misfireHandling\" {(int)entry.MisfireHandling} is not defined. Use 0 (Relaxed), 1 (Strict) or 2 (Ignorable)."));
+                errors.Add(new RecurringJobManifestError(id, $"\"misfireHandling\" {(int)entry.MisfireHandling} is not defined. Use 0 (Relaxed), 1 (Strict), 2 (Ignorable) or 3 (RunLatest)."));
                 continue;
             }
 
@@ -351,6 +358,7 @@ public static class RecurringJobManifest
                     MisfireHandling = entry.MisfireHandling,
                     StartAt = entry.StartAt,
                     EndAt = entry.EndAt,
+                    SkipAfter = entry.SkipAfterSeconds.HasValue ? TimeSpan.FromSeconds(entry.SkipAfterSeconds.Value) : null,
                 };
 
                 if (queue != null && !jobQueues)
@@ -424,6 +432,7 @@ public static class RecurringJobManifest
             MisfireHandling = dto.MisfireHandling,
             StartAt = ToUtcOffset(dto.StartAt),
             EndAt = ToUtcOffset(dto.EndAt),
+            SkipAfterSeconds = dto.SkipAfter.HasValue ? (long)dto.SkipAfter.Value.TotalSeconds : null,
             Job = new RecurringJobManifestJob
             {
                 Type = invocationData.Type,

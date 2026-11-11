@@ -221,11 +221,12 @@ Code that compiles against Masterly.NightShift can still behave differently. The
 
 ### Default global filters
 
-`GlobalJobFilters.Filters` holds six more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
+`GlobalJobFilters.Filters` holds seven more filters than in Hangfire, after Hangfire's four (`CaptureCultureAttribute`, `AutomaticRetryAttribute`, `StatisticsHistoryAttribute`, `ContinuationsSupportAttribute`). For a job that doesn't use their feature, they only read (job parameters, and the drain-mode switch, which is cached) and write nothing:
 
 | Filter | Does |
 |---|---|
 | `TerminateJobFilter` | Deletes a job that threw `TerminateJobException` as skipped or canceled, instead of failing it |
+| `LateStartFilter` | Skips a run later than its `SkipAfter` job parameter, only for jobs that carry it; it reads the parameters loaded with the job, never the storage |
 | `FanInContinuationsSupportAttribute` | Drives `ContinueJobWithAll`/`ContinueJobWithAny` |
 | `JobConsoleStateFilter` | Expires a job's console lists (`job:{id}:console`, `job:{id}:checkpoints`) together with the job, only for jobs whose console wrote to storage and only on storages with `ExtendedApi` |
 | `DrainModeFilter` | Holds jobs while processing is paused from the dashboard or with `DrainMode` |
@@ -243,6 +244,7 @@ New features store their data in the existing primitives, under new keys. Most a
 | `audit` list | Someone acts through the dashboard (requeue, delete, trigger...), unless `AuditLog.Enabled` is `false` |
 | `stats:{state}:yyyy-MM-dd-HH` counters | Every job finishes, as before, but `StatisticsHistoryAttribute` now keeps them for eight days instead of one (168 per state instead of 24), so the Insights heatmap can show a week |
 | `hangfire:control` hash | Processing, a queue or a server is paused |
+| `recurring-job:{id}:runs` list | A recurring job creates a run, by its schedule or `Trigger`: the run's job ID, the last 50 kept, written in the same transaction as the run. Removed with the recurring job |
 | `ScheduledFor` job parameter | A job is created in the Scheduled state (`Schedule`): the moment it is meant to run, read by `PerformContext.ScheduledFor`. It is written with the job, in the same command, so it costs no round trip |
 | Recurring job hash fields `Paused`, `ResumedAt`, `ScheduleChangedAt`, `StartAt`, `EndAt` | A recurring job is paused, resumed or rescheduled, or has start and end dates |
 

@@ -626,6 +626,9 @@
   <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
     <value>Ignorá-las (ignorable)</value>
   </data>
+  <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
+    <value>Apenas a última, se recente (run latest)</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Fila</value>
   </data>

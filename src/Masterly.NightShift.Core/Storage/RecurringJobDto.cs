@@ -52,4 +52,22 @@ public class RecurringJobDto
     /// or <c>null</c> when it has no end. A job past its end has no <see cref="NextExecution"/>.
     /// </summary>
     public DateTime? EndAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets how late a run may start (<see cref="RecurringJobOptions.SkipAfter"/>), or <c>null</c> when runs
+    /// start however late.
+    /// </summary>
+    public TimeSpan? SkipAfter { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the job was registered by a <see cref="RecurringJobSet"/> (declared in code), so a change
+    /// made elsewhere, on the dashboard for example, is replaced by the declaration the next time the set is applied.
+    /// </summary>
+    public bool Declared { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the job was paused because a <see cref="RecurringJobSet"/> no longer declares it
+    /// (<see cref="RecurringJobSet.RetireUndeclared"/>). Declaring it again resumes it.
+    /// </summary>
+    public bool Retired { get; set; }
 }

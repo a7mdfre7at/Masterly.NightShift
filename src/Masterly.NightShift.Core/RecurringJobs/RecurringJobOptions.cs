@@ -22,11 +22,27 @@ public class RecurringJobOptions
 {
     public RecurringJobOptions()
     {
-        TimeZone = TimeZoneInfo.Utc;
+        TimeZone = DefaultTimeZone;
         QueueName = EnqueuedState.DefaultQueue;
         MisfireHandling = MisfireHandlingMode.Relaxed;
     }
 
+    /// <summary>
+    /// Gets or sets the time zone new options start with, so recurring jobs registered without a time zone get it:
+    /// <see cref="TimeZoneInfo.Utc"/> unless changed with <c>UseDefaultRecurringJobTimeZone</c>. Jobs already
+    /// stored keep the time zone they were registered with.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The value is <c>null</c>.</exception>
+    [NotNull]
+    public static TimeZoneInfo DefaultTimeZone
+    {
+        get;
+        set => field = value ?? throw new ArgumentNullException(nameof(value));
+    } = TimeZoneInfo.Utc;
+
+    /// <summary>
+    /// Gets or sets the time zone the CRON expression is read in. Defaults to <see cref="DefaultTimeZone"/>.
+    /// </summary>
     [NotNull]
     public TimeZoneInfo TimeZone
     {
@@ -38,6 +54,19 @@ public class RecurringJobOptions
             field = value;
         }
     } = TimeZoneInfo.Utc;
+
+    /// <summary>
+    /// Gets or sets how late a run may start, or <c>null</c> (the default) to run however late. A run that starts
+    /// more than this after its occurrence is deleted as skipped, like a job with <see cref="SkipIfLateAttribute"/>,
+    /// and <see cref="MisfireHandlingMode.RunLatest"/> leaves out a missed occurrence older than this. Must be
+    /// positive.
+    /// </summary>
+    /// <remarks>
+    /// Stored with the recurring job, with a precision of one second, and copied to every run as the
+    /// <c>SkipAfter</c> job parameter. It needs a storage that loads the parameters with the job, as SQL Server
+    /// does; on another storage the parameter is ignored and only <see cref="SkipIfLateAttribute"/> skips runs.
+    /// </remarks>
+    public TimeSpan? SkipAfter { get; set; }
 
     /// <summary>
     /// Gets or sets the queue the recurring job's runs are enqueued to. Default is <c>default</c>. Prefer the

@@ -611,6 +611,9 @@
   <data name="RecurringJobsPage_Misfire_Ignorable" xml:space="preserve">
     <value>Пропустить (ignorable)</value>
   </data>
+  <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
+    <value>Только последний, если недавний (run latest)</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Очередь</value>
   </data>

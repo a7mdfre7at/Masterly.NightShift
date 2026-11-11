@@ -42,7 +42,9 @@ dashboard writes through POST commands with the read-only check, strings in all 
 | `GetOutcomeAsync` | Done | `storage.GetJobState(id)`, `storage.TryGetResult<T>(id, out result)`. |
 | `WaitForCompletionAsync(id, timeout)` | Port | `storage.WaitForCompletionAsync(id, timeout, ct)` and `JobStateInfo.IsFinal`. |
 
-## Phase 2: Scheduling
+## Phase 2: Scheduling (done)
+
+Seed retirement is opt-in (`RetireUndeclared`), and only touches jobs a set declared. The dashboard badge for declared jobs comes with the recurring job details page in Phase 8.
 
 | TickerQ | Status | NightShift |
 |---|---|---|

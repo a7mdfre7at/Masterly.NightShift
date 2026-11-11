@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -12,11 +13,17 @@ public sealed class NightShiftJobDeclarationServiceCollectionExtensionsFacts : I
 
     private readonly Mock<IRecurringJobManager> _manager = new();
     private readonly Mock<JobStorage> _storage = new();
+    private readonly Mock<IStorageConnection> _connection = new();
+    private readonly Mock<IWriteOnlyTransaction> _transaction = new();
     private readonly ServiceCollection _services = new();
 
     public NightShiftJobDeclarationServiceCollectionExtensionsFacts()
     {
         JobHandlers.Clear();
+
+        // Applying a set marks each declared job in the storage
+        _storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
 
         _services.AddLogging();
         _services.AddSingleton(_manager.Object);

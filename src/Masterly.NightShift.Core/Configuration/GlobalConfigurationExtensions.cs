@@ -342,6 +342,22 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Sets the time zone of recurring jobs registered without one (<see cref="RecurringJobOptions.DefaultTimeZone"/>),
+        /// so CRON expressions written for local business hours don't each need a time zone. Recurring jobs already
+        /// stored keep theirs until they are registered again. UTC unless this is called.
+        /// </summary>
+        /// <param name="timeZone">The time zone.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        public IGlobalConfiguration UseDefaultRecurringJobTimeZone([NotNull] TimeZoneInfo timeZone)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(timeZone);
+
+            RecurringJobOptions.DefaultTimeZone = timeZone;
+            return configuration;
+        }
+
+        /// <summary>
         /// Sets the System.Text.Json options used to serialize user data like job arguments and parameters, or
         /// restores the defaults when <paramref name="settings"/> is <c>null</c>.
         /// <see cref="SerializationHelper.Serialize{T}(T, SerializationOption)"/> with <see cref="SerializationOption.User"/>

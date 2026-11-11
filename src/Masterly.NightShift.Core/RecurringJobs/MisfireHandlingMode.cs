@@ -49,4 +49,13 @@ public enum MisfireHandlingMode
     /// the scheduler then wakes up once a minute).
     /// </summary>
     Ignorable = 2,
+
+    /// <summary>
+    /// Specifies that after missed occurrences only the latest of them runs, with "Time" set to that occurrence,
+    /// and only when it is no older than <see cref="RecurringJobOptions.SkipAfter"/>, which this mode requires.
+    /// After an outage a daily job runs once for the last day it missed, if that day is recent enough, and its
+    /// <c>PerformContext.ScheduledFor</c> tells it which day that was. Only servers of this version or later
+    /// read it.
+    /// </summary>
+    RunLatest = 3,
 }

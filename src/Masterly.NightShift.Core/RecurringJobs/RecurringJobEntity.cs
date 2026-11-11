@@ -129,7 +129,26 @@ internal sealed class RecurringJobEntity
         {
             EndAt = JobHelper.DeserializeDateTime(endAt);
         }
+
+        if (recurringJob.TryGetValue(SkipAfterField, out string? skipAfter) &&
+            long.TryParse(skipAfter, NumberStyles.Integer, CultureInfo.InvariantCulture, out long skipAfterSeconds) &&
+            skipAfterSeconds > 0)
+        {
+            SkipAfter = TimeSpan.FromSeconds(skipAfterSeconds);
+        }
     }
+
+    /// <summary>
+    /// Hash field with <see cref="SkipAfter"/>, in whole seconds. Servers of earlier versions ignore it and run
+    /// late occurrences.
+    /// </summary>
+    internal const string SkipAfterField = "SkipAfter";
+
+    /// <summary>
+    /// How late a run may start, or <c>null</c>. Copied to each run as a job parameter, and the limit of
+    /// <see cref="MisfireHandlingMode.RunLatest"/>.
+    /// </summary>
+    public TimeSpan? SkipAfter { get; set; }
 
     // Hash fields of the run window. Servers of earlier versions don't know them and schedule as if there
     // were no window, so the recurring job's version stays 2 and these servers keep scheduling it.
@@ -286,11 +305,21 @@ internal sealed class RecurringJobEntity
         CronExpression cron = ParseCronExpression(Cron!); // An entry without a cron returned above
         TimeZoneInfo timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
 
+        if (MisfireHandling == MisfireHandlingMode.RunLatest && SkipAfter.HasValue)
+        {
+            // Only the occurrences inside the window can run, so the older ones aren't even looked at: a job
+            // that runs every second doesn't walk through a long outage occurrence by occurrence
+            DateTime windowStart = now - SkipAfter.Value;
+            if (windowStart.AddSeconds(-1) > from) from = windowStart.AddSeconds(-1);
+        }
+
         // Before the window opens, the first occurrence is the first one at or after its start, so no
         // misfire handling mode catches up on the occurrences before it
         DateTime? next = StartAt.HasValue && StartAt.Value > from
             ? cron.GetNextOccurrence(StartAt.Value, timeZone, inclusive: true)
             : cron.GetNextOccurrence(from, timeZone, inclusive: false);
+
+        DateTime? latestMissed = null;
 
         // Occurrences after the window's end never run, whatever the misfire handling mode
         for (; next <= now && !IsAfterEnd(next); next = cron.GetNextOccurrence(next.Value, timeZone, inclusive: false))
@@ -323,8 +352,19 @@ internal sealed class RecurringJobEntity
                         }
 
                         break;
+                    case MisfireHandlingMode.RunLatest:
+                        // Each one replaces the one before; the last is added after the loop
+                        latestMissed = next;
+                        break;
                 }
             }
+        }
+
+        if (latestMissed.HasValue && !result.Contains(latestMissed.Value) &&
+            (!SkipAfter.HasValue || now - latestMissed.Value <= SkipAfter.Value))
+        {
+            result.Add(latestMissed.Value);
+            result.Sort();
         }
 
         // After the window's end the job leaves the schedule, but stays registered
@@ -439,6 +479,17 @@ internal sealed class RecurringJobEntity
 
         AddWindowFieldIfChanged(result, StartAtField, StartAt);
         AddWindowFieldIfChanged(result, EndAtField, EndAt);
+
+        string? serializedSkipAfter = SkipAfter.HasValue
+            ? ((long)SkipAfter.Value.TotalSeconds).ToString(CultureInfo.InvariantCulture)
+            : null;
+        string? storedSkipAfter = _recurringJob.TryGetValue(SkipAfterField, out string? skipAfterValue) && !string.IsNullOrWhiteSpace(skipAfterValue)
+            ? skipAfterValue
+            : null;
+        if (serializedSkipAfter != storedSkipAfter)
+        {
+            result.Add(SkipAfterField, serializedSkipAfter ?? string.Empty);
+        }
 
         string pausedValue = Paused ? "1" : "0";
         if ((!_recurringJob.ContainsKey("Paused") && Paused) ||

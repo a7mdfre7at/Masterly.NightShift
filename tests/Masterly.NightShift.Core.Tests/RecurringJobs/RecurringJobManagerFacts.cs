@@ -176,6 +176,96 @@ public class RecurringJobManagerFacts
     }
 
     [Fact]
+    public void AddOrUpdate_ThrowsAnException_WhenSkipAfterIsShorterThanASecond()
+    {
+        RecurringJobManager manager = CreateManager();
+
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions { SkipAfter = TimeSpan.FromMilliseconds(500) }));
+
+        Assert.Equal("options", exception.ParamName);
+        _connection.Verify(x => x.CreateWriteTransaction(), Times.Never);
+    }
+
+    [Fact]
+    public void AddOrUpdate_ThrowsAnException_WhenRunLatestHasNoSkipAfter()
+    {
+        RecurringJobManager manager = CreateManager();
+
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions { MisfireHandling = MisfireHandlingMode.RunLatest }));
+
+        Assert.Equal("options", exception.ParamName);
+    }
+
+    [Fact]
+    public void AddOrUpdate_StoresSkipAfter_AndRunLatest()
+    {
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, _cronExpression, new RecurringJobOptions
+        {
+            MisfireHandling = MisfireHandlingMode.RunLatest,
+            SkipAfter = TimeSpan.FromMinutes(15),
+        });
+
+        _transaction.Verify(x => x.SetRangeInHash(
+            $"recurring-job:{_id}",
+            It.Is<Dictionary<string, string>>(rj => rj["SkipAfter"] == "900" && rj["Misfire"] == "3")));
+    }
+
+    [Fact]
+    public void UpdateSchedule_ThrowsAnException_WhenRunLatestIsChosen_ForAJobWithoutSkipAfter()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
+            .Returns(new Dictionary<string, string>
+            {
+                { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
+                { "Cron", _cronExpression },
+            });
+        _connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>())).Returns(new Mock<IDisposable>().Object);
+        RecurringJobManager manager = CreateManager();
+
+        Assert.Throws<ArgumentException>(() => manager.UpdateSchedule(_id, null, misfireHandling: MisfireHandlingMode.RunLatest));
+    }
+
+    [Fact]
+    public void Trigger_CopiesSkipAfter_ToTheRun()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
+            .Returns(new Dictionary<string, string>
+            {
+                { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
+                { "Cron", _cronExpression },
+                { "SkipAfter", "120" },
+            });
+        RecurringJobManager manager = CreateManager();
+
+        manager.Trigger(_id);
+
+        _factory.Verify(x => x.Create(It.Is<CreateContext>(ctx =>
+            (long)ctx.Parameters[SkipIfLateAttribute.WindowParameter] == 120L &&
+            (string)ctx.Parameters["RecurringJobId"] == _id)));
+    }
+
+    [Fact]
+    public void Trigger_RecordsTheRun_InTheRecurringJobsHistory()
+    {
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}"))
+            .Returns(new Dictionary<string, string>
+            {
+                { "Job", TestJson.ToJson(InvocationData.SerializeJob(_job)) },
+                { "Cron", _cronExpression },
+            });
+        RecurringJobManager manager = CreateManager();
+
+        manager.Trigger(_id);
+
+        _transaction.Verify(x => x.InsertToList($"recurring-job:{_id}:runs", "my-id"));
+        _transaction.Verify(x => x.TrimList($"recurring-job:{_id}:runs", 0, RecurringJobHistory.MaxRuns - 1));
+    }
+
+    [Fact]
     public void AddOrUpdate_ThrowsAnException_WhenJobQueueIsSet_ButStorageDoesNotSupportIt()
     {
         // Arrange
@@ -769,6 +859,7 @@ public class RecurringJobManagerFacts
 
         _transaction.Verify(x => x.RemoveFromSet("recurring-jobs", _id));
         _transaction.Verify(x => x.RemoveHash($"recurring-job:{_id}"));
+        _transaction.Verify(x => x.TrimList($"recurring-job:{_id}:runs", 1, 0));
         _transaction.Verify(x => x.Commit());
     }
 

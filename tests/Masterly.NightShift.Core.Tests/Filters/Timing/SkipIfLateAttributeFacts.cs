@@ -141,6 +141,80 @@ public class SkipIfLateAttributeFacts
         }
     }
 
+    [Fact]
+    public void LateStartFilter_SkipsARunLaterThanItsSkipAfterParameter()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(20));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+
+        TerminateJobException exception = Assert.Throws<TerminateJobException>(
+            () => new LateStartFilter().OnPerforming(_context.GetPerformingContext()));
+
+        Assert.Equal(TerminateJobOutcome.Skipped, exception.Outcome);
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"));
+    }
+
+    [Fact]
+    public void LateStartFilter_LetsARunOnTimeRun_AndRecordsTheCheck()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(1));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+
+        new LateStartFilter().OnPerforming(_context.GetPerformingContext());
+
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0")]
+    [InlineData("-10")]
+    [InlineData("soon")]
+    public void LateStartFilter_DoesNothing_WithoutAValidSkipAfterParameter(string value)
+    {
+        ScheduledAgo(TimeSpan.FromDays(2));
+        if (value != null) _parameters[SkipIfLateAttribute.WindowParameter] = value;
+
+        new LateStartFilter().OnPerforming(_context.GetPerformingContext());
+
+        _context.Connection.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void LateStartFilter_DoesNotCheckAgain_OnceChecked()
+    {
+        ScheduledAgo(TimeSpan.FromDays(2));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+        _parameters[SkipIfLateAttribute.CheckedParameter] = "true";
+
+        new LateStartFilter().OnPerforming(_context.GetPerformingContext());
+
+        _context.Connection.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void LateStartFilter_ReadsNothingFromTheStorage_WithoutAParameterSnapshot()
+    {
+        PerformContextMock context = new();
+        context.BackgroundJob.CreatedAt = DateTime.UtcNow.AddDays(-2);
+
+        new LateStartFilter().OnPerforming(context.GetPerformingContext());
+
+        context.Connection.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void LateStartFilter_IsAGlobalFilterByDefault()
+    {
+        Assert.Contains(GlobalJobFilters.Filters, filter => filter.Instance is LateStartFilter);
+    }
+
+    [Fact]
+    public void LateStartFilter_ThrowsAnException_WhenContextIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new LateStartFilter().OnPerforming(null));
+    }
+
     private void ScheduledAgo(TimeSpan ago)
     {
         DateTime scheduledFor = DateTime.UtcNow - ago;

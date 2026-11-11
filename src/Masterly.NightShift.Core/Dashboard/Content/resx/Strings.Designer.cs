@@ -1573,6 +1573,15 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("RecurringJobsPage_Misfire_Ignorable", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only the latest, if recent (run latest).
+        /// </summary>
+        public static string RecurringJobsPage_Misfire_RunLatest {
+            get {
+                return ResourceManager.GetString("RecurringJobsPage_Misfire_RunLatest", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Queue.

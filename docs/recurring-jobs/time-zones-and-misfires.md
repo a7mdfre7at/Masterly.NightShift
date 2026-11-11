@@ -47,8 +47,9 @@ The recurring job scheduler wakes up every `SchedulePollingInterval` (15 seconds
 | `Relaxed` (default) | 0 | All missed runs together become **one** run, created as soon as the scheduler notices them. | The moment the scheduler created it. |
 | `Strict` | 1 | **One run per missed occurrence**, created as soon as the scheduler notices them, at most 100 per scheduler pass (the following passes, which start right away, create the rest). | The occurrence it stands for. |
 | `Ignorable` | 2 | **None.** Missed runs are dropped; the job waits for its next occurrence. | The occurrence. |
+| `RunLatest` | 3 | **Only the latest** missed occurrence, and only when it is no older than `SkipAfter`, which this mode needs. | The occurrence it stands for. |
 
-Set it with `RecurringJobOptions.MisfireHandling`, change it with `UpdateSchedule(id, null, misfireHandling: ...)`, or pick it in the dashboard's **Edit** dialog. Only the three values above are accepted: `AddOrUpdate` and `UpdateSchedule` throw `ArgumentOutOfRangeException` for any other number (such as `(MisfireHandlingMode)7`), and a manifest entry with one is reported as an error. The `Time` job parameter (Unix seconds) and the `RecurringJobId` parameter are on every created job; see [Creating recurring jobs](creating-recurring-jobs.md#knowing-which-run-you-are).
+Set it with `RecurringJobOptions.MisfireHandling`, change it with `UpdateSchedule(id, null, misfireHandling: ...)`, or pick it in the dashboard's **Edit** dialog. Only the four values above are accepted: `AddOrUpdate` and `UpdateSchedule` throw `ArgumentOutOfRangeException` for any other number (such as `(MisfireHandlingMode)7`), and a manifest entry with one is reported as an error. `RunLatest` without `SkipAfter` throws `ArgumentException`, from `UpdateSchedule` too when the job has none. The `Time` job parameter (Unix seconds) and the `RecurringJobId` parameter are on every created job; see [Creating recurring jobs](creating-recurring-jobs.md#knowing-which-run-you-are).
 
 ## Misfire handling
 
@@ -68,12 +69,15 @@ A job `charge-subscriptions` runs hourly (`0 * * * *`, UTC). It last ran at 09:0
 | `Relaxed` | 1 | 12:20:05 | 12:20:05 | 13:00 |
 | `Strict` | 3 | 10:00, 11:00, 12:00 | 12:00 | 13:00 |
 | `Ignorable` | 0 | | 09:00 (unchanged) | 13:00 |
+| `RunLatest`, `SkipAfter` 1 h | 1 | 12:00 | 12:00 | 13:00 |
+| `RunLatest`, `SkipAfter` 15 min | 0 | | 09:00 (unchanged) | 13:00 |
 
 Choose:
 
 - `Relaxed` when the job's work doesn't depend on how many runs there were: rebuilding a cache, syncing "everything since last time", sending a digest. One late run brings things up to date.
 - `Strict` when each run stands for its own period and the job reads the `Time` parameter to know which one: hourly billing, per-day exports, "close the books for this date".
 - `Ignorable` when a late run is worthless or harmful: "send the 9 o'clock reminder" at noon, refreshing a cache that the next run refreshes anyway.
+- `RunLatest` when only the most recent period matters, but only while it is still recent: a daily report for the last day missed, as long as it is no more than a few hours late.
 
 ### Normal operation
 
@@ -92,6 +96,37 @@ The same rules apply however long the servers were down. Missed runs are counted
 ### When creating a run fails
 
 If the scheduler can't create or enqueue a run (a client or state filter throws, the storage fails), the runs enqueued before it in the same pass are kept, and the job's last execution stays at the last of them. The scheduler tries the job again on its next poll and counts missed runs from there, so the failed run and the ones after it are created again, following the job's misfire handling: `Strict` creates each of them, `Relaxed` creates one run, and `Ignorable` creates the ones still within its tolerance. After 5 retries that fail too, the job is disabled, with the error shown on the dashboard. A run that was created but not enqueued has no state and appears nowhere; its data expires after 30 days.
+
+## Late runs: SkipAfter and RunLatest
+
+`RecurringJobOptions.SkipAfter` limits how late a run may start, wherever the delay comes from: a full queue, a paused queue, a run created late by `Relaxed`, busy servers. It is copied to every run as the `SkipAfter` job parameter, and `LateStartFilter`, a default global filter, deletes a run that starts more than `SkipAfter` after its occurrence (`PerformContext.ScheduledFor`), with the reason `Skipped: started 2.5 h late, more than the 30 min allowed`. The run isn't retried, and a run triggered by hand, whose occurrence is the moment it was triggered, isn't late. The check is the one of [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute), made once per job.
+
+```csharp
+RecurringJob.AddOrUpdate<ReportService>(
+    "daily-report",
+    x => x.SendDaily(),
+    "0 7 * * *",
+    new RecurringJobOptions
+    {
+        TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"),
+        MisfireHandling = MisfireHandlingMode.RunLatest,
+        SkipAfter = TimeSpan.FromHours(3),
+    });
+```
+
+With `MisfireHandlingMode.RunLatest`, after an outage the scheduler creates one run for the latest occurrence it missed, with that occurrence as its `Time`, so the job knows which day it stands for. It only looks at occurrences inside `SkipAfter`, so a job that runs every second doesn't walk through a long outage, and when the latest missed occurrence is older than `SkipAfter`, no run is created. Without an outage, it behaves like the other modes.
+
+`LateStartFilter` reads the parameter from the parameters the worker loads with the job. SQL Server loads them; on a storage that doesn't (`BackgroundJob.ParametersSnapshot` is `null`), the parameter is ignored rather than read for every job, and only `[SkipIfLate]` skips runs. `RunLatest` and `SkipAfter` are read by servers of this version or later.
+
+## Default time zone
+
+Recurring jobs registered without a time zone use UTC. To write CRON expressions in local business time without repeating the zone, set the default once at start-up:
+
+```csharp
+GlobalConfiguration.Configuration.UseDefaultRecurringJobTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"));
+```
+
+It sets `RecurringJobOptions.DefaultTimeZone`, which every new `RecurringJobOptions` starts with. A job registered with its own time zone keeps it, and jobs already stored keep the zone they were registered with until they are registered again. Call it in every process that registers recurring jobs, before it does.
 
 ## Start and end dates
 

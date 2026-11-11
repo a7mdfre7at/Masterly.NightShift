@@ -61,6 +61,12 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
     /// <summary>Gets the longest lateness allowed.</summary>
     public TimeSpan Window { get; }
 
+    /// <summary>
+    /// The job parameter with the longest lateness allowed for a job, in seconds, as
+    /// <see cref="RecurringJobOptions.SkipAfter"/> sets it on each run. <see cref="LateStartFilter"/> applies it.
+    /// </summary>
+    public const string WindowParameter = "SkipAfter";
+
     /// <inheritdoc />
     public void OnPerforming(PerformingContext context)
     {
@@ -68,15 +74,23 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
 
         if (context.GetJobParameter<bool>(CheckedParameter, allowStale: true)) return;
 
+        Check(context, Window);
+    }
+
+    /// <summary>
+    /// Skips the run when it started more than <paramref name="window"/> late, and records the check.
+    /// </summary>
+    internal static void Check(PerformContext context, TimeSpan window)
+    {
         TimeSpan lateness = context.Lateness;
 
         // Recorded before the job is skipped too, so a skipped job requeued by hand runs
         context.SetJobParameter(CheckedParameter, true);
 
-        if (lateness > Window)
+        if (lateness > window)
         {
             throw new TerminateJobException(
-                $"started {Format(lateness)} late, more than the {Format(Window)} allowed",
+                $"started {Format(lateness)} late, more than the {Format(window)} allowed",
                 TerminateJobOutcome.Skipped);
         }
     }
@@ -101,5 +115,37 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
         return TimeSpan.TryParse(window, CultureInfo.InvariantCulture, out TimeSpan parsed)
             ? parsed
             : throw new ArgumentException($"'{window}' isn't a time span such as \"00:30:00\".", nameof(window));
+    }
+}
+
+/// <summary>
+/// Skips a run that starts later than its <c>SkipAfter</c> job parameter allows, as <see cref="SkipIfLateAttribute"/>
+/// does: recurring jobs with <see cref="RecurringJobOptions.SkipAfter"/> set it on every run. Added to
+/// <see cref="GlobalJobFilters.Filters"/> by default.
+/// </summary>
+/// <remarks>
+/// It reads the parameter from the parameters the worker loaded with the job, so a job without it costs a
+/// dictionary lookup. A storage that doesn't load them with the job (<see cref="BackgroundJob.ParametersSnapshot"/>
+/// is <c>null</c>) gets no check, rather than a storage read for every job.
+/// </remarks>
+public sealed class LateStartFilter : IServerFilter
+{
+    /// <inheritdoc />
+    public void OnPerforming(PerformingContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
+        if (parameters == null || !parameters.TryGetValue(SkipIfLateAttribute.WindowParameter, out string? value)) return;
+        if (parameters.ContainsKey(SkipIfLateAttribute.CheckedParameter)) return;
+
+        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long seconds) || seconds <= 0) return;
+
+        SkipIfLateAttribute.Check(context, TimeSpan.FromSeconds(seconds));
+    }
+
+    /// <inheritdoc />
+    public void OnPerformed(PerformedContext context)
+    {
     }
 }

@@ -6,7 +6,13 @@ namespace Masterly.NightShift;
 /// <summary>What <see cref="RecurringJobSet.Apply(IRecurringJobManager, JobStorage)"/> did.</summary>
 /// <param name="Applied">The identifiers of the recurring jobs registered or updated.</param>
 /// <param name="Removed">The identifiers of the undeclared recurring jobs removed.</param>
-public sealed record RecurringJobSetResult(IReadOnlyList<string> Applied, IReadOnlyList<string> Removed);
+/// <param name="Retired">The identifiers of the undeclared recurring jobs paused by <see cref="RecurringJobSet.RetireUndeclared"/>.</param>
+/// <param name="CreatedOnce">The keys of the jobs <c>Once</c> declared that this call created.</param>
+public sealed record RecurringJobSetResult(
+    IReadOnlyList<string> Applied,
+    IReadOnlyList<string> Removed,
+    IReadOnlyList<string> Retired,
+    IReadOnlyList<string> CreatedOnce);
 
 /// <summary>
 /// A set of recurring jobs declared in code and applied together at start-up. A declaration that can't work
@@ -22,9 +28,25 @@ public sealed class RecurringJobSet
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(RecurringJobSet));
 
+    /// <summary>The recurring job hash field that marks a job registered by a set.</summary>
+    internal const string DeclaredField = "Declared";
+
+    /// <summary>The recurring job hash field that marks a declared job paused because it is no longer declared.</summary>
+    internal const string RetiredField = "Retired";
+
+    /// <summary>The storage hash that maps the key of each job <c>Once</c> declared to the id of the job it created.</summary>
+    public const string OnceHashKey = "recurring-job-set:once";
+
+    // SQL Server keeps hash fields in 100 characters
+    private const int MaxOnceKeyLength = 100;
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
+
     private readonly List<Declaration> _declarations = [];
     private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
+    private readonly List<OnceDeclaration> _once = [];
+    private readonly HashSet<string> _onceKeys = new(StringComparer.Ordinal);
     private bool _removeUndeclared;
+    private bool _retireUndeclared;
     private Func<string, bool>? _removalScope;
 
     /// <summary>The identifiers declared so far.</summary>
@@ -201,9 +223,66 @@ public sealed class RecurringJobSet
     /// <returns>This set, to chain calls.</returns>
     public RecurringJobSet RemoveUndeclared([CanBeNull] Func<string, bool>? scope = null)
     {
+        if (_retireUndeclared) throw new InvalidOperationException($"{nameof(RetireUndeclared)} was already called; use one or the other.");
+
         _removeUndeclared = true;
         _removalScope = scope;
         return this;
+    }
+
+    /// <summary>
+    /// Also pauses, after the declared jobs are applied, the stored recurring jobs that a set declared before but
+    /// this one doesn't, and marks them as retired. A retired job keeps its definition and history, and declaring
+    /// it again resumes it. Jobs created any other way (from code with <c>AddOrUpdate</c>, from the dashboard or a
+    /// manifest) are never touched. Pass <paramref name="scope"/> to limit it further.
+    /// </summary>
+    /// <param name="scope">
+    /// Tells which recurring job identifiers may be retired, for example the ones with a given prefix. Every
+    /// identifier when omitted.
+    /// </param>
+    /// <returns>This set, to chain calls.</returns>
+    /// <exception cref="InvalidOperationException"><see cref="RemoveUndeclared"/> was called.</exception>
+    /// <remarks>Pausing needs a manager that implements <see cref="IRecurringJobManagerV3"/>, as <see cref="RecurringJobManager"/> does.</remarks>
+    public RecurringJobSet RetireUndeclared([CanBeNull] Func<string, bool>? scope = null)
+    {
+        if (_removeUndeclared) throw new InvalidOperationException($"{nameof(RemoveUndeclared)} was already called; use one or the other.");
+
+        _retireUndeclared = true;
+        _removalScope = scope;
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a job created once for <paramref name="key"/>, the first time a set with it is applied: start-up
+    /// work that must not run again on each start or on each replica, such as seeding data or a one-time
+    /// migration. The key is recorded in the storage hash <see cref="OnceHashKey"/>, so later applications skip
+    /// it; to run the work again, use another key.
+    /// </summary>
+    /// <param name="key">The key, up to 100 characters.</param>
+    /// <param name="methodCall">The method to call.</param>
+    /// <param name="delay">How long after the application to run it, or <c>null</c> to enqueue it at once.</param>
+    /// <returns>This set, to chain calls.</returns>
+    public RecurringJobSet Once([NotNull] string key, [NotNull, InstantHandle] Expression<Action> methodCall, TimeSpan? delay = null)
+    {
+        return AddOnce(key, () => Job.FromExpression(methodCall), delay);
+    }
+
+    /// <inheritdoc cref="Once(string, Expression{Action}, TimeSpan?)"/>
+    public RecurringJobSet Once([NotNull] string key, [NotNull, InstantHandle] Expression<Func<Task>> methodCall, TimeSpan? delay = null)
+    {
+        return AddOnce(key, () => Job.FromExpression(methodCall), delay);
+    }
+
+    /// <inheritdoc cref="Once(string, Expression{Action}, TimeSpan?)"/>
+    public RecurringJobSet Once<T>([NotNull] string key, [NotNull, InstantHandle] Expression<Action<T>> methodCall, TimeSpan? delay = null)
+    {
+        return AddOnce(key, () => Job.FromExpression(methodCall), delay);
+    }
+
+    /// <inheritdoc cref="Once(string, Expression{Action}, TimeSpan?)"/>
+    public RecurringJobSet Once<T>([NotNull] string key, [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall, TimeSpan? delay = null)
+    {
+        return AddOnce(key, () => Job.FromExpression(methodCall), delay);
     }
 
     /// <summary>Applies the set to <see cref="JobStorage.Current"/> through a new <see cref="RecurringJobManager"/>.</summary>
@@ -230,9 +309,153 @@ public sealed class RecurringJobSet
         foreach (Declaration declaration in _declarations)
         {
             manager.AddOrUpdate(declaration.Id, declaration.Job, declaration.CronExpression, declaration.Options);
+            MarkDeclared(manager, storage, declaration.Id);
         }
 
-        return new RecurringJobSetResult([.. _declarations.Select(static declaration => declaration.Id)], RemoveUndeclaredJobs(manager, storage));
+        return new RecurringJobSetResult(
+            [.. _declarations.Select(static declaration => declaration.Id)],
+            RemoveUndeclaredJobs(manager, storage),
+            RetireUndeclaredJobs(manager, storage),
+            CreateOnceJobs(storage));
+    }
+
+    // Marks the job as declared, and resumes it when it was retired. Writes only what changed, so applying an
+    // unchanged set at every start writes nothing.
+    private static void MarkDeclared(IRecurringJobManager manager, JobStorage storage, string recurringJobId)
+    {
+        Dictionary<string, string>? hash;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
+        }
+
+        if (hash == null) return;
+
+        bool declared = hash.TryGetValue(DeclaredField, out string? declaredValue) && declaredValue == "1";
+        bool retired = hash.TryGetValue(RetiredField, out string? retiredValue) && retiredValue == "1";
+
+        if (retired && manager is IRecurringJobManagerV3 managerV3)
+        {
+            managerV3.Resume(recurringJobId);
+            Logger.Info($"Recurring job '{recurringJobId}' is declared again and was resumed.");
+        }
+
+        if (declared && !retired) return;
+
+        SetFields(storage, recurringJobId, new Dictionary<string, string>
+        {
+            [DeclaredField] = "1",
+            [RetiredField] = string.Empty,
+        });
+    }
+
+    private List<string> RetireUndeclaredJobs(IRecurringJobManager manager, JobStorage storage)
+    {
+        if (!_retireUndeclared) return [];
+
+        if (_ids.Count == 0)
+        {
+            Logger.Warn("No recurring job was declared, so RetireUndeclared left the stored recurring jobs alone.");
+            return [];
+        }
+
+        if (manager is not IRecurringJobManagerV3 managerV3)
+        {
+            Logger.Warn($"RetireUndeclared needs a manager that implements {nameof(IRecurringJobManagerV3)}, so the undeclared recurring jobs were left alone.");
+            return [];
+        }
+
+        List<string> retired;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            retired = [.. connection.GetRecurringJobs()
+                .Where(static job => !job.Removed && job.Declared && !job.Retired)
+                .Select(static job => job.Id)
+                .Where(id => !_ids.Contains(id) && (_removalScope == null || _removalScope(id)))
+                .OrderBy(static id => id, StringComparer.Ordinal)];
+        }
+
+        foreach (string id in retired)
+        {
+            managerV3.Pause(id);
+            SetFields(storage, id, new Dictionary<string, string> { [RetiredField] = "1" });
+            Logger.Info($"Recurring job '{id}' is no longer declared and was paused.");
+        }
+
+        return retired;
+    }
+
+    private static void SetFields(JobStorage storage, string recurringJobId, Dictionary<string, string> fields)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+
+        transaction.SetRangeInHash($"recurring-job:{recurringJobId}", fields);
+        transaction.Commit();
+    }
+
+    // Under a lock, so replicas starting together create each job once
+    private List<string> CreateOnceJobs(JobStorage storage)
+    {
+        if (_once.Count == 0) return [];
+
+        List<string> created = [];
+        BackgroundJobClient client = new(storage);
+
+        using IStorageConnection connection = storage.GetConnection();
+        using IDisposable distributedLock = connection.AcquireDistributedLock($"{OnceHashKey}:lock", LockTimeout);
+
+        Dictionary<string, string> done = connection.GetAllEntriesFromHash(OnceHashKey) ?? [];
+
+        foreach (OnceDeclaration once in _once)
+        {
+            if (done.ContainsKey(once.Key)) continue;
+
+            IState state = once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
+                ? new ScheduledState(once.Delay.Value)
+                : new EnqueuedState();
+
+            string? jobId = client.Create(once.Job, state);
+
+            if (jobId == null)
+            {
+                Logger.Warn($"The once job '{once.Key}' was not created, because a client filter canceled it. The next application tries again.");
+                continue;
+            }
+
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                transaction.SetRangeInHash(OnceHashKey, [new KeyValuePair<string, string>(once.Key, jobId)]);
+                transaction.Commit();
+            }
+
+            created.Add(once.Key);
+        }
+
+        return created;
+    }
+
+    private RecurringJobSet AddOnce(string key, Func<Job> createJob, TimeSpan? delay)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        if (key.Length > MaxOnceKeyLength)
+        {
+            throw new ArgumentException($"The key of a once job can be at most {MaxOnceKeyLength} characters long.", nameof(key));
+        }
+
+        if (delay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delay), delay, "The delay can't be negative.");
+        }
+
+        if (!_onceKeys.Add(key))
+        {
+            throw new InvalidOperationException($"The once job '{key}' is declared more than once.");
+        }
+
+        _once.Add(new OnceDeclaration(key, CreateJob(key, createJob), delay));
+        return this;
     }
 
     private RecurringJobSet AddDeclaration(string recurringJobId, Func<Job> createJob, string cronExpression, RecurringJobOptions? options)
@@ -316,4 +539,6 @@ public sealed class RecurringJobSet
     }
 
     private sealed record Declaration(string Id, Job Job, string CronExpression, RecurringJobOptions Options);
+
+    private sealed record OnceDeclaration(string Key, Job Job, TimeSpan? Delay);
 }

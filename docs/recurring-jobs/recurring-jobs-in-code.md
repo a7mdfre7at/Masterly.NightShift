@@ -52,11 +52,15 @@ An error from the storage while applying, such as an unreachable database, also 
 | `AddHandler<THandler, TArgs>(id, args, cron, options)`, `AddHandler<THandler, TArgs>(args, cron, options)` | The same with the handler named, which doesn't need registering. |
 | `ResolvePlaceholders(getValue)` | Replaces each `%Section:Key%` schedule with its value. A host does this for you. |
 | `RemoveUndeclared(scope)` | After applying, also removes stored recurring jobs that aren't declared. See below. |
+| `RetireUndeclared(scope)` | After applying, pauses the jobs a set declared before that this one doesn't, instead of removing them. See below. Can't be combined with `RemoveUndeclared`. |
+| `Once(key, methodCall, delay)` | Declares a job created once for `key`, the first time a set with it is applied. See below. |
 | `DeclaredIds` | The identifiers declared so far. |
 | `Apply()` | Applies the set to `JobStorage.Current`, for applications without a host. |
 | `Apply(manager, storage)` | Applies the set through the given manager and storage. |
 
-`cron` is a CRON expression or a `%Section:Key%` placeholder. `options` is a [`RecurringJobOptions`](creating-recurring-jobs.md#recurringjoboptions), for the time zone, queue, misfire handling and dates. It is optional. `Apply` returns a `RecurringJobSetResult` with the `Applied` and `Removed` identifiers.
+`cron` is a CRON expression or a `%Section:Key%` placeholder. `options` is a [`RecurringJobOptions`](creating-recurring-jobs.md#recurringjoboptions), for the time zone, queue, misfire handling and dates. It is optional. `Apply` returns a `RecurringJobSetResult` with the `Applied`, `Removed` and `Retired` identifiers and the `CreatedOnce` keys.
+
+Applying a set marks each declared job with the `Declared` field of its hash, so `RecurringJobDto.Declared` tells a job declared in code from one created any other way. The field is written the first time only.
 
 ## More examples
 
@@ -120,6 +124,26 @@ Removal is off unless you ask for it, because it has two risks:
 
 Nothing is removed when applying a job failed, or when no job was declared at all, since an empty set is more likely a mistake.
 
+### Pause jobs that are no longer in the code
+
+```csharp
+builder.Services.AddNightShiftRecurringJobs(jobs => jobs
+    .Add<ReportService>("daily-report", service => service.BuildDaily(), Cron.Daily(2))
+    .RetireUndeclared());
+```
+
+A job a set declared before that this one doesn't is paused and marked as retired (`RecurringJobDto.Retired`): it keeps its definition and history, and declaring it again resumes it. Jobs that no set declared, created from the dashboard, a manifest or other code, are never touched, so `RetireUndeclared` is safer than `RemoveUndeclared` and needs no scope; a `scope` limits it further. During a rolling deployment the old version resumes what the new one retired, until it stops, so the last version to start decides. Pausing needs a manager that implements `IRecurringJobManagerV3`, as the container's does.
+
+### Run start-up work once
+
+```csharp
+builder.Services.AddNightShiftRecurringJobs(jobs => jobs
+    .Once<RoleSeeder>("seed-roles-v1", seeder => seeder.SeedAsync())
+    .Once<SearchIndex>("rebuild-index-2026-11", index => index.RebuildAsync(), TimeSpan.FromMinutes(10)));
+```
+
+The job is created the first time a set with its key is applied, enqueued at once or scheduled after the `delay`, and the key is recorded with the job's ID in the storage hash `recurring-job-set:once` (`RecurringJobSet.OnceHashKey`). Later applications, on any replica, skip it: creating these jobs takes a distributed lock, so replicas starting together create each one once. To run the work again, use a new key. The key is at most 100 characters; a key declared twice throws `InvalidOperationException`, and a negative delay `ArgumentOutOfRangeException`. A job a client filter refuses to create isn't recorded, so the next application tries again. Deleting the job doesn't make it run again.
+
 ### Without a host
 
 ```csharp
@@ -133,7 +157,7 @@ new RecurringJobSet()
 ## Things to know
 
 - **The database must be reachable at start-up.** Otherwise the host doesn't start. An orchestrator will restart it until the database is up.
-- **A job edited on the dashboard is overwritten** at the next start, because the code is what declares it. Its paused state is kept.
+- **A job edited on the dashboard is overwritten** at the next start, because the code is what declares it. Its paused state is kept, except that a retired job declared again is resumed.
 - **Overlapping runs aren't prevented.** If a run can take longer than the interval, add [`[DisableConcurrentExecution]`](../filters/concurrency.md) to the method.
 
 ## See also
