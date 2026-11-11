@@ -575,6 +575,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>仅最近一次（若仍在时限内）(run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>定期作业 {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>没有定期作业 '{0}'。</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>来自代码</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>在代码中声明：重新注册应用程序会覆盖此处所做的更改。</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>已停用</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>计划策略</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>超时跳过</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>没有下次运行。</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>运行记录</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>尚未运行。</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>计划时间</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>时长</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>队列</value>
   </data>
@@ -1304,6 +1340,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>批次 {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>全局筛选器</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>作业函数</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>监视器</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>无</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>计划策略</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>没有计划策略。</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>修订 {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>要删除此策略吗？</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>日期</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>每天</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>时段</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>任何时间</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>排除日期</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>单个日期用 yyyy-MM-dd，每年用 MM-dd，以逗号分隔。</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>日期提供程序</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>需要</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>除非</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>预览</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>允许</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>已阻止</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>新建策略</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>描述</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>有人在此期间更改了此策略。请重新加载页面后重试。</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>链</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>没有链。</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>第一步</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>步骤</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>运行中</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>已完成但有失败</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>链 {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>链 '{0}' 已不再保存。</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>第 {0} 代</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>要删除此链中尚未完成的步骤吗？</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>第 {0} 层</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>从此处重试</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>正在重试...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>批次 {0} 不存在或已过期。</value>
   </data>
@@ -1411,6 +1567,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>看板</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>链</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>策略</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>关于</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>时间线</value>

@@ -267,10 +267,11 @@ The dashboard registers these routes in addition to Hangfire's. **What to do:** 
 | Area | Routes |
 |---|---|
 | Jobs | `/jobs/live`, `/jobs/export/{id}`, `/jobs/notes/add/{id}`, `/jobs/{scheduled,processing,succeeded,failed,awaiting}/delete-all`, `/jobs/enqueued/delete-all/{queue}`, `/jobs/failed/requeue-all`, `/jobs/{failed,succeeded,scheduled,processing,deleted}/export`, `/jobs/enqueued/export/{queue}`, `/retries/delete-all` |
-| Recurring jobs | `/recurring/pause`, `/recurring/resume`, `/recurring/update/{id}`, `/recurring/preview`, `/recurring/remove-all`, `/recurring/forecast`, `/recurring/export`, `/recurring/import` |
+| Recurring jobs | `/recurring/pause`, `/recurring/resume`, `/recurring/update/{id}`, `/recurring/preview`, `/recurring/remove-all`, `/recurring/forecast`, `/recurring/export`, `/recurring/import`, `/recurring/details/{id}`, `/recurring/trigger-one/{id}`, `/recurring/pause-one/{id}`, `/recurring/resume-one/{id}` |
 | Batches | `/batches`, `/batches/{id}`, `/batches/requeue-failed/{id}`, `/batches/delete/{id}` |
+| Chains and policies | `/chains`, `/chains/{id}`, `/chains/retry/{jobId}`, `/chains/delete/{id}`, `/policies`, `/policies/save`, `/policies/delete/{name}/{revision}` |
 | Queues and servers | `/queues/pause/{queue}`, `/queues/resume/{queue}`, `/servers/pause/{id}`, `/servers/resume/{id}`, `/maintenance/pause`, `/maintenance/resume`, `/maintenance/clear-jobs`, `/maintenance/reset` |
-| Pages | `/insights`, `/insights/circuits/reset/{resource}`, `/search`, `/activity`, `/audit`, `/catalog`, `/catalog/run`, `/tags`, `/tags/{tag}`, `/tags/forget/{tag}`, `/tags/forget-expired/{tag}`, `/wallboard`, `/timeline` |
+| Pages | `/insights`, `/insights/circuits/reset/{resource}`, `/search`, `/activity`, `/audit`, `/catalog`, `/catalog/run`, `/tags`, `/tags/{tag}`, `/tags/forget/{tag}`, `/tags/forget-expired/{tag}`, `/wallboard`, `/timeline`, `/about` |
 | Monitoring | `/health`, `/metrics`, `/ping` |
 | Static files | `/js-intl{n}` (the date formatter that replaces moment.js) |
 

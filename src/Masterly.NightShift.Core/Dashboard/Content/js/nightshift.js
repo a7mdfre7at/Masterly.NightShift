@@ -998,6 +998,28 @@
                 });
             });
 
+            // A form posted in the background, then the page reloads or goes to data-redirect
+            $(document).on('submit', '.js-ajax-form', function (e) {
+                var $form = $(this);
+                var $submit = $form.find('[type=submit]');
+                e.preventDefault();
+
+                $submit.prop('disabled', true);
+                $.post($form.attr('action'), $form.serialize())
+                    .done(function () {
+                        var target = $form.data('redirect');
+                        if (target) {
+                            window.location.href = target;
+                        } else {
+                            window.location.reload();
+                        }
+                    })
+                    .fail(function (xhr) {
+                        $submit.prop('disabled', false);
+                        nightshift.showRequestError(xhr);
+                    });
+            });
+
             $(document).on('click', '*[data-ajax]', function (e) {
                 var $this = $(this);
                 var confirmText = $this.data('confirm');

@@ -565,6 +565,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Només l'última, si és recent (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Tasca recurrent {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>No hi ha cap tasca recurrent '{0}'.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Des del codi</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Declarada al codi: tornar a registrar l'aplicació sobreescriu els canvis fets aquí.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Retirada</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Política de programació</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Omet després de</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Cap execució propera.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Execucions</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Encara cap execució.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Programada per a</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Durada</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Cua</value>
   </data>
@@ -1294,6 +1330,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Lot {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>Quant a</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Configuració</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Filtres globals</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Funcions de tasca</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Monitors</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Cap</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Polítiques de programació</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Cap política de programació.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>revisió {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Voleu suprimir aquesta política?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Dies</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Cada dia</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Hores</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>Qualsevol hora</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Dates excloses</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>aaaa-MM-dd per a una data, MM-dd per a cada any, separades per comes.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Proveïdors de dates</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Requereix</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Excepte quan</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Previsualització</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Permesa</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Bloquejada</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Política nova</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Descripció</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Algú ha canviat aquesta política mentrestant. Torneu a carregar la pàgina i proveu-ho de nou.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Cadenes</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Cap cadena.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Primer pas</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Passos</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>En curs</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Acabada</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Acabada amb errors</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Cadena {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>La cadena '{0}' ja no està registrada.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>generació {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Voleu suprimir els passos no acabats d’aquesta cadena?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Nivell {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Reintenta des d’aquí</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Reintentant...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>El lot {0} no existeix o ha caducat.</value>
   </data>
@@ -1401,6 +1557,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Tauler mural</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Cadenes</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Polítiques</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>Quant a</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Cronologia</value>

@@ -1,0 +1,183 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Globalization
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.Storage
+@inherits RazorPage
+@{
+    RecurringJobDto? job;
+    using (IStorageConnection connection = Storage.GetReadOnlyConnection())
+    {
+        job = connection.GetRecurringJobs(new[] { Id }).FirstOrDefault(static x => !x.Removed);
+    }
+
+    IReadOnlyList<DateTime> nextRuns = Array.Empty<DateTime>();
+    IReadOnlyList<RecurringJobRun> runs = Array.Empty<RecurringJobRun>();
+    string? cronDescription = null;
+
+    if (job != null)
+    {
+        cronDescription = job.Cron != null ? Cron.TryDescribe(job.Cron) : null;
+        nextRuns = ReadNextRuns(job);
+        runs = Storage.GetRecurringJobRuns(Id);
+    }
+
+    string title = String.Format(Strings.RecurringJobDetailsPage_Title, Id);
+    Layout = new LayoutPage(title);
+    string encodedId = Uri.EscapeDataString(Id);
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">
+            @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.RecurringJobsPage_Title, Url.To("/recurring") } })
+        </h1>
+
+        @if (job == null)
+        {
+            <div class="alert alert-warning">@String.Format(Strings.RecurringJobDetailsPage_NotFound, Id)</div>
+        }
+        else
+        {
+            <section class="hf-card hf-recurring-details">
+                <div class="hf-batch-head">
+                    <div>
+                        <code class="cron-badge" title="@cronDescription">@job.Cron</code>
+                        @if (cronDescription != null)
+                        {
+                            <span class="text-muted">@cronDescription</span>
+                        }
+                        @if (job.Paused)
+                        {
+                            <span class="label label-default text-uppercase">@Strings.RecurringJobsPage_Paused</span>
+                        }
+                        @if (job.Declared)
+                        {
+                            <span class="label label-info text-uppercase" title="@Strings.RecurringJobDetailsPage_Declared_Tooltip">@Strings.RecurringJobDetailsPage_Declared</span>
+                        }
+                        @if (job.Retired)
+                        {
+                            <span class="label label-warning text-uppercase">@Strings.RecurringJobDetailsPage_Retired</span>
+                        }
+                    </div>
+                    @if (!IsReadOnly)
+                    {
+                        <div class="hf-batch-actions">
+                            <button class="btn btn-sm btn-primary" data-ajax="@Url.To("/recurring/trigger-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Triggering">
+                                <span class="glyphicon glyphicon-play-circle"></span> @Strings.RecurringJobsPage_TriggerNow
+                            </button>
+                            @if (job.Paused)
+                            {
+                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/recurring/resume-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Resuming">
+                                    <span class="glyphicon glyphicon-play"></span> @Strings.RecurringJobsPage_Resume
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-default" data-ajax="@Url.To("/recurring/pause-one/" + encodedId)" data-loading-text="@Strings.RecurringJobsPage_Pausing">
+                                    <span class="glyphicon glyphicon-pause"></span> @Strings.RecurringJobsPage_Pause
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <table class="table table-condensed hf-definition">
+                    <tbody>
+                        <tr><th class="min-width">@Strings.Common_Job</th><td class="word-break">@(job.Job != null ? Html.JobName(job.Job) : Strings.Common_CannotFindTargetMethod)</td></tr>
+                        <tr><th>@Strings.RecurringJobsPage_Table_TimeZone</th><td>@job.TimeZoneId</td></tr>
+                        <tr><th>@Strings.RecurringJobsPage_Queue</th><td>@(job.Queue ?? EnqueuedState.DefaultQueue)</td></tr>
+                        <tr><th>@Strings.RecurringJobsPage_Misfire</th><td>@job.MisfireHandling</td></tr>
+                        @if (job.Policy != null)
+                        {
+                            <tr><th>@Strings.RecurringJobDetailsPage_Policy</th><td><a href="@Url.To("/policies#policy-" + job.Policy)">@job.Policy</a></td></tr>
+                        }
+                        @if (job.SkipAfter.HasValue)
+                        {
+                            <tr><th>@Strings.RecurringJobDetailsPage_SkipAfter</th><td>@job.SkipAfter.Value</td></tr>
+                        }
+                        @if (job.StartAt.HasValue)
+                        {
+                            <tr><th>@Strings.RecurringJobsPage_StartsAt</th><td>@Html.RelativeTime(job.StartAt.Value)</td></tr>
+                        }
+                        @if (job.EndAt.HasValue)
+                        {
+                            <tr><th>@Strings.RecurringJobsPage_EndsAt</th><td>@Html.RelativeTime(job.EndAt.Value)</td></tr>
+                        }
+                        @if (job.Error != null)
+                        {
+                            <tr><th>@Strings.Common_Error</th><td class="word-break text-danger">@job.Error</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+
+            <h3 id="next-runs">@Strings.RecurringJobsPage_NextRuns</h3>
+            if (nextRuns.Count == 0)
+            {
+                <p class="text-muted">@Strings.RecurringJobDetailsPage_NoNextRuns</p>
+            }
+            else
+            {
+                <ul class="list-inline hf-next-runs" aria-describedby="next-runs">
+                    @foreach (DateTime next in nextRuns)
+                    {
+                        <li>@Html.RelativeTime(next)</li>
+                    }
+                </ul>
+            }
+
+            <h3 id="runs">@Strings.RecurringJobDetailsPage_Runs</h3>
+            if (runs.Count == 0)
+            {
+                <p class="text-muted">@Strings.RecurringJobDetailsPage_NoRuns</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table" aria-describedby="runs">
+                        <thead>
+                            <tr>
+                                <th class="min-width">@Strings.Common_Id</th>
+                                <th class="min-width">@Strings.Common_State</th>
+                                <th>@Strings.RecurringJobDetailsPage_ScheduledFor</th>
+                                <th>@Strings.Common_Created</th>
+                                <th>@Strings.RecurringJobDetailsPage_Duration</th>
+                                <th class="min-width">@Strings.Common_Retry</th>
+                                <th>@Strings.Common_Server</th>
+                                <th>@Strings.Common_Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (RecurringJobRun run in runs)
+                            {
+                                <tr class="hover">
+                                    <td class="min-width">@Html.JobIdLink(run.JobId)</td>
+                                    @if (run.Expired)
+                                    {
+                                        <td colspan="7"><em>@Strings.Common_JobExpired</em></td>
+                                    }
+                                    else
+                                    {
+                                        <td class="min-width">@Html.StateLabel(run.State)</td>
+                                        <td>@(run.ScheduledFor.HasValue ? Html.RelativeTime(run.ScheduledFor.Value) : new NonEscapedString(String.Empty))</td>
+                                        <td>@(run.CreatedAt.HasValue ? Html.RelativeTime(run.CreatedAt.Value) : new NonEscapedString(String.Empty))</td>
+                                        <td>@(run.Duration.HasValue ? FormatDuration(run.Duration.Value) : String.Empty)</td>
+                                        <td class="min-width">@(run.RetryCount > 0 ? run.RetryCount.ToString(CultureInfo.CurrentCulture) : String.Empty)</td>
+                                        <td class="word-break">@run.ServerId</td>
+                                        <td class="word-break">@run.Reason</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>

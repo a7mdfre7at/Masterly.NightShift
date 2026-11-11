@@ -1,0 +1,91 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Common
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@inherits RazorPage
+@{
+    Layout = new LayoutPage(Strings.AboutPage_Title);
+    IReadOnlyList<JobMonitorStatus> monitors = ReadMonitors();
+    IReadOnlyList<JobFunction> functions = JobFunctions.GetAll();
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">@Strings.AboutPage_Title</h1>
+
+        <h3 id="settings">@Strings.AboutPage_Settings</h3>
+        <table class="table table-condensed hf-definition" aria-describedby="settings">
+            <tbody>
+                @foreach (KeyValuePair<string, string> setting in GetSettings())
+                {
+                    <tr><th class="min-width">@setting.Key</th><td class="word-break">@setting.Value</td></tr>
+                }
+            </tbody>
+        </table>
+
+        <h3 id="filters">@Strings.AboutPage_GlobalFilters</h3>
+        <div class="table-responsive">
+            <table class="table table-condensed" aria-describedby="filters">
+                <tbody>
+                    @foreach (JobFilter filter in GlobalJobFilters.Filters.OrderBy(static x => x.Order))
+                    {
+                        <tr><td class="min-width"><code>@filter.Instance.GetType().Name</code></td><td class="text-muted">@filter.Order</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <h3 id="functions">@Strings.AboutPage_Functions</h3>
+        @if (functions.Count == 0)
+        {
+            <p class="text-muted">@Strings.AboutPage_None</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-condensed" aria-describedby="functions">
+                    <tbody>
+                        @foreach (JobFunction function in functions)
+                        {
+                            <tr>
+                                <td class="min-width"><code>@function.Name</code></td>
+                                <td class="min-width">@(function.PayloadType != null ? function.PayloadType.Name : String.Empty)</td>
+                                <td class="word-break text-muted">@function.Description</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <h3 id="monitors">@Strings.AboutPage_Monitors</h3>
+        @if (monitors.Count == 0)
+        {
+            <p class="text-muted">@Strings.AboutPage_None</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-condensed" aria-describedby="monitors">
+                    <tbody>
+                        @foreach (JobMonitorStatus monitor in monitors)
+                        {
+                            <tr>
+                                <td class="min-width"><code>@monitor.Name</code></td>
+                                <td class="min-width">@MonitorLabel(monitor.State)</td>
+                                <td class="min-width">@monitor.Method</td>
+                                <td class="word-break text-muted">@monitor.Reason</td>
+                                <td class="align-right">@(monitor.CheckedAt.HasValue ? Html.RelativeTime(monitor.CheckedAt.Value) : new NonEscapedString(String.Empty))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

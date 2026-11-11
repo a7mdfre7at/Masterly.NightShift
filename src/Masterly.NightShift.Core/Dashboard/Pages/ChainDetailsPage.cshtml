@@ -1,0 +1,77 @@
+@* Generator: Template TypeVisibility: Internal GeneratePrettyNames: True *@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Masterly.NightShift
+@using Masterly.NightShift.Dashboard
+@using Masterly.NightShift.Dashboard.Pages
+@using Masterly.NightShift.Dashboard.Resources
+@using Masterly.NightShift.States
+@inherits RazorPage
+@{
+    JobChainInfo? chain = Storage.GetChain(Id);
+    string title = String.Format(Strings.ChainDetailsPage_Title, Id.Substring(0, Math.Min(8, Id.Length)));
+    Layout = new LayoutPage(title);
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <h1 id="page-title" class="page-header">
+            @Html.Breadcrumbs(title, new Dictionary<string, string> { { Strings.ChainsPage_Title, Url.To("/chains") } })
+        </h1>
+
+        @if (chain == null)
+        {
+            <div class="alert alert-warning">@String.Format(Strings.ChainDetailsPage_NotFound, Id)</div>
+        }
+        else
+        {
+            <section class="hf-card">
+                <div class="hf-batch-head">
+                    <div>
+                        @ChainsPage.StatusLabel(chain)
+                        <code class="hf-batch-id">@chain.ChainId</code>
+                        <span class="text-muted">&middot; @Strings.Common_Created @Html.RelativeTime(chain.CreatedAt) &middot; @String.Format(Strings.ChainDetailsPage_Generation, chain.Generation)</span>
+                    </div>
+                    @if (!IsReadOnly && !chain.IsSettled)
+                    {
+                        <div class="hf-batch-actions">
+                            <button class="btn btn-sm btn-default" data-ajax="@Url.To("/chains/delete/" + chain.ChainId)" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
+                                <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
+                            </button>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            foreach (IGrouping<int, JobChainStepInfo> level in chain.Steps.GroupBy(static x => x.Level))
+            {
+                <h4 id="level-@level.Key">@String.Format(Strings.ChainDetailsPage_Level, level.Key + 1)</h4>
+                <div class="table-responsive">
+                    <table class="table table-condensed" aria-describedby="level-@level.Key">
+                        <tbody>
+                            @foreach (JobChainStepInfo step in level)
+                            {
+                                bool retryable = chain.IsSettled && (FailedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase));
+                                <tr class="hover">
+                                    <td class="min-width"><code>@step.Key</code></td>
+                                    <td class="min-width">@Html.JobIdLink(step.JobId)</td>
+                                    <td class="min-width">@(step.State != null ? Html.StateLabel(step.State) : new NonEscapedString("<em>" + Html.HtmlEncode(Strings.Common_JobExpired) + "</em>"))</td>
+                                    <td class="word-break">@(step.Job != null ? Html.JobName(step.Job) : String.Empty)</td>
+                                    <td class="align-right">
+                                        @if (!IsReadOnly && retryable)
+                                        {
+                                            <button class="btn btn-xs btn-primary" data-ajax="@Url.To("/chains/retry/" + Uri.EscapeDataString(step.JobId))" data-loading-text="@Strings.ChainDetailsPage_Retrying">
+                                                <span class="glyphicon glyphicon-repeat"></span> @Strings.ChainDetailsPage_RetryFromHere
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>

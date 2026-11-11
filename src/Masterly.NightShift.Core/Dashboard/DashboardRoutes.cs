@@ -289,6 +289,30 @@ public static class DashboardRoutes
         Routes.Add("/recurring/preview", new CronPreviewDispatcher());
         Routes.Add("/recurring/update/(?<JobId>.+)", new RecurringJobUpdateDispatcher());
         Routes.AddRazorPage("/recurring/forecast", static _ => new ForecastPage());
+        Routes.AddCommand("/recurring/trigger-one/(?<Id>.+)", static context =>
+        {
+            context.GetRecurringJobManager().Trigger(RouteValues.Get(context, "Id"));
+            return true;
+        });
+        Routes.AddCommand("/recurring/pause-one/(?<Id>.+)", static context => context.GetRecurringJobManager().Pause(RouteValues.Get(context, "Id")));
+        Routes.AddCommand("/recurring/resume-one/(?<Id>.+)", static context => context.GetRecurringJobManager().Resume(RouteValues.Get(context, "Id")));
+        Routes.AddRazorPage("/recurring/details/(?<JobId>.+)", static x => new RecurringJobDetailsPage(x.Groups["JobId"].Value));
+
+        Routes.AddRazorPage("/chains", static _ => new ChainsPage());
+        Routes.Add("/chains/retry/(?<JobId>.+)", new JsonCommandDispatcher(static context =>
+        {
+            context.Storage.RetryChainFrom(RouteValues.Get(context, "JobId"));
+            return CommandResult.Done();
+        }));
+        Routes.Add("/chains/delete/(?<Id>.+)", new JsonCommandDispatcher(static context =>
+            context.Storage.DeleteChain(RouteValues.Get(context, "Id")) >= 0 ? CommandResult.Done() : CommandResult.Refused(404, "The chain isn't recorded any more.")));
+        Routes.AddRazorPage("/chains/(?<Id>.+)", static x => new ChainDetailsPage(x.Groups["Id"].Value));
+
+        Routes.AddRazorPage("/policies", static _ => new SchedulePoliciesPage());
+        Routes.Add("/policies/save", new JsonCommandDispatcher(SchedulePolicyDispatchers.SaveAsync));
+        Routes.Add("/policies/delete/(?<Name>[^/]+)/(?<Revision>[0-9]+)", new JsonCommandDispatcher(SchedulePolicyDispatchers.Delete));
+
+        Routes.AddRazorPage("/about", static _ => new AboutPage());
         Routes.Add("/recurring/export", new RecurringJobManifestDispatcher(import: false));
         Routes.Add("/recurring/import", new RecurringJobManifestDispatcher(import: true));
 

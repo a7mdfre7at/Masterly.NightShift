@@ -587,6 +587,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Alleen de laatste, als die recent is (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Terugkerende taak {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>Er is geen terugkerende taak '{0}'.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Uit code</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Gedeclareerd in code: het opnieuw registreren van de toepassing overschrijft hier gemaakte wijzigingen.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Buiten gebruik</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Planningsbeleid</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Overslaan na</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Geen volgende uitvoering.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Uitvoeringen</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Nog geen uitvoering.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Gepland voor</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Duur</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Wachtrij</value>
   </data>
@@ -1316,6 +1352,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Batch {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>Over</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Instellingen</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Globale filters</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Taakfuncties</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Monitors</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Geen</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Planningsbeleid</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Geen planningsbeleid.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>revisie {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Dit beleid verwijderen?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Dagen</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Elke dag</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Tijden</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>Altijd</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Uitgesloten datums</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>jjjj-MM-dd voor een datum, MM-dd voor elk jaar, gescheiden door komma’s.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Datumleveranciers</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Vereist</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Behalve wanneer</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Voorbeeld</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Toegestaan</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Geblokkeerd</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Nieuw beleid</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Beschrijving</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Iemand heeft dit beleid intussen gewijzigd. Laad de pagina opnieuw en probeer het nog eens.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Ketens</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Geen ketens.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Eerste stap</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Stappen</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>Bezig</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Klaar</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Klaar met fouten</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Keten {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>Keten '{0}' is niet meer vastgelegd.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>generatie {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>De onvoltooide stappen van deze keten verwijderen?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Niveau {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Vanaf hier opnieuw</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Opnieuw bezig...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>Batch {0} bestaat niet of is verlopen.</value>
   </data>
@@ -1423,6 +1579,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Wandbord</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Ketens</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Beleidsregels</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>Over</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Tijdlijn</value>

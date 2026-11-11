@@ -43,6 +43,12 @@ public static class NavigationMenu
             Active = page.RequestPath.StartsWith("/batches", StringComparison.OrdinalIgnoreCase)
         });
 
+        Items.Add(static page => new MenuItem(Strings.NavigationMenu_Chains, page.Url.To("/chains"))
+        {
+            Icon = "link",
+            Active = page.RequestPath.StartsWith("/chains", StringComparison.OrdinalIgnoreCase)
+        });
+
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Retries, page.Url.To("/retries"))
         {
             Icon = "repeat",
@@ -55,6 +61,12 @@ public static class NavigationMenu
             Icon = "time",
             Active = page.RequestPath.StartsWith("/recurring", StringComparison.OrdinalIgnoreCase),
             Metric = DashboardMetrics.RecurringJobCount
+        });
+
+        Items.Add(static page => new MenuItem(Strings.NavigationMenu_Policies, page.Url.To("/policies"))
+        {
+            Icon = "calendar",
+            Active = page.RequestPath.StartsWith("/policies", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Timeline, page.Url.To("/timeline"))
@@ -92,6 +104,12 @@ public static class NavigationMenu
         {
             Icon = "list-alt",
             Active = page.RequestPath.StartsWith("/audit", StringComparison.OrdinalIgnoreCase)
+        });
+
+        Items.Add(static page => new MenuItem(Strings.NavigationMenu_About, page.Url.To("/about"))
+        {
+            Icon = "info-sign",
+            Active = page.RequestPath.StartsWith("/about", StringComparison.OrdinalIgnoreCase)
         });
 
         Items.Add(static page => new MenuItem(Strings.NavigationMenu_Wallboard, page.Url.To("/wallboard"))

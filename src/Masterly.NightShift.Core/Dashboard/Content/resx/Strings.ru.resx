@@ -614,6 +614,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Только последний, если недавний (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Повторяющаяся задача {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>Повторяющейся задачи '{0}' нет.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Из кода</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Объявлена в коде: повторная регистрация приложения перезапишет сделанные здесь изменения.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Выведена</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Политика расписания</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Пропуск после</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Следующих запусков нет.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Запуски</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Запусков пока нет.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Запланирован на</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Длительность</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Очередь</value>
   </data>
@@ -1343,6 +1379,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Пакет {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>О системе</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Глобальные фильтры</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Функции задач</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Мониторы</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Нет</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Политики расписания</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Политик расписания нет.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>ревизия {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Удалить эту политику?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Дни</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Каждый день</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Часы</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>В любое время</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Исключённые даты</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>гггг-ММ-дд для даты, ММ-дд для каждого года, через запятую.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Поставщики дат</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Требует</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Кроме когда</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Предпросмотр</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Разрешено</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Заблокировано</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Новая политика</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Имя</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Описание</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Кто-то тем временем изменил эту политику. Обновите страницу и попробуйте снова.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Цепочки</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Цепочек нет.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Первый шаг</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Шаги</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>Выполняется</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Завершена</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Завершена с ошибками</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Цепочка {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>Цепочка '{0}' больше не сохранена.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>поколение {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Удалить незавершённые шаги этой цепочки?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Уровень {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Повторить отсюда</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Повтор...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>Пакет {0} не существует или истёк.</value>
   </data>
@@ -1450,6 +1606,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Табло</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Цепочки</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Политики</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>О системе</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Хронология</value>

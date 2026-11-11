@@ -416,6 +416,19 @@ public class JobDetailsPageFacts
     }
 
     [Fact]
+    public void Render_LinksTheChain_OfAChainStep()
+    {
+        SetupJob(Details(EnqueuedState.StateName, properties: new Dictionary<string, string>
+        {
+            { JobChains.ChainIdParameter, SerializationHelper.Serialize("0123456789abcdef", SerializationOption.User) },
+        }));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("href=\"/chains/0123456789abcdef\"><span class=\"glyphicon glyphicon-link\"></span> " + H(string.Format(Strings.ChainDetailsPage_Title, "01234567")) + "</a>", html);
+    }
+
+    [Fact]
     public void Render_ShowsTheBatch_WithoutTheTagIcon_WhenTheJobHasNoTags()
     {
         SetupJob(Details(EnqueuedState.StateName, properties: new Dictionary<string, string>

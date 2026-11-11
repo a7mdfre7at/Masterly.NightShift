@@ -628,6 +628,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Bara den senaste, om den är ny (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Återkommande jobb {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>Det finns inget återkommande jobb '{0}'.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Från kod</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Deklarerad i kod: när programmet registreras igen skrivs ändringar som gjorts här över.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Pensionerad</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Schemapolicy</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Hoppa över efter</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Ingen nästa körning.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Körningar</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Ingen körning ännu.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Schemalagd till</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Varaktighet</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Kö</value>
   </data>
@@ -1357,6 +1393,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Batch {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>Om</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Inställningar</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Globala filter</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Jobbfunktioner</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Övervakare</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Inga</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Schemapolicyer</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Inga schemapolicyer.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>revision {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Ta bort denna policy?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Dagar</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Varje dag</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Tider</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>När som helst</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Undantagna datum</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>åååå-MM-dd för ett datum, MM-dd för varje år, åtskilda med kommatecken.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Datumleverantörer</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Kräver</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Utom när</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Förhandsgranskning</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Tillåten</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Blockerad</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Ny policy</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Namn</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Beskrivning</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Någon har ändrat policyn under tiden. Läs in sidan igen och försök på nytt.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Kedjor</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Inga kedjor.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Första steget</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Steg</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>Körs</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Klar</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Klar med fel</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Kedja {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>Kedjan '{0}' finns inte sparad längre.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>generation {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Ta bort kedjans steg som inte är klara?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Nivå {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Försök igen härifrån</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Försöker igen...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>Batchen {0} finns inte eller har gått ut.</value>
   </data>
@@ -1464,6 +1620,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Väggtavla</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Kedjor</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Policyer</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>Om</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Tidslinje</value>

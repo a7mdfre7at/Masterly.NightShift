@@ -181,9 +181,14 @@
             List<string> tags = job.Properties.TryGetValue(JobTags.ParameterName, out string? tagsJson) ? JobTags.Parse(tagsJson) : new List<string>();
             string? batchId = job.Properties.TryGetValue(BatchJob.ParameterName, out string? batchJson) ? BatchJob.ParseParameter(batchJson) : null;
             string? batchContinuationOf = job.Properties.TryGetValue(BatchJob.ContinuationParameterName, out string? batchContinuationJson) ? BatchJob.ParseParameter(batchContinuationJson) : null;
-            if (tags.Count > 0 || batchId != null || batchContinuationOf != null)
+            string? chainId = job.Properties.TryGetValue(JobChains.ChainIdParameter, out string? chainJson) ? BatchJob.ParseParameter(chainJson) : null;
+            if (tags.Count > 0 || batchId != null || batchContinuationOf != null || chainId != null)
             {
                 <div class="hf-tags" aria-label="@Strings.JobDetailsPage_Tags">
+                    @if (chainId != null)
+                    {
+                        <a class="hf-tag hf-tag-batch" href="@Url.To("/chains/" + Uri.EscapeDataString(chainId))"><span class="glyphicon glyphicon-link"></span> @String.Format(Strings.ChainDetailsPage_Title, chainId.Substring(0, Math.Min(8, chainId.Length)))</a>
+                    }
                     @if (batchId != null)
                     {
                         <a class="hf-tag hf-tag-batch" href="@Url.To("/batches/" + Uri.EscapeDataString(batchId))"><span class="glyphicon glyphicon-th-large"></span> @Strings.JobDetailsPage_Batch @batchId</a>

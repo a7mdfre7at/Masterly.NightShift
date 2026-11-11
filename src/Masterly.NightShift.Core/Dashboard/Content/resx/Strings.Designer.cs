@@ -1584,6 +1584,114 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Recurring job {0}.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Title {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There is no recurring job '{0}'..
+        /// </summary>
+        public static string RecurringJobDetailsPage_NotFound {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_NotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to From code.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Declared {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Declared", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Declared in code: registering the application again overwrites changes made here..
+        /// </summary>
+        public static string RecurringJobDetailsPage_Declared_Tooltip {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Declared_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retired.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Retired {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Retired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Schedule policy.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Policy {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Policy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skip after.
+        /// </summary>
+        public static string RecurringJobDetailsPage_SkipAfter {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_SkipAfter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No next run..
+        /// </summary>
+        public static string RecurringJobDetailsPage_NoNextRuns {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_NoNextRuns", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Runs.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Runs {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Runs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No run yet..
+        /// </summary>
+        public static string RecurringJobDetailsPage_NoRuns {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_NoRuns", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scheduled for.
+        /// </summary>
+        public static string RecurringJobDetailsPage_ScheduledFor {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_ScheduledFor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duration.
+        /// </summary>
+        public static string RecurringJobDetailsPage_Duration {
+            get {
+                return ResourceManager.GetString("RecurringJobDetailsPage_Duration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Queue.
         /// </summary>
         public static string RecurringJobsPage_Queue {
@@ -3811,6 +3919,366 @@ namespace Masterly.NightShift.Dashboard.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to About.
+        /// </summary>
+        public static string AboutPage_Title {
+            get {
+                return ResourceManager.GetString("AboutPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Settings.
+        /// </summary>
+        public static string AboutPage_Settings {
+            get {
+                return ResourceManager.GetString("AboutPage_Settings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Global filters.
+        /// </summary>
+        public static string AboutPage_GlobalFilters {
+            get {
+                return ResourceManager.GetString("AboutPage_GlobalFilters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Job functions.
+        /// </summary>
+        public static string AboutPage_Functions {
+            get {
+                return ResourceManager.GetString("AboutPage_Functions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Monitors.
+        /// </summary>
+        public static string AboutPage_Monitors {
+            get {
+                return ResourceManager.GetString("AboutPage_Monitors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string AboutPage_None {
+            get {
+                return ResourceManager.GetString("AboutPage_None", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Schedule policies.
+        /// </summary>
+        public static string PoliciesPage_Title {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No schedule policies..
+        /// </summary>
+        public static string PoliciesPage_NoPolicies {
+            get {
+                return ResourceManager.GetString("PoliciesPage_NoPolicies", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to revision {0}.
+        /// </summary>
+        public static string PoliciesPage_Revision {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Revision", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete this policy?.
+        /// </summary>
+        public static string PoliciesPage_DeleteConfirm {
+            get {
+                return ResourceManager.GetString("PoliciesPage_DeleteConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Days.
+        /// </summary>
+        public static string PoliciesPage_Days {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Days", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Every day.
+        /// </summary>
+        public static string PoliciesPage_EveryDay {
+            get {
+                return ResourceManager.GetString("PoliciesPage_EveryDay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hours.
+        /// </summary>
+        public static string PoliciesPage_Windows {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Windows", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Any time.
+        /// </summary>
+        public static string PoliciesPage_AnyTime {
+            get {
+                return ResourceManager.GetString("PoliciesPage_AnyTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Excluded dates.
+        /// </summary>
+        public static string PoliciesPage_Excluded {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Excluded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to yyyy-MM-dd for a date, MM-dd for every year, separated by commas..
+        /// </summary>
+        public static string PoliciesPage_DatesHint {
+            get {
+                return ResourceManager.GetString("PoliciesPage_DatesHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Date providers.
+        /// </summary>
+        public static string PoliciesPage_Providers {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Providers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Requires.
+        /// </summary>
+        public static string PoliciesPage_Requires {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Requires", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Except when.
+        /// </summary>
+        public static string PoliciesPage_ExceptWhen {
+            get {
+                return ResourceManager.GetString("PoliciesPage_ExceptWhen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string PoliciesPage_Preview {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Preview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Allowed.
+        /// </summary>
+        public static string PoliciesPage_Allowed {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Allowed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blocked.
+        /// </summary>
+        public static string PoliciesPage_Blocked {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Blocked", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New policy.
+        /// </summary>
+        public static string PoliciesPage_New {
+            get {
+                return ResourceManager.GetString("PoliciesPage_New", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name.
+        /// </summary>
+        public static string PoliciesPage_Name {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Description.
+        /// </summary>
+        public static string PoliciesPage_Description {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Someone changed this policy meanwhile. Reload the page and try again..
+        /// </summary>
+        public static string PoliciesPage_Conflict {
+            get {
+                return ResourceManager.GetString("PoliciesPage_Conflict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chains.
+        /// </summary>
+        public static string ChainsPage_Title {
+            get {
+                return ResourceManager.GetString("ChainsPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No chains..
+        /// </summary>
+        public static string ChainsPage_NoChains {
+            get {
+                return ResourceManager.GetString("ChainsPage_NoChains", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to First step.
+        /// </summary>
+        public static string ChainsPage_FirstStep {
+            get {
+                return ResourceManager.GetString("ChainsPage_FirstStep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Steps.
+        /// </summary>
+        public static string ChainsPage_Steps {
+            get {
+                return ResourceManager.GetString("ChainsPage_Steps", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Running.
+        /// </summary>
+        public static string ChainsPage_Status_Running {
+            get {
+                return ResourceManager.GetString("ChainsPage_Status_Running", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Done.
+        /// </summary>
+        public static string ChainsPage_Status_Done {
+            get {
+                return ResourceManager.GetString("ChainsPage_Status_Done", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Finished with failures.
+        /// </summary>
+        public static string ChainsPage_Status_Failed {
+            get {
+                return ResourceManager.GetString("ChainsPage_Status_Failed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chain {0}.
+        /// </summary>
+        public static string ChainDetailsPage_Title {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chain '{0}' isn't recorded any more..
+        /// </summary>
+        public static string ChainDetailsPage_NotFound {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_NotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to generation {0}.
+        /// </summary>
+        public static string ChainDetailsPage_Generation {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Generation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete the steps of this chain that haven't finished?.
+        /// </summary>
+        public static string ChainDetailsPage_DeleteConfirm {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_DeleteConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Level {0}.
+        /// </summary>
+        public static string ChainDetailsPage_Level {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Level", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retry from here.
+        /// </summary>
+        public static string ChainDetailsPage_RetryFromHere {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_RetryFromHere", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retrying....
+        /// </summary>
+        public static string ChainDetailsPage_Retrying {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Retrying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Batch {0} does not exist or has expired..
         /// </summary>
         public static string BatchDetailsPage_Expired {
@@ -4132,6 +4600,33 @@ namespace Masterly.NightShift.Dashboard.Resources {
         public static string NavigationMenu_Wallboard {
             get {
                 return ResourceManager.GetString("NavigationMenu_Wallboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chains.
+        /// </summary>
+        public static string NavigationMenu_Chains {
+            get {
+                return ResourceManager.GetString("NavigationMenu_Chains", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Policies.
+        /// </summary>
+        public static string NavigationMenu_Policies {
+            get {
+                return ResourceManager.GetString("NavigationMenu_Policies", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to About.
+        /// </summary>
+        public static string NavigationMenu_About {
+            get {
+                return ResourceManager.GetString("NavigationMenu_About", resourceCulture);
             }
         }
         

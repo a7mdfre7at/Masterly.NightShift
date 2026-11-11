@@ -626,6 +626,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Bare den siste, hvis nylig (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Gjentakende jobb {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>Det finnes ingen gjentakende jobb '{0}'.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Fra kode</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Deklarert i kode: når programmet registreres på nytt, overskrives endringer gjort her.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Pensjonert</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Planpolicy</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Hopp over etter</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Ingen neste kjøring.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Kjøringer</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Ingen kjøring ennå.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Planlagt til</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Varighet</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Kø</value>
   </data>
@@ -1355,6 +1391,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Batch {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>Om</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Innstillinger</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Globale filtre</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Jobbfunksjoner</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Overvåkere</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Ingen</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Planpolicyer</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Ingen planpolicyer.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>revisjon {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Slette denne policyen?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Dager</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Hver dag</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Tider</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>Når som helst</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Utelatte datoer</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>åååå-MM-dd for en dato, MM-dd for hvert år, adskilt med komma.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Datoleverandører</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Krever</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Unntatt når</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Forhåndsvisning</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Tillatt</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Blokkert</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Ny policy</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Navn</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Beskrivelse</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Noen har endret denne policyen i mellomtiden. Last inn siden på nytt og prøv igjen.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Kjeder</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Ingen kjeder.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Første steg</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Steg</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>Kjører</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Ferdig</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Ferdig med feil</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Kjede {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>Kjeden '{0}' er ikke lagret lenger.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>generasjon {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Slette stegene i denne kjeden som ikke er ferdige?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Nivå {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Prøv på nytt herfra</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Prøver på nytt...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>Batchen {0} finnes ikke eller er utløpt.</value>
   </data>
@@ -1462,6 +1618,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Veggtavle</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Kjeder</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Policyer</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>Om</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Tidslinje</value>

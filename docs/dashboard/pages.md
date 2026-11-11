@@ -53,14 +53,17 @@ Some pages depend on optional features. Wait times and throughput need [insights
 | Jobs > Deleted | `/jobs/deleted` | Deleted jobs |
 | Jobs > Awaiting | `/jobs/awaiting` | Continuations waiting for their parent |
 | Batches | `/batches` | Batches and their progress |
+| Chains | `/chains` | Job chains, their steps, retry from a step |
 | Retries | `/retries` | Jobs waiting for an automatic retry |
-| Recurring Jobs | `/recurring` | Recurring jobs: trigger, pause, edit, import, export |
+| Recurring Jobs | `/recurring` | Recurring jobs: trigger, pause, edit, import, export; `/recurring/details/{id}` for one job and its runs |
+| Policies | `/policies` | Schedule policies (business calendars): edit, preview |
 | Timeline | `/timeline` | What every worker did in the last 15 minutes |
 | Insights | `/insights` | Duration and failure statistics per method, circuit breakers |
 | Catalog | `/catalog` | Every job method in your code, ready to run |
 | Tags | `/tags` | Jobs grouped by tag |
 | Servers | `/servers` | Servers, workers, pausing processing, maintenance |
 | Audit | `/audit` | Who did what in the dashboard |
+| About | `/about` | The configuration in effect, global filters, job functions, monitors |
 | Wallboard | `/wallboard` | A full-screen status board |
 
 The sidebar shows counters next to Jobs, Retries, Recurring Jobs, Servers and each job state. The Jobs counter shows enqueued jobs, or turns red with the number of failed jobs when there are any.
@@ -142,6 +145,15 @@ Continuations waiting for their parent: the parent job, the continuation options
 
 Every batch with a progress bar and its succeeded, failed and pending counts. Open a batch (`/batches/{id}`) to see its jobs, a page at a time, and the continuations that start when it finishes. On a storage without the extended API, the batch page shows its first 500 jobs and says how many more there are. Actions on a batch: **Requeue failed** and **Delete unfinished**, within the same limits as **Delete all** (see [Things to know](#things-to-know)). See [Fan-in and batches](../jobs/fan-in-and-batches.md).
 
+### Chains
+
+Every [job chain](../jobs/chains.md), newest first, with its first step, the number of steps, when it was created and its status: **Running**, **Done** or **Finished with failures**. Open a chain (`/chains/{id}`) to see its steps level by level, each with its job, state and when it was created, and the generation (how many times the chain was retried). Actions:
+
+- **Retry from here** on a failed or deleted step, once the chain has settled (nothing is running or waiting to run): the step runs again with everything after it, and the steps before it aren't re-run. It calls `RetryChainFrom`.
+- **Delete** while the chain is still running: deletes the steps that haven't finished, following the chain's delete behavior (`Restrict` refuses while a step is processing).
+
+A chain step's job page links to its chain next to the job's tags.
+
 ### Retries
 
 Jobs that failed and are waiting for an automatic retry, with their current state, the reason and when the retry is due. Actions: **Enqueue now** (retry immediately), **Delete selected**, **Delete all**. See [Retries](../filters/retries.md).
@@ -155,7 +167,15 @@ Every recurring job with its schedule, time zone, job, next and last execution, 
 - **Export** downloads every recurring job as a JSON manifest; **Import** applies a manifest (pasted or from a file), optionally removing jobs that aren't in it. Entries for methods the application doesn't already use as jobs are reported as errors unless `DashboardOptions.AllowAnyMethodInManifestImport` is set. For read-only users, Export leaves out the values of `[Redacted]` parameters. See [Recurring job manifest](../recurring-jobs/recurring-job-manifest.md).
 - **Forecast** (`/recurring/forecast`): when your recurring jobs will run in the next 24 hours or 7 days (`?window=7d`), each run sized by the method's median duration from insights (runs before a job's start date or after its end date are left out), and **hot spots** where several jobs start within the same five minutes. At most 2,000 runs of one job are projected: a job that runs more often in the window (every minute over 7 days, for example) shows "≥2000×", its band reaches the end of the window (or the job's end date), it is left out of the hot spots, and the run total says "≥".
 
+Click a job's id to open its details page (`/recurring/details/{id}`): the schedule with its description, the job, time zone, queue, misfire handling, [schedule policy](../jobs/schedule-policies.md) and skip-after window, its next runs, and its last 50 runs with their state, scheduled time, duration, retries, server and reason. A job declared with a [recurring job set](../recurring-jobs/recurring-jobs-in-code.md) shows a **From code** badge (changes made in the dashboard are replaced the next time the app starts), and a job the set no longer declares shows **Retired**. **Trigger now**, **Pause** and **Resume** act on that job.
+
 A removed recurring job comes back if your app registers it again at startup.
+
+### Policies
+
+[Schedule policies](../jobs/schedule-policies.md) as cards: the time zone, allowed days and time windows, excluded dates, date providers, the policies it requires or is blocked by, and its revision. **New policy** and **Edit** open an editor with the same fields (windows as `09:00-17:00`, dates as `2026-12-24` or `12-25` for every year). Saving sends the revision you opened: when someone else saved the policy in the meantime, the save is refused (`409`) and you reload. **Delete** works the same way. Saving reschedules the recurring jobs that use the policy.
+
+**Preview** checks the next 20 occurrences of a CRON expression or plain-English schedule against a policy and marks each one **Allowed** or **Blocked**, with the reason. A date provider that isn't registered in the dashboard's process blocks every date of a policy that uses it, as on a server.
 
 ### Timeline
 
@@ -192,6 +212,10 @@ A tag cloud and a table of tags with their job counts, in name order and a page 
 
 Who did what from the dashboard: time, user, action, targets and detail. Users who can change things also see the IP address of each entry; read-only users see it only when `DashboardOptions.DisplayAuditIpAddressesToReadOnlyUsers` is `true`. Choose how many entries to show (50, 100, 250 or 1000). Empty when `AuditLog.Enabled` is `false`. See [Audit log and activity](../monitoring/audit-log-and-activity.md).
 
+### About
+
+What this application configured, as the dashboard's process sees it: the storage, the data compatibility level and the options turned on (default recurring time zone, stale restart limit, argument compression, deployment fencing, date providers), the global filters in the order they run, the registered [job functions](../jobs/job-functions.md), and the [job monitors](../monitoring/job-monitors.md) with their status. Servers in other processes may be configured differently.
+
 ### Wallboard
 
 A full-screen status board for a TV or a second screen, with no navigation. It is always dark, whatever `DarkModeEnabled` says, because a dark screen is easier to read from across a room. It reloads every 10 seconds and shows the time in the viewer's time zone (in UTC, marked so, when scripts are off), the overall health ("All systems go", "Needs attention", "Processing is down"), the success rate over the last hour, jobs running now with their progress, the queues, and anything that needs attention (including open circuit breakers). Storages count finished jobs per clock hour, so "the last hour" is the current hour plus the share of the previous hour that falls within the last 60 minutes, as if its jobs were spread evenly.
@@ -203,7 +227,7 @@ Open any job id to see `/jobs/details/{jobId}`:
 - **Header**: the job's display name, plus warnings when its server is gone or stopped reporting (the job may be aborted), or when the job has finished and will expire.
 - **Code**: the method call with its arguments and the queue. Parameters marked `[Redacted]` are masked. When the dashboard can't load the job's method, it shows what the storage knows instead (type, method, the load error); the raw arguments and payload are shown only to users who aren't read-only, because `[Redacted]` can't be read without the method (see [Read-only dashboards](authorization.md#read-only-dashboards)).
 - **Toolbar**: **Watch** (follow the job in the sidebar and get a browser notification when it finishes), **Export JSON** (method, arguments, history, parameters, console and notes in one file), **Run again with changes** (a new job from this one with edited arguments, now, later or on a schedule), and **Copy as C#** (the statement that creates the job again).
-- **Tags and batch**: links to the job's tags and to its batch.
+- **Tags, batch and chain**: links to the job's tags, to its batch and to its chain.
 - **Diagnosis**: why the job is where it is and what would move it, for example "No running server listens to queue reports", "Retry 3 of 10 is pending" or "Parent 42 has failed and will not be retried".
 - **Notes**: comments for the next person, and **Acknowledge** to mark a failure as looked at.
 - **Lineage**: the jobs this one waited for and the ones waiting for it.
@@ -231,6 +255,9 @@ These routes are meant for scripts and monitoring. They go through the dashboard
 | `/recurring/export` | `GET` | The recurring job manifest as JSON. |
 | `/recurring/preview?cron=...&timezone=...` | `GET` | The next five occurrences of a CRON expression or plain-English schedule, as the schedule editor shows them. Optional `start` and `end` (Unix milliseconds) leave out runs outside a job's start and end dates. Always answers `200`; a problem is reported in the `error` field. |
 | `/maintenance/pause`, `/maintenance/resume` | `GET` | The current drain mode status as JSON. A `POST` turns drain mode on or off, like the buttons on the Servers page. |
+| `/recurring/trigger-one/{id}`, `/recurring/pause-one/{id}`, `/recurring/resume-one/{id}` | `POST` | Trigger, pause or resume one recurring job. |
+| `/chains/retry/{stepJobId}`, `/chains/delete/{chainId}` | `POST` | Retry a settled chain from a step, or delete a running chain's unfinished steps. `204` when done; `422` with `{ "error": ... }` when refused. |
+| `/policies/save`, `/policies/delete/{name}/{revision}` | `POST` | Save a schedule policy from the editor's form fields, or delete it. `204` when done; `409` when the revision changed; `422` with `{ "error": ... }` for a bad value. |
 
 ## Things to know
 

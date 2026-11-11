@@ -10,7 +10,8 @@ namespace Masterly.NightShift;
 /// <param name="State">The job's state name, or <c>null</c> when the job expired.</param>
 /// <param name="Level">The level of the step.</param>
 /// <param name="ParentLevel">The level it waits for, -1 for the first step.</param>
-public sealed record JobChainStepInfo(string Key, string JobId, string? State, int Level, int ParentLevel);
+/// <param name="Job">The step's method call, as the chain defines it.</param>
+public sealed record JobChainStepInfo(string Key, string JobId, string? State, int Level, int ParentLevel, Job? Job = null);
 
 /// <summary>A stored chain, as <c>GetChain</c> reads it.</summary>
 /// <param name="ChainId">The chain's identifier.</param>
@@ -503,7 +504,7 @@ public static class JobChains
                     string key = Key(level, i);
                     if (!Jobs.TryGetValue(key, out string? jobId)) continue;
 
-                    steps.Add(new JobChainStepInfo(key, jobId, connection.GetStateData(jobId)?.Name, level, Levels[level].Parent));
+                    steps.Add(new JobChainStepInfo(key, jobId, connection.GetStateData(jobId)?.Name, level, Levels[level].Parent, Levels[level].Steps[i].Job));
                 }
             }
 

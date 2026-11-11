@@ -37,6 +37,8 @@ internal static class ScheduleDateProviders
 
     public static bool Remove(string name) => Providers.TryRemove(name, out _);
 
+    public static IReadOnlyList<string> Names => [.. Providers.Keys.Order(StringComparer.Ordinal)];
+
     // For tests
     internal static void Clear() => Providers.Clear();
 }

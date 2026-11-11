@@ -620,6 +620,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>فقط آخرین، اگر اخیر باشد (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>کار تکرارشونده {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>کار تکرارشونده‌ای با نام '{0}' وجود ندارد.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>از کد</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>در کد تعریف شده است: ثبت دوباره برنامه، تغییرات اعمال‌شده در اینجا را بازنویسی می‌کند.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>بازنشسته</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>سیاست زمان‌بندی</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>رد شدن پس از</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>اجرای بعدی وجود ندارد.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>اجراها</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>هنوز اجرایی نشده است.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>زمان‌بندی‌شده برای</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>مدت</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>صف</value>
   </data>
@@ -1349,6 +1385,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>دسته {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>درباره</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>تنظیمات</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>فیلترهای سراسری</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>تابع‌های کار</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>پایشگرها</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>هیچ</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>سیاست‌های زمان‌بندی</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>سیاست زمان‌بندی‌ای وجود ندارد.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>نسخه {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>این سیاست حذف شود؟</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>روزها</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>هر روز</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>ساعت‌ها</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>هر زمان</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>تاریخ‌های مستثنا</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>yyyy-MM-dd برای یک تاریخ، MM-dd برای هر سال، جدا شده با ویرگول.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>تأمین‌کننده‌های تاریخ</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>نیاز دارد</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>به جز زمانی که</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>پیش‌نمایش</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>مجاز</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>مسدود</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>سیاست جدید</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>نام</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>توضیح</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>در این فاصله کسی این سیاست را تغییر داده است. صفحه را دوباره بارگذاری کنید و دوباره تلاش کنید.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>زنجیره‌ها</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>زنجیره‌ای وجود ندارد.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>گام نخست</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>گام‌ها</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>در حال اجرا</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>تمام‌شده</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>با خطا پایان یافت</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>زنجیره {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>زنجیره '{0}' دیگر ثبت نشده است.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>نسل {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>گام‌های پایان‌نیافته این زنجیره حذف شوند؟</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>سطح {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>تلاش دوباره از اینجا</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>در حال تلاش دوباره...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>دسته {0} وجود ندارد یا منقضی شده است.</value>
   </data>
@@ -1456,6 +1612,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>تابلوی دیواری</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>زنجیره‌ها</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>سیاست‌ها</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>درباره</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>خط زمان</value>

@@ -122,16 +122,18 @@ Connections, rules and templates are configured in code (`UseWebhookAlerts`, `Al
 | Alert rules with function filters, templates, delivery history | Port | `AlertRule` (kinds, method wildcards, cooldown), `WebhookAlertOptions.Template`, `RetryDelays`, `Deliveries`, `Alert.Id`. |
 | Slack, Teams, webhooks | Done | `WebhookAlertSink`. |
 
-## Phase 8: Dashboard
+## Phase 8: Dashboard (done)
+
+Dashboard commands added in this phase answer `204`, or `409`/`422` with `{ "error": ... }`, so the page shows why a command was refused (a chain that hasn't settled, a policy someone else saved).
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Cron occurrence history | Port | `/recurring/details/{id}`. |
-| Chain view and builder | Port | Graph with aggregate status, merged logs, retry from a step; a builder in the Catalog. |
-| Schedule policies page | Port | Cards, editor, preview of the next 20 runs. |
-| Drafts and chain templates | Port | Saved run forms and saved chains. |
-| Test run (no job created) | Port | `PerformContext.IsTestRun`, from the Catalog and the chain builder. |
-| About page | Port | Effective configuration and registered functions. |
+| Cron occurrence history | Port | `/recurring/details/{id}`: definition, next runs, the last 50 runs, **From code** and **Retired** badges, trigger, pause and resume. |
+| Chain view | Port | `/chains` and `/chains/{id}`: steps by level with aggregate status, **Retry from here** on a failed or deleted step of a settled chain, delete. Each step's console stays on its job page. |
+| Schedule policies page | Port | `/policies`: cards, an editor with optimistic revisions, a preview of the next 20 occurrences marked allowed or blocked. |
+| About page | Port | `/about`: effective configuration, global filters, job functions, monitors. |
+| Visual chain builder, drafts and chain templates | Not ported | A drag-and-drop editor is a large client-side application, and chains are code: a chain built in the browser would need its steps' methods and arguments typed in by hand, which the Catalog's run form already does for one job. Saved chains are `RecurringJob.AddOrUpdateChain` or a method that builds the chain. |
+| Test run (no job created) | Not ported | It runs job code inside the web process that hosts the dashboard, outside the server's workers, filters and limits, with the dashboard user's rights. **Run...** in the Catalog creates a real job instead, which is visible, audited and runs where jobs run. |
 | Read-only users, host auth, diagnostics, search, live view | Done | `IsReadOnlyFunc`, authorization filters, `/health`, command palette, live polling. |
 
 ## Phase 9: Storage packages

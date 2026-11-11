@@ -567,6 +567,42 @@
   <data name="RecurringJobsPage_Misfire_RunLatest" xml:space="preserve">
     <value>Nur den letzten, wenn aktuell (run latest)</value>
   </data>
+  <data name="RecurringJobDetailsPage_Title" xml:space="preserve">
+    <value>Wiederkehrender Job {0}</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NotFound" xml:space="preserve">
+    <value>Es gibt keinen wiederkehrenden Job '{0}'.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared" xml:space="preserve">
+    <value>Aus dem Code</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Declared_Tooltip" xml:space="preserve">
+    <value>Im Code deklariert: Ein erneutes Registrieren der Anwendung überschreibt hier vorgenommene Änderungen.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Retired" xml:space="preserve">
+    <value>Stillgelegt</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Policy" xml:space="preserve">
+    <value>Zeitplanrichtlinie</value>
+  </data>
+  <data name="RecurringJobDetailsPage_SkipAfter" xml:space="preserve">
+    <value>Überspringen nach</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoNextRuns" xml:space="preserve">
+    <value>Keine nächste Ausführung.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Runs" xml:space="preserve">
+    <value>Ausführungen</value>
+  </data>
+  <data name="RecurringJobDetailsPage_NoRuns" xml:space="preserve">
+    <value>Noch keine Ausführung.</value>
+  </data>
+  <data name="RecurringJobDetailsPage_ScheduledFor" xml:space="preserve">
+    <value>Geplant für</value>
+  </data>
+  <data name="RecurringJobDetailsPage_Duration" xml:space="preserve">
+    <value>Dauer</value>
+  </data>
   <data name="RecurringJobsPage_Queue" xml:space="preserve">
     <value>Warteschlange</value>
   </data>
@@ -1296,6 +1332,126 @@
   <data name="BatchDetailsPage_Title" xml:space="preserve">
     <value>Batch {0}</value>
   </data>
+  <data name="AboutPage_Title" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="AboutPage_Settings" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="AboutPage_GlobalFilters" xml:space="preserve">
+    <value>Globale Filter</value>
+  </data>
+  <data name="AboutPage_Functions" xml:space="preserve">
+    <value>Jobfunktionen</value>
+  </data>
+  <data name="AboutPage_Monitors" xml:space="preserve">
+    <value>Monitore</value>
+  </data>
+  <data name="AboutPage_None" xml:space="preserve">
+    <value>Keine</value>
+  </data>
+  <data name="PoliciesPage_Title" xml:space="preserve">
+    <value>Zeitplanrichtlinien</value>
+  </data>
+  <data name="PoliciesPage_NoPolicies" xml:space="preserve">
+    <value>Keine Zeitplanrichtlinien.</value>
+  </data>
+  <data name="PoliciesPage_Revision" xml:space="preserve">
+    <value>Revision {0}</value>
+  </data>
+  <data name="PoliciesPage_DeleteConfirm" xml:space="preserve">
+    <value>Diese Richtlinie löschen?</value>
+  </data>
+  <data name="PoliciesPage_Days" xml:space="preserve">
+    <value>Tage</value>
+  </data>
+  <data name="PoliciesPage_EveryDay" xml:space="preserve">
+    <value>Jeden Tag</value>
+  </data>
+  <data name="PoliciesPage_Windows" xml:space="preserve">
+    <value>Zeiten</value>
+  </data>
+  <data name="PoliciesPage_AnyTime" xml:space="preserve">
+    <value>Jederzeit</value>
+  </data>
+  <data name="PoliciesPage_Excluded" xml:space="preserve">
+    <value>Ausgeschlossene Daten</value>
+  </data>
+  <data name="PoliciesPage_DatesHint" xml:space="preserve">
+    <value>JJJJ-MM-TT für ein Datum, MM-TT für jedes Jahr, durch Kommas getrennt.</value>
+  </data>
+  <data name="PoliciesPage_Providers" xml:space="preserve">
+    <value>Datumsanbieter</value>
+  </data>
+  <data name="PoliciesPage_Requires" xml:space="preserve">
+    <value>Erfordert</value>
+  </data>
+  <data name="PoliciesPage_ExceptWhen" xml:space="preserve">
+    <value>Außer wenn</value>
+  </data>
+  <data name="PoliciesPage_Preview" xml:space="preserve">
+    <value>Vorschau</value>
+  </data>
+  <data name="PoliciesPage_Allowed" xml:space="preserve">
+    <value>Erlaubt</value>
+  </data>
+  <data name="PoliciesPage_Blocked" xml:space="preserve">
+    <value>Gesperrt</value>
+  </data>
+  <data name="PoliciesPage_New" xml:space="preserve">
+    <value>Neue Richtlinie</value>
+  </data>
+  <data name="PoliciesPage_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="PoliciesPage_Description" xml:space="preserve">
+    <value>Beschreibung</value>
+  </data>
+  <data name="PoliciesPage_Conflict" xml:space="preserve">
+    <value>Jemand hat diese Richtlinie inzwischen geändert. Laden Sie die Seite neu und versuchen Sie es erneut.</value>
+  </data>
+  <data name="ChainsPage_Title" xml:space="preserve">
+    <value>Ketten</value>
+  </data>
+  <data name="ChainsPage_NoChains" xml:space="preserve">
+    <value>Keine Ketten.</value>
+  </data>
+  <data name="ChainsPage_FirstStep" xml:space="preserve">
+    <value>Erster Schritt</value>
+  </data>
+  <data name="ChainsPage_Steps" xml:space="preserve">
+    <value>Schritte</value>
+  </data>
+  <data name="ChainsPage_Status_Running" xml:space="preserve">
+    <value>Läuft</value>
+  </data>
+  <data name="ChainsPage_Status_Done" xml:space="preserve">
+    <value>Fertig</value>
+  </data>
+  <data name="ChainsPage_Status_Failed" xml:space="preserve">
+    <value>Mit Fehlern beendet</value>
+  </data>
+  <data name="ChainDetailsPage_Title" xml:space="preserve">
+    <value>Kette {0}</value>
+  </data>
+  <data name="ChainDetailsPage_NotFound" xml:space="preserve">
+    <value>Die Kette '{0}' ist nicht mehr gespeichert.</value>
+  </data>
+  <data name="ChainDetailsPage_Generation" xml:space="preserve">
+    <value>Generation {0}</value>
+  </data>
+  <data name="ChainDetailsPage_DeleteConfirm" xml:space="preserve">
+    <value>Die noch nicht beendeten Schritte dieser Kette löschen?</value>
+  </data>
+  <data name="ChainDetailsPage_Level" xml:space="preserve">
+    <value>Ebene {0}</value>
+  </data>
+  <data name="ChainDetailsPage_RetryFromHere" xml:space="preserve">
+    <value>Ab hier wiederholen</value>
+  </data>
+  <data name="ChainDetailsPage_Retrying" xml:space="preserve">
+    <value>Wird wiederholt...</value>
+  </data>
   <data name="BatchDetailsPage_Expired" xml:space="preserve">
     <value>Batch {0} existiert nicht oder ist abgelaufen.</value>
   </data>
@@ -1403,6 +1559,15 @@
   </data>
   <data name="NavigationMenu_Wallboard" xml:space="preserve">
     <value>Wandtafel</value>
+  </data>
+  <data name="NavigationMenu_Chains" xml:space="preserve">
+    <value>Ketten</value>
+  </data>
+  <data name="NavigationMenu_Policies" xml:space="preserve">
+    <value>Richtlinien</value>
+  </data>
+  <data name="NavigationMenu_About" xml:space="preserve">
+    <value>Info</value>
   </data>
   <data name="TimelinePage_Title" xml:space="preserve">
     <value>Zeitleiste</value>
