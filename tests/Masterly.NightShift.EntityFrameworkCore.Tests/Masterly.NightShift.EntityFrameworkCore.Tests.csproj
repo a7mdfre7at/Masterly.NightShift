@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.EntityFrameworkCore\Masterly.NightShift.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What every storage must do, shared by the storage test projects -->
+    <Compile Include="..\Shared\StorageConformance\*.cs" Link="Conformance\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Moq" />
+    <Using Include="Masterly.NightShift.Common" />
+    <Using Include="Masterly.NightShift.States" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

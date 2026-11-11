@@ -28,7 +28,7 @@ This page helps you choose between them. To move an existing app, read [Migratin
 | **Monitoring** | Dashboard (community packages for the rest) | Dashboard, OpenTelemetry, Prometheus, health checks, alerts, audit log |
 | **Dashboard** | Jobs, queues, servers, retries, recurring jobs | The same, plus insights, failure clusters, lineage, job diagnosis, job catalog, timeline, wallboard, exports |
 | **Stopping work before a deploy** | Not included | Drain mode, for the system, a queue or a server |
-| **Storage** | SQL Server. Redis is paid (Hangfire Pro). Many community storages | SQL Server. Other storages have to be written or ported |
+| **Storage** | SQL Server. Redis is paid (Hangfire Pro). Many community storages | SQL Server, Entity Framework Core (PostgreSQL, MySQL, SQLite and other providers), Redis, MongoDB and in memory, all passing one conformance suite. Other storages have to be written or ported |
 | **Support** | Community, or paid plans with email support | Community, through GitHub |
 | **License** | LGPL v3, with paid plans for the add-ons | `MIT AND LGPL-3.0-or-later`, with every feature above included |
 | **Track record** | Used in production for more than a decade | New: 1.0 is the first release |

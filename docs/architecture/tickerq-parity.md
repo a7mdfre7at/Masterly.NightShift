@@ -136,15 +136,17 @@ Dashboard commands added in this phase answer `204`, or `409`/`422` with `{ "err
 | Test run (no job created) | Not ported | It runs job code inside the web process that hosts the dashboard, outside the server's workers, filters and limits, with the dashboard user's rights. **Run...** in the Catalog creates a real job instead, which is visible, audited and runs where jobs run. |
 | Read-only users, host auth, diagnostics, search, live view | Done | `IsReadOnlyFunc`, authorization filters, `/health`, command palette, live polling. |
 
-## Phase 9: Storage packages
+## Phase 9: Storage packages (done)
+
+The four storages share an internal layer compiled into each package (`src/Shared/Storage`): a transaction that records its writes and applies them all at once, the monitoring API built on a few queries, lease locks and fetched jobs kept alive by a timer. Each package depends only on Core's public API, as a third-party storage would. Staging reserves the job's id with a committed insert that expires by itself, so client filters see the real id; the state, queue entry and every other write of the creation become tracked changes of the application's context.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Conformance suite | Port | One shared suite run against every storage, SQL Server included. |
-| In-memory store | Port | `Masterly.NightShift.InMemory`. |
-| EF Core store and transactional scheduling (`StageAsync`) | Port | `Masterly.NightShift.EntityFrameworkCore`: jobs commit or roll back with `SaveChanges`. |
-| Redis store | Port | `Masterly.NightShift.Redis`. |
-| MongoDB store | Port | `Masterly.NightShift.MongoDB`. |
+| Conformance suite | Port | `tests/Shared/StorageConformance/StorageConformanceFacts.cs`: 46 tests (primitives, queues, locks, monitoring, purge, end to end with a server), compiled into each storage's test project. SQL Server passes it except two features it doesn't have (parameters in transactions, timelines before aggregation). |
+| In-memory store | Port | `Masterly.NightShift.InMemory`: one lock, copies on read, wake-ups on enqueue, `MaxExpirationTime`. |
+| EF Core store and transactional scheduling (`StageAsync`) | Port | `Masterly.NightShift.EntityFrameworkCore`: a context of its own or the application's (`ApplyNightShiftModel`); `context.NightShift()` stages jobs that commit or roll back with `SaveChanges`. EF Core 8 on `net8.0`, 10 on `net10.0`. |
+| Redis store | Port | `Masterly.NightShift.Redis`: one Lua script per transaction, pub/sub wake-ups, keys in one hash slot. |
+| MongoDB store | Port | `Masterly.NightShift.MongoDB`: replica set transactions, TTL indexes, merged counters. |
 
 ## Not ported
 

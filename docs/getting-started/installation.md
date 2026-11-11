@@ -15,7 +15,7 @@ dotnet add package Masterly.NightShift
 ## How it works
 
 - **`Masterly.NightShift.Core`** has everything that doesn't depend on a host or a database: the client API (`BackgroundJob`, `IBackgroundJobClient`, `RecurringJob`, `IRecurringJobManager`), the server (`BackgroundJobServer`), states, filters, the storage abstraction (`JobStorage`) and the dashboard pages. It also ships a source generator as an analyzer, which writes direct calls for your job methods at build time (see [Source-generated invokers](../jobs/source-generated-invokers.md)).
-- **A storage package** decides where jobs are kept. `Masterly.NightShift.SqlServer` is the one in this repository. Other storages implement `JobStorage` (see [Custom storage](../storage/custom-storage.md)).
+- **A storage package** decides where jobs are kept: `Masterly.NightShift.SqlServer`, `Masterly.NightShift.EntityFrameworkCore` (PostgreSQL, MySQL, SQLite and other EF Core providers), `Masterly.NightShift.Redis`, `Masterly.NightShift.MongoDB` or `Masterly.NightShift.InMemory` (see [Storage](../storage/README.md)). Other storages implement `JobStorage` (see [Custom storage](../storage/custom-storage.md)).
 - **`Masterly.NightShift.NetCore`** connects to `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting` and `Microsoft.Extensions.Logging`: `AddNightShift` registers the client services, `AddNightShiftServer` runs the server as an `IHostedService`, job classes are created from the container, one scope per job, and the library's log goes to `ILogger`.
 - **`Masterly.NightShift.AspNetCore`** serves the dashboard (`MapNightShiftDashboard`, `UseNightShiftDashboard`), adds ASP.NET Core health checks (`AddHealthChecks().AddNightShift()`), and adds `AddNightShiftKeepAlive` for hosts that idle, such as IIS.
 
@@ -30,6 +30,10 @@ The packages depend on each other in a line: AspNetCore needs NetCore, NetCore a
 | `Masterly.NightShift` | Nothing; a meta-package | Core, SqlServer, AspNetCore |
 | `Masterly.NightShift.Core` | Client API, server, states, filters, storage abstraction, dashboard, source generator | Cronos |
 | `Masterly.NightShift.SqlServer` | `SqlServerStorage`, `SqlServerStorageOptions`, `UseSqlServerStorage(...)` | Core, Dapper, Microsoft.Data.SqlClient |
+| `Masterly.NightShift.EntityFrameworkCore` | `EntityFrameworkCoreStorage`, `UseEntityFrameworkCoreStorage(...)`, `ApplyNightShiftModel`, `context.NightShift()` | Core, Microsoft.EntityFrameworkCore.Relational (8.x on `net8.0`, 10.x on `net10.0`) |
+| `Masterly.NightShift.Redis` | `RedisStorage`, `UseRedisStorage(...)` | Core, StackExchange.Redis |
+| `Masterly.NightShift.MongoDB` | `MongoStorage`, `UseMongoStorage(...)` | Core, MongoDB.Driver |
+| `Masterly.NightShift.InMemory` | `InMemoryStorage`, `UseInMemoryStorage(...)` | Core |
 | `Masterly.NightShift.NetCore` | `AddNightShift`, `AddNightShiftServer`, `ConfigureNightShiftJobLogging`, DI-backed job activator, logging through `ILoggerFactory` | Core; the `Microsoft.Extensions` DependencyInjection, Hosting and Logging abstractions (8.0.x on `net8.0`, 10.0.x on `net10.0`) |
 | `Masterly.NightShift.AspNetCore` | `MapNightShiftDashboard`, `UseNightShiftDashboard`, `MapNightShiftHealth`, `MapNightShiftMetrics`, health checks (`IHealthChecksBuilder.AddNightShift`), `AddNightShiftKeepAlive` | NetCore; the ASP.NET Core shared framework |
 

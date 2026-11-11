@@ -500,7 +500,7 @@ Use the provider for all queues with `SqlServerStorageOptions.DefaultQueueProvid
 
 ### Testing a storage
 
-The SQL Server storage's tests describe the expected behavior method by method: [`SqlServerConnectionFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerConnectionFacts.cs), [`SqlServerWriteOnlyTransactionFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerWriteOnlyTransactionFacts.cs), [`SqlServerMonitoringApiFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerMonitoringApiFacts.cs) and the queue and lock tests next to them. Port the ones that apply. Then run a real app against your storage with several servers and kill one while jobs run: every job must finish exactly once or, after a crash, at least once.
+Start with the conformance suite, [`StorageConformanceFacts`](../../tests/Shared/StorageConformance/StorageConformanceFacts.cs): what every storage must do, from sets, lists and hashes to queues, locks, the monitoring API, purging and jobs run end to end by a real server. Copy it into your test project, derive a class from it and return an empty storage from `CreateStorage`; the SQL Server, Entity Framework Core, Redis, MongoDB and in-memory storages all pass it. The SQL Server storage's own tests describe more edge cases method by method: [`SqlServerConnectionFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerConnectionFacts.cs), [`SqlServerWriteOnlyTransactionFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerWriteOnlyTransactionFacts.cs), [`SqlServerMonitoringApiFacts`](../../tests/Masterly.NightShift.SqlServer.Tests/SqlServerMonitoringApiFacts.cs) and the queue and lock tests next to them. Then run a real app against your storage with several servers and kill one while jobs run: every job must finish exactly once or, after a crash, at least once.
 
 ## Things to know
 
@@ -509,7 +509,7 @@ The SQL Server storage's tests describe the expected behavior method by method: 
 - **Ids are strings.** Use whatever your database generates, but return them as strings and accept malformed ones without throwing: reads return `null` (`GetJobData`, `GetStateData`, `GetJobParameter`), and writes for such an id (`SetJobParameter`, `ExpireJob`, `PersistJob`, `SetJobState`, `AddJobState`, `AddToQueue`) do nothing, as no job can have it.
 - **Store strings as given.** Job payloads, state data and parameter values are serialized by the library; don't parse or re-encode them. That keeps data readable across [compatibility levels](../configuration/compatibility-levels.md).
 - **Times are UTC.**
-- **The SQL Server storage is the reference.** When in doubt about a behavior, read [`src/Masterly.NightShift.SqlServer`](../../src/Masterly.NightShift.SqlServer/).
+- **The SQL Server storage is the reference.** When in doubt about a behavior, read [`src/Masterly.NightShift.SqlServer`](../../src/Masterly.NightShift.SqlServer/). For a storage without SQL, the [in-memory storage](../../src/Masterly.NightShift.InMemory/) is the shortest complete example.
 
 ## See also
 

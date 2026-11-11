@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Version, authors, repository, license, icon and packed files come from src/Directory.Build.props. -->
+  <PropertyGroup>
+    <Description>Entity Framework Core storage for Masterly.NightShift background jobs: SQL Server, PostgreSQL, SQLite, MySQL and other relational providers. Stage jobs in your DbContext so they commit with SaveChanges.</Description>
+    <PackageTags>Background;Jobs;Storage;EntityFrameworkCore;EFCore;Transactional;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <PackageReadmeSource>README.md</PackageReadmeSource>
+    <RootNamespace>Masterly.NightShift.EntityFrameworkCore</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" PrivateAssets="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Code shared by the storages built on recorded transactions; internal to each package -->
+    <Compile Include="..\Shared\Storage\*.cs" Link="Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Masterly.NightShift.EntityFrameworkCore.Tests" />
+  </ItemGroup>
+
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="System.Globalization" />
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Common" />
+    <Using Include="Masterly.NightShift.Server" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

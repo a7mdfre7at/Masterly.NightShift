@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Version, authors, repository, license, icon and packed files come from src/Directory.Build.props. -->
+  <PropertyGroup>
+    <Description>MongoDB storage for Masterly.NightShift background jobs, on the official driver. Multi-document transactions on a replica set, TTL indexes for expiration.</Description>
+    <PackageTags>Background;Jobs;Storage;MongoDB;Mongo;Queue;Scheduler;Masterly;Csharp;DotNet</PackageTags>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <PackageReadmeSource>README.md</PackageReadmeSource>
+    <RootNamespace>Masterly.NightShift.MongoDB</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" PrivateAssets="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Code shared by the storages built on recorded transactions; internal to each package -->
+    <Compile Include="..\Shared\Storage\*.cs" Link="Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Masterly.NightShift.MongoDB.Tests" />
+  </ItemGroup>
+
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="System.Globalization" />
+    <Using Include="Masterly.NightShift.Annotations" />
+    <Using Include="Masterly.NightShift.Common" />
+    <Using Include="Masterly.NightShift.Server" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

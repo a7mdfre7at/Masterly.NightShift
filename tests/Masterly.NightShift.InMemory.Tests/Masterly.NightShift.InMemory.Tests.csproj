@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.Core\Masterly.NightShift.Core.csproj" />
+    <ProjectReference Include="..\..\src\Masterly.NightShift.InMemory\Masterly.NightShift.InMemory.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What every storage must do, shared by the storage test projects -->
+    <Compile Include="..\Shared\StorageConformance\*.cs" Link="Conformance\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Global usings, next to the implicit ones of the SDK -->
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Moq" />
+    <Using Include="Masterly.NightShift.Common" />
+    <Using Include="Masterly.NightShift.States" />
+    <Using Include="Masterly.NightShift.Storage" />
+  </ItemGroup>
+</Project>

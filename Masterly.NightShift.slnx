@@ -25,7 +25,11 @@
     <Project Path="src/Masterly.NightShift.AspNetCore/Masterly.NightShift.AspNetCore.csproj" />
     <Project Path="src/Masterly.NightShift.Core/Masterly.NightShift.Core.csproj" />
     <Project Path="src/Masterly.NightShift.Dashboard.Generator/Masterly.NightShift.Dashboard.Generator.csproj" />
+    <Project Path="src/Masterly.NightShift.EntityFrameworkCore/Masterly.NightShift.EntityFrameworkCore.csproj" />
+    <Project Path="src/Masterly.NightShift.InMemory/Masterly.NightShift.InMemory.csproj" />
+    <Project Path="src/Masterly.NightShift.MongoDB/Masterly.NightShift.MongoDB.csproj" />
     <Project Path="src/Masterly.NightShift.NetCore/Masterly.NightShift.NetCore.csproj" />
+    <Project Path="src/Masterly.NightShift.Redis/Masterly.NightShift.Redis.csproj" />
     <Project Path="src/Masterly.NightShift.SourceGenerator/Masterly.NightShift.SourceGenerator.csproj" />
     <Project Path="src/Masterly.NightShift.SqlServer/Masterly.NightShift.SqlServer.csproj" />
   </Folder>
@@ -33,6 +37,10 @@
     <File Path="tests/Directory.Build.props" />
     <Project Path="tests/Masterly.NightShift.AspNetCore.Tests/Masterly.NightShift.AspNetCore.Tests.csproj" />
     <Project Path="tests/Masterly.NightShift.Core.Tests/Masterly.NightShift.Core.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.EntityFrameworkCore.Tests/Masterly.NightShift.EntityFrameworkCore.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.InMemory.Tests/Masterly.NightShift.InMemory.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.MongoDB.Tests/Masterly.NightShift.MongoDB.Tests.csproj" />
+    <Project Path="tests/Masterly.NightShift.Redis.Tests/Masterly.NightShift.Redis.Tests.csproj" />
     <Project Path="tests/Masterly.NightShift.SqlServer.Tests/Masterly.NightShift.SqlServer.Tests.csproj" />
   </Folder>
 </Solution>

@@ -57,7 +57,8 @@ jobs:
       - name: Test
         run: |
           foreach ($framework in 'net8.0', 'net10.0') {
-            foreach ($project in 'Core', 'SqlServer', 'AspNetCore') {
+            # Redis and MongoDB have no Windows service here: their tests skip, and the Linux job runs them
+            foreach ($project in 'Core', 'SqlServer', 'AspNetCore', 'InMemory', 'EntityFrameworkCore', 'Redis', 'MongoDB') {
               dotnet test "tests/Masterly.NightShift.$project.Tests" -c Release --no-build -f $framework
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
@@ -65,7 +66,7 @@ jobs:
 
       - name: Pack
         run: |
-          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore') {
+          foreach ($project in 'Core', 'SqlServer', 'NetCore', 'AspNetCore', 'InMemory', 'Redis', 'MongoDB', 'EntityFrameworkCore') {
             dotnet pack "src/Masterly.NightShift.$project" -c Release --no-build -o artifacts
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -344,8 +345,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     env:
       NightShift_SqlServer_ConnectionStringTemplate: Server=tcp:127.0.0.1,1433;Database={0};User Id=sa;Password=Password12!;TrustServerCertificate=True;PoolBlockingPeriod=NeverBlock
+      NightShift_Redis_Configuration: 127.0.0.1:6379
+      NightShift_Mongo_ConnectionString: mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
     steps:
       - uses: actions/checkout@v7
 
@@ -353,6 +365,21 @@ jobs:
         with:
           global-json-file: global.json
           dotnet-version: 8.0.x # runtime for the net8.0 test target
+
+      # Service containers can't take a command, and MongoDB needs --replSet for transactions: a one-member replica set
+      - name: Start MongoDB
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for attempt in $(seq 1 30); do
+            if docker exec mongo mongosh --quiet --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: '127.0.0.1:27017'}]}).ok" >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          for attempt in $(seq 1 30); do
+            if [ "$(docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary')" = "true" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::MongoDB didn't become primary."
+          exit 1
 
       - name: Build
         run: dotnet build Masterly.NightShift.slnx -c Release
@@ -365,6 +392,18 @@ jobs:
 
       - name: Test Masterly.NightShift.NetCore and Masterly.NightShift.AspNetCore
         run: dotnet test tests/Masterly.NightShift.AspNetCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.InMemory
+        run: dotnet test tests/Masterly.NightShift.InMemory.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.Redis
+        run: dotnet test tests/Masterly.NightShift.Redis.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.MongoDB
+        run: dotnet test tests/Masterly.NightShift.MongoDB.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
+
+      - name: Test Masterly.NightShift.EntityFrameworkCore
+        run: dotnet test tests/Masterly.NightShift.EntityFrameworkCore.Tests -c Release --no-build -f ${{ matrix.framework }} --logger trx --results-directory TestResults
 
       - uses: actions/upload-artifact@v7
         if: failure()

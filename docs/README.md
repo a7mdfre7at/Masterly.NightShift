@@ -52,7 +52,7 @@ Masterly.NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/)
 | Timeouts, deadlines, run windows | `[LatencyTimeout]` only | Included |
 | Progress, console, resume after failure | Community packages | Included |
 | OpenTelemetry, Prometheus, health checks, alerts | Community packages | Included |
-| Storage | SQL Server, paid Redis, many community storages | SQL Server; other storages have to be written or ported |
+| Storage | SQL Server, paid Redis, many community storages | SQL Server, Entity Framework Core (PostgreSQL, MySQL, SQLite...), Redis, MongoDB and in memory, all passing one conformance suite |
 | Support and track record | Paid support available; more than a decade in production | Community support through GitHub; 1.0 is the first release |
 
 [NightShift compared with Hangfire](compared-with-hangfire.md) has the full comparison and when to stay on Hangfire.
@@ -140,6 +140,10 @@ NightShift needs half the round trips to create a job, shares them between concu
 | [SQL Server storage](storage/sql-server.md) | Setup, connection strings and factories, permissions |
 | [SQL Server options](storage/sql-server-options.md) | Every `SqlServerStorageOptions` property and when to change it |
 | [Schema and upgrades](storage/schema-and-upgrades.md) | Tables, schema versions, automatic and manual install, purging |
+| [Entity Framework Core storage](storage/entity-framework-core.md) | Any EF Core provider; staging jobs so they commit with `SaveChanges` |
+| [Redis storage](storage/redis.md) | Key layout, Lua transactions, pub/sub wake-ups, clusters |
+| [MongoDB storage](storage/mongodb.md) | Replica sets, collections, TTL indexes |
+| [In-memory storage](storage/in-memory.md) | For development and tests |
 | [Custom storage](storage/custom-storage.md) | Writing a storage for another database |
 
 ### [Dashboard](dashboard/README.md)

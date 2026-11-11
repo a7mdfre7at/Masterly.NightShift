@@ -133,7 +133,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          for id in Masterly.NightShift.Core Masterly.NightShift.SqlServer Masterly.NightShift.NetCore Masterly.NightShift.AspNetCore Masterly.NightShift; do
+          for id in Masterly.NightShift.Core Masterly.NightShift.SqlServer Masterly.NightShift.InMemory Masterly.NightShift.Redis Masterly.NightShift.MongoDB Masterly.NightShift.EntityFrameworkCore Masterly.NightShift.NetCore Masterly.NightShift.AspNetCore Masterly.NightShift; do
             package="$PACKAGE_OUTPUT/$id.$VERSION.nupkg"
             if [ ! -f "$package" ]; then
               echo "::error::$package is missing from the Build's packages."

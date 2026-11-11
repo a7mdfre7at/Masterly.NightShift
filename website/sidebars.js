@@ -65,7 +65,7 @@ const sidebars = {
       'dependency-injection',
       'background-processes',
     ]),
-    section('Storage', 'storage', ['sql-server', 'sql-server-options', 'schema-and-upgrades', 'custom-storage']),
+    section('Storage', 'storage', ['sql-server', 'sql-server-options', 'schema-and-upgrades', 'entity-framework-core', 'redis', 'mongodb', 'in-memory', 'custom-storage']),
     section('Dashboard', 'dashboard', ['setup', 'authorization', 'pages', 'customization']),
     section('Monitoring', 'monitoring', [
       'opentelemetry',

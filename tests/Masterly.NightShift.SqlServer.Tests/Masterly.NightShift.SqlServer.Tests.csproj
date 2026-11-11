@@ -14,6 +14,11 @@
     <ProjectReference Include="..\..\src\Masterly.NightShift.SqlServer\Masterly.NightShift.SqlServer.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The storage conformance suite, shared with the other storages' test projects -->
+    <Compile Include="..\Shared\StorageConformance\*.cs" Link="Conformance\%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <Target Name="ChangeAliasesOfStrongNameAssemblies" BeforeTargets="FindReferenceAssembliesForReferences;ResolveReferences">
     <ItemGroup>
       <ReferencePath Condition="'%(FileName)' == 'Dapper'">
@@ -29,4 +34,4 @@
     <Using Include="Masterly.NightShift.States" />
     <Using Include="Masterly.NightShift.Storage" />
   </ItemGroup>
-</Project>
+</Project>

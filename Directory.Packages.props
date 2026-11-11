@@ -30,6 +30,29 @@
         <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     </ItemGroup>
 
+    <ItemGroup Label="Masterly.NightShift.Redis">
+        <PackageVersion Include="StackExchange.Redis" Version="3.4.31" />
+    </ItemGroup>
+
+    <ItemGroup Label="Masterly.NightShift.MongoDB">
+        <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
+    </ItemGroup>
+
+    <!-- Masterly.NightShift.EntityFrameworkCore: EF Core per target framework, as for the Microsoft.Extensions packages
+         below: net8.0 gets EF Core 8, the last version for .NET 8, and net10.0 gets EF Core 10. The SQLite and SQL
+         Server providers are only for the tests. -->
+    <ItemGroup Label="Masterly.NightShift.EntityFrameworkCore (net8.0)" Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.34" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.34" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.34" />
+    </ItemGroup>
+
+    <ItemGroup Label="Masterly.NightShift.EntityFrameworkCore (net10.0)" Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.15" />
+    </ItemGroup>
+
     <!-- Masterly.NightShift.NetCore: Microsoft.Extensions abstractions, per target framework. Each target asks for the
          oldest serviced version, not the newest, so an app gets the Microsoft.Extensions stack of its own runtime: a
          .NET 8 app that pins 8.0 packages would otherwise get a mixed 8/10 stack and NU1605 downgrade errors.

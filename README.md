@@ -64,7 +64,7 @@ NightShift is a remastered fork of [Hangfire](https://www.hangfire.io/) 1.8.25. 
 | **Progress, console, resume after failure** | Community packages | Included |
 | **OpenTelemetry, Prometheus, health checks, alerts** | Community packages | Included |
 | **Dashboard** | Jobs, queues, servers, retries, recurring jobs | The same, plus insights, failure clusters, lineage and job diagnosis |
-| **Storage** | SQL Server, paid Redis, many community storages | SQL Server; other storages have to be written or ported |
+| **Storage** | SQL Server, paid Redis, many community storages | SQL Server, Entity Framework Core (PostgreSQL, MySQL, SQLite...), Redis, MongoDB and in memory, all passing one conformance suite |
 | **Support and track record** | Paid support available; more than a decade in production | Community support through GitHub; 1.0 is the first release |
 
 **Why choose NightShift:** you get batches, throttling, circuit breakers and full monitoring without a subscription or extra packages, on a smaller dependency set for modern .NET, and your existing Hangfire SQL Server data keeps working.
@@ -90,13 +90,17 @@ The SQL Server rows were measured against SQL Server 2022 in a container, where 
 
 ## Installation
 
-ASP.NET Core apps install the meta-package. Worker Services and console apps take only the packages they use. All five packages ship together with the same version number.
+ASP.NET Core apps install the meta-package. Worker Services and console apps take only the packages they use. All nine packages ship together with the same version number.
 
 | Package | What it is for | Extra dependencies |
 |---------|----------------|--------------------|
 | `Masterly.NightShift` | Meta-package for ASP.NET Core apps: Core, SqlServer and AspNetCore | The three packages it installs |
 | `Masterly.NightShift.Core` | Jobs, the server, filters and the dashboard | `Cronos` |
 | `Masterly.NightShift.SqlServer` | SQL Server storage | `Dapper`, `Microsoft.Data.SqlClient` |
+| `Masterly.NightShift.EntityFrameworkCore` | Storage on any EF Core relational provider; jobs that commit with your `SaveChanges` | `Microsoft.EntityFrameworkCore.Relational` (8.x on `net8.0`, 10.x on `net10.0`) |
+| `Masterly.NightShift.Redis` | Redis storage | `StackExchange.Redis` |
+| `Masterly.NightShift.MongoDB` | MongoDB storage (replica set) | `MongoDB.Driver` |
+| `Masterly.NightShift.InMemory` | In-memory storage for development and tests | None |
 | `Masterly.NightShift.NetCore` | `Microsoft.Extensions.*` integration: dependency injection, logging, hosted services | `Microsoft.Extensions.*` abstractions |
 | `Masterly.NightShift.AspNetCore` | Dashboard middleware, endpoint mapping and health checks | ASP.NET Core |
 
