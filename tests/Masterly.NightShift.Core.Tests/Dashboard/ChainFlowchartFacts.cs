@@ -20,6 +20,15 @@ public class ChainFlowchartFacts
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
     public static void Report(string name, int count, IJobConsole console, CancellationToken token) { }
 
+    [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
+    public static void Many(string a, string b, string c, string d, string e) { }
+
+    private void SetUpConsole(string jobId, params string[] newestFirst)
+    {
+        _renderer.Connection.Setup(x => x.GetListCount(JobConsole.GetConsoleKey(jobId))).Returns(newestFirst.Length);
+        _renderer.Connection.Setup(x => x.GetRangeFromList(JobConsole.GetConsoleKey(jobId), 0, ChainFlowchart.MaxLogLines - 1)).Returns([.. newestFirst]);
+    }
+
     [Fact]
     public void Build_PutsEachLevelInARow_AndGroupsBranchesAndJoins()
     {
@@ -103,8 +112,8 @@ public class ChainFlowchartFacts
     public void Build_MergesTheStepsConsoles_InTimeOrder()
     {
         JobChainInfo chain = SetUpOrderChain();
-        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("1"))).Returns(["{\"t\":100,\"s\":1,\"l\":1,\"m\":\"first\"}", "{\"t\":300,\"s\":2,\"l\":1,\"m\":\"third\"}"]);
-        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("3"))).Returns(["{\"t\":200,\"s\":1,\"l\":3,\"m\":\"second\"}"]);
+        SetUpConsole("1", "{\"t\":300,\"s\":2,\"l\":1,\"m\":\"third\"}", "{\"t\":100,\"s\":1,\"l\":1,\"m\":\"first\"}");
+        SetUpConsole("3", "{\"t\":200,\"s\":1,\"l\":3,\"m\":\"second\"}");
 
         ChainFlowchart chart = ChainFlowchart.Build(_renderer.Storage.Object, chain, Now);
 
@@ -114,17 +123,33 @@ public class ChainFlowchartFacts
     }
 
     [Fact]
-    public void Build_KeepsOnlyTheNewestLines_OfALongConsole()
+    public void Build_ReadsOnlyTheNewestLines_OfALongConsole()
     {
         JobChainInfo chain = SetUpOrderChain();
-        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("1")))
-            .Returns([.. Enumerable.Range(1, ChainFlowchart.MaxLogLines + 5).Select(static i => $"{{\"t\":{i},\"s\":{i},\"l\":1,\"m\":\"line {i}\"}}")]);
+        string[] lines = [.. Enumerable.Range(1, ChainFlowchart.MaxLogLines + 5).Reverse().Select(static i => $"{{\"t\":{i},\"s\":{i},\"l\":1,\"m\":\"line {i}\"}}")];
+        _renderer.Connection.Setup(x => x.GetListCount(JobConsole.GetConsoleKey("1"))).Returns(lines.Length);
+        _renderer.Connection.Setup(x => x.GetRangeFromList(JobConsole.GetConsoleKey("1"), 0, ChainFlowchart.MaxLogLines - 1))
+            .Returns([.. lines.Take(ChainFlowchart.MaxLogLines)]);
 
         ChainFlowchart chart = ChainFlowchart.Build(_renderer.Storage.Object, chain, Now);
 
         Assert.Equal(ChainFlowchart.MaxLogLines, chart.Logs.Count);
         Assert.Equal("line 6", chart.Logs[0].Entry.Message);
         Assert.Equal(ChainFlowchart.MaxLogLines + 5, chart.LogLineCount);
+        _renderer.Connection.Verify(x => x.GetAllItemsFromList(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Build_ReadsTheWholeConsole_OnAStorageWithoutRanges()
+    {
+        JobChainInfo chain = SetUpOrderChain();
+        _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
+        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("1"))).Returns(["{\"t\":2,\"s\":2,\"l\":1,\"m\":\"second\"}", "{\"t\":1,\"s\":1,\"l\":1,\"m\":\"first\"}"]);
+
+        ChainFlowchart chart = ChainFlowchart.Build(_renderer.Storage.Object, chain, Now);
+
+        Assert.Equal(["first", "second"], chart.Logs.Select(static x => x.Entry.Message));
+        Assert.Equal(2, chart.LogLineCount);
     }
 
     [Fact]
@@ -183,6 +208,31 @@ public class ChainFlowchartFacts
         Assert.Equal(ChainFlowStatus.FinishedWithFailures, ChainFlowchart.StatusOf([succeeded, failed]));
         Assert.Throws<ArgumentNullException>(() => ChainFlowchart.StatusOf((IReadOnlyCollection<ChainFlowStep>)null));
         Assert.Throws<ArgumentNullException>(() => ChainFlowchart.StatusOf((JobChainInfo)null));
+    }
+
+    [Theory]
+    [InlineData(JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnFailedState, "On success or On failure")]
+    [InlineData(JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnDeletedState, "On failure or On deletion")]
+    public void DescribeCondition_NamesEveryOutcomeOfCombinedOptions(JobContinuationOptions options, string expected)
+    {
+        JobChainStepInfo step = new("1.0", "1", null, 1, 0) { Link = ChainLink.Then, Options = options };
+
+        Assert.Equal(expected, ChainFlowchart.DescribeCondition(step));
+    }
+
+    [Fact]
+    public void FormatArguments_ShortensLongArguments_AndALongList()
+    {
+        string longText = new('x', 500);
+        Job one = Job.FromExpression(() => Report(longText, 3, null, CancellationToken.None));
+        Job many = Job.FromExpression(() => Many(longText, longText, longText, longText, longText));
+
+        string formatted = ChainFlowchartRenderer.FormatArguments(one);
+        string all = ChainFlowchartRenderer.FormatArguments(many);
+
+        Assert.Equal("(\"" + new string('x', ChainFlowchartRenderer.MaxArgumentLength - 2) + "\u2026, 3)", formatted);
+        Assert.Equal(ChainFlowchartRenderer.MaxArgumentsLength + 2, all.Length);
+        Assert.EndsWith("\u2026)", all, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -255,7 +305,7 @@ public class ChainFlowchartFacts
         JobChain definition = JobChain.StartWith(() => Step("<script>"));
         SetUpChain("c4", definition, ["40"]);
         SetUpJob("40", new StateHistoryDto { StateName = FailedState.StateName, CreatedAt = Now, Data = new Dictionary<string, string> { ["ExceptionMessage"] = "<b>bad</b>" } });
-        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("40"))).Returns(["{\"t\":1,\"s\":1,\"l\":1,\"m\":\"<img src=x>\"}"]);
+        SetUpConsole("40", "{\"t\":1,\"s\":1,\"l\":1,\"m\":\"<img src=x>\"}");
         ChainFlowchart chart = ChainFlowchart.Build(_renderer.Storage.Object, _renderer.Storage.Object.GetChain("c4")!, Now);
 
         string html = ChainFlowchartRenderer.Render(CreatePage(), chart) + ChainFlowchartRenderer.RenderLogs(CreatePage(), chart).ToString();

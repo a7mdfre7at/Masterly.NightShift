@@ -213,6 +213,8 @@ public class JobLineageFacts
     [InlineData("OnlyOnFailedState", "after failure")]
     [InlineData("OnlyOnProcessingState", "once started")]
     [InlineData("1", "after success")]
+    [InlineData("OnlyOnSucceededState, OnlyOnFailedState", "after success or after failure")]
+    [InlineData("6", "after delete or after failure")]
     [InlineData("", null)]
     public void Build_LabelsTheParentEdge_FromTheContinuationOptions(string options, string expected)
     {

@@ -120,6 +120,7 @@ internal sealed class ChainFlowchart
         List<JobChainStepInfo> hidden = [];
         List<(ChainFlowStep, JobConsoleEntry)> logs = [];
         int drawn = 0;
+        long logLines = 0;
         bool settled = chain.IsSettled;
 
         using IStorageConnection connection = storage.GetReadOnlyConnection();
@@ -142,10 +143,9 @@ internal sealed class ChainFlowchart
                 if (settled && step.Condition == ChainFlowCondition.Waiting) step.Condition = ChainFlowCondition.NotRun;
                 steps.Add(step);
 
-                foreach (JobConsoleEntry entry in ReadConsole(connection, info.JobId))
-                {
-                    logs.Add((step, entry));
-                }
+                List<JobConsoleEntry> console = ReadConsole(storage, connection, info.JobId, out long lines);
+                logs.AddRange(console.Select(entry => (step, entry)));
+                logLines += lines;
             }
 
             levels.Add(new ChainFlowLevel(level.Key, infos[0].LevelKind, steps));
@@ -157,7 +157,7 @@ internal sealed class ChainFlowchart
             .ThenBy(static x => x.Item2.Sequence)
             .TakeLast(MaxLogLines)];
 
-        return new ChainFlowchart(chain, levels, hidden, newest, logs.Count);
+        return new ChainFlowchart(chain, levels, hidden, newest, (int)Math.Min(int.MaxValue, logLines));
     }
 
     /// <summary>Where a chain, or a group of steps, stands: <see cref="ChainFlowStatus.Waiting"/> until a step starts.</summary>
@@ -210,12 +210,20 @@ internal sealed class ChainFlowchart
             ChainLink.AfterAnyFailed => Strings.ChainFlow_AnyFailed,
             ChainLink.AfterAnyFailedOrCanceled => Strings.ChainFlow_AnyFailedOrCanceled,
             ChainLink.AfterAllCompleted => Strings.ChainFlow_AllFinished,
-            _ when step.Options.HasFlag(JobContinuationOptions.OnlyOnSucceededState) => Strings.ChainFlow_OnSuccess,
-            _ when step.Options.HasFlag(JobContinuationOptions.OnlyOnFailedState) => Strings.ChainFlow_OnFailure,
-            _ when step.Options.HasFlag(JobContinuationOptions.OnlyOnDeletedState) => Strings.ChainFlow_OnDeletion,
-            _ when step.Options.HasFlag(JobContinuationOptions.OnlyOnProcessingState) => Strings.ChainFlow_OnceStarted,
-            _ => Strings.ChainFlow_OnAnyOutcome,
+            _ => DescribeOptions(step.Options),
         };
+    }
+
+    // Every outcome the options accept, for a combination such as OnlyOnSucceededState | OnlyOnFailedState
+    private static string DescribeOptions(JobContinuationOptions options)
+    {
+        List<string> outcomes = [];
+        if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) outcomes.Add(Strings.ChainFlow_OnSuccess);
+        if (options.HasFlag(JobContinuationOptions.OnlyOnFailedState)) outcomes.Add(Strings.ChainFlow_OnFailure);
+        if (options.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) outcomes.Add(Strings.ChainFlow_OnDeletion);
+        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) outcomes.Add(Strings.ChainFlow_OnceStarted);
+
+        return outcomes.Count == 0 ? Strings.ChainFlow_OnAnyOutcome : string.Join(" or ", outcomes);
     }
 
     /// <summary>Whether the step runs when something went wrong before it, so its links are drawn in the failure color.</summary>
@@ -314,16 +322,49 @@ internal sealed class ChainFlowchart
         }
     }
 
-    private static IReadOnlyList<JobConsoleEntry> ReadConsole(IStorageConnection connection, string jobId)
+    /// <summary>
+    /// The newest <see cref="MaxLogLines"/> lines of a step's console, and how many it has. A storage with ranges
+    /// reads only those; another one reads the whole console, which its job keeps short.
+    /// </summary>
+    private static List<JobConsoleEntry> ReadConsole(JobStorage storage, IStorageConnection connection, string jobId, out long total)
     {
         try
         {
-            return JobConsole.ReadEntries(connection, jobId);
+            if (connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                // The newest lines come first in the list
+                string key = JobConsole.GetConsoleKey(jobId);
+                total = storageConnection.GetListCount(key);
+                return total == 0 ? [] : Parse(storageConnection.GetRangeFromList(key, 0, MaxLogLines - 1));
+            }
+
+            List<JobConsoleEntry> entries = [.. JobConsole.ReadEntries(connection, jobId)];
+            total = entries.Count;
+            return entries;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
+            total = 0;
             return [];
         }
+    }
+
+    private static List<JobConsoleEntry> Parse(List<string> items)
+    {
+        List<JobConsoleEntry> entries = new(items.Count);
+        foreach (string item in items)
+        {
+            try
+            {
+                if (SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal) is { } entry) entries.Add(entry);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                // A line in a format this version doesn't know is left out, as on the job's page
+            }
+        }
+
+        return entries;
     }
 }
 
@@ -343,6 +384,12 @@ internal static class ChainFlowchartRenderer
     private const int LevelGap = 46;
     private const int Margin = 24;
     private const int MaxPerRow = 5;
+
+    /// <summary>How long an argument is shown, and all the arguments of a step, at most.</summary>
+    internal const int MaxArgumentLength = 64;
+
+    /// <inheritdoc cref="MaxArgumentLength"/>
+    internal const int MaxArgumentsLength = 200;
 
     public static NonEscapedString Render(RazorPage page, ChainFlowchart chart)
     {
@@ -560,7 +607,8 @@ internal static class ChainFlowchartRenderer
     }
 
     /// <summary>
-    /// The step's arguments, short: strings quoted, numbers and dates as invariant text, objects as their type. The
+    /// The step's arguments, short: strings quoted, numbers and dates as invariant text, objects as their type, each
+    /// cut at <see cref="MaxArgumentLength"/> characters and the whole at <see cref="MaxArgumentsLength"/>. The
     /// values the server supplies (the console, the context, cancellation tokens, results of earlier jobs) are left out.
     /// </summary>
     internal static string FormatArguments(Job? job)
@@ -571,10 +619,12 @@ internal static class ChainFlowchartRenderer
         IEnumerable<string> shown = job.Args
             .Select((value, index) => (Value: value, Parameter: index < parameters.Length ? parameters[index] : null))
             .Where(static x => x.Parameter == null || !IsSupplied(x.Parameter))
-            .Select(static x => FormatArgument(x.Value));
+            .Select(static x => Shorten(FormatArgument(x.Value), MaxArgumentLength));
 
-        return "(" + string.Join(", ", shown) + ")";
+        return "(" + Shorten(string.Join(", ", shown), MaxArgumentsLength) + ")";
     }
+
+    private static string Shorten(string text, int length) => text.Length <= length ? text : string.Concat(text.AsSpan(0, length - 1), "\u2026");
 
     private static bool IsSupplied(ParameterInfo parameter)
     {
