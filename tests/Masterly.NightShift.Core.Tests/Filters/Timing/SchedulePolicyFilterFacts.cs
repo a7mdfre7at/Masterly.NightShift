@@ -276,10 +276,34 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
         int reads = ReadsOfPolicy("weekdays");
 
         _filter.OnCreating(Creating(new ScheduledState(Saturday), "weekdays", WhenBlocked.Reject));
-        _filter.OnStateElection(Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip).Object);
 
         Assert.True(reads > 0);
         Assert.Equal(reads, ReadsOfPolicy("weekdays"));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_ReadsThePolicyAfresh_EvenWhenCreationCachedIt()
+    {
+        _filter.OnCreating(Creating(new ScheduledState(NextMonday), "weekdays", WhenBlocked.Skip));
+        int reads = ReadsOfPolicy("weekdays");
+
+        _filter.OnStateElection(Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip).Object);
+
+        Assert.True(ReadsOfPolicy("weekdays") > reads);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_FollowsAPolicyChangedAfterCreation_WithinTheCacheDuration()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        _filter.OnCreating(Creating(new ScheduledState(NextMonday), "weekdays", WhenBlocked.Skip));
+
+        // Weekends are allowed now: the job due on Saturday must run, although creation cached the old policy
+        _storage.Add(new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Saturday, DayOfWeek.Sunday), revision: 2);
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip);
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock and the cache duration")]

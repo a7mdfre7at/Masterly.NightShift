@@ -19,9 +19,9 @@ namespace Masterly.NightShift;
 /// instant the policy allows, deleted as skipped, or, at creation, not created, as
 /// <see cref="ScheduleOptions.WhenBlocked"/> says; a job already created whose due time is blocked is skipped
 /// instead of rejected. A job enqueued by hand (the dashboard's Enqueue now, <c>Requeue</c>) isn't checked, nor a
-/// job waiting in its queue. A policy deleted after the job was created no longer applies to it. A policy is read
-/// from the storage at most once every few seconds (<see cref="CalendarCacheDuration"/>), so a changed policy applies
-/// to new jobs within that time.
+/// job waiting in its queue. A policy deleted after the job was created no longer applies to it. At creation, a
+/// policy is read from the storage at most once every few seconds (<see cref="CalendarCacheDuration"/>), so a changed
+/// policy applies to new jobs within that time; when a job comes due, its policy is always read afresh.
 /// </remarks>
 public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IApplyStateFilter
 {
@@ -49,7 +49,7 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         if (!context.Parameters.TryGetValue(ScheduleOptions.PolicyParameter, out object? value) || value is not string name) return;
 
         name = SchedulePolicy.NormalizeName(name, nameof(context));
-        SchedulePolicyCalendar calendar = LoadCalendar(context.Storage, context.Connection, name)
+        SchedulePolicyCalendar calendar = LoadCalendar(context.Storage, context.Connection, name, allowCached: true)
             ?? throw new InvalidOperationException($"There is no schedule policy named '{name}'. Save it with SaveSchedulePolicy before creating jobs that follow it.");
 
         DateTime runAt = context.InitialState is ScheduledState scheduled ? scheduled.EnqueueAt : JobClock.UtcNow;
@@ -99,7 +99,8 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         string? name = ReadParameter(context, ScheduleOptions.PolicyParameter);
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        SchedulePolicyCalendar? calendar = LoadCalendar(context.Storage, context.Connection, name);
+        // Read afresh: this check exists because the policy may have changed since the job was created
+        SchedulePolicyCalendar? calendar = LoadCalendar(context.Storage, context.Connection, name, allowCached: false);
         if (calendar == null)
         {
             Logger.Debug($"Background job '{context.BackgroundJob.Id}' follows schedule policy '{name}', which no longer exists, so it runs.");
@@ -152,13 +153,14 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
     {
     }
 
-    private static SchedulePolicyCalendar? LoadCalendar(JobStorage storage, IStorageConnection connection, string name)
+    private static SchedulePolicyCalendar? LoadCalendar(JobStorage storage, IStorageConnection connection, string name, bool allowCached)
     {
         ITimeZoneResolver timeZoneResolver = GlobalTimeZoneResolver.Current;
         ConcurrentDictionary<string, CachedCalendar> calendars = Calendars.GetValue(storage, static _ => new(StringComparer.Ordinal));
         long now = Stopwatch.GetTimestamp();
 
-        if (calendars.TryGetValue(name, out CachedCalendar? cached) &&
+        if (allowCached &&
+            calendars.TryGetValue(name, out CachedCalendar? cached) &&
             ReferenceEquals(cached.TimeZoneResolver, timeZoneResolver) &&
             Stopwatch.GetElapsedTime(cached.LoadedAt, now) < CalendarCacheDuration)
         {
