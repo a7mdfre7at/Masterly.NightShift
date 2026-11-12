@@ -359,7 +359,8 @@ public class JobChainFacts
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
         BackgroundJobClient client = new(storage);
-        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
+        // The second step doesn't retry by itself, so the failure given to it below is final
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
         Assert.True(client.ChangeState(chain!.Steps["0.0"], new SucceededState(null, 0, 0), null));
         Assert.True(client.ChangeState(chain.Steps["1.0"], new FailedState(new InvalidOperationException("failed")), null));
         ChainHooks hooks = new() { CrashOnCreating = "d" };
@@ -508,23 +509,26 @@ public class JobChainFacts
     {
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
+
+        // The record's life is set from this process's clock and read back against SQL Server's: they differ a little
+        TimeSpan tolerance = TimeSpan.FromSeconds(5);
         JobChainResult scheduled = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Schedule(client, TimeSpan.FromDays(60));
         JobChainResult enqueued = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Enqueue(client);
 
-        Assert.InRange(RecordTimeToLive(storage, scheduled!.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90));
-        Assert.InRange(RecordTimeToLive(storage, enqueued!.ChainId), TimeSpan.FromDays(29.9), TimeSpan.FromDays(30));
+        Assert.InRange(RecordTimeToLive(storage, scheduled!.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90) + tolerance);
+        Assert.InRange(RecordTimeToLive(storage, enqueued!.ChainId), TimeSpan.FromDays(29.9), TimeSpan.FromDays(30) + tolerance);
 
         try
         {
             JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(20));
-            Assert.InRange(RecordTimeToLive(storage, enqueued.ChainId), TimeSpan.FromDays(9.9), TimeSpan.FromDays(10));
+            Assert.InRange(RecordTimeToLive(storage, enqueued.ChainId), TimeSpan.FromDays(9.9), TimeSpan.FromDays(10) + tolerance);
 
             Assert.True(client.ChangeState(enqueued.RootId, new SucceededState(null, 0, 0), null));
-            Assert.InRange(RecordTimeToLive(storage, enqueued.ChainId), TimeSpan.FromDays(29.9), TimeSpan.FromDays(30));
+            Assert.InRange(RecordTimeToLive(storage, enqueued.ChainId), TimeSpan.FromDays(29.9), TimeSpan.FromDays(30) + tolerance);
 
             // A step of the chain scheduled far ahead changes state: its record keeps its longer life
             Assert.True(client.ChangeState(scheduled.Steps["1.0"], new DeletedState(), null));
-            Assert.InRange(RecordTimeToLive(storage, scheduled.ChainId), TimeSpan.FromDays(69.9), TimeSpan.FromDays(70));
+            Assert.InRange(RecordTimeToLive(storage, scheduled.ChainId), TimeSpan.FromDays(69.9), TimeSpan.FromDays(70) + tolerance);
         }
         finally
         {
@@ -754,6 +758,12 @@ public class JobChainFacts
     }
 
     public static void Record(string name)
+    {
+        Log.Enqueue(name);
+    }
+
+    [AutomaticRetry(Attempts = 0)]
+    public static void RecordWithoutRetries(string name)
     {
         Log.Enqueue(name);
     }
