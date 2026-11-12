@@ -1021,6 +1021,24 @@
                     });
             });
 
+            // A row with data-href opens it when clicked anywhere, except on its own links, buttons and fields,
+            // or when the click ends a text selection; Ctrl, Cmd, Shift or the middle button open a new tab
+            $(document).on('click auxclick', 'tr[data-href]', function (e) {
+                if (e.type === 'auxclick' && e.which !== 2) return;
+                if ($(e.target).closest('a, button, input, select, textarea, label, [data-ajax]').length > 0) return;
+                var selection = window.getSelection ? window.getSelection().toString() : '';
+                if (selection.length > 0) return;
+
+                var href = $(this).data('href');
+                if (!href) return;
+
+                if (e.type === 'auxclick' || e.ctrlKey || e.metaKey || e.shiftKey) {
+                    window.open(href, '_blank', 'noopener');
+                } else {
+                    window.location.href = href;
+                }
+            });
+
             $(document).on('click', '*[data-ajax]', function (e) {
                 var $this = $(this);
                 var confirmText = $this.data('confirm');

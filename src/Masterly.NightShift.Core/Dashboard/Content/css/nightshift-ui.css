@@ -926,6 +926,10 @@ body.hf-app hr {
     border-top: none;
 }
 
+.hf-app .table > tbody > tr.hover.hf-row-link {
+    cursor: pointer;
+}
+
 .hf-app .table > tbody > tr.hover {
     cursor: default;
 }

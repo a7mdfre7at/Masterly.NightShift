@@ -79,6 +79,7 @@ public class NewPagesFacts
         string details = _renderer.Render(new ChainDetailsPage("c1"));
 
         Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
+        Assert.Contains("<tr class=\"hover hf-row-link\" data-href=\"/chains/c1\">", list, StringComparison.Ordinal);
         Assert.Contains("Finished with failures", list, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
         Assert.Contains("href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
