@@ -268,12 +268,12 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             if (currentState.Name != AwaitingState.StateName) continue;
 
             IState? nextState;
-            bool start = ShouldStartContinuation(context.CandidateState.Name, continuation.Options, addedLate: false);
+            FanInContinuationsSupportAttribute.Decision decision = Decide(context.CandidateState.Name, continuation.Options, _knownFinalStates);
 
             // A failure or the start of processing leaves the continuations that wait for another outcome waiting
-            if (!start && IsIntermediateTrigger(context.CandidateState.Name)) continue;
+            if (decision == FanInContinuationsSupportAttribute.Decision.Undecided) continue;
 
-            if (!start)
+            if (decision == FanInContinuationsSupportAttribute.Decision.Skip)
             {
                 nextState = new DeletedState { Reason = "Continuation condition was not met" };
             }
@@ -400,9 +400,35 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         return true;
     }
 
+    /// <summary>
+    /// What a parent that reaches a final state, fails for good or starts processing decides for a continuation
+    /// that waits for it with these options: it starts, it is skipped (deleted, its condition not met), or it keeps
+    /// waiting. The decision this filter takes then, and what tells whether a waiting step of a chain is about to
+    /// start.
+    /// </summary>
+    internal static FanInContinuationsSupportAttribute.Decision Decide(string? parentStateName, JobContinuationOptions options, HashSet<string> knownFinalStates)
+    {
+        if (parentStateName == null) return FanInContinuationsSupportAttribute.Decision.Undecided;
+
+        if (ShouldStartContinuation(parentStateName, options, addedLate: false, knownFinalStates))
+        {
+            return FanInContinuationsSupportAttribute.Decision.Start;
+        }
+
+        // A failure or the start of processing leaves the continuations that wait for another outcome waiting
+        return !IsIntermediateTrigger(parentStateName) && knownFinalStates.Contains(parentStateName)
+            ? FanInContinuationsSupportAttribute.Decision.Skip
+            : FanInContinuationsSupportAttribute.Decision.Undecided;
+    }
+
+    private bool ShouldStartContinuation(string antecedentStateName, JobContinuationOptions options, bool addedLate)
+    {
+        return ShouldStartContinuation(antecedentStateName, options, addedLate, _knownFinalStates);
+    }
+
     // addedLate: the continuation is added after the parent reached this state, so a processing continuation
     // also starts for a parent that already processed (succeeded or failed)
-    private bool ShouldStartContinuation(string antecedentStateName, JobContinuationOptions options, bool addedLate)
+    private static bool ShouldStartContinuation(string antecedentStateName, JobContinuationOptions options, bool addedLate, HashSet<string> knownFinalStates)
     {
         if (options.HasFlag(JobContinuationOptions.OnlyOnFailedState) &&
             FailedState.StateName.Equals(antecedentStateName, StringComparison.OrdinalIgnoreCase))
@@ -420,7 +446,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
         if (options == JobContinuationOptions.OnAnyFinishedState)
         {
-            return _knownFinalStates.Contains(antecedentStateName);
+            return knownFinalStates.Contains(antecedentStateName);
         }
 
         if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState) &&
