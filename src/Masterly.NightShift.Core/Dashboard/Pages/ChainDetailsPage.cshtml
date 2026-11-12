@@ -44,6 +44,24 @@
                 </div>
             </section>
 
+            @* Diagram: each level a column, each step linked to the steps it waits for *@
+            JobLineage diagram = JobLineage.FromChain(chain);
+            if (diagram.Nodes.Count > 0)
+            {
+                <section class="hf-card hf-lineage" aria-labelledby="chain-diagram">
+                    <div class="hf-card-header">
+                        <h3 id="chain-diagram"><span class="glyphicon glyphicon-random"></span> @Strings.ChainDetailsPage_Diagram <small class="text-muted">@Strings.ChainDetailsPage_Diagram_Hint</small></h3>
+                        @if (diagram.Truncated)
+                        {
+                            <span class="text-muted">@String.Format(Strings.ChainDetailsPage_Diagram_Truncated, JobLineage.MaxChainNodes)</span>
+                        }
+                    </div>
+                    <div class="hf-lineage-scroll">
+                        @JobLineageRenderer.Render(this, diagram, Strings.ChainDetailsPage_Diagram)
+                    </div>
+                </section>
+            }
+
             foreach (IGrouping<int, JobChainStepInfo> level in chain.Steps.GroupBy(static x => x.Level))
             {
                 <h4 id="level-@level.Key">@String.Format(Strings.ChainDetailsPage_Level, level.Key + 1)</h4>

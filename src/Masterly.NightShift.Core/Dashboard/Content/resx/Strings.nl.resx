@@ -1769,4 +1769,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pauzeren</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>na fout</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>bij start</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>een mislukt</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>een mislukt of geannuleerd</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>alle afgerond</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagram</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>elke stap wacht op het niveau ervoor</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Alleen de eerste {0} stappen worden getekend.</value>
+  </data>
 </root>

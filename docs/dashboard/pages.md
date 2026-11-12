@@ -147,7 +147,7 @@ Every batch with a progress bar and its succeeded, failed and pending counts. Op
 
 ### Chains
 
-Every [job chain](../jobs/chains.md), newest first, with its first step, the number of steps, when it was created and its status: **Running**, **Done** or **Finished with failures**. Open a chain (`/chains/{id}`) to see its steps level by level, each with its job, state and when it was created, and the generation (how many times the chain was retried). Actions:
+Every [job chain](../jobs/chains.md), newest first, with its first step, the number of steps, when it was created and its status: **Running**, **Done** or **Finished with failures**. Open a chain (`/chains/{id}`) to see a diagram of it: one column per level, each step a card in its state's color that links to its job, and arrows to the steps that wait for it, labelled with what they wait for (**after success**, **after failure**, **all of**, **any failed** and so on). The first 100 steps are drawn. Below the diagram, the steps are listed level by level with their job and state, and the header shows the generation (how many times the chain was retried). Actions:
 
 - **Retry from here** on a failed or deleted step, once the chain has settled (nothing is running or waiting to run): the step runs again with everything after it, and the steps before it aren't re-run. It calls `RetryChainFrom`.
 - **Delete** while the chain is still running: deletes the steps that haven't finished, following the chain's delete behavior (`Restrict` refuses while a step is processing).

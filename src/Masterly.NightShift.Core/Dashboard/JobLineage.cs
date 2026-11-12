@@ -45,6 +45,9 @@ internal sealed class JobLineage
     /// <summary>How many unread nodes past <see cref="MaxNodes"/> are drawn to show that the graph goes on.</summary>
     public const int MaxBoundaryNodes = 10;
 
+    /// <summary>How many steps of a chain are drawn at most; the page's tables list them all.</summary>
+    public const int MaxChainNodes = 100;
+
     private JobLineage(string currentId, List<JobLineageNode> nodes, List<JobLineageEdge> edges, bool truncated)
     {
         CurrentId = currentId;
@@ -237,6 +240,45 @@ internal sealed class JobLineage
         }
     }
 
+    /// <summary>
+    /// The graph of a chain: one column per level, each step linked to every step of the level it waits for, the
+    /// link labelled with the condition. Read from the chain's record alone, so it needs no job details.
+    /// </summary>
+    public static JobLineage FromChain(JobChainInfo chain)
+    {
+        ArgumentNullException.ThrowIfNull(chain);
+
+        List<JobChainStepInfo> drawn = [.. chain.Steps.Take(MaxChainNodes)];
+        List<JobLineageNode> nodes = [.. drawn.Select(static step => new JobLineageNode(step.JobId, step.Level)
+        {
+            State = step.State,
+            Name = step.State != null && step.Job != null ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(step.Job.Type)}.{step.Job.Method.Name}" : null,
+        })];
+
+        List<JobLineageEdge> edges = [];
+        foreach (JobChainStepInfo step in drawn)
+        {
+            string? label = DescribeLink(step.Link, step.Options);
+            foreach (JobChainStepInfo parent in drawn.Where(x => x.Level == step.ParentLevel))
+            {
+                edges.Add(new JobLineageEdge(parent.JobId, step.JobId, label));
+            }
+        }
+
+        return new JobLineage(drawn.Count > 0 ? drawn[0].JobId : string.Empty, nodes, edges, chain.Steps.Count > drawn.Count);
+    }
+
+    private static string? DescribeLink(ChainLink link, JobContinuationOptions options) => link switch
+    {
+        ChainLink.Root => null,
+        ChainLink.AfterAll => Strings.Lineage_All,
+        ChainLink.AfterAny => Strings.Lineage_Any,
+        ChainLink.AfterAnyFailed => Strings.Lineage_AnyFailed,
+        ChainLink.AfterAnyFailedOrCanceled => Strings.Lineage_AnyFailedOrCanceled,
+        ChainLink.AfterAllCompleted => Strings.Lineage_AllFinished,
+        _ => DescribeOptions(options.ToString("G")),
+    };
+
     private static JobDetailsDto? TryLoad(IMonitoringApi monitor, string jobId)
     {
         try
@@ -266,6 +308,8 @@ internal sealed class JobLineage
 
         if (parsed.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) return Strings.Lineage_AfterSuccess;
         if (parsed.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) return Strings.Lineage_AfterDelete;
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnFailedState)) return Strings.Lineage_AfterFailure;
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) return Strings.Lineage_OnceStarted;
         return Strings.Lineage_AfterFinish;
     }
 }
@@ -280,7 +324,10 @@ internal static class JobLineageRenderer
     private const int Padding = 8;
     private const int MaxNameLength = 26;
 
-    public static NonEscapedString Render(RazorPage page, JobLineage lineage)
+    /// <param name="page">The page that draws it, for links and job ids.</param>
+    /// <param name="lineage">The graph.</param>
+    /// <param name="label">The diagram's accessible name; the job lineage's by default.</param>
+    public static NonEscapedString Render(RazorPage page, JobLineage lineage, string? label = null)
     {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(lineage);
@@ -304,7 +351,7 @@ internal static class JobLineageRenderer
         }
 
         StringBuilder svg = new();
-        svg.Append(FormattableString.Invariant($"<svg class=\"hf-lineage-svg\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\" role=\"img\" aria-label=\"{Encode(Strings.JobDetailsPage_Lineage)}\">"));
+        svg.Append(FormattableString.Invariant($"<svg class=\"hf-lineage-svg\" viewBox=\"0 0 {width} {height}\" width=\"{width}\" height=\"{height}\" role=\"img\" aria-label=\"{Encode(label ?? Strings.JobDetailsPage_Lineage)}\">"));
 
         foreach (JobLineageEdge edge in lineage.Edges)
         {

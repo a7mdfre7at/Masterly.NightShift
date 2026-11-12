@@ -1749,4 +1749,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pausieren</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>nach Fehler</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>nach dem Start</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>einer fehlgeschlagen</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>einer fehlgeschlagen oder abgebrochen</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>alle abgeschlossen</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagramm</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>jeder Schritt wartet auf die Ebene davor</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Nur die ersten {0} Schritte werden gezeichnet.</value>
+  </data>
 </root>

@@ -5296,5 +5296,77 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("ForecastPage_Truncated", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to after failure.
+        /// </summary>
+        public static string Lineage_AfterFailure {
+            get {
+                return ResourceManager.GetString("Lineage_AfterFailure", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to once started.
+        /// </summary>
+        public static string Lineage_OnceStarted {
+            get {
+                return ResourceManager.GetString("Lineage_OnceStarted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to any failed.
+        /// </summary>
+        public static string Lineage_AnyFailed {
+            get {
+                return ResourceManager.GetString("Lineage_AnyFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to any failed or canceled.
+        /// </summary>
+        public static string Lineage_AnyFailedOrCanceled {
+            get {
+                return ResourceManager.GetString("Lineage_AnyFailedOrCanceled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to all finished.
+        /// </summary>
+        public static string Lineage_AllFinished {
+            get {
+                return ResourceManager.GetString("Lineage_AllFinished", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Diagram.
+        /// </summary>
+        public static string ChainDetailsPage_Diagram {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Diagram", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to each step waits for the level before it.
+        /// </summary>
+        public static string ChainDetailsPage_Diagram_Hint {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Diagram_Hint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Only the first {0} steps are drawn..
+        /// </summary>
+        public static string ChainDetailsPage_Diagram_Truncated {
+            get {
+                return ResourceManager.GetString("ChainDetailsPage_Diagram_Truncated", resourceCulture);
+            }
+        }
     }
 }

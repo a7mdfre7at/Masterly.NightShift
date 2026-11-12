@@ -87,6 +87,21 @@ public class NewPagesFacts
     }
 
     [Fact]
+    public void ChainDetails_DrawsTheDiagram_WithALinkToEachStepsJob()
+    {
+        SetUpChain();
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.Contains("<svg class=\"hf-lineage-svg\"", details, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Diagram\"", details, StringComparison.Ordinal);
+        Assert.Contains("<a href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
+        Assert.Contains("<a href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
+        Assert.Contains("after success", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("Only the first", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ChainDetails_SaysTheChainIsNotRecorded()
     {
         Assert.Contains("isn&#39;t recorded any more", _renderer.Render(new ChainDetailsPage("gone")), StringComparison.Ordinal);

@@ -1796,4 +1796,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Приостановить</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>после ошибки</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>после запуска</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>одна завершилась ошибкой</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>одна завершилась ошибкой или отменена</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>все завершены</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Схема</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>каждый шаг ждёт предыдущий уровень</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Показаны только первые {0} шагов.</value>
+  </data>
 </root>

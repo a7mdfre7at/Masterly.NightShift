@@ -129,7 +129,7 @@ Dashboard commands added in this phase answer `204`, or `409`/`422` with `{ "err
 | TickerQ | Status | NightShift |
 |---|---|---|
 | Cron occurrence history | Port | `/recurring/details/{id}`: definition, next runs, the last 50 runs, **From code** and **Retired** badges, trigger, pause and resume. |
-| Chain view | Port | `/chains` and `/chains/{id}`: steps by level with aggregate status, **Retry from here** on a failed or deleted step of a settled chain, delete. Each step's console stays on its job page. |
+| Chain view | Port | `/chains` and `/chains/{id}`: a diagram of the steps (the lineage diagram's cards and arrows, one column per level, arrows labelled with each step's condition), steps by level with aggregate status, **Retry from here** on a failed or deleted step of a settled chain, delete. Each step's console stays on its job page. |
 | Schedule policies page | Port | `/policies`: cards, an editor with optimistic revisions, a preview of the next 20 occurrences marked allowed or blocked. |
 | About page | Port | `/about`: effective configuration, global filters, job functions, monitors. |
 | Visual chain builder, drafts and chain templates | Not ported | A drag-and-drop editor is a large client-side application, and chains are code: a chain built in the browser would need its steps' methods and arguments typed in by hand, which the Catalog's run form already does for one job. Saved chains are `RecurringJob.AddOrUpdateChain` or a method that builds the chain. |

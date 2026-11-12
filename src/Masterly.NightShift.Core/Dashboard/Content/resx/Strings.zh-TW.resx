@@ -1746,4 +1746,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>暫停</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>失敗後</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>開始後</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>任一失敗</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>任一失敗或取消</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>全部完成</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>圖表</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>每個步驟都等待上一層</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>只繪製前 {0} 個步驟。</value>
+  </data>
 </root>

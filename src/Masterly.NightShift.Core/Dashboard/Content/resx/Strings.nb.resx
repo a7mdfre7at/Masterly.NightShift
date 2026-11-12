@@ -1808,4 +1808,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pause</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>etter feil</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>ved start</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>en feilet</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>en feilet eller ble avbrutt</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>alle fullført</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagram</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>hvert steg venter på nivået før</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Bare de første {0} stegene tegnes.</value>
+  </data>
 </root>

@@ -1802,4 +1802,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>توقف</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>پس از شکست</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>پس از شروع</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>یکی شکست خورد</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>یکی شکست خورد یا لغو شد</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>همه پایان یافتند</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>نمودار</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>هر گام منتظر سطح پیش از خود است</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>فقط {0} گام نخست رسم می‌شود.</value>
+  </data>
 </root>

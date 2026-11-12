@@ -1810,4 +1810,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pausa</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>efter fel</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>vid start</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>något misslyckades</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>något misslyckades eller avbröts</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>alla avslutade</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagram</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>varje steg väntar på nivån före</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Endast de första {0} stegen ritas.</value>
+  </data>
 </root>

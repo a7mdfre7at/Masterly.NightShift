@@ -1747,4 +1747,28 @@
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Pausa</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>després d’error</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>en començar</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>alguna ha fallat</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>alguna ha fallat o s’ha cancel·lat</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>totes acabades</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagrama</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>cada pas espera el nivell anterior</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Només es dibuixen els primers {0} passos.</value>
+  </data>
 </root>

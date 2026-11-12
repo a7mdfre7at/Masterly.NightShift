@@ -210,6 +210,8 @@ public class JobLineageFacts
     [InlineData("OnAnyFinishedState", "after finish")]
     [InlineData("OnlyOnSucceededState", "after success")]
     [InlineData("OnlyOnDeletedState", "after delete")]
+    [InlineData("OnlyOnFailedState", "after failure")]
+    [InlineData("OnlyOnProcessingState", "once started")]
     [InlineData("1", "after success")]
     [InlineData("", null)]
     public void Build_LabelsTheParentEdge_FromTheContinuationOptions(string options, string expected)
@@ -280,6 +282,96 @@ public class JobLineageFacts
 
         Assert.Throws<ArgumentNullException>(() => JobLineageRenderer.Render(null, lineage));
         Assert.Throws<ArgumentNullException>(() => JobLineageRenderer.Render(CreatePage("1"), null));
+    }
+
+    [Fact]
+    public void FromChain_PutsEachLevelInAColumn_AndLinksEveryStepToTheStepsItWaitsFor()
+    {
+        JobChainInfo chain = Chain(
+            ChainStep("0.0", "1", SucceededState.StateName, 0, -1, ChainLink.Root),
+            ChainStep("1.0", "2", SucceededState.StateName, 1, 0, ChainLink.Then),
+            ChainStep("1.1", "3", FailedState.StateName, 1, 0, ChainLink.Then),
+            ChainStep("2.0", "4", AwaitingState.StateName, 2, 1, ChainLink.AfterAll),
+            ChainStep("2.1", "5", SucceededState.StateName, 2, 1, ChainLink.AfterAnyFailed));
+
+        JobLineage lineage = JobLineage.FromChain(chain);
+
+        Assert.Equal(["1", "2", "3", "4", "5"], lineage.Nodes.Select(static x => x.Id));
+        Assert.Equal([0, 1, 1, 2, 2], lineage.Nodes.Select(static x => x.Depth));
+        Assert.Equal("JobLineageFacts.Step", lineage.Nodes[0].Name);
+        Assert.Equal(FailedState.StateName, lineage.Nodes[2].State);
+        Assert.Equal(
+            ["1>2 after success", "1>3 after success", "2>4 all of", "3>4 all of", "2>5 any failed", "3>5 any failed"],
+            lineage.Edges.Select(static x => $"{x.ParentId}>{x.ChildId} {x.Label}"));
+        Assert.False(lineage.Truncated);
+        Assert.DoesNotContain(lineage.Nodes, static x => x.IsCurrent);
+    }
+
+    [Theory]
+    [InlineData("AfterAny", JobContinuationOptions.OnAnyFinishedState, "any of")]
+    [InlineData("AfterAnyFailedOrCanceled", JobContinuationOptions.OnAnyFinishedState, "any failed or canceled")]
+    [InlineData("AfterAllCompleted", JobContinuationOptions.OnAnyFinishedState, "all finished")]
+    [InlineData("Then", JobContinuationOptions.OnAnyFinishedState, "after finish")]
+    [InlineData("Then", JobContinuationOptions.OnlyOnFailedState, "after failure")]
+    [InlineData("Then", JobContinuationOptions.OnlyOnProcessingState, "once started")]
+    public void FromChain_LabelsEachLink_WithTheConditionTheStepWaitsFor(string link, JobContinuationOptions options, string expected)
+    {
+        JobChainInfo chain = Chain(
+            ChainStep("0.0", "1", SucceededState.StateName, 0, -1, ChainLink.Root),
+            ChainStep("1.0", "2", AwaitingState.StateName, 1, 0, Enum.Parse<ChainLink>(link)) with { Options = options });
+
+        JobLineageEdge edge = Assert.Single(JobLineage.FromChain(chain).Edges);
+
+        Assert.Equal(expected, edge.Label);
+    }
+
+    [Fact]
+    public void FromChain_DrawsAStepWhoseJobExpired_AsMissing()
+    {
+        JobChainInfo chain = Chain(
+            ChainStep("0.0", "1", null, 0, -1, ChainLink.Root),
+            ChainStep("1.0", "2", SucceededState.StateName, 1, 0, ChainLink.Then));
+
+        JobLineage lineage = JobLineage.FromChain(chain);
+        string svg = JobLineageRenderer.Render(CreatePage("1"), lineage, "Diagram").ToString();
+
+        Assert.False(lineage.Nodes[0].Exists);
+        Assert.Contains("hf-lineage-missing", svg);
+        Assert.Contains("aria-label=\"Diagram\"", svg);
+        Assert.Equal(1, CountOf(svg, "<path class=\"hf-lineage-edge\""));
+    }
+
+    [Fact]
+    public void FromChain_DrawsOnlyTheFirstSteps_OfAHugeChain()
+    {
+        List<JobChainStepInfo> steps = [ChainStep("0.0", "root", SucceededState.StateName, 0, -1, ChainLink.Root)];
+        steps.AddRange(Enumerable.Range(0, JobLineage.MaxChainNodes + 20).Select(static i => ChainStep($"1.{i}", $"b{i}", AwaitingState.StateName, 1, 0, ChainLink.Then)));
+
+        JobLineage lineage = JobLineage.FromChain(Chain([.. steps]));
+
+        Assert.Equal(JobLineage.MaxChainNodes, lineage.Nodes.Count);
+        Assert.Equal(JobLineage.MaxChainNodes - 1, lineage.Edges.Count);
+        Assert.True(lineage.Truncated);
+    }
+
+    [Fact]
+    public void FromChain_ThrowsOnNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => JobLineage.FromChain(null));
+    }
+
+    private static JobChainInfo Chain(params JobChainStepInfo[] steps)
+    {
+        return new JobChainInfo("c1", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade, steps);
+    }
+
+    private static JobChainStepInfo ChainStep(string key, string jobId, string state, int level, int parentLevel, ChainLink link)
+    {
+        return new JobChainStepInfo(key, jobId, state, level, parentLevel, Job.FromExpression(() => Step(key)))
+        {
+            Link = link,
+            Options = link == ChainLink.Then ? JobContinuationOptions.OnlyOnSucceededState : JobContinuationOptions.OnAnyFinishedState,
+        };
     }
 
     private static RazorPage CreatePage(string jobId)

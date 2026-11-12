@@ -1771,4 +1771,28 @@ Vous devriez les remettre en file d'attente ou les supprimer manuellement, ou ap
   <data name="ServersPage_Pause_Server" xml:space="preserve">
     <value>Mettre en pause</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>après échec</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>au démarrage</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>l’une a échoué</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>l’une a échoué ou a été annulée</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>toutes terminées</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagramme</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>chaque étape attend le niveau précédent</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Seules les {0} premières étapes sont dessinées.</value>
+  </data>
 </root>

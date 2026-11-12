@@ -1874,4 +1874,28 @@
   <data name="ForecastPage_Truncated" xml:space="preserve">
     <value>More than {0} runs in this window; only the first {0} are counted</value>
   </data>
+  <data name="Lineage_AfterFailure" xml:space="preserve">
+    <value>after failure</value>
+  </data>
+  <data name="Lineage_OnceStarted" xml:space="preserve">
+    <value>once started</value>
+  </data>
+  <data name="Lineage_AnyFailed" xml:space="preserve">
+    <value>any failed</value>
+  </data>
+  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
+    <value>any failed or canceled</value>
+  </data>
+  <data name="Lineage_AllFinished" xml:space="preserve">
+    <value>all finished</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram" xml:space="preserve">
+    <value>Diagram</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
+    <value>each step waits for the level before it</value>
+  </data>
+  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
+    <value>Only the first {0} steps are drawn.</value>
+  </data>
 </root>
