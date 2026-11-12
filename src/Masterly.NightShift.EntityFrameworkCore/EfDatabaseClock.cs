@@ -90,8 +90,9 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
             // to a timestamp without a zone, so its value doesn't depend on how the driver reads time zones.
             "Npgsql.EntityFrameworkCore.PostgreSQL" => new Statement("select clock_timestamp() at time zone 'utc'", Verified: false),
 
-            // MySQL and MariaDB: with microseconds
-            "Pomelo.EntityFrameworkCore.MySql" or "MySql.EntityFrameworkCore" => new Statement("select utc_timestamp(6)", Verified: false),
+            // MySQL and MariaDB, with microseconds. As text: the drivers read a date and time in ways their
+            // connection strings change (stamped as local time, or as a type of their own).
+            "Pomelo.EntityFrameworkCore.MySql" or "MySql.EntityFrameworkCore" => new Statement("select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')", Verified: false),
             "Oracle.EntityFrameworkCore" => new Statement("select sys_extract_utc(systimestamp) from dual", Verified: false),
             _ => null,
         };

@@ -52,10 +52,11 @@ public sealed class EntityFrameworkCoreStorageOptions
 
     /// <summary>
     /// The statement that reads the database's clock: SQL that answers the database's current time in UTC as a
-    /// single value (a date and time, or text such as <c>2026-01-31 12:00:00.000</c>), for example
-    /// <c>select utc_timestamp(6)</c>. <c>null</c> (the default) uses the statement the storage knows for the
-    /// provider: SQL Server, PostgreSQL (Npgsql), MySQL and MariaDB (Pomelo and Oracle's MySQL provider), Oracle
-    /// and SQLite have one. Set it for another provider, or to replace the statement of one of these.
+    /// single value (a date and time, or text such as <c>2026-01-31 12:00:00.000</c>), as
+    /// <c>select sysutcdatetime()</c> does on SQL Server. <c>null</c> (the default) uses the statement the
+    /// storage knows for the provider: SQL Server, PostgreSQL (Npgsql), MySQL and MariaDB (Pomelo and Oracle's
+    /// MySQL provider), Oracle and SQLite have one. Set it for another provider, or to replace the statement of
+    /// one of these.
     /// </summary>
     /// <remarks>
     /// The statement is run once, the first time the clock is asked for, before it is used: the storage reads the

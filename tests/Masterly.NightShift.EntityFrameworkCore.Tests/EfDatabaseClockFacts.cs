@@ -82,8 +82,8 @@ public sealed class EfDatabaseClockFacts : IDisposable
     [InlineData("Microsoft.EntityFrameworkCore.SqlServer", "select sysutcdatetime()", true)]
     [InlineData("Microsoft.EntityFrameworkCore.Sqlite", SqliteNow, true)]
     [InlineData("Npgsql.EntityFrameworkCore.PostgreSQL", "select clock_timestamp() at time zone 'utc'", false)]
-    [InlineData("Pomelo.EntityFrameworkCore.MySql", "select utc_timestamp(6)", false)]
-    [InlineData("MySql.EntityFrameworkCore", "select utc_timestamp(6)", false)]
+    [InlineData("Pomelo.EntityFrameworkCore.MySql", "select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')", false)]
+    [InlineData("MySql.EntityFrameworkCore", "select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')", false)]
     [InlineData("Oracle.EntityFrameworkCore", "select sys_extract_utc(systimestamp) from dual", false)]
     public void BuiltIn_KnowsTheStatementOfAProvider_AndWhetherItsTestsRanIt(string provider, string sql, bool verified)
     {
@@ -344,10 +344,11 @@ public sealed class EfDatabaseClockFacts : IDisposable
         Assert.True(EfDatabaseClock.TryConvert(expected.ToLocalTime(), out DateTime local));
         Assert.True(EfDatabaseClock.TryConvert(new DateTimeOffset(expected).ToOffset(TimeSpan.FromHours(5.5)), out DateTime offset));
         Assert.True(EfDatabaseClock.TryConvert("2026-11-13 10:11:12.345", out DateTime text));
+        Assert.True(EfDatabaseClock.TryConvert("2026-11-13 10:11:12.345000", out DateTime textWithMicroseconds));
         Assert.True(EfDatabaseClock.TryConvert("2026-11-13T15:41:12.345+05:30", out DateTime textWithOffset));
 
         Assert.All(
-            (DateTime[])[unspecified, utc, local, offset, text, textWithOffset],
+            (DateTime[])[unspecified, utc, local, offset, text, textWithMicroseconds, textWithOffset],
             x =>
             {
                 Assert.Equal(expected, x);
