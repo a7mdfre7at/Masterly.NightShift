@@ -445,9 +445,21 @@ public static partial class JobChains
 
             decision = ContinuationsSupportAttribute.Decide(connection.GetStateData(parentId)?.Name, options, finalStates);
 
-            if (decision == FanInContinuationsSupportAttribute.Decision.Start && state.Data.TryGetValue("NextState", out string? serializedNextState))
+            if (decision == FanInContinuationsSupportAttribute.Decision.Start)
             {
-                nextState = SerializationHelper.Deserialize<IState>(serializedNextState, SerializationOption.TypedInternal);
+                // With UseResultsInContinuations the filter hands the parent's result to the continuation as it
+                // starts it. That isn't done again here, and a continuation started without it would run with the
+                // wrong input: it is left waiting, for a requeue.
+                if (GlobalJobFilters.Filters.Any(static x => x.Instance is ContinuationsSupportAttribute { PushResults: true }))
+                {
+                    Logger.Warn($"Background job '{jobId}' was never started after its parent '{parentId}' finished, and isn't started now, because results are passed to continuations (UseResultsInContinuations): requeue it once its input is right.");
+                    return false;
+                }
+
+                if (state.Data.TryGetValue("NextState", out string? serializedNextState))
+                {
+                    nextState = SerializationHelper.Deserialize<IState>(serializedNextState, SerializationOption.TypedInternal);
+                }
             }
         }
 

@@ -202,6 +202,33 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         _client.Verify(x => x.ChangeState("third", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Fact, GlobalLock(Reason = "Changes the global filters")]
+    public void RedriveLostDecisions_LeavesAStepAfterASingleStepWaiting_WhenResultsArePassedToContinuations()
+    {
+        // The filter that starts a continuation hands it its parent's result; started here, it would run without
+        DateTime longAgo = DateTime.UtcNow.AddMinutes(-20);
+        _states["first"] = new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string> { ["SucceededAt"] = JobHelper.SerializeDateTime(longAgo) } };
+        _states["second"] = new StateData { Name = AwaitingState.StateName, Data = new AwaitingState("first").SerializeData() };
+        JobChainInfo info = new("c", 1, longAgo, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "first", SucceededState.StateName, 0, -1) { FinishedAt = longAgo },
+            new JobChainStepInfo("1.0", "second", AwaitingState.StateName, 1, 0) { Link = ChainLink.Then, Options = JobContinuationOptions.OnlyOnSucceededState },
+        ]);
+        ContinuationsSupportAttribute pushing = new(pushResults: true);
+        GlobalJobFilters.Filters.Add(pushing);
+
+        try
+        {
+            Assert.Equal(0, JobChains.RedriveLostDecisions(_client.Object, _connection.Object, info));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(pushing);
+        }
+
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
     [Fact]
     public void RedriveLostDecisions_DecidesFromTheStoredStates_NotFromTheOnesReadBefore()
     {

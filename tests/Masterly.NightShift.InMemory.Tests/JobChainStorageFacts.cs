@@ -54,6 +54,13 @@ public sealed class JobChainStorageFacts : IDisposable
     /// <summary>A step that says it ran.</summary>
     public static void Run(string name) => Ran.Enqueue(name);
 
+    /// <summary>A step that takes a moment, and says it ran once it has.</summary>
+    public static void Slow(string name)
+    {
+        Thread.Sleep(1000);
+        Ran.Enqueue(name);
+    }
+
     /// <summary>A step that says it ran, and that a test can fail for good by hand.</summary>
     [AutomaticRetry(Attempts = 0)]
     public static void Once(string name) => Ran.Enqueue(name);
@@ -489,7 +496,7 @@ public sealed class JobChainStorageFacts : IDisposable
         // Both branches finish, and the step after them can't be started: it stays where it is
         using (CreateServer())
         {
-            WaitUntil(() => _starts.Failed >= 3, "the start of the join to fail");
+            WaitUntilTheJoinIsGivenUp();
         }
 
         Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["2.0"]));
@@ -517,7 +524,7 @@ public sealed class JobChainStorageFacts : IDisposable
         RecurringJobManager manager = new(_storage);
         manager.AddOrUpdateChain(
             "etl",
-            JobChain.StartWith(() => Run("a")).ThenMany(branches => branches.Branch(() => Run("c")).Branch(() => Run("d"))).ThenAfterAll(() => Run("done")),
+            JobChain.StartWith(() => Run("a")).ThenMany(branches => branches.Branch(() => Run("c")).Branch(() => Run("d"))).ThenAfterAll(() => Slow("done")),
             "0 0 1 1 *",
             skipWhileRunning: true);
         _starts.FailFor = "done";
@@ -525,16 +532,16 @@ public sealed class JobChainStorageFacts : IDisposable
         using BackgroundJobServer server = CreateServer();
 
         string first = manager.TriggerJob("etl")!;
-        WaitUntil(() => _starts.Failed >= 3, "the start of the join to fail");
+        WaitUntilTheJoinIsGivenUp();
         _starts.FailFor = null;
         Assert.DoesNotContain("done", Ran);
 
         // The next occurrence, long after: the join is started, and the occurrence skipped while it runs
         MoveClock(TimeSpan.FromMinutes(6));
         string second = manager.TriggerJob("etl")!;
-        WaitUntil(() => Ran.Contains("done"), "the join of the previous chain to run");
         WaitUntil(() => StateOf(second) == DeletedState.StateName, "the occurrence to be skipped");
         Assert.Contains("still running", ReasonOf(second), StringComparison.Ordinal);
+        WaitUntil(() => Ran.Contains("done"), "the join of the previous chain to run");
 
         // And the one after it runs
         Assert.True(_storage.TryGetResult(first, out string? previous));
@@ -988,6 +995,21 @@ public sealed class JobChainStorageFacts : IDisposable
     private BackgroundJobServer CreateServer()
     {
         return new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 2, SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage);
+    }
+
+    // Each branch that finishes last tries to start the join a few times, a second apart at most: it is given up
+    // once the tries have stopped for longer than that
+    private void WaitUntilTheJoinIsGivenUp()
+    {
+        WaitUntil(() => _starts.Failed >= 3, "the start of the join to fail");
+
+        int failed;
+        do
+        {
+            failed = _starts.Failed;
+            Thread.Sleep(2500);
+        }
+        while (failed != _starts.Failed);
     }
 
     private void WaitUntilSettled(string chainId) => WaitUntil(() => _storage.GetChain(chainId) is { IsSettled: true }, $"chain {chainId} to settle");
