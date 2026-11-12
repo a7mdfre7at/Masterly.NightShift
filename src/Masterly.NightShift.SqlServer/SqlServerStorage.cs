@@ -72,7 +72,7 @@ public class SqlServerStorage : JobStorage
             { JobStorageFeatures.Connection.LimitedGetSetCount, true },
             { JobStorageFeatures.Transaction.AcquireDistributedLock, true },
             { JobStorageFeatures.Transaction.CreateJob, false },
-            { JobStorageFeatures.Transaction.SetJobParameter, false },
+            { JobStorageFeatures.Transaction.SetJobParameter, true },
             { JobStorageFeatures.Monitoring.DeletedStateGraphs, true },
             { JobStorageFeatures.Purge, true },
             { JobStorageFeatures.Monitoring.AwaitingJobs, true },
