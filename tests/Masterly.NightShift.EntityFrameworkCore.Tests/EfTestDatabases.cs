@@ -37,7 +37,9 @@ internal static class SqlServerDatabase
         string? template = Environment.GetEnvironmentVariable("NightShift_SqlServer_ConnectionStringTemplate");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(template), "Set NightShift_SqlServer_ConnectionStringTemplate to run the SQL Server tests.");
 
-        string database = $"Masterly.NightShift.EntityFrameworkCore.Tests.{name}.{(Environment.Version.Major >= 10 ? "net10_0" : "net8_0")}";
+        // The schema version is part of the name: the storage refuses tables of another version, so a test database
+        // left by an earlier build would fail every test instead of starting afresh
+        string database = $"Masterly.NightShift.EntityFrameworkCore.Tests.{name}.v{SchemaVersionRow.Current}.{(Environment.Version.Major >= 10 ? "net10_0" : "net8_0")}";
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, database);
     }
 

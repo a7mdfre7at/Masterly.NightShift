@@ -19,6 +19,9 @@ public class ReliabilityFacts
         string text = new('n', 20_000);
         GlobalConfiguration.Configuration.UseArgumentCompression(1024);
 
+        // Arguments are compressed only at the newest data compatibility level, which older servers can't read
+        GlobalConfiguration.Configuration.SetDataCompatibilityLevel(CompatibilityLevel.Version_180);
+
         try
         {
             string jobId = new BackgroundJobClient(storage).Enqueue(() => Receive(text));
@@ -40,6 +43,7 @@ public class ReliabilityFacts
         finally
         {
             GlobalConfiguration.Configuration.UseArgumentCompression(null);
+            GlobalConfiguration.Configuration.SetDataCompatibilityLevel(CompatibilityLevel.Version_110);
         }
     }
 

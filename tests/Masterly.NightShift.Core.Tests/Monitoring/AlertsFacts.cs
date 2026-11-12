@@ -537,6 +537,9 @@ public class WebhookAlertSinkFacts
         sink.Dispose();
 
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Dispose took {stopwatch.Elapsed}");
+
+        // The canceled request records its failure on its own thread, which may come after Dispose returned
+        await WaitUntilAsync(() => sink.Failed == 1);
         Assert.Equal(0, sink.Sent);
         Assert.Equal(1, sink.Failed);
         Assert.Equal("The sink was disposed", Assert.Single(sink.Deliveries).Error);

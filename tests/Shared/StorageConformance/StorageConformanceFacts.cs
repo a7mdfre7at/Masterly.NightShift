@@ -15,9 +15,21 @@ namespace Masterly.NightShift.Storage.Conformance;
 public abstract class StorageConformanceFacts : IDisposable
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    private readonly object _storageLock = new();
     private JobStorage? _storage;
 
-    protected JobStorage Storage => _storage ??= CreateStorage();
+    // Locked: a test that fetches on another thread must not create a second storage (on MongoDB it gets another
+    // collection prefix, so the two would never see each other's jobs)
+    protected JobStorage Storage
+    {
+        get
+        {
+            lock (_storageLock)
+            {
+                return _storage ??= CreateStorage();
+            }
+        }
+    }
 
     /// <summary>An empty storage, created once per test.</summary>
     protected abstract JobStorage CreateStorage();
@@ -1068,7 +1080,11 @@ public abstract class StorageConformanceFacts : IDisposable
     private bool UseStorage(JobStorage? storage)
     {
         if (storage == null) return false;
-        _storage = storage;
+        lock (_storageLock)
+        {
+            _storage = storage;
+        }
+
         return true;
     }
 
