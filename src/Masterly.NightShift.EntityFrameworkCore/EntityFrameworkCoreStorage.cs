@@ -90,11 +90,12 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// The storage reads the database's clock (<c>JobStorageConnection.GetUtcDateTime</c>, advertised as the feature
 /// <c>Connection.GetUtcDateTime</c>) on the providers it knows a statement for: SQL Server, PostgreSQL (Npgsql),
 /// MySQL and MariaDB (Pomelo and Oracle's MySQL provider), Oracle and SQLite; for another provider, set
-/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>. The schedulers, the dashboard, server
-/// heartbeats and the lease of a chain that is being created then go by that one clock, so the clocks of the
-/// processes that share the storage needn't agree for them. SQLite runs inside the process and reads the
-/// machine's own clock, which is the same clock for every process on that machine. Each read is one more
-/// statement on a context of the storage.
+/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>. The schedulers, the dashboard and the
+/// lease of a chain that is being created then go by that one clock, so the clocks of the processes that share
+/// the storage needn't agree for them. Servers that stopped sending heartbeats are told by it too, and a
+/// heartbeat is stamped with the later of that clock and the server's own, so a live server isn't taken for dead
+/// because of its clock. SQLite runs inside the process and reads the machine's own clock, which is the same
+/// clock for every process on that machine. Each read is one more statement on a context of the storage.
 /// </para>
 /// <para>
 /// The statement is checked once, the first time the clock is asked for (see

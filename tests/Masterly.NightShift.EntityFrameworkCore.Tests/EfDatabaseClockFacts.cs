@@ -322,9 +322,30 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void Heartbeats_AreWrittenAndTimedOut_WithTheDatabasesClock()
+    public void Heartbeat_IsTheDatabasesTime_WhenItsClockIsAheadOfThisProcesss()
     {
-        // A database whose clock is 90 seconds behind this process's
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
+        {
+            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '+90 seconds')",
+        });
+        using IStorageConnection connection = storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        DateTime announced = Heartbeat(storage);
+        connection.Heartbeat("server");
+        DateTime beaten = Heartbeat(storage);
+
+        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(60), DateTime.UtcNow.AddSeconds(120));
+        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(120));
+
+        // Those who compare with the database's clock, as the dashboard's pages and the watchdog do, find it new
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
+        Assert.Single(storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void Heartbeat_IsThisProcesssTime_WhenItsClockIsAheadOfTheDatabases()
+    {
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
         {
             DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '-90 seconds')",
@@ -336,12 +357,33 @@ public sealed class EfDatabaseClockFacts : IDisposable
         connection.Heartbeat("server");
         DateTime beaten = Heartbeat(storage);
 
-        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(-120), DateTime.UtcNow.AddSeconds(-60));
-        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(-60));
-
-        // By this process's clock the heartbeat is 90 seconds old; by the clock it was written with, it is new
+        // Those in this process who compare with its clock, as the health endpoints do, find it new too
+        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(-30), DateTime.UtcNow.AddSeconds(30));
+        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(30));
         Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
         Assert.Single(storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void RemoveTimedOutServers_TellsASilentServer_WithTheDatabasesClock()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
+        {
+            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '+90 seconds')",
+        });
+        using IStorageConnection connection = storage.GetConnection();
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+
+        // Silent for a minute by the database's clock, though this process's clock hasn't reached its heartbeat yet
+        DateTime silentSince = DateTime.UtcNow.AddSeconds(30);
+        using (DbContext context = storage.CreateContext())
+        {
+            context.Set<ServerRow>().ExecuteUpdate(s => s.SetProperty(x => x.LastHeartbeat, silentSince));
+        }
+
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromMinutes(5)));
+        Assert.Equal(1, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
+        Assert.Empty(storage.GetMonitoringApi().Servers());
     }
 
     [Fact]
