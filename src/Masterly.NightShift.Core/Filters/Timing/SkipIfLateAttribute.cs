@@ -21,6 +21,11 @@ namespace Masterly.NightShift;
 /// and the check is recorded once.</para>
 /// <para>A skipped job isn't retried and doesn't count as a failure. Continuations waiting for the <c>Deleted</c>
 /// state start, and telemetry reports the run as <c>skipped</c>.</para>
+/// <para>A job that is late after it waited for a schedule policy that couldn't be evaluated
+/// (<see cref="SchedulePolicyFilter"/>) is skipped all the same, but its reason says so and names the policy,
+/// <c>Skipped: started 3 h late: waited for policy 'business-hours', which couldn't be evaluated</c>, and a warning
+/// is logged: the job is dropped because of the policy, not because of the job. The reason has at most 99
+/// characters, the shortest a storage keeps; a long policy name is shortened in it, and whole in the warning.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -36,6 +41,10 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
 
     // PerformContext.Items entry with the window this run was already checked against
     private const string CheckedItem = "X_NS_LateStartChecked";
+
+    // The shortest text a storage keeps of a state's reason: SQL Server keeps the first 99 characters, the Entity
+    // Framework Core storage 100, and the Redis, MongoDB and in-memory storages all of it
+    private const int ShortestReasonLimit = 99;
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(SkipIfLateAttribute));
 
@@ -116,10 +125,65 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
         TimeSpan lateness = context.Lateness;
         if (lateness > window)
         {
-            throw new TerminateJobException(
+            throw Skip(context, lateness, window);
+        }
+    }
+
+    // A job that waited for a schedule policy that couldn't be evaluated may be late for that alone. Its own window
+    // still decides, but the reason and a warning say what made it late: the job is dropped for a fault elsewhere
+    private static TerminateJobException Skip(PerformContext context, TimeSpan lateness, TimeSpan window)
+    {
+        string? policy = FindPolicyWaitedFor(context);
+        if (policy == null)
+        {
+            return new TerminateJobException(
                 $"started {Format(lateness)} late, more than the {Format(window)} allowed",
                 TerminateJobOutcome.Skipped);
         }
+
+        Logger.Warn($"Background job '{context.BackgroundJob.Id}' is skipped: it started {Format(lateness)} late, more than the {Format(window)} allowed, after it waited for schedule policy '{policy}', which couldn't be evaluated. The job is dropped because of the policy, not because of anything the job did: the warnings about the policy say what failed, and the job runs when it is requeued by hand.");
+
+        return new TerminateJobException(FormatLateAfterPolicy(lateness, policy), TerminateJobOutcome.Skipped);
+    }
+
+    // The policy the job waited for while it couldn't be evaluated, or null. SchedulePolicyFilter keeps its count of
+    // failed checks on such a job, at zero once the policy let the job run, and removes it when the policy moves the
+    // job to a new time, from which its lateness then counts. Read only for a job that is skipped
+    private static string? FindPolicyWaitedFor(PerformContext context)
+    {
+        try
+        {
+            if (!context.GetJobParameter<int?>(SchedulePolicyFilter.CheckAttemptsParameter, allowStale: true).HasValue)
+            {
+                return null;
+            }
+
+            string? policy = context.GetJobParameter<string>(ScheduleOptions.PolicyParameter, allowStale: true);
+            return string.IsNullOrWhiteSpace(policy) ? null : policy.Trim();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // Only the wording of the reason depends on it: the job is skipped either way
+            Logger.DebugException(
+                $"Could not read whether background job '{context.BackgroundJob.Id}' waited for its schedule policy, so its reason doesn't say.",
+                ex);
+            return null;
+        }
+    }
+
+    // "started 3 h late: waited for policy 'business-hours', which couldn't be evaluated", which with its prefix
+    // fits the shortest reason a storage keeps. What gives way is the name of the policy, never what happened; the
+    // warning has the name in full
+    private static string FormatLateAfterPolicy(TimeSpan lateness, string policy)
+    {
+        const string end = "', which couldn't be evaluated";
+        string start = $"started {Format(lateness)} late: waited for policy '";
+
+        int prefixLength = TerminateJobFilter.FormatReason(TerminateJobFilter.SkippedReasonPrefix, string.Empty).Length;
+        int room = ShortestReasonLimit - prefixLength - start.Length - end.Length;
+        string name = policy.Length <= room ? policy : string.Concat(policy.AsSpan(0, Math.Max(room - 1, 0)), "…");
+
+        return $"{start}{name}{end}";
     }
 
     // Only a record: without it a retry is checked again, which a storage error shouldn't turn into a failure

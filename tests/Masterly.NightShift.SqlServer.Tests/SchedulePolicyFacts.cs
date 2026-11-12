@@ -242,8 +242,44 @@ public class SchedulePolicyFacts
 
         Assert.Equal(SucceededState.StateName, final.Name);
 
-        // The policy was evaluated, so the count of failed checks is gone
-        await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => string.IsNullOrEmpty(x));
+        // The policy was evaluated and let the job run, so no check failed in a row any more: the zero that stays
+        // records that the job waited
+        await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => x == "0");
+    }
+
+    [Fact, CleanDatabase]
+    public async Task DueJob_SkippedAsLateAfterItWaitedForItsPolicy_SaysSoInItsReason()
+    {
+        FlakyDates provider = new() { Down = true };
+        GlobalConfiguration.Configuration.UseScheduleDateProvider("late-dates", provider);
+        SqlServerStorage storage = CreateStorage();
+        storage.SaveSchedulePolicy(new SchedulePolicy("late-days").ExcludeDatesFrom("late-dates"));
+        BackgroundJobClient client = new(storage);
+
+        string jobId = client.Schedule(
+            () => Answer(),
+            TimeSpan.FromSeconds(1),
+            new ScheduleOptions { Policy = "late-days", SkipAfter = TimeSpan.FromSeconds(1) });
+        Assert.NotNull(jobId);
+
+        JobStateInfo final;
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, SchedulePollingInterval = TimeSpan.FromMilliseconds(200) }, storage))
+        {
+            await WaitForStateAsync(storage, jobId, static x => x.Reason?.StartsWith("Waiting for policy", StringComparison.Ordinal) == true);
+            await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => x == "1");
+
+            // The provider works again only when the job is later than its own window allows
+            await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            provider.Down = false;
+            Assert.True(client.Reschedule(jobId, TimeSpan.FromSeconds(1), ScheduledState.StateName));
+
+            final = await storage.WaitForCompletionAsync(jobId, Timeout, TestContext.Current.CancellationToken);
+        }
+
+        // Its own window decides, so it is skipped, but the reason names what made it late
+        Assert.Equal(DeletedState.StateName, final.Name);
+        Assert.Matches("^Skipped: started [0-9.,]+ s late: waited for policy 'late-days', which couldn't be evaluated$", final.Reason);
+        await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => x == "0");
     }
 
     private static async Task WaitForParameterAsync(SqlServerStorage storage, string jobId, string name, Func<string, bool> condition)
