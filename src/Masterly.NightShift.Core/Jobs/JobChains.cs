@@ -199,7 +199,7 @@ public static partial class JobChains
 
             // The retry is recorded: nothing fails it from here on. Should the step not be released, it runs when
             // its hold ends, or when a server's chain maintenance releases it.
-            CompleteCleanup(storage, client, connection, chainId, updated.Cleanup, out int replaced);
+            CompleteCleanup(storage, client, connection, chainId, updated.Cleanup, heldJustNow: true, out int replaced);
 
             Logger.Info($"Chain '{chainId}' retried from step '{stepKey}' (generation {updated.Generation}): {created.Count} steps created after it, {replaced} waiting steps deleted.");
             return updated.ToResult();
@@ -288,7 +288,7 @@ public static partial class JobChains
             }
 
             // The new chain is recorded: nothing fails the replacement from here on
-            CompleteCleanup(storage, client, connection, chainId, cleanup, out int deleted);
+            CompleteCleanup(storage, client, connection, chainId, cleanup, heldJustNow: true, out int deleted);
 
             Logger.Info($"Chain '{chainId}' replaced (generation {record.Generation + 1}): {result.Steps.Count} steps created, {deleted} old jobs deleted.");
             return result;
@@ -348,7 +348,7 @@ public static partial class JobChains
             // The jobs a retry or a replacement left to delete go first: once the record is gone, nothing lists them
             int deleted = 0;
             if (record.Cleanup != null &&
-                RunCleanup(client, connection, chainId, new ChainCleanup { Reason = ChainDeletedReason, Delete = record.Cleanup.Delete }, out deleted) is { } left)
+                RunCleanup(client, connection, chainId, new ChainCleanup { Reason = ChainDeletedReason, Delete = record.Cleanup.Delete }, heldJustNow: false, out deleted) is { } left)
             {
                 throw new InvalidOperationException(
                     $"Chain '{chainId}' can't be deleted yet: {left.Delete.Count} jobs that an earlier retry or replacement left to delete couldn't be deleted. {deleted} jobs were deleted; the chain is kept, delete it again.");
@@ -454,8 +454,51 @@ public static partial class JobChains
             throw;
         }
 
-        SettleFirstStep(client, connection, chainId, rootId);
+        StateData? root = SettleFirstStep(client, connection, chainId, rootId);
+
+        if (root != null &&
+            DeletedState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase) &&
+            JobChainStepFilter.IsRefusal(chainId, root.Reason))
+        {
+            throw FirstStepLost(client, connection, record, created, replacing: cleanup != null);
+        }
+
         return record.ToResult();
+    }
+
+    /// <summary>
+    /// The first step was taken by a worker and deleted before the record was written: the chain took longer to
+    /// create than a step waits for its record. A chain that will never run isn't returned as created: a new
+    /// chain is taken back whole, and a replacement is left recorded, to be run from its first step or deleted.
+    /// </summary>
+    private static InvalidOperationException FirstStepLost(IBackgroundJobClient client, IStorageConnection connection, ChainRecord record, List<string> created, bool replacing)
+    {
+        string chainId = record.ChainId;
+        string rootId = record.Jobs[Key(0, 0)];
+        string cause = $"creating it took longer than {JobChainStepFilter.CreationGrace.TotalMinutes:0.#} minutes, so its first step was deleted before the chain was recorded";
+
+        if (replacing)
+        {
+            return new InvalidOperationException(
+                $"Chain '{chainId}' was replaced, but the new chain doesn't run: {cause}. Run it with RetryChainFrom(\"{rootId}\"), or delete it with DeleteChain.");
+        }
+
+        DeleteCreated(client, connection, created, chainId, ChainNotCreatedReason);
+
+        try
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.RemoveHash(GetKey(chainId));
+            transaction.RemoveFromSet(SetKey, chainId);
+            transaction.Commit();
+            ForgetExpiry(chainId);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.WarnException($"The record of chain '{chainId}', which wasn't created, couldn't be removed; delete the chain with DeleteChain.", ex);
+        }
+
+        return new InvalidOperationException($"Chain '{chainId}' wasn't created: {cause}. Nothing of it is left; create it again.");
     }
 
     /// <summary>
@@ -463,12 +506,15 @@ public static partial class JobChains
     /// is enqueued at once rather than when its hold ends; and the record of a chain whose first step is scheduled
     /// later than asked (a schedule policy moved it) is kept that much longer. Best effort: the hold ends by itself.
     /// </summary>
-    private static void SettleFirstStep(IBackgroundJobClientV2 client, IStorageConnection connection, string chainId, string rootId)
+    /// <returns>The state the first step was read in, or <c>null</c> when it couldn't be read.</returns>
+    private static StateData? SettleFirstStep(IBackgroundJobClientV2 client, IStorageConnection connection, string chainId, string rootId)
     {
+        StateData? root = null;
+
         try
         {
-            StateData? root = connection.GetStateData(rootId);
-            if (root == null || !ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase)) return;
+            root = connection.GetStateData(rootId);
+            if (root == null || !ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase)) return root;
 
             if (string.Equals(root.Reason, JobChainStepFilter.WaitingReason(chainId), StringComparison.Ordinal))
             {
@@ -485,6 +531,8 @@ public static partial class JobChains
         {
             Logger.DebugException($"The first step '{rootId}' of chain '{chainId}' couldn't be checked after the chain was recorded; a step held until then runs when its hold ends.", ex);
         }
+
+        return root;
     }
 
     private static Job WithQueue(Job job, string queue) => new(job.Type, job.Method, job.Args, queue);

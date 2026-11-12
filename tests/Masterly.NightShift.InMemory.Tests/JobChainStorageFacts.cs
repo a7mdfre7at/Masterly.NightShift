@@ -98,6 +98,28 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Chain_ThatTakesTooLongToCreate_IsNotReturnedAsCreated_WhenItsFirstStepWasDeletedMeanwhile()
+    {
+        using BackgroundJobServer server = CreateServer();
+        _filter.PauseOn = "c";
+        _filter.WhilePaused = () =>
+        {
+            // The client stalls for longer than a step waits for its chain's record
+            string first = _filter.Created.Single(static x => x.Name == "a").Id;
+            JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+            WaitUntil(() => StateOf(first) == DeletedState.StateName, "the first step to be deleted");
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client));
+
+        Assert.Contains("wasn't created", exception.Message, StringComparison.Ordinal);
+        Assert.All(_filter.Created, step => Assert.Equal(DeletedState.StateName, StateOf(step.Id)));
+        Assert.Empty(SetItems(JobChains.SetKey));
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
     public void Chain_ThatWasNeverRecorded_HasItsFirstStepHeld_ThenDeleted_AndTheStepsAfterItDoNotRun()
     {
         // As if the client had stopped after creating the jobs, before writing the record
@@ -335,6 +357,17 @@ public sealed class JobChainStorageFacts : IDisposable
         JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Schedule(_client, TimeSpan.FromDays(60))!;
 
         Assert.True(_client.ChangeState(chain.Steps["1.0"], new DeletedState(), null));
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90));
+    }
+
+    [Fact]
+    public void RetryChainFrom_NeverShortensTheLifeOfTheRecord()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Schedule(_client, TimeSpan.FromDays(60))!;
+        Fail(chain.RootId);
+
+        _storage.RetryChainFrom(chain.RootId);
 
         Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90));
     }
@@ -660,10 +693,17 @@ public sealed class JobChainStorageFacts : IDisposable
     {
         public string? ThrowOn { get; set; }
         public Action? BeforeThrowing { get; set; }
+        public string? PauseOn { get; set; }
+        public Action? WhilePaused { get; set; }
         public List<(string Name, string Id)> Created { get; } = [];
 
         public void OnCreating(CreatingContext context)
         {
+            if (context.Job.Type == typeof(JobChainStorageFacts) && (string?)context.Job.Args[0] == PauseOn)
+            {
+                WhilePaused?.Invoke();
+            }
+
             if (context.Job.Type == typeof(JobChainStorageFacts) && (string?)context.Job.Args[0] == ThrowOn)
             {
                 BeforeThrowing?.Invoke();

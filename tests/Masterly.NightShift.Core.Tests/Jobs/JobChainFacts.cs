@@ -524,6 +524,32 @@ public class JobChainFacts
     }
 
     [Fact]
+    public void Enqueue_TakesTheChainBack_WhenItsFirstStepWasDeletedBeforeTheChainWasRecorded()
+    {
+        // Creating the chain took longer than a step waits for its record: a worker took the first step and
+        // deleted it for lack of one
+        string chainId = null;
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
+            .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
+            {
+                chainId = (string)parameters[JobChains.ChainIdParameter];
+                _created.Add((null, null, parameters));
+                return $"job-{_created.Count}";
+            });
+        _storage.Connection.Setup(x => x.GetStateData("job-1"))
+            .Returns(() => new StateData { Name = DeletedState.StateName, Reason = $"Chain {chainId} isn't recorded: it was deleted or never completely created", Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = AwaitingState.StateName });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        Assert.Contains("wasn't created", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.ChangeState("job-2", It.IsAny<DeletedState>(), AwaitingState.StateName));
+        Assert.False(_storage.Hashes.ContainsKey(JobChains.GetKey(chainId)));
+        Assert.DoesNotContain(chainId, _storage.Sets[JobChains.SetKey]);
+    }
+
+    [Fact]
     public void Schedule_LeavesAScheduledFirstStepAlone_OnceTheChainIsRecorded()
     {
         _storage.Connection.Setup(x => x.GetStateData("job-1"))

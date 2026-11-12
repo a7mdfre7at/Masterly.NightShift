@@ -114,7 +114,7 @@ public static partial class JobChains
     {
         return record.Cleanup == null
             ? record
-            : record with { Cleanup = RunCleanup(client, connection, record.ChainId, record.Cleanup, out _) };
+            : record with { Cleanup = RunCleanup(client, connection, record.ChainId, record.Cleanup, heldJustNow: false, out _) };
     }
 
     /// <summary>The jobs of the steps, the deepest steps first: deleted in that order, none starts the ones after it.</summary>

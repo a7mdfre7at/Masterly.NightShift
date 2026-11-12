@@ -80,6 +80,13 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     /// <summary>The reason a step waiting for its chain's record is held with.</summary>
     internal static string WaitingReason(string chainId) => string.Format(CultureInfo.InvariantCulture, WaitingReasonFormat, chainId);
 
+    /// <summary>Whether a deleted step's reason says this filter deleted it: its chain's record didn't list it.</summary>
+    internal static bool IsRefusal(string chainId, string? reason)
+    {
+        return string.Equals(reason, string.Format(CultureInfo.InvariantCulture, NotCurrentReasonFormat, chainId), StringComparison.Ordinal) ||
+               string.Equals(reason, string.Format(CultureInfo.InvariantCulture, NotRecordedReasonFormat, chainId), StringComparison.Ordinal);
+    }
+
     /// <inheritdoc />
     public void OnStateElection(ElectStateContext context)
     {

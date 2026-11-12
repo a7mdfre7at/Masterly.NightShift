@@ -156,7 +156,7 @@ public static partial class JobChains
                         transaction.RemoveFromSet(CleanupSetKey, chainId);
                         transaction.Commit();
                     }
-                    else if (CompleteCleanup(storage, client, connection, chainId, cleanup, out _) == null)
+                    else if (CompleteCleanup(storage, client, connection, chainId, cleanup, heldJustNow: false, out _) == null)
                     {
                         finished++;
                     }
@@ -188,6 +188,7 @@ public static partial class JobChains
         IStorageConnection connection,
         string chainId,
         ChainCleanup cleanup,
+        bool heldJustNow,
         out int deleted)
     {
         deleted = 0;
@@ -195,7 +196,7 @@ public static partial class JobChains
 
         try
         {
-            remaining = RunCleanup(client, connection, chainId, cleanup, out deleted);
+            remaining = RunCleanup(client, connection, chainId, cleanup, heldJustNow, out deleted);
 
             using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
 
@@ -232,10 +233,13 @@ public static partial class JobChains
 
     /// <summary>
     /// Deletes the jobs a change left to delete, in their order (the deepest steps first), and enqueues the step it
-    /// held. A job that fails is kept for later and doesn't stop the others.
+    /// held. A job that fails is kept for later and doesn't stop the others. With <paramref name="heldJustNow"/>,
+    /// the caller holds the step to release itself, under the chain's lock: the step is enqueued from the Scheduled
+    /// state as it is. Later, it is enqueued only while its state still says the retry holds it, so a step that left
+    /// the hold and was scheduled again for another reason (a retry of its own) is left alone.
     /// </summary>
     /// <returns>What is still left to do, <c>null</c> when nothing is.</returns>
-    private static ChainCleanup? RunCleanup(IBackgroundJobClient client, IStorageConnection connection, string chainId, ChainCleanup cleanup, out int deleted)
+    private static ChainCleanup? RunCleanup(IBackgroundJobClient client, IStorageConnection connection, string chainId, ChainCleanup cleanup, bool heldJustNow, out int deleted)
     {
         deleted = 0;
         List<string> remaining = [];
@@ -258,7 +262,8 @@ public static partial class JobChains
         {
             try
             {
-                if (TryReleaseHeld(client, connection, release)) release = null;
+                ReleaseHeld(client, connection, release, heldJustNow);
+                release = null;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -289,17 +294,19 @@ public static partial class JobChains
     }
 
     // The step a retry held is enqueued, unless it left the hold already (the delayed job scheduler enqueued it)
-    private static bool TryReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string jobId)
+    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string jobId, bool heldJustNow)
     {
-        StateData? state = connection.GetStateData(jobId);
-        if (state == null ||
-            !ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal))
+        if (!heldJustNow)
         {
-            return true;
+            StateData? state = connection.GetStateData(jobId);
+            if (state == null ||
+                !ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal))
+            {
+                return;
+            }
         }
 
         client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, ScheduledState.StateName);
-        return true;
     }
 }
