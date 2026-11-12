@@ -56,13 +56,18 @@ public sealed class DeploymentFencingFacts : IDisposable
         DeploymentFencingProcess old = new("v1");
         Check(old, "old-server", 0);
         Check(new DeploymentFencingProcess("v2"), "new-server", 1);
-        Assert.True(Check(old, "old-server", 20));
-        Assert.True(Check(old, "old-server", 35));
 
-        // The old server has watched v2 without a sign of life for more than TakeOverAfter
-        bool fenced = Check(old, "old-server", 120);
+        // The old server checks every 15 seconds, and v2 shows no sign of life after its first check
+        bool[] fenced =
+        [
+            Check(old, "old-server", 15),
+            Check(old, "old-server", 30),
+            Check(old, "old-server", 45),
+            Check(old, "old-server", 60),
+        ];
 
-        Assert.False(fenced);
+        // Watched without a sign of life for 0, 15 and 30 seconds, then for more than TakeOverAfter
+        Assert.Equal([true, true, true, false], fenced);
         Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(_storage.Object));
         Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
     }
@@ -155,11 +160,13 @@ public sealed class DeploymentFencingFacts : IDisposable
         Check(older, "old-server", 1);
 
         // v2 went silent, so v1 took over; then the servers of v2 come back while those of v1 are running
-        Assert.False(Check(older, "old-server", 120));
+        Assert.True(Check(older, "old-server", 16));
+        Assert.True(Check(older, "old-server", 31));
+        Assert.False(Check(older, "old-server", 46));
         Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(_storage.Object));
 
-        Assert.False(Check(newer, "new-server", 125));
-        Assert.True(Check(older, "old-server", 130));
+        Assert.False(Check(newer, "new-server", 50));
+        Assert.True(Check(older, "old-server", 55));
 
         Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
     }
@@ -180,8 +187,10 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.False(status.IsServerPaused("new-server"));
         Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
 
-        // The stray server has watched v2 without a sign of life for more than TakeOverAfter
-        Assert.False(Check(stray, "stray-server", 120));
+        // The stray server keeps checking, and has watched v2 without a sign of life for more than TakeOverAfter
+        Assert.True(Check(stray, "stray-server", 40));
+        Assert.True(Check(stray, "stray-server", 55));
+        Assert.False(Check(stray, "stray-server", 70));
 
         Assert.Equal("v1-stray", DeploymentFencing.GetCurrentDeployment(_storage.Object));
         Assert.Equal(7, DeploymentFencing.GetCurrentDeploymentOrder(_storage.Object));
@@ -250,7 +259,9 @@ public sealed class DeploymentFencingFacts : IDisposable
         // Seen before: fenced while the current one is alive, and takes over once it is silent
         Assert.True(Check(first, "new-server", 10));
         Assert.Equal("Fenced: deployment 'v2' was replaced by 'v1'", DrainMode.Read(_storage.Connection.Object).PausedServers["new-server"]);
-        Assert.False(Check(first, "new-server", 120));
+        Assert.True(Check(first, "new-server", 25));
+        Assert.True(Check(first, "new-server", 40));
+        Assert.False(Check(first, "new-server", 55));
         Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
     }
 
@@ -370,9 +381,15 @@ public sealed class DeploymentFencingFacts : IDisposable
         };
         DeploymentFencingProcess process = new("v1");
 
-        bool[] fenced = [Check(process, "server-1", 0), Check(process, "server-1", 30), Check(process, "server-1", 45)];
+        bool[] fenced =
+        [
+            Check(process, "server-1", 0),
+            Check(process, "server-1", 15),
+            Check(process, "server-1", 30),
+            Check(process, "server-1", 45),
+        ];
 
-        Assert.Equal([true, true, false], fenced);
+        Assert.Equal([true, true, true, false], fenced);
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
@@ -634,6 +651,7 @@ public sealed class DeploymentFencingFacts : IDisposable
         Check(new DeploymentFencingProcess("v2", 2), "server-2", -6 * Day);
         DeploymentFencingProcess current = new("v3", 3);
         Check(current, "server-3", 0);
+        Check(current, "server-3", 15);
         Check(current, "server-3", 30);
         _storage.FailCommitsThatRemoveAHash = true;
 
@@ -649,9 +667,153 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.Equal(3, DeploymentFencing.GetCurrentDeploymentOrder(_storage.Object));
         Assert.Equal("2", Hash["Order:v2"]);
         Assert.True(Hash.ContainsKey("Seen:v2"));
-        Assert.Equal($"{JobHelper.SerializeDateTime(Now.AddSeconds(45))}|3|15000", Hash["Seen:v3"]);
+        Assert.Equal($"{JobHelper.SerializeDateTime(Now.AddSeconds(45))}|4|15000", Hash["Seen:v3"]);
         RecordingLogProvider.LogEntry warning = Assert.Single(recording.Entries, static x => x.Level == LogLevel.Warn);
         Assert.Contains("couldn't be removed", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Theory, GlobalLock(Reason = "Uses the drain mode cache")]
+    [InlineData(1L, 2L)]
+    [InlineData(null, null)]
+    public void Check_AfterAGapInWhichNoServerCouldCheck_KeepsTheOlderDeploymentFenced(long? olderOrder, long? newerOrder)
+    {
+        DeploymentFencingProcess older = new("v1", olderOrder);
+        DeploymentFencingProcess newer = new("v2", newerOrder);
+        Check(older, "old-server", 0);
+        Check(newer, "new-server", 5);
+        Check(older, "old-server", 10);
+        Check(newer, "new-server", 20);
+        Check(older, "old-server", 25);
+
+        // The storage is down from 30 to 95, so the check of v2 due at 35 and the ones after it fail. The older
+        // server is the first whose check succeeds again: the value of v2 is still the one it read at 25
+        bool olderFencedAfterTheGap = Check(older, "old-server", 100);
+        string currentAfterTheGap = DeploymentFencing.GetCurrentDeployment(_storage.Object);
+        bool newerFencedAfterTheGap = Check(newer, "new-server", 105);
+
+        bool[] olderFencedLater =
+        [
+            Check(older, "old-server", 115),
+            !Check(newer, "new-server", 120) && Check(older, "old-server", 130),
+            !Check(newer, "new-server", 135) && Check(older, "old-server", 145),
+        ];
+
+        Assert.True(olderFencedAfterTheGap);
+        Assert.Equal("v2", currentAfterTheGap);
+        Assert.False(newerFencedAfterTheGap);
+        Assert.Equal([true, true, true], olderFencedLater);
+        Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+    }
+
+    [Theory, GlobalLock(Reason = "Uses the drain mode cache")]
+    [InlineData(1L, 2L)]
+    [InlineData(null, null)]
+    public void Check_AfterAGap_TakesOverOnlyOnceItHasWatchedTheCurrentSilentForTheWholeLimitAgain(long? olderOrder, long? newerOrder)
+    {
+        DeploymentFencingProcess older = new("v1", olderOrder);
+        DeploymentFencingProcess newer = new("v2", newerOrder);
+        Check(older, "old-server", 0);
+        Check(newer, "new-server", 5);
+        Check(older, "old-server", 10);
+        Check(newer, "new-server", 20);
+        Check(older, "old-server", 25);
+
+        // The storage is down for 75 seconds, and the servers of v2 don't come back
+        bool[] fenced =
+        [
+            Check(older, "old-server", 100),
+            Check(older, "old-server", 115),
+            Check(older, "old-server", 130),
+            Check(older, "old-server", 145),
+        ];
+
+        // The 75 seconds don't count: silent for 0, 15 and 30 seconds since the first check after the gap, then 45
+        Assert.Equal([true, true, true, false], fenced);
+        Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_AServerWhoseChecksAreSlow_StillSeesTheCurrentGoSilent()
+    {
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        // 18 seconds apart, 1.2 times the check interval: no gap, so what was watched keeps counting
+        bool[] fenced = [Check(older, "old-server", 18), Check(older, "old-server", 36), Check(older, "old-server", 54)];
+
+        Assert.Equal([true, true, false], fenced);
+        Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_AServerWhoseChecksAreMoreThanOneAndAHalfIntervalsApart_NeverCountsSilence()
+    {
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+
+        // 23 seconds apart: each check comes after a gap in which the server saw nothing
+        bool[] fenced = [.. Enumerable.Range(1, 8).Select(i => Check(older, "old-server", 23 * i))];
+
+        Assert.All(fenced, static x => Assert.True(x));
+        Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_ThatFails_DoesNotCountAsACheck_SoTheGapStaysOpen()
+    {
+        bool storageDown = false;
+        _storage.Connection.When(() => storageDown).Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("storage down"));
+        DeploymentFencingProcess older = new("v1", 1);
+        Check(older, "old-server", 0);
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 5);
+        Check(older, "old-server", 10);
+
+        // The check at 25 reads the hash but can't write: the last check that went through is the one at 10
+        storageDown = true;
+        Assert.Throws<InvalidOperationException>(() => Check(older, "old-server", 25));
+        storageDown = false;
+
+        bool[] fenced =
+        [
+            Check(older, "old-server", 40),
+            Check(older, "old-server", 55),
+            Check(older, "old-server", 70),
+            Check(older, "old-server", 85),
+        ];
+
+        // 30 seconds after the last check that succeeded is a gap, so v2 is watched afresh from 40
+        Assert.Equal([true, true, true, false], fenced);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_AfterOnlyChecksThatFailed_WatchesAfresh()
+    {
+        bool storageDown = true;
+        _storage.Connection.When(() => storageDown).Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("storage down"));
+        _storage.Hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>
+        {
+            ["Current"] = "v2",
+            ["Seen:v2"] = DeploymentFencing.FormatSeen(Now, 7, TimeSpan.FromSeconds(15)),
+            ["Seen:v1"] = DeploymentFencing.FormatSeen(Now, 3, TimeSpan.FromSeconds(15)),
+        };
+        DeploymentFencingProcess started = new("v1");
+
+        // The first check of a server that just started reads the hash, then fails; the next one comes 70 seconds later
+        Assert.Throws<InvalidOperationException>(() => Check(started, "old-server", 0));
+        storageDown = false;
+
+        bool[] fenced =
+        [
+            Check(started, "old-server", 70),
+            Check(started, "old-server", 85),
+            Check(started, "old-server", 100),
+            Check(started, "old-server", 115),
+        ];
+
+        Assert.Equal([true, true, true, false], fenced);
     }
 
     [Fact, StaticLock]
