@@ -19,10 +19,17 @@ public static partial class JobChains
     private const string ChainDeletedReason = "The chain was deleted";
     private const string ChainReplacedReason = "The chain was replaced";
     private const string ChainRetriedReason = "Chain retried from this step";
+    private const string ChainRetryReplacedReason = "Replaced by a retry of the chain";
     private const string ChainRetryFailedReason = "The retry of the chain failed";
     private const string ChainNotCreatedReason = "The chain couldn't be created";
 
     private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How long after the steps it waits for finished a waiting step whose condition they meet counts as about to
+    /// start (<see cref="JobChainInfo.IsSettled"/>): it is told within seconds. Replaceable for tests.
+    /// </summary>
+    internal static TimeSpan DecisionWindow { get; set; } = TimeSpan.FromMinutes(5);
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobChains));
 
     /// <summary>The hash that records a chain.</summary>
@@ -51,7 +58,9 @@ public static partial class JobChains
         /// Runs a settled chain again from a step: the step's job is requeued (created again when it expired), and
         /// every step after it gets a new job, waiting for its parents as when the chain was created. The steps before
         /// it, and the branches beside it, keep their outcome and aren't run again. When a new step can't be created,
-        /// nothing changes: the jobs created are deleted and the step goes back to its state.
+        /// nothing changes: the jobs created are deleted and the step goes back to its state. Once the retry is
+        /// recorded it has succeeded: replaced jobs that can't be deleted right away are deleted later (they can't
+        /// run meanwhile), and that is logged, not thrown.
         /// </summary>
         /// <param name="stepJobId">The current job of the step to run again.</param>
         /// <returns>The chain's jobs after the retry.</returns>
@@ -72,7 +81,9 @@ public static partial class JobChains
         /// Replaces a chain that hasn't started: its first step is still enqueued or scheduled and the others are
         /// waiting. The new chain is created under the same identifier, enqueued or scheduled for the same moment as
         /// the old first step and with its schedule policy, late-start limit and queue; then the old steps are
-        /// deleted. When the new chain can't be created, the old one is kept as it was.
+        /// deleted. When the new chain can't be created, the old one is kept as it was. Once the new chain is
+        /// recorded the replacement has succeeded: old steps that can't be deleted right away are deleted later
+        /// (they can't run meanwhile), and that is logged, not thrown.
         /// </summary>
         /// <returns>The new chain's jobs.</returns>
         /// <exception cref="InvalidOperationException">The chain isn't recorded, or it started.</exception>
@@ -121,7 +132,10 @@ public static partial class JobChains
         using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
         {
             ChainRecord record = ChainRecord.Read(connection, chainId)
-                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept for {JobChain.RecordRetention.TotalDays} days.");
+                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept for {JobChain.RecordRetention.TotalDays} days after its last step.");
+
+            // What a change before this one left to do comes first: a step it still holds isn't settled
+            record = FinishPendingCleanup(client, connection, record);
 
             string stepKey = record.Jobs.FirstOrDefault(x => x.Value == stepJobId).Key
                 ?? throw new InvalidOperationException($"Background job '{stepJobId}' isn't a current step of chain '{chainId}'; a retry replaced it.");
@@ -151,7 +165,21 @@ public static partial class JobChains
             {
                 CreateLevels(client, record.Levels, jobs, chainId, level + 1, retried.Contains, created);
 
-                updated = record with { Jobs = jobs, Generation = record.Generation + 1 };
+                // The old steps after it wait for it too: the record stops listing them, so they can't run beside
+                // the new ones, and they are deleted, the deepest first. Written with the record, so a retry
+                // interrupted from here on is finished later.
+                ChainCleanup cleanup = new()
+                {
+                    Reason = ChainRetryReplacedReason,
+                    Delete =
+                    [
+                        .. record.Cleanup?.Delete ?? [],
+                        .. DeepestFirst(record.Jobs.Where(x => ParseKey(x.Key).Level != level && retried.Contains(ParseKey(x.Key).Level))),
+                    ],
+                    Release = heldId,
+                };
+
+                updated = record with { Jobs = jobs, Generation = record.Generation + 1, Cleanup = cleanup };
                 updated.Write(storage, connection);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -169,12 +197,9 @@ public static partial class JobChains
                 throw;
             }
 
-            // The old steps after it wait for it too, and would run beside the new ones: deleted before it is
-            // released, the deepest first. Should this fail, the step runs when its hold ends.
-            ChainRecord waiting = record with { Jobs = record.Jobs.Where(x => ParseKey(x.Key).Level != level && retried.Contains(ParseKey(x.Key).Level)).ToDictionary() };
-            int replaced = DeleteSteps(client, waiting, excludeRoot: false, "Replaced by a retry of the chain", IsAwaiting, connection);
-
-            Release(client, heldId, new EnqueuedState { Reason = ChainRetriedReason }, chainId);
+            // The retry is recorded: nothing fails it from here on. Should the step not be released, it runs when
+            // its hold ends, or when a server's chain maintenance releases it.
+            CompleteCleanup(storage, client, connection, chainId, updated.Cleanup, out int replaced);
 
             Logger.Info($"Chain '{chainId}' retried from step '{stepKey}' (generation {updated.Generation}): {created.Count} steps created after it, {replaced} waiting steps deleted.");
             return updated.ToResult();
@@ -210,6 +235,8 @@ public static partial class JobChains
             ChainRecord record = ChainRecord.Read(connection, chainId)
                 ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded.");
 
+            record = FinishPendingCleanup(client, connection, record);
+
             string rootId = record.Jobs[Key(0, 0)];
             StateData? root = connection.GetStateData(rootId);
             bool scheduled = ScheduledState.StateName.Equals(root?.Name, StringComparison.OrdinalIgnoreCase);
@@ -234,10 +261,19 @@ public static partial class JobChains
                 throw new InvalidOperationException($"Chain '{chainId}' has started, so it can't be replaced.");
             }
 
+            // The old steps, the deepest first and the first step last, so deleting one never starts another. The
+            // new record stops listing them, so they can't run, and says they are to delete, so a replacement
+            // interrupted once it is written is finished later.
+            ChainCleanup cleanup = new()
+            {
+                Reason = ChainReplacedReason,
+                Delete = [.. record.Cleanup?.Delete ?? [], .. DeepestFirst(record.Jobs)],
+            };
+
             JobChainResult? result;
             try
             {
-                result = Create(chain, client, rootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt);
+                result = Create(chain, client, rootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt, cleanup);
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -251,9 +287,8 @@ public static partial class JobChains
                 throw new InvalidOperationException($"The first step of the new chain '{chainId}' wasn't created: a client filter canceled it.");
             }
 
-            // The old steps, the deepest first and the first step last, so deleting one never starts another
-            int deleted = DeleteSteps(client, record, excludeRoot: true, ChainReplacedReason, IsAwaiting, connection);
-            if (client.ChangeState(rootId, new DeletedState { Reason = ChainReplacedReason }, ScheduledState.StateName)) deleted++;
+            // The new chain is recorded: nothing fails the replacement from here on
+            CompleteCleanup(storage, client, connection, chainId, cleanup, out int deleted);
 
             Logger.Info($"Chain '{chainId}' replaced (generation {record.Generation + 1}): {result.Steps.Count} steps created, {deleted} old jobs deleted.");
             return result;
@@ -310,10 +345,19 @@ public static partial class JobChains
                 throw new InvalidOperationException($"Chain '{chainId}' can't be deleted while a step is processing: it is Restrict.");
             }
 
+            // The jobs a retry or a replacement left to delete go first: once the record is gone, nothing lists them
+            int deleted = 0;
+            if (record.Cleanup != null &&
+                RunCleanup(client, connection, chainId, new ChainCleanup { Reason = ChainDeletedReason, Delete = record.Cleanup.Delete }, out deleted) is { } left)
+            {
+                throw new InvalidOperationException(
+                    $"Chain '{chainId}' can't be deleted yet: {left.Delete.Count} jobs that an earlier retry or replacement left to delete couldn't be deleted. {deleted} jobs were deleted; the chain is kept, delete it again.");
+            }
+
             // A Restrict chain never loses a processing step, even one that starts meanwhile. A second pass deletes
             // the steps that moved on between their read and their deletion (a waiting step its parent enqueued).
             Func<string, bool> canDelete = restrict ? static state => !IsProcessing(state) : static _ => true;
-            int deleted = DeleteSteps(client, record, excludeRoot: false, ChainDeletedReason, canDelete, connection);
+            deleted += DeleteSteps(client, record, excludeRoot: false, ChainDeletedReason, canDelete, connection);
 
             List<string> live = LiveSteps(record, connection, out _);
             if (live.Count > 0)
@@ -334,8 +378,11 @@ public static partial class JobChains
             {
                 transaction.RemoveHash(GetKey(chainId));
                 transaction.RemoveFromSet(SetKey, chainId);
+                if (record.Cleanup != null) transaction.RemoveFromSet(CleanupSetKey, chainId);
                 transaction.Commit();
             }
+
+            ForgetExpiry(chainId);
 
             Logger.Info($"Chain '{chainId}' (generation {record.Generation}) deleted: {deleted} jobs deleted.");
             return deleted;
@@ -360,7 +407,8 @@ public static partial class JobChains
             rootOptions?.Queue,
             chainId ?? Guid.NewGuid().ToString("N"),
             1,
-            JobClock.UtcNow);
+            JobClock.UtcNow,
+            cleanup: null);
     }
 
     private static JobChainResult? Create(
@@ -371,7 +419,8 @@ public static partial class JobChains
         string? rootQueue,
         string chainId,
         int generation,
-        DateTime createdAt)
+        DateTime createdAt,
+        ChainCleanup? cleanup)
     {
         IReadOnlyList<ChainLevel> levels = chain.Levels;
         Dictionary<string, string> jobs = new(StringComparer.Ordinal);
@@ -387,23 +436,55 @@ public static partial class JobChains
 
         jobs[Key(0, 0)] = rootId;
         List<string> created = [rootId];
-        ChainRecord record = new(chainId, levels, jobs, generation, createdAt, chain.DeleteBehavior);
+        ChainRecord record = new(chainId, levels, jobs, generation, createdAt, chain.DeleteBehavior) { Cleanup = cleanup };
 
         using IStorageConnection connection = client.Storage.GetConnection();
         try
         {
             CreateLevels(client, levels, jobs, chainId, 1, static _ => true, created);
-            record.Write(client.Storage, connection);
+
+            // The steps run only once this is written (JobChainStepFilter): a worker that takes one before waits
+            record.Write(client.Storage, connection, (rootState as ScheduledState)?.EnqueueAt);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             // Not a chain without its later steps or its record: delete what was created, the last steps first so
-            // nothing starts, and the first step only if no worker took it meanwhile
+            // nothing starts. A step a worker took meanwhile waits for the record, and is deleted for lack of one.
             DeleteCreated(client, connection, created, chainId, ChainNotCreatedReason);
             throw;
         }
 
+        SettleFirstStep(client, connection, chainId, rootId);
         return record.ToResult();
+    }
+
+    /// <summary>
+    /// Once the chain is recorded: a first step that a worker took before, and held until the record is written,
+    /// is enqueued at once rather than when its hold ends; and the record of a chain whose first step is scheduled
+    /// later than asked (a schedule policy moved it) is kept that much longer. Best effort: the hold ends by itself.
+    /// </summary>
+    private static void SettleFirstStep(IBackgroundJobClientV2 client, IStorageConnection connection, string chainId, string rootId)
+    {
+        try
+        {
+            StateData? root = connection.GetStateData(rootId);
+            if (root == null || !ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase)) return;
+
+            if (string.Equals(root.Reason, JobChainStepFilter.WaitingReason(chainId), StringComparison.Ordinal))
+            {
+                client.ChangeState(rootId, new EnqueuedState { Reason = JobChainStepFilter.RecordedReason }, ScheduledState.StateName);
+            }
+            else if (root.Data.TryGetValue("EnqueueAt", out string? enqueueAt) &&
+                     JobHelper.DeserializeNullableDateTime(enqueueAt) is { } latestStart &&
+                     MayNeedExtending(chainId, latestStart))
+            {
+                ExtendRecord(client.Storage, connection, chainId, latestStart);
+            }
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"The first step '{rootId}' of chain '{chainId}' couldn't be checked after the chain was recorded; a step held until then runs when its hold ends.", ex);
+        }
     }
 
     private static Job WithQueue(Job job, string queue) => new(job.Type, job.Method, job.Args, queue);
@@ -436,35 +517,78 @@ public static partial class JobChains
     // A step after a single step is an ordinary continuation; after a group, a fan-in continuation of the group
     internal static IState StateFor(ChainStep step, IReadOnlyList<string> parents)
     {
+        if (parents.Count == 1)
+        {
+            return new AwaitingState(parents[0], new EnqueuedState(), OptionsAfterOneStep(step.Link, step.Options));
+        }
+
+        (FanInMode mode, JobContinuationOptions fanInOptions) = ConditionAfterGroup(step.Link, step.Options, nameof(step));
+        return new AwaitingJobsState(parents, new EnqueuedState(), fanInOptions, mode);
+    }
+
+    /// <summary>
+    /// What the states of the steps a step waits for decide for it, as the filters that start continuations and
+    /// fan-in continuations decide it: it starts, it is skipped, or it keeps waiting. Undecided for a step whose
+    /// way of waiting isn't known (an info built without the chain's definition).
+    /// </summary>
+    internal static FanInContinuationsSupportAttribute.Decision Decide(JobChainStepInfo step, IReadOnlyList<JobChainStepInfo> parents)
+    {
+        if (step.Link == ChainLink.Root || parents.Count == 0) return FanInContinuationsSupportAttribute.Decision.Undecided;
+
+        HashSet<string> finalStates = ContinuationsSupportAttribute.KnownFinalStates;
+
+        if (parents.Count == 1)
+        {
+            return ContinuationsSupportAttribute.Decide(parents[0].State, OptionsAfterOneStep(step.Link, step.Options), finalStates);
+        }
+
+        // A group can't be waited for to start, and no chain is created that way
+        if (step.Link == ChainLink.Then && step.Options.HasFlag(JobContinuationOptions.OnlyOnProcessingState))
+        {
+            return FanInContinuationsSupportAttribute.Decision.Undecided;
+        }
+
+        Dictionary<string, string?> states = new(StringComparer.Ordinal);
+        foreach (JobChainStepInfo parent in parents)
+        {
+            states[parent.JobId] = parent.State;
+        }
+
+        (FanInMode mode, JobContinuationOptions fanInOptions) = ConditionAfterGroup(step.Link, step.Options, nameof(step));
+        return FanInContinuationsSupportAttribute.Evaluate(mode, fanInOptions, [.. states.Keys], id => states[id], finalStates);
+    }
+
+    /// <summary>The continuation options of a step that waits for a single step.</summary>
+    private static JobContinuationOptions OptionsAfterOneStep(ChainLink link, JobContinuationOptions options)
+    {
         const JobContinuationOptions failed = JobContinuationOptions.OnlyOnFailedState;
         const JobContinuationOptions deleted = JobContinuationOptions.OnlyOnDeletedState;
         const JobContinuationOptions succeeded = JobContinuationOptions.OnlyOnSucceededState;
 
-        if (parents.Count == 1)
+        return link switch
         {
-            JobContinuationOptions options = step.Link switch
-            {
-                ChainLink.AfterAnyFailed => failed,
-                ChainLink.AfterAnyFailedOrCanceled => failed | deleted,
-                ChainLink.AfterAllCompleted => succeeded | deleted | failed,
-                ChainLink.AfterAll or ChainLink.AfterAny => succeeded,
-                _ => step.Options,
-            };
+            ChainLink.AfterAnyFailed => failed,
+            ChainLink.AfterAnyFailedOrCanceled => failed | deleted,
+            ChainLink.AfterAllCompleted => succeeded | deleted | failed,
+            ChainLink.AfterAll or ChainLink.AfterAny => succeeded,
+            _ => options,
+        };
+    }
 
-            return new AwaitingState(parents[0], new EnqueuedState(), options);
-        }
+    /// <summary>The fan-in mode and options of a step that waits for a group of several steps.</summary>
+    private static (FanInMode Mode, JobContinuationOptions Options) ConditionAfterGroup(ChainLink link, JobContinuationOptions options, string parameterName)
+    {
+        const JobContinuationOptions succeeded = JobContinuationOptions.OnlyOnSucceededState;
 
-        (FanInMode mode, JobContinuationOptions fanInOptions) = step.Link switch
+        return link switch
         {
             ChainLink.AfterAny => (FanInMode.Any, succeeded),
             ChainLink.AfterAnyFailed => (FanInMode.AnyFailed, succeeded),
             ChainLink.AfterAnyFailedOrCanceled => (FanInMode.AnyFailedOrCanceled, succeeded),
             ChainLink.AfterAllCompleted => (FanInMode.AllCompleted, succeeded),
             ChainLink.AfterAll => (FanInMode.All, succeeded),
-            _ => FanInFor(step.Options, nameof(step)),
+            _ => FanInFor(options, parameterName),
         };
-
-        return new AwaitingJobsState(parents, new EnqueuedState(), fanInOptions, mode);
     }
 
     /// <summary>

@@ -28,9 +28,16 @@ namespace Masterly.NightShift;
 /// <para>
 /// Retries and timeouts of a step come from its method's attributes (<see cref="AutomaticRetryAttribute"/>,
 /// <see cref="JobTimeoutAttribute"/>), as for any job. Each step carries the <c>ChainId</c> and <c>ChainStep</c> job
-/// parameters, and the chain is recorded in the storage hash <c>chain:{id}</c> for <see cref="RecordRetention"/>, so
-/// it can be read (<c>GetChain</c>), run again from a step (<c>RetryChainFrom</c>), replaced before it starts
-/// (<c>ReplaceChain</c>) or deleted (<c>DeleteChain</c>).
+/// parameters, and the chain is recorded in the storage hash <c>chain:{id}</c>, kept until
+/// <see cref="RecordRetention"/> after its steps last changed state, so it can be read (<c>GetChain</c>), run again
+/// from a step (<c>RetryChainFrom</c>), replaced before it starts (<c>ReplaceChain</c>) or deleted
+/// (<c>DeleteChain</c>).
+/// </para>
+/// <para>
+/// A step runs only when the record lists its job (<see cref="JobChainStepFilter"/>): the jobs of a chain whose
+/// creation stopped halfway, of a deleted chain, and the jobs a retry or a replacement replaced are deleted instead
+/// of running. The record is written once every step is created; a first step that a worker takes before that waits
+/// for it.
 /// </para>
 /// </remarks>
 public sealed partial class JobChain
@@ -41,7 +48,10 @@ public sealed partial class JobChain
     /// <summary>The most levels (the first step, each <c>Then</c>, each group of branches or of joins) a chain may have.</summary>
     public const int MaxLevels = 50;
 
-    /// <summary>How long the record of a chain is kept: 30 days. The jobs themselves expire as usual.</summary>
+    /// <summary>
+    /// How long the record of a chain is kept after its steps last changed state, or after the time a scheduled
+    /// step is due: 30 days, on storages that expire hashes. The jobs themselves expire as usual.
+    /// </summary>
     public static readonly TimeSpan RecordRetention = TimeSpan.FromDays(30);
 
     private readonly List<ChainLevel> _levels = [];

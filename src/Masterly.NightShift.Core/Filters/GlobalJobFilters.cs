@@ -28,6 +28,9 @@ public static class GlobalJobFilters
         // Filters are added one by one with `Add`: some of them read `GlobalJobFilters.Filters`, which
         // a collection initializer or collection expression would only set after adding them all.
         Filters = new JobFilterCollection();
+        // First: a step that its chain's record doesn't list is held or deleted before any other filter sees it
+        // about to run (a throttle that would take a slot for it, a continuation waiting for it to start)
+        Filters.Add(new JobChainStepFilter());
         Filters.Add(new CaptureCultureAttribute());
         Filters.Add(new TerminateJobFilter());
         Filters.Add(new LateStartFilter());

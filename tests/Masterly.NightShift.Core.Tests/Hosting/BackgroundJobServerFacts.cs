@@ -120,6 +120,16 @@ public class BackgroundJobServerFacts
     }
 
     [Fact]
+    public void Ctor_AddsTheChainMaintenanceProcess()
+    {
+        using BackgroundJobServer server = new(_serverOptions, _jobStorage.Object, []);
+
+        Assert.Contains(server.Processes, static x => x.ToString() == nameof(JobChainMaintenanceProcess));
+        server.SendStop();
+        Assert.True(server.WaitForShutdown(WaitTimeout));
+    }
+
+    [Fact]
     public void Ctor_WithCustomServices_RunsTheAdditionalProcesses()
     {
         ManualResetEventSlim executed = new();

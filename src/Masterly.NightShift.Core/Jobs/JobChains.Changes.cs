@@ -58,7 +58,9 @@ public static partial class JobChains
 
     /// <summary>
     /// Deletes the jobs a failed change created, the last first so deleting one never starts another, each only
-    /// from a state where it hasn't started: a job a worker took meanwhile is left to run.
+    /// from a state where it hasn't started. A job a worker took meanwhile doesn't run where
+    /// <see cref="JobChainStepFilter"/> is in place: it waits for the record, and is deleted for lack of one. It is
+    /// read again when it changed between its read and its deletion (a worker that put it on hold).
     /// </summary>
     private static void DeleteCreated(IBackgroundJobClient client, IStorageConnection connection, List<string> created, string chainId, string reason)
     {
@@ -68,9 +70,15 @@ public static partial class JobChains
             try
             {
                 string? state = connection.GetStateData(jobId)?.Name;
-                if (state == null || DeletedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase)) continue;
+                bool deleted = false;
 
-                if (!HasNotStarted(state) || !client.ChangeState(jobId, new DeletedState { Reason = reason }, state))
+                for (int attempt = 0; attempt < 2 && !deleted && state != null && HasNotStarted(state); attempt++)
+                {
+                    deleted = client.ChangeState(jobId, new DeletedState { Reason = reason }, state);
+                    if (!deleted) state = connection.GetStateData(jobId)?.Name;
+                }
+
+                if (!deleted && state != null && !DeletedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase))
                 {
                     Logger.Warn($"Background job '{jobId}' of chain '{chainId}' started before the change of the chain failed, so it wasn't deleted.");
                 }
@@ -96,6 +104,26 @@ public static partial class JobChains
         {
             Logger.WarnException($"Background job '{jobId}' of chain '{chainId}' couldn't be moved to {state.Name}; it runs once its hold ends.", ex);
         }
+    }
+
+    /// <summary>
+    /// Does what an earlier retry or replacement of the chain left to do, before the chain changes again. What
+    /// still can't be done stays in the record returned, for the next record written to carry it over.
+    /// </summary>
+    private static ChainRecord FinishPendingCleanup(IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
+    {
+        return record.Cleanup == null
+            ? record
+            : record with { Cleanup = RunCleanup(client, connection, record.ChainId, record.Cleanup, out _) };
+    }
+
+    /// <summary>The jobs of the steps, the deepest steps first: deleted in that order, none starts the ones after it.</summary>
+    private static IEnumerable<string> DeepestFirst(IEnumerable<KeyValuePair<string, string>> jobs)
+    {
+        return jobs
+            .OrderByDescending(static x => ParseKey(x.Key).Level)
+            .ThenByDescending(static x => ParseKey(x.Key).Index)
+            .Select(static x => x.Value);
     }
 
     // The deepest steps first, so deleting a step never starts the continuations after it. Each step only from the
@@ -152,15 +180,15 @@ public static partial class JobChains
                ScheduledState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsAwaiting(string state) => AwaitingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
-
     private static bool IsProcessing(string? state) => ProcessingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// A state stored before, applied again with its data: a failed or deleted step a failed retry puts back. Its
-    /// handlers and filters go by its name, as for the original state.
+    /// handlers and filters go by its name, as for the original state; the filters that count outcomes
+    /// (<see cref="StatisticsHistoryAttribute"/>) leave it out, because the step was counted when it reached the
+    /// state the first time.
     /// </summary>
-    private sealed class RestoredState(StateData state) : IState
+    internal sealed class RestoredState(StateData state) : IState
     {
         public string Name { get; } = state.Name;
 

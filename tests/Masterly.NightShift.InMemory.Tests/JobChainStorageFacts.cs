@@ -1,32 +1,363 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Masterly.NightShift.Client;
+using Masterly.NightShift.Storage.Monitoring;
 
 namespace Masterly.NightShift.InMemory.Tests;
 
 /// <summary>
-/// Retrying, replacing and deleting chains through a real storage, state machine and continuation filters, without a
-/// server: the tests move the steps to their outcomes themselves.
+/// Retrying, replacing and deleting chains through a real storage, state machine and continuation filters. Most tests
+/// run without a server and move the steps to their outcomes themselves; the ones about which steps may run start
+/// a real server.
 /// </summary>
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public sealed class JobChainStorageFacts : IDisposable
 {
+    private const string CleanupSet = "chains:cleanup";
+
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    private static readonly ConcurrentQueue<string> Ran = new();
+
     private readonly InMemoryStorage _storage = new();
     private readonly BackgroundJobClient _client;
     private readonly ThrowingFilter _filter = new();
+    private readonly FailingDeletions _deletions = new();
 
     public JobChainStorageFacts()
     {
         _client = new BackgroundJobClient(_storage);
         GlobalJobFilters.Filters.Add(_filter);
+        GlobalJobFilters.Filters.Add(_deletions);
+        Ran.Clear();
     }
 
     public void Dispose()
     {
+        JobClock.TimeProvider = TimeProvider.System;
         GlobalJobFilters.Filters.Remove(_filter);
+        GlobalJobFilters.Filters.Remove(_deletions);
     }
 
     [AutomaticRetry(Attempts = 0)]
     public static void Step(string name) => _ = name;
+
+    /// <summary>A step that says it ran.</summary>
+    public static void Run(string name) => Ran.Enqueue(name);
+
+    [Fact]
+    public void Chain_ThatIsRecorded_RunsToTheEnd_AndNoStepIsHeld()
+    {
+        JobChainResult chain = CreateWorkflow();
+
+        using BackgroundJobServer server = CreateServer();
+        WaitUntilSettled(chain.ChainId);
+
+        AssertWorkflowRan();
+        Assert.All(chain.Steps.Values, id => Assert.DoesNotContain(History(id), static x => x.StateName == ScheduledState.StateName));
+    }
+
+    [Fact]
+    public void Chain_CreatedWhileAServerRuns_StartsAsSoonAsItIsRecorded()
+    {
+        // The slow polling of a real server: a first step held until the chain is recorded would wait for it,
+        // were it not enqueued by the client that records the chain
+        using BackgroundJobServer server = new(new BackgroundJobServerOptions { WorkerCount = 2, SchedulePollingInterval = TimeSpan.FromMinutes(1) }, _storage);
+
+        for (int i = 0; i < 5; i++)
+        {
+            Ran.Clear();
+            Stopwatch started = Stopwatch.StartNew();
+            JobChainResult chain = CreateWorkflow();
+            WaitUntilSettled(chain.ChainId);
+
+            AssertWorkflowRan();
+            Assert.InRange(started.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(20));
+
+            // Only the first step can be taken before the chain is recorded
+            Assert.All(chain.Steps.Where(static x => x.Key != "0.0"), step => Assert.DoesNotContain(History(step.Value), static x => x.StateName == ScheduledState.StateName));
+        }
+    }
+
+    [Fact]
+    public void Chain_WhoseCreationFailsMidway_LeavesNothingThatRuns_EvenWhenAWorkerTookItsFirstStep()
+    {
+        using BackgroundJobServer server = CreateServer();
+        _filter.ThrowOn = "c";
+        _filter.BeforeThrowing = static () => Thread.Sleep(300);
+
+        Assert.ThrowsAny<Exception>(() => JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client));
+
+        string first = _filter.Created.Single(static x => x.Name == "a").Id;
+        string second = _filter.Created.Single(static x => x.Name == "b").Id;
+        WaitUntil(() => StateOf(first) == DeletedState.StateName && StateOf(second) == DeletedState.StateName, "the steps created to be deleted");
+
+        Thread.Sleep(500);
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void Chain_ThatWasNeverRecorded_HasItsFirstStepHeld_ThenDeleted_AndTheStepsAfterItDoNotRun()
+    {
+        // As if the client had stopped after creating the jobs, before writing the record
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+        RemoveRecord(chain.ChainId);
+
+        using BackgroundJobServer server = CreateServer();
+
+        string waiting = $"Waiting for chain {chain.ChainId} to be recorded";
+        WaitUntil(() => History(chain.RootId).Any(x => x.StateName == ScheduledState.StateName && x.Reason == waiting), "the first step to be held");
+        Assert.Empty(Ran);
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["1.0"]));
+
+        // The time a client may take to record a chain is over
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+
+        WaitUntil(() => StateOf(chain.RootId) == DeletedState.StateName && StateOf(chain.Steps["1.0"]) == DeletedState.StateName, "the steps to be deleted");
+        Assert.Equal($"Chain {chain.ChainId} isn't recorded: it was deleted or never completely created", ReasonOf(chain.RootId));
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void Job_ThatTheRecordOfItsChainDoesNotList_NeverRuns()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+
+        // Left behind by something that stopped halfway, long enough ago not to be a change in progress
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(-10));
+        string orphan = _client.Create(
+            Job.FromExpression(() => Run("orphan")),
+            new EnqueuedState(),
+            new Dictionary<string, object> { [JobChains.ChainIdParameter] = chain.ChainId, [JobChains.ChainStepParameter] = "1.0" })!;
+        JobClock.TimeProvider = TimeProvider.System;
+
+        using BackgroundJobServer server = CreateServer();
+
+        WaitUntil(() => StateOf(orphan) == DeletedState.StateName, "the job to be deleted");
+        WaitUntilSettled(chain.ChainId);
+
+        Assert.Equal($"Not a current step of chain {chain.ChainId}", ReasonOf(orphan));
+        Assert.Equal(["a", "b"], Ran);
+    }
+
+    [Fact]
+    public void Step_OfADeletedChain_ThatIsRequeued_DoesNotRun()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+        _storage.DeleteChain(chain.ChainId);
+
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), DeletedState.StateName));
+
+        using BackgroundJobServer server = CreateServer();
+
+        WaitUntil(() => StateOf(chain.RootId) == DeletedState.StateName, "the step to be deleted again");
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void Chain_WhoseRecordTheStorageLostEarly_StillRuns_BecauseItIsListed()
+    {
+        // What a cap on expiration times or an eviction does: the record is gone, the chain is still listed
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveHash(JobChains.GetKey(chain.ChainId));
+            transaction.Commit();
+        }
+
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromHours(2));
+        using BackgroundJobServer server = CreateServer();
+
+        WaitUntil(() => Ran.Count == 2, "the steps to run");
+        Assert.Equal(["a", "b"], Ran);
+    }
+
+    [Fact]
+    public void Step_RequeuedByHand_RunsAgain_WhenTheRecordListsIt()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+
+        using BackgroundJobServer server = CreateServer();
+        WaitUntilSettled(chain.ChainId);
+
+        Assert.True(_client.ChangeState(chain.Steps["1.0"], new EnqueuedState(), SucceededState.StateName));
+        WaitUntil(() => Ran.Count == 3, "the step to run again");
+
+        Assert.Equal(["a", "b", "b"], Ran);
+    }
+
+    [Fact]
+    public void ReplaceChain_Succeeds_WhenTheOldStepsCanNotBeDeleted_AndTheyNeverRun()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Enqueue(_client)!;
+        _deletions.FailWithReason = "The chain was replaced";
+
+        JobChainResult replaced = _storage.ReplaceChain(chain.ChainId, JobChain.StartWith(() => Run("x")).Then(() => Run("y")));
+
+        // The replacement is recorded, with what is left to delete
+        Assert.Equal(replaced.Steps.Values, _storage.GetChain(chain.ChainId)!.Steps.Select(static x => x.JobId));
+        Assert.Equal(ScheduledState.StateName, StateOf(chain.RootId));
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.Contains(chain.RootId, RecordField(chain.ChainId, "Cleanup"), StringComparison.Ordinal);
+        Assert.Contains(chain.ChainId, SetItems(CleanupSet));
+
+        // The old first step's hold ends while its deletion still fails, long after the replacement: a worker
+        // takes it
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), ScheduledState.StateName));
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+            WaitUntil(() => StateOf(chain.RootId) == DeletedState.StateName, "the old first step to be deleted");
+            Assert.Equal($"Not a current step of chain {chain.ChainId}", ReasonOf(chain.RootId));
+        }
+
+        Assert.Equal(["x", "y"], Ran);
+
+        // A server finishes what was left once the storage lets it
+        _deletions.FailWithReason = null;
+        using (CreateServer())
+        {
+            WaitUntil(() => !SetItems(CleanupSet).Contains(chain.ChainId), "the replacement to be finished");
+        }
+
+        Assert.All(chain.Steps.Values, id => Assert.Equal(DeletedState.StateName, StateOf(id)));
+        Assert.Equal(string.Empty, RecordField(chain.ChainId, "Cleanup"));
+        Assert.Equal(["x", "y"], Ran);
+    }
+
+    [Fact]
+    public void RetryChainFrom_Succeeds_WhenTheReplacedStepsCanNotBeDeleted_AndTheNextChangeDeletesThem()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Enqueue(_client)!;
+        Succeed(chain.Steps["0.0"]);
+        Fail(chain.Steps["1.0"]);
+        _deletions.FailWithReason = "Replaced by a retry of the chain";
+
+        JobChainResult retried = _storage.RetryChainFrom(chain.Steps["1.0"]);
+
+        // The retry went through: the step runs again, and the old step after it waits to be deleted
+        Assert.Equal(EnqueuedState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.NotEqual(chain.Steps["2.0"], retried.Steps["2.0"]);
+        Assert.Equal(2, _storage.GetChain(chain.ChainId)?.Generation);
+        Assert.Contains(chain.ChainId, SetItems(CleanupSet));
+
+        _deletions.FailWithReason = null;
+        Assert.Equal(3, _storage.DeleteChain(chain.ChainId));
+
+        Assert.Equal(DeletedState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.Equal(DeletedState.StateName, StateOf(retried.Steps["2.0"]));
+        Assert.DoesNotContain(chain.ChainId, SetItems(CleanupSet));
+    }
+
+    [Fact]
+    public void RetryChainFrom_DeletesWhatAnEarlierRetryLeft()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        Fail(chain.RootId);
+        _deletions.FailWithReason = "Replaced by a retry of the chain";
+        JobChainResult first = _storage.RetryChainFrom(chain.RootId);
+        Fail(chain.RootId);
+        _deletions.FailWithReason = null;
+
+        JobChainResult second = _storage.RetryChainFrom(chain.RootId);
+
+        Assert.Equal(DeletedState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.Equal(DeletedState.StateName, StateOf(first.Steps["1.0"]));
+        Assert.Equal(AwaitingState.StateName, StateOf(second.Steps["1.0"]));
+        Assert.DoesNotContain(chain.ChainId, SetItems(CleanupSet));
+        Assert.Equal(string.Empty, RecordField(chain.ChainId, "Cleanup"));
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatFails_DoesNotCountTheStepsFailureAgain()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Enqueue(_client)!;
+        Succeed(chain.Steps["0.0"]);
+        Fail(chain.Steps["1.0"]);
+        long failed = FailedToday();
+        _filter.ThrowOn = "c";
+
+        Assert.ThrowsAny<Exception>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
+
+        Assert.Equal(FailedState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.Equal(failed, FailedToday());
+        Assert.Equal(1, failed);
+    }
+
+    [Fact]
+    public void Schedule_KeepsTheRecord_UntilLongAfterTheFirstStepIsDue()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Schedule(_client, TimeSpan.FromDays(60))!;
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90));
+    }
+
+    [Fact]
+    public void Enqueue_KeepsTheRecord_ForTheRetention()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(29.9), JobChain.RecordRetention);
+    }
+
+    [Fact]
+    public void StateChange_OfAStep_KeepsTheRecordLonger()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(20));
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(9.9), TimeSpan.FromDays(10));
+
+        Succeed(chain.RootId);
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(29.9), JobChain.RecordRetention);
+    }
+
+    [Fact]
+    public void StateChange_ToScheduled_KeepsTheRecord_UntilAfterTheStepIsDue()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+
+        Assert.True(_client.ChangeState(chain.RootId, new ScheduledState(TimeSpan.FromDays(45)), null));
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(74.9), TimeSpan.FromDays(75));
+    }
+
+    [Fact]
+    public void StateChange_NeverShortensTheLifeOfTheRecord()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Schedule(_client, TimeSpan.FromDays(60))!;
+
+        Assert.True(_client.ChangeState(chain.Steps["1.0"], new DeletedState(), null));
+
+        Assert.InRange(RecordTimeToLive(chain.ChainId), TimeSpan.FromDays(89.9), TimeSpan.FromDays(90));
+    }
+
+    [Fact]
+    public void RecurringChain_RunsAChainAtEachTrigger()
+    {
+        RecurringJobManager manager = new(_storage);
+        manager.AddOrUpdateChain("etl", JobChain.StartWith(() => Run("extract")).Then(() => Run("load")), "0 0 1 1 *", skipWhileRunning: true);
+
+        using BackgroundJobServer server = CreateServer();
+
+        foreach (int occurrence in (int[])[1, 2])
+        {
+            string trigger = manager.TriggerJob("etl")!;
+            WaitUntil(() => StateOf(trigger) == SucceededState.StateName, "the recurring chain to be created");
+            Assert.True(_storage.TryGetResult(trigger, out string? chainId));
+            WaitUntilSettled(chainId!);
+            Assert.Equal(2 * occurrence, Ran.Count);
+        }
+
+        Assert.Equal(["extract", "load", "extract", "load"], Ran);
+    }
 
     [Fact]
     public void RetryChainFrom_RunsAChainAgain_WhoseStepsWaitBehindAFailure()
@@ -153,24 +484,41 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
-    public void Enqueue_RemovesChainsWhoseRecordExpired_FromTheList()
+    public void Server_RemovesChainsWhoseRecordExpired_FromTheList_PastTheOldOnesStillRecorded()
     {
-        double old = JobHelper.ToTimestamp(JobClock.UtcNow - JobChain.RecordRetention - TimeSpan.FromDays(1));
+        long old = JobHelper.ToTimestamp(JobClock.UtcNow - JobChain.RecordRetention - TimeSpan.FromDays(10));
         using (IStorageConnection connection = _storage.GetConnection())
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            transaction.AddToSet(JobChains.SetKey, "expired", old);
-            transaction.AddToSet(JobChains.SetKey, "retried", old);
-            transaction.SetRangeInHash(JobChains.GetKey("retried"), new Dictionary<string, string> { ["Jobs"] = "{}" });
+            // More old chains still recorded (retried, scheduled far ahead) than a page of the list holds
+            for (int i = 0; i < 150; i++)
+            {
+                transaction.AddToSet(JobChains.SetKey, $"kept-{i:000}", old + i);
+                transaction.SetRangeInHash(JobChains.GetKey($"kept-{i:000}"), new Dictionary<string, string>
+                {
+                    ["Jobs"] = "{}",
+                    ["CreatedAt"] = JobHelper.SerializeDateTime(JobHelper.FromTimestamp(old + i)),
+                });
+            }
+
+            for (int i = 0; i < 30; i++)
+            {
+                transaction.AddToSet(JobChains.SetKey, $"expired-{i:00}", old + 1000 + i);
+            }
+
             transaction.Commit();
         }
 
-        JobChainResult chain = JobChain.StartWith(() => Step("a")).Enqueue(_client)!;
+        JobChainResult chain = JobChain.StartWith(() => Step("a")).Schedule(_client, TimeSpan.FromHours(1))!;
 
-        using IStorageConnection reader = _storage.GetConnection();
-        HashSet<string> listed = reader.GetAllItemsFromSet(JobChains.SetKey);
-        Assert.DoesNotContain("expired", listed);
-        Assert.Contains("retried", listed);
+        using (CreateServer())
+        {
+            WaitUntil(() => !SetItems(JobChains.SetKey).Any(static x => x.StartsWith("expired", StringComparison.Ordinal)), "the expired chains to leave the list");
+        }
+
+        HashSet<string> listed = SetItems(JobChains.SetKey);
+        Assert.Equal(151, listed.Count);
+        Assert.Contains("kept-149", listed);
         Assert.Contains(chain.ChainId, listed);
     }
 
@@ -208,6 +556,103 @@ public sealed class JobChainStorageFacts : IDisposable
     {
         using IStorageConnection connection = _storage.GetConnection();
         return connection.GetJobParameter(jobId, name);
+    }
+
+    private string? ReasonOf(string jobId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return connection.GetStateData(jobId)?.Reason;
+    }
+
+    private IList<StateHistoryDto> History(string jobId) => _storage.GetMonitoringApi().JobDetails(jobId)?.History ?? [];
+
+    private HashSet<string> SetItems(string key)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return connection.GetAllItemsFromSet(key);
+    }
+
+    private string? RecordField(string chainId, string field)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return connection.GetAllEntriesFromHash(JobChains.GetKey(chainId))?.GetValueOrDefault(field);
+    }
+
+    private TimeSpan RecordTimeToLive(string chainId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection).GetHashTtl(JobChains.GetKey(chainId));
+    }
+
+    private long FailedToday()
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection).GetCounter($"stats:failed:{JobClock.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+    }
+
+    private void RemoveRecord(string chainId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.RemoveHash(JobChains.GetKey(chainId));
+        transaction.RemoveFromSet(JobChains.SetKey, chainId);
+        transaction.Commit();
+    }
+
+    private JobChainResult CreateWorkflow()
+    {
+        return JobChain.StartWith(() => Run("a"))
+            .Then(() => Run("b"))
+            .ThenMany(branches => branches.Branch(() => Run("c")).Branch(() => Run("d")))
+            .ThenAfterAll(() => Run("done"))
+            .ThenAfterAnyFailed(() => Run("alert"))
+            .Enqueue(_client)!;
+    }
+
+    private static void AssertWorkflowRan()
+    {
+        List<string> ran = [.. Ran];
+        Assert.Equal(5, ran.Count);
+        Assert.Equal(["a", "b"], ran.Take(2));
+        Assert.Equal(["c", "d"], ran.Skip(2).Take(2).Order(StringComparer.Ordinal));
+        Assert.Equal("done", ran[4]);
+    }
+
+    private BackgroundJobServer CreateServer()
+    {
+        return new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 2, SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage);
+    }
+
+    private void WaitUntilSettled(string chainId) => WaitUntil(() => _storage.GetChain(chainId) is { IsSettled: true }, $"chain {chainId} to settle");
+
+    private static void WaitUntil(Func<bool> condition, string what)
+    {
+        Stopwatch waited = Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (waited.Elapsed > Timeout) throw new TimeoutException($"Timed out waiting for {what}.");
+            Thread.Sleep(25);
+        }
+    }
+
+    /// <summary>The system clock, moved by a fixed time.</summary>
+    private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
+    }
+
+    /// <summary>Makes the deletions with a given reason fail, as a storage error at that moment would.</summary>
+    private sealed class FailingDeletions : IElectStateFilter
+    {
+        public string? FailWithReason { get; set; }
+
+        public void OnStateElection(ElectStateContext context)
+        {
+            if (FailWithReason != null && context.CandidateState is DeletedState deleted && deleted.Reason == FailWithReason)
+            {
+                throw new InvalidOperationException("The storage is down.");
+            }
+        }
     }
 
     /// <summary>Records the steps created, and fails the creation of the one named <see cref="ThrowOn"/>.</summary>
