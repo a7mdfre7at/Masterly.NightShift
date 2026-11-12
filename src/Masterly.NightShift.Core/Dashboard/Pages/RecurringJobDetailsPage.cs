@@ -6,6 +6,9 @@ namespace Masterly.NightShift.Dashboard.Pages;
 internal partial class RecurringJobDetailsPage(string id)
 {
     private const int NextRunsShown = 10;
+
+    // Each run shown costs a job details query, so the page shows the recent ones; the history keeps more
+    internal const int RunsShown = 20;
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(RecurringJobDetailsPage));
 
     public string Id { get; } = RouteValues.Decode(id);

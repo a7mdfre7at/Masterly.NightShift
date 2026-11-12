@@ -24,7 +24,7 @@
     {
         cronDescription = job.Cron != null ? Cron.TryDescribe(job.Cron) : null;
         nextRuns = ReadNextRuns(job);
-        runs = Storage.GetRecurringJobRuns(Id);
+        runs = Storage.GetRecurringJobRuns(Id, RunsShown);
     }
 
     string title = String.Format(Strings.RecurringJobDetailsPage_Title, Id);
