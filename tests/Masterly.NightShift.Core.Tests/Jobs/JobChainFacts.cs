@@ -158,10 +158,36 @@ public class JobChainFacts
     public void Enqueue_DeletesTheCreatedSteps_WhenALaterStepIsCanceled()
     {
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = EnqueuedState.StateName });
+        _client.Setup(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), EnqueuedState.StateName)).Returns(true);
 
         Assert.Throws<InvalidOperationException>(() => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
 
-        _client.Verify(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), null));
+        _client.Verify(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), EnqueuedState.StateName));
+    }
+
+    [Fact]
+    public void Enqueue_LeavesTheFirstStep_WhenAWorkerTookItBeforeALaterStepFailed()
+    {
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<AwaitingState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+        _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = ProcessingState.StateName });
+
+        Assert.Throws<InvalidOperationException>(() => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Enqueue_DeletesTheCreatedSteps_WhenTheRecordCanNotBeWritten()
+    {
+        _storage.Connection.Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("Storage is down"));
+        _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = EnqueuedState.StateName });
+        _storage.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = AwaitingState.StateName });
+
+        Assert.Throws<InvalidOperationException>(() => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        _client.Verify(x => x.ChangeState("job-2", It.IsAny<DeletedState>(), AwaitingState.StateName));
+        _client.Verify(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), EnqueuedState.StateName));
     }
 
     [Fact]
@@ -201,6 +227,34 @@ public class JobChainFacts
         Assert.Equal(expected, Assert.IsType<AwaitingState>(state).Options);
     }
 
+    [Theory]
+    [InlineData(JobContinuationOptions.OnlyOnSucceededState, FanInMode.All, JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData(JobContinuationOptions.OnlyOnDeletedState, FanInMode.All, JobContinuationOptions.OnlyOnDeletedState)]
+    [InlineData(JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState, FanInMode.All, JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState)]
+    [InlineData(JobContinuationOptions.OnlyOnFailedState, FanInMode.AnyFailed, JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData(JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnDeletedState, FanInMode.AnyFailedOrCanceled, JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData(JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnSucceededState, FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData(JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState, FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState)]
+    [InlineData(JobContinuationOptions.OnAnyFinishedState, FanInMode.AllCompleted, JobContinuationOptions.OnlyOnSucceededState)]
+    public void StateFor_AThenAfterAGroup_WaitsAsItsOptionsSay(JobContinuationOptions options, FanInMode mode, JobContinuationOptions fanInOptions)
+    {
+        IState state = JobChains.StateFor(new ChainStep(Job.FromExpression(() => Step("x")), ChainLink.Then, options), ["p", "q"]);
+
+        AwaitingJobsState awaiting = Assert.IsType<AwaitingJobsState>(state);
+        Assert.Equal(mode, awaiting.Mode);
+        Assert.Equal(fanInOptions, awaiting.Options);
+    }
+
+    [Fact]
+    public void Builder_RefusesToWaitForAGroupToStart_ButNotForASingleStep()
+    {
+        JobChain chain = JobChain.StartWith(() => Step("a")).ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")));
+
+        Assert.Throws<ArgumentException>("options", () => chain.Then(() => Step("d"), JobContinuationOptions.OnlyOnProcessingState));
+        Assert.Throws<ArgumentException>("branches", () => chain.ThenMany(branches => branches.Branch(() => Step("d"), JobContinuationOptions.OnlyOnProcessingState)));
+        Assert.Equal(2, JobChain.StartWith(() => Step("a")).Then(() => Step("b"), JobContinuationOptions.OnlyOnProcessingState).StepCount);
+    }
+
     [Fact]
     public void GetKey_NamesTheRecord()
     {
@@ -231,6 +285,114 @@ public class JobChainFacts
 
         Assert.True(stuck.IsSettled);
         Assert.False(deciding.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsSettled_WhenStepsWaitBehindStepsThatWaitBehindAFailure()
+    {
+        JobChainInfo line = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "1", "Failed", 0, -1),
+            new JobChainStepInfo("1.0", "2", "Awaiting", 1, 0),
+            new JobChainStepInfo("2.0", "3", "Awaiting", 2, 1),
+            new JobChainStepInfo("3.0", "4", "Awaiting", 3, 2),
+        ]);
+        JobChainInfo group = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "1", "Succeeded", 0, -1),
+            new JobChainStepInfo("1.0", "2", "Failed", 1, 0),
+            new JobChainStepInfo("1.1", "3", "Succeeded", 1, 0),
+            new JobChainStepInfo("2.0", "4", "Awaiting", 2, 1),
+            new JobChainStepInfo("2.1", "5", "Succeeded", 2, 1),
+            new JobChainStepInfo("3.0", "6", "Awaiting", 3, 2),
+        ]);
+
+        Assert.True(line.IsSettled);
+        Assert.True(group.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsNotSettled_WhenTheStepAfterAFailurePathIsAboutToStart()
+    {
+        // The failure path ran: the step after it waits only until its continuation is enqueued
+        JobChainInfo chain = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "1", "Failed", 0, -1),
+            new JobChainStepInfo("1.0", "2", "Succeeded", 1, 0),
+            new JobChainStepInfo("2.0", "3", "Awaiting", 2, 1),
+        ]);
+
+        Assert.False(chain.IsSettled);
+    }
+
+    [Fact]
+    public void DeleteChain_KeepsTheRecord_WhenAStepStartedWhileItWasDeleted()
+    {
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")), ["root", "next"]);
+        _storage.Connection.SetupSequence(x => x.GetStateData("root"))
+            .Returns(new StateData { Name = EnqueuedState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName });
+        _storage.Connection.Setup(x => x.GetStateData("next")).Returns(new StateData { Name = DeletedState.StateName });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => JobChains.Delete(_storage.Object, _client.Object, "c"));
+
+        Assert.Contains("started meanwhile", exception.Message, StringComparison.Ordinal);
+        Assert.True(_storage.Hashes.ContainsKey(JobChains.GetKey("c")));
+    }
+
+    [Fact]
+    public void DeleteChain_OfARestrictChain_KeepsAStepThatStartedMeanwhile_AndTheRecord()
+    {
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).OnDelete(ChainDeleteBehavior.Restrict), ["root", "next"]);
+        _storage.Connection.SetupSequence(x => x.GetStateData("root"))
+            .Returns(new StateData { Name = EnqueuedState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName })
+            .Returns(new StateData { Name = ProcessingState.StateName });
+        _storage.Connection.Setup(x => x.GetStateData("next")).Returns(new StateData { Name = DeletedState.StateName });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => JobChains.Delete(_storage.Object, _client.Object, "c"));
+
+        Assert.Contains("Restrict", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.ChangeState("root", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        Assert.True(_storage.Hashes.ContainsKey(JobChains.GetKey("c")));
+    }
+
+    [Fact]
+    public void DeleteChain_RemovesTheRecord_WhenEveryStepIsDeleted()
+    {
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")), ["root", "next"]);
+        Dictionary<string, string> states = new() { ["root"] = EnqueuedState.StateName, ["next"] = AwaitingState.StateName };
+        _storage.Connection.Setup(x => x.GetStateData(It.IsAny<string>())).Returns((string id) => new StateData { Name = states[id] });
+        _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<DeletedState>(), It.IsAny<string>()))
+            .Returns((string id, IState _, string _) =>
+            {
+                states[id] = DeletedState.StateName;
+                return true;
+            });
+
+        Assert.Equal(2, JobChains.Delete(_storage.Object, _client.Object, "c"));
+        Assert.False(_storage.Hashes.ContainsKey(JobChains.GetKey("c")));
+        Assert.Equal(-1, JobChains.Delete(_storage.Object, _client.Object, "c"));
+    }
+
+    private void RecordChain(string chainId, JobChain chain, string[] jobIds)
+    {
+        List<string> keys = [];
+        for (int level = 0; level < chain.Levels.Count; level++)
+        {
+            for (int i = 0; i < chain.Levels[level].Steps.Count; i++) keys.Add($"{level}.{i}");
+        }
+
+        _storage.Hashes[JobChains.GetKey(chainId)] = new Dictionary<string, string>
+        {
+            ["Definition"] = JobChains.ToDefinition(chain),
+            ["Jobs"] = "{" + string.Join(",", keys.Zip(jobIds, static (key, id) => $"\"{key}\":\"{id}\"")) + "}",
+        };
     }
 
     [Fact]

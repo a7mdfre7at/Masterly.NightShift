@@ -16,10 +16,6 @@
 namespace Masterly.NightShift;
 
 /// <summary>
-/// Says when a continuation starts: after its parent reaches any final state, only after it succeeds, or only after
-/// it is deleted.
-/// </summary>
-/// <summary>
 /// Which outcomes of the parent start a continuation. The flags combine: <c>OnlyOnSucceededState | OnlyOnFailedState</c>
 /// starts it when the parent succeeds or fails.
 /// </summary>
