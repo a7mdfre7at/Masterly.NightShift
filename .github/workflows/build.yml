@@ -80,8 +80,8 @@ jobs:
 
   # Installs the packages just built into new apps, as a user would, so a broken package (a missing dependency or
   # file, an API that doesn't compile on a target, a generator that doesn't load in an older compiler) fails the
-  # build instead of the first consumer: ASP.NET Core apps on .NET 8 and .NET 10, a console app that runs a job, and
-  # a Worker Service built with the .NET 8 SDK
+  # build instead of the first consumer: ASP.NET Core apps on .NET 8 and .NET 10, a console app that runs a job,
+  # a Worker Service built with the .NET 8 SDK, and console apps on .NET 8 and .NET 10 with the other storages
   consumer:
     name: Consumer (install the packages)
     needs: windows
@@ -323,6 +323,76 @@ jobs:
             Where-Object { $_ -match '^Microsoft\.Extensions\.[^/]+/' -and $_ -notmatch '/8\.' }
           if ($lifted) { throw "A .NET 8 app should keep the 8.0 Microsoft.Extensions packages, but got: $($lifted -join ', ')" }
 
+      # Console apps on .NET 8 and .NET 10 with the other storages: InMemory and EntityFrameworkCore (on SQLite, with
+      # EF Core 8 on net8.0 and 10 on net10.0) create their storage and a job; Redis and MongoDB, which need a server,
+      # are only compiled against
+      - name: Build storage apps against the packages
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Invoke-Dotnet { dotnet @args; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+
+          $feed = (Resolve-Path feed).Path
+          $core = Get-ChildItem $feed -Filter 'Masterly.NightShift.Core.*.nupkg' | Select-Object -First 1
+          $version = $core.Name -replace '^Masterly\.NightShift\.Core\.(.+)\.nupkg$', '$1'
+          Write-Host "Package version: $version"
+
+          # The nuget.config of the previous step: Masterly.* only from the packages just built
+          Set-Location (Join-Path $env:RUNNER_TEMP 'consumers')
+
+          $storageProgram = @'
+          using Masterly.NightShift;
+          using Masterly.NightShift.EntityFrameworkCore;
+          using Masterly.NightShift.InMemory;
+          using Masterly.NightShift.MongoDB;
+          using Masterly.NightShift.Redis;
+          using Microsoft.EntityFrameworkCore;
+
+          // Compiled against, not run: they need a server
+          Console.WriteLine($"{typeof(RedisStorage).Assembly.GetName().Name}, {typeof(MongoStorage).Assembly.GetName().Name}");
+
+          var memory = new InMemoryStorage();
+          var memoryJob = new BackgroundJobClient(memory).Enqueue(() => Console.WriteLine("In memory"))
+              ?? throw new InvalidOperationException("The in-memory job was not created.");
+
+          var file = Path.Combine(Path.GetTempPath(), $"nightshift-consumer-{Guid.NewGuid():N}.db");
+          var sqlite = new EntityFrameworkCoreStorage(o => o.UseSqlite($"Data Source={file}"), new EntityFrameworkCoreStorageOptions { Schema = null });
+          var sqliteJob = new BackgroundJobClient(sqlite).Enqueue(() => Console.WriteLine("On SQLite"))
+              ?? throw new InvalidOperationException("The SQLite job was not created.");
+
+          using var connection = sqlite.GetConnection();
+          var state = connection.GetStateData(sqliteJob)?.Name;
+          if (state != "Enqueued") throw new InvalidOperationException($"The SQLite job is {state}, not Enqueued.");
+          Console.WriteLine($"Jobs {memoryJob} (in memory) and {sqliteJob} (SQLite) enqueued");
+          '@
+
+          foreach ($framework in 'net8.0', 'net10.0') {
+            $name = 'Storages' + ($framework -replace '\.', '')
+            $efCore = if ($framework -eq 'net8.0') { '8.0.34' } else { '10.0.15' }
+            New-Item -ItemType Directory -Force $name | Out-Null
+            @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>$framework</TargetFramework>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Masterly.NightShift.Core" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.InMemory" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.EntityFrameworkCore" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.Redis" Version="$version" />
+              <PackageReference Include="Masterly.NightShift.MongoDB" Version="$version" />
+              <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="$efCore" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content "$name/$name.csproj"
+            $storageProgram | Set-Content "$name/Program.cs"
+            Invoke-Dotnet build $name -c Release -warnaserror
+            Invoke-Dotnet "$name/bin/Release/$framework/$name.dll"
+          }
+
   linux:
     name: Linux (tests on ${{ matrix.framework }})
     runs-on: ubuntu-24.04
@@ -346,9 +416,10 @@ jobs:
           --health-timeout 5s
           --health-retries 12
       redis:
-        image: redis:7
+        image: redis:7.4.12
+        # Reachable from the runner only
         ports:
-          - 6379:6379
+          - 127.0.0.1:6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -369,7 +440,7 @@ jobs:
       # Service containers can't take a command, and MongoDB needs --replSet for transactions: a one-member replica set
       - name: Start MongoDB
         run: |
-          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          docker run -d --name mongo -p 127.0.0.1:27017:27017 mongo:7.0.45 --replSet rs0 --bind_ip_all
           for attempt in $(seq 1 30); do
             if docker exec mongo mongosh --quiet --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: '127.0.0.1:27017'}]}).ok" >/dev/null 2>&1; then break; fi
             sleep 2
