@@ -90,12 +90,19 @@ public static class RecurringJobHistory
             ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(count, MaxRuns);
 
-            if (!storage.HasFeature(JobStorageFeatures.ExtendedApi)) return [];
+            if (!storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                return [];
+            }
 
             List<string> jobIds;
             using (IStorageConnection connection = storage.GetReadOnlyConnection())
             {
-                if (connection is not JobStorageConnection extended) return [];
+                if (connection is not JobStorageConnection extended)
+                {
+                    return [];
+                }
+
                 jobIds = extended.GetRangeFromList(GetKey(recurringJobId), 0, count - 1);
             }
 
@@ -107,7 +114,10 @@ public static class RecurringJobHistory
     private static RecurringJobRun ReadRun(IMonitoringApi monitor, string jobId)
     {
         JobDetailsDto? details = monitor.JobDetails(jobId);
-        if (details == null) return new RecurringJobRun(jobId, null, null, null, null, null, 0, null, null);
+        if (details == null)
+        {
+            return new RecurringJobRun(jobId, null, null, null, null, null, 0, null, null);
+        }
 
         StateHistoryDto? current = details.History?.MaxBy(static state => state.CreatedAt);
         StateHistoryDto? processing = details.History?
@@ -152,9 +162,15 @@ public static class RecurringJobHistory
     private static bool TryGetValue(IDictionary<string, string>? values, string key, [NotNullWhen(true)] out string? value)
     {
         value = null;
-        if (values == null) return false;
+        if (values == null)
+        {
+            return false;
+        }
 
-        if (values.TryGetValue(key, out value)) return true;
+        if (values.TryGetValue(key, out value))
+        {
+            return true;
+        }
 
         foreach (KeyValuePair<string, string> entry in values)
         {

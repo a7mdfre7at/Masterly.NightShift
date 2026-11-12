@@ -115,8 +115,15 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
             throw new ArgumentException("Either Url or UrlFactory must be set.", nameof(options));
         }
 
-        if (options.Interval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(options), "Interval should be greater than zero.");
-        if (options.Timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(options), "Timeout should be greater than zero.");
+        if (options.Interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Interval should be greater than zero.");
+        }
+
+        if (options.Timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Timeout should be greater than zero.");
+        }
 
         _httpClient = httpClient ?? new HttpClient { Timeout = options.Timeout };
         _status = new KeepAliveStatus(options.Url, null, null, null, options.Interval);
@@ -212,7 +219,10 @@ public sealed class KeepAliveProcess : IBackgroundProcess, IDisposable
 
     private string? ResolveUrl()
     {
-        if (_urlResolved) return _url;
+        if (_urlResolved)
+        {
+            return _url;
+        }
 
         _url = _options.Url;
 

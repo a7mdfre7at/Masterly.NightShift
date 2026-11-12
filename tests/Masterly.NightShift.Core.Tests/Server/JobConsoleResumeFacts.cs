@@ -96,7 +96,11 @@ public class JobConsoleResumeFacts : IDisposable
         List<string> ran = [];
 
         console.Resume("download", () => ran.Add("download"));
-        for (int i = 0; i < 20; i++) console.WriteLine($"row {i}");
+        for (int i = 0; i < 20; i++)
+        {
+            console.WriteLine($"row {i}");
+        }
+
         NextAttempt().Resume("download", () => ran.Add("download again"));
 
         Assert.Equal(5, ConsoleList.Count);
@@ -143,7 +147,10 @@ public class JobConsoleResumeFacts : IDisposable
         OlderBuildReached("download", "download", "parse");
 
         _context.Object.Console.Checkpoint("save");
-        for (int i = 0; i < 10; i++) _context.Object.Console.WriteLine($"row {i}");
+        for (int i = 0; i < 10; i++)
+        {
+            _context.Object.Console.WriteLine($"row {i}");
+        }
 
         Assert.Equal(["download", "parse", "save"], NextAttempt().Checkpoints);
         Assert.Equal(3, CheckpointsList.Count);

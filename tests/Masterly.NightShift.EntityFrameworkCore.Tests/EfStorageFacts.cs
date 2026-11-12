@@ -75,7 +75,11 @@ public sealed class EfStorageFacts : IDisposable
         using (IStorageConnection connection = storage.GetConnection())
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            for (int i = 0; i < 5; i++) transaction.IncrementCounter("stats:succeeded", TimeSpan.FromDays(1));
+            for (int i = 0; i < 5; i++)
+            {
+                transaction.IncrementCounter("stats:succeeded", TimeSpan.FromDays(1));
+            }
+
             transaction.DecrementCounter("stats:succeeded");
             transaction.Commit();
         }
@@ -221,7 +225,10 @@ public sealed class EfStorageFacts : IDisposable
         EntityFrameworkCoreStorage storage = _database.CreateStorage();
         Commit(storage, static x =>
         {
-            for (int i = 0; i < 3; i++) x.IncrementCounter("stats:succeeded");
+            for (int i = 0; i < 3; i++)
+            {
+                x.IncrementCounter("stats:succeeded");
+            }
         });
         new EfCountersAggregator(storage).AggregateBatch();
         Commit(storage, static x =>
@@ -457,7 +464,10 @@ public sealed class EfStorageFacts : IDisposable
     {
         Commit(storage, x =>
         {
-            for (int i = 0; i < count; i++) x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
+            for (int i = 0; i < count; i++)
+            {
+                x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
+            }
         });
     }
 }

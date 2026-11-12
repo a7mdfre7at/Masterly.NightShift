@@ -76,7 +76,10 @@ public class FailureClustersFacts
     public void Build_PagesThroughTheSample_AndRespectsTheLimit()
     {
         Job job = Job.FromExpression(() => Charge(1));
-        for (int i = 0; i < 250; i++) AddFailure(i.ToString(), "E" + (i % 12), job, DateTime.UtcNow);
+        for (int i = 0; i < 250; i++)
+        {
+            AddFailure(i.ToString(), "E" + (i % 12), job, DateTime.UtcNow);
+        }
 
         IReadOnlyList<FailureCluster> clusters = FailureClusters.Build(_monitor.Object, sampleSize: 230, maxClusters: 3);
 

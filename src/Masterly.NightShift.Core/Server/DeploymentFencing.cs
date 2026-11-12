@@ -245,7 +245,10 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     private static bool IsAlive(Dictionary<string, string> hash, string deployment, DateTime now)
     {
-        if (!hash.TryGetValue(DeploymentFencing.SeenField(deployment), out string? value) || string.IsNullOrEmpty(value)) return false;
+        if (!hash.TryGetValue(DeploymentFencing.SeenField(deployment), out string? value) || string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
 
         try
         {
@@ -265,7 +268,10 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             return;
         }
 
-        if (_fencedByNewer == current) return;
+        if (_fencedByNewer == current)
+        {
+            return;
+        }
 
         _fencedByNewer = current;
         Logger.Warn(string.Create(

@@ -16,7 +16,10 @@ internal partial class RecurringJobDetailsPage(string id)
     // The next runs as the scheduler will create them: a bad CRON expression or an unknown time zone shows none
     private IReadOnlyList<DateTime> ReadNextRuns(RecurringJobDto job)
     {
-        if (job.Cron == null || job.Paused) return [];
+        if (job.Cron == null || job.Paused)
+        {
+            return [];
+        }
 
         try
         {

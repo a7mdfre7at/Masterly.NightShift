@@ -81,7 +81,11 @@ public class JobNotesFacts : IDisposable
         JobNotes.Add(_connection.Object, "1", new string('x', 5000));
         Assert.Equal(JobNotes.MaxLength, JobNotes.Read(_connection.Object, "1")[1].Text.Length);
 
-        for (int i = 0; i < JobNotes.MaxNotes + 5; i++) JobNotes.Add(_connection.Object, "1", "n" + i);
+        for (int i = 0; i < JobNotes.MaxNotes + 5; i++)
+        {
+            JobNotes.Add(_connection.Object, "1", "n" + i);
+        }
+
         IReadOnlyList<JobNote> notes = JobNotes.Read(_connection.Object, "1");
         Assert.Equal(JobNotes.MaxNotes, notes.Count);
         Assert.Equal("n" + (JobNotes.MaxNotes + 4), notes.Last().Text);
@@ -149,7 +153,11 @@ public class JobNotesFacts : IDisposable
         async Task<int> Run(string method, bool readOnly, string jobId, string text)
         {
             DashboardRequestStub request = new(method, "/jobs/notes/add/" + jobId);
-            if (text != null) request.Form["text"] = [text];
+            if (text != null)
+            {
+                request.Form["text"] = [text];
+            }
+
             DashboardContextStub context = new(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
             {
                 UriMatch = System.Text.RegularExpressions.Regex.Match("/jobs/notes/add/" + jobId, "/jobs/notes/add/(?<JobId>.+)")

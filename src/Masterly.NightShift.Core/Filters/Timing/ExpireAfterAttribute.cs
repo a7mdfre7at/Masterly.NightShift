@@ -56,7 +56,10 @@ public sealed class ExpireAfterAttribute : JobFilterAttribute, IApplyStateFilter
     /// <exception cref="ArgumentOutOfRangeException">The number of days is not between 1 and <see cref="MaxDays"/>.</exception>
     public ExpireAfterAttribute(int days)
     {
-        if (days is <= 0 or > MaxDays) throw new ArgumentOutOfRangeException(nameof(days), days, $"The number of days must be between 1 and {MaxDays}.");
+        if (days is <= 0 or > MaxDays)
+        {
+            throw new ArgumentOutOfRangeException(nameof(days), days, $"The number of days must be between 1 and {MaxDays}.");
+        }
 
         Duration = TimeSpan.FromDays(days);
         Order = 50;

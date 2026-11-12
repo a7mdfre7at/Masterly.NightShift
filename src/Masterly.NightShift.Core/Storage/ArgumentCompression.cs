@@ -57,7 +57,10 @@ internal static class ArgumentCompression
     [return: NotNullIfNotNull(nameof(arguments))]
     public static string? Decompress(string? arguments)
     {
-        if (arguments == null || !arguments.StartsWith(Prefix, StringComparison.Ordinal)) return arguments;
+        if (arguments == null || !arguments.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return arguments;
+        }
 
         byte[] bytes = Convert.FromBase64String(arguments[Prefix.Length..]);
         using GZipStream gzip = new(new MemoryStream(bytes), CompressionMode.Decompress);

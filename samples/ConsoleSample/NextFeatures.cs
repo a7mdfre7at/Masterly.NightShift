@@ -61,7 +61,11 @@ public class NextFeatures
     [AutomaticRetry(Attempts = 0)]
     public void CallFlakyApi()
     {
-        if (Random.Next(2) == 0) throw new TimeoutException("The flaky API did not answer");
+        if (Random.Next(2) == 0)
+        {
+            throw new TimeoutException("The flaky API did not answer");
+        }
+
         Console.WriteLine("The flaky API answered");
     }
 

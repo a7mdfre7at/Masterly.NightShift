@@ -136,7 +136,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // A manual server waits for IBackgroundJobServerControl.StartAsync
-        if (_options.StartMode == ServerStartMode.Manual) return Task.CompletedTask;
+        if (_options.StartMode == ServerStartMode.Manual)
+        {
+            return Task.CompletedTask;
+        }
 
         if (_hostApplicationLifetime != null)
         {
@@ -164,7 +167,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
             server = _processingServer;
         }
 
-        if (server == null) return;
+        if (server == null)
+        {
+            return;
+        }
 
         try
         {
@@ -236,7 +242,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
             }
 
             _stoppedByControl = false;
-            if (_processingServer == null) InitializeProcessingServer();
+            if (_processingServer == null)
+            {
+                InitializeProcessingServer();
+            }
         }
     }
 
@@ -252,7 +261,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
             Volatile.Write(ref _processingServer, null);
         }
 
-        if (server == null) return;
+        if (server == null)
+        {
+            return;
+        }
 
         try
         {
@@ -271,7 +283,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     {
         lock (_startLock)
         {
-            if (_processingServer == null && !_stoppedByControl && !_hostStopped) InitializeProcessingServer();
+            if (_processingServer == null && !_stoppedByControl && !_hostStopped)
+            {
+                InitializeProcessingServer();
+            }
         }
     }
 

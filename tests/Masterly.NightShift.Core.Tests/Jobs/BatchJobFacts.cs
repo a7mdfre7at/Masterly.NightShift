@@ -33,12 +33,19 @@ public class BatchJobFacts : IDisposable
         _transaction.Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((key, pairs) =>
             {
-                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash)) _hashes[key] = hash = [];
-                foreach (KeyValuePair<string, string> pair in pairs) hash[pair.Key] = pair.Value;
+                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash))
+                {
+                    _hashes[key] = hash = [];
+                }
+
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    hash[pair.Key] = pair.Value;
+                }
             });
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>())).Callback<string, string, double>((key, value, _) => Add(key, value));
         _transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>(Add);
-        _transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => { if (_sets.TryGetValue(key, out List<string>? set)) set.Remove(value); });
+        _transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>((key, value) => { if (_sets.TryGetValue(key, out List<string>? set)) { set.Remove(value); } });
         _transaction.Setup(x => x.IncrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out long v) ? v : 0) + 1);
         _transaction.Setup(x => x.DecrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>())).Callback<string, TimeSpan>((key, _) => _counters[key] = (_counters.TryGetValue(key, out long v) ? v : 0) - 1);
 
@@ -64,8 +71,15 @@ public class BatchJobFacts : IDisposable
 
     private void Add(string key, string value)
     {
-        if (!_sets.TryGetValue(key, out List<string>? set)) _sets[key] = set = [];
-        if (!set.Contains(value)) set.Add(value);
+        if (!_sets.TryGetValue(key, out List<string>? set))
+        {
+            _sets[key] = set = [];
+        }
+
+        if (!set.Contains(value))
+        {
+            set.Add(value);
+        }
     }
 
     [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test")]
@@ -710,7 +724,10 @@ public class BatchJobFacts : IDisposable
         foreach (string? id in new[] { "old", "gone", "new" })
         {
             Add(BatchJob.IndexKey, id);
-            if (id != "gone") _hashes[BatchJob.GetHashKey(id)] = [];
+            if (id != "gone")
+            {
+                _hashes[BatchJob.GetHashKey(id)] = [];
+            }
         }
 
         IReadOnlyList<JobBatch> batches = BatchJob.List(_connection.Object, 0, 10);

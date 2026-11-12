@@ -124,7 +124,11 @@ public class GeneratedJobInvokerFacts
 
         foreach (MethodInfo method in typeof(MarkedRecord).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
-            if (method.Name == nameof(MarkedRecord.Build) || method.IsSpecialName) continue;
+            if (method.Name == nameof(MarkedRecord.Build) || method.IsSpecialName)
+            {
+                continue;
+            }
+
             Assert.False(JobInvokerRegistry.TryGetGeneratedInvoker(method, out _), $"{method} shouldn't have a generated invoker.");
         }
     }

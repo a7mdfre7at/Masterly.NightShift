@@ -44,10 +44,16 @@ internal static class ContainerJobExceptionHandlers
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is JobExceptionHandlerFilter { Handler: ScopedHandlers })) return filterProvider;
+        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is JobExceptionHandlerFilter { Handler: ScopedHandlers }))
+        {
+            return filterProvider;
+        }
 
         IServiceProviderIsService? isService = services.GetService<IServiceProviderIsService>();
-        if (isService == null || !isService.IsService(typeof(IJobExceptionHandler))) return filterProvider;
+        if (isService == null || !isService.IsService(typeof(IJobExceptionHandler)))
+        {
+            return filterProvider;
+        }
 
         IServiceScopeFactory scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
 

@@ -67,7 +67,10 @@ public class JobMonitorFacts
 
         public void Publish(Alert alert)
         {
-            if (alert.Kind is AlertKind.MonitorIncident or AlertKind.MonitorRecovered) Alerts.Enqueue(alert);
+            if (alert.Kind is AlertKind.MonitorIncident or AlertKind.MonitorRecovered)
+            {
+                Alerts.Enqueue(alert);
+            }
         }
     }
 

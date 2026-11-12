@@ -243,7 +243,11 @@ public class SharedStorageFacts
             {
                 Thread.Sleep(RenewDelay);
                 RenewGate?.Wait(Deadline);
-                if (RenewFailure != null) throw RenewFailure;
+                if (RenewFailure != null)
+                {
+                    throw RenewFailure;
+                }
+
                 return Renews && !_released;
             }
             finally
@@ -256,7 +260,10 @@ public class SharedStorageFacts
         {
             Interlocked.Increment(ref _releaseCalls);
             _released = true;
-            if (ReleaseFailure != null) throw ReleaseFailure;
+            if (ReleaseFailure != null)
+            {
+                throw ReleaseFailure;
+            }
         }
     }
 
@@ -283,7 +290,11 @@ public class SharedStorageFacts
         public bool Log(LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
         {
             // Without a message, the call only asks whether the level is enabled
-            if (messageFunc != null) _messages.Enqueue(messageFunc());
+            if (messageFunc != null)
+            {
+                _messages.Enqueue(messageFunc());
+            }
+
             return true;
         }
 
@@ -310,7 +321,10 @@ public class SharedStorageFacts
             public void Dispose()
             {
                 owner.Released.Add(resource);
-                if (resource == "failing") throw new TimeoutException("The store timed out.");
+                if (resource == "failing")
+                {
+                    throw new TimeoutException("The store timed out.");
+                }
             }
         }
     }
@@ -328,7 +342,10 @@ public class SharedStorageFacts
         protected override void ReturnToQueue()
         {
             Returns++;
-            if (Failure != null) throw Failure;
+            if (Failure != null)
+            {
+                throw Failure;
+            }
         }
     }
 }

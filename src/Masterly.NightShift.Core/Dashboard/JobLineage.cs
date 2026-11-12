@@ -92,15 +92,26 @@ internal sealed class JobLineage
                 Describe(node, jobDetails);
             }
 
-            if (jobDetails == null) continue;
+            if (jobDetails == null)
+            {
+                continue;
+            }
 
             // Upwards: the parents this job waited for
             if (depth <= 0)
             {
                 foreach ((string? parentId, string? label) in GetParents(jobDetails))
                 {
-                    if (!HasRoom(parentId)) break;
-                    if (!AddEdge(parentId, id, label)) continue;
+                    if (!HasRoom(parentId))
+                    {
+                        break;
+                    }
+
+                    if (!AddEdge(parentId, id, label))
+                    {
+                        continue;
+                    }
+
                     Visit(parentId, depth - 1);
                 }
             }
@@ -110,8 +121,16 @@ internal sealed class JobLineage
             {
                 foreach ((string? childId, string? label) in GetChildren(jobDetails))
                 {
-                    if (!HasRoom(childId)) break;
-                    if (!AddEdge(id, childId, label)) continue;
+                    if (!HasRoom(childId))
+                    {
+                        break;
+                    }
+
+                    if (!AddEdge(id, childId, label))
+                    {
+                        continue;
+                    }
+
                     Visit(childId, depth + 1);
                 }
             }
@@ -121,8 +140,16 @@ internal sealed class JobLineage
             {
                 foreach ((string? parentId, string? label) in GetParents(jobDetails))
                 {
-                    if (!HasRoom(parentId)) break;
-                    if (!AddEdge(parentId, id, label)) continue;
+                    if (!HasRoom(parentId))
+                    {
+                        break;
+                    }
+
+                    if (!AddEdge(parentId, id, label))
+                    {
+                        continue;
+                    }
+
                     Visit(parentId, depth - 1);
                 }
             }
@@ -135,7 +162,10 @@ internal sealed class JobLineage
 
         void Describe(JobLineageNode node, JobDetailsDto? loadedDetails)
         {
-            if (loadedDetails == null) return;
+            if (loadedDetails == null)
+            {
+                return;
+            }
 
             node.Name = loadedDetails.Job != null
                 ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(loadedDetails.Job.Type)}.{loadedDetails.Job.Method.Name}"
@@ -154,8 +184,15 @@ internal sealed class JobLineage
 
         bool AddEdge(string parentId, string childId, string? label)
         {
-            if (string.IsNullOrEmpty(parentId) || string.IsNullOrEmpty(childId)) return false;
-            if (!edgeKeys.Add(parentId + "\u0001" + childId)) return false;
+            if (string.IsNullOrEmpty(parentId) || string.IsNullOrEmpty(childId))
+            {
+                return false;
+            }
+
+            if (!edgeKeys.Add(parentId + "\u0001" + childId))
+            {
+                return false;
+            }
 
             edges.Add(new JobLineageEdge(parentId, childId, label));
             return true;
@@ -165,7 +202,10 @@ internal sealed class JobLineage
         // parent per job of the batch, and every one of them was drawn
         bool HasRoom(string id)
         {
-            if (nodes.ContainsKey(id) || nodes.Count < MaxNodes + MaxBoundaryNodes) return true;
+            if (nodes.ContainsKey(id) || nodes.Count < MaxNodes + MaxBoundaryNodes)
+            {
+                return true;
+            }
 
             truncated = true;
             return false;
@@ -173,7 +213,10 @@ internal sealed class JobLineage
 
         void Visit(string id, int depth)
         {
-            if (nodes.ContainsKey(id)) return;
+            if (nodes.ContainsKey(id))
+            {
+                return;
+            }
 
             if (Math.Abs(depth) > MaxDepth || nodes.Count >= MaxNodes)
             {
@@ -189,13 +232,20 @@ internal sealed class JobLineage
         IEnumerable<(string, string?)> GetParents(JobDetailsDto job)
         {
             StateHistoryDto? awaiting = job.History?.FirstOrDefault(static x => x.StateName == AwaitingState.StateName);
-            if (awaiting?.Data == null) yield break;
+            if (awaiting?.Data == null)
+            {
+                yield break;
+            }
 
             AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(awaiting.Data);
             if (fanIn != null)
             {
                 string label = fanIn.Mode == FanInMode.All ? Strings.Lineage_All : Strings.Lineage_Any;
-                foreach (string parentId in fanIn.ParentIds) yield return (parentId, label);
+                foreach (string parentId in fanIn.ParentIds)
+                {
+                    yield return (parentId, label);
+                }
+
                 yield break;
             }
 
@@ -207,7 +257,10 @@ internal sealed class JobLineage
 
         IEnumerable<(string, string?)> GetChildren(JobDetailsDto job)
         {
-            if (job.Properties == null) yield break;
+            if (job.Properties == null)
+            {
+                yield break;
+            }
 
             if (job.Properties.TryGetValue("Continuations", out string? serialized) && !string.IsNullOrEmpty(serialized))
             {
@@ -251,7 +304,10 @@ internal sealed class JobLineage
 
     private static string? DescribeOptions(string? options)
     {
-        if (string.IsNullOrEmpty(options)) return null;
+        if (string.IsNullOrEmpty(options))
+        {
+            return null;
+        }
 
         // Stored as a number by AwaitingState, as a name by the Continuations parameter
         JobContinuationOptions parsed;
@@ -266,10 +322,26 @@ internal sealed class JobLineage
 
         // Every outcome a combination accepts, such as OnlyOnSucceededState | OnlyOnFailedState
         List<string> outcomes = [];
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) outcomes.Add(Strings.Lineage_AfterSuccess);
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) outcomes.Add(Strings.Lineage_AfterDelete);
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnFailedState)) outcomes.Add(Strings.Lineage_AfterFailure);
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) outcomes.Add(Strings.Lineage_OnceStarted);
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnSucceededState))
+        {
+            outcomes.Add(Strings.Lineage_AfterSuccess);
+        }
+
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnDeletedState))
+        {
+            outcomes.Add(Strings.Lineage_AfterDelete);
+        }
+
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnFailedState))
+        {
+            outcomes.Add(Strings.Lineage_AfterFailure);
+        }
+
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnProcessingState))
+        {
+            outcomes.Add(Strings.Lineage_OnceStarted);
+        }
+
         return outcomes.Count == 0 ? Strings.Lineage_AfterFinish : string.Join(" or ", outcomes);
     }
 }
@@ -312,7 +384,10 @@ internal static class JobLineageRenderer
 
         foreach (JobLineageEdge edge in lineage.Edges)
         {
-            if (!positions.TryGetValue(edge.ParentId, out (double X, double Y) from) || !positions.TryGetValue(edge.ChildId, out (double X, double Y) to)) continue;
+            if (!positions.TryGetValue(edge.ParentId, out (double X, double Y) from) || !positions.TryGetValue(edge.ChildId, out (double X, double Y) to))
+            {
+                continue;
+            }
 
             double x1 = from.X + NodeWidth;
             double y1 = from.Y + NodeHeight / 2.0;

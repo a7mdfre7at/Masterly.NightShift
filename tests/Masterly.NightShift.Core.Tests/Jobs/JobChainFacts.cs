@@ -68,7 +68,10 @@ public class JobChainFacts
     public void Builder_RefusesMoreLevelsThanTheLimit()
     {
         JobChain chain = JobChain.StartWith(() => Step("a"));
-        for (int i = 1; i < JobChain.MaxLevels; i++) chain.Then(() => Step("b"));
+        for (int i = 1; i < JobChain.MaxLevels; i++)
+        {
+            chain.Then(() => Step("b"));
+        }
 
         Assert.Throws<InvalidOperationException>(() => chain.Then(() => Step("c")));
     }
@@ -79,7 +82,10 @@ public class JobChainFacts
         JobChain chain = JobChain.StartWith(() => Step("a"))
             .ThenMany(branches =>
             {
-                for (int i = 0; i < JobChain.MaxSteps - 1; i++) branches.Branch(() => Step("b"));
+                for (int i = 0; i < JobChain.MaxSteps - 1; i++)
+                {
+                    branches.Branch(() => Step("b"));
+                }
             });
 
         Assert.Throws<InvalidOperationException>(() => chain.ThenAfterAll(() => Step("c")));
@@ -640,7 +646,10 @@ public class JobChainFacts
         List<string> keys = [];
         for (int level = 0; level < chain.Levels.Count; level++)
         {
-            for (int i = 0; i < chain.Levels[level].Steps.Count; i++) keys.Add($"{level}.{i}");
+            for (int i = 0; i < chain.Levels[level].Steps.Count; i++)
+            {
+                keys.Add($"{level}.{i}");
+            }
         }
 
         _storage.Hashes[JobChains.GetKey(chainId)] = new Dictionary<string, string>

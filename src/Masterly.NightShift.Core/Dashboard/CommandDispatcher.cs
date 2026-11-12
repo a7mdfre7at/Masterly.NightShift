@@ -54,7 +54,10 @@ internal sealed class CommandDispatcher(Func<DashboardContext, bool> command) : 
             for (int i = 1; i < context.UriMatch.Groups.Count; i++)
             {
                 string value = context.UriMatch.Groups[i].Value;
-                if (!string.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
+                if (!string.IsNullOrEmpty(value))
+                {
+                    targets.Add(RouteValues.Decode(value));
+                }
             }
         }
 

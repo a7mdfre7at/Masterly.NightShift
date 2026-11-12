@@ -90,7 +90,10 @@ public sealed class RetryInProcessAttribute : AsyncJobInterceptorAttribute
                     $"Background job '{invocation.Context.BackgroundJob.Id}' failed on in-process attempt {attempt + 1} of {Attempts + 1} and will be retried in {delay}.",
                     ex);
 
-                if (delay <= TimeSpan.Zero) continue;
+                if (delay <= TimeSpan.Zero)
+                {
+                    continue;
+                }
 
                 if (invocation.ReturnsTaskLike)
                 {

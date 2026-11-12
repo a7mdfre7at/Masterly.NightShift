@@ -168,7 +168,10 @@ public sealed class BasicAuthDashboardAuthorizationFilter : IDashboardAsyncAutho
 
     private static void SignIn(HttpContext httpContext, string userName)
     {
-        if (httpContext.User.Identity?.IsAuthenticated == true) return;
+        if (httpContext.User.Identity?.IsAuthenticated == true)
+        {
+            return;
+        }
 
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, userName)], Scheme));
     }

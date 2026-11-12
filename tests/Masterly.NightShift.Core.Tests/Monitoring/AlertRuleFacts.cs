@@ -228,7 +228,10 @@ public class AlertRuleFacts
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(10);
+        for (int i = 0; i < 200 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
     }
 
     private sealed class Recording : IAlertSink
@@ -253,7 +256,10 @@ public class AlertRuleFacts
 
         public async Task WaitForAsync(int requests)
         {
-            for (int i = 0; i < 300 && Requests < requests; i++) await Task.Delay(10);
+            for (int i = 0; i < 300 && Requests < requests; i++)
+            {
+                await Task.Delay(10);
+            }
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

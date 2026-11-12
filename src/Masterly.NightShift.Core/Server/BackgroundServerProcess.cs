@@ -234,7 +234,10 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         BackgroundServerContext context,
         IReadOnlyList<IBackgroundDispatcher> dispatchers)
     {
-        if (dispatchers.Count == 0) return;
+        if (dispatchers.Count == 0)
+        {
+            return;
+        }
 
         Task[] waitTasks = new Task[dispatchers.Count];
 

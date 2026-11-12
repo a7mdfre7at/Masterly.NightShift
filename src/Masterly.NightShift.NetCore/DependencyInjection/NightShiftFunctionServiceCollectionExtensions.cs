@@ -126,7 +126,10 @@ internal sealed class DelegateJobFunction(string name, Type? payloadType, Method
 
         if (PayloadType == null)
         {
-            if (payload != null) throw new ArgumentException($"Function '{Name}' takes no payload.", nameof(payload));
+            if (payload != null)
+            {
+                throw new ArgumentException($"Function '{Name}' takes no payload.", nameof(payload));
+            }
         }
         else
         {

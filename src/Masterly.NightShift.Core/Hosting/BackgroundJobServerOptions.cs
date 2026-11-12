@@ -92,7 +92,10 @@ public class BackgroundJobServerOptions
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            if (value.Length == 0) throw new ArgumentException("You should specify at least one queue to listen.", nameof(value));
+            if (value.Length == 0)
+            {
+                throw new ArgumentException("You should specify at least one queue to listen.", nameof(value));
+            }
 
             field = value;
         }

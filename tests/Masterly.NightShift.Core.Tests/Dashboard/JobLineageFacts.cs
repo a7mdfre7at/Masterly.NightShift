@@ -145,7 +145,11 @@ public class JobLineageFacts
         for (int i = 0; i < JobLineage.MaxDepth + 3; i++)
         {
             string id = "n" + i;
-            if (previous != null) _jobs[previous].Properties["Continuations"] = SerializationHelper.Serialize(new List<ContinuationsSupportAttribute.Continuation> { new() { JobId = id, Options = JobContinuationOptions.OnAnyFinishedState } }, SerializationOption.User);
+            if (previous != null)
+            {
+                _jobs[previous].Properties["Continuations"] = SerializationHelper.Serialize(new List<ContinuationsSupportAttribute.Continuation> { new() { JobId = id, Options = JobContinuationOptions.OnAnyFinishedState } }, SerializationOption.User);
+            }
+
             Add(id, i == 0 ? SucceededState.StateName : AwaitingState.StateName, parentId: previous);
             previous = id;
         }
@@ -296,7 +300,11 @@ public class JobLineageFacts
     private static int CountOf(string text, string needle)
     {
         int count = 0;
-        for (int index = text.IndexOf(needle, StringComparison.Ordinal); index >= 0; index = text.IndexOf(needle, index + 1, StringComparison.Ordinal)) count++;
+        for (int index = text.IndexOf(needle, StringComparison.Ordinal); index >= 0; index = text.IndexOf(needle, index + 1, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
         return count;
     }
 }

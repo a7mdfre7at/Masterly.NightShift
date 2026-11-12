@@ -12,7 +12,10 @@ public sealed class MongoStorageFacts : IDisposable
 
     public void Dispose()
     {
-        if (_storage != null) MongoTestServer.Drop(_storage);
+        if (_storage != null)
+        {
+            MongoTestServer.Drop(_storage);
+        }
     }
 
     [Fact]
@@ -265,7 +268,10 @@ public sealed class MongoStorageFacts : IDisposable
         string[] ids = [.. Enumerable.Range(0, 20).Select(_ => CreateJob(_storage))];
         Commit(_storage, x =>
         {
-            foreach (string id in ids) x.AddToQueue("default", id);
+            foreach (string id in ids)
+            {
+                x.AddToQueue("default", id);
+            }
         });
         MongoStorage storage = _storage;
 
@@ -360,7 +366,10 @@ public sealed class MongoStorageFacts : IDisposable
     {
         Commit(storage, x =>
         {
-            for (int i = 0; i < count; i++) x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
+            for (int i = 0; i < count; i++)
+            {
+                x.InsertToList(key, i.ToString(CultureInfo.InvariantCulture));
+            }
         });
     }
 
@@ -368,7 +377,11 @@ public sealed class MongoStorageFacts : IDisposable
     {
         using IStorageConnection connection = storage.GetConnection();
         using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-        for (int i = 0; i < times; i++) transaction.IncrementCounter(key);
+        for (int i = 0; i < times; i++)
+        {
+            transaction.IncrementCounter(key);
+        }
+
         transaction.Commit();
     }
 

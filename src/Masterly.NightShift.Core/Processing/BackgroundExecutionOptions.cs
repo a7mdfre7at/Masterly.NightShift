@@ -34,7 +34,11 @@ internal sealed class BackgroundExecutionOptions
         get;
         set
         {
-            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            if (value < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            }
+
             field = value;
         }
     }
@@ -44,7 +48,11 @@ internal sealed class BackgroundExecutionOptions
         get;
         set
         {
-            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            if (value < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            }
+
             field = value;
         }
     }
@@ -54,7 +62,11 @@ internal sealed class BackgroundExecutionOptions
         get;
         set
         {
-            if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            if (value < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Value should be greater than or equal to TimeSpan.Zero");
+            }
+
             field = value;
         }
     }

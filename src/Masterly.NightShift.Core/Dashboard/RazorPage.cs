@@ -52,7 +52,11 @@ public abstract class RazorPage
     {
         get
         {
-            if (_dateTimeLazy == null) throw new InvalidOperationException("Page is not initialized.");
+            if (_dateTimeLazy == null)
+            {
+                throw new InvalidOperationException("Page is not initialized.");
+            }
+
             return _dateTimeLazy.Value.Item1;
         }
     }
@@ -61,7 +65,11 @@ public abstract class RazorPage
     {
         get
         {
-            if (_dateTimeLazy == null) throw new InvalidOperationException("Page is not initialized.");
+            if (_dateTimeLazy == null)
+            {
+                throw new InvalidOperationException("Page is not initialized.");
+            }
+
             return _dateTimeLazy.Value.Item2;
         }
     }
@@ -70,7 +78,11 @@ public abstract class RazorPage
     {
         get
         {
-            if (_dateTimeLazy == null) throw new InvalidOperationException("Page is not initialized.");
+            if (_dateTimeLazy == null)
+            {
+                throw new InvalidOperationException("Page is not initialized.");
+            }
+
             return _dateTimeLazy.Value.Item3;
         }
     }
@@ -79,7 +91,11 @@ public abstract class RazorPage
     {
         get
         {
-            if (_statisticsLazy == null) throw new InvalidOperationException("Page is not initialized.");
+            if (_statisticsLazy == null)
+            {
+                throw new InvalidOperationException("Page is not initialized.");
+            }
+
             return _statisticsLazy.Value;
         }
     }
@@ -163,7 +179,10 @@ public abstract class RazorPage
     protected void WriteLiteral(string? textToAppend)
     {
         if (string.IsNullOrEmpty(textToAppend))
+        {
             return;
+        }
+
         _content.Append(textToAppend);
     }
 
@@ -171,7 +190,10 @@ public abstract class RazorPage
     protected virtual void Write(object? value)
     {
         if (value == null)
+        {
             return;
+        }
+
         NonEscapedString? html = value as NonEscapedString;
         WriteLiteral(html?.ToString() ?? Encode(value.ToString()));
     }

@@ -217,7 +217,11 @@ public class JobDiagnosticsFacts : IDisposable
     {
         // A continuation of a batch of 5,000 jobs read every parent and wrote a line for each: 10 s, 6 MB
         string[] ids = [.. Enumerable.Range(1, 5000).Select(static i => i.ToString(CultureInfo.InvariantCulture))];
-        foreach (string? id in ids) _jobs[id] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
+        foreach (string? id in ids)
+        {
+            _jobs[id] = new JobData { State = ScheduledState.StateName, Job = Job.FromExpression(() => Work()) };
+        }
+
         _jobs["3"] = new JobData { State = FailedState.StateName, Job = Job.FromExpression(() => Work()) };
         AwaitingJobsState state = new(ids, new EnqueuedState(), JobContinuationOptions.OnAnyFinishedState, FanInMode.All);
 

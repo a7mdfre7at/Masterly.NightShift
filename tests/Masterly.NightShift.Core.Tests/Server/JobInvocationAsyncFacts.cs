@@ -122,7 +122,11 @@ public class JobInvocationAsyncFacts : IDisposable
             await Task.Yield();
 
             // Before the fix the chain restarted on every retry; stop the test from running forever
-            if (calls > 10) return;
+            if (calls > 10)
+            {
+                return;
+            }
+
             throw new InvalidOperationException("boom");
         }
 
@@ -132,7 +136,11 @@ public class JobInvocationAsyncFacts : IDisposable
             int calls = Interlocked.Increment(ref _calls);
             await Task.Yield();
 
-            if (calls < 3) throw new InvalidOperationException("boom");
+            if (calls < 3)
+            {
+                throw new InvalidOperationException("boom");
+            }
+
             return calls;
         }
 
@@ -178,7 +186,10 @@ public class JobInvocationAsyncFacts : IDisposable
         protected override async Task<object> InterceptAsync(JobInvocation invocation)
         {
             // Before the fix the interceptor entered itself again and again; stop the test from running forever
-            if (Interlocked.Increment(ref _entries) > 10) throw new InvalidOperationException("The interceptor re-entered itself.");
+            if (Interlocked.Increment(ref _entries) > 10)
+            {
+                throw new InvalidOperationException("The interceptor re-entered itself.");
+            }
 
             await Task.Delay(10);
             return await invocation.ProceedAsync();
@@ -206,7 +217,10 @@ public class JobInvocationAsyncFacts : IDisposable
 
         public async Task<object> InterceptAsync(JobInvocation invocation)
         {
-            if (Log.Count > 20) throw new InvalidOperationException("The chain restarted.");
+            if (Log.Count > 20)
+            {
+                throw new InvalidOperationException("The chain restarted.");
+            }
 
             await Task.Yield();
             Log.Add(_name + ":before");
@@ -222,7 +236,10 @@ public class JobInvocationAsyncFacts : IDisposable
 
         protected override async Task<object> InterceptAsync(JobInvocation invocation)
         {
-            if (Interlocked.Increment(ref _entries) > 10) throw new InvalidOperationException("The interceptor re-entered itself.");
+            if (Interlocked.Increment(ref _entries) > 10)
+            {
+                throw new InvalidOperationException("The interceptor re-entered itself.");
+            }
 
             await Task.Yield();
             invocation.Arguments[0] = _value;
@@ -234,7 +251,10 @@ public class JobInvocationAsyncFacts : IDisposable
     {
         protected override async Task<object> InterceptAsync(JobInvocation invocation)
         {
-            if (Log.Count > 10) throw new InvalidOperationException("The chain restarted.");
+            if (Log.Count > 10)
+            {
+                throw new InvalidOperationException("The chain restarted.");
+            }
 
             Log.Add("inner saw " + invocation.Arguments[0]);
             return await invocation.ProceedAsync();

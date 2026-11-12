@@ -46,11 +46,21 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
 
             foreach (JobChainStepInfo step in Steps)
             {
-                if (JobChains.IsSettledState(step.State)) continue;
-                if (!IsAwaiting(step.State) || !blocked.Contains(step.Level)) return false;
+                if (JobChains.IsSettledState(step.State))
+                {
+                    continue;
+                }
+
+                if (!IsAwaiting(step.State) || !blocked.Contains(step.Level))
+                {
+                    return false;
+                }
 
                 levels ??= Steps.ToLookup(static x => x.Level);
-                if (IsAboutToBeDecided(step, levels)) return false;
+                if (IsAboutToBeDecided(step, levels))
+                {
+                    return false;
+                }
             }
 
             return true;
@@ -74,16 +84,30 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         foreach (JobChainStepInfo step in Steps)
         {
             parents.TryAdd(step.Level, step.ParentLevel);
-            if (IsFailed(step.State) || step.State == null) failed.Add(step.Level);
-            if (IsAwaiting(step.State)) waiting.Add(step.Level);
+            if (IsFailed(step.State) || step.State == null)
+            {
+                failed.Add(step.Level);
+            }
+
+            if (IsAwaiting(step.State))
+            {
+                waiting.Add(step.Level);
+            }
         }
 
         // A level always comes after the one it waits for, so the levels are decided in order
         HashSet<int> blocked = [];
         foreach ((int level, int parent) in parents)
         {
-            if (parent < 0) continue;
-            if (failed.Contains(parent) || (blocked.Contains(parent) && waiting.Contains(parent))) blocked.Add(level);
+            if (parent < 0)
+            {
+                continue;
+            }
+
+            if (failed.Contains(parent) || (blocked.Contains(parent) && waiting.Contains(parent)))
+            {
+                blocked.Add(level);
+            }
         }
 
         return blocked;
@@ -99,7 +123,10 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     {
         List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
 
-        if (JobChains.Decide(step, parents) == FanInContinuationsSupportAttribute.Decision.Undecided) return false;
+        if (JobChains.Decide(step, parents) == FanInContinuationsSupportAttribute.Decision.Undecided)
+        {
+            return false;
+        }
 
         DateTime? decidedAt = parents.Max(static x => x.FinishedAt);
         return decidedAt == null || JobClock.UtcNow - decidedAt.Value < JobChains.DecisionWindow;

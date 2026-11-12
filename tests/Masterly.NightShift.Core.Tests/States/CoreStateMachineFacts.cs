@@ -165,7 +165,11 @@ public class CoreStateMachineFacts
         Mock<IStateHandler> handler = new();
         handler.Setup(x => x.StateName).Returns(stateName);
 
-        if (!_handlers.ContainsKey(stateName)) _handlers.Add(stateName, []);
+        if (!_handlers.ContainsKey(stateName))
+        {
+            _handlers.Add(stateName, []);
+        }
+
         _handlers[stateName].Add(handler.Object);
         return handler;
     }

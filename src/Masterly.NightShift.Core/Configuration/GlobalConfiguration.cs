@@ -93,8 +93,10 @@ public static class CompatibilityLevelExtensions
             ArgumentNullException.ThrowIfNull(configuration);
 
             if (!Enum.IsDefined(compatibilityLevel))
+            {
                 throw new InvalidEnumArgumentException(nameof(compatibilityLevel), (int)compatibilityLevel,
                     typeof(CompatibilityLevel));
+            }
 
             GlobalConfiguration.CompatibilityLevel = compatibilityLevel;
 

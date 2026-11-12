@@ -80,7 +80,10 @@ public static class AuditLog
     public static void Record([NotNull] DashboardContext context, [CanBeNull] IEnumerable<string>? targets = null, [CanBeNull] string? detail = null, int status = 204)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (!Enabled) return;
+        if (!Enabled)
+        {
+            return;
+        }
 
         List<string>? targetList = targets?.Where(static t => !string.IsNullOrEmpty(t)).ToList();
 
@@ -121,9 +124,15 @@ public static class AuditLog
     public static IReadOnlyList<AuditEntry> Read([NotNull] IStorageConnection connection, int count)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
 
-        if (connection is not JobStorageConnection storageConnection) return [];
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return [];
+        }
 
         List<string> items;
         try
@@ -143,7 +152,10 @@ public static class AuditLog
             try
             {
                 AuditEntry? entry = MonitoringJson.Deserialize<AuditEntry>(item);
-                if (entry != null) result.Add(entry);
+                if (entry != null)
+                {
+                    result.Add(entry);
+                }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -158,7 +170,10 @@ public static class AuditLog
     public static long Count([NotNull] IStorageConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (connection is not JobStorageConnection storageConnection) return 0;
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return 0;
+        }
 
         try
         {
@@ -179,7 +194,10 @@ public static class AuditLog
         string path = action.Trim('/');
         foreach (KeyValuePair<string, string> pair in Descriptions)
         {
-            if (path.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase)) return pair.Value;
+            if (path.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Value;
+            }
         }
 
         return action;
@@ -245,18 +263,27 @@ public static class AuditLog
         if (entry.Targets != null)
         {
             text.Append(" on ").Append(string.Join(", ", entry.Targets));
-            if (entry.TargetCount != null) text.Append(" (").Append(entry.TargetCount.Value.ToString(CultureInfo.InvariantCulture)).Append(" targets)");
+            if (entry.TargetCount != null)
+            {
+                text.Append(" (").Append(entry.TargetCount.Value.ToString(CultureInfo.InvariantCulture)).Append(" targets)");
+            }
         }
 
         text.Append(": HTTP ").Append(entry.Status.ToString(CultureInfo.InvariantCulture));
-        if (entry.Detail != null) text.Append(", ").Append(entry.Detail);
+        if (entry.Detail != null)
+        {
+            text.Append(", ").Append(entry.Detail);
+        }
 
         // The user name, the targets and the detail (a note's text, a pause reason) come from requests: a line
         // break in them would start what looks like another entry in a plain-text log. Only the log line is
         // changed; the stored entry keeps the text as it was.
         for (int i = 0; i < text.Length; i++)
         {
-            if (char.IsControl(text[i]) || text[i] == LineSeparator || text[i] == ParagraphSeparator) text[i] = ' ';
+            if (char.IsControl(text[i]) || text[i] == LineSeparator || text[i] == ParagraphSeparator)
+            {
+                text[i] = ' ';
+            }
         }
 
         return text.Append('.').ToString();
@@ -276,7 +303,11 @@ public static class AuditLog
 
     private static string? Truncate(string? value, int max)
     {
-        if (string.IsNullOrEmpty(value)) return null;
+        if (string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
+
         return value.Length <= max ? value : value[..max];
     }
 }

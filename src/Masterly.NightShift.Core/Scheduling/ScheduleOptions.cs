@@ -108,7 +108,11 @@ public sealed class ScheduleOptions
         get;
         set
         {
-            if (value != null) EnqueuedState.ValidateQueueName(nameof(value), value);
+            if (value != null)
+            {
+                EnqueuedState.ValidateQueueName(nameof(value), value);
+            }
+
             field = value;
         }
     }

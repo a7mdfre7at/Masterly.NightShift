@@ -1633,14 +1633,21 @@ public class RecurringJobSchedulerFacts
         _stateMachine.Setup(x => x.ApplyState(It.IsAny<ApplyStateContext>()))
             .Callback<ApplyStateContext>(ctx =>
             {
-                if (fail && ctx.BackgroundJob.Id == failing) throw new InvalidOperationException("Apply state filter failed");
+                if (fail && ctx.BackgroundJob.Id == failing)
+                {
+                    throw new InvalidOperationException("Apply state filter failed");
+                }
+
                 enqueued.Add(ctx.BackgroundJob.Id);
             })
             .Returns<ApplyStateContext>(ctx => ctx.NewState);
         _transaction.Setup(x => x.SetRangeInHash($"recurring-job:{RecurringJobId}", It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, fields) =>
             {
-                foreach (KeyValuePair<string, string> field in fields) _recurringJob[field.Key] = field.Value;
+                foreach (KeyValuePair<string, string> field in fields)
+                {
+                    _recurringJob[field.Key] = field.Value;
+                }
             });
 
         CreateScheduler(delay: TimeSpan.FromMilliseconds(100)).Execute(_context.Object);
@@ -1743,7 +1750,10 @@ public class RecurringJobSchedulerFacts
 
     private void SetupConnection(bool useJobStorageConnection)
     {
-        if (useJobStorageConnection) EnableBatching();
+        if (useJobStorageConnection)
+        {
+            EnableBatching();
+        }
     }
 
     private void EnableBatching()

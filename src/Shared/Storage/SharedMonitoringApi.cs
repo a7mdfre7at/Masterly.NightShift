@@ -45,10 +45,16 @@ internal abstract class SharedMonitoringApi : JobStorageMonitor
     public override JobDetailsDto? JobDetails(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (!StorageValues.TryParseJobId(jobId, out long id)) return null;
+        if (!StorageValues.TryParseJobId(jobId, out long id))
+        {
+            return null;
+        }
 
         StoredJob? job = GetJobWithHistory(id);
-        if (job == null) return null;
+        if (job == null)
+        {
+            return null;
+        }
 
         Dictionary<string, string?> parameters = new(job.Parameters, StringComparer.Ordinal);
         Job? deserialized = job.Deserialize(out InvocationData payload, out JobLoadException? exception);

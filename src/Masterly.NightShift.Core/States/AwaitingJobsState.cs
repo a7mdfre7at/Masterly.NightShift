@@ -66,7 +66,10 @@ public sealed class AwaitingJobsState : IState
         ArgumentNullException.ThrowIfNull(nextState);
 
         ParentIds = [.. parentIds.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal)];
-        if (ParentIds.Count == 0) throw new ArgumentException("At least one parent job identifier is required.", nameof(parentIds));
+        if (ParentIds.Count == 0)
+        {
+            throw new ArgumentException("At least one parent job identifier is required.", nameof(parentIds));
+        }
 
         NextState = nextState;
         Options = options;

@@ -27,7 +27,10 @@ internal sealed class ServerFilterProvider(IJobFilterProvider inner, object filt
     {
         for (IJobFilterProvider? current = provider; current is ServerFilterProvider added; current = added.Inner)
         {
-            if (match(added.Filter)) return true;
+            if (match(added.Filter))
+            {
+                return true;
+            }
         }
 
         return false;

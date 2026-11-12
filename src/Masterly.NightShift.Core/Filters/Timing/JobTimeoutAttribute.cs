@@ -144,7 +144,11 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
     {
         lock (context.Items)
         {
-            if (context.Items.TryGetValue(ExceededItem, out object? recorded) && recorded is TimeSpan shorter && shorter <= Timeout) return;
+            if (context.Items.TryGetValue(ExceededItem, out object? recorded) && recorded is TimeSpan shorter && shorter <= Timeout)
+            {
+                return;
+            }
+
             context.Items[ExceededItem] = Timeout;
         }
 
@@ -195,8 +199,16 @@ public sealed class JobTimeoutAttribute : AsyncJobInterceptorAttribute
 
     private string FormatTimeout()
     {
-        if (Timeout.TotalSeconds < 60) return $"{Timeout.TotalSeconds:0} seconds";
-        if (Timeout.TotalMinutes < 60) return $"{Timeout.TotalMinutes:0.#} minutes";
+        if (Timeout.TotalSeconds < 60)
+        {
+            return $"{Timeout.TotalSeconds:0} seconds";
+        }
+
+        if (Timeout.TotalMinutes < 60)
+        {
+            return $"{Timeout.TotalMinutes:0.#} minutes";
+        }
+
         return $"{Timeout.TotalHours:0.#} hours";
     }
 

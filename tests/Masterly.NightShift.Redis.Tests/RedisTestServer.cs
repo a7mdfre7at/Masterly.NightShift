@@ -38,7 +38,10 @@ internal static class RedisTestServer
         foreach (IServer server in storage.Connection.GetServers().Where(static x => !x.IsReplica))
         {
             RedisKey[] keys = [.. server.Keys(database.Database, storage.Options.Prefix + "*")];
-            if (keys.Length > 0) database.KeyDelete(keys);
+            if (keys.Length > 0)
+            {
+                database.KeyDelete(keys);
+            }
         }
 
         storage.Dispose();

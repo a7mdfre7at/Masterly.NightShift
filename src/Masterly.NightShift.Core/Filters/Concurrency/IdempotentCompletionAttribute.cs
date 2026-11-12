@@ -55,7 +55,10 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
     public void OnStateElection(ElectStateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (string.IsNullOrEmpty(context.CurrentState)) return;
+        if (string.IsNullOrEmpty(context.CurrentState))
+        {
+            return;
+        }
 
         string? serializedState = context.GetJobParameter<string>(CompletionParameter, allowStale: true);
         bool completed = !string.IsNullOrEmpty(serializedState);
@@ -95,10 +98,16 @@ public class IdempotentCompletionAttribute : JobFilterAttribute, IElectStateFilt
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (string.IsNullOrEmpty(context.OldStateName) || !context.NewState.IsFinal) return;
+        if (string.IsNullOrEmpty(context.OldStateName) || !context.NewState.IsFinal)
+        {
+            return;
+        }
 
         // Only the first final state is recorded; a later one, such as a Delete, is applied as it is
-        if (!string.IsNullOrEmpty(context.GetJobParameter<string>(CompletionParameter, allowStale: true))) return;
+        if (!string.IsNullOrEmpty(context.GetJobParameter<string>(CompletionParameter, allowStale: true)))
+        {
+            return;
+        }
 
         try
         {

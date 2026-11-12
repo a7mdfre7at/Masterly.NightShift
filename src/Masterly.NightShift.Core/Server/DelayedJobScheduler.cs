@@ -176,12 +176,21 @@ public class DelayedJobScheduler : IBackgroundProcess
                 {
                     foreach (string entry in entries)
                     {
-                        if (context.IsStopping) break;
+                        if (context.IsStopping)
+                        {
+                            break;
+                        }
 
                         int colonIndex = entry.IndexOf(':');
 
-                        if (colonIndex < 0) toBeSequentiallyEnqueued.Add(entry);
-                        else toBeTransactionallyEnqueued.Add(Tuple.Create(entry, colonIndex));
+                        if (colonIndex < 0)
+                        {
+                            toBeSequentiallyEnqueued.Add(entry);
+                        }
+                        else
+                        {
+                            toBeTransactionallyEnqueued.Add(Tuple.Create(entry, colonIndex));
+                        }
 
                         jobsProcessed++;
                     }
@@ -232,12 +241,18 @@ public class DelayedJobScheduler : IBackgroundProcess
 
                 for (int i = 0; i < BatchSize; i++)
                 {
-                    if (context.IsStopping) break;
+                    if (context.IsStopping)
+                    {
+                        break;
+                    }
 
                     long timestamp = JobHelper.ToTimestamp(now);
 
                     string? entry = connection.GetFirstByLowestScoreFromSet("schedule", 0, timestamp);
-                    if (entry == null) break;
+                    if (entry == null)
+                    {
+                        break;
+                    }
 
                     int colonIndex = entry.IndexOf(':');
 

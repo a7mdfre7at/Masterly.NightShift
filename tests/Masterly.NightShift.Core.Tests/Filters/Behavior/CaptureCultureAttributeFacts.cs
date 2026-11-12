@@ -326,9 +326,14 @@ public class CaptureCultureAttributeFacts
 
         // Assert
         if (CultureInfo.CurrentCulture.Name != "xx-XX")
+        {
             Assert.Equal(CultureInfo.InvariantCulture, CultureInfo.CurrentCulture);
+        }
+
         if (CultureInfo.CurrentUICulture.Name != "yy-YY")
+        {
             Assert.Equal(CultureInfo.InvariantCulture, CultureInfo.CurrentUICulture);
+        }
     }
 
     [Fact]

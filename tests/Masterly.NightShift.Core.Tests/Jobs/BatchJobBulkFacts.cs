@@ -78,7 +78,11 @@ public class BatchJobBulkFacts
     public void RequeueFailed_HasNoTimeLimit_ByDefault()
     {
         List<(string, string)> jobs = [];
-        for (int i = 0; i < 1200; i++) jobs.Add((i.ToString(), FailedState.StateName));
+        for (int i = 0; i < 1200; i++)
+        {
+            jobs.Add((i.ToString(), FailedState.StateName));
+        }
+
         SetupBatch([.. jobs]);
 
         BulkJobResult result = BatchJob.RequeueFailed(_client.Object, _storage.Object, BatchId);

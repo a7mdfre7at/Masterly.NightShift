@@ -136,9 +136,20 @@ public static class JobHistoryRenderer
     [CanBeNull]
     private static string? FindStateColor(string stateName, IDictionary<string, string> colors)
     {
-        if (stateName == null) return null;
-        if (colors.TryGetValue(stateName, out string? color)) return color;
-        if (!StateCssSuffixes.TryGetValue(stateName, out string? suffix)) return null;
+        if (stateName == null)
+        {
+            return null;
+        }
+
+        if (colors.TryGetValue(stateName, out string? color))
+        {
+            return color;
+        }
+
+        if (!StateCssSuffixes.TryGetValue(stateName, out string? suffix))
+        {
+            return null;
+        }
 
         foreach (KeyValuePair<string, string> builtIn in colors)
         {
@@ -179,7 +190,10 @@ public static class JobHistoryRenderer
                 return DefaultRenderer(helper, properties);
             }
 
-            if (renderer == null) return null;
+            if (renderer == null)
+            {
+                return null;
+            }
 
             try
             {
@@ -201,7 +215,10 @@ public static class JobHistoryRenderer
 
     public static NonEscapedString? DefaultRenderer(HtmlHelper helper, IDictionary<string, string> stateData)
     {
-        if (stateData == null || stateData.Count == 0) return null;
+        if (stateData == null || stateData.Count == 0)
+        {
+            return null;
+        }
 
         StringBuilder builder = new();
         builder.Append("<dl class=\"dl-horizontal\">");
@@ -252,7 +269,10 @@ public static class JobHistoryRenderer
 
         builder.Append("</dl>");
 
-        if (!itemsAdded) return null;
+        if (!itemsAdded)
+        {
+            return null;
+        }
 
         return new NonEscapedString(builder.ToString());
     }
@@ -407,7 +427,10 @@ public static class JobHistoryRenderer
     [CanBeNull]
     internal static string? GetStoredTypeName([CanBeNull] string? serializedState)
     {
-        if (string.IsNullOrEmpty(serializedState)) return null;
+        if (string.IsNullOrEmpty(serializedState))
+        {
+            return null;
+        }
 
         try
         {

@@ -238,18 +238,36 @@ public class AspNetCoreDashboardMiddleware
     private static bool IsRequestOrigin(Uri origin, HttpRequest request)
     {
         HostString host = request.Host;
-        if (!host.HasValue) return false;
+        if (!host.HasValue)
+        {
+            return false;
+        }
 
-        if (!string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase)) return false;
-        if (!string.Equals(origin.Host, host.Host, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(origin.Host, host.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
 
         return origin.Port == (host.Port ?? GetDefaultPort(request.Scheme));
     }
 
     private static int GetDefaultPort(string scheme)
     {
-        if ("https".Equals(scheme, StringComparison.OrdinalIgnoreCase)) return 443;
-        if ("http".Equals(scheme, StringComparison.OrdinalIgnoreCase)) return 80;
+        if ("https".Equals(scheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return 443;
+        }
+
+        if ("http".Equals(scheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return 80;
+        }
+
         return -1;
     }
 
@@ -269,7 +287,10 @@ public class AspNetCoreDashboardMiddleware
 
     private static async Task RejectAsync(HttpContext httpContext, int statusCode, string message)
     {
-        if (httpContext.Response.HasStarted) return;
+        if (httpContext.Response.HasStarted)
+        {
+            return;
+        }
 
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "text/plain; charset=utf-8";

@@ -46,8 +46,15 @@ internal sealed class ExpirationManager : IBackgroundProcess
     public ExpirationManager(SqlServerStorage storage, TimeSpan stateExpirationTimeout, TimeSpan checkInterval)
     {
         ArgumentNullException.ThrowIfNull(storage);
-        if (stateExpirationTimeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(stateExpirationTimeout), "Timeout value should be equal to or greater than zero.");
-        if (checkInterval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(checkInterval), "Timeout value should be greater than zero.");
+        if (stateExpirationTimeout < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stateExpirationTimeout), "Timeout value should be equal to or greater than zero.");
+        }
+
+        if (checkInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(checkInterval), "Timeout value should be greater than zero.");
+        }
 
         _storage = storage;
         _stateExpirationTimeout = stateExpirationTimeout;
@@ -112,7 +119,10 @@ internal sealed class ExpirationManager : IBackgroundProcess
     private bool CanCleanUpStates(SqlServerStorage storage)
     {
         int? version = storage.DetectedSchemaVersion;
-        if (!(version < StateCleanupSchemaVersion)) return true;
+        if (!(version < StateCleanupSchemaVersion))
+        {
+            return true;
+        }
 
         if (Interlocked.Exchange(ref _oldSchemaWarningLogged, 1) == 0)
         {

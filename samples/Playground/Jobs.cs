@@ -32,7 +32,10 @@ public class ProgressJobs
         {
             await Task.Delay(1500, token);
             console.SetProgress(step * 10, $"Row {step * rows / 10} of {rows}");
-            if (step == 5) console.WriteLine(JobConsoleLevel.Warning, "3 rows skipped: missing email");
+            if (step == 5)
+            {
+                console.WriteLine(JobConsoleLevel.Warning, "3 rows skipped: missing email");
+            }
         }
 
         console.WriteLine("Import finished");
@@ -49,7 +52,11 @@ public class ProgressJobs
         });
         console.Resume("render", () =>
         {
-            if (context.GetJobParameter<int>("RetryCount") == 0) throw new InvalidOperationException("The renderer crashed: the retry resumes here");
+            if (context.GetJobParameter<int>("RetryCount") == 0)
+            {
+                throw new InvalidOperationException("The renderer crashed: the retry resumes here");
+            }
+
             console.WriteLine("Rendering");
         });
         console.Resume("upload", () => console.WriteLine("Uploading"));
@@ -80,7 +87,10 @@ public class FailureJobs
     public void RateLimitedApi(string key)
     {
         int attempt = Attempts.AddOrUpdate(key, 1, static (_, n) => n + 1);
-        if (attempt < 3) throw new RetryLaterException(TimeSpan.FromSeconds(5), $"The API's rate limit is reached (call {attempt})");
+        if (attempt < 3)
+        {
+            throw new RetryLaterException(TimeSpan.FromSeconds(5), $"The API's rate limit is reached (call {attempt})");
+        }
     }
 
     public void AlreadyPaid(int invoiceId) => throw new TerminateJobException($"Invoice {invoiceId} is already paid");
@@ -94,7 +104,10 @@ public class FailureJobs
     public void Transient(string key)
     {
         int attempt = Attempts.AddOrUpdate(key, 1, static (_, n) => n + 1);
-        if (attempt < 3) throw new TimeoutException($"Attempt {attempt} timed out");
+        if (attempt < 3)
+        {
+            throw new TimeoutException($"Attempt {attempt} timed out");
+        }
     }
 
     [JobTimeout(5, OnTimeout = JobTimeoutAction.Cancel)]
@@ -173,7 +186,10 @@ public class OrderJobs
     public void RenderInvoiceNumber(int number)
     {
         Thread.Sleep(Random.Shared.Next(300, 1500));
-        if (number == 7) throw new InvalidOperationException("Invoice 7 has no customer address");
+        if (number == 7)
+        {
+            throw new InvalidOperationException("Invoice 7 has no customer address");
+        }
     }
 
     public void BatchReport(string batchId, IJobConsole console) => console.WriteLine($"Batch {batchId} finished");

@@ -184,7 +184,11 @@ namespace Masterly.NightShift.Core.Tests.Server
             int attempts = 0;
             stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>())).Returns(() =>
             {
-                if (++attempts == 1) throw new InvalidOperationException("deadlock victim");
+                if (++attempts == 1)
+                {
+                    throw new InvalidOperationException("deadlock victim");
+                }
+
                 return new ScheduledState(DateTime.UtcNow);
             });
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);
@@ -206,7 +210,11 @@ namespace Masterly.NightShift.Core.Tests.Server
             int attempts = 0;
             stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(c => c.ExpectedStates.Contains(ProcessingState.StateName)))).Returns(() =>
             {
-                if (++attempts == 1) throw new TimeoutException("the commit's answer was lost");
+                if (++attempts == 1)
+                {
+                    throw new TimeoutException("the commit's answer was lost");
+                }
+
                 return null;
             });
             _context.CancellationToken.Setup(x => x.ShutdownToken).Returns(CancellationToken.None);

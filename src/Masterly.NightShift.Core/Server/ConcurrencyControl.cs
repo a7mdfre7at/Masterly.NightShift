@@ -98,7 +98,11 @@ internal static class ConcurrencyControl
         ParameterInfo[] parameters = job.Method.GetParameters();
         for (int i = 0; i < parameters.Length; i++)
         {
-            if (i > 0) builder.Append(',');
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
             AppendTypeName(builder, parameters[i].ParameterType);
         }
 
@@ -167,7 +171,11 @@ internal static class ConcurrencyControl
 
         for (int i = 0; i < count; i++)
         {
-            if (i > 0) builder.Append(',');
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
             AppendTypeName(builder, arguments[start + i]);
         }
 
@@ -196,11 +204,17 @@ internal static class ConcurrencyControl
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxLength, HashLength + 2);
-        if (resource.Length <= maxLength) return resource;
+        if (resource.Length <= maxLength)
+        {
+            return resource;
+        }
 
         // "{prefix}~{hash}" is exactly maxLength characters long; a surrogate pair is never cut in two
         int prefixLength = maxLength - HashLength - 1;
-        if (char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
+        if (char.IsHighSurrogate(resource[prefixLength - 1]))
+        {
+            prefixLength--;
+        }
 
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
         StringBuilder builder = new(maxLength);
@@ -376,8 +390,15 @@ internal static class ConcurrencyControl
     /// </summary>
     public static void Wait(PerformContext context, TimeSpan delay)
     {
-        if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
-        if (delay > MaxWait) delay = MaxWait;
+        if (delay < TimeSpan.Zero)
+        {
+            delay = TimeSpan.Zero;
+        }
+
+        if (delay > MaxWait)
+        {
+            delay = MaxWait;
+        }
 
         context.CancellationToken.ShutdownToken.WaitHandle.WaitOne(delay);
         context.CancellationToken.ShutdownToken.ThrowIfCancellationRequested();

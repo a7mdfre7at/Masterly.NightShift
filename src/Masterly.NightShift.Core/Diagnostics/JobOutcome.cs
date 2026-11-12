@@ -48,13 +48,22 @@ internal static class JobOutcomes
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.Canceled) return JobOutcome.Canceled;
+        if (context.Canceled)
+        {
+            return JobOutcome.Canceled;
+        }
 
         Exception? exception = context.Exception;
-        if (exception == null || context.ExceptionHandled) return JobOutcome.Succeeded;
+        if (exception == null || context.ExceptionHandled)
+        {
+            return JobOutcome.Succeeded;
+        }
 
         // A state change (deletion, requeue, ...) aborted the job while it ran
-        if (exception is JobAbortedException) return JobOutcome.Canceled;
+        if (exception is JobAbortedException)
+        {
+            return JobOutcome.Canceled;
+        }
 
         // The performer lets an OperationCanceledException through unwrapped when the server is shutting down,
         // and the job is enqueued again. One the job threw for any other reason arrives wrapped in a
@@ -65,7 +74,10 @@ internal static class JobOutcomes
         }
 
         Exception thrown = Unwrap(exception);
-        if (thrown is RetryLaterException) return JobOutcome.RetryLater;
+        if (thrown is RetryLaterException)
+        {
+            return JobOutcome.RetryLater;
+        }
 
         if (TerminateJobFilter.Find(exception) is { } terminate)
         {

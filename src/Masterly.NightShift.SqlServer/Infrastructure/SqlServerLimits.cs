@@ -57,8 +57,15 @@ internal static class SqlServerLimits
     /// <summary>The expiration time <paramref name="expireIn"/> after <paramref name="from"/>, kept within the range of the <c>ExpireAt</c> columns.</summary>
     public static DateTime GetExpireAt(DateTime from, TimeSpan expireIn)
     {
-        if (expireIn >= MaxExpireAt - from) return MaxExpireAt;
-        if (expireIn <= MinExpireAt - from) return MinExpireAt;
+        if (expireIn >= MaxExpireAt - from)
+        {
+            return MaxExpireAt;
+        }
+
+        if (expireIn <= MinExpireAt - from)
+        {
+            return MinExpireAt;
+        }
 
         return from.Add(expireIn);
     }
@@ -71,11 +78,17 @@ internal static class SqlServerLimits
     /// </summary>
     public static string GetLockResource(string resource)
     {
-        if (resource.Length <= LockResourceLength) return resource;
+        if (resource.Length <= LockResourceLength)
+        {
+            return resource;
+        }
 
         // "{prefix}~{hash}" is exactly LockResourceLength characters long; a surrogate pair is never cut in two
         int prefixLength = LockResourceLength - LockResourceHashLength - 1;
-        if (char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
+        if (char.IsHighSurrogate(resource[prefixLength - 1]))
+        {
+            prefixLength--;
+        }
 
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
         StringBuilder builder = new(LockResourceLength);
@@ -111,7 +124,10 @@ internal static class SqlServerLimits
 
     public static void EnsureHashFieldFits(string key, string field)
     {
-        if (field == null) throw new ArgumentNullException(nameof(field), $"A hash field name can't be null (hash '{Shorten(key)}').");
+        if (field == null)
+        {
+            throw new ArgumentNullException(nameof(field), $"A hash field name can't be null (hash '{Shorten(key)}').");
+        }
 
         if (field.Length > HashFieldLength)
         {
@@ -123,7 +139,10 @@ internal static class SqlServerLimits
 
     public static void EnsureJobParameterNameFits(string name)
     {
-        if (name == null) throw new ArgumentNullException(nameof(name), "A job parameter name can't be null.");
+        if (name == null)
+        {
+            throw new ArgumentNullException(nameof(name), "A job parameter name can't be null.");
+        }
 
         if (name.Length > JobParameterNameLength)
         {
@@ -135,7 +154,10 @@ internal static class SqlServerLimits
 
     public static void EnsureStateNameFits(string name)
     {
-        if (name == null) throw new ArgumentNullException(nameof(name), "A state name can't be null.");
+        if (name == null)
+        {
+            throw new ArgumentNullException(nameof(name), "A state name can't be null.");
+        }
 
         if (name.Length > StateNameLength)
         {

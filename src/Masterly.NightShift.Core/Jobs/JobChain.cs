@@ -87,7 +87,10 @@ public sealed partial class JobChain
         JobChainBranches group = new();
         branches(group);
 
-        if (group.Steps.Count == 0) throw new ArgumentException("A group needs at least one branch.", nameof(branches));
+        if (group.Steps.Count == 0)
+        {
+            throw new ArgumentException("A group needs at least one branch.", nameof(branches));
+        }
 
         foreach (ChainStep step in group.Steps)
         {
@@ -143,7 +146,10 @@ public sealed partial class JobChain
     // A step after a level of several steps is a fan-in continuation, which can't wait for every outcome
     private void CheckFanIn(JobContinuationOptions options, string parameterName)
     {
-        if (_levels[^1].Steps.Count > 1) JobChains.FanInFor(options, parameterName);
+        if (_levels[^1].Steps.Count > 1)
+        {
+            JobChains.FanInFor(options, parameterName);
+        }
     }
 
     // Consecutive joins wait for the same level: the one before the first of them
@@ -162,7 +168,11 @@ public sealed partial class JobChain
 
     private JobChain AddLevel(ChainLevelKind kind, List<ChainStep> steps)
     {
-        if (_levels.Count >= MaxLevels) throw new InvalidOperationException($"A chain has at most {MaxLevels} levels.");
+        if (_levels.Count >= MaxLevels)
+        {
+            throw new InvalidOperationException($"A chain has at most {MaxLevels} levels.");
+        }
+
         CheckStepLimit(steps.Count);
 
         _levels.Add(new ChainLevel(_levels.Count - 1, kind, steps));
@@ -171,14 +181,20 @@ public sealed partial class JobChain
 
     private void CheckStepLimit(int adding)
     {
-        if (StepCount + adding > MaxSteps) throw new InvalidOperationException($"A chain has at most {MaxSteps} steps.");
+        if (StepCount + adding > MaxSteps)
+        {
+            throw new InvalidOperationException($"A chain has at most {MaxSteps} steps.");
+        }
     }
 
     internal static void CheckOptions(JobContinuationOptions options, string parameterName)
     {
         const JobContinuationOptions all = JobContinuationOptions.OnlyOnSucceededState | JobContinuationOptions.OnlyOnDeletedState |
                                            JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnProcessingState;
-        if ((options & ~all) != 0) throw new ArgumentOutOfRangeException(parameterName, options, "Not a combination of JobContinuationOptions flags.");
+        if ((options & ~all) != 0)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, options, "Not a combination of JobContinuationOptions flags.");
+        }
     }
 
     /// <summary>Rebuilds a chain from its definition, as <see cref="JobChains.ToDefinition"/> wrote it.</summary>

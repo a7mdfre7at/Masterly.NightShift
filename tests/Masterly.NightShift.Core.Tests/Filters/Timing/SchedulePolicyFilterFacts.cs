@@ -382,8 +382,15 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     private CreatingContext Creating(IState state, string policy, WhenBlocked? whenBlocked)
     {
         Dictionary<string, object> parameters = [];
-        if (policy != null) parameters[ScheduleOptions.PolicyParameter] = policy;
-        if (whenBlocked.HasValue) parameters[ScheduleOptions.WhenBlockedParameter] = whenBlocked.Value.ToString();
+        if (policy != null)
+        {
+            parameters[ScheduleOptions.PolicyParameter] = policy;
+        }
+
+        if (whenBlocked.HasValue)
+        {
+            parameters[ScheduleOptions.WhenBlockedParameter] = whenBlocked.Value.ToString();
+        }
 
         return new CreatingContext(new CreateContext(
             _storage.Object,
@@ -396,9 +403,20 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     private ElectStateContextMock Electing(IState candidate, string policy, WhenBlocked? whenBlocked, int? failedChecks = null)
     {
         Dictionary<string, string> snapshot = [];
-        if (policy != null) snapshot[ScheduleOptions.PolicyParameter] = SerializationHelper.Serialize(policy);
-        if (whenBlocked.HasValue) snapshot[ScheduleOptions.WhenBlockedParameter] = SerializationHelper.Serialize(whenBlocked.Value.ToString());
-        if (failedChecks.HasValue) snapshot[SchedulePolicyFilter.CheckAttemptsParameter] = SerializationHelper.Serialize(failedChecks.Value);
+        if (policy != null)
+        {
+            snapshot[ScheduleOptions.PolicyParameter] = SerializationHelper.Serialize(policy);
+        }
+
+        if (whenBlocked.HasValue)
+        {
+            snapshot[ScheduleOptions.WhenBlockedParameter] = SerializationHelper.Serialize(whenBlocked.Value.ToString());
+        }
+
+        if (failedChecks.HasValue)
+        {
+            snapshot[SchedulePolicyFilter.CheckAttemptsParameter] = SerializationHelper.Serialize(failedChecks.Value);
+        }
 
         ElectStateContextMock context = new();
         context.ApplyContext.Storage = _storage.Storage;

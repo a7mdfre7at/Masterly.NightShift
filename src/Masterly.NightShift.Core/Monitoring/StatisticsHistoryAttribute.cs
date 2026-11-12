@@ -34,7 +34,10 @@ public sealed class StatisticsHistoryAttribute : JobFilterAttribute, IElectState
     public void OnStateElection(ElectStateContext context)
     {
         // A step put back into the state it was in (a retry of its chain that failed) was counted the first time
-        if (context.CandidateState is JobChains.RestoredState) return;
+        if (context.CandidateState is JobChains.RestoredState)
+        {
+            return;
+        }
 
         if (context.CandidateState.Name == SucceededState.StateName)
         {

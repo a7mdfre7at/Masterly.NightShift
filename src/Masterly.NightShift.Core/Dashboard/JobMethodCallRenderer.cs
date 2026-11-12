@@ -233,7 +233,10 @@ internal static class JobMethodCallRenderer
 
     private static Type? GetIEnumerableGenericArgument(Type type)
     {
-        if (type == typeof(string)) return null;
+        if (type == typeof(string))
+        {
+            return null;
+        }
 
         return type.GetTypeInfo().ImplementedInterfaces
             .Where(static x => x.GetTypeInfo().IsGenericType
@@ -376,7 +379,10 @@ internal static class JobMethodCallRenderer
 
         private static bool IsNumericType(Type? type)
         {
-            if (type == null) return false;
+            if (type == null)
+            {
+                return false;
+            }
 
             switch (type.GetTypeCode())
             {

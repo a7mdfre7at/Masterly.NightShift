@@ -107,7 +107,10 @@ public class JobFilterProviderCollection : Collection<IJobFilterProvider>, IJobF
                 || (provider.GetType() == typeof(JobFilterAttributeFilterProvider)
                     && ((JobFilterAttributeFilterProvider)provider).CachesAttributeInstances);
 
-            if (!builtIn) return false;
+            if (!builtIn)
+            {
+                return false;
+            }
         }
 
         return true;

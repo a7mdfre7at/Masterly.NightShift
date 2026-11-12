@@ -55,7 +55,10 @@ internal sealed class SqlServerConnection : JobStorageConnection
 
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
-        if (queues == null || queues.Length == 0) throw new ArgumentNullException(nameof(queues));
+        if (queues == null || queues.Length == 0)
+        {
+            throw new ArgumentNullException(nameof(queues));
+        }
 
         IPersistentJobQueueProvider[] providers = [.. queues
             .Select(Storage.QueueProviders.GetProvider)
@@ -132,7 +135,10 @@ internal sealed class SqlServerConnection : JobStorageConnection
             while (start + count < inserts.Count)
             {
                 int needed = 4 + (inserts[start + count].Parameters.Count * 2);
-                if (count > 0 && parameterCount + needed > MaxBulkParameters) break;
+                if (count > 0 && parameterCount + needed > MaxBulkParameters)
+                {
+                    break;
+                }
 
                 parameterCount += needed;
                 count++;
@@ -197,7 +203,10 @@ internal sealed class SqlServerConnection : JobStorageConnection
                 index++;
             }
 
-            if (index > 0) query.Append("; ");
+            if (index > 0)
+            {
+                query.Append("; ");
+            }
         }
 
         // A job without a state is invisible, and the commit of its first state stores it too
@@ -438,7 +447,10 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
 
             using SqlMapper.GridReader multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: storage.CommandTimeout);
             dynamic? jobData = multi.ReadSingleOrDefault();
-            if (jobData == null) return null;
+            if (jobData == null)
+            {
+                return null;
+            }
 
             Dictionary<string, string> parameters = [];
 
@@ -524,7 +536,10 @@ $@"insert into [{schemaName}].JobParameter (JobId, Name, Value) values (@jobId, 
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
         SqlServerLimits.EnsureJobParameterNameFits(name);
-        if (!TryParseJobId(id, out long parsedId)) return;
+        if (!TryParseJobId(id, out long parsedId))
+        {
+            return;
+        }
 
         // First updated is required for older schema versions (5 and below), where
         // [IX_HangFire_JobParameter_JobIdAndName] index wasn't declared as unique,
@@ -601,8 +616,15 @@ $@"select Value from [{schemaName}].[Set] with (forceseek) where [Key] = @key");
     public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
-        if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        if (count <= 0)
+        {
+            throw new ArgumentException("The value must be a positive number", nameof(count));
+        }
+
+        if (toScore < fromScore)
+        {
+            throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        }
 
         return Storage.UseConnection(DedicatedConnection, static (storage, connection, pair) =>
         {
@@ -887,7 +909,10 @@ $@"update [{schemaName}].Server set LastHeartbeat = sysutcdatetime() where Id = 
 $@"select min([ExpireAt]) from [{schemaName}].[Set] with (forceseek) where [Key] = @key");
 
             DateTime? result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
-            if (!result.HasValue) return TimeSpan.FromSeconds(-1);
+            if (!result.HasValue)
+            {
+                return TimeSpan.FromSeconds(-1);
+            }
 
             return result.Value - JobClock.UtcNow;
         }, key);
@@ -937,7 +962,10 @@ $@"select count(*) from [{schemaName}].Hash with (forceseek) where [Key] = @key"
 $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] = @key");
 
             DateTime? result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
-            if (!result.HasValue) return TimeSpan.FromSeconds(-1);
+            if (!result.HasValue)
+            {
+                return TimeSpan.FromSeconds(-1);
+            }
 
             return result.Value - JobClock.UtcNow;
         }, key);
@@ -991,7 +1019,10 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
                 """);
 
             DateTime? result = connection.ExecuteScalar<DateTime?>(query, new { key }, commandTimeout: storage.CommandTimeout);
-            if (!result.HasValue) return TimeSpan.FromSeconds(-1);
+            if (!result.HasValue)
+            {
+                return TimeSpan.FromSeconds(-1);
+            }
 
             return result.Value - JobClock.UtcNow;
         }, key);
@@ -1134,14 +1165,21 @@ $@"select min([ExpireAt]) from [{schemaName}].Hash with (forceseek) where [Key] 
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
             _connection.ReleaseLock(Resource, _lockId, true, ReleasedExternally);
         }
 
         public void TryReportReleased()
         {
-            if (OwnLock) ReleasedExternally = true;
+            if (OwnLock)
+            {
+                ReleasedExternally = true;
+            }
         }
     }
 }

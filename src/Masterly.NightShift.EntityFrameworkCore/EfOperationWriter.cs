@@ -29,17 +29,32 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                 break;
 
             case RemoveFromQueueOperation removal:
-                if (!immediate) throw new NotSupportedException("Fetched jobs are acknowledged by the storage, not in an application's context.");
+                if (!immediate)
+                {
+                    throw new NotSupportedException("Fetched jobs are acknowledged by the storage, not in an application's context.");
+                }
+
                 EfFetchedJob fetched = (EfFetchedJob)removal.FetchedJob; // This storage only fetches its own jobs
                 Flush();
                 context.Set<JobQueueRow>().Where(x => x.Id == fetched.EntryId && x.FetchToken == fetched.Token).ExecuteDelete();
                 break;
 
             case SetJobParameterOperation parameter:
-                if (!JobExists(parameter.JobId)) break;
+                if (!JobExists(parameter.JobId))
+                {
+                    break;
+                }
+
                 JobParameterRow? existing = Revive(context.Set<JobParameterRow>().Find(parameter.JobId, parameter.Name));
-                if (existing != null) existing.Value = parameter.Value;
-                else context.Add(new JobParameterRow { JobId = parameter.JobId, Name = parameter.Name, Value = parameter.Value });
+                if (existing != null)
+                {
+                    existing.Value = parameter.Value;
+                }
+                else
+                {
+                    context.Add(new JobParameterRow { JobId = parameter.JobId, Name = parameter.Name, Value = parameter.Value });
+                }
+
                 break;
 
             case CounterOperation counter:
@@ -51,11 +66,19 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                 break;
 
             case AddRangeToSetOperation range:
-                foreach (string value in range.Values) AddToSet(range.Key, value, 0.0, keepScore: true);
+                foreach (string value in range.Values)
+                {
+                    AddToSet(range.Key, value, 0.0, keepScore: true);
+                }
+
                 break;
 
             case RemoveFromSetOperation remove:
-                if (Revive(context.Set<SetRow>().Find(remove.Key, remove.Value)) is { } removed) context.Remove(removed);
+                if (Revive(context.Set<SetRow>().Find(remove.Key, remove.Value)) is { } removed)
+                {
+                    context.Remove(removed);
+                }
+
                 break;
 
             case RemoveSetOperation removeSet:
@@ -81,8 +104,14 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                 foreach (KeyValuePair<string, string> field in hash.Fields)
                 {
                     HashRow? row = Revive(context.Set<HashRow>().Find(hash.Key, field.Key));
-                    if (row != null) row.Value = field.Value;
-                    else context.Add(new HashRow { Key = hash.Key, Field = field.Key, Value = field.Value, ExpireAt = HashExpireAt(hash.Key) });
+                    if (row != null)
+                    {
+                        row.Value = field.Value;
+                    }
+                    else
+                    {
+                        context.Add(new HashRow { Key = hash.Key, Field = field.Key, Value = field.Value, ExpireAt = HashExpireAt(hash.Key) });
+                    }
                 }
 
                 break;
@@ -103,7 +132,10 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
     /// <summary>Saves what is tracked so far, when applying at once.</summary>
     public void Flush()
     {
-        if (immediate) context.SaveChanges();
+        if (immediate)
+        {
+            context.SaveChanges();
+        }
     }
 
     private void ExpireJob(ExpireJobOperation expire)
@@ -138,11 +170,18 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                     .SetProperty(x => x.StateChangedAt, add.State.CreatedAt)) > 0
                 : context.Set<JobRow>().Any(x => x.Id == add.JobId);
 
-            if (exists) AddStateRow(add, reason);
+            if (exists)
+            {
+                AddStateRow(add, reason);
+            }
+
             return;
         }
 
-        if (context.Set<JobRow>().Find(add.JobId) is not { } job) return;
+        if (context.Set<JobRow>().Find(add.JobId) is not { } job)
+        {
+            return;
+        }
 
         AddStateRow(add, reason);
         if (add.SetCurrent)
@@ -194,8 +233,15 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         }
 
         Func<TRow, bool> matches = predicate.Compile();
-        foreach (TRow row in context.Set<TRow>().Local.Where(matches).ToList()) context.Remove(row);
-        foreach (TRow row in context.Set<TRow>().Where(predicate).ToList()) context.Remove(row);
+        foreach (TRow row in context.Set<TRow>().Local.Where(matches).ToList())
+        {
+            context.Remove(row);
+        }
+
+        foreach (TRow row in context.Set<TRow>().Where(predicate).ToList())
+        {
+            context.Remove(row);
+        }
     }
 
     /// <summary>Keeps the items from position <c>KeepStartingFrom</c> to <c>KeepEndingAt</c>, newest first, and removes the others.</summary>
@@ -223,7 +269,10 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
 
         for (int i = 0; i < added.Count + saved.Count; i++)
         {
-            if (i >= trim.KeepStartingFrom && i <= trim.KeepEndingAt) continue;
+            if (i >= trim.KeepStartingFrom && i <= trim.KeepEndingAt)
+            {
+                continue;
+            }
 
             if (i < added.Count)
             {
@@ -250,7 +299,10 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         // The ids are read before anything is deleted. Items another transaction inserts meanwhile are newer than
         // the newest one read, so they are never deleted.
         long? newest = IdAt(list, 0);
-        if (newest == null) return;
+        if (newest == null)
+        {
+            return;
+        }
 
         // Nothing is kept from a range that is empty or starts past the end; everything from the newest kept item
         // on is kept when the range ends past the end
@@ -262,8 +314,15 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         }
 
         long? oldestKept = IdAt(list, trim.KeepEndingAt);
-        if (newestKept != newest) list.Where(x => x.Id > newestKept && x.Id <= newest).ExecuteDelete();
-        if (oldestKept != null) list.Where(x => x.Id < oldestKept).ExecuteDelete();
+        if (newestKept != newest)
+        {
+            list.Where(x => x.Id > newestKept && x.Id <= newest).ExecuteDelete();
+        }
+
+        if (oldestKept != null)
+        {
+            list.Where(x => x.Id < oldestKept).ExecuteDelete();
+        }
     }
 
     // The id of the item at a position, newest first
@@ -291,13 +350,25 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                 context.Set<HashRow>().Where(x => x.Key == expire.Key).ExecuteUpdate(s => s.SetProperty(x => x.ExpireAt, expireAt));
                 break;
             case KeyKind.Set:
-                foreach (SetRow row in Tracked<SetRow>(x => x.Key == expire.Key)) row.ExpireAt = expireAt;
+                foreach (SetRow row in Tracked<SetRow>(x => x.Key == expire.Key))
+                {
+                    row.ExpireAt = expireAt;
+                }
+
                 break;
             case KeyKind.List:
-                foreach (ListRow row in Tracked<ListRow>(x => x.Key == expire.Key)) row.ExpireAt = expireAt;
+                foreach (ListRow row in Tracked<ListRow>(x => x.Key == expire.Key))
+                {
+                    row.ExpireAt = expireAt;
+                }
+
                 break;
             default:
-                foreach (HashRow row in Tracked<HashRow>(x => x.Key == expire.Key)) row.ExpireAt = expireAt;
+                foreach (HashRow row in Tracked<HashRow>(x => x.Key == expire.Key))
+                {
+                    row.ExpireAt = expireAt;
+                }
+
                 break;
         }
     }

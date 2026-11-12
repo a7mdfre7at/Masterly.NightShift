@@ -7,6 +7,9 @@ indent_size = 4
 # Code style. The build enforces every rule set to warning (EnforceCodeStyleInBuild in Directory.Build.props), and
 # TreatWarningsAsErrors turns them into errors for the libraries. `dotnet format style` applies most of them.
 [*.cs]
+# A guide for editors only: no analyzer enforces it
+max_line_length = 120
+
 # Namespaces and usings
 csharp_style_namespace_declarations = file_scoped:warning
 csharp_using_directive_placement = outside_namespace:warning
@@ -68,6 +71,9 @@ csharp_style_prefer_utf8_string_literals = true:warning
 dotnet_diagnostic.IDE0230.severity = warning
 
 # Statements
+# Every if, else, for, foreach, while, using, lock and fixed body has braces
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning
 csharp_prefer_simple_using_statement = true:warning
 dotnet_diagnostic.IDE0063.severity = warning
 csharp_style_prefer_switch_expression = true:warning

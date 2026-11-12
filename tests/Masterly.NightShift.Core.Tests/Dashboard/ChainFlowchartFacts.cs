@@ -158,7 +158,10 @@ public class ChainFlowchartFacts
         JobChain definition = JobChain.StartWith(() => Step("root"))
             .ThenMany(g =>
             {
-                for (int i = 0; i < ChainFlowchart.MaxSteps; i++) g.Branch(() => Step("branch"));
+                for (int i = 0; i < ChainFlowchart.MaxSteps; i++)
+                {
+                    g.Branch(() => Step("branch"));
+                }
             })
             .Then(() => Step("last"));
         List<string> ids = [.. Enumerable.Range(0, ChainFlowchart.MaxSteps + 2).Select(static i => i.ToString(CultureInfo.InvariantCulture))];
@@ -369,7 +372,10 @@ public class ChainFlowchartFacts
         List<string> keys = [];
         for (int level = 0; level < definition.Levels.Count; level++)
         {
-            for (int i = 0; i < definition.Levels[level].Steps.Count; i++) keys.Add($"{level}.{i}");
+            for (int i = 0; i < definition.Levels[level].Steps.Count; i++)
+            {
+                keys.Add($"{level}.{i}");
+            }
         }
 
         string jobs = "{" + string.Join(",", keys.Zip(jobIds, static (key, id) => $"\"{key}\":\"{id}\"")) + "}";
@@ -392,7 +398,10 @@ public class ChainFlowchartFacts
     private static JobDetailsDto Details(string jobId, string name, int retries, StateHistoryDto[] history)
     {
         Dictionary<string, string> properties = [];
-        if (retries > 0) properties["RetryCount"] = retries.ToString(CultureInfo.InvariantCulture);
+        if (retries > 0)
+        {
+            properties["RetryCount"] = retries.ToString(CultureInfo.InvariantCulture);
+        }
 
         return new JobDetailsDto
         {
@@ -418,7 +427,11 @@ public class ChainFlowchartFacts
     private static int CountOf(string text, string needle)
     {
         int count = 0;
-        for (int index = text.IndexOf(needle, StringComparison.Ordinal); index >= 0; index = text.IndexOf(needle, index + 1, StringComparison.Ordinal)) count++;
+        for (int index = text.IndexOf(needle, StringComparison.Ordinal); index >= 0; index = text.IndexOf(needle, index + 1, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
         return count;
     }
 }

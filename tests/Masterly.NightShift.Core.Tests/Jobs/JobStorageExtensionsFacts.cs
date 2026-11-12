@@ -327,7 +327,10 @@ public class JobStorageExtensionsFacts
     private void SetupState(string name, string result)
     {
         Dictionary<string, string> data = [];
-        if (result != null) data["Result"] = result;
+        if (result != null)
+        {
+            data["Result"] = result;
+        }
 
         _connection.Setup(x => x.GetStateData(JobId)).Returns(new StateData { Name = name, Data = data });
     }

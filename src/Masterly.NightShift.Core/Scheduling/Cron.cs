@@ -59,7 +59,10 @@ public static class Cron
     /// <param name="cronExpression">The expression.</param>
     public static string? TryDescribe(string? cronExpression)
     {
-        if (cronExpression == null) return null;
+        if (cronExpression == null)
+        {
+            return null;
+        }
 
         try
         {
@@ -364,7 +367,11 @@ public static class Cron
             return !Divides(seconds, SecondsPerMinute) ? null : seconds == 1 ? "* * * * * *" : $"*/{seconds} * * * * *";
         }
 
-        if (seconds % SecondsPerMinute != 0) return null;
+        if (seconds % SecondsPerMinute != 0)
+        {
+            return null;
+        }
+
         long minutes = seconds / SecondsPerMinute;
 
         if (minutes < MinutesPerHour)
@@ -372,7 +379,11 @@ public static class Cron
             return !Divides(minutes, MinutesPerHour) ? null : minutes == 1 ? Minutely() : $"*/{minutes} * * * *";
         }
 
-        if (minutes % MinutesPerHour != 0) return null;
+        if (minutes % MinutesPerHour != 0)
+        {
+            return null;
+        }
+
         long hours = minutes / MinutesPerHour;
 
         if (hours < HoursPerDay)

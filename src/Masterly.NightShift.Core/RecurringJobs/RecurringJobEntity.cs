@@ -276,7 +276,10 @@ internal sealed class RecurringJobEntity
         DateTime? newStartAt = Normalize(startAt);
         DateTime? newEndAt = Normalize(endAt);
 
-        if (newStartAt == StartAt && newEndAt == EndAt) return false;
+        if (newStartAt == StartAt && newEndAt == EndAt)
+        {
+            return false;
+        }
 
         StartAt = newStartAt;
         EndAt = newEndAt;
@@ -302,7 +305,11 @@ internal sealed class RecurringJobEntity
 
     private static DateTime? Latest(DateTime? first, DateTime? second)
     {
-        if (first.HasValue && second.HasValue) return first > second ? first : second;
+        if (first.HasValue && second.HasValue)
+        {
+            return first > second ? first : second;
+        }
+
         return first ?? second;
     }
 
@@ -366,7 +373,10 @@ internal sealed class RecurringJobEntity
             // Only the occurrences inside the window can run, so the older ones aren't even looked at: a job
             // that runs every second doesn't walk through a long outage occurrence by occurrence
             DateTime windowStart = now - SkipAfter.Value;
-            if (windowStart.AddSeconds(-1) > from) from = windowStart.AddSeconds(-1);
+            if (windowStart.AddSeconds(-1) > from)
+            {
+                from = windowStart.AddSeconds(-1);
+            }
         }
 
         // Before the window opens, the first occurrence is the first one at or after its start, so no
@@ -429,7 +439,10 @@ internal sealed class RecurringJobEntity
                 }
             }
 
-            if (deferredTo.HasValue || search.Stopped) break;
+            if (deferredTo.HasValue || search.Stopped)
+            {
+                break;
+            }
         }
 
         if (search.Failure is { } failure)
@@ -519,7 +532,10 @@ internal sealed class RecurringJobEntity
         // whole: the search moves to the next instant the policy allows and takes the first occurrence from there.
         public DateTime? SkipBlocked(DateTime? occurrence)
         {
-            if (calendar == null || !occurrence.HasValue) return occurrence;
+            if (calendar == null || !occurrence.HasValue)
+            {
+                return occurrence;
+            }
 
             DateTime limit = occurrence.Value + SchedulePolicyCalendar.SearchHorizon;
 
@@ -532,25 +548,45 @@ internal sealed class RecurringJobEntity
                     return occurrence;
                 }
 
-                if (!found.Allowed.HasValue) break;
-                if (found.Allowed.Value == occurrence.Value) return occurrence;
+                if (!found.Allowed.HasValue)
+                {
+                    break;
+                }
+
+                if (found.Allowed.Value == occurrence.Value)
+                {
+                    return occurrence;
+                }
 
                 occurrence = cron.GetNextOccurrence(found.Allowed.Value, timeZone, inclusive: true);
             }
 
             // No occurrence the policy allows in sight. A schedule that has no more occurrences just ends.
-            if (occurrence.HasValue) NeverAllowed = true;
+            if (occurrence.HasValue)
+            {
+                NeverAllowed = true;
+            }
+
             return occurrence;
         }
 
         // The first instant at or after the given one that the policy allows
         public DateTime? NextAllowed(DateTime instant)
         {
-            if (calendar == null) return instant;
+            if (calendar == null)
+            {
+                return instant;
+            }
 
             SchedulePolicySearchResult found = calendar.Search(instant);
-            if (found.Failure != null) Failure = found.Failure;
-            else if (!found.Allowed.HasValue) NeverAllowed = true;
+            if (found.Failure != null)
+            {
+                Failure = found.Failure;
+            }
+            else if (!found.Allowed.HasValue)
+            {
+                NeverAllowed = true;
+            }
 
             return found.Allowed;
         }
@@ -711,7 +747,11 @@ internal sealed class RecurringJobEntity
 
         if (serialized == null)
         {
-            if (stored != null) result.Add(field, string.Empty);
+            if (stored != null)
+            {
+                result.Add(field, string.Empty);
+            }
+
             return;
         }
 

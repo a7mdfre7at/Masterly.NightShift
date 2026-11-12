@@ -48,7 +48,10 @@ public sealed class JobMonitorsFacts : IDisposable
         (JobMonitorState state, string reason) = monitor.Evaluate(data, Morning.Date.AddHours(hour), _storage.Object);
 
         Assert.Equal(expected, state.ToString());
-        if (state == JobMonitorState.NeedsAttention) Assert.Equal("No job of Reports.Build succeeded today by 07:00 (UTC).", reason);
+        if (state == JobMonitorState.NeedsAttention)
+        {
+            Assert.Equal("No job of Reports.Build succeeded today by 07:00 (UTC).", reason);
+        }
     }
 
     [Fact]

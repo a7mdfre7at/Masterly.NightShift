@@ -49,7 +49,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         while (true)
         {
@@ -76,7 +79,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return;
+        }
 
         storage.Evaluate(RedisScripts.Apply, "param", jobId, name, RedisValues.Encode(value));
     }
@@ -85,7 +91,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return null;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return null;
+        }
 
         return RedisValues.Decode(Database.HashGet(storage.Key($"job:{jobId}:params"), name));
     }
@@ -93,10 +102,16 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override JobData? GetJobData(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (!StorageValues.TryParseJobId(jobId, out long id)) return null;
+        if (!StorageValues.TryParseJobId(jobId, out long id))
+        {
+            return null;
+        }
 
         StoredJob? job = ReadJob(id);
-        if (job == null) return null;
+        if (job == null)
+        {
+            return null;
+        }
 
         job.Parameters = RedisValues.ToParameters([.. Database.HashGetAll(storage.Key($"job:{id}:params")).SelectMany(static x => new[] { RedisResult.Create(x.Name), RedisResult.Create(x.Value) })]);
         return job.ToJobData();
@@ -105,7 +120,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override StateData? GetStateData(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (!StorageValues.TryParseJobId(jobId, out long id)) return null;
+        if (!StorageValues.TryParseJobId(jobId, out long id))
+        {
+            return null;
+        }
 
         StoredState? state = RedisValues.DeserializeState(Database.HashGet(storage.Key($"job:{id}"), "State"));
         return state == null ? null : new StateData { Name = state.Name, Reason = state.Reason, Data = state.ReadData() };
@@ -142,7 +160,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
 
     public override int RemoveTimedOutServers(TimeSpan timeOut)
     {
-        if (timeOut.Duration() != timeOut) throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        if (timeOut.Duration() != timeOut)
+        {
+            throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        }
 
         long timeOutMilliseconds = (long)Math.Min(timeOut.TotalMilliseconds, long.MaxValue / 2);
         return (int)(long)storage.Evaluate(RedisScripts.RemoveTimedOutServers, timeOutMilliseconds);
@@ -162,8 +183,15 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
-        if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        if (count <= 0)
+        {
+            throw new ArgumentException("The value must be a positive number", nameof(count));
+        }
+
+        if (toScore < fromScore)
+        {
+            throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        }
 
         return [.. Database.SortedSetRangeByScore(SetKey(key), fromScore, toScore, take: count).Select(static x => x.ToString())];
     }
@@ -183,7 +211,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         foreach (string key in keys.Distinct(StringComparer.Ordinal))
         {
             total += Database.SortedSetLength(SetKey(key));
-            if (total >= limit) return limit;
+            if (total >= limit)
+            {
+                return limit;
+            }
         }
 
         return total;
@@ -199,7 +230,11 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop)) return [];
+        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop))
+        {
+            return [];
+        }
+
         return [.. Database.SortedSetRangeByRank(SetKey(key), start, stop).Select(static x => x.ToString())];
     }
 
@@ -215,7 +250,10 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(keyValuePairs);
 
         HashEntry[] fields = [.. keyValuePairs.Select(static x => new HashEntry(x.Key, x.Value ?? string.Empty))];
-        if (fields.Length > 0) Database.HashSet(HashKey(key), fields);
+        if (fields.Length > 0)
+        {
+            Database.HashSet(HashKey(key), fields);
+        }
     }
 
     public override Dictionary<string, string>? GetAllEntriesFromHash(string key)
@@ -259,7 +297,11 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop)) return [];
+        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop))
+        {
+            return [];
+        }
+
         return [.. Database.ListRange(ListKey(key), start, stop).Select(static x => x.ToString())];
     }
 
@@ -408,7 +450,10 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
             }
         }
 
-        if (arguments.Count > 0) storage.Evaluate(RedisScripts.Apply, [.. arguments]);
+        if (arguments.Count > 0)
+        {
+            storage.Evaluate(RedisScripts.Apply, [.. arguments]);
+        }
     }
 
     protected override bool IsOwnFetchedJob(FetchedJobBase fetchedJob) => fetchedJob is RedisFetchedJob ours && ours.Storage == storage;
@@ -450,7 +495,11 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     protected override IReadOnlyList<StoredJob> GetJobs(string stateName, int from, int count, bool descending)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         RedisValue[] ids = Database.SortedSetRangeByRank(StateKey(stateName), from, from + count - 1, descending ? Order.Descending : Order.Ascending);
         return ReadJobs([.. ids.Select(static x => (long)x)]);
     }
@@ -461,7 +510,10 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
     {
         RedisResult[] parts = (RedisResult[])storage.Evaluate(RedisScripts.ReadJobDetails, id)!; // Three tables
         StoredJob? job = RedisValues.ToJob(id, (RedisResult[])parts[0]!);
-        if (job == null) return null;
+        if (job == null)
+        {
+            return null;
+        }
 
         job.Parameters = RedisValues.ToParameters((RedisResult[])parts[1]!);
         job.History = [.. ((RedisResult[])parts[2]!).Select(static x => RedisValues.DeserializeState((string?)x)!).Reverse()]; // Every history entry is a state
@@ -477,7 +529,10 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     protected override IReadOnlyList<long> GetEnqueuedJobIds(string queue, int from, int count)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
 
         // Entries are pushed on the left and taken from the right, so the oldest is last
         RedisValue[] entries = Database.ListRange(storage.Key($"queue:{queue}"), -(from + count), -(from + 1));
@@ -486,7 +541,11 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     protected override IReadOnlyList<long> GetFetchedJobIds(string queue, int from, int count)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         RedisValue[] entries = Database.SortedSetRangeByRank(storage.Key($"queue:{queue}:fetched"), from, from + count - 1);
         return [.. entries.Select(static x => RedisValues.JobIdOfEntry(x.ToString()))];
     }
@@ -522,7 +581,10 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
         Dictionary<string, long> result = new(StringComparer.Ordinal);
         for (int i = 0; i < names.Length; i++)
         {
-            if (values[i].HasValue) result[names[i]] = (long)values[i];
+            if (values[i].HasValue)
+            {
+                result[names[i]] = (long)values[i];
+            }
         }
 
         return result;
@@ -532,14 +594,20 @@ internal sealed class RedisMonitoringApi(RedisStorage storage) : SharedMonitorin
 
     private List<StoredJob> ReadJobs(IReadOnlyCollection<long> ids)
     {
-        if (ids.Count == 0) return [];
+        if (ids.Count == 0)
+        {
+            return [];
+        }
 
         RedisResult[] rows = (RedisResult[])storage.Evaluate(RedisScripts.ReadJobs, [.. ids.Select(static x => (RedisValue)x)])!; // Id, fields pairs
         List<StoredJob> jobs = [];
         for (int i = 0; i + 1 < rows.Length; i += 2)
         {
             StoredJob? job = RedisValues.ToJob((long)rows[i], (RedisResult[])rows[i + 1]!); // Each job's fields are a table
-            if (job != null) jobs.Add(job);
+            if (job != null)
+            {
+                jobs.Add(job);
+            }
         }
 
         return jobs;

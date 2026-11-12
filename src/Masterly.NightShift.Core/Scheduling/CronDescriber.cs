@@ -33,7 +33,10 @@ internal static class CronDescriber
         ArgumentNullException.ThrowIfNull(expression);
 
         string text = expression.Trim();
-        if (Presets.TryGetValue(text, out string? preset)) text = preset;
+        if (Presets.TryGetValue(text, out string? preset))
+        {
+            text = preset;
+        }
 
         string[] parts = text.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length is not 5 and not 6)
@@ -64,8 +67,15 @@ internal static class CronDescriber
         {
             string every = DescribeEvery(second, "second", "minute");
 
-            if (minute.IsEvery) return Join(every, hourSuffix);
-            if (hour.IsSpecific && minute.IsSpecific && TryDescribeTimes(hour, minute, null) is { } times) return Join(every, $"at {times}");
+            if (minute.IsEvery)
+            {
+                return Join(every, hourSuffix);
+            }
+
+            if (hour.IsSpecific && minute.IsSpecific && TryDescribeTimes(hour, minute, null) is { } times)
+            {
+                return Join(every, $"at {times}");
+            }
 
             return Join(every, $"during minute{(minute.Values.Count > 1 ? "s" : "")} {minute.Describe()} of the hour", hourSuffix);
         }
@@ -86,7 +96,10 @@ internal static class CronDescriber
             Field? seconds = hasSeconds && !second.IsZero ? second : null;
 
             string? times = TryDescribeTimes(hour, minute, seconds);
-            if (times != null) return $"at {times}";
+            if (times != null)
+            {
+                return $"at {times}";
+            }
 
             if (!hour.IsRange)
             {
@@ -106,8 +119,15 @@ internal static class CronDescriber
             : minute.Values.Count == 1 ? $"at {minute.Values[0]} minute{(minute.Values[0] == 1 ? "" : "s")} past"
             : $"at minutes {minute.Describe()} past";
 
-        if (hour.IsEvery) return $"{past} every hour";
-        if (hour.Step > 1) return $"{past} every {hour.Step} hours{(hour.RangeStart.HasValue ? $" between {hour.RangeStart:00}:00 and {hour.RangeEnd:00}:59" : "")}";
+        if (hour.IsEvery)
+        {
+            return $"{past} every hour";
+        }
+
+        if (hour.Step > 1)
+        {
+            return $"{past} every {hour.Step} hours{(hour.RangeStart.HasValue ? $" between {hour.RangeStart:00}:00 and {hour.RangeEnd:00}:59" : "")}";
+        }
 
         return Join(past + " the hour", hourSuffix);
     }
@@ -116,7 +136,10 @@ internal static class CronDescriber
     // through 56 of the hour"
     private static string DescribeEvery(Field field, string unit, string container)
     {
-        if (field.IsEvery) return $"every {unit}";
+        if (field.IsEvery)
+        {
+            return $"every {unit}";
+        }
 
         return field.IsPartialStep
             ? $"every {field.Step} {unit}s from {unit} {field.RangeStart} through {field.RangeEnd} of the {container}"
@@ -125,7 +148,10 @@ internal static class CronDescriber
 
     private static string? DescribeHourQualifier(Field hour)
     {
-        if (hour.IsEvery) return null;
+        if (hour.IsEvery)
+        {
+            return null;
+        }
 
         if (hour.Step > 1)
         {
@@ -147,13 +173,18 @@ internal static class CronDescriber
     /// <summary>Lists the times of day ("09:30 and 17:30"), or returns <c>null</c> when there are too many to list.</summary>
     private static string? TryDescribeTimes(Field hour, Field minute, Field? second)
     {
-        if (hour.Values.Count * minute.Values.Count > 6) return null;
+        if (hour.Values.Count * minute.Values.Count > 6)
+        {
+            return null;
+        }
 
         List<string> times = [];
         foreach (int h in hour.Values)
-        foreach (int m in minute.Values)
         {
-            times.Add(FormatTime(h, m, second));
+            foreach (int m in minute.Values)
+            {
+                times.Add(FormatTime(h, m, second));
+            }
         }
 
         string text = JoinList(times);
@@ -175,9 +206,18 @@ internal static class CronDescriber
         string? dowText = DescribeDayOfWeek(dayOfWeek);
 
         // Cronos runs only on days that match both fields (unlike Vixie cron, which takes either), so say "if"
-        if (domText != null && dowText != null) parts.Add($"{domText} if it is {DescribeDayOfWeekCondition(dayOfWeek)}");
-        else if (domText != null) parts.Add(domText);
-        else if (dowText != null) parts.Add(dowText);
+        if (domText != null && dowText != null)
+        {
+            parts.Add($"{domText} if it is {DescribeDayOfWeekCondition(dayOfWeek)}");
+        }
+        else if (domText != null)
+        {
+            parts.Add(domText);
+        }
+        else if (dowText != null)
+        {
+            parts.Add(dowText);
+        }
 
         if (!month.IsEvery)
         {
@@ -200,7 +240,10 @@ internal static class CronDescriber
 
     private static string? DescribeDayOfMonth(Field field)
     {
-        if (field.IsEvery) return null;
+        if (field.IsEvery)
+        {
+            return null;
+        }
 
         if (field.Special != null)
         {
@@ -228,7 +271,10 @@ internal static class CronDescriber
             }
         }
 
-        if (field.Step > 1) return DescribeEvery(field, "day", "month");
+        if (field.Step > 1)
+        {
+            return DescribeEvery(field, "day", "month");
+        }
 
         if (field.RangeStart.HasValue && field.Values.Count == field.RangeLength)
         {
@@ -242,7 +288,10 @@ internal static class CronDescriber
 
     private static string? DescribeDayOfWeek(Field field)
     {
-        if (field.IsEvery) return null;
+        if (field.IsEvery)
+        {
+            return null;
+        }
 
         if (field.Special != null)
         {
@@ -263,8 +312,15 @@ internal static class CronDescriber
         // A step is a list here: no step fits the week evenly (see Field.NormalizeStep)
         List<int> days = [.. field.Values.Select(static x => x % 7).Distinct()];
 
-        if (days.Count == 5 && !days.Contains(0) && !days.Contains(6)) return "Monday to Friday";
-        if (days.Count == 2 && days.Contains(0) && days.Contains(6)) return "on weekends";
+        if (days.Count == 5 && !days.Contains(0) && !days.Contains(6))
+        {
+            return "Monday to Friday";
+        }
+
+        if (days.Count == 2 && days.Contains(0) && days.Contains(6))
+        {
+            return "on weekends";
+        }
 
         if (field.RangeStart.HasValue && days.Count == field.RangeLength)
         {
@@ -285,8 +341,15 @@ internal static class CronDescriber
 
         List<int> days = [.. field.Values.Select(static x => x % 7).Distinct().OrderBy(static x => x)];
 
-        if (days.Count == 5 && !days.Contains(0) && !days.Contains(6)) return "a weekday";
-        if (days.Count == 2 && days.Contains(0) && days.Contains(6)) return "a Saturday or Sunday";
+        if (days.Count == 5 && !days.Contains(0) && !days.Contains(6))
+        {
+            return "a weekday";
+        }
+
+        if (days.Count == 2 && days.Contains(0) && days.Contains(6))
+        {
+            return "a Saturday or Sunday";
+        }
 
         List<string> names = [.. days.Select(static x => DayNames[x])];
         return names.Count == 1
@@ -296,12 +359,18 @@ internal static class CronDescriber
 
     private static string DayName(string token, string[]? names)
     {
-        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)) return DayNames[number % 7];
+        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+        {
+            return DayNames[number % 7];
+        }
 
         if (names != null)
         {
             int index = Array.FindIndex(names, x => x.Equals(token, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0) return DayNames[index];
+            if (index >= 0)
+            {
+                return DayNames[index];
+            }
         }
 
         return token;
@@ -317,8 +386,16 @@ internal static class CronDescriber
 
     private static string JoinList(IList<string> items)
     {
-        if (items is [var only]) return only;
-        if (items is [var first, var second]) return $"{first} and {second}";
+        if (items is [var only])
+        {
+            return only;
+        }
+
+        if (items is [var first, var second])
+        {
+            return $"{first} and {second}";
+        }
+
         return string.Join(", ", items.Take(items.Count - 1)) + " and " + items[items.Count - 1];
     }
 
@@ -438,7 +515,10 @@ internal static class CronDescriber
                     for (int offset = 0; offset <= field.Distance(start, end); offset += step)
                     {
                         int value = field._min + ((start - field._min + offset) % field._size);
-                        if (!field.Values.Contains(value)) field.Values.Add(value);
+                        if (!field.Values.Contains(value))
+                        {
+                            field.Values.Add(value);
+                        }
                     }
 
                     continue;
@@ -446,13 +526,24 @@ internal static class CronDescriber
 
                 for (int value = start; value <= end; value += step)
                 {
-                    if (!field.Values.Contains(value)) field.Values.Add(value);
+                    if (!field.Values.Contains(value))
+                    {
+                        field.Values.Add(value);
+                    }
                 }
             }
 
             // A single wrapped range keeps its order, so "22-2" lists 22:00 first
-            if (!(wraps && field.RangeStart.HasValue)) field.Values.Sort();
-            if (field.Step > 1) field.NormalizeStep();
+            if (!(wraps && field.RangeStart.HasValue))
+            {
+                field.Values.Sort();
+            }
+
+            if (field.Step > 1)
+            {
+                field.NormalizeStep();
+            }
+
             return field;
         }
 
@@ -469,7 +560,10 @@ internal static class CronDescriber
             bool evenlySpaced = true;
             for (int i = 1; i < Values.Count; i++)
             {
-                if (Distance(Values[i - 1], Values[i]) != Step) evenlySpaced = false;
+                if (Distance(Values[i - 1], Values[i]) != Step)
+                {
+                    evenlySpaced = false;
+                }
             }
 
             if (evenlySpaced && Values.Count > 1 && Values[0] == _min && _size % Step == 0 && Values.Count == _size / Step)
@@ -514,12 +608,18 @@ internal static class CronDescriber
 
         private static int ParseValue(string text, string[]? names)
         {
-            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)) return number;
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+            {
+                return number;
+            }
 
             if (names != null)
             {
                 int index = Array.FindIndex(names, x => x.Equals(text, StringComparison.OrdinalIgnoreCase));
-                if (index >= 0) return index + (names.Length == 12 ? 1 : 0);
+                if (index >= 0)
+                {
+                    return index + (names.Length == 12 ? 1 : 0);
+                }
             }
 
             throw new FormatException($"'{text}' is not a valid CRON field value.");

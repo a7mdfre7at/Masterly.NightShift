@@ -299,9 +299,21 @@ public sealed class SchedulePoliciesFacts : IDisposable
             ["V"] = "2",
         };
 
-        if (policy != null) hash["Policy"] = policy;
-        if (nextExecution.HasValue) hash["NextExecution"] = JobHelper.SerializeDateTime(nextExecution.Value);
-        if (paused) hash["Paused"] = "1";
+        if (policy != null)
+        {
+            hash["Policy"] = policy;
+        }
+
+        if (nextExecution.HasValue)
+        {
+            hash["NextExecution"] = JobHelper.SerializeDateTime(nextExecution.Value);
+        }
+
+        if (paused)
+        {
+            hash["Paused"] = "1";
+        }
+
         return hash;
     }
 

@@ -37,9 +37,14 @@ public class RouteCollection
         string pattern = pathTemplate;
 
         if (!pattern.StartsWith("^", StringComparison.OrdinalIgnoreCase))
+        {
             pattern = "^" + pattern;
+        }
+
         if (!pattern.EndsWith("$", StringComparison.OrdinalIgnoreCase))
+        {
             pattern += "$";
+        }
 
         Regex regex = new(
             pattern,
@@ -66,8 +71,14 @@ public class RouteCollection
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        if (path.Length == 0) path = "/";
-        else if (path.Length > 1) path = path.TrimEnd('/');
+        if (path.Length == 0)
+        {
+            path = "/";
+        }
+        else if (path.Length > 1)
+        {
+            path = path.TrimEnd('/');
+        }
 
         bool skipCommands = "GET".Equals(method, StringComparison.OrdinalIgnoreCase)
             || "HEAD".Equals(method, StringComparison.OrdinalIgnoreCase);
@@ -77,7 +88,10 @@ public class RouteCollection
         foreach (Tuple<Regex, IDashboardDispatcher> dispatcher in _dispatchers)
         {
             Match match = dispatcher.Item1.Match(path);
-            if (!match.Success) continue;
+            if (!match.Success)
+            {
+                continue;
+            }
 
             if (skipCommands && dispatcher.Item2 is IDashboardCommandDispatcher)
             {

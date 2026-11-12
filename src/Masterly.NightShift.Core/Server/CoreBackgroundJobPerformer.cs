@@ -153,7 +153,10 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             _taskScheduler!); // Only called when a scheduler was given
 
         object? result = scheduledTask.GetAwaiter().GetResult();
-        if (result == null) return null;
+        if (result == null)
+        {
+            return null;
+        }
 
         return getTaskFunc(result).GetTaskLikeResult(result, method.ReturnType);
     }
@@ -186,7 +189,10 @@ internal sealed class CoreBackgroundJobPerformer([NotNull] JobActivator activato
             SynchronizationContext.SetSynchronizationContext(syncContext);
 
             object? result = InvokeSynchronously(method);
-            if (result == null) return null;
+            if (result == null)
+            {
+                return null;
+            }
 
             Task task = getTaskFunc(result);
             IAsyncResult asyncResult = (IAsyncResult)task;

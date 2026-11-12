@@ -280,7 +280,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
         int commits = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
-            if (++commits == 1) throw new InvalidOperationException("deadlock victim");
+            if (++commits == 1)
+            {
+                throw new InvalidOperationException("deadlock victim");
+            }
         });
         PerformingContext performing = _performContext.GetPerformingContext();
 
@@ -998,7 +1001,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
                 _circuit ??= [];
-                foreach (KeyValuePair<string, string> pair in pairs) _circuit[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    _circuit[pair.Key] = pair.Value;
+                }
             });
     }
 
@@ -1020,7 +1026,10 @@ public class CircuitBreakerAttributeFacts : IDisposable
             { "OpenedAt", (_timestamp - 200).ToString() }
         };
 
-        if (probe != null) _circuit["Probe"] = probe;
+        if (probe != null)
+        {
+            _circuit["Probe"] = probe;
+        }
     }
 
     private void ProbeState(string stateName)

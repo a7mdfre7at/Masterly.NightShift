@@ -27,7 +27,10 @@ public sealed class TagAttribute : JobFilterAttribute, IClientFilter
     /// <summary>Tags every job of the method with a word or a template over its arguments.</summary>
     public TagAttribute([NotNull] string template)
     {
-        if (string.IsNullOrWhiteSpace(template)) throw new ArgumentException("A tag is required.", nameof(template));
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            throw new ArgumentException("A tag is required.", nameof(template));
+        }
 
         Template = template;
         Order = 30;
@@ -56,7 +59,10 @@ public sealed class TagAttribute : JobFilterAttribute, IClientFilter
         ArgumentNullException.ThrowIfNull(context);
 
         string? tag = GetTag(context.Job);
-        if (tag == null) return;
+        if (tag == null)
+        {
+            return;
+        }
 
         // Before creation the parameters are still objects: an earlier TagAttribute leaves a string[]
         string[] tags = context.Parameters.TryGetValue(JobTags.ParameterName, out object? existing)
@@ -73,10 +79,16 @@ public sealed class TagAttribute : JobFilterAttribute, IClientFilter
     public void OnCreated(CreatedContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.Canceled || context.Exception != null || context.BackgroundJob == null) return;
+        if (context.Canceled || context.Exception != null || context.BackgroundJob == null)
+        {
+            return;
+        }
 
         string? tag = GetTag(context.Job);
-        if (tag == null) return;
+        if (tag == null)
+        {
+            return;
+        }
 
         try
         {
@@ -147,7 +159,10 @@ public static class JobTags
     public static string Normalize([NotNull] string tag)
     {
         string normalized = NormalizeName(tag);
-        if (normalized.Length > MaxLength) throw new ArgumentException($"A tag can't be longer than {MaxLength} characters.", nameof(tag));
+        if (normalized.Length > MaxLength)
+        {
+            throw new ArgumentException($"A tag can't be longer than {MaxLength} characters.", nameof(tag));
+        }
 
         return normalized;
     }
@@ -159,11 +174,21 @@ public static class JobTags
     internal static string? FromText([NotNull] string text)
     {
         string normalized = Collapse(text);
-        if (normalized.Length == 0) return null;
-        if (normalized.Length <= MaxLength) return normalized;
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        if (normalized.Length <= MaxLength)
+        {
+            return normalized;
+        }
 
         int prefixLength = MaxLength - HashLength - 1;
-        if (char.IsHighSurrogate(normalized[prefixLength - 1])) prefixLength--;
+        if (char.IsHighSurrogate(normalized[prefixLength - 1]))
+        {
+            prefixLength--;
+        }
 
         return $"{normalized[..prefixLength].TrimEnd()}~{RedactedAttribute.Hash(normalized)}";
     }
@@ -177,7 +202,10 @@ public static class JobTags
         ArgumentNullException.ThrowIfNull(tag);
 
         string normalized = Collapse(tag);
-        if (normalized.Length == 0) throw new ArgumentException("A tag can't be empty.", nameof(tag));
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException("A tag can't be empty.", nameof(tag));
+        }
 
         return normalized;
     }
@@ -202,14 +230,20 @@ public static class JobTags
         ArgumentNullException.ThrowIfNull(tags);
 
         List<string> normalized = [.. tags.Select(Normalize).Distinct(StringComparer.Ordinal)];
-        if (normalized.Count == 0) return;
+        if (normalized.Count == 0)
+        {
+            return;
+        }
 
         // Read, change and write under a lock, so two changes at once don't lose each other's tags
         using (AcquireLock(connection, jobId))
         {
             List<string> existing = Parse(connection.GetJobParameter(jobId, ParameterName));
             List<string> added = [.. normalized.Where(tag => !existing.Contains(tag, StringComparer.Ordinal))];
-            if (added.Count == 0) return;
+            if (added.Count == 0)
+            {
+                return;
+            }
 
             existing.AddRange(added);
             connection.SetJobParameter(jobId, ParameterName, Serialize([.. existing.OrderBy(static x => x, StringComparer.Ordinal)]));
@@ -306,7 +340,10 @@ public static class JobTags
                 // Sets come back oldest first; the page wants the newest, so read from the end
                 long total = storageConnection.GetSetCount(key);
                 long endingAt = total - 1 - from;
-                if (endingAt < 0) return [];
+                if (endingAt < 0)
+                {
+                    return [];
+                }
 
                 long startingFrom = Math.Max(0, endingAt - count + 1);
                 List<string> range = storageConnection.GetRangeFromSet(key, (int)startingFrom, (int)endingAt) ?? [];
@@ -332,7 +369,10 @@ public static class JobTags
 
         string key = GetKey(NormalizeName(tag));
         List<string> ids = [.. jobIds];
-        if (ids.Count == 0) return;
+        if (ids.Count == 0)
+        {
+            return;
+        }
 
         using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         foreach (string jobId in ids)
@@ -366,7 +406,10 @@ public static class JobTags
 
     private static bool TryRemoveSet(IWriteOnlyTransaction transaction, string key)
     {
-        if (transaction is not JobStorageTransaction storageTransaction) return false;
+        if (transaction is not JobStorageTransaction storageTransaction)
+        {
+            return false;
+        }
 
         try
         {
@@ -392,7 +435,10 @@ public static class JobTags
     /// <summary>Reads the <c>Tags</c> parameter, also when it was written with the application's settings.</summary>
     internal static List<string> Parse(string? json)
     {
-        if (string.IsNullOrEmpty(json)) return [];
+        if (string.IsNullOrEmpty(json))
+        {
+            return [];
+        }
 
         try
         {

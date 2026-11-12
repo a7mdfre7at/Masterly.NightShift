@@ -38,7 +38,10 @@ internal sealed class QueuePauseDispatcher(bool pause) : IDashboardDispatcher
             if (_pause)
             {
                 reason = (await context.Request.GetFormValuesAsync("reason").ConfigureAwait(false))?.FirstOrDefault()?.Trim();
-                if (!string.IsNullOrEmpty(reason) && reason.Length > MaxReasonLength) reason = reason[..MaxReasonLength];
+                if (!string.IsNullOrEmpty(reason) && reason.Length > MaxReasonLength)
+                {
+                    reason = reason[..MaxReasonLength];
+                }
 
                 DrainMode.PauseQueue(connection, queue, string.IsNullOrEmpty(reason) ? null : reason);
             }

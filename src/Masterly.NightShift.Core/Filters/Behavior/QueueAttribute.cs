@@ -76,7 +76,10 @@ public sealed class QueueAttribute : JobFilterAttribute, IElectStateFilter
     public void OnStateElection(ElectStateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.CandidateState is not EnqueuedState enqueuedState) return;
+        if (context.CandidateState is not EnqueuedState enqueuedState)
+        {
+            return;
+        }
 
         if (!IsTemplate(Queue))
         {
@@ -85,7 +88,10 @@ public sealed class QueueAttribute : JobFilterAttribute, IElectStateFilter
         }
 
         Job? job = context.BackgroundJob.Job;
-        if (job == null) return; // The arguments can't be read, so the template can't be applied
+        if (job == null)
+        {
+            return; // The arguments can't be read, so the template can't be applied
+        }
 
         string queue;
         try

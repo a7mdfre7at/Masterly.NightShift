@@ -53,12 +53,18 @@ internal static class FailureClusters
         for (int from = 0; from < sampleSize; from += PageSize)
         {
             JobList<FailedJobDto?> page = monitor.FailedJobs(from, Math.Min(PageSize, sampleSize - from));
-            if (page == null || page.Count == 0) break;
+            if (page == null || page.Count == 0)
+            {
+                break;
+            }
 
             foreach (KeyValuePair<string, FailedJobDto?> pair in page)
             {
                 FailedJobDto? job = pair.Value;
-                if (job == null || !job.InFailedState) continue;
+                if (job == null || !job.InFailedState)
+                {
+                    continue;
+                }
 
                 string exceptionType = string.IsNullOrEmpty(job.ExceptionType) ? "?" : job.ExceptionType;
                 string method = job.Job != null ? $"{JobMethodCallRenderer.GetNameWithoutGenericArity(job.Job.Type)}.{job.Job.Method.Name}" : "?";
@@ -77,12 +83,22 @@ internal static class FailureClusters
 
                 if (job.FailedAt.HasValue)
                 {
-                    if (!cluster.FirstFailedAt.HasValue || job.FailedAt < cluster.FirstFailedAt) cluster.FirstFailedAt = job.FailedAt;
-                    if (!cluster.LastFailedAt.HasValue || job.FailedAt > cluster.LastFailedAt) cluster.LastFailedAt = job.FailedAt;
+                    if (!cluster.FirstFailedAt.HasValue || job.FailedAt < cluster.FirstFailedAt)
+                    {
+                        cluster.FirstFailedAt = job.FailedAt;
+                    }
+
+                    if (!cluster.LastFailedAt.HasValue || job.FailedAt > cluster.LastFailedAt)
+                    {
+                        cluster.LastFailedAt = job.FailedAt;
+                    }
                 }
             }
 
-            if (page.Count < PageSize) break;
+            if (page.Count < PageSize)
+            {
+                break;
+            }
         }
 
         return [.. clusters.Values

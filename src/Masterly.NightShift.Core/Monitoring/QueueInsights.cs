@@ -47,8 +47,15 @@ public sealed class QueueHealth
     /// <summary>How long the queue needs to empty at the current rate, or <c>null</c> when nothing moves.</summary>
     public TimeSpan? EstimateDrain(long length)
     {
-        if (length <= 0) return TimeSpan.Zero;
-        if (PerMinute <= 0) return null;
+        if (length <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (PerMinute <= 0)
+        {
+            return null;
+        }
 
         return TimeSpan.FromMinutes(length / PerMinute);
     }
@@ -106,10 +113,16 @@ public static class QueueInsights
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(queue);
 
-        if (connection is not JobStorageConnection storageConnection) return null;
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return null;
+        }
 
         Dictionary<string, string>? hash = storageConnection.GetAllEntriesFromHash(GetHashKey(queue));
-        if (hash == null) return null;
+        if (hash == null)
+        {
+            return null;
+        }
 
         List<string> latencyItems;
         long started = 0;
@@ -146,12 +159,18 @@ public static class QueueInsights
         ArgumentNullException.ThrowIfNull(connection);
 
         Dictionary<string, QueueHealth> result = new(StringComparer.OrdinalIgnoreCase);
-        if (connection is not JobStorageConnection) return result;
+        if (connection is not JobStorageConnection)
+        {
+            return result;
+        }
 
         foreach (string queue in connection.GetAllItemsFromSet(IndexKey) ?? [])
         {
             QueueHealth? health = Read(connection, queue);
-            if (health != null) result[queue] = health;
+            if (health != null)
+            {
+                result[queue] = health;
+            }
         }
 
         return result;
@@ -177,8 +196,15 @@ public sealed class QueueInsightsFilter : JobFilterAttribute, IApplyStateFilter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(transaction);
 
-        if (context.NewState is not ProcessingState) return;
-        if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;
+        if (context.NewState is not ProcessingState)
+        {
+            return;
+        }
+
+        if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         StateData? previous;
         try
@@ -190,7 +216,10 @@ public sealed class QueueInsightsFilter : JobFilterAttribute, IApplyStateFilter
             return;
         }
 
-        if (previous?.Data == null || !previous.Data.TryGetValue("Queue", out string? stateQueue) || string.IsNullOrEmpty(stateQueue)) return;
+        if (previous?.Data == null || !previous.Data.TryGetValue("Queue", out string? stateQueue) || string.IsNullOrEmpty(stateQueue))
+        {
+            return;
+        }
 
         // The queue the job really waited in, picked like EnqueuedState's handler does: the job's own queue
         // (Enqueue("emails", ...)) wins over the state's "default"

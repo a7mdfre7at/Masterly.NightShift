@@ -50,8 +50,15 @@ public class RecurringJobWindowFacts
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((key, pairs) =>
             {
                 _hashWrites++;
-                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash)) _hashes[key] = hash = [];
-                foreach (KeyValuePair<string, string> pair in pairs) hash[pair.Key] = pair.Value;
+                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash))
+                {
+                    _hashes[key] = hash = [];
+                }
+
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    hash[pair.Key] = pair.Value;
+                }
             });
         _transaction
             .Setup(x => x.AddToSet("recurring-jobs", It.IsAny<string>(), It.IsAny<double>()))

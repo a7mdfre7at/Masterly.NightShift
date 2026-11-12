@@ -210,7 +210,10 @@ public static class RecurringJobManifest
         foreach (RecurringJobDto? dto in connection.GetRecurringJobs().Where(static dto => !dto.Removed).OrderBy(static dto => dto.Id, StringComparer.Ordinal))
         {
             RecurringJobManifestEntry? entry = ToEntry(connection, dto, logger, maskRedacted);
-            if (entry != null) entries.Add(entry);
+            if (entry != null)
+            {
+                entries.Add(entry);
+            }
         }
 
         return JsonSerializer.Serialize(new ManifestDocument { Version = CurrentVersion, RecurringJobs = entries }, Settings);
@@ -324,7 +327,10 @@ public static class RecurringJobManifest
 
         foreach (RecurringJobManifestEntry entry in entries)
         {
-            if (entry == null) continue;
+            if (entry == null)
+            {
+                continue;
+            }
 
             if (string.IsNullOrWhiteSpace(entry.Id))
             {
@@ -379,12 +385,24 @@ public static class RecurringJobManifest
 
                 if (entry.Paused.HasValue && manager is IRecurringJobManagerV3 managerV3)
                 {
-                    if (entry.Paused.Value) managerV3.Pause(id);
-                    else managerV3.Resume(id);
+                    if (entry.Paused.Value)
+                    {
+                        managerV3.Pause(id);
+                    }
+                    else
+                    {
+                        managerV3.Resume(id);
+                    }
                 }
 
-                if (existing.Contains(id)) updated.Add(id);
-                else added.Add(id);
+                if (existing.Contains(id))
+                {
+                    updated.Add(id);
+                }
+                else
+                {
+                    added.Add(id);
+                }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -480,10 +498,16 @@ public static class RecurringJobManifest
         try
         {
             Dictionary<string, string>? hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (hash == null || !hash.TryGetValue("Job", out string? payload) || string.IsNullOrWhiteSpace(payload)) return null;
+            if (hash == null || !hash.TryGetValue("Job", out string? payload) || string.IsNullOrWhiteSpace(payload))
+            {
+                return null;
+            }
 
             InvocationData stored = InvocationData.DeserializePayload(payload);
-            if (string.IsNullOrWhiteSpace(stored.Type) || string.IsNullOrWhiteSpace(stored.Method)) return null;
+            if (string.IsNullOrWhiteSpace(stored.Type) || string.IsNullOrWhiteSpace(stored.Method))
+            {
+                return null;
+            }
 
             // A compact payload of a method without parameters has no arrays, which read back as "null"
             return new InvocationData(stored.Type, stored.Method, ArrayOrEmpty(stored.ParameterTypes), ArrayOrEmpty(stored.Arguments), stored.Queue);
@@ -503,7 +527,10 @@ public static class RecurringJobManifest
     /// <summary>The queue name, or <c>null</c> when it is empty or the default queue.</summary>
     private static string? GetExplicitQueue(string? queue)
     {
-        if (string.IsNullOrWhiteSpace(queue)) return null;
+        if (string.IsNullOrWhiteSpace(queue))
+        {
+            return null;
+        }
 
         string trimmed = queue.Trim();
         return EnqueuedState.DefaultQueue.Equals(trimmed, StringComparison.OrdinalIgnoreCase) ? null : trimmed;
@@ -556,7 +583,10 @@ public static class RecurringJobManifest
 
             foreach (JobCatalogEntry entry in _catalog)
             {
-                if (entry.Type == job.Type && IsSameMethod(entry.Method, job.Method)) return true;
+                if (entry.Type == job.Type && IsSameMethod(entry.Method, job.Method))
+                {
+                    return true;
+                }
             }
 
             return false;
@@ -564,7 +594,10 @@ public static class RecurringJobManifest
 
         private static bool IsSameMethod(MethodInfo left, MethodInfo right)
         {
-            if (left.Equals(right)) return true;
+            if (left.Equals(right))
+            {
+                return true;
+            }
 
             if (left.DeclaringType != right.DeclaringType || !string.Equals(left.Name, right.Name, StringComparison.Ordinal))
             {

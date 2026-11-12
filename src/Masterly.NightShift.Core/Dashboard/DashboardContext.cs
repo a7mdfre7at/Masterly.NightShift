@@ -131,7 +131,10 @@ public abstract class DashboardContext
 
     private void EnsureAntiforgeryTokens()
     {
-        if (_antiforgeryTokensReady) return;
+        if (_antiforgeryTokensReady)
+        {
+            return;
+        }
 
         _antiforgeryTokensReady = true;
         GenerateAntiforgeryTokens();

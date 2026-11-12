@@ -416,7 +416,11 @@ public static class Experiments
             {
                 using IStorageConnection connection = c.Storage.GetConnection();
                 RecurringJobDto? digest = connection.GetRecurringJobs().FirstOrDefault(x => x.Id == "playground:digest");
-                if (digest == null) return Task.FromResult("Add the recurring job first (the step above).");
+                if (digest == null)
+                {
+                    return Task.FromResult("Add the recurring job first (the step above).");
+                }
+
                 if (digest.Paused)
                 {
                     c.Recurring.Resume("playground:digest");
@@ -548,8 +552,14 @@ public static class Experiments
             {
                 for (int i = 0; i < 40; i++)
                 {
-                    if (i % 8 == 0) c.Jobs.Enqueue<FailureJobs>(x => x.Broken("insights sample"));
-                    else c.Jobs.Enqueue<OrderJobs>(x => x.ExportRegion($"region {i}", null!));
+                    if (i % 8 == 0)
+                    {
+                        c.Jobs.Enqueue<FailureJobs>(x => x.Broken("insights sample"));
+                    }
+                    else
+                    {
+                        c.Jobs.Enqueue<OrderJobs>(x => x.ExportRegion($"region {i}", null!));
+                    }
                 }
 
                 return Task.FromResult("40 jobs started: give them half a minute, then open Insights");

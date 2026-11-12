@@ -15,7 +15,7 @@ public class DrainModeQueueFacts : IDisposable
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(_transaction.Object);
         _connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns(() => _hash);
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
-            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value; });
+            .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) => { foreach (KeyValuePair<string, string> pair in pairs) { _hash[pair.Key] = pair.Value; } });
         DrainMode.InvalidateCache();
     }
 
@@ -233,7 +233,10 @@ public class DrainModeQueueFacts : IDisposable
     public void Filter_LeavesTheEnqueuedState_WhenTheJobDoesNotComeBackFromAHold(string currentState, string candidateQueue, bool jobHasItsOwnQueue)
     {
         ElectStateContextMock context = ElectEnqueued("16", currentState, "\"emails\"", candidateQueue);
-        if (jobHasItsOwnQueue) context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample(), "reports");
+        if (jobHasItsOwnQueue)
+        {
+            context.ApplyContext.BackgroundJob.Job = Job.FromExpression(() => Sample(), "reports");
+        }
 
         new DrainModeFilter().OnStateElection(context.Object);
 

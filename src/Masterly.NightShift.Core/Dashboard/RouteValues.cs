@@ -11,7 +11,10 @@ internal static class RouteValues
     /// </summary>
     public static string Decode(string value)
     {
-        if (string.IsNullOrEmpty(value) || value.IndexOf('%') < 0) return value;
+        if (string.IsNullOrEmpty(value) || value.IndexOf('%') < 0)
+        {
+            return value;
+        }
 
         return value.Replace("%2F", "/").Replace("%2f", "/");
     }

@@ -159,7 +159,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         while (true)
         {
@@ -168,7 +171,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
 
             foreach (string queue in queues)
             {
-                if (TryClaim(queue, cancellationToken) is { } fetched) return fetched;
+                if (TryClaim(queue, cancellationToken) is { } fetched)
+                {
+                    return fetched;
+                }
             }
 
             try
@@ -186,7 +192,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return;
+        }
 
         _collections.Jobs.UpdateOne(Filter.Eq("_id", jobId), MongoDocuments.SetParameter(name, value));
     }
@@ -195,7 +204,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return null;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return null;
+        }
 
         StoredJob? job = ReadJob(jobId);
         return job != null && job.Parameters.TryGetValue(name, out string? value) ? value : null;
@@ -234,12 +246,19 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(serverId);
         UpdateResult result = _collections.Servers.UpdateOne(Filter.Eq("_id", serverId), Update.Set("LastHeartbeat", JobClock.UtcNow));
-        if (result.MatchedCount == 0) throw new BackgroundServerGoneException();
+        if (result.MatchedCount == 0)
+        {
+            throw new BackgroundServerGoneException();
+        }
     }
 
     public override int RemoveTimedOutServers(TimeSpan timeOut)
     {
-        if (timeOut.Duration() != timeOut) throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        if (timeOut.Duration() != timeOut)
+        {
+            throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        }
+
         return (int)_collections.Servers.DeleteMany(Filter.Lt("LastHeartbeat", JobClock.UtcNow - timeOut)).DeletedCount;
     }
 
@@ -257,8 +276,15 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
-        if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        if (count <= 0)
+        {
+            throw new ArgumentException("The value must be a positive number", nameof(count));
+        }
+
+        if (toScore < fromScore)
+        {
+            throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        }
 
         return Values(_collections.Sets
             .Find(Filter.And(Filter.Eq("Key", key), Filter.Gte("Score", fromScore), Filter.Lte("Score", toScore)))
@@ -276,7 +302,11 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentOutOfRangeException.ThrowIfNegative(limit);
-        if (limit == 0) return 0;
+        if (limit == 0)
+        {
+            return 0;
+        }
+
         return _collections.Sets.CountDocuments(Filter.In("Key", keys), new CountOptions { Limit = limit });
     }
 
@@ -292,7 +322,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(key);
         // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
-        if (endingAt < start) return [];
+        if (endingAt < start)
+        {
+            return [];
+        }
 
         return Values(_collections.Sets
             .Find(Filter.Eq("Key", key))
@@ -313,7 +346,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(keyValuePairs);
 
         List<WriteModel<BsonDocument>> writes = [.. MongoTransaction.HashWrites(key, keyValuePairs)];
-        if (writes.Count > 0) _collections.Hashes.BulkWrite(writes);
+        if (writes.Count > 0)
+        {
+            _collections.Hashes.BulkWrite(writes);
+        }
     }
 
     public override Dictionary<string, string>? GetAllEntriesFromHash(string key)
@@ -362,7 +398,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(key);
         // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
-        if (endingAt < start) return [];
+        if (endingAt < start)
+        {
+            return [];
+        }
 
         return Values(_collections.Lists
             .Find(Filter.Eq("Key", key))
@@ -520,7 +559,10 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
 
     protected override void Apply(IReadOnlyList<StorageOperation> operations)
     {
-        if (operations.Count == 0) return;
+        if (operations.Count == 0)
+        {
+            return;
+        }
 
         storage.InTransaction(session =>
         {
@@ -533,7 +575,10 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
 
     protected override void Committed()
     {
-        if (QueuesWritten().Any()) storage.Signal();
+        if (QueuesWritten().Any())
+        {
+            storage.Signal();
+        }
     }
 
     private void ApplyOne(IClientSessionHandle session, StorageOperation operation)
@@ -616,7 +661,11 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
 
             case SetRangeInHashOperation hash:
                 List<WriteModel<BsonDocument>> writes = [.. HashWrites(hash.Key, hash.Fields)];
-                if (writes.Count > 0) collections.Hashes.BulkWrite(session, writes);
+                if (writes.Count > 0)
+                {
+                    collections.Hashes.BulkWrite(session, writes);
+                }
+
                 break;
 
             case RemoveHashOperation removeHash:
@@ -649,7 +698,10 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
     {
         FilterDefinition<BsonDocument> list = Filter.Eq("Key", trim.Key);
         BsonValue? newest = IdAt(session, lists, list, 0);
-        if (newest == null) return;
+        if (newest == null)
+        {
+            return;
+        }
 
         // Nothing is kept from a range that is empty or starts past the end; everything from the newest kept item
         // on is kept when the range ends past the end
@@ -662,8 +714,15 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
         }
 
         BsonValue? oldestKept = IdAt(session, lists, list, trim.KeepEndingAt);
-        if (newestKept != newest) lists.DeleteMany(session, Filter.And(list, Filter.Gt("_id", newestKept), Filter.Lte("_id", newest)));
-        if (oldestKept != null) lists.DeleteMany(session, Filter.And(list, Filter.Lt("_id", oldestKept)));
+        if (newestKept != newest)
+        {
+            lists.DeleteMany(session, Filter.And(list, Filter.Gt("_id", newestKept), Filter.Lte("_id", newest)));
+        }
+
+        if (oldestKept != null)
+        {
+            lists.DeleteMany(session, Filter.And(list, Filter.Lt("_id", oldestKept)));
+        }
     }
 
     // The id of the item at a position, newest first
@@ -716,7 +775,10 @@ internal sealed class MongoMonitoringApi(MongoStorage storage) : SharedMonitorin
     public static Dictionary<string, long> ReadCounters(MongoCollections collections, IReadOnlyCollection<string> keys)
     {
         Dictionary<string, long> result = new(StringComparer.Ordinal);
-        if (keys.Count == 0) return result;
+        if (keys.Count == 0)
+        {
+            return result;
+        }
 
         BsonDocument group = new("$group", new BsonDocument { ["_id"] = "$Key", ["Value"] = new BsonDocument("$sum", "$Value") });
         using IClientSessionHandle snapshot = collections.Client.StartSession(new ClientSessionOptions { Snapshot = true });
@@ -739,7 +801,11 @@ internal sealed class MongoMonitoringApi(MongoStorage storage) : SharedMonitorin
 
     protected override IReadOnlyList<StoredJob> GetJobs(string stateName, int from, int count, bool descending)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         SortDefinition<BsonDocument> sort = descending ? Builders<BsonDocument>.Sort.Descending("_id") : Builders<BsonDocument>.Sort.Ascending("_id");
         return ReadJobs(Collections.Jobs.Find(Filter.Eq("StateName", stateName)).Sort(sort).Skip(from).Limit(count));
     }
@@ -791,7 +857,11 @@ internal sealed class MongoMonitoringApi(MongoStorage storage) : SharedMonitorin
 
     private List<long> QueueJobIds(string queue, bool fetched, int from, int count)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         return [.. Collections.JobQueue
             .Find(QueueFilter(queue, fetched))
             .Sort(Builders<BsonDocument>.Sort.Ascending("_id"))
@@ -855,14 +925,20 @@ internal sealed class MongoCountersAggregator(MongoStorage storage) : IBackgroun
         {
             List<BsonDocument> increments = collections.Counters.Find(session, MongoDocuments.Filter.Empty).Limit(BatchSize).ToList();
             merged = increments.Count;
-            if (merged == 0) return;
+            if (merged == 0)
+            {
+                return;
+            }
 
             foreach (IGrouping<string, BsonDocument> counter in increments.GroupBy(static x => x["Key"].AsString, StringComparer.Ordinal))
             {
                 long value = counter.Sum(static x => x["Value"].ToInt64());
                 DateTime? expireAt = counter.Max(static x => MongoDocuments.DateOf(x, "ExpireAt"));
                 UpdateDefinition<BsonDocument> update = MongoDocuments.Update.Inc("Value", value);
-                if (expireAt.HasValue) update = update.Max("ExpireAt", expireAt.Value);
+                if (expireAt.HasValue)
+                {
+                    update = update.Max("ExpireAt", expireAt.Value);
+                }
 
                 collections.AggregatedCounters.UpdateOne(session, MongoDocuments.Filter.Eq("_id", counter.Key), update, new UpdateOptions { IsUpsert = true });
             }

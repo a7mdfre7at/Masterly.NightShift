@@ -39,8 +39,15 @@ public class RetryLaterException : Exception
     public RetryLaterException(TimeSpan delay, [CanBeNull] string? reason)
         : base(reason ?? $"The job asked to be retried in {delay}.")
     {
-        if (delay < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(delay), delay, "The delay can't be negative.");
-        if (delay > MaxDelay) throw new ArgumentOutOfRangeException(nameof(delay), delay, "The delay can't exceed one year.");
+        if (delay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delay), delay, "The delay can't be negative.");
+        }
+
+        if (delay > MaxDelay)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delay), delay, "The delay can't exceed one year.");
+        }
 
         Delay = delay;
         Reason = reason;
@@ -72,7 +79,10 @@ public class RetryLaterException : Exception
     /// <summary>Resolves the moment the job should run again, given the current time.</summary>
     public DateTime GetRetryAt(DateTime utcNow)
     {
-        if (RetryAt.HasValue) return RetryAt.Value;
+        if (RetryAt.HasValue)
+        {
+            return RetryAt.Value;
+        }
 
         DateTime target = utcNow.Add(Delay ?? TimeSpan.Zero);
         return target < utcNow ? utcNow : target;

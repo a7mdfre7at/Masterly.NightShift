@@ -32,7 +32,10 @@ internal sealed class ActivityDispatcher : IDashboardDispatcher
             List<ActivityEntry> fresh = [];
             foreach (ActivityEntry entry in entries)
             {
-                if (entry.Timestamp > since) fresh.Add(entry);
+                if (entry.Timestamp > since)
+                {
+                    fresh.Add(entry);
+                }
             }
 
             entries = fresh;

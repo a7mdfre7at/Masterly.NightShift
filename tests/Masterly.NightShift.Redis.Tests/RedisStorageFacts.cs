@@ -13,7 +13,10 @@ public sealed class RedisStorageFacts : IDisposable
 
     public void Dispose()
     {
-        foreach (RedisStorage storage in _storages) RedisTestServer.Delete(storage);
+        foreach (RedisStorage storage in _storages)
+        {
+            RedisTestServer.Delete(storage);
+        }
     }
 
     [Fact]

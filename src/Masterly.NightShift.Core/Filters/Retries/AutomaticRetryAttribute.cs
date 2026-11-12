@@ -179,13 +179,18 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
             if (value != null)
             {
                 if (value.Length == 0)
+                {
                     throw new ArgumentException(
                         $@"{nameof(DelaysInSeconds)} value must contain at least one delay. Set it to null to use {nameof(DelayInSecondsByAttemptFunc)} instead.",
                         nameof(value));
+                }
+
                 if (value.Any(static delay => delay < 0))
+                {
                     throw new ArgumentException(
                         $@"{nameof(DelaysInSeconds)} value must be an array of non-negative numbers.",
                         nameof(value));
+                }
             }
 
             lock (_lockObject) { field = value; }
@@ -291,7 +296,10 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
                 }
             }
 
-            if (!satisfied) return;
+            if (!satisfied)
+            {
+                return;
+            }
         }
 
         if (_exceptOn != null && _exceptOn.Length > 0)
@@ -308,7 +316,10 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
                 }
             }
 
-            if (!satisfied) return;
+            if (!satisfied)
+            {
+                return;
+            }
         }
 
         int retryAttempt = context.GetJobParameter<int>(RetryCountParameter, allowStale: true) + 1;
@@ -373,10 +384,16 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     private bool TryRetryLater(ElectStateContext context, RetryLaterException exception)
     {
         int maxRequests = MaxRetryLaterRequests;
-        if (maxRequests == 0) return false;
+        if (maxRequests == 0)
+        {
+            return false;
+        }
 
         int requests = context.GetJobParameter<int>(RetryLaterCountParameter, allowStale: true) + 1;
-        if (requests > maxRequests) return false;
+        if (requests > maxRequests)
+        {
+            return false;
+        }
 
         context.SetJobParameter(RetryLaterCountParameter, requests);
 

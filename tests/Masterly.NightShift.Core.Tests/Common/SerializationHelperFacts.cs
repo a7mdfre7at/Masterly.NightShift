@@ -563,7 +563,10 @@ public class SerializationHelperFacts
     public void UserData_GetsTheDefaultValue_OfMembersMissingFromTheJson(bool recommended)
     {
         // What the previous serializer stored with DefaultValueHandling.IgnoreAndPopulate
-        if (recommended) SerializationHelper.SetRecommendedSerializerSettings(null);
+        if (recommended)
+        {
+            SerializationHelper.SetRecommendedSerializerSettings(null);
+        }
 
         ReportRequest? result = SerializationHelper.Deserialize<ReportRequest>("{}", SerializationOption.User);
 

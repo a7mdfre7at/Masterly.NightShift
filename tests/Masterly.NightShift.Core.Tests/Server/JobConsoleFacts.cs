@@ -261,7 +261,11 @@ public class JobConsoleFacts : IDisposable
         int overlaps = 0;
         _transaction.Setup(x => x.InsertToList(Key, It.IsAny<string>())).Callback(() =>
         {
-            if (Interlocked.Increment(ref running) > 1) Interlocked.Increment(ref overlaps);
+            if (Interlocked.Increment(ref running) > 1)
+            {
+                Interlocked.Increment(ref overlaps);
+            }
+
             Thread.Sleep(1);
             Interlocked.Decrement(ref running);
         });

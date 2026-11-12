@@ -386,7 +386,10 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
             using SqlMapper.GridReader multi = connection.QueryMultiple(query, new { id = parsedId }, commandTimeout: _storage.CommandTimeout);
             SqlJob? job = multi.ReadSingleOrDefault<SqlJob>();
-            if (job == null) return null;
+            if (job == null)
+            {
+                return null;
+            }
 
             Dictionary<string, string?> parameters = multi.Read<JobParameter>()
                 .DistinctBy(static x => x.Name)
@@ -554,7 +557,10 @@ internal sealed class SqlServerMonitoringApi : JobStorageMonitor
 
         foreach (string key in keyMaps.Keys)
         {
-            if (!valuesMap.ContainsKey(key)) valuesMap.Add(key, 0);
+            if (!valuesMap.ContainsKey(key))
+            {
+                valuesMap.Add(key, 0);
+            }
         }
 
         Dictionary<DateTime, long> result = [];

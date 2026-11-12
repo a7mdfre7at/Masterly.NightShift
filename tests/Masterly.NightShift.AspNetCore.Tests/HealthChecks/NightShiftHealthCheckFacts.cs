@@ -187,7 +187,11 @@ public class NightShiftHealthCheckFacts
         for (int i = 0; i < 100; i++)
         {
             HealthReportEntry entry = await CheckAsync(configure);
-            if (entry.Description != "No NightShift server runs in this process.") return;
+            if (entry.Description != "No NightShift server runs in this process.")
+            {
+                return;
+            }
+
             await Task.Delay(20, TestContext.Current.CancellationToken);
         }
 

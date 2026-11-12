@@ -197,7 +197,10 @@ public sealed class RecurringJobSet
         for (int i = 0; i < _declarations.Count; i++)
         {
             Declaration declaration = _declarations[i];
-            if (!IsPlaceholder(declaration.CronExpression)) continue;
+            if (!IsPlaceholder(declaration.CronExpression))
+            {
+                continue;
+            }
 
             string key = declaration.CronExpression[1..^1];
             string? value = getValue(key);
@@ -226,7 +229,10 @@ public sealed class RecurringJobSet
     /// <returns>This set, to chain calls.</returns>
     public RecurringJobSet RemoveUndeclared([CanBeNull] Func<string, bool>? scope = null)
     {
-        if (_retireUndeclared) throw new InvalidOperationException($"{nameof(RetireUndeclared)} was already called; use one or the other.");
+        if (_retireUndeclared)
+        {
+            throw new InvalidOperationException($"{nameof(RetireUndeclared)} was already called; use one or the other.");
+        }
 
         _removeUndeclared = true;
         _removalScope = scope;
@@ -248,7 +254,10 @@ public sealed class RecurringJobSet
     /// <remarks>Pausing needs a manager that implements <see cref="IRecurringJobManagerV3"/>, as <see cref="RecurringJobManager"/> does.</remarks>
     public RecurringJobSet RetireUndeclared([CanBeNull] Func<string, bool>? scope = null)
     {
-        if (_removeUndeclared) throw new InvalidOperationException($"{nameof(RemoveUndeclared)} was already called; use one or the other.");
+        if (_removeUndeclared)
+        {
+            throw new InvalidOperationException($"{nameof(RemoveUndeclared)} was already called; use one or the other.");
+        }
 
         _retireUndeclared = true;
         _removalScope = scope;
@@ -341,7 +350,10 @@ public sealed class RecurringJobSet
         foreach (SchedulePolicy policy in policies)
         {
             SchedulePolicies.Write(storage, policy, expectedRevision: null, out bool written);
-            if (written) policiesSaved.Add(policy.Name);
+            if (written)
+            {
+                policiesSaved.Add(policy.Name);
+            }
         }
 
         foreach (Declaration declaration in _declarations)
@@ -365,7 +377,10 @@ public sealed class RecurringJobSet
         IEnumerable<string> jobPolicies = _declarations
             .Select(static x => x.Options.Policy)
             .OfType<string>();
-        if (_policies.Count == 0 && !jobPolicies.Any()) return [];
+        if (_policies.Count == 0 && !jobPolicies.Any())
+        {
+            return [];
+        }
 
         using IStorageConnection connection = storage.GetConnection();
 
@@ -391,7 +406,11 @@ public sealed class RecurringJobSet
         {
             if (visited.TryGetValue(policy.Name, out bool done))
             {
-                if (done) return;
+                if (done)
+                {
+                    return;
+                }
+
                 throw new InvalidOperationException($"Schedule policies form a cycle: {string.Join(" -> ", path.Append(policy.Name))}.");
             }
 
@@ -419,7 +438,10 @@ public sealed class RecurringJobSet
             hash = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
         }
 
-        if (hash == null) return;
+        if (hash == null)
+        {
+            return;
+        }
 
         bool declared = hash.TryGetValue(DeclaredField, out string? declaredValue) && declaredValue == "1";
         bool retired = hash.TryGetValue(RetiredField, out string? retiredValue) && retiredValue == "1";
@@ -430,7 +452,10 @@ public sealed class RecurringJobSet
             Logger.Info($"Recurring job '{recurringJobId}' is declared again and was resumed.");
         }
 
-        if (declared && !retired) return;
+        if (declared && !retired)
+        {
+            return;
+        }
 
         SetFields(storage, recurringJobId, new Dictionary<string, string>
         {
@@ -441,7 +466,10 @@ public sealed class RecurringJobSet
 
     private List<string> RetireUndeclaredJobs(IRecurringJobManager manager, JobStorage storage)
     {
-        if (!_retireUndeclared) return [];
+        if (!_retireUndeclared)
+        {
+            return [];
+        }
 
         if (_ids.Count == 0)
         {
@@ -487,7 +515,10 @@ public sealed class RecurringJobSet
     // Under a lock, so replicas starting together create each job once
     private List<string> CreateOnceJobs(JobStorage storage)
     {
-        if (_once.Count == 0) return [];
+        if (_once.Count == 0)
+        {
+            return [];
+        }
 
         List<string> created = [];
         BackgroundJobClient client = new(storage);
@@ -499,7 +530,10 @@ public sealed class RecurringJobSet
 
         foreach (OnceDeclaration once in _once)
         {
-            if (done.ContainsKey(once.Key)) continue;
+            if (done.ContainsKey(once.Key))
+            {
+                continue;
+            }
 
             IState state = once.Delay.HasValue && once.Delay.Value > TimeSpan.Zero
                 ? new ScheduledState(once.Delay.Value)
@@ -607,7 +641,10 @@ public sealed class RecurringJobSet
 
     private List<string> RemoveUndeclaredJobs(IRecurringJobManager manager, JobStorage storage)
     {
-        if (!_removeUndeclared) return [];
+        if (!_removeUndeclared)
+        {
+            return [];
+        }
 
         if (_ids.Count == 0)
         {

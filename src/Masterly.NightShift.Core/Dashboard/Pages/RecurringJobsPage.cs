@@ -18,7 +18,10 @@ internal partial class RecurringJobsPage
     private RecurringJobDto? FindJobToEdit(IStorageConnection connection, List<RecurringJobDto> shown)
     {
         string? id = IsReadOnly ? null : Query("edit");
-        if (string.IsNullOrEmpty(id) || shown.Exists(job => job.Id == id)) return null;
+        if (string.IsNullOrEmpty(id) || shown.Exists(job => job.Id == id))
+        {
+            return null;
+        }
 
         try
         {

@@ -36,7 +36,10 @@ internal sealed class RecordingLogProvider : ILogProvider
 
         public bool Log(LogLevel logLevel, Func<string> messageFunc, Exception exception = null)
         {
-            if (messageFunc == null) return true;
+            if (messageFunc == null)
+            {
+                return true;
+            }
 
             _provider._entries.Enqueue(new LogEntry(_name, logLevel, messageFunc(), exception));
             return true;

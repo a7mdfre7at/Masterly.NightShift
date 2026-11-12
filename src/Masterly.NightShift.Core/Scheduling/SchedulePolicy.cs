@@ -122,11 +122,18 @@ public sealed class SchedulePolicy([NotNull] string name)
     public SchedulePolicy AllowWeekdays([NotNull] params DayOfWeek[] days)
     {
         ArgumentNullException.ThrowIfNull(days);
-        if (days.Length == 0) throw new ArgumentException("At least one day is required.", nameof(days));
+        if (days.Length == 0)
+        {
+            throw new ArgumentException("At least one day is required.", nameof(days));
+        }
 
         foreach (DayOfWeek day in days)
         {
-            if (!Enum.IsDefined(day)) throw new ArgumentOutOfRangeException(nameof(days), day, "Not a day of the week.");
+            if (!Enum.IsDefined(day))
+            {
+                throw new ArgumentOutOfRangeException(nameof(days), day, "Not a day of the week.");
+            }
+
             _days.Add(day);
         }
 
@@ -148,7 +155,11 @@ public sealed class SchedulePolicy([NotNull] string name)
     public SchedulePolicy AllowBetween(TimeSpan start, TimeSpan end)
     {
         ScheduleWindow window = new(start, end);
-        if (!_windows.Contains(window)) _windows.Add(window);
+        if (!_windows.Contains(window))
+        {
+            _windows.Add(window);
+        }
+
         return this;
     }
 
@@ -177,7 +188,11 @@ public sealed class SchedulePolicy([NotNull] string name)
     public SchedulePolicy ExcludeDatesFrom([NotNull] string providerName)
     {
         string name = NormalizeName(providerName, nameof(providerName));
-        if (!_dateProviders.Contains(name)) _dateProviders.Add(name);
+        if (!_dateProviders.Contains(name))
+        {
+            _dateProviders.Add(name);
+        }
+
         return this;
     }
 
@@ -191,7 +206,11 @@ public sealed class SchedulePolicy([NotNull] string name)
     {
         string name = NormalizeName(policyName, nameof(policyName));
         CheckReference(name, _excepted, nameof(policyName));
-        if (!_required.Contains(name)) _required.Add(name);
+        if (!_required.Contains(name))
+        {
+            _required.Add(name);
+        }
+
         return this;
     }
 
@@ -201,7 +220,11 @@ public sealed class SchedulePolicy([NotNull] string name)
     {
         string name = NormalizeName(policyName, nameof(policyName));
         CheckReference(name, _required, nameof(policyName));
-        if (!_excepted.Contains(name)) _excepted.Add(name);
+        if (!_excepted.Contains(name))
+        {
+            _excepted.Add(name);
+        }
+
         return this;
     }
 
@@ -296,16 +319,50 @@ public sealed class SchedulePolicy([NotNull] string name)
             policy.Description = Field(DescriptionField);
             policy.TimeZoneId = Field(TimeZoneField) ?? TimeZoneInfo.Utc.Id;
 
-            foreach (string day in List(DaysField)) policy._days.Add(Enum.Parse<DayOfWeek>(day, ignoreCase: true));
-            foreach (string window in List(WindowsField)) policy._windows.Add(ScheduleWindow.Parse(window));
-            foreach (string date in List(ExcludedDatesField)) policy._excludedDates.Add(DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture));
-            foreach (string date in List(AnnualDatesField)) policy._excludedAnnualDates.Add(AnnualDate.Parse(date));
-            foreach (string provider in List(DateProvidersField)) policy._dateProviders.Add(NormalizeName(provider, nameof(fields)));
-            foreach (string required in List(RequireField)) policy._required.Add(NormalizeName(required, nameof(fields)));
-            foreach (string excepted in List(ExceptField)) policy._excepted.Add(NormalizeName(excepted, nameof(fields)));
+            foreach (string day in List(DaysField))
+            {
+                policy._days.Add(Enum.Parse<DayOfWeek>(day, ignoreCase: true));
+            }
 
-            if (Field(RevisionField) is { } revision) policy.Revision = long.Parse(revision, NumberStyles.Integer, CultureInfo.InvariantCulture);
-            if (Field(UpdatedAtField) is { } updatedAt) policy.UpdatedAt = JobHelper.DeserializeDateTime(updatedAt);
+            foreach (string window in List(WindowsField))
+            {
+                policy._windows.Add(ScheduleWindow.Parse(window));
+            }
+
+            foreach (string date in List(ExcludedDatesField))
+            {
+                policy._excludedDates.Add(DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture));
+            }
+
+            foreach (string date in List(AnnualDatesField))
+            {
+                policy._excludedAnnualDates.Add(AnnualDate.Parse(date));
+            }
+
+            foreach (string provider in List(DateProvidersField))
+            {
+                policy._dateProviders.Add(NormalizeName(provider, nameof(fields)));
+            }
+
+            foreach (string required in List(RequireField))
+            {
+                policy._required.Add(NormalizeName(required, nameof(fields)));
+            }
+
+            foreach (string excepted in List(ExceptField))
+            {
+                policy._excepted.Add(NormalizeName(excepted, nameof(fields)));
+            }
+
+            if (Field(RevisionField) is { } revision)
+            {
+                policy.Revision = long.Parse(revision, NumberStyles.Integer, CultureInfo.InvariantCulture);
+            }
+
+            if (Field(UpdatedAtField) is { } updatedAt)
+            {
+                policy.UpdatedAt = JobHelper.DeserializeDateTime(updatedAt);
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or OverflowException)
         {
@@ -331,7 +388,10 @@ public readonly record struct ScheduleWindow
     {
         CheckTime(start, nameof(start));
         CheckTime(end, nameof(end));
-        if (start == end) throw new ArgumentException("A window can't start and end at the same time.", nameof(end));
+        if (start == end)
+        {
+            throw new ArgumentException("A window can't start and end at the same time.", nameof(end));
+        }
 
         Start = start;
         End = end;
@@ -349,7 +409,10 @@ public readonly record struct ScheduleWindow
     /// </summary>
     public bool Contains(TimeSpan timeOfDay)
     {
-        if (Start == End) return false;
+        if (Start == End)
+        {
+            return false;
+        }
 
         return Start < End
             ? timeOfDay >= Start && timeOfDay < End
@@ -412,7 +475,10 @@ public readonly record struct AnnualDate : IComparable<AnnualDate>
     /// <exception cref="ArgumentOutOfRangeException">The month or the day doesn't exist.</exception>
     public AnnualDate(int month, int day)
     {
-        if (month is < 1 or > 12) throw new ArgumentOutOfRangeException(nameof(month), month, "A month is between 1 and 12.");
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month), month, "A month is between 1 and 12.");
+        }
 
         // 2000 is a leap year, so 29 February is accepted
         if (day < 1 || day > DateTime.DaysInMonth(2000, month))

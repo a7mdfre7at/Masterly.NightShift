@@ -191,7 +191,11 @@ public class RetryInProcessAttributeFacts
         [RetryInProcess(5, DelayMilliseconds = 1)]
         public string SucceedsOnThirdCall()
         {
-            if (++_calls < 3) throw new IOException();
+            if (++_calls < 3)
+            {
+                throw new IOException();
+            }
+
             return "ok";
         }
 
@@ -199,7 +203,11 @@ public class RetryInProcessAttributeFacts
         public async Task<int> AsyncSucceedsOnSecondCall()
         {
             await Task.Yield();
-            if (++_calls < 2) throw new IOException();
+            if (++_calls < 2)
+            {
+                throw new IOException();
+            }
+
             return _calls;
         }
 

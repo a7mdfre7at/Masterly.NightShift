@@ -417,7 +417,10 @@ public class DashboardRoutesFacts
     private DashboardContextStub Create(string path, string method = "POST", bool readOnly = false, string[] jobs = null)
     {
         DashboardRequestStub request = new(method, path);
-        if (jobs != null) request.Form["jobs[]"] = [.. jobs];
+        if (jobs != null)
+        {
+            request.Form["jobs[]"] = [.. jobs];
+        }
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
         {

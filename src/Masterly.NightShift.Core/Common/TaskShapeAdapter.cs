@@ -30,7 +30,10 @@ internal static class TaskShapeAdapter
 
     private static bool IsTaskLikeType(Type type)
     {
-        if (typeof(Task).GetTypeInfo().IsAssignableFrom(type.GetTypeInfo())) return true;
+        if (typeof(Task).GetTypeInfo().IsAssignableFrom(type.GetTypeInfo()))
+        {
+            return true;
+        }
 
         return type.FullName != null && type.FullName.StartsWith("System.Threading.Tasks.ValueTask", StringComparison.Ordinal);
     }

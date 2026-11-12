@@ -51,11 +51,17 @@ internal static class EfLimits
     /// </summary>
     public static string LockResource(string resource)
     {
-        if (resource.Length <= LockResourceLength) return resource;
+        if (resource.Length <= LockResourceLength)
+        {
+            return resource;
+        }
 
         // "{prefix}~{hash}" is exactly LockResourceLength characters long; a surrogate pair is never cut in two
         int prefixLength = LockResourceLength - LockResourceHashLength - 1;
-        if (char.IsHighSurrogate(resource[prefixLength - 1])) prefixLength--;
+        if (char.IsHighSurrogate(resource[prefixLength - 1]))
+        {
+            prefixLength--;
+        }
 
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(resource));
         StringBuilder builder = new(LockResourceLength);
@@ -122,14 +128,22 @@ internal static class EfLimits
                 break;
             case AddRangeToSetOperation range:
                 EnsureKeyFits(range.Key);
-                foreach (string value in range.Values) EnsureSetValueFits(range.Key, value);
+                foreach (string value in range.Values)
+                {
+                    EnsureSetValueFits(range.Key, value);
+                }
+
                 break;
             case InsertToListOperation insert:
                 EnsureKeyFits(insert.Key);
                 break;
             case SetRangeInHashOperation hash:
                 EnsureKeyFits(hash.Key);
-                foreach (KeyValuePair<string, string> field in hash.Fields) EnsureHashFieldFits(hash.Key, field.Key);
+                foreach (KeyValuePair<string, string> field in hash.Fields)
+                {
+                    EnsureHashFieldFits(hash.Key, field.Key);
+                }
+
                 break;
         }
     }
@@ -156,7 +170,10 @@ internal static class EfLimits
 
     private static void EnsureHashFieldFits(string key, string field)
     {
-        if (field == null) throw new ArgumentNullException(nameof(field), $"A hash field name can't be null (hash '{Shorten(key)}').");
+        if (field == null)
+        {
+            throw new ArgumentNullException(nameof(field), $"A hash field name can't be null (hash '{Shorten(key)}').");
+        }
 
         if (field.Length > HashFieldLength)
         {

@@ -125,8 +125,16 @@ internal static class StorageValues
     /// <summary>The time something expires, clamped so a long period, or a long negative one, doesn't overflow.</summary>
     public static DateTime ExpireAt(DateTime from, TimeSpan expireIn)
     {
-        if (expireIn >= DateTime.MaxValue - from) return DateTime.SpecifyKind(DateTime.MaxValue, from.Kind);
-        if (expireIn <= DateTime.MinValue - from) return DateTime.SpecifyKind(DateTime.MinValue, from.Kind);
+        if (expireIn >= DateTime.MaxValue - from)
+        {
+            return DateTime.SpecifyKind(DateTime.MaxValue, from.Kind);
+        }
+
+        if (expireIn <= DateTime.MinValue - from)
+        {
+            return DateTime.SpecifyKind(DateTime.MinValue, from.Kind);
+        }
+
         return from.Add(expireIn);
     }
 

@@ -56,7 +56,10 @@ public abstract class JobInvoker
     internal JobInvoker([NotNull] MethodInfo method, JobInvokerKind kind)
     {
         ArgumentNullException.ThrowIfNull(method);
-        if (method.DeclaringType == null) throw new ArgumentException("Global methods are not supported.", nameof(method));
+        if (method.DeclaringType == null)
+        {
+            throw new ArgumentException("Global methods are not supported.", nameof(method));
+        }
 
         Method = method;
         Type = method.DeclaringType;
@@ -95,7 +98,10 @@ public abstract class JobInvoker
         get
         {
             MethodInfo? method = Volatile.Read(ref field);
-            if (method != null) return method;
+            if (method != null)
+            {
+                return method;
+            }
 
             method = ResolveMethod();
             Interlocked.CompareExchange(ref field, method, null);

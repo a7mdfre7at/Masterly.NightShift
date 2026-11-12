@@ -117,7 +117,10 @@ public static partial class JobCatalog
 
         lock (SyncRoot)
         {
-            if (Array.IndexOf(_additionalTypes, type) >= 0) return;
+            if (Array.IndexOf(_additionalTypes, type) >= 0)
+            {
+                return;
+            }
 
             Type[] types = new Type[_additionalTypes.Length + 1];
             Array.Copy(_additionalTypes, types, _additionalTypes.Length);
@@ -152,17 +155,26 @@ public static partial class JobCatalog
                 continue;
             }
 
-            if (!IsRunnable(method)) continue;
+            if (!IsRunnable(method))
+            {
+                continue;
+            }
 
             JobCatalogEntry? entry = TryCreateEntry(invoker.Type, method, invoker.Kind);
-            if (entry != null) entries[entry.Id] = entry;
+            if (entry != null)
+            {
+                entries[entry.Id] = entry;
+            }
         }
 
         foreach (Type? type in Volatile.Read(ref _additionalTypes))
         {
             foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             {
-                if (!IsRunnable(method)) continue;
+                if (!IsRunnable(method))
+                {
+                    continue;
+                }
 
                 JobCatalogEntry? entry = TryCreateEntry(type, method, null);
                 if (entry != null && !entries.ContainsKey(entry.Id))
@@ -215,7 +227,10 @@ public static partial class JobCatalog
         for (int i = 0; i < parameters.Length; i++)
         {
             ParameterInfo parameter = parameters[i];
-            if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType) || RedactedAttribute.IsRedacted(parameter)) continue;
+            if (CoreBackgroundJobPerformer.Substitutions.ContainsKey(parameter.ParameterType) || RedactedAttribute.IsRedacted(parameter))
+            {
+                continue;
+            }
 
             object? value = i < job.Args.Count ? job.Args[i] : null;
             result[i] = FormatArgument(value, parameter.ParameterType);
@@ -275,7 +290,10 @@ public static partial class JobCatalog
         for (int i = 0; i < entry.Parameters.Count; i++)
         {
             JobCatalogParameter parameter = entry.Parameters[i];
-            if (parameter.Injected) continue;
+            if (parameter.Injected)
+            {
+                continue;
+            }
 
             arguments.TryGetValue(parameter.Name, out string? text);
             values[i] = ConvertArgument(parameter, text);
@@ -290,20 +308,41 @@ public static partial class JobCatalog
 
         if (text == null || text.Length == 0)
         {
-            if (parameter.HasDefaultValue) return parameter.DefaultValue;
-            if (type == typeof(string)) return string.Empty;
-            if (!type.GetTypeInfo().IsValueType || Nullable.GetUnderlyingType(type) != null) return null;
-            if (type == typeof(bool)) return false;
+            if (parameter.HasDefaultValue)
+            {
+                return parameter.DefaultValue;
+            }
+
+            if (type == typeof(string))
+            {
+                return string.Empty;
+            }
+
+            if (!type.GetTypeInfo().IsValueType || Nullable.GetUnderlyingType(type) != null)
+            {
+                return null;
+            }
+
+            if (type == typeof(bool))
+            {
+                return false;
+            }
 
             throw new ArgumentException($"Parameter '{parameter.Name}' ({parameter.TypeName}) needs a value.");
         }
 
-        if (type == typeof(string)) return text;
+        if (type == typeof(string))
+        {
+            return text;
+        }
 
         Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
         // The "(null)" choice of a bool? or nullable enum select, and the JSON null of other nullable types
-        if (underlying != type && text.Trim() == "null") return null;
+        if (underlying != type && text.Trim() == "null")
+        {
+            return null;
+        }
 
         if (underlying == typeof(bool))
         {
@@ -362,8 +401,15 @@ public static partial class JobCatalog
     /// </summary>
     internal static string? CombineFormValues([NotNull] JobCatalogParameter parameter, [CanBeNull] IList<string?>? values)
     {
-        if (values == null || values.Count == 0) return null;
-        if (values is [var only]) return only;
+        if (values == null || values.Count == 0)
+        {
+            return null;
+        }
+
+        if (values is [var only])
+        {
+            return only;
+        }
 
         Type underlying = Nullable.GetUnderlyingType(parameter.Type) ?? parameter.Type;
 
@@ -375,7 +421,10 @@ public static partial class JobCatalog
         if (IsFlagsEnum(underlying))
         {
             List<string> names = [.. values.Where(static v => !string.IsNullOrWhiteSpace(v) && v!.Trim() != "0").Select(static v => v!.Trim())];
-            if (names.Count > 1) names.RemoveAll(static v => v == "null");
+            if (names.Count > 1)
+            {
+                names.RemoveAll(static v => v == "null");
+            }
 
             return names.Count == 0 ? "0" : string.Join(", ", names);
         }
@@ -432,14 +481,25 @@ public static partial class JobCatalog
 
     private static object ParsePlainText(string text, Type type)
     {
-        if (type == typeof(Guid)) return new Guid(text.Trim());
+        if (type == typeof(Guid))
+        {
+            return new Guid(text.Trim());
+        }
+
         if (type == typeof(TimeSpan))
         {
             // TimeSpan.Parse reads a lone number as days, which is rarely what "3600" means
-            if (text.IndexOf(':') < 0) throw new FormatException($"'{text.Trim()}' is not a time span; use hh:mm:ss, for example 00:30:00.");
+            if (text.IndexOf(':') < 0)
+            {
+                throw new FormatException($"'{text.Trim()}' is not a time span; use hh:mm:ss, for example 00:30:00.");
+            }
+
             return TimeSpan.Parse(text.Trim(), CultureInfo.InvariantCulture);
         }
-        if (text is [var character]) return character;
+        if (text is [var character])
+        {
+            return character;
+        }
 
         throw new FormatException($"'{text}' is not a single character.");
     }
@@ -461,13 +521,31 @@ public static partial class JobCatalog
 
     internal static bool IsRunnable(MethodInfo method)
     {
-        if (method.IsGenericMethodDefinition || method.ContainsGenericParameters) return false;
-        if (method.IsSpecialName || method.DeclaringType == typeof(object)) return false;
+        if (method.IsGenericMethodDefinition || method.ContainsGenericParameters)
+        {
+            return false;
+        }
+
+        if (method.IsSpecialName || method.DeclaringType == typeof(object))
+        {
+            return false;
+        }
 
         // Equals, GetHashCode and ToString overrides, and what the compiler adds to a record (<Clone>$, Equals)
-        if (method.GetBaseDefinition().DeclaringType == typeof(object)) return false;
-        if (method.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)) return false;
-        if (method.GetParameters().Any(static p => p.ParameterType.IsByRef || p.IsOut)) return false;
+        if (method.GetBaseDefinition().DeclaringType == typeof(object))
+        {
+            return false;
+        }
+
+        if (method.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+        {
+            return false;
+        }
+
+        if (method.GetParameters().Any(static p => p.ParameterType.IsByRef || p.IsOut))
+        {
+            return false;
+        }
 
         return true;
     }
@@ -481,17 +559,55 @@ public static partial class JobCatalog
     internal static string GetFriendlyName(Type type)
     {
         Type? underlying = Nullable.GetUnderlyingType(type);
-        if (underlying != null) return GetFriendlyName(underlying) + "?";
+        if (underlying != null)
+        {
+            return GetFriendlyName(underlying) + "?";
+        }
 
-        if (type == typeof(string)) return "string";
-        if (type == typeof(int)) return "int";
-        if (type == typeof(long)) return "long";
-        if (type == typeof(bool)) return "bool";
-        if (type == typeof(double)) return "double";
-        if (type == typeof(decimal)) return "decimal";
-        if (type == typeof(float)) return "float";
-        if (type == typeof(object)) return "object";
-        if (type.IsArray) return GetFriendlyName(type.GetElementType()!) + "[]";
+        if (type == typeof(string))
+        {
+            return "string";
+        }
+
+        if (type == typeof(int))
+        {
+            return "int";
+        }
+
+        if (type == typeof(long))
+        {
+            return "long";
+        }
+
+        if (type == typeof(bool))
+        {
+            return "bool";
+        }
+
+        if (type == typeof(double))
+        {
+            return "double";
+        }
+
+        if (type == typeof(decimal))
+        {
+            return "decimal";
+        }
+
+        if (type == typeof(float))
+        {
+            return "float";
+        }
+
+        if (type == typeof(object))
+        {
+            return "object";
+        }
+
+        if (type.IsArray)
+        {
+            return GetFriendlyName(type.GetElementType()!) + "[]";
+        }
 
         if (type.GetTypeInfo().IsGenericType)
         {
@@ -506,10 +622,25 @@ public static partial class JobCatalog
     {
         Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
-        if (underlying == typeof(bool)) return underlying == type ? "checkbox" : "select";
-        if (underlying.GetTypeInfo().IsEnum) return "select";
-        if (underlying == typeof(DateTime) || underlying == typeof(DateTimeOffset)) return "datetime";
-        if (underlying == typeof(string) || underlying == typeof(Guid) || underlying == typeof(TimeSpan) || underlying == typeof(char)) return "text";
+        if (underlying == typeof(bool))
+        {
+            return underlying == type ? "checkbox" : "select";
+        }
+
+        if (underlying.GetTypeInfo().IsEnum)
+        {
+            return "select";
+        }
+
+        if (underlying == typeof(DateTime) || underlying == typeof(DateTimeOffset))
+        {
+            return "datetime";
+        }
+
+        if (underlying == typeof(string) || underlying == typeof(Guid) || underlying == typeof(TimeSpan) || underlying == typeof(char))
+        {
+            return "text";
+        }
 
         return Type.GetTypeCode(underlying) switch
         {

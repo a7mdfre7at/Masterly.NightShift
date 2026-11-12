@@ -17,7 +17,10 @@ internal static class JobCodeRenderer
     /// <summary>Renders the statement. A job that could not be loaded renders a comment.</summary>
     public static string Render([CanBeNull] Job? job)
     {
-        if (job == null) return "// The job could not be loaded.";
+        if (job == null)
+        {
+            return "// The job could not be loaded.";
+        }
 
         StringBuilder builder = new();
         MethodInfo method = job.Method;
@@ -84,7 +87,10 @@ internal static class JobCodeRenderer
     public static string Literal([CanBeNull] object? value, [NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        if (value == null) return "null";
+        if (value == null)
+        {
+            return "null";
+        }
 
         Type underlying = Nullable.GetUnderlyingType(type) ?? type;
 
@@ -153,16 +159,50 @@ internal static class JobCodeRenderer
     internal static string TypeName(Type type)
     {
         Type? underlying = Nullable.GetUnderlyingType(type);
-        if (underlying != null) return TypeName(underlying) + "?";
+        if (underlying != null)
+        {
+            return TypeName(underlying) + "?";
+        }
 
-        if (type == typeof(string)) return "string";
-        if (type == typeof(int)) return "int";
-        if (type == typeof(long)) return "long";
-        if (type == typeof(bool)) return "bool";
-        if (type == typeof(double)) return "double";
-        if (type == typeof(decimal)) return "decimal";
-        if (type == typeof(object)) return "object";
-        if (type.IsArray) return TypeName(type.GetElementType()!) + "[]";
+        if (type == typeof(string))
+        {
+            return "string";
+        }
+
+        if (type == typeof(int))
+        {
+            return "int";
+        }
+
+        if (type == typeof(long))
+        {
+            return "long";
+        }
+
+        if (type == typeof(bool))
+        {
+            return "bool";
+        }
+
+        if (type == typeof(double))
+        {
+            return "double";
+        }
+
+        if (type == typeof(decimal))
+        {
+            return "decimal";
+        }
+
+        if (type == typeof(object))
+        {
+            return "object";
+        }
+
+        if (type.IsArray)
+        {
+            return TypeName(type.GetElementType()!) + "[]";
+        }
 
         if (type.GetTypeInfo().IsGenericType)
         {

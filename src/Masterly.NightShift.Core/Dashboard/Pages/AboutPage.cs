@@ -42,7 +42,10 @@ internal partial class AboutPage
     internal static string DescribeDeployment(string deployment, long? order, string? current, long? currentOrder)
     {
         string own = DeploymentFencing.Describe(deployment, order);
-        if (current == null || current == deployment) return own;
+        if (current == null || current == deployment)
+        {
+            return own;
+        }
 
         return currentOrder.HasValue
             ? string.Create(CultureInfo.InvariantCulture, $"{own} ({current}, order {currentOrder.Value})")

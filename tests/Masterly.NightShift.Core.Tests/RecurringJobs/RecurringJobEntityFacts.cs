@@ -470,7 +470,11 @@ public class RecurringJobEntityFacts
     {
         PolicyStorage storage = new();
         storage.Add(policy);
-        foreach (SchedulePolicy other in others) storage.Add(other);
+        foreach (SchedulePolicy other in others)
+        {
+            storage.Add(other);
+        }
+
         _recurringJob["TimeZoneId"] = "UTC";
         _recurringJob["Cron"] = "0 * * * *";
         _recurringJob["Policy"] = policy.Name;
@@ -504,7 +508,11 @@ public class RecurringJobEntityFacts
 
         entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1), TimeSpan.Zero);
         entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> changedFields);
-        foreach (KeyValuePair<string, string> field in changedFields) _recurringJob[field.Key] = field.Value;
+        foreach (KeyValuePair<string, string> field in changedFields)
+        {
+            _recurringJob[field.Key] = field.Value;
+        }
+
         RecurringJobEntity stored = new(RecurringJobId, _recurringJob);
 
         Assert.True(entity.WaitsForPolicy);

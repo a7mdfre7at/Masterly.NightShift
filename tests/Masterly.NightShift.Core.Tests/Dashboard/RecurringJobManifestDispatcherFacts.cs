@@ -29,7 +29,11 @@ public class RecurringJobManifestDispatcherFacts
     private DashboardContextStub Context(string method, bool readOnly = false, params (string, string)[] form)
     {
         DashboardRequestStub request = new(method);
-        foreach ((string? key, string? value) in form) request.Form[key] = [value];
+        foreach ((string? key, string? value) in form)
+        {
+            request.Form[key] = [value];
+        }
+
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object) { RecurringJobManager = _manager.Object };
     }
 

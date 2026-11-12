@@ -39,7 +39,10 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
         }
         catch (Exception ex) when (IsCatchable(ex))
         {
-            if (_logger != null) LogStorageFailure(_logger, ex);
+            if (_logger != null)
+            {
+                LogStorageFailure(_logger, ex);
+            }
 
             // The process scope serves liveness probes: restarting the process doesn't bring the database
             // back, and a server that restarts while the storage is down can't even register, so an outage

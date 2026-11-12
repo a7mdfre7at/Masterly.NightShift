@@ -125,13 +125,19 @@ public static class DrainMode
         ArgumentNullException.ThrowIfNull(connection);
 
         Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(HashKey);
-        if (hash == null) return DrainModeStatus.Inactive;
+        if (hash == null)
+        {
+            return DrainModeStatus.Inactive;
+        }
 
         Dictionary<string, string?> pausedQueues = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, string?> pausedServers = new(StringComparer.OrdinalIgnoreCase);
         foreach (KeyValuePair<string, string> pair in hash)
         {
-            if (pair.Value is ResumedMarker or LegacyResumedMarker) continue;
+            if (pair.Value is ResumedMarker or LegacyResumedMarker)
+            {
+                continue;
+            }
 
             if (pair.Key.StartsWith(QueueFieldPrefix, StringComparison.Ordinal) && pair.Key.Length > QueueFieldPrefix.Length)
             {
@@ -145,7 +151,10 @@ public static class DrainMode
         }
 
         bool active = hash.TryGetValue("Drain", out string? drain) && drain == "1";
-        if (!active && pausedQueues.Count == 0 && pausedServers.Count == 0) return DrainModeStatus.Inactive;
+        if (!active && pausedQueues.Count == 0 && pausedServers.Count == 0)
+        {
+            return DrainModeStatus.Inactive;
+        }
 
         DateTime? since = active && hash.TryGetValue("DrainSince", out string? sinceValue) ? JobHelper.DeserializeNullableDateTime(sinceValue) : null;
         string? reason = active && hash.TryGetValue("DrainReason", out string? reasonValue) && reasonValue.Length > 0 ? reasonValue : null;
@@ -170,7 +179,10 @@ public static class DrainMode
     public static void PauseServer([NotNull] IStorageConnection connection, [NotNull] string serverId, [CanBeNull] string? reason = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
+        if (string.IsNullOrWhiteSpace(serverId))
+        {
+            throw new ArgumentException("A server id is required.", nameof(serverId));
+        }
 
         string id = serverId.Trim();
         string field = GetServerField(id);
@@ -194,7 +206,10 @@ public static class DrainMode
     public static void ResumeServer([NotNull] IStorageConnection connection, [NotNull] string serverId)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server id is required.", nameof(serverId));
+        if (string.IsNullOrWhiteSpace(serverId))
+        {
+            throw new ArgumentException("A server id is required.", nameof(serverId));
+        }
 
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
@@ -220,7 +235,10 @@ public static class DrainMode
         using IStorageConnection connection = storage.GetConnection();
         // The pauses are read before the servers: a server paused after this read is never cleared by mistake
         IReadOnlyDictionary<string, string?> pausedServers = Read(connection).PausedServers;
-        if (pausedServers.Count == 0) return [];
+        if (pausedServers.Count == 0)
+        {
+            return [];
+        }
 
         HashSet<string> runningServers = new(StringComparer.OrdinalIgnoreCase);
         foreach (ServerDto server in storage.GetMonitoringApi().Servers())
@@ -232,13 +250,19 @@ public static class DrainMode
         List<KeyValuePair<string, string>> fields = [];
         foreach (string serverId in pausedServers.Keys)
         {
-            if (runningServers.Contains(serverId)) continue;
+            if (runningServers.Contains(serverId))
+            {
+                continue;
+            }
 
             stale.Add(serverId);
             fields.Add(new KeyValuePair<string, string>(GetServerField(serverId), ResumedMarker));
         }
 
-        if (stale.Count == 0) return stale;
+        if (stale.Count == 0)
+        {
+            return stale;
+        }
 
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
@@ -298,7 +322,10 @@ public static class DrainMode
     public static void PauseQueue([NotNull] IStorageConnection connection, [NotNull] string queue, [CanBeNull] string? reason = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (string.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
+        if (string.IsNullOrWhiteSpace(queue))
+        {
+            throw new ArgumentException("A queue name is required.", nameof(queue));
+        }
 
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
@@ -316,7 +343,10 @@ public static class DrainMode
     public static void ResumeQueue([NotNull] IStorageConnection connection, [NotNull] string queue)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (string.IsNullOrWhiteSpace(queue)) throw new ArgumentException("A queue name is required.", nameof(queue));
+        if (string.IsNullOrWhiteSpace(queue))
+        {
+            throw new ArgumentException("A queue name is required.", nameof(queue));
+        }
 
         string field = QueueFieldPrefix + queue.Trim().ToLowerInvariant();
 
@@ -397,7 +427,10 @@ public static class DrainMode
     internal static string GetServerField([NotNull] string serverId)
     {
         string field = ServerFieldPrefix + serverId;
-        if (field.Length <= MaxFieldLength) return field;
+        if (field.Length <= MaxFieldLength)
+        {
+            return field;
+        }
 
         byte[] bytes = Encoding.UTF8.GetBytes(serverId.ToLowerInvariant());
         byte[] hash = SHA256.HashData(bytes);

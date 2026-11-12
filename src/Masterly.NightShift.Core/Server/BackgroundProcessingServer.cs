@@ -139,7 +139,10 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
 
     public void Dispose()
     {
-        if (Volatile.Read(ref _disposed) == 1) return;
+        if (Volatile.Read(ref _disposed) == 1)
+        {
+            return;
+        }
 
         if (!_stoppingCts.IsCancellationRequested)
         {
@@ -151,7 +154,10 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
             WaitForShutdown(Timeout.InfiniteTimeSpan);
         }
 
-        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
 
         AppDomain.CurrentDomain.DomainUnload -= OnCurrentDomainUnload;
         AppDomain.CurrentDomain.ProcessExit -= OnCurrentDomainUnload;
@@ -164,7 +170,10 @@ public sealed class BackgroundProcessingServer : IBackgroundProcessingServer
 
     private void OnCurrentDomainUnload(object? sender, EventArgs args)
     {
-        if (Volatile.Read(ref _disposed) == 1) return;
+        if (Volatile.Read(ref _disposed) == 1)
+        {
+            return;
+        }
 
         _logger.Warn("Stopping the server due to DomainUnload or ProcessExit event...");
 

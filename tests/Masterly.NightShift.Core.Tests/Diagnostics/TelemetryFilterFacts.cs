@@ -643,7 +643,10 @@ public sealed class TelemetryFilterFacts : IDisposable
     private void Record(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object>> tags)
     {
         Dictionary<string, object> tagMap = [];
-        foreach (KeyValuePair<string, object> tag in tags) tagMap[tag.Key] = tag.Value;
+        foreach (KeyValuePair<string, object> tag in tags)
+        {
+            tagMap[tag.Key] = tag.Value;
+        }
 
         _measurements.Add((instrument.Name, value, tagMap));
     }

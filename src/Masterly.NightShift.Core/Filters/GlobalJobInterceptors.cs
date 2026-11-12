@@ -39,7 +39,10 @@ public static class GlobalJobInterceptors
 
         lock (SyncRoot)
         {
-            if (!_interceptors.Contains(interceptor)) return false;
+            if (!_interceptors.Contains(interceptor))
+            {
+                return false;
+            }
 
             _interceptors = [.. _interceptors.Where(x => !ReferenceEquals(x, interceptor))];
             return true;

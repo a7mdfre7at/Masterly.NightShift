@@ -68,7 +68,10 @@ public sealed class CronBuilder
         Validate(hours, 1, 23, nameof(hours));
 
         string call = Call("EveryHours", hours);
-        if (_firstAt != null) throw AtConflict(_firstAt, call);
+        if (_firstAt != null)
+        {
+            throw AtConflict(_firstAt, call);
+        }
 
         _hourStep.Set(hours.ToString(CultureInfo.InvariantCulture), call);
         return this;
@@ -106,8 +109,15 @@ public sealed class CronBuilder
         Validate(minute, 0, 59, nameof(minute));
 
         string call = Call("At", hour, minute);
-        if (_hourStep.SetBy != null) throw AtConflict(call, _hourStep.SetBy);
-        if (_hourRange.SetBy != null) throw AtConflict(call, _hourRange.SetBy);
+        if (_hourStep.SetBy != null)
+        {
+            throw AtConflict(call, _hourStep.SetBy);
+        }
+
+        if (_hourRange.SetBy != null)
+        {
+            throw AtConflict(call, _hourRange.SetBy);
+        }
 
         string minuteText = minute.ToString(CultureInfo.InvariantCulture);
         if (_firstAt != null && _minute.Value != minuteText)
@@ -143,7 +153,10 @@ public sealed class CronBuilder
         Validate(toHour, 0, 23, nameof(toHour));
 
         string call = Call("Between", fromHour, toHour);
-        if (_firstAt != null) throw AtConflict(_firstAt, call);
+        if (_firstAt != null)
+        {
+            throw AtConflict(_firstAt, call);
+        }
 
         _hourRange.Set($"{fromHour.ToString(CultureInfo.InvariantCulture)}-{toHour.ToString(CultureInfo.InvariantCulture)}", call);
         _fromHour = fromHour;
@@ -155,7 +168,10 @@ public sealed class CronBuilder
     /// <exception cref="InvalidOperationException">Other days of week were set before.</exception>
     public CronBuilder OnDays(params DayOfWeek[] days)
     {
-        if (days == null || days.Length == 0) throw new ArgumentException("At least one day is required.", nameof(days));
+        if (days == null || days.Length == 0)
+        {
+            throw new ArgumentException("At least one day is required.", nameof(days));
+        }
 
         IEnumerable<string> sorted = days.Select(static x => (int)x).Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
         _dayOfWeek.Set(string.Join(",", sorted), "OnDays(...)");
@@ -205,8 +221,15 @@ public sealed class CronBuilder
     /// <exception cref="InvalidOperationException"><see cref="EveryMonths"/> or other months were set before.</exception>
     public CronBuilder InMonths(params int[] months)
     {
-        if (months == null || months.Length == 0) throw new ArgumentException("At least one month is required.", nameof(months));
-        foreach (int month in months) Validate(month, 1, 12, nameof(months));
+        if (months == null || months.Length == 0)
+        {
+            throw new ArgumentException("At least one month is required.", nameof(months));
+        }
+
+        foreach (int month in months)
+        {
+            Validate(month, 1, 12, nameof(months));
+        }
 
         IEnumerable<string> sorted = months.Distinct().OrderBy(static x => x).Select(static x => x.ToString(CultureInfo.InvariantCulture));
         _month.Set(string.Join(",", sorted), "InMonths(...)");
@@ -226,7 +249,10 @@ public sealed class CronBuilder
         string dayOfMonth = _dayOfMonth.Value ?? (_month.Value != null && _dayOfWeek.Value == null ? "1" : "*");
 
         string cron = $"{minute} {hour} {dayOfMonth} {month} {dayOfWeek}";
-        if (second != null) cron = $"{second} {cron}";
+        if (second != null)
+        {
+            cron = $"{second} {cron}";
+        }
 
         RecurringJobEntity.ParseCronExpression(cron);
         return cron;
@@ -241,17 +267,27 @@ public sealed class CronBuilder
 
     private string BuildHour(bool subHourInterval)
     {
-        if (_hours.Count > 0) return string.Join(",", _hours.Select(static x => x.ToString(CultureInfo.InvariantCulture)));
+        if (_hours.Count > 0)
+        {
+            return string.Join(",", _hours.Select(static x => x.ToString(CultureInfo.InvariantCulture)));
+        }
 
         string? step = _hourStep.Value;
 
         if (_hourRange.Value != null)
         {
-            if (_fromHour == _toHour) return _fromHour.ToString(CultureInfo.InvariantCulture);
+            if (_fromHour == _toHour)
+            {
+                return _fromHour.ToString(CultureInfo.InvariantCulture);
+            }
+
             return step is null or "1" ? _hourRange.Value : $"{_hourRange.Value}/{step}";
         }
 
-        if (step != null) return step == "1" ? "*" : $"*/{step}";
+        if (step != null)
+        {
+            return step == "1" ? "*" : $"*/{step}";
+        }
 
         return subHourInterval ? "*" : "0";
     }

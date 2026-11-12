@@ -78,7 +78,10 @@ internal sealed class ClusterTimeline
                 string serverId = entry.ServerId ?? "?";
                 string workerId = entry.WorkerId ?? "?";
                 string key = serverId + "\u0001" + workerId;
-                if (!lanes.TryGetValue(key, out TimelineLane? lane)) lanes[key] = lane = new TimelineLane(serverId, workerId);
+                if (!lanes.TryGetValue(key, out TimelineLane? lane))
+                {
+                    lanes[key] = lane = new TimelineLane(serverId, workerId);
+                }
 
                 // A job fetched twice (retry) ends its previous span where the new one starts
                 if (open.TryGetValue(entry.JobId!, out (ActivityEntry Entry, TimelineLane Lane) previous))
@@ -112,7 +115,11 @@ internal sealed class ClusterTimeline
         if (maxWindow.HasValue && nowMs - fromMs > maxWindow.Value.TotalMilliseconds)
         {
             fromMs = nowMs - (long)maxWindow.Value.TotalMilliseconds;
-            foreach (TimelineLane lane in result) lane.Spans.RemoveAll(s => s.EndMs < fromMs);
+            foreach (TimelineLane lane in result)
+            {
+                lane.Spans.RemoveAll(s => s.EndMs < fromMs);
+            }
+
             result = [.. result.Where(static l => l.Spans.Count > 0)];
         }
 

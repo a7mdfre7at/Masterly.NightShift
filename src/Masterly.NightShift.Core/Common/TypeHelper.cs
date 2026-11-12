@@ -136,7 +136,10 @@ public partial class TypeHelper
             SerializeTypes(type.GenericTypeArguments, typeNameBuilder);
         }
 
-        if (!withAssemblyName) return;
+        if (!withAssemblyName)
+        {
+            return;
+        }
 
         TypeInfo typeInfo = type.GetTypeInfo();
 
@@ -169,7 +172,10 @@ public partial class TypeHelper
 
     private static void SerializeTypes(Type[] types, StringBuilder typeNamesBuilder)
     {
-        if (types == null) return;
+        if (types == null)
+        {
+            return;
+        }
 
         typeNamesBuilder.Append('[');
 
@@ -179,7 +185,10 @@ public partial class TypeHelper
             SerializeType(types[i], true, typeNamesBuilder);
             typeNamesBuilder.Append(']');
 
-            if (i != types.Length - 1) typeNamesBuilder.Append(',');
+            if (i != types.Length - 1)
+            {
+                typeNamesBuilder.Append(',');
+            }
         }
 
         typeNamesBuilder.Append(']');
@@ -290,7 +299,10 @@ public partial class TypeHelper
             // but newer types like DateOnly or TimeOnly don't. So for types from `mscorlib`
             // we perform the first search in the current core library.
             Type? type = CoreLibrary.GetType(typeName, false, ignoreCase);
-            if (type != null) return type;
+            if (type != null)
+            {
+                return type;
+            }
         }
 
         return assembly.GetType(typeName, true, ignoreCase);

@@ -51,7 +51,10 @@ public sealed class AspNetCoreDashboardContext : DashboardContext
     /// </summary>
     protected override void GenerateAntiforgeryTokens()
     {
-        if (Options.IgnoreAntiforgeryToken) return;
+        if (Options.IgnoreAntiforgeryToken)
+        {
+            return;
+        }
 
         IAntiforgery? antiforgery = HttpContext.RequestServices?.GetService<IAntiforgery>();
         AntiforgeryTokenSet? tokenSet = antiforgery?.GetAndStoreTokens(HttpContext);

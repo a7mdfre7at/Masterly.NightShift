@@ -55,7 +55,10 @@ internal static partial class JobDiagnostics
     {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(details);
-        if (details.History == null || details.History.Count == 0) return [];
+        if (details.History == null || details.History.Count == 0)
+        {
+            return [];
+        }
 
         StateHistoryDto current = details.History[0];
         DateTime now = page.StorageUtcNow ?? page.ApplicationUtcNow;
@@ -167,13 +170,19 @@ internal static partial class JobDiagnostics
 
     private static void DiagnoseAwaiting(RazorPage page, JobDetailsDto details, StateHistoryDto current, List<JobDiagnostic> findings)
     {
-        if (current.Data == null) return;
+        if (current.Data == null)
+        {
+            return;
+        }
 
         AwaitingJobsState? fanIn = AwaitingJobsState.FromStateData(current.Data);
         IReadOnlyList<string> parentIds = fanIn != null ? fanIn.ParentIds : current.Data.TryGetValue("ParentId", out string? parentId) && !string.IsNullOrEmpty(parentId) ? new[] { parentId } : [];
         JobContinuationOptions options = fanIn != null ? fanIn.Options : ParseOptions(current.Data);
 
-        if (parentIds.Count == 0) return;
+        if (parentIds.Count == 0)
+        {
+            return;
+        }
 
         // A batch continuation waits for every job of the batch, thousands maybe: read only the first parents
         int checkedCount = Math.Min(parentIds.Count, MaxParentsRead);
@@ -280,7 +289,10 @@ internal static partial class JobDiagnostics
 
     private static string? GetBatchContinuationOf(JobDetailsDto details)
     {
-        if (details.Properties == null || !details.Properties.TryGetValue(BatchJob.ContinuationParameterName, out string? value) || string.IsNullOrEmpty(value)) return null;
+        if (details.Properties == null || !details.Properties.TryGetValue(BatchJob.ContinuationParameterName, out string? value) || string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
 
         try
         {
@@ -313,7 +325,10 @@ internal static partial class JobDiagnostics
         if (details.Job != null)
         {
             using JobStorageConnection? connection = page.Storage.GetReadOnlyConnection() as JobStorageConnection;
-            if (connection != null) insight = JobInsightsAttribute.Read(connection, JobInsightsAttribute.GetKey(details.Job));
+            if (connection != null)
+            {
+                insight = JobInsightsAttribute.Read(connection, JobInsightsAttribute.GetKey(details.Job));
+            }
         }
 
         TimeSpan? usual = insight != null && insight.Durations.Length >= 3 ? TimeSpan.FromMilliseconds(insight.P95Ms) : (TimeSpan?)null;
@@ -362,7 +377,10 @@ internal static partial class JobDiagnostics
             .. job.Type.GetTypeInfo().GetCustomAttributes<CircuitBreakerAttribute>(inherit: true),
         ];
 
-        if (attributes.Count == 0) return;
+        if (attributes.Count == 0)
+        {
+            return;
+        }
 
         using IStorageConnection connection = page.Storage.GetReadOnlyConnection();
         foreach (CircuitBreakerAttribute attribute in attributes)
@@ -444,7 +462,10 @@ internal static partial class JobDiagnostics
             return details.Job?.Queue != null && EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase) ? details.Job.Queue : queue;
         }
 
-        if (details.Job?.Queue != null) return details.Job.Queue;
+        if (details.Job?.Queue != null)
+        {
+            return details.Job.Queue;
+        }
 
         QueueAttribute? attribute = details.Job?.Method.GetCustomAttribute<QueueAttribute>(inherit: true) ?? details.Job?.Type.GetTypeInfo().GetCustomAttribute<QueueAttribute>(inherit: true);
         return attribute?.Queue ?? EnqueuedState.DefaultQueue;
@@ -452,7 +473,11 @@ internal static partial class JobDiagnostics
 
     private static bool IsAlive(RazorPage page, ServerDto server, DateTime now)
     {
-        if (!server.Heartbeat.HasValue) return true;
+        if (!server.Heartbeat.HasValue)
+        {
+            return true;
+        }
+
         return server.Heartbeat.Value >= now - page.DashboardOptions.ServerPossiblyAbortedThreshold;
     }
 
@@ -475,8 +500,16 @@ internal static partial class JobDiagnostics
 
     private static bool ConditionMet(JobContinuationOptions options, string? parentState)
     {
-        if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) return parentState == SucceededState.StateName;
-        if (options.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) return parentState == DeletedState.StateName;
+        if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState))
+        {
+            return parentState == SucceededState.StateName;
+        }
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnDeletedState))
+        {
+            return parentState == DeletedState.StateName;
+        }
+
         return true;
     }
 

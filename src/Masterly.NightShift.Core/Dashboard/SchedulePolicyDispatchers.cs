@@ -96,9 +96,20 @@ internal static class SchedulePolicyDispatchers
             }
         }
 
-        foreach (string provider in List(await GetAsync(context, "providers"))) policy.ExcludeDatesFrom(provider);
-        foreach (string required in List(await GetAsync(context, "require"))) policy.Require(required);
-        foreach (string excepted in List(await GetAsync(context, "except"))) policy.ExceptWhen(excepted);
+        foreach (string provider in List(await GetAsync(context, "providers")))
+        {
+            policy.ExcludeDatesFrom(provider);
+        }
+
+        foreach (string required in List(await GetAsync(context, "require")))
+        {
+            policy.Require(required);
+        }
+
+        foreach (string excepted in List(await GetAsync(context, "except")))
+        {
+            policy.ExceptWhen(excepted);
+        }
 
         long? saved = context.Storage.UpdateSchedulePolicy(policy, revision);
         return saved.HasValue

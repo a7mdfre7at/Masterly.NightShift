@@ -43,7 +43,11 @@ public sealed class JobConsoleStateFilter : JobFilterAttribute, IApplyStateFilte
         if (context.JobExpires)
         {
             storageTransaction.ExpireList(consoleKey, context.JobExpirationTimeout);
-            if (hasConsole) storageTransaction.ExpireList(checkpointsKey, context.JobExpirationTimeout);
+            if (hasConsole)
+            {
+                storageTransaction.ExpireList(checkpointsKey, context.JobExpirationTimeout);
+            }
+
             return;
         }
 
@@ -68,7 +72,10 @@ public sealed class JobConsoleStateFilter : JobFilterAttribute, IApplyStateFilte
         IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
 
         // Without a snapshot there is no telling, so the lists follow the job as they always did
-        if (parameters == null || parameters.ContainsKey(JobConsole.MarkerParameter)) return true;
+        if (parameters == null || parameters.ContainsKey(JobConsole.MarkerParameter))
+        {
+            return true;
+        }
 
         // The performance that just ended wrote to its console
         return context.CustomData != null &&

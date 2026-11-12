@@ -136,7 +136,10 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     public void OnCreating(CreatingContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.Canceled) return;
+        if (context.Canceled)
+        {
+            return;
+        }
 
         string fingerprint = GetFingerprint(context.Job);
         string key = GetKey(fingerprint);
@@ -179,7 +182,11 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Items.TryGetValue(ReservationItem, out object? value) || value is not Reservation reservation) return;
+        if (!context.Items.TryGetValue(ReservationItem, out object? value) || value is not Reservation reservation)
+        {
+            return;
+        }
+
         context.Items.Remove(ReservationItem);
 
         if (context.Canceled || context.Exception != null || context.BackgroundJob == null)
@@ -251,15 +258,24 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
             ? GetExpiration(context.NewState)
             : null;
 
-        if (!release && extendTo == null) return;
+        if (!release && extendTo == null)
+        {
+            return;
+        }
 
         string? parameter = context.Connection.GetJobParameter(context.BackgroundJob.Id, FingerprintParameter);
-        if (parameter == null || parameter.Length == 0) return;
+        if (parameter == null || parameter.Length == 0)
+        {
+            return;
+        }
 
         string fingerprint = SerializationHelper.Deserialize<string>(parameter) ?? parameter;
 
         string? owner = ReadOwner(context.Connection, fingerprint);
-        if (!string.Equals(owner, context.BackgroundJob.Id, StringComparison.Ordinal)) return;
+        if (!string.Equals(owner, context.BackgroundJob.Id, StringComparison.Ordinal))
+        {
+            return;
+        }
 
         if (release)
         {
@@ -356,14 +372,20 @@ public sealed class PreventDuplicatesAttribute : JobFilterAttribute, IClientFilt
     // How long the record lives: the window, counted from the scheduled time for a scheduled job.
     private TimeSpan? GetExpiration(IState? state)
     {
-        if (ExpirationHours <= 0) return null;
+        if (ExpirationHours <= 0)
+        {
+            return null;
+        }
 
         TimeSpan expiration = TimeSpan.FromHours(ExpirationHours);
 
         if (state is ScheduledState scheduled)
         {
             TimeSpan wait = scheduled.EnqueueAt - Clock();
-            if (wait > TimeSpan.Zero) expiration += wait;
+            if (wait > TimeSpan.Zero)
+            {
+                expiration += wait;
+            }
         }
 
         return expiration;

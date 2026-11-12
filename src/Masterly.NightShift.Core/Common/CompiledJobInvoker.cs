@@ -60,8 +60,15 @@ internal sealed class CompiledJobInvoker : JobInvoker
 
     private static Func<object?, object?[], object?> Compile(MethodInfo method)
     {
-        if (method.DeclaringType == null) throw new NotSupportedException("Global methods are not supported.");
-        if (method.ContainsGenericParameters) throw new NotSupportedException("Open generic methods are not supported.");
+        if (method.DeclaringType == null)
+        {
+            throw new NotSupportedException("Global methods are not supported.");
+        }
+
+        if (method.ContainsGenericParameters)
+        {
+            throw new NotSupportedException("Open generic methods are not supported.");
+        }
 
         ParameterExpression instance = Expression.Parameter(typeof(object), "instance");
         ParameterExpression arguments = Expression.Parameter(typeof(object[]), "arguments");

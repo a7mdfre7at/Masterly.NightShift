@@ -533,7 +533,10 @@ public class ThrottleAttributeFacts : IDisposable
         int releases = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
-            if (++releases == 1) throw new InvalidOperationException("deadlock victim");
+            if (++releases == 1)
+            {
+                throw new InvalidOperationException("deadlock victim");
+            }
         });
 
         attribute.OnPerformed(new PerformedContext(performing, null, false, null));
@@ -548,7 +551,10 @@ public class ThrottleAttributeFacts : IDisposable
         int commits = 0;
         _transaction.Setup(x => x.Commit()).Callback(() =>
         {
-            if (++commits >= 2) throw new InvalidOperationException("storage is down");
+            if (++commits >= 2)
+            {
+                throw new InvalidOperationException("storage is down");
+            }
         });
         JobFilterCollection filters = new()
         {

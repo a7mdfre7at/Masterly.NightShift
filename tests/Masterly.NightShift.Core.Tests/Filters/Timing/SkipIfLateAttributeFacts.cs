@@ -173,7 +173,10 @@ public class SkipIfLateAttributeFacts
     public void LateStartFilter_DoesNothing_WithoutAValidSkipAfterParameter(string value)
     {
         ScheduledAgo(TimeSpan.FromDays(2));
-        if (value != null) _parameters[SkipIfLateAttribute.WindowParameter] = value;
+        if (value != null)
+        {
+            _parameters[SkipIfLateAttribute.WindowParameter] = value;
+        }
 
         new LateStartFilter().OnPerforming(_context.GetPerformingContext());
 

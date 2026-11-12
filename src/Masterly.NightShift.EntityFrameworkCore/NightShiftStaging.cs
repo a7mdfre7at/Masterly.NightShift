@@ -73,7 +73,10 @@ public static class NightShiftDbContextExtensions
                 };
                 context.SaveChangesFailed += static (sender, _) =>
                 {
-                    if (sender is DbContext failed && Subscribed.TryGetValue(failed, out StagingSubscription? subscription)) subscription.QueuesSaving = false;
+                    if (sender is DbContext failed && Subscribed.TryGetValue(failed, out StagingSubscription? subscription))
+                    {
+                        subscription.QueuesSaving = false;
+                    }
                 };
             }
 
@@ -216,6 +219,9 @@ internal sealed class StagingTransaction(EfConnection connection, DbContext cont
     {
         EfLimits.EnsureFits(operations);
         EfOperationWriter writer = new(context, immediate: false);
-        foreach (StorageOperation operation in operations) writer.Write(operation);
+        foreach (StorageOperation operation in operations)
+        {
+            writer.Write(operation);
+        }
     }
 }

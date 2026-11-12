@@ -2482,7 +2482,9 @@ values (@jobId, '', '', getutcdate())";
 
                     lockAcquired.Set();
                     if (!releaseLock.Wait(TimeSpan.FromSeconds(30)))
+                    {
                         throw new TimeoutException("Waiting for too long in transaction1 block");
+                    }
 
                     transaction1.Commit();
                 }

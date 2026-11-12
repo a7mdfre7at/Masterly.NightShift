@@ -27,7 +27,10 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
             throw new ArgumentException($"'{window}' is not a window in the form HH:mm-HH:mm.", nameof(window));
         }
 
-        if (start == end) throw new ArgumentException("The window can't be empty.", nameof(window));
+        if (start == end)
+        {
+            throw new ArgumentException("The window can't be empty.", nameof(window));
+        }
 
         Window = window.Trim();
         Start = start;
@@ -74,11 +77,17 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
             return;
         }
 
-        if (context.CandidateState is not ProcessingState) return;
+        if (context.CandidateState is not ProcessingState)
+        {
+            return;
+        }
 
         DateTime nowUtc = Clock();
         DateTime nextStartUtc = GetNextStart(nowUtc, out bool allowedNow);
-        if (allowedNow) return;
+        if (allowedNow)
+        {
+            return;
+        }
 
         // The job comes back with a new Enqueued state for the default queue: keep a queue given only by its state
         HeldQueue.Remember(context);
@@ -132,7 +141,10 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
             foreach (TimeSpan offset in _timeZone.GetAmbiguousTimeOffsets(unspecified).OrderByDescending(static x => x))
             {
                 DateTime utc = DateTime.SpecifyKind(unspecified - offset, DateTimeKind.Utc);
-                if (utc >= utcNow) return utc;
+                if (utc >= utcNow)
+                {
+                    return utc;
+                }
             }
         }
 
@@ -182,8 +194,16 @@ public class RunWindowAttribute : JobFilterAttribute, IElectStateFilter
         TimeSpan first = Start < End ? Start : End;
         TimeSpan second = Start < End ? End : Start;
 
-        if (time < first) return date + first;
-        if (time < second) return date + second;
+        if (time < first)
+        {
+            return date + first;
+        }
+
+        if (time < second)
+        {
+            return date + second;
+        }
+
         return WeekdaysOnly ? date.AddDays(1) : date.AddDays(1) + first;
     }
 

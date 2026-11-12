@@ -226,7 +226,11 @@ public class RateLimitAttributeFacts : IDisposable
     {
         Mock<JobStorageConnection> connection = UseScoredSetConnection();
         List<string> expired = [];
-        for (int i = 0; i < 100; i++) expired.Add($"{_timestamp - 100 - i}:old{i}");
+        for (int i = 0; i < 100; i++)
+        {
+            expired.Add($"{_timestamp - 100 - i}:old{i}");
+        }
+
         connection.Setup(x => x.GetFirstByLowestScoreFromSet(Key, 0, _timestamp - 61, 100)).Returns(expired);
         connection.Setup(x => x.GetAllItemsFromSet(Key)).Returns([.. expired, $"{_timestamp - 300}:older"]);
         RateLimitAttribute attribute = new("resource", 1, 60);
@@ -636,12 +640,18 @@ public class RateLimitAttributeFacts : IDisposable
 
         public void OnPerforming(PerformingContext context)
         {
-            if (_onPerforming) throw new DistributedLockTimeoutException("lock");
+            if (_onPerforming)
+            {
+                throw new DistributedLockTimeoutException("lock");
+            }
         }
 
         public void OnPerformed(PerformedContext context)
         {
-            if (!_onPerforming) throw new InvalidOperationException("after the method");
+            if (!_onPerforming)
+            {
+                throw new InvalidOperationException("after the method");
+            }
         }
     }
 

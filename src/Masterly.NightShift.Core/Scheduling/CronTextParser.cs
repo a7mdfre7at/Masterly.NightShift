@@ -58,7 +58,10 @@ internal static partial class CronTextParser
         ArgumentNullException.ThrowIfNull(text);
 
         string normalized = WhitespaceRegex().Replace(text.Trim(), " ");
-        if (normalized.Length == 0) throw new FormatException("The schedule text is empty.");
+        if (normalized.Length == 0)
+        {
+            throw new FormatException("The schedule text is empty.");
+        }
 
         if (LooksLikeCron(normalized))
         {
@@ -87,10 +90,16 @@ internal static partial class CronTextParser
 
     private static bool LooksLikeCron(string text)
     {
-        if (text.StartsWith('@')) return true;
+        if (text.StartsWith('@'))
+        {
+            return true;
+        }
 
         string[] parts = text.Split(' ');
-        if (parts.Length is not 5 and not 6) return false;
+        if (parts.Length is not 5 and not 6)
+        {
+            return false;
+        }
 
         // Every field must be made of CRON atoms: numbers, * ? L W #, ranges, steps, lists, or
         // three-letter day and month names. English words like "daily" or "at" are not.
@@ -99,11 +108,30 @@ internal static partial class CronTextParser
 
     private static bool IsCronAtom(string atom)
     {
-        if (atom.Length == 0) return false;
-        if (atom is "*" or "?" or "L" or "LW") return true;
-        if (atom.All(static ch => char.IsDigit(ch))) return true;
-        if (atom.Length >= 2 && atom[..^1].All(static ch => char.IsDigit(ch)) && (atom.EndsWith('W') || atom.EndsWith('L'))) return true;
-        if (atom.Contains('#') && atom.Replace("#", string.Empty).All(static ch => char.IsDigit(ch))) return true;
+        if (atom.Length == 0)
+        {
+            return false;
+        }
+
+        if (atom is "*" or "?" or "L" or "LW")
+        {
+            return true;
+        }
+
+        if (atom.All(static ch => char.IsDigit(ch)))
+        {
+            return true;
+        }
+
+        if (atom.Length >= 2 && atom[..^1].All(static ch => char.IsDigit(ch)) && (atom.EndsWith('W') || atom.EndsWith('L')))
+        {
+            return true;
+        }
+
+        if (atom.Contains('#') && atom.Replace("#", string.Empty).All(static ch => char.IsDigit(ch)))
+        {
+            return true;
+        }
 
         return atom.Length == 3 && (Days.ContainsKey(atom) || Months.ContainsKey(atom)) && atom.All(static ch => char.IsLetter(ch));
     }
@@ -116,7 +144,10 @@ internal static partial class CronTextParser
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i].Trim(',', ';').ToLowerInvariant();
-            if (word.Length == 0) continue;
+            if (word.Length == 0)
+            {
+                continue;
+            }
 
             // "9:30pm" and "9:30 pm" are the same time, and so are "9a.m." and "9 a.m."
             if ((word == "am" || word == "pm" || word == "a.m." || word == "p.m.") && tokens.Count > 0 && TimeRegex().IsMatch(tokens[^1] + " " + word))
@@ -136,7 +167,10 @@ internal static partial class CronTextParser
 
     private static void ParseInterval(List<string> tokens, ref int position, Schedule schedule)
     {
-        if (position >= tokens.Count) return;
+        if (position >= tokens.Count)
+        {
+            return;
+        }
 
         string token = tokens[position];
 
@@ -157,9 +191,21 @@ internal static partial class CronTextParser
         {
             // "last day of [every|the] month [at ...]"
             position += 2;
-            if (Peek(tokens, position) == "of") position++;
-            if (Peek(tokens, position) is "every" or "the") position++;
-            if (Peek(tokens, position) == "month") position++;
+            if (Peek(tokens, position) == "of")
+            {
+                position++;
+            }
+
+            if (Peek(tokens, position) is "every" or "the")
+            {
+                position++;
+            }
+
+            if (Peek(tokens, position) == "month")
+            {
+                position++;
+            }
+
             schedule.Unit = Unit.Month;
             schedule.DayOfMonth = "L";
             return;
@@ -168,9 +214,21 @@ internal static partial class CronTextParser
         if (token == "first" && Peek(tokens, position + 1) == "day")
         {
             position += 2;
-            if (Peek(tokens, position) == "of") position++;
-            if (Peek(tokens, position) is "every" or "the") position++;
-            if (Peek(tokens, position) == "month") position++;
+            if (Peek(tokens, position) == "of")
+            {
+                position++;
+            }
+
+            if (Peek(tokens, position) is "every" or "the")
+            {
+                position++;
+            }
+
+            if (Peek(tokens, position) == "month")
+            {
+                position++;
+            }
+
             schedule.Unit = Unit.Month;
             schedule.DayOfMonth = "1";
             return;
@@ -197,17 +255,26 @@ internal static partial class CronTextParser
         }
 
         position++;
-        if (position >= tokens.Count) throw new FormatException("'every' needs a unit, for example 'every 5 minutes'.");
+        if (position >= tokens.Count)
+        {
+            throw new FormatException("'every' needs a unit, for example 'every 5 minutes'.");
+        }
 
         int step = 1;
         if (TryParseNumber(tokens[position], out int number))
         {
             step = number;
             position++;
-            if (position >= tokens.Count) throw new FormatException("'every N' needs a unit, for example 'every 5 minutes'.");
+            if (position >= tokens.Count)
+            {
+                throw new FormatException("'every N' needs a unit, for example 'every 5 minutes'.");
+            }
         }
 
-        if (step <= 0) throw new FormatException("The interval should be greater than zero.");
+        if (step <= 0)
+        {
+            throw new FormatException("The interval should be greater than zero.");
+        }
 
         token = tokens[position];
 
@@ -257,7 +324,10 @@ internal static partial class CronTextParser
         if (token is "on" or "in")
         {
             position++;
-            if (position >= tokens.Count) throw new FormatException("'on' needs days, for example 'on weekdays' or 'on the 15th'.");
+            if (position >= tokens.Count)
+            {
+                throw new FormatException("'on' needs days, for example 'on weekdays' or 'on the 15th'.");
+            }
 
             token = tokens[position];
 
@@ -281,13 +351,17 @@ internal static partial class CronTextParser
             if (token == "the") { position++; token = Peek(tokens, position) ?? string.Empty; }
             if (token == "day") { position++; token = Peek(tokens, position) ?? string.Empty; }
 
-            if (token == "last") { schedule.DayOfMonth = "L"; position++; if (Peek(tokens, position) == "day") position++; return true; }
+            if (token == "last") { schedule.DayOfMonth = "L"; position++; if (Peek(tokens, position) == "day") { position++; } return true; }
 
             if (OrdinalRegex().IsMatch(token))
             {
                 schedule.DayOfMonth = ParseDayOfMonth(token);
                 position++;
-                if (Peek(tokens, position) == "day") position++;
+                if (Peek(tokens, position) == "day")
+                {
+                    position++;
+                }
+
                 return true;
             }
 
@@ -315,8 +389,16 @@ internal static partial class CronTextParser
         if (token == "of" && Peek(tokens, position + 1) is { } next && (next == "every" || next == "the" || next == "month"))
         {
             position++;
-            if (Peek(tokens, position) is "every" or "the") position++;
-            if (Peek(tokens, position) == "month") position++;
+            if (Peek(tokens, position) is "every" or "the")
+            {
+                position++;
+            }
+
+            if (Peek(tokens, position) == "month")
+            {
+                position++;
+            }
+
             return true;
         }
 
@@ -339,7 +421,11 @@ internal static partial class CronTextParser
 
             if (Peek(tokens, position) == "to" && position + 1 < tokens.Count && Days.TryGetValue(tokens[position + 1], out int end))
             {
-                for (int d = day; d != end; d = (d + 1) % 7) days.Add(d);
+                for (int d = day; d != end; d = (d + 1) % 7)
+                {
+                    days.Add(d);
+                }
+
                 days.Add(end);
                 position += 2;
             }
@@ -367,53 +453,91 @@ internal static partial class CronTextParser
             if (token == "noon") { times.Add(new TimeOfDay(12, 0, token)); position++; continue; }
 
             Match match = TimeRegex().Match(token);
-            if (!match.Success) break;
+            if (!match.Success)
+            {
+                break;
+            }
 
             int hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             int minute = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
             string meridiem = match.Groups[3].Value.Replace(".", string.Empty).ToLowerInvariant();
 
-            if (meridiem == "pm" && hour < 12) hour += 12;
-            if (meridiem == "am" && hour == 12) hour = 0;
+            if (meridiem == "pm" && hour < 12)
+            {
+                hour += 12;
+            }
+
+            if (meridiem == "am" && hour == 12)
+            {
+                hour = 0;
+            }
 
             // A bare number is an hour of the day, except for hourly schedules, where "hourly at 15" means minute 15
             bool isBareNumber = !match.Groups[2].Success && meridiem.Length == 0;
-            if (hour > (isBareNumber ? 59 : 23) || minute > 59) throw new FormatException($"'{token}' is not a valid time.");
+            if (hour > (isBareNumber ? 59 : 23) || minute > 59)
+            {
+                throw new FormatException($"'{token}' is not a valid time.");
+            }
 
             times.Add(new TimeOfDay(hour, minute, token, isBareNumber));
             position++;
         }
 
-        if (times.Count == 0) throw new FormatException("'at' needs a time, for example 'at 9:30' or 'at 5 pm'.");
+        if (times.Count == 0)
+        {
+            throw new FormatException("'at' needs a time, for example 'at 9:30' or 'at 5 pm'.");
+        }
 
         return times;
     }
 
     private static int ParseHour(List<string> tokens, ref int position)
     {
-        if (position >= tokens.Count) throw new FormatException("An hour is missing.");
+        if (position >= tokens.Count)
+        {
+            throw new FormatException("An hour is missing.");
+        }
 
         string token = tokens[position];
         (int Hour, int Minute) time;
 
-        if (token == "midnight") time = (0, 0);
-        else if (token == "noon") time = (12, 0);
+        if (token == "midnight")
+        {
+            time = (0, 0);
+        }
+        else if (token == "noon")
+        {
+            time = (12, 0);
+        }
         else
         {
             Match match = TimeRegex().Match(token);
-            if (!match.Success) throw new FormatException($"'{token}' is not an hour.");
+            if (!match.Success)
+            {
+                throw new FormatException($"'{token}' is not an hour.");
+            }
 
             int hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             int minute = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
             string meridiem = match.Groups[3].Value.Replace(".", string.Empty).ToLowerInvariant();
 
-            if (meridiem == "pm" && hour < 12) hour += 12;
-            if (meridiem == "am" && hour == 12) hour = 0;
+            if (meridiem == "pm" && hour < 12)
+            {
+                hour += 12;
+            }
+
+            if (meridiem == "am" && hour == 12)
+            {
+                hour = 0;
+            }
 
             time = (hour, minute);
         }
 
-        if (time.Minute != 0 || time.Hour > 23) throw new FormatException("Hour ranges should use whole hours, for example 'between 9 and 17'.");
+        if (time.Minute != 0 || time.Hour > 23)
+        {
+            throw new FormatException("Hour ranges should use whole hours, for example 'between 9 and 17'.");
+        }
 
         position++;
         return time.Hour;
@@ -423,14 +547,21 @@ internal static partial class CronTextParser
     {
         Match match = OrdinalRegex().Match(token);
         int day = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-        if (day is < 1 or > 31) throw new FormatException($"'{token}' is not a day of month.");
+        if (day is < 1 or > 31)
+        {
+            throw new FormatException($"'{token}' is not a day of month.");
+        }
 
         return day.ToString(CultureInfo.InvariantCulture);
     }
 
     private static bool TryParseNumber(string token, out int value)
     {
-        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out value)) return true;
+        if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            return true;
+        }
+
         return Numbers.TryGetValue(token, out value);
     }
 
@@ -515,26 +646,58 @@ internal static partial class CronTextParser
 
                 case Unit.Day:
                     ApplyTimes(ref minute, ref hour);
-                    if (Step > 1) dayOfMonth = $"*/{Step}";
+                    if (Step > 1)
+                    {
+                        dayOfMonth = $"*/{Step}";
+                    }
+
                     break;
 
                 case Unit.Week:
                     ApplyTimes(ref minute, ref hour);
-                    if (dayOfWeek == "*") dayOfWeek = "1";
-                    if (Step > 1) throw new FormatException("CRON can't express 'every N weeks'; schedule a weekly job and skip runs in the job instead.");
+                    if (dayOfWeek == "*")
+                    {
+                        dayOfWeek = "1";
+                    }
+
+                    if (Step > 1)
+                    {
+                        throw new FormatException("CRON can't express 'every N weeks'; schedule a weekly job and skip runs in the job instead.");
+                    }
+
                     break;
 
                 case Unit.Month:
                     ApplyTimes(ref minute, ref hour);
-                    if (DayOfMonth == null) dayOfMonth = "1";
-                    if (Step > 1) month = $"*/{Step}";
+                    if (DayOfMonth == null)
+                    {
+                        dayOfMonth = "1";
+                    }
+
+                    if (Step > 1)
+                    {
+                        month = $"*/{Step}";
+                    }
+
                     break;
 
                 case Unit.Year:
                     ApplyTimes(ref minute, ref hour);
-                    if (DayOfMonth == null) dayOfMonth = "1";
-                    if (Month == null) month = "1";
-                    if (Step > 1) throw new FormatException("CRON can't express 'every N years'.");
+                    if (DayOfMonth == null)
+                    {
+                        dayOfMonth = "1";
+                    }
+
+                    if (Month == null)
+                    {
+                        month = "1";
+                    }
+
+                    if (Step > 1)
+                    {
+                        throw new FormatException("CRON can't express 'every N years'.");
+                    }
+
                     break;
             }
 
@@ -546,7 +709,11 @@ internal static partial class CronTextParser
         {
             if (Times.Count == 0)
             {
-                if (Hours != null) hour = Hours;
+                if (Hours != null)
+                {
+                    hour = Hours;
+                }
+
                 return;
             }
 
@@ -557,7 +724,10 @@ internal static partial class CronTextParser
 
             foreach (TimeOfDay time in Times)
             {
-                if (time.Hour > 23) throw new FormatException($"'{time.Text}' is not a valid time.");
+                if (time.Hour > 23)
+                {
+                    throw new FormatException($"'{time.Text}' is not a valid time.");
+                }
             }
 
             List<int> minutes = [.. Times.Select(static t => t.Minute).Distinct()];

@@ -303,7 +303,11 @@ public class ScheduleForecastFacts
             { "Cron", cron },
             { "Job", InvocationData.SerializeJob(Job.FromExpression(() => Sample())).SerializePayload() },
         };
-        if (timeZoneId != null) hash["TimeZoneId"] = timeZoneId;
+        if (timeZoneId != null)
+        {
+            hash["TimeZoneId"] = timeZoneId;
+        }
+
         return hash;
     }
 

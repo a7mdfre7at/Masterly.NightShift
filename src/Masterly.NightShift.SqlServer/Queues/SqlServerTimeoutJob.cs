@@ -41,7 +41,10 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
         ArgumentNullException.ThrowIfNull(storage);
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(queue);
-        if (fetchedAt is null) throw new ArgumentNullException(nameof(fetchedAt)); // a DateTime?: ThrowIfNull would box it
+        if (fetchedAt is null)
+        {
+            throw new ArgumentNullException(nameof(fetchedAt)); // a DateTime?: ThrowIfNull would box it
+        }
 
         _storage = storage;
 
@@ -68,8 +71,15 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
     {
         lock (_syncRoot)
         {
-            if (_transaction != null && _transaction.Committed) return;
-            if (!FetchedAt.HasValue) return;
+            if (_transaction != null && _transaction.Committed)
+            {
+                return;
+            }
+
+            if (!FetchedAt.HasValue)
+            {
+                return;
+            }
 
             _storage.UseConnection(
                 null,
@@ -88,9 +98,15 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
     {
         lock (_syncRoot)
         {
-            if (_transaction != null && _transaction.Committed) return;
+            if (_transaction != null && _transaction.Committed)
+            {
+                return;
+            }
 
-            if (!FetchedAt.HasValue) return;
+            if (!FetchedAt.HasValue)
+            {
+                return;
+            }
 
             _storage.UseConnection(
                 null,
@@ -108,7 +124,11 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
 
         DisposeTimer();
@@ -143,10 +163,20 @@ internal sealed class SqlServerTimeoutJob : IFetchedJob
         {
             lock (_syncRoot)
             {
-                if (!FetchedAt.HasValue) return;
+                if (!FetchedAt.HasValue)
+                {
+                    return;
+                }
 
-                if (_requeued || _removedFromQueue) return;
-                if (_transaction != null && _transaction.Committed) return;
+                if (_requeued || _removedFromQueue)
+                {
+                    return;
+                }
+
+                if (_transaction != null && _transaction.Committed)
+                {
+                    return;
+                }
 
                 try
                 {

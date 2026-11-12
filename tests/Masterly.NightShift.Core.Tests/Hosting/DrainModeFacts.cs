@@ -17,7 +17,10 @@ public class DrainModeFacts : IDisposable
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
                 _hash ??= [];
-                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    _hash[pair.Key] = pair.Value;
+                }
             });
 
         DrainMode.Clock = () => _now;

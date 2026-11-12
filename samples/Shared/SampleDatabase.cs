@@ -13,7 +13,10 @@ internal static class SampleDatabase
         SqlConnectionStringBuilder builder = new(connectionString);
         string database = builder.InitialCatalog;
 
-        if (string.IsNullOrEmpty(database)) return;
+        if (string.IsNullOrEmpty(database))
+        {
+            return;
+        }
 
         builder.InitialCatalog = "master";
 

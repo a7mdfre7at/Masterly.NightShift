@@ -85,7 +85,10 @@ public static class GlobalConfigurationExtensions
             filter.Retention = retention;
 
             // Set by hand now: a later UseJobRetention without a failed retention leaves it alone
-            if (FindGlobalFilter<JobRetentionFilter>() is { } retentionFilter) retentionFilter.SetsFailedRetention = false;
+            if (FindGlobalFilter<JobRetentionFilter>() is { } retentionFilter)
+            {
+                retentionFilter.SetsFailedRetention = false;
+            }
 
             return configuration;
         }
@@ -584,7 +587,10 @@ public static class GlobalConfigurationExtensions
         {
             foreach (JobFilter filter in GlobalJobFilters.Filters)
             {
-                if (isRegistered(filter.Instance)) return filter.Instance;
+                if (isRegistered(filter.Instance))
+                {
+                    return filter.Instance;
+                }
             }
 
             object created = create();
@@ -600,7 +606,10 @@ public static class GlobalConfigurationExtensions
             [CanBeNull] int? numberOfLines)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-            if (numberOfLines.HasValue && numberOfLines.Value <= 1) throw new ArgumentOutOfRangeException(nameof(numberOfLines), "Must be either a positive value larger than 1; or a null value.");
+            if (numberOfLines.HasValue && numberOfLines.Value <= 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(numberOfLines), "Must be either a positive value larger than 1; or a null value.");
+            }
 
             States.FailedState.MaxLinesInExceptionDetails = numberOfLines;
             return configuration;

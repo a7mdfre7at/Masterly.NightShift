@@ -122,8 +122,15 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
 
                     // Sleep until the next slot frees up, but never past the wait timeout
                     TimeSpan delay = slotFreesAt - now;
-                    if (delay <= TimeSpan.Zero) delay = TimeSpan.FromMilliseconds(250);
-                    if (delay > remaining) delay = remaining;
+                    if (delay <= TimeSpan.Zero)
+                    {
+                        delay = TimeSpan.FromMilliseconds(250);
+                    }
+
+                    if (delay > remaining)
+                    {
+                        delay = remaining;
+                    }
 
                     ConcurrencyControl.Wait(context, delay);
                     continue;
@@ -174,7 +181,10 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         // the performer was about to call the job method: it gives its start back. A job whose method was called
         // keeps it, whether it succeeded or failed.
         bool methodCalled = context.BackgroundJob.MethodInvokedTimestamp != 0;
-        if (!context.Canceled && (context.Exception == null || methodCalled)) return;
+        if (!context.Canceled && (context.Exception == null || methodCalled))
+        {
+            return;
+        }
 
         context.Items.Remove(GetRecordedItemKey(start.Item1));
 
@@ -199,7 +209,10 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
     {
         foreach (string itemKey in context.Items.Keys)
         {
-            if (itemKey.StartsWith(RecordedItemPrefix, StringComparison.Ordinal)) return true;
+            if (itemKey.StartsWith(RecordedItemPrefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -293,18 +306,27 @@ public sealed class RateLimitAttribute : JobFilterAttribute, IServerFilter, IEle
         if (windowStart > 0)
         {
             stale = connection.GetFirstByLowestScoreFromSet(key, 0, windowStart - 1, StaleBatchSize) ?? [];
-            if (stale.Count >= StaleBatchSize) return false;
+            if (stale.Count >= StaleBatchSize)
+            {
+                return false;
+            }
         }
 
         long count = connection.GetSetCount(key) - stale.Count;
-        if (count <= 0) return true;
+        if (count <= 0)
+        {
+            return true;
+        }
 
         liveCount = (int)Math.Min(count, int.MaxValue);
 
         // Only needed to know when the next start is allowed, and the set holds only parsable members, unless
         // something else wrote to it: then the whole set is read and cleaned up
         string? oldest = connection.GetFirstByLowestScoreFromSet(key, windowStart, MaxScore);
-        if (oldest == null || !ConcurrencyControl.TryParseMember(oldest, out oldestLive, out _)) return false;
+        if (oldest == null || !ConcurrencyControl.TryParseMember(oldest, out oldestLive, out _))
+        {
+            return false;
+        }
 
         return true;
     }

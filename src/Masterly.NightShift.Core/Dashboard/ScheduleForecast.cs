@@ -102,7 +102,10 @@ internal sealed class ScheduleForecast
 
         foreach (RecurringJobDto dto in recurringJobs)
         {
-            if (dto.Removed) continue;
+            if (dto.Removed)
+            {
+                continue;
+            }
 
             string? insightsKey = dto.Job != null ? JobInsightsAttribute.GetKey(dto.Job) : null;
             TimeSpan? duration = insightsKey != null ? expectedDuration(insightsKey) : null;
@@ -164,7 +167,10 @@ internal sealed class ScheduleForecast
 
     internal static DateTime? ToUtc(DateTime? value)
     {
-        if (!value.HasValue) return null;
+        if (!value.HasValue)
+        {
+            return null;
+        }
 
         return value.Value.Kind == DateTimeKind.Unspecified
             ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
@@ -181,7 +187,10 @@ internal sealed class ScheduleForecast
         foreach (Row row in rows)
         {
             // A truncated job runs more often than the cap, which is about one per slot over a week
-            if (row.Truncated || row.Occurrences.Count > maxOccurrences) continue;
+            if (row.Truncated || row.Occurrences.Count > maxOccurrences)
+            {
+                continue;
+            }
 
             foreach (DateTime occurrence in row.Occurrences)
             {

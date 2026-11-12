@@ -55,8 +55,16 @@ public class DashboardHealthFacts : IDisposable
             { "Job", InvocationData.SerializeJob(Job.FromExpression(() => Work())).SerializePayload() },
             { "Paused", paused ? "1" : "0" },
         };
-        if (nextExecution.HasValue) hash["NextExecution"] = JobHelper.SerializeDateTime(nextExecution.Value);
-        if (error != null) hash["Error"] = error;
+        if (nextExecution.HasValue)
+        {
+            hash["NextExecution"] = JobHelper.SerializeDateTime(nextExecution.Value);
+        }
+
+        if (error != null)
+        {
+            hash["Error"] = error;
+        }
+
         _recurring[id] = hash;
     }
 
@@ -334,7 +342,10 @@ public class DashboardHealthFacts : IDisposable
         JsonNode? json = JsonSerializer.SerializeToNode(report.ToJson());
         foreach (JsonNode? check in json["checks"].AsArray())
         {
-            if ((string)check["name"] == "storage") check["detail"] = null;
+            if ((string)check["name"] == "storage")
+            {
+                check["detail"] = null;
+            }
         }
 
         return json.ToJsonString();

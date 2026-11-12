@@ -142,8 +142,15 @@ public sealed class AlertsFilter : JobFilterAttribute, IApplyStateFilter
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (!Alerts.HasSinks) return;
-        if (context.NewState is not FailedState failed) return;
+        if (!Alerts.HasSinks)
+        {
+            return;
+        }
+
+        if (context.NewState is not FailedState failed)
+        {
+            return;
+        }
 
         Job? job = context.BackgroundJob.Job;
         string? method = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;

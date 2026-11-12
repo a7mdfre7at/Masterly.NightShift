@@ -149,7 +149,10 @@ public static partial class JobChains
             HashSet<int> retried = [level];
             for (int next = level + 1; next < record.Levels.Count; next++)
             {
-                if (retried.Contains(record.Levels[next].Parent)) retried.Add(next);
+                if (retried.Contains(record.Levels[next].Parent))
+                {
+                    retried.Add(next);
+                }
             }
 
             // The step is held first: the new steps wait for it, and nothing after it starts or is skipped before the
@@ -301,7 +304,10 @@ public static partial class JobChains
 
         foreach (string name in (string[])[ScheduleOptions.PolicyParameter, ScheduleOptions.WhenBlockedParameter])
         {
-            if (ReadParameter<string>(connection, rootId, name) is { } value) parameters[name] = value;
+            if (ReadParameter<string>(connection, rootId, name) is { } value)
+            {
+                parameters[name] = value;
+            }
         }
 
         if (ReadParameter<long?>(connection, rootId, SkipIfLateAttribute.WindowParameter) is { } window)
@@ -337,7 +343,10 @@ public static partial class JobChains
         using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
         {
             ChainRecord? record = ChainRecord.Read(connection, chainId);
-            if (record == null) return -1;
+            if (record == null)
+            {
+                return -1;
+            }
 
             bool restrict = record.DeleteBehavior == ChainDeleteBehavior.Restrict;
             if (restrict && record.Jobs.Values.Any(x => IsProcessing(connection.GetStateData(x)?.Name)))
@@ -378,7 +387,11 @@ public static partial class JobChains
             {
                 transaction.RemoveHash(GetKey(chainId));
                 transaction.RemoveFromSet(SetKey, chainId);
-                if (record.Cleanup != null) transaction.RemoveFromSet(CleanupSetKey, chainId);
+                if (record.Cleanup != null)
+                {
+                    transaction.RemoveFromSet(CleanupSetKey, chainId);
+                }
+
                 transaction.Commit();
             }
 
@@ -432,7 +445,10 @@ public static partial class JobChains
 
         Job rootJob = rootQueue != null ? WithQueue(levels[0].Steps[0].Job, rootQueue) : levels[0].Steps[0].Job;
         string? rootId = CreateOrNull(client, rootJob, rootState, chainId, Key(0, 0), rootParameters);
-        if (rootId == null) return null;
+        if (rootId == null)
+        {
+            return null;
+        }
 
         jobs[Key(0, 0)] = rootId;
         List<string> created = [rootId];
@@ -514,7 +530,10 @@ public static partial class JobChains
         try
         {
             root = connection.GetStateData(rootId);
-            if (root == null || !ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase)) return root;
+            if (root == null || !ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return root;
+            }
 
             if (string.Equals(root.Reason, JobChainStepFilter.WaitingReason(chainId), StringComparison.Ordinal))
             {
@@ -581,7 +600,10 @@ public static partial class JobChains
     /// </summary>
     internal static FanInContinuationsSupportAttribute.Decision Decide(JobChainStepInfo step, IReadOnlyList<JobChainStepInfo> parents)
     {
-        if (step.Link == ChainLink.Root || parents.Count == 0) return FanInContinuationsSupportAttribute.Decision.Undecided;
+        if (step.Link == ChainLink.Root || parents.Count == 0)
+        {
+            return FanInContinuationsSupportAttribute.Decision.Undecided;
+        }
 
         HashSet<string> finalStates = ContinuationsSupportAttribute.KnownFinalStates;
 
@@ -658,8 +680,16 @@ public static partial class JobChains
         bool onFailure = options.HasFlag(JobContinuationOptions.OnlyOnFailedState);
         bool onSuccess = options.HasFlag(succeeded);
 
-        if (options == JobContinuationOptions.OnAnyFinishedState || (onFailure && onSuccess)) return (FanInMode.AllCompleted, succeeded);
-        if (onFailure) return options.HasFlag(JobContinuationOptions.OnlyOnDeletedState) ? (FanInMode.AnyFailedOrCanceled, succeeded) : (FanInMode.AnyFailed, succeeded);
+        if (options == JobContinuationOptions.OnAnyFinishedState || (onFailure && onSuccess))
+        {
+            return (FanInMode.AllCompleted, succeeded);
+        }
+
+        if (onFailure)
+        {
+            return options.HasFlag(JobContinuationOptions.OnlyOnDeletedState) ? (FanInMode.AnyFailedOrCanceled, succeeded) : (FanInMode.AnyFailed, succeeded);
+        }
+
         return (FanInMode.All, options);
     }
 

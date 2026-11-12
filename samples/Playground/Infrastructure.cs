@@ -62,7 +62,10 @@ public sealed class TelemetryWatcher : IHostedService
             Sample = static (ref _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = static activity =>
             {
-                if (DateTime.UtcNow > WatchUntil) return;
+                if (DateTime.UtcNow > WatchUntil)
+                {
+                    return;
+                }
 
                 string outcome = activity.GetTagItem("nightshift.job.outcome") as string ?? "-";
                 PlaygroundLog.Instance.Add("telemetry",

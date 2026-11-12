@@ -140,7 +140,11 @@ internal sealed class ChainFlowchart
                 ChainFlowStep step = Describe(monitor, connection, info, now);
 
                 // A settled chain runs nothing more: a step still waiting waits after a failure, for a requeue
-                if (settled && step.Condition == ChainFlowCondition.Waiting) step.Condition = ChainFlowCondition.NotRun;
+                if (settled && step.Condition == ChainFlowCondition.Waiting)
+                {
+                    step.Condition = ChainFlowCondition.NotRun;
+                }
+
                 steps.Add(step);
 
                 List<JobConsoleEntry> console = ReadConsole(storage, connection, info.JobId, out long lines);
@@ -165,7 +169,11 @@ internal sealed class ChainFlowchart
     {
         ArgumentNullException.ThrowIfNull(chain);
 
-        if (chain.IsSettled) return chain.FailedCount > 0 ? ChainFlowStatus.FinishedWithFailures : ChainFlowStatus.Done;
+        if (chain.IsSettled)
+        {
+            return chain.FailedCount > 0 ? ChainFlowStatus.FinishedWithFailures : ChainFlowStatus.Done;
+        }
+
         return chain.Steps.All(static x => HasNotStarted(x.State)) ? ChainFlowStatus.Waiting : ChainFlowStatus.Running;
     }
 
@@ -218,10 +226,25 @@ internal sealed class ChainFlowchart
     private static string DescribeOptions(JobContinuationOptions options)
     {
         List<string> outcomes = [];
-        if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) outcomes.Add(Strings.ChainFlow_OnSuccess);
-        if (options.HasFlag(JobContinuationOptions.OnlyOnFailedState)) outcomes.Add(Strings.ChainFlow_OnFailure);
-        if (options.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) outcomes.Add(Strings.ChainFlow_OnDeletion);
-        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) outcomes.Add(Strings.ChainFlow_OnceStarted);
+        if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState))
+        {
+            outcomes.Add(Strings.ChainFlow_OnSuccess);
+        }
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnFailedState))
+        {
+            outcomes.Add(Strings.ChainFlow_OnFailure);
+        }
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnDeletedState))
+        {
+            outcomes.Add(Strings.ChainFlow_OnDeletion);
+        }
+
+        if (options.HasFlag(JobContinuationOptions.OnlyOnProcessingState))
+        {
+            outcomes.Add(Strings.ChainFlow_OnceStarted);
+        }
 
         return outcomes.Count == 0 ? Strings.ChainFlow_OnAnyOutcome : string.Join(" or ", outcomes);
     }
@@ -356,7 +379,10 @@ internal sealed class ChainFlowchart
         {
             try
             {
-                if (SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal) is { } entry) entries.Add(entry);
+                if (SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal) is { } entry)
+                {
+                    entries.Add(entry);
+                }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -418,7 +444,11 @@ internal static class ChainFlowchartRenderer
         html.Append(FormattableString.Invariant($"<svg class=\"hf-flow-lines\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" aria-hidden=\"true\">"));
         for (int i = 0; i < blocks.Count; i++)
         {
-            if (i > 0) AppendLink(html, blocks[i - 1], blocks[i]);
+            if (i > 0)
+            {
+                AppendLink(html, blocks[i - 1], blocks[i]);
+            }
+
             AppendBus(html, blocks[i]);
         }
 
@@ -458,7 +488,11 @@ internal static class ChainFlowchartRenderer
             html.Append("<div class=\"job-console-line ").Append(Encode(css)).Append("\">");
             html.Append("<span class=\"job-console-time\" data-live-time=\"").Append(entry.Timestamp.ToString(CultureInfo.InvariantCulture)).Append("\">").Append(time).Append("</span>");
             html.Append("<a class=\"hf-chain-log-step\" href=\"").Append(Encode(page.Url.JobDetails(step.Info.JobId))).Append("\">").Append(Encode(source)).Append("</a> ");
-            if (entry.Checkpoint != null) html.Append("<span class=\"glyphicon glyphicon-flag\"></span> ");
+            if (entry.Checkpoint != null)
+            {
+                html.Append("<span class=\"glyphicon glyphicon-flag\"></span> ");
+            }
+
             html.Append(Encode(entry.Checkpoint ?? entry.Message ?? string.Empty));
             html.Append("</div>");
         }
@@ -505,7 +539,10 @@ internal static class ChainFlowchartRenderer
     // Inside a box: from its header down to every card of a single row
     private static void AppendBus(StringBuilder html, Block block)
     {
-        if (!block.Level.IsBoxed || block.Rows > 1) return;
+        if (!block.Level.IsBoxed || block.Rows > 1)
+        {
+            return;
+        }
 
         int busY = block.Y + BoxHeader + BusSpace / 2;
         int center = block.X + block.Width / 2;
@@ -529,8 +566,16 @@ internal static class ChainFlowchartRenderer
 
     private static string EdgeCss(bool taken, bool alert, bool notRun)
     {
-        if (notRun) return "hf-flow-edge hf-flow-edge-skipped";
-        if (!taken) return "hf-flow-edge";
+        if (notRun)
+        {
+            return "hf-flow-edge hf-flow-edge-skipped";
+        }
+
+        if (!taken)
+        {
+            return "hf-flow-edge";
+        }
+
         return alert ? "hf-flow-edge hf-flow-edge-alert" : "hf-flow-edge hf-flow-edge-taken";
     }
 
@@ -543,7 +588,11 @@ internal static class ChainFlowchartRenderer
         string css = "hf-flow-card" + (dim ? " hf-flow-dim" : string.Empty) + (IsProcessing(info.State) ? " hf-flow-active" : string.Empty);
 
         html.Append(FormattableString.Invariant($"<div class=\"{css}\" style=\"left: {position.X}px; top: {position.Y}px; width: {CardWidth}px; height: {CardHeight}px; --hf-state: {Encode(color)}\""));
-        if (!string.IsNullOrEmpty(step.Reason)) html.Append(" title=\"").Append(Encode(step.Reason)).Append('"');
+        if (!string.IsNullOrEmpty(step.Reason))
+        {
+            html.Append(" title=\"").Append(Encode(step.Reason)).Append('"');
+        }
+
         html.Append('>');
 
         // Name and state
@@ -613,7 +662,10 @@ internal static class ChainFlowchartRenderer
     /// </summary>
     internal static string FormatArguments(Job? job)
     {
-        if (job == null) return "()";
+        if (job == null)
+        {
+            return "()";
+        }
 
         ParameterInfo[] parameters = job.Method.GetParameters();
         IEnumerable<string> shown = job.Args

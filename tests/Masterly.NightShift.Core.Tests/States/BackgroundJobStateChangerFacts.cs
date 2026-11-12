@@ -742,7 +742,11 @@ public class BackgroundJobStateChangerFacts
     public void ChangeState_AppliesTheChange_WhenTheWorkerHoldsTheLease_OrThereIsNone(string lease)
     {
         Dictionary<string, string> snapshot = [];
-        if (lease != null) snapshot[StaleJobFilter.LeaseParameter] = lease;
+        if (lease != null)
+        {
+            snapshot[StaleJobFilter.LeaseParameter] = lease;
+        }
+
         _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = OldStateName, Job = _job, ParametersSnapshot = snapshot });
         _context.LeaseHolder = "worker-a";
 

@@ -15,7 +15,10 @@ internal partial class JobDetailsPage(string jobId)
     /// </summary>
     internal static string GetRunAgainQueue(JobDetailsDto details)
     {
-        if (details?.Job?.Queue != null) return details.Job.Queue;
+        if (details?.Job?.Queue != null)
+        {
+            return details.Job.Queue;
+        }
 
         StateHistoryDto? enqueued = details?.History?.FirstOrDefault(static x => x.StateName == EnqueuedState.StateName);
         if (enqueued?.Data != null && enqueued.Data.TryGetValue("Queue", out string? queue) &&
