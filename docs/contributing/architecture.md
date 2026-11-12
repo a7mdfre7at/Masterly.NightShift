@@ -103,9 +103,10 @@ Every transition goes through `IBackgroundJobStateChanger`, implemented by `Back
 | `ServerHeartbeatProcess` | Reports the server as alive |
 | `ServerWatchdog` | Removes servers that stopped sending heartbeats |
 | `ServerJobCancellationWatcher` | Cancels the tokens of running jobs that were aborted, for example deleted from the dashboard |
+| `JobChainMaintenanceProcess` | Every 5 minutes, one server at a time: unlists chains whose record expired and finishes interrupted retries and replacements of chains |
 | Storage processes | Whatever `JobStorage.GetServerRequiredProcesses()`/`GetStorageWideProcesses()` return; for SQL Server, expiration, counter aggregation and its heartbeat |
 
-A lightweight server (`BackgroundJobServerOptions.IsLightweightServer`) runs only the workers and the processes every server needs (heartbeat, watchdog, cancellation watcher, the storage's required processes and any additional processes): no schedulers and no storage-wide processes.
+A lightweight server (`BackgroundJobServerOptions.IsLightweightServer`) runs only the workers and the processes every server needs (heartbeat, watchdog, cancellation watcher, chain maintenance, the storage's required processes and any additional processes): no schedulers and no storage-wide processes.
 
 A `Worker` loop: `IStorageConnection.FetchNextJob(queues)` returns an `IFetchedJob`; the worker changes the job to Processing (expecting Enqueued, Scheduled or Processing), calls `IBackgroundJobPerformer.Perform`, then changes the job to Succeeded or Failed (expecting Processing) and calls `RemoveFromQueue`. If something throws before the job's final state is saved (a storage error while changing state, for example), the worker calls `Requeue` so another worker can take it. A job whose worker died is made visible again by the storage, for SQL Server after its invisibility timeout.
 

@@ -10,7 +10,7 @@ Masterly.NightShift keeps every job, its state history, queues, recurring job de
 | `Masterly.NightShift.MongoDB` | [MongoDB](mongodb.md) | You run a MongoDB replica set |
 | `Masterly.NightShift.InMemory` | [In memory](in-memory.md) | Development, tests and demos: nothing survives the process |
 
-Every storage passes the same conformance suite (`tests/Shared/StorageConformance`), which the SQL Server storage passes too, so jobs, queues, locks and the dashboard behave the same on all of them.
+Every storage passes the same conformance suite (`tests/Shared/StorageConformance`), which the SQL Server storage passes too, so jobs, queues, locks and the dashboard behave the same on all of them. The Entity Framework Core, Redis, MongoDB and in-memory storages take a distributed lock as a lease that its holder renews; releasing the lock doesn't wait for a renewal in progress, so a slow or unreachable store doesn't hold up the worker that releases it.
 
 | Page | What it covers |
 |---|---|

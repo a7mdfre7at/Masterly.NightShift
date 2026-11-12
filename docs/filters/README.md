@@ -94,7 +94,11 @@ Within one kind of filter, filters run sorted by their `Order` property (lower f
 
 | Filter | What it does |
 |--------|--------------|
+| `JobChainStepFilter` | Lets a step of a chain run only when its chain's record lists it ([Chains](../jobs/chains.md#when-a-step-runs)) |
 | `CaptureCultureAttribute` | Runs the job with the culture of the code that created it ([Behavior](behavior.md#capturecultureattribute)) |
+| `TerminateJobFilter` | Ends a job that threw `TerminateJobException` as skipped or canceled ([Retries](retries.md#terminatejobexception)) |
+| `LateStartFilter` | Skips a run that starts later than its `SkipAfter` allows ([Time zones and misfires](../recurring-jobs/time-zones-and-misfires.md)) |
+| `SchedulePolicyFilter` | Applies the schedule policy a job was created with ([Schedule policies](../jobs/schedule-policies.md)) |
 | `AutomaticRetryAttribute` | Retries failed jobs up to 10 times ([Retries](retries.md)) |
 | `StatisticsHistoryAttribute` | Records succeeded and failed counts for the dashboard graphs |
 | `ContinuationsSupportAttribute` | Starts continuations when their parent finishes ([Continuations](../jobs/continuations.md)) |
@@ -103,6 +107,7 @@ Within one kind of filter, filters run sorted by their `Order` property (lower f
 | `DrainModeFilter` | Holds jobs while the server is draining ([Drain mode](../server/drain-mode.md)) |
 | `ActivityFeedFilter` | Feeds the dashboard activity feed once it is turned on with `UseActivityFeed()` ([Audit log and activity](../monitoring/audit-log-and-activity.md)) |
 | `BatchSupportAttribute` | Tracks batch jobs ([Fan-in and batches](../jobs/fan-in-and-batches.md)) |
+| `StaleJobFilter` | Counts the restarts of a job whose server stopped, and refuses a former owner's late state change ([Reliability and cluster](../server/reliability.md#when-a-server-dies-during-a-job)) |
 
 Removing one of these, for example `GlobalJobFilters.Filters.Remove<AutomaticRetryAttribute>()`, turns that feature off for every job. Removing `DrainModeFilter` turns off drain mode only: `RunWindow`, `Throttle`, `RateLimit` and `CircuitBreaker` still put the jobs they hold back in their queue on their own. `GlobalJobFilters.Filters` is a `JobFilterCollection`; its members are listed in [Custom filters](custom-filters.md#the-filter-collections).
 

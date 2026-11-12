@@ -59,7 +59,7 @@ Seed retirement is opt-in (`RetireUndeclared`), and only touches jobs a set decl
 
 ## Phase 3: Schedule policies (business calendars) (done)
 
-Policies are checked when a job is created and when the delayed job scheduler enqueues it, not when a worker picks it up, so a manual enqueue bypasses them; a job already created whose due time a changed policy now blocks is skipped rather than rejected. The policies page is part of Phase 8.
+Policies are checked when a job is created and when the delayed job scheduler enqueues it, not when a worker picks it up, so a manual enqueue bypasses them; a job already created whose due time a changed policy now blocks is skipped rather than rejected. A policy that can't be evaluated (unreadable, an unknown time zone, a date provider missing or failing) blocks nothing: a fire-and-forget or delayed job is never skipped or rejected for it, whatever its `WhenBlocked`, but waits in the Scheduled state and is checked again after 1, 5 and 15 minutes, then every hour; a recurring job stays on the schedule. The policies page is part of Phase 8.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
@@ -70,7 +70,7 @@ Policies are checked when a job is created and when the delayed job scheduler en
 
 ## Phase 4: Continuations and chains (done)
 
-Per-step retries and timeouts come from each method's attributes, as for any job; a step's options are its continuation options and its queue. Delete behaviours are `Cascade` and `Restrict` (refuses while a step is processing). The chain page and builder are part of Phase 8.
+Per-step retries and timeouts come from each method's attributes, as for any job; a step's options are its continuation options and its queue. Delete behaviours are `Cascade` and `Restrict` (refuses while a step is processing). A step runs only when its chain's record lists it (`JobChainStepFilter`, a default global filter): the record is written once every step is created, so a chain whose creation stopped halfway, a deleted chain and the jobs a retry or a replacement replaced never run, and a first step that a worker takes before the record is written waits for it. The record is kept until 30 days after its steps last changed state. A server process (`JobChainMaintenanceProcess`, every 5 minutes, one server at a time) unlists the chains whose record expired and finishes interrupted retries and replacements. The chain page and builder are part of Phase 8.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
@@ -97,13 +97,13 @@ A method function's job is an ordinary job of the method; a delegate function's 
 
 ## Phase 6: Reliability and cluster (done)
 
-The restart limit is opt-in (`UseStaleRestartLimit`), not 3 by default: a graceful shutdown puts running jobs back too, so a default limit would fail long jobs during rolling deployments. Fencing uses a `Lease` parameter written only when a job is picked up again, so normal processing costs nothing. Deployment fencing pauses old servers through drain mode; manual epochs aren't ported (deploy with a new id instead).
+The restart limit is opt-in (`UseStaleRestartLimit`), not 3 by default: a graceful shutdown puts running jobs back too, so a default limit would fail long jobs during rolling deployments. Fencing uses a `Lease` parameter written only when a job is picked up again, so normal processing costs nothing. Deployment fencing pauses old servers through drain mode. Manual epochs aren't ported as such: deploy with a new id, and optionally with a deployment order (`UseDeploymentFencing(id, order)`, a number that grows with each deploy), which decides between two deployments that both have one. Without orders, a deployment the cluster has never seen is taken to be the newer one.
 
 | TickerQ | Status | NightShift |
 |---|---|---|
 | `OnStale` / `MaxStaleRestarts` | Port | `UseStaleRestartLimit(n)` (`StaleJobFilter`): a job picked up again more than n times after its server stopped fails for good. |
 | Lease fencing | Enhance | The worker that takes a job over holds its `Lease`; a former owner's late state change is refused. |
-| Reconciliation epoch | Port | Opt-in `UseDeploymentFencing(id)`: servers of an older deployment pause themselves. |
+| Reconciliation epoch | Port | Opt-in `UseDeploymentFencing(id)` or `UseDeploymentFencing(id, order)`: servers of an older deployment pause themselves. With orders, the higher one is the newer deployment; a lower one never fences the current servers while they run. |
 | Manual start, start/stop/restart | Port | `StartMode = ServerStartMode.Manual` and `IBackgroundJobServerControl`. |
 | `LongRunning` priority | Port | `[LongRunning]` and a separate worker pool (`LongRunningWorkerCount`). |
 | Per-status retention | Enhance | `UseJobRetention(o => ...)` per state; `[ExpireAfter]` wins. |

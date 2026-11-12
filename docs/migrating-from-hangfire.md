@@ -192,7 +192,7 @@ These changes affect code or operations that worked with Hangfire. Each is expla
 - **Monitoring that matches the failure reason "target method was not found"** must match the new reasons (see [Other visible changes](#other-visible-changes)).
 - **Over-long keys and names throw.** The SQL Server storage throws `ArgumentException` for keys over 100 characters, queue names over 50 and similar, where Hangfire failed inside SQL Server or cut the value.
 - **The exact overload runs.** A job created for `Handle(Derived)` no longer runs `Handle(Base)` when that overload is declared first.
-- **More default global filters.** `GlobalJobFilters.Filters` holds five more filters than in Hangfire; tests that assert the exact count need updating.
+- **More default global filters.** `GlobalJobFilters.Filters` holds ten more filters than in Hangfire; tests that assert the exact count need updating.
 
 ## More examples
 

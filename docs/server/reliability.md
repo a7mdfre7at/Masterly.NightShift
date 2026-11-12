@@ -44,8 +44,9 @@ When a job is picked up again, the worker that takes it over records itself in t
 During a rolling deployment, old and new servers run side by side, and an old server can pick up a job created for the new code. `UseDeploymentFencing()` keeps servers of an older deployment from taking jobs once a newer one runs:
 
 ```csharp
-GlobalConfiguration.Configuration.UseDeploymentFencing();          // the entry assembly's version
-GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3"); // or your own id, up to 64 characters
+GlobalConfiguration.Configuration.UseDeploymentFencing();             // the entry assembly's version
+GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3");    // or your own id, up to 64 characters
+GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3", 42); // with a deployment order
 ```
 
 1. Every server created after the call checks the deployment every 15 seconds (`DeploymentFencing.CheckInterval`).
@@ -53,7 +54,30 @@ GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3"); // or your 
 3. A server of any other deployment pauses itself, as [drain mode](drain-mode.md) pauses a server, with the reason `Fenced: deployment '...' was replaced by '...'`. Jobs it picks up are held and taken by the current servers; its running jobs finish.
 4. A deployment seen before (an old version restarted by its orchestrator, a rollback) takes over only once no server of the current deployment has checked in for 30 seconds (`DeploymentFencing.TakeOverAfter`), so a crash-looping old server doesn't fence the new ones. To roll back on purpose, deploy with a new id.
 
-A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The state is kept in the storage hash `nightshift:deployment`. The default id is the entry assembly's informational version, so make sure it changes with every release.
+A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The default id is the entry assembly's informational version, so make sure it changes with every release.
+
+### Deployment order
+
+Ids can't be compared, so without more information a deployment the cluster has never seen is taken to be the newer one, and takes over at once: a server started by mistake with an id never used (an old build with a new id, a machine pointed at the wrong storage) fences the current servers, and a warning is logged when that pauses servers that are running. A deployment order tells which deployment is newer:
+
+```csharp
+// buildId and runNumber come from your pipeline, through configuration for example
+GlobalConfiguration.Configuration.UseDeploymentFencing(buildId, runNumber);
+```
+
+The order is your pipeline's run number, the deploy time as a Unix timestamp, or any other number, zero or more, that grows with each deploy; a negative one throws `ArgumentOutOfRangeException`. A `null` id still means the entry assembly's version. A rollback is a new deploy, so give it a higher number than the deployment it replaces, and a new id.
+
+| This deployment and the current one | What happens |
+|---|---|
+| Both have an order, and this one's is higher | This deployment takes over at once, seen before or not, also while servers of the current one are running |
+| Both have an order, and this one's is lower | This deployment is fenced while servers of the current one are running, seen before or not. It takes over only once they have been silent for `TakeOverAfter` |
+| The orders are equal, or one of the two has none | The rules above: a deployment never seen takes over at once, one seen before after `TakeOverAfter` of silence |
+
+A server fenced because its order is lower is paused with the reason `Fenced: deployment '2026.11.2' (order 41) is older than '2026.11.3' (order 42)`, and logs one warning, not one at every check, that says so and how to make it the current deployment: deploy it with a higher order. `UseDeploymentFencing` without an order clears an order set by an earlier call.
+
+`DeploymentFencing.DeploymentId` and `DeploymentFencing.DeploymentOrder` are this process's deployment and its order (`null` without one), and `DeploymentFencing.GetCurrentDeploymentOrder(storage)` reads the order of the current deployment, `null` when it has none. The dashboard's [About page](../dashboard/pages.md#about) shows this process's deployment with its order and, when another deployment is the current one, that one with its order.
+
+The state is kept in the storage hash `nightshift:deployment`: the field `Current` names the current deployment, `Seen:{id}` holds the last check of each deployment and `Order:{id}` its order. Checks hold the lock `lock:nightshift:deployment`.
 
 ## Starting and stopping servers from code
 

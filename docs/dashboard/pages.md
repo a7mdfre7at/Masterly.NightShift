@@ -161,7 +161,7 @@ The first 200 steps are drawn, whole levels at a time; the others are listed bel
 - **Retry from here** on a failed or deleted step, once the chain has settled (nothing is running or waiting to run): the step runs again with everything after it, and the steps before it aren't re-run. It calls `RetryChainFrom`.
 - **Delete** while the chain is still running: deletes the steps that haven't finished, following the chain's delete behavior (`Restrict` refuses while a step is processing).
 
-A chain step's job page links to its chain next to the job's tags.
+A chain step's job page links to its chain next to the job's tags. Its history can show a short `Scheduled` state with the reason `Waiting for chain ... to be recorded`, when a worker took the first step before the chain was completely created, and a job that its chain's record doesn't list is deleted with a reason that says so: see [When a step runs](../jobs/chains.md#when-a-step-runs).
 
 ### Retries
 
@@ -223,7 +223,7 @@ Who did what from the dashboard: time, user, action, targets and detail. Users w
 
 ### About
 
-What this application configured, as the dashboard's process sees it: the storage, the data compatibility level and the options turned on (default recurring time zone, stale restart limit, argument compression, deployment fencing, date providers), the global filters in the order they run, the registered [job functions](../jobs/job-functions.md), and the [job monitors](../monitoring/job-monitors.md) with their status. Servers in other processes may be configured differently.
+What this application configured, as the dashboard's process sees it: the storage, the data compatibility level and the options turned on (default recurring time zone, stale restart limit, argument compression, [deployment fencing](../server/reliability.md#deployment-fencing) with this process's deployment and its order, followed in brackets by the current deployment when it is another one, date providers), the global filters in the order they run, the registered [job functions](../jobs/job-functions.md), and the [job monitors](../monitoring/job-monitors.md) with their status. Servers in other processes may be configured differently.
 
 ### Wallboard
 

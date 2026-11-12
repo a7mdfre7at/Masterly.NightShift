@@ -165,6 +165,7 @@ Job IDs returned by `Create`, `Enqueue`, `Schedule` and `ContinueJobWith` are `s
 - The build enforces the code style in [`.editorconfig`](../../.editorconfig). Use C# 8 to 14 features: file-scoped namespaces, primary constructors, records for read-only data, collection expressions, pattern matching, `extension` blocks and raw string literals. Use explicit types with target-typed `new()` (`Foo foo = new();`) instead of `var`, which stays only for anonymous types. Parameters carry `[NotNull]`/`[CanBeNull]` (from `Masterly.NightShift.Annotations`).
 - In library code, read the time from `JobClock.UtcNow`, not `DateTime.UtcNow`.
 - Four spaces, no tabs ([`.editorconfig`](../../.editorconfig)).
+- Braces are required around the body of every `if`, `else`, `for`, `foreach`, `while`, `using`, `lock` and `fixed`, also for a single statement; the build enforces it (IDE0011). `max_line_length = 120` is a guide for editors only: no analyzer enforces it.
 - Most public types are in the `Masterly.NightShift` namespace no matter which folder they live in. Keep a moved or new type in the namespace its neighbours use. See [Architecture](architecture.md#source-tree).
 - Don't hand-edit generated files: `Strings.Designer.cs` (from `Strings.resx`) and `DefaultInstall.sql` (from `Install.sql` through the `DefaultInstall.tt` T4 template).
 - Don't change `App_Packages/` (LibLog, StackTraceParser, StackTraceFormatter, MoreLinq) beyond their namespaces.

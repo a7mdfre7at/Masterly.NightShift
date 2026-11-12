@@ -181,7 +181,7 @@ IReadOnlyList<DateTime> next = storage.GetNextOccurrences("daily-report", 5);
 | CRON expression, time zone | Replaced. If either one changed, the next execution is recomputed from now, so runs the old schedule would have made are not caught up, and `Strict` misfire handling doesn't create the runs the new schedule would have had before the change. A rewrite with the same meaning (`@daily` for `0 0 * * *`, or the Windows ID of the same zone, such as `W. Europe Standard Time` for `Europe/Berlin`) still recomputes the next execution, but doesn't count as a change for `Strict`. If neither changed, the next execution stays as it was. |
 | Start and end dates | Replaced. Options without them clear them. If either changed, the next execution is recomputed from now like a CRON change, so `Strict` doesn't create runs from before the change. Clearing an end date that has passed puts the job back on the schedule. |
 | Paused flag | Kept. Re-registering a paused job doesn't resume it. |
-| Error / disabled state | Cleared, and the job is scheduled again (unless paused). |
+| Error / disabled state | Cleared, and the job is scheduled again (unless paused). A job that waits because its [schedule policy can't be evaluated](../jobs/schedule-policies.md#policies-that-cant-be-evaluated) is the exception: with an unchanged schedule it keeps its error and its next execution, so the occurrences it missed are still counted from its last execution. |
 | Created time, last execution, last job ID | Kept. |
 
 When nothing changed, `AddOrUpdate` writes nothing at all, so calling it on every start-up is cheap.

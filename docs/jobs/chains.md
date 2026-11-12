@@ -64,9 +64,42 @@ A chain has at most 1,000 steps (`JobChain.MaxSteps`) and 50 levels (`JobChain.M
 | `Enqueue(IBackgroundJobClient client, ScheduleOptions? options = null)` | Enqueued now, through the client |
 | `Schedule(TimeSpan delay, ...)`, `Schedule(DateTimeOffset enqueueAt, ...)` | Scheduled, with or without a client |
 
-The [`ScheduleOptions`](schedule-policies.md#delayed-and-fire-and-forget-jobs) apply to the first step: a schedule policy, a late-start limit, a queue. Every step is created right away, the later ones in the `Awaiting` state. The methods return a `JobChainResult` with the `ChainId`, the `RootId` (the first step's job) and `Steps`, the job of each step by step key (`level.index`: `0.0` for the first step, `2.1` for the second branch of the third level). They return `null` when a client filter or a schedule policy didn't let the first step be created. When a filter cancels a later step, or the chain's record can't be written, the steps already created are deleted, the last first, each only from a state where it hasn't started (a step a worker took meanwhile is left to run), and the exception is thrown (`InvalidOperationException` for a canceled step). The client must implement `IBackgroundJobClientV2`, as `BackgroundJobClient` does.
+The [`ScheduleOptions`](schedule-policies.md#delayed-and-fire-and-forget-jobs) apply to the first step: a schedule policy, a late-start limit, a queue. Every step is created right away, the later ones in the `Awaiting` state. The methods return a `JobChainResult` with the `ChainId`, the `RootId` (the first step's job) and `Steps`, the job of each step by step key (`level.index`: `0.0` for the first step, `2.1` for the second branch of the third level). They return `null` when a client filter or a schedule policy didn't let the first step be created. The client must implement `IBackgroundJobClientV2`, as `BackgroundJobClient` does.
 
-Each step carries the `ChainId` and `ChainStep` job parameters (`JobChains.ChainIdParameter`, `ChainStepParameter`), and `PerformContext.ParentId` / `ParentIds` give the steps it waited for.
+The chain's record is written last, once every step exists, and a step runs only when the record lists it (see [When a step runs](#when-a-step-runs)). So a chain is created whole or not at all:
+
+- When a filter cancels a later step, or the record can't be written, the steps already created are deleted, the last first, each only from a state where it hasn't started, and the exception is thrown (`InvalidOperationException` for a canceled step). A first step that a worker took meanwhile didn't run: it was waiting for the record, and is deleted with the others.
+- When creating the chain takes longer than 5 minutes and a worker took the first step meanwhile, that step was deleted before the record was written. `Enqueue` and `Schedule` then delete every step and the record, and throw `InvalidOperationException`: nothing of the chain is left, so create it again.
+- When the process stops in the middle, no record is ever written, and none of the steps it created runs.
+
+Each step carries the `ChainId` and `ChainStep` job parameters (`JobChains.ChainIdParameter`, `ChainStepParameter`), and `PerformContext.ParentId` / `ParentIds` give the steps it waited for. The two parameter names are reserved for chains: a job of your own that carries both is taken for a step, and is deleted instead of running when no chain records it.
+
+## When a step runs
+
+A step runs only when its chain's record lists its job for that step. Creating a chain writes the record once every step exists, and `RetryChainFrom` and `ReplaceChain` write a new one once their new jobs exist. When a worker picks up a job that carries the chain parameters, `JobChainStepFilter`, a default global filter registered before the other default filters, reads the record and decides:
+
+| The record | What happens to the job |
+|---|---|
+| Lists the job for its step | It runs |
+| Doesn't list it, or doesn't exist yet, and the job was created less than 5 minutes ago | The chain is being created, retried or replaced. The job goes to the `Scheduled` state with the reason `Waiting for chain {id} to be recorded` and is checked again: after 2 seconds at first, later each time, at most a minute. That isn't a retry |
+| Lists another job for the step, or none, and the job is older than 5 minutes | It is deleted with the reason `Not a current step of chain {id}`: a retry or a replacement replaced it, or it never was a step of the chain |
+| Doesn't exist, and the job is older than 5 minutes | It is deleted with the reason `Chain {id} isn't recorded: it was deleted or never completely created` |
+| Can't be read, because of a storage error | It neither runs nor fails: it is scheduled again 15 seconds later with the reason `Waiting: the record of chain {id} couldn't be read`, and checked again |
+
+The reasons are the constants `JobChainStepFilter.WaitingReasonFormat`, `NotCurrentReasonFormat`, `NotRecordedReasonFormat` and `UnreadableReasonFormat`. A job held this way goes back to the queue it was taken from.
+
+On a storage that expires hashes, a record can be gone for another reason than a deletion, and the step then runs: a job older than 30 days whose chain has no record is a step of a chain whose record expired, and a job whose chain is still in the `chains` list lost its record early (a storage that evicts keys or caps expiration times), which is logged as a warning.
+
+What this means:
+
+- **A client that stops while it creates a chain leaves nothing that runs.** A worker that takes the first step holds it for up to 5 minutes after its creation, then deletes it, and none of the steps after it runs.
+- **A first step taken while the chain is created waits for the record.** The client enqueues it as soon as the record is written, so the chain starts without waiting for the hold to end. The step's history then shows `Enqueued`, `Scheduled` (waiting for the record) and `Enqueued` again before `Processing`. While a chain is created, only its first step can be held this way: the others wait for it.
+- **Jobs that a retry or a replacement replaced never run,** also when `RetryChainFrom` or `ReplaceChain` was interrupted before it deleted them (see [Run again from a step](#run-again-from-a-step)).
+- **A step of a deleted chain doesn't run** when it is requeued by hand. A step that its chain's record still lists runs again when it is requeued.
+
+A job outside a chain costs a dictionary lookup in the parameters the storage loads with the job, as SQL Server and the other storages of this project do, and one parameter read on a storage that doesn't load them. A step costs one read of its chain's record.
+
+Without the filter (`GlobalJobFilters.Filters.Remove<JobChainStepFilter>()`, or a server whose `FilterProvider` leaves out the global filters), steps run whatever the record says. The record then only serves reading, retrying, replacing and deleting: the steps of a chain whose creation stopped halfway run, a step a worker took before a change failed is left to run, and a step's state changes no longer keep the record longer (see [Things to know](#things-to-know)).
 
 ## Managing a chain
 
@@ -79,7 +112,7 @@ These are extension methods on `JobStorage`:
 | `ReplaceChain(chainId, chain)` | Replaces a chain that hasn't started |
 | `DeleteChain(chainId)` | Deletes the steps that haven't finished, and the record (see below) |
 
-A chain is **settled** when it has nothing left to do by itself: every step succeeded, was deleted (skipped steps included), failed for good or expired, or waits after a step that failed for good or whose job expired, directly or behind other steps that wait, which only a requeue or a retry moves on.
+A chain is **settled** when it has nothing left to do by itself: every step succeeded, was deleted (skipped steps included), failed for good or expired, or waits after a step that failed for good or whose job expired, directly or behind other steps that wait, which only a requeue or a retry moves on. A waiting step whose condition the steps it waits for already meet (a failure join after a step that failed for good, for example) is about to start or to be skipped, so the chain isn't settled until that happened. This lasts at most 5 minutes after the last of those steps finished: past that, the step was never told, because the process that was to start it stopped, and it waits for a requeue or a retry like the others.
 
 ### Run again from a step
 
@@ -90,19 +123,23 @@ JobChainStepInfo failed = info!.Steps.First(x => x.State == "Failed");
 JobChainResult retried = storage.RetryChainFrom(failed.JobId);
 ```
 
-The step's job is requeued (or created again when it expired), and every step after it gets a new job, waiting for its parents as when the chain was created. The steps before it, and the branches beside it, keep their outcome and don't run again: a join after a group waits for the retried branch and counts the others as they finished. The old jobs of the steps after it that were still waiting are deleted, the deepest first. Each retry raises the chain's `Generation`.
+The step's job is requeued (or created again when it expired), and every step after it gets a new job, waiting for its parents as when the chain was created. The steps before it, and the branches beside it, keep their outcome and don't run again: a join after a group waits for the retried branch and counts the others as they finished. The old jobs of the steps after it that were still waiting are deleted, the deepest first. Each retry raises the chain's `Generation`, as each replacement does.
 
-While it works, `RetryChainFrom` holds the step in the `Scheduled` state, with the reason `Chain retried from this step` in its history, so nothing after it starts or is skipped before the retry is complete; the step is then enqueued. When a new step can't be created or the record can't be written, nothing changes: the jobs created are deleted and the step goes back to the state it was in.
+While it works, `RetryChainFrom` holds the step in the `Scheduled` state, with the reason `Chain retried from this step` in its history, so nothing after it starts or is skipped before the retry is complete; the step is then enqueued. When a new step can't be created or the record can't be written, nothing changes: the jobs created are deleted and the step goes back to the state it was in, without being counted in the statistics a second time.
+
+Once the new record is written, the retry has succeeded and nothing fails it any more. The jobs it replaced can't run from then on, because the record no longer lists them. When one of them can't be deleted right away, or the step can't be enqueued (a storage error, a process that stops), a warning is logged and nothing is thrown: what is left to do is kept in the record, and done by the next `RetryChainFrom`, `ReplaceChain` or `DeleteChain` of the chain, or by a server's chain maintenance, which runs every 5 minutes (see [Things to know](#things-to-know)). A step still held is enqueued at the latest when its hold ends, after an hour.
 
 `RetryChainFrom` throws `InvalidOperationException` while the chain isn't settled, for a job that isn't a current step of a recorded chain, when the step's state changed meanwhile, and when a job the new steps wait for expired: finished jobs expire after a day by default, so retry soon or keep them longer with [`[ExpireAfter]`](../filters/timing.md#expireafterattribute).
 
 ### Replace before it starts
 
-`ReplaceChain(chainId, newChain)` works while the first step is still enqueued or scheduled and the others wait. It holds the old first step in the `Scheduled` state (the reason `The chain is being replaced` shows in its history), so it neither runs nor starts its continuations, then creates the new chain under the same identifier, enqueued, or scheduled for the moment the old first step was, with the old first step's schedule policy, late-start limit and queue (unless the new first step has a queue of its own). Last, it deletes the old steps, the deepest first, so no continuation starts. When the new chain can't be created, the old first step goes back to its state and the old chain is kept as it was. Once a worker took the first step, it throws `InvalidOperationException`.
+`ReplaceChain(chainId, newChain)` works while the first step is still enqueued or scheduled and the others wait. It holds the old first step in the `Scheduled` state (the reason `The chain is being replaced` shows in its history), so it neither runs nor starts its continuations, then creates the new chain under the same identifier, enqueued, or scheduled for the moment the old first step was, with the old first step's schedule policy, late-start limit and queue (unless the new first step has a queue of its own). When the new chain can't be created, the old first step goes back to its state and the old chain is kept as it was. Once a worker took the first step, it throws `InvalidOperationException`.
+
+Once the new chain is recorded, the replacement has succeeded. The old steps, which the record no longer lists and so can't run, are then deleted, the deepest first, so no continuation starts; the ones that can't be deleted right away are deleted later, as after a retry. One case throws after that point: when creating the new chain took longer than 5 minutes and a worker deleted its first step meanwhile, `ReplaceChain` throws `InvalidOperationException` and the new chain stays recorded without running. Run it with `RetryChainFrom` on its first step (the message names the job), or delete it with `DeleteChain`.
 
 ### Delete
 
-`DeleteChain(chainId)` deletes every step that hasn't finished (waiting, scheduled, enqueued, failed and processing ones), the last steps first so no continuation starts, and removes the record. It returns the number of jobs deleted, or -1 when the chain isn't recorded. A chain built with `.OnDelete(ChainDeleteBehavior.Restrict)` refuses with `InvalidOperationException` while a step is processing, and never deletes a processing step, even one that starts while the chain is deleted. When a step started meanwhile and still runs, `DeleteChain` deletes what it can, keeps the chain recorded and throws `InvalidOperationException`; delete it again once the step finished.
+`DeleteChain(chainId)` deletes every step that hasn't finished (waiting, scheduled, enqueued, failed and processing ones), the last steps first so no continuation starts, and removes the record. It returns the number of jobs deleted, or -1 when the chain isn't recorded. It first deletes the jobs an earlier retry or replacement left to delete; when some of them still can't be deleted, it keeps the chain and throws `InvalidOperationException`, and can be called again. A chain built with `.OnDelete(ChainDeleteBehavior.Restrict)` refuses with `InvalidOperationException` while a step is processing, and never deletes a processing step, even one that starts while the chain is deleted. When a step started meanwhile and still runs, `DeleteChain` deletes what it can, keeps the chain recorded and throws `InvalidOperationException`; delete it again once the step finished.
 
 ## Recurring chains
 
@@ -119,9 +156,11 @@ The recurring job runs `JobChainRunner.Run`, which creates a new chain at each o
 
 ## Things to know
 
-- **Storage keys.** A chain is recorded in the hash `chain:{id}` (its definition, the job of each step, the generation), kept for 30 days (`JobChain.RecordRetention`) on storages that expire hashes, and listed in the set `chains`. Chains whose record expired leave that list gradually, at most 20 each time a chain is recorded; the dashboard's Chains page leaves them out meanwhile. A recurring chain keeps its last chain's identifier in the hash `recurring-chain:{id}`. The jobs run without the record: it only serves reading, retrying, replacing and deleting.
+- **Storage keys.** A chain is recorded in the hash `chain:{id}` (its definition, the job of each step, the generation, and in the `Cleanup` field what a retry or a replacement left to do) and listed in the set `chains`. A chain with something left to do is also listed in the set `chains:cleanup`. A recurring chain keeps its last chain's identifier in the hash `recurring-chain:{id}`. `RetryChainFrom`, `ReplaceChain` and `DeleteChain` hold the lock `lock:chain:{id}`.
+- **The record lives as long as the chain has steps to run.** On storages that expire hashes, it is kept for 30 days (`JobChain.RecordRetention`) after the last state change of one of its steps, or after the time a scheduled step is due, not just 30 days after it was written. Each state change of a step extends it once the change is committed; a process writes the new expiry about once an hour per chain, so the record can expire up to an hour sooner than that. A retry or a replacement never shortens it. On a storage without expiring hashes the record stays until the chain is deleted.
+- **Chain maintenance.** Every `BackgroundJobServer` runs a process that, every 5 minutes and on one server at a time (the lock `lock:chains:maintenance`), removes from the `chains` list the chains whose record expired and finishes what interrupted retries and replacements left to do: replaced jobs to delete, a held step to enqueue. Each run is bounded: it looks at up to 1,000 chains created more than 30 days ago and goes on from there the next time, and finishes up to 50 chains. The dashboard's Chains page leaves out the chains whose record expired meanwhile. The process needs a storage with the extended API (expiring hashes and ranges of sets), as every storage of this project has; on another one, retry, replace or delete a chain to finish what was left.
 - **Every step is created at once,** so a chain of 1,000 steps creates 1,000 jobs. Steps that end up skipped are deleted when their turn comes.
-- **The first step can run before the last one is created.** That is fine: a step created after the steps before it finished starts at once, or is skipped.
+- **A worker can take the first step before the last one is created.** It doesn't run then: it waits for the chain's record, and starts as soon as the record is written (see [When a step runs](#when-a-step-runs)).
 - **Failed isn't final.** A step that failed for good keeps the steps after it waiting (except failure joins), so requeuing it from the dashboard continues the chain, like `RetryChainFrom` on that step.
 
 ## See also
