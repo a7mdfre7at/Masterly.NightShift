@@ -52,6 +52,46 @@ public class JobRetentionFilterFacts
         Assert.Throws<ArgumentOutOfRangeException>(() => options.Succeeded = TimeSpan.Zero);
         Assert.Throws<ArgumentOutOfRangeException>(() => options.Deleted = TimeSpan.FromDays(40000));
         Assert.Throws<ArgumentException>("stateName", () => options.Set(" ", TimeSpan.FromDays(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.Failed = TimeSpan.Zero);
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.Failed = TimeSpan.FromDays(40000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.Set("Failed", TimeSpan.FromSeconds(-1)));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global filters")]
+    public void UseJobRetention_CalledAgainWithoutFailed_RemovesTheFailedRetentionItSet()
+    {
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+        try
+        {
+            configuration.UseJobRetention(o => o.Failed = TimeSpan.FromDays(7));
+            configuration.UseJobRetention(o => o.Succeeded = TimeSpan.FromHours(1));
+
+            Assert.DoesNotContain(GlobalJobFilters.Filters, static x => x.Instance is FailedJobRetentionFilter);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(typeof(JobRetentionFilter));
+            GlobalJobFilters.Filters.Remove(typeof(FailedJobRetentionFilter));
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global filters")]
+    public void UseJobRetention_WithoutFailed_LeavesAFailedRetentionSetByUseFailedJobRetention()
+    {
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+        try
+        {
+            configuration.UseJobRetention(o => o.Failed = TimeSpan.FromDays(7));
+            configuration.UseFailedJobRetention(TimeSpan.FromDays(3));
+            configuration.UseJobRetention(o => o.Succeeded = TimeSpan.FromHours(1));
+
+            Assert.Contains(GlobalJobFilters.Filters, static x => x.Instance is FailedJobRetentionFilter { Retention.TotalDays: 3 });
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(typeof(JobRetentionFilter));
+            GlobalJobFilters.Filters.Remove(typeof(FailedJobRetentionFilter));
+        }
     }
 
     [Fact, GlobalLock(Reason = "Changes the global filters")]

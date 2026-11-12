@@ -24,9 +24,17 @@ public sealed class JobRetentionOptions
 
     /// <summary>
     /// How long a job that failed for good is kept, or <c>null</c> to keep it until it is deleted or requeued. The
-    /// same as <c>UseFailedJobRetention</c>.
+    /// same as <c>UseFailedJobRetention</c>: positive, and at most <see cref="ExpireAfterAttribute.MaxDays"/> days.
     /// </summary>
-    public TimeSpan? Failed { get; set; }
+    public TimeSpan? Failed
+    {
+        get;
+        set
+        {
+            if (value.HasValue) FailedJobRetentionFilter.Validate(value.Value, nameof(value));
+            field = value;
+        }
+    }
 
     /// <summary>
     /// Sets how long jobs are kept in a custom final state, or clears it with <c>null</c>.
@@ -77,6 +85,12 @@ internal sealed class JobRetentionFilter(IReadOnlyDictionary<string, TimeSpan> r
     }
 
     internal IReadOnlyDictionary<string, TimeSpan> Retention => _retention;
+
+    /// <summary>
+    /// Whether the failed-job retention in the global filters was set by <c>UseJobRetention</c>, which then removes it
+    /// when called again without <see cref="JobRetentionOptions.Failed"/>.
+    /// </summary>
+    internal bool SetsFailedRetention { get; set; }
 
     /// <inheritdoc />
     public void OnStateUnapplied(ApplyStateContext context, IWriteOnlyTransaction transaction)

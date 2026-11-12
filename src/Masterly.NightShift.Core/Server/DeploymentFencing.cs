@@ -13,10 +13,14 @@ namespace Masterly.NightShift;
 /// by the current servers, and their running jobs finish.
 /// </summary>
 /// <remarks>
-/// Every server refreshes its deployment's <c>Seen:{id}</c> field at each check. A deployment seen before (an old
-/// version restarted, a rollback) takes over only once no server of the current deployment has checked in for
-/// <see cref="TakeOverAfter"/>, so a crash-looping old server doesn't fence the new ones. To roll back on purpose,
-/// deploy with a new deployment id.
+/// <para>Every server refreshes its deployment's <c>Seen:{id}</c> field at each check. A deployment id the cluster
+/// has never seen takes over at once, even while servers of the current deployment are alive: fencing can't tell
+/// versions apart, so an unseen id is taken to be the newer one. A server started by mistake with an id never used
+/// (an old build with a new id, a developer's machine pointed at the wrong storage) fences the current servers, and
+/// a warning is logged when such a takeover pauses live servers. A deployment seen before (an old version
+/// restarted, a rollback) takes over only once no server of the current deployment has checked in for
+/// <see cref="TakeOverAfter"/>, so a crash-looping old server doesn't fence the new ones.</para>
+/// <para>To roll back on purpose, deploy with a new deployment id.</para>
 /// </remarks>
 public static class DeploymentFencing
 {
@@ -122,6 +126,12 @@ internal sealed class DeploymentFencingProcess(string deploymentId) : IBackgroun
 
             if (!fenced && current != DeploymentId)
             {
+                if (current != null && IsAlive(hash, current, now))
+                {
+                    // Only a deployment never seen gets here while the current one is alive
+                    Logger.Warn($"Deployment '{DeploymentId}', never seen before, takes over from '{current}', whose servers are still running: they stop taking jobs. If '{DeploymentId}' isn't the newer build, stop its servers; '{current}' takes over again once they have been gone for {DeploymentFencing.TakeOverAfter}.");
+                }
+
                 Logger.Info($"Deployment '{DeploymentId}' is now the current one{(current != null ? $", after '{current}'" : string.Empty)}: servers of other deployments stop taking jobs.");
                 changes[DeploymentFencing.CurrentField] = DeploymentId;
                 current = DeploymentId;

@@ -57,6 +57,36 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
     }
 
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_WarnsWhenADeploymentNeverSeen_TakesOverFromLiveServers()
+    {
+        RecordingLogProvider recording = new();
+        new DeploymentFencingProcess("v2").Check(_storage.Connection.Object, "new-server", Now);
+
+        using (recording.Use())
+        {
+            new DeploymentFencingProcess("v1-stray").Check(_storage.Connection.Object, "stray-server", Now.AddSeconds(5));
+        }
+
+        RecordingLogProvider.LogEntry warning = Assert.Single(recording.Entries, static x => x.Level == Masterly.NightShift.Logging.LogLevel.Warn);
+        Assert.Contains("'v1-stray', never seen before, takes over from 'v2'", warning.Message, StringComparison.Ordinal);
+        Assert.Equal("v1-stray", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Check_DoesNotWarn_WhenTheCurrentDeploymentIsSilent()
+    {
+        RecordingLogProvider recording = new();
+        new DeploymentFencingProcess("v1").Check(_storage.Connection.Object, "old-server", Now);
+
+        using (recording.Use())
+        {
+            new DeploymentFencingProcess("v2").Check(_storage.Connection.Object, "new-server", Now.AddMinutes(5));
+        }
+
+        Assert.DoesNotContain(recording.Entries, static x => x.Level == Masterly.NightShift.Logging.LogLevel.Warn);
+    }
+
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
     public void Check_KeepsAPauseSetByHand()
     {

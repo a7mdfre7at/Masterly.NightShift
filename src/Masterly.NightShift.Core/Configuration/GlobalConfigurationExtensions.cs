@@ -83,6 +83,10 @@ public static class GlobalConfigurationExtensions
                 () => new FailedJobRetentionFilter(retention));
 
             filter.Retention = retention;
+
+            // Set by hand now: a later UseJobRetention without a failed retention leaves it alone
+            if (FindGlobalFilter<JobRetentionFilter>() is { } retentionFilter) retentionFilter.SetsFailedRetention = false;
+
             return configuration;
         }
 
@@ -375,7 +379,8 @@ public static class GlobalConfigurationExtensions
 
         /// <summary>
         /// Sets how long finished jobs are kept, per state: <c>UseJobRetention(o => { o.Succeeded = TimeSpan.FromHours(6); o.Deleted = TimeSpan.FromDays(7); })</c>.
-        /// A per-method <see cref="ExpireAfterAttribute"/> wins. Calling it again replaces the retention.
+        /// A per-method <see cref="ExpireAfterAttribute"/> wins. Calling it again replaces the retention, the failed one
+        /// an earlier call set included (one set with <c>UseFailedJobRetention</c> stays unless this call sets another).
         /// </summary>
         /// <param name="configure">Sets the retention of each state.</param>
         /// <returns>The same configuration, for chaining.</returns>
@@ -395,6 +400,17 @@ public static class GlobalConfigurationExtensions
             if (options.Failed is { } failed)
             {
                 configuration.UseFailedJobRetention(failed);
+                filter.SetsFailedRetention = true;
+            }
+            else if (filter.SetsFailedRetention)
+            {
+                // The failed retention an earlier call set is replaced too: failed jobs are kept again
+                lock (GlobalFiltersLock)
+                {
+                    GlobalJobFilters.Filters.Remove<FailedJobRetentionFilter>();
+                }
+
+                filter.SetsFailedRetention = false;
             }
 
             return configuration;
@@ -516,6 +532,22 @@ public static class GlobalConfigurationExtensions
 
     // Adds a filter that Use* methods add only once: a process that configures NightShift again (several hosts
     // in one test run, for example) doesn't pile up copies in the global filters. Returns the registered filter.
+    private static T? FindGlobalFilter<T>()
+        where T : class
+    {
+        lock (GlobalFiltersLock)
+        {
+            return GlobalJobFilters.Filters.Select(static x => x.Instance).OfType<T>().FirstOrDefault();
+        }
+    }
+
+    // The same instance, or delegate handlers built from equal delegates
+    private static bool IsSameHandler(IJobExceptionHandler registered, IJobExceptionHandler handler)
+    {
+        return ReferenceEquals(registered, handler)
+            || (registered is DelegateJobExceptionHandler existing && handler is DelegateJobExceptionHandler added && existing.HasSameDelegates(added));
+    }
+
     private static object AddGlobalFilterOnce(Func<object, bool> isRegistered, Func<object> create)
     {
         lock (GlobalFiltersLock)
@@ -689,8 +721,8 @@ public static class GlobalConfigurationExtensions
 
         /// <summary>
         /// Registers a <see cref="JobMonitor"/>: a daily deadline, a long-running limit or a repeated-failures limit for
-        /// the jobs of one method. Servers created afterwards check the monitors every <see cref="JobMonitors.CheckInterval"/>
-        /// and raise <see cref="AlertKind.MonitorIncident"/> and <see cref="AlertKind.MonitorRecovered"/> alerts.
+        /// the jobs of one method. Servers check the monitors every <see cref="JobMonitors.CheckInterval"/>, also the
+        /// ones registered after they started, and raise <see cref="AlertKind.MonitorIncident"/> and <see cref="AlertKind.MonitorRecovered"/> alerts.
         /// Register the same monitors in every process that runs jobs, so their outcomes are recorded.
         /// </summary>
         /// <param name="monitor">The monitor.</param>
@@ -744,7 +776,8 @@ public static class GlobalConfigurationExtensions
 
         /// <summary>
         /// Calls <paramref name="handler"/> for the exceptions of every background job: each failed attempt, and each
-        /// canceled run. See <see cref="IJobExceptionHandler"/>. Each call adds a handler.
+        /// canceled run. See <see cref="IJobExceptionHandler"/>. Each call adds a handler; adding the same handler
+        /// instance again does nothing, so configuring NightShift twice doesn't call it twice per exception.
         /// </summary>
         /// <param name="handler">The handler.</param>
         /// <returns>The same configuration, for chaining.</returns>
@@ -753,13 +786,16 @@ public static class GlobalConfigurationExtensions
             ArgumentNullException.ThrowIfNull(configuration);
             ArgumentNullException.ThrowIfNull(handler);
 
-            GlobalJobFilters.Filters.Add(new JobExceptionHandlerFilter(handler));
+            AddGlobalFilterOnce(
+                registered => registered is JobExceptionHandlerFilter filter && IsSameHandler(filter.Handler, handler),
+                () => new JobExceptionHandlerFilter(handler));
             return configuration;
         }
 
         /// <summary>
         /// Calls <paramref name="onException"/> for each failed attempt of every background job, and
         /// <paramref name="onCanceled"/>, when given, for each canceled run. See <see cref="IJobExceptionHandler"/>.
+        /// Adding the same delegates again does nothing.
         /// </summary>
         /// <param name="onException">Called for each failed attempt.</param>
         /// <param name="onCanceled">Called for each canceled run, or <c>null</c> to ignore them.</param>
