@@ -44,9 +44,9 @@ The storage supports every optional feature: the extended API, transactional ack
 | `QueuePollInterval` | 1 second | How long a waiting worker sleeps before it looks at its queues again. Enqueuing wakes workers at once, so this rarely matters. |
 | `InvisibilityTimeout` | 30 minutes | How long a fetched job stays invisible after its worker stopped keeping it alive. A worker keeps its job alive while it runs. |
 | `ExpirationCheckInterval` | 1 minute | How often expired jobs and keys are removed. |
-| `MaxExpirationTime` | none | The longest anything is kept after it is set to expire, to bound memory in a busy process. `TimeSpan.FromHours(1)` keeps finished jobs for an hour at most. |
+| `MaxExpirationTime` | none | The longest anything is kept after it is set to expire, to bound memory in a busy process. `TimeSpan.FromHours(1)` keeps finished jobs for an hour at most. Must be positive when set. |
 
-`UseInMemoryStorage()` and `UseInMemoryStorage(options)` set the storage as the current one. `new InMemoryStorage(options)` creates one for direct use.
+`UseInMemoryStorage()` and `UseInMemoryStorage(options)` set the storage as the current one. `new InMemoryStorage(options)` creates one for direct use. The options are copied and checked when the storage is created: an interval that isn't positive throws `ArgumentException`, and changing the options afterwards changes nothing. `InMemoryStorage.Options` returns a copy of them.
 
 ## Things to know
 

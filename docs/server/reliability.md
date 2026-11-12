@@ -72,7 +72,7 @@ With `StartMode = ServerStartMode.Manual`, a server added with `AddNightShiftSer
 | `StopAsync(cancellationToken)` | Stops the running servers and waits for them to shut down, with their stop and shutdown timeouts |
 | `IsRunning` | Whether at least one server runs |
 
-It works for automatic servers too, to stop processing during a maintenance window and start it again. A `BackgroundJobServer` you create yourself always starts at once.
+It works for automatic servers too, to stop processing during a maintenance window and start it again. Calls made before the application has started are honoured: a server started by `StartAsync` isn't started a second time with the host, and an automatic server stopped by `StopAsync` stays stopped when the application starts. Once the host is stopping, nothing starts a server again. A `BackgroundJobServer` you create yourself always starts at once.
 
 ## A pool for long jobs
 
@@ -88,7 +88,7 @@ public class Reindexer
 builder.Services.AddNightShiftServer(options => options.LongRunningWorkerCount = 2);
 ```
 
-`[LongRunning]` sends the job to the `long-running` queue (`LongRunningAttribute.Queue`), like `[Queue("long-running")]`, which it replaces. `LongRunningWorkerCount` adds that many workers serving only that queue, besides `WorkerCount`. With 0, the default, the queue is served only by servers that list it in `Queues`; without such a server, the jobs wait.
+`[LongRunning]` sends the job to the `long-running` queue (`LongRunningAttribute.Queue`), like `[Queue("long-running")]`, which it replaces. `LongRunningWorkerCount` adds that many workers serving only that queue, besides `WorkerCount`. With 0, the default, the queue is served only by servers that list it in `Queues`; without such a server, the jobs wait. When a process runs servers but none of them serves the queue, the first `[LongRunning]` job it sends there logs a warning, once, since the jobs wait unless a server in another process serves the queue. A process without servers, which only creates jobs, doesn't warn.
 
 ## Storage size
 
@@ -106,7 +106,7 @@ GlobalConfiguration.Configuration.UseJobRetention(o =>
 });
 ```
 
-A retention is positive and at most 100 years. `Failed` is the same as `UseFailedJobRetention`. A method's [`[ExpireAfter]`](../filters/timing.md#expireafterattribute) wins over the global retention. Calling `UseJobRetention` again replaces it.
+A retention is positive and at most 100 years. `Failed` is the same as `UseFailedJobRetention`. A method's [`[ExpireAfter]`](../filters/timing.md#expireafterattribute) wins over the global retention. Calling `UseJobRetention` again replaces it, the failed retention an earlier call set included: a call without `Failed` keeps failed jobs again. A failed retention set with `UseFailedJobRetention` stays unless the new call sets `Failed`.
 
 ### Argument compression
 
@@ -114,7 +114,7 @@ A retention is positive and at most 100 years. `Failed` is the same as `UseFaile
 GlobalConfiguration.Configuration.UseArgumentCompression(minLength: 4096);
 ```
 
-The stored arguments of new jobs that are at least `minLength` characters long (1,024 by default) are compressed with GZip and stored in base64 behind the marker `gz:`. Arguments that don't get shorter are kept as they are. Compressed arguments are always read back, so `UseArgumentCompression(null)` turns compression off without breaking the jobs already stored. Servers of earlier versions can't read compressed arguments: turn it on once every server runs this version. Compression trades CPU for storage and network; it pays for large arguments only, so prefer passing an identifier and loading the data in the job.
+The stored arguments of new jobs that are at least `minLength` characters long (1,024 by default) are compressed with GZip and stored in base64 behind the marker `gz:`. Arguments that don't get shorter are kept as they are. Arguments are compressed only at the newest [data compatibility level](../configuration/compatibility-levels.md), `CompatibilityLevel.Version_180` (`ArgumentCompression.RequiredLevel`): a lower level says servers of earlier versions still share the storage, and they can't read compressed arguments, so nothing is compressed until you raise it. Compressed arguments are always read back, whatever the level, so `UseArgumentCompression(null)` turns compression off without breaking the jobs already stored. A [recurring job manifest](../recurring-jobs/recurring-job-manifest.md) exports the arguments decompressed. Compression trades CPU for storage and network; it pays for large arguments only, so prefer passing an identifier and loading the data in the job.
 
 ## See also
 

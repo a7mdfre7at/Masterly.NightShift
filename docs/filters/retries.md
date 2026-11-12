@@ -302,11 +302,14 @@ public class BillingService(IInvoiceRepository invoices, IPaymentGateway payment
 |-------------|---------|
 | `TerminateJobException(string reason)` | Ends the job as `Skipped`. |
 | `TerminateJobException(string reason, TerminateJobOutcome outcome)` | Ends the job with the given outcome. |
+| `TerminateJobException(string reason, Exception? innerException)` | Ends the job as `Skipped`, keeping the exception that led to the decision. |
 | `TerminateJobException(string reason, TerminateJobOutcome outcome, Exception? innerException)` | The same, keeping the exception that led to the decision. |
 
 A `null`, empty or white-space reason throws `ArgumentException`, and an unknown outcome `ArgumentOutOfRangeException`. The `Outcome` and `DeletesJob` properties tell the outcome apart.
 
 How it is handled: `TerminateJobFilter`, a global filter with `Order = 5` (before `AutomaticRetryAttribute`), turns the Failed state of a skipped or canceled job into Deleted with its reason, cut to 100 characters. `AutomaticRetryAttribute` never retries a job that threw `TerminateJobException`, so one terminated as `Failed` stays Failed. The exception can also be thrown by a server filter's `OnPerforming`, which is how [`[SkipIfLate]`](timing.md#skipiflateattribute) skips a run.
+
+The exception is also found when something wrapped it: in the inner exception of another exception (and its inner exception, a few levels deep), in an `AggregateException` with that one exception, such as the one of a `Task` the job waited for with `Wait()` or `Result`, and in the `TargetInvocationException` of a reflection call. An `AggregateException` of several exceptions isn't searched. `Outcome` is used only in the process that runs the job, while its state changes: it isn't stored with the exception, so a failed state read back from the storage doesn't have it.
 
 A deleted job starts the continuations that wait for the Deleted state, and doesn't count as a failure for [`CircuitBreaker`](#circuitbreakerattribute) or [Insights](../monitoring/insights.md). Telemetry reports a skipped run with the outcome `skipped` and a canceled one with `canceled` (see [OpenTelemetry](../monitoring/opentelemetry.md)); a job terminated as `Failed` counts as failed everywhere.
 

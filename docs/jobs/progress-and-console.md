@@ -119,13 +119,14 @@ builder.Services.AddNightShiftJobLogs(options =>
 | Option | Default | Meaning |
 |---|---|---|
 | `MinimumLevel` | `Information` | The lowest level captured |
-| `ExcludedCategories` | `Microsoft.EntityFrameworkCore.Database`, `Masterly.NightShift` | Categories left out, by prefix |
-| `MaxLinesPerJob` | 200 | The most lines a run captures (1 to 10,000); a last line says how many were left out |
+| `ExcludedCategories` | `Microsoft.EntityFrameworkCore.Database` | Categories left out, by prefix |
+| `ExcludeNightShiftCategories` | `true` | Leaves out the lines Masterly.NightShift logs itself: categories that are the full name of one of its types, or a logger it names itself. An application whose own namespace starts with `Masterly.NightShift` isn't left out |
+| `MaxLinesPerJob` | 200 | The most lines a run captures (1 to 10,000); a last line says how many were left out. Lines `Redact` leaves out and lifecycle lines don't count |
 | `MaxMessageLength` | 2,048 | The longest line kept (100 to 65,536 characters); longer ones are cut |
 | `Redact` | `null` | Changes each line before it is stored; a line it throws for is left out |
-| `LifecycleLines` | `true` | Adds `[nightshift] Started` (with the attempt) and `[nightshift] Finished in 1.2 s` or `Failed in 1.2 s: ...` lines |
+| `LifecycleLines` | `true` | Adds `[nightshift] Started` (with the attempt) and `[nightshift] Finished in 1.2 s` or `Failed in 1.2 s: ...` lines. They go through `Redact` and `MaxMessageLength` like the others, since an exception's message can hold what the redaction hides |
 
-Lines read `[Category] message`, with the last part of the category, and the exception's type and message after the message. The capture follows the job's async code, so lines logged by services the job calls, on any thread of its flow, are captured. It applies to the servers added with `AddNightShiftServer` in the same service collection. Each line is a console write, so keep the level and the limit reasonable for chatty code.
+Lines read `[Category] message`, with the last part of the category, and the exception's type and message after the message. The capture follows the job's async code, so lines logged by services the job calls, on any thread of its flow, are captured. It ends with the run: lines logged afterwards by tasks the job started and didn't wait for are left out. It applies to the servers added with `AddNightShiftServer` in the same service collection. Each line is a console write, so keep the level and the limit reasonable for chatty code.
 
 ## Checkpoints and resumable jobs
 

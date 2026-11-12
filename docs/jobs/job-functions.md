@@ -38,7 +38,7 @@ RecurringJob.AddOrUpdateFunction("nightly-cleanup", "maintenance.cleanup", 30, C
 
 The job created is an ordinary job of that method, as if you had written `Enqueue<Maintenance>(x => x.CleanupAsync(30, CancellationToken.None))`: it has the method's filters, queue and retries, and shows on the dashboard as that method.
 
-Names are 1 to 100 letters, digits, `.`, `_`, `-` and `:`, starting with a letter or a digit, and are compared without case. A type that declares the same name twice throws `InvalidOperationException` when it is registered; registering a function under a name already used replaces it.
+Names are 1 to 100 letters, digits, `.`, `_`, `-` and `:`, starting with a letter or a digit, and are compared without case. A type that declares the same name twice throws `InvalidOperationException` when it is registered. Registering the same method, or the same delegate, again under its name changes nothing, so configuring twice is harmless; registering another method or delegate under a name already used throws `InvalidOperationException`. To replace a function, remove it first with `JobFunctions.Remove(name)`. `AddAssembly` and `AddNightShiftFunctions` leave out the types of an assembly that can't be loaded (a dependency is missing), with a warning.
 
 ## The payload
 
@@ -82,7 +82,7 @@ The first three are static methods on `BackgroundJob` and extension methods on `
 
 ## Deleting pending jobs
 
-To cancel work that hasn't started, by method, function or any condition, use the `JobStorage` extensions described in [Managing jobs](managing-jobs.md#delete-pending-jobs):
+To cancel work that hasn't started, by method, function (a marked method or a delegate) or any condition, use the `JobStorage` extensions described in [Managing jobs](managing-jobs.md#delete-pending-jobs):
 
 ```csharp
 storage.DeletePendingFunctionJobs("maintenance.cleanup");

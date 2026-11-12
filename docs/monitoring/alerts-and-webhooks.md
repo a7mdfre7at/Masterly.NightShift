@@ -66,13 +66,13 @@ Alerts are raised synchronously, on the thread that changes the job's state (usu
 | `Monitor` | `string?` | The [job monitor](job-monitors.md) that raised it. |
 | `Title` | `string` | A one-line title, for example `Job 42 failed: EmailService.SendWelcome`. |
 | `Message` | `string` | The details, for example `SmtpException: Mailbox unavailable`. |
-| `OccurredAt` | `DateTime` | When it happened, UTC. Set by the constructor; settable. |
+| `OccurredAt` | `DateTime` | When it happened, UTC. Set by the constructor; an object initializer can give another. |
 | `JobId` | `string?` | The job it is about. Set by all three built-in kinds. |
 | `Method` | `string?` | `Type.Method` of the job. Set by `JobFailed` and `DeadlineMissed`. |
 | `Resource` | `string?` | The circuit breaker resource. Set by `CircuitOpened`. |
 | `ServerId` | `string?` | The server that reported it. Set by `JobFailed`. |
 
-The constructor is `new Alert(AlertKind kind, string title, string message)`.
+The constructor is `new Alert(AlertKind kind, string title, string message)`. The other properties are init-only: set them in an object initializer (`new Alert(...) { JobId = "42" }`). An alert can't change once it is raised, so every sink sees the same values.
 
 The built-in alerts look like this:
 
@@ -94,7 +94,7 @@ The built-in alerts look like this:
 
 | Property | Type | Default | Meaning |
 |---|---|---|---|
-| `Url` | `string?` | set by `UseWebhookAlerts` | The URL that receives one `POST` per alert. Required: the sink's constructor throws if it is empty. |
+| `Url` | `string?` | set by `UseWebhookAlerts` | The URL that receives one `POST` per alert. Required, and an absolute `http` or `https` URL: the sink's constructor throws `ArgumentException` otherwise. |
 | `Events` | `AlertKind` | `AlertKind.All` | Which alerts are sent. Others are ignored by this sink. |
 | `Format` | `WebhookFormat` | `WebhookFormat.Json` | The body format. |
 | `Timeout` | `TimeSpan` | 10 seconds | How long one request may take. It is applied to each request with a cancellation token, so an `HttpClient` you pass to the sink keeps its own settings. `Timeout.InfiniteTimeSpan` turns it off. Must be positive: the sink's constructor throws otherwise. |
@@ -102,7 +102,9 @@ The built-in alerts look like this:
 | `MaxConcurrentRequests` | `int` | 16 | How many requests `Publish` may have in flight at once. Further alerts are dropped with a warning. `SendAsync` is not limited. Must be positive. |
 | `Rule` | `AlertRule?` | `null` | Which alerts are sent beyond `Events`: job methods and a cooldown, see [Alert rules](#alert-rules). |
 | `Template` | `string?` | `null` | The message, with placeholders: `{{id}}`, `{{kind}}`, `{{title}}`, `{{message}}`, `{{occurredAt}}`, `{{jobId}}`, `{{method}}`, `{{resource}}`, `{{serverId}}`, `{{monitor}}`. For `Json` it is the whole body and values are inserted JSON-escaped (put them in quotes); for `Slack`, `Discord` and `Teams` it replaces the text, and values are escaped for the format. |
-| `RetryDelays` | `IList<TimeSpan>` | 1 minute, 2 minutes | How long to wait before each new attempt of an alert `Publish` failed to deliver. Clear it to turn retries off. |
+| `RetryDelays` | `IList<TimeSpan>` | 1 minute, 2 minutes | How long to wait before each new attempt of an alert `Publish` failed to deliver with a transient error (see [`WebhookAlertSink`](#webhookalertsink)). Clear it to turn retries off. |
+
+The sink reads `Url`, `Headers`, `Timeout`, `RetryDelays` and `MaxConcurrentRequests` once, when it is created: changing them afterwards changes nothing. `Events`, `Format`, `Rule` and `Template` are read for each alert.
 
 ### `WebhookFormat`
 
@@ -180,19 +182,20 @@ config.UseWebhookAlerts(teamsWorkflowUrl, options => options.Format = WebhookFor
 
 | Member | Meaning |
 |---|---|
-| `WebhookAlertSink(WebhookAlertOptions options)` | Creates the sink with its own `HttpClient`. |
-| `WebhookAlertSink(WebhookAlertOptions options, HttpClient? httpClient)` | Uses the given client as it is: its settings, `Timeout` included, are not changed, and it may already have sent requests. Useful in tests with a stub handler, or to share a configured client. |
-| `Options` | The options. |
+| `WebhookAlertSink(WebhookAlertOptions options)` | Creates the sink with its own `HttpClient`, which doesn't follow redirects, so the `Headers` (an authorization token, for example) never reach another host. `Url` must be an absolute `http` or `https` URL: anything else throws `ArgumentException`. |
+| `WebhookAlertSink(WebhookAlertOptions options, HttpClient? httpClient)` | Uses the given client as it is: its settings, `Timeout` and whether it follows redirects included, are not changed, and it may already have sent requests. Keeping it from following redirects is up to you. Useful in tests with a stub handler, or to share a configured client. |
+| `Options` | The options. `Url`, `Headers`, `Timeout`, `RetryDelays` and `MaxConcurrentRequests` are read once, when the sink is created, so changing them afterwards changes nothing; the others are read for each alert. |
 | `Publish(Alert alert)` | Filters by `Events`, takes one of the `MaxConcurrentRequests` slots, then sends in the background. Never blocks on the request. |
 | `SendAsync(Alert alert)` | Sends one alert and waits for the answer. Returns `true` for a success status code. Does not filter by `Events` and does not use a `MaxConcurrentRequests` slot. Never throws for HTTP or network errors or a timeout; they are logged as warnings. |
 | `CreateBody(Alert alert)` | Returns the request body for an alert, in the configured format. |
 | `Sent` | Alerts delivered with a success status code. |
 | `Failed` | Alerts whose request threw, timed out or returned a non-success status code. |
-| `Dropped` | Alerts dropped because `MaxConcurrentRequests` requests were in flight. |
+| `Dropped` | Alerts dropped because `MaxConcurrentRequests` requests were in flight, or failed alerts not retried because `MaxConcurrentRequests` alerts already waited for a retry. |
 | `Deliveries` | The last 50 attempts (`WebhookAlertSink.MaxDeliveries`), newest first, in memory: `WebhookDelivery` with the alert's id and title, when, the attempt number, whether it succeeded, the status code and the error. |
-| `Dispose()` | Stops sending: later `Publish` calls are ignored. Waits for the requests `Publish` started to finish, at most `Timeout` and never more than 30 seconds (`WebhookAlertSink.MaxDisposeWait`), also with `Timeout.InfiniteTimeSpan`. Then it cancels every request still running, those of `SendAsync` too, whoever owns the client; each canceled request is counted in `Failed` and logged as a warning. Last, it disposes the `HttpClient` the sink created; a client you passed in is yours to dispose. |
+| `Dispose()` | Stops sending at once: later `Publish` calls are ignored, alerts waiting for a retry are given up, and every request in flight, those of `SendAsync` too, is canceled; each canceled request is counted in `Failed` and logged as a warning. It waits at most a second for them to end, then disposes the `HttpClient` the sink created; a client you passed in is yours to dispose. |
+| `DisposeAsync()` | Stops sending as `Dispose` does, but first lets the requests `Publish` started finish, waiting without blocking a thread at most `Timeout` and never more than 30 seconds (`WebhookAlertSink.MaxDisposeWait`), also with `Timeout.InfiniteTimeSpan`. Then it cancels the requests still running and disposes the client it created. |
 
-An alert `Publish` failed to deliver (an error status, a network error, a timeout) is sent again after each of `RetryDelays`, without holding a `MaxConcurrentRequests` slot while it waits; each failed attempt is counted in `Failed` and logged. `SendAsync` doesn't retry. Retries stop when the sink is disposed.
+An alert `Publish` failed to deliver with a network error, a timeout, a 5xx status, 408 or 429 is sent again after each of `RetryDelays`; when the endpoint answered with a `Retry-After` longer than the delay, the sink waits that long instead, up to 10 minutes (`WebhookAlertSink.MaxRetryAfter`). Another 4xx status, or a 3xx, isn't retried: the request itself is wrong. An alert waiting for a retry doesn't hold a `MaxConcurrentRequests` slot, but at most `MaxConcurrentRequests` alerts wait at once: a failed alert beyond that isn't retried and is counted in `Dropped`. Each failed attempt is counted in `Failed` and logged. `SendAsync` doesn't retry. Retries stop when the sink is disposed.
 
 ### Alert rules
 
@@ -213,7 +216,7 @@ config.UseWebhookAlerts(slackUrl, o => o.Rule = new AlertRule().ExceptMethods("D
 | `ForKinds(AlertKind kinds)` | Lets only these kinds through. `All` by default |
 | `ForMethods(params string[] patterns)` | Lets through only alerts about jobs whose `Type.Method` matches a pattern: `*` matches any characters, `?` one, and case matters. Alerts about no job (a circuit) aren't affected |
 | `ExceptMethods(params string[] patterns)` | Holds back alerts about jobs whose method matches |
-| `WithCooldown(TimeSpan cooldown)` | Holds back the same alert (kind, method and resource) for this long after it was let through. `Suppressed` counts what it held back |
+| `WithCooldown(TimeSpan cooldown)` | Holds back the same alert (kind, monitor, method and resource) for this long after it was let through, so incidents of two monitors don't hold each other back. `Suppressed` counts what it held back |
 | `Allows(Alert alert)` | Whether an alert passes; one let through starts its cooldown |
 
 `AlertRuleSink(IAlertSink inner, AlertRule rule)` wraps any sink with a rule; the cooldown is kept in memory, per process.

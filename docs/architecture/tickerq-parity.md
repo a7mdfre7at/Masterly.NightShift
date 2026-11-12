@@ -128,7 +128,7 @@ Dashboard commands added in this phase answer `204`, or `409`/`422` with `{ "err
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Cron occurrence history | Port | `/recurring/details/{id}`: definition, next runs, the last 50 runs, **From code** and **Retired** badges, trigger, pause and resume. |
+| Cron occurrence history | Port | `/recurring/details/{id}`: definition, next runs, the last 20 runs (the storage keeps 50), **From code** and **Retired** badges, trigger, pause and resume. |
 | Chain view | Port | `/chains` and `/chains/{id}`: a flowchart like TickerQ's, top to bottom, parallel branches in a group box with its status and counts, joins in an outcomes box, a card per step (state, arguments, start condition and whether it was met, progress, timing, retries, **Retry from here** on a failed or deleted step of a settled chain), links colored by the path taken, zoom and full screen. Chain logs merge every step's console. Waiting, Running, Done and Finished with failures as the aggregate status. Not ported: the "Investigate with AI" button. |
 | Schedule policies page | Port | `/policies`: cards, an editor with optimistic revisions, a preview of the next 20 occurrences marked allowed or blocked. |
 | About page | Port | `/about`: effective configuration, global filters, job functions, monitors. |

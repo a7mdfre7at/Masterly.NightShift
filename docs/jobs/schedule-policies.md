@@ -47,7 +47,7 @@ An instant is allowed when every rule allows it. A policy without rules allows e
 | `ExcludeAnnualDate(month, day)` | Nothing on this day of every year. `ExcludeAnnualDate(2, 29)` matches leap years only |
 | `ExcludeDatesFrom("public-holidays")` | Nothing on the dates of the [date provider](#date-providers) registered under this name |
 | `Require("trading")` | Also needs the stored policy `trading` to allow the instant |
-| `ExceptWhen("maintenance")` | Blocks every instant the stored policy `maintenance` allows |
+| `ExceptWhen("maintenance")` | Blocks every instant the stored policy `maintenance` allows, and every instant it can't evaluate (see [Policies that can't be evaluated](#policies-that-cant-be-evaluated)) |
 | `WithDescription(text)` | A description for the dashboard, up to 500 characters |
 
 The day and the date are those of the instant checked, in the policy's time zone: in a window from 22:00 to 06:00, 02:00 belongs to the next day, so `AllowWeekdays(DayOfWeek.Friday)` with that window allows Friday from 00:00 to 06:00 and from 22:00 to midnight.
@@ -109,7 +109,7 @@ foreach (SchedulePolicyDecision run in storage.PreviewSchedulePolicy("business-h
 | `ScheduleOptions` member | Meaning |
 |---|---|
 | `Policy` | The name of the stored policy the job follows |
-| `WhenBlocked` | What happens when the policy blocks the job's time: `MoveForward` (default) schedules it at the next allowed instant, `Skip` deletes it with the reason `Skipped: ...`, `Reject` doesn't create it, so `Enqueue` and `Schedule` return `null` |
+| `WhenBlocked` | What happens when the policy blocks the job's time: `MoveForward` (default) schedules it at the next allowed instant, `Skip` deletes it with the reason `Skipped: ...`, `Reject` doesn't create it, so `Enqueue` and `Schedule` return `null`. Setting it without `Policy` throws `ArgumentException` when the job is created |
 | `SkipAfter` | How late the job may start, at least one second: a job that starts later than this after its time is skipped, as [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute) does |
 | `Queue` | The job's queue, kept with the job (it needs a storage with `JobStorageFeatures.JobQueueProperty`, as SQL Server has) |
 
@@ -139,8 +139,8 @@ The scheduler leaves out the occurrences the policy blocks: they create no job, 
 - The policy must be stored before the job is registered; `AddOrUpdate` throws `ArgumentException` otherwise.
 - The policy is checked for the occurrence, when it is due, not when its run starts. Use `SkipAfter` to limit how late a run may start.
 - Changing a policy reschedules the recurring jobs that follow it, directly or through policies that require it or make an exception for it, as a new CRON expression does: they don't catch up on runs, whatever their misfire handling.
-- With `Relaxed`, `Strict` or `RunLatest` misfire handling after an outage, the missed occurrences the policy blocks are left out too.
-- A policy that allows none of the job's occurrences in the next ten years stops the job's schedule with an error on the dashboard. Saving the policy, or registering the job again, schedules it again.
+- With `Relaxed`, `Strict` or `RunLatest` misfire handling after an outage, the missed occurrences the policy blocks are left out too. `Relaxed` checks the policy again for the moment its catch-up run would be created: when the policy blocks that moment, the run waits for the next time the policy allows instead of running at once.
+- A policy that allows none of the job's occurrences in the next ten years stops the job's schedule with an error on the dashboard. Saving the policy, or registering the job again, schedules it again. Only a search that could evaluate every instant it met ends this way: a policy that can't be evaluated keeps the job on the schedule (see [Policies that can't be evaluated](#policies-that-cant-be-evaluated)).
 - `Trigger` (the dashboard's Trigger now) runs the job whatever the policy.
 - `RecurringJobDto.Policy` and the manifest's `policy` field carry the policy's name.
 
@@ -185,14 +185,24 @@ builder.Services.AddNightShiftScheduleDateProvider<NyseHolidays>("nyse-holidays"
 ```
 
 - `Contains` receives the date in the time zone of the policy that asks. It is called often, from several threads, when the next allowed instant is searched: keep it fast, with the dates computed once.
-- Register the provider in every process that creates jobs following such a policy and in every server. Where it is missing, the policy allows no instant, so it never lets a job start on a date it can't check: a delayed job due then is checked again a day later, and a recurring job stops with an error until the policy is saved again.
-- A provider that throws blocks the date checked, with the error in the reason, and the error is logged.
+- Register the provider in every process that creates jobs following such a policy and in every server. Where it is missing, the policy can't be evaluated, so it never lets a job start on a date it can't check (see [Policies that can't be evaluated](#policies-that-cant-be-evaluated)).
+- A provider that throws makes the policy unable to evaluate the date checked, with the error in the reason. A search doesn't ask a provider again once it has failed, and the error is logged as a warning at most once a minute per provider.
+
+## Policies that can't be evaluated
+
+Sometimes a policy can't tell whether an instant is allowed: the stored policy can't be read, its time zone isn't known on this server, a [date provider](#date-providers) it uses isn't registered on this server or throws, or its references lead back to it. Such an instant is never allowed, but it isn't blocked for good either, because the answer may differ later or on another server.
+
+- A rule that blocks the instant decides first: a failing date provider doesn't matter on a day the policy doesn't allow anyway.
+- A policy whose `ExceptWhen` policy can't be evaluated can't be evaluated either: it doesn't let the instant through.
+- `EvaluateSchedulePolicy` answers not allowed, with the reason, and `FindNextAllowed` returns `null` when it meets such an instant before an allowed one.
+- A **recurring job** stays on the schedule: the occurrences don't run, and the scheduler looks at the job again at the first occurrence the policy couldn't evaluate or, when that time has come already, after its polling interval. Its `Error` on the dashboard says why, for example `Schedule policy 'trading-days' can't be evaluated, so the job waits and tries again: policy 'trading-days': date provider 'nyse-holidays' isn't registered on this server.`, and the scheduler logs the error as a warning when it first appears. Missed occurrences are counted from the job's last execution, so its misfire handling deals with them once the policy can be evaluated again.
+- A **fire-and-forget or delayed job** is treated as blocked, by its `WhenBlocked`: `Skip` and `Reject` skip it or don't create it, as for a blocked time. With `MoveForward`, creating it throws `InvalidOperationException`, as for a policy that allows nothing, and a delayed job due then is moved forward by a day and checked again.
 
 ## Things to know
 
-- **Storage keys.** A policy is kept in the hash `schedule-policy:{name}` and listed in the set `schedule-policies`. A recurring job keeps its policy's name in the `Policy` field of its hash; a job in its `Policy` and `WhenBlocked` parameters. Every storage supports them.
-- **Policies are read when they are needed**, one storage read per policy and per policy it refers to: when a job with a policy is created or due, and when a recurring job with a policy is scheduled. For a job without a policy, the filter looks for the `Policy` parameter when the job is created and when a delayed job is due: a dictionary lookup on SQL Server, which loads the parameters with the job, and one storage read per due delayed job on a storage that doesn't.
-- **Daylight saving time.** A window that opens inside the hour skipped when clocks go forward opens at the end of the gap; a window that opens inside the hour repeated when clocks go back opens the first time.
+- **Storage keys.** A policy is kept in the hash `schedule-policy:{name}` and listed in the set `schedule-policies`. A recurring job keeps its policy's name in the `Policy` field of its hash; a job in its `Policy` and `WhenBlocked` parameters. Every storage supports them. Saving and deleting take one distributed lock for all policies, `lock:schedule-policies`, because a save checks the policies it refers to and a delete the policies that refer to it.
+- **Policies are read when they are needed**, one storage read per policy and per policy it refers to: when a job with a policy is created or due, and when a recurring job with a policy is scheduled. `SchedulePolicyFilter` keeps a policy it read for about 5 seconds per storage and name, so a changed policy can take a few seconds to apply to new jobs and due delayed jobs (a policy that didn't exist is read again each time). The recurring job scheduler reads each policy once per pass, and again for a job whose schedule changed in the last minute. For a job without a policy, the filter looks for the `Policy` parameter when the job is created and when a delayed job is due: a dictionary lookup on SQL Server, which loads the parameters with the job, and one storage read per due delayed job on a storage that doesn't.
+- **Daylight saving time.** A window that opens inside the hour skipped when clocks go forward opens at the end of the gap; a window that opens inside the hour repeated when clocks go back opens the first time, and again when the hour repeats: the change of the UTC offset is a boundary of the search, so the second pass of the window is found too.
 - **Searches stop after ten years.** A policy with no allowed instant in that time counts as allowing none.
 - **`[RunWindow]` and `[Blackout]`** are checked when a worker picks the job up, from the method's attributes; a policy is checked when the job is created and when it is due, from storage.
 

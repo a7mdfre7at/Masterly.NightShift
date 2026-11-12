@@ -142,7 +142,7 @@ Extension methods on `JobStorage` that delete jobs which haven't started: every 
 | Method | Deletes |
 |---|---|
 | `DeletePendingJobs<T>(string? methodName = null)` | The pending jobs of `T`'s methods (or of `T`'s subtypes), or of one method |
-| `DeletePendingFunctionJobs(string functionName)` | The pending jobs of a method marked with [`[JobFunction]`](job-functions.md) |
+| `DeletePendingFunctionJobs(string functionName)` | The pending jobs of a [job function](job-functions.md): a method marked with `[JobFunction]` or a delegate registered with `AddNightShiftFunction`. The name is compared without case |
 | `DeletePendingJobs(Func<PendingJob, bool> filter, string? reason = null)` | The pending jobs a condition selects |
 | `GetPendingJobs()` | Nothing: lists them as `PendingJob` (`Id`, `State`, `Job`, `Queue`, `EnqueueAt`) |
 

@@ -101,6 +101,7 @@ The source and the meter both report the version of the `Masterly.NightShift.Cor
 | `messaging.operation.type` | both | `create` or `process` |
 | `messaging.destination.name` | both | the queue. On `create`: for a job created in the Enqueued state, the queue it is added to, after state election, so a queue chosen by `[Queue]` is reported; for other initial states (`Scheduled`, `Awaiting`, ...), the queue passed when creating the job (the `queue` argument of `Schedule`, ...). On `process`: the queue the worker took the job from. Not set when unknown. |
 | `messaging.message.id` | both | the background job id. On `create` it is added when the job has been stored. |
+| `nightshift.recurring_job.id` | `process` | the id of the recurring job that created the run (`PerformContext.RecurringJobId`); not set for other jobs |
 | `nightshift.job.name` | both | `{Type}.{Method}`, the same value as in the span name |
 | `code.function.name` | both | `{Namespace.Type}.{Method}`, the full type name and the method |
 | `nightshift.job.state` | `create` | the initial state: `Enqueued`, `Scheduled`, `Awaiting`, ... |
@@ -129,9 +130,9 @@ A `create` span is marked as failed when creating the job threw an exception tha
 | `nightshift.job.duration` | `Histogram<double>` | `s` | `nightshift.job.name`, `nightshift.job.outcome`, `error.type` (has a value only when the outcome is `failed`) | Duration of each job execution, including the server filters that run inside the telemetry filter. |
 | `nightshift.job.active` | `UpDownCounter<long>` | `{job}` | `nightshift.job.name` | Jobs being performed right now. |
 | `nightshift.job.completed` | `Counter<long>` | `{job}` | `nightshift.job.name`, `nightshift.job.outcome`, `error.type` | Job executions that ended, by outcome: `succeeded`, `failed`, `skipped`, `canceled`, `retry_later`. |
-| `nightshift.job.retried` | `Counter<long>` | `{job}` | `nightshift.job.name` | Failed attempts that `[AutomaticRetry]` scheduled for a retry. |
-| `nightshift.job.stale_restarts` | `Counter<long>` | `{job}` | `nightshift.job.name` | Jobs picked up again after their server stopped while they ran (see [Reliability](../server/reliability.md#when-a-server-dies-during-a-job)). |
-| `nightshift.job.lateness` | `Histogram<double>` | `s` | `nightshift.job.name`, `nightshift.recurring_job.id` | How late delayed and recurring jobs started after the moment they were scheduled for (`PerformContext.Lateness`), read from the parameters loaded with the job, as SQL Server loads them. Fire-and-forget jobs aren't recorded. |
+| `nightshift.job.retried` | `Counter<long>` | `{job}` | `nightshift.job.name` | Failed attempts that `[AutomaticRetry]` scheduled for a retry, counted once the retry is committed. |
+| `nightshift.job.stale_restarts` | `Counter<long>` | `{job}` | `nightshift.job.name`, `nightshift.job.outcome` = `restarted` or `failed` | Jobs picked up again after their server stopped while they ran, counted once the state change is committed: `restarted` when the job runs again, `failed` when the restart went past `UseStaleRestartLimit` and failed it (see [Reliability](../server/reliability.md#when-a-server-dies-during-a-job)). |
+| `nightshift.job.lateness` | `Histogram<double>` | `s` | `nightshift.job.name` | How late delayed and recurring jobs started after the moment they were scheduled for (`PerformContext.Lateness`), read from the parameters loaded with the job, as SQL Server loads them. Only a job's first run is recorded: retries and runs picked up again after their server stopped aren't, as their lateness includes the earlier attempts. Fire-and-forget jobs aren't recorded. The recurring job isn't a tag, so the number of series stays bounded; the `process` span has it in `nightshift.recurring_job.id`. |
 
 A `process` span of a run that was skipped or canceled gets an event, `nightshift.job.skipped` or `nightshift.job.canceled`, with the reason in `nightshift.job.reason`.
 

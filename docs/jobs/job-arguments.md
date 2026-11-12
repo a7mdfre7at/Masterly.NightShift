@@ -105,7 +105,7 @@ The members of `PerformContext` a job uses most:
 | `BackgroundJob` (`BackgroundJob`) | The running job: `Id`, `CreatedAt` (UTC) and `Job`, its type, method, arguments and queue |
 | `RetryCount` (`int`) | How many times [`[AutomaticRetry]`](../filters/retries.md) has retried the job; 0 on its first run |
 | `ScheduledFor` (`DateTime?`) | When the job was meant to run, in UTC: the time a delayed job was scheduled for, or the occurrence of the recurring job that created it; `null` for other jobs. See [below](#the-runs-scheduled-time-and-lateness) |
-| `StartedAt` (`DateTime`), `Lateness` (`TimeSpan`) | When this run started (UTC), and how long after `ScheduledFor` (or the job's creation) that was |
+| `StartedAt` (`DateTime`), `Lateness` (`TimeSpan`) | When this run started (UTC), and how long after `ScheduledFor` (or the moment a continuation became due, or the job's creation) that was |
 | `RecurringJobId` (`string?`) | The id of the recurring job that created the job, or `null` |
 | `GetJobParameter<T>(string name)` | Reads a job parameter with your serializer options; `default` when it isn't set |
 | `SetJobParameter(string name, object value)` | Writes a job parameter right away |
@@ -220,7 +220,7 @@ RecurringJob.AddOrUpdate<ReportJobs>("daily-report", x => x.Daily(null!), "0 9 *
 |---|---|
 | `ScheduledFor` | For a delayed job, the time it was scheduled for (the `ScheduledFor` job parameter, written when the job is created in the Scheduled state). For a job created by a recurring job, the occurrence it was created for (the `Time` parameter). `null` for a fire-and-forget job, a continuation or a job created in any other state. Retries don't change it. |
 | `StartedAt` | When this run started, in UTC: when the server created the context, before the server filters and the job method ran. |
-| `Lateness` | `StartedAt` minus `ScheduledFor`, or minus the job's creation time when `ScheduledFor` is `null`. Never negative. A retry is measured from the same moment, so its lateness includes the earlier attempts. |
+| `Lateness` | `StartedAt` minus `ScheduledFor`. When `ScheduledFor` is `null`, a [continuation](continuations.md) (a fan-in continuation and a chain step too) is measured from the moment it became due, when its parents let it leave the Awaiting state (or the time its next state scheduled it for), so the time its parents waited and ran doesn't count; any other job from its creation. Never negative. A retry is measured from the same moment, so its lateness includes the earlier attempts. |
 | `RecurringJobId` | The id of the recurring job that created the job. |
 
 All of them are read from the parameters the worker loaded with the job, so they cost no storage round trip. To skip runs that start too late, use [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute).

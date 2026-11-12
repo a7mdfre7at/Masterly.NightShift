@@ -39,7 +39,7 @@ docker exec <container> mongosh --eval "rs.initiate()"
 
 ## How it works
 
-The storage checks the server when it starts and refuses a standalone server with `NotSupportedException`. Then it creates its collections' indexes; creating an index that exists does nothing.
+The constructor connects to the server at once: it reads the server's version and topology with `hello`, and refuses a standalone server, or one older than MongoDB 5.0 (wire version 13), with `NotSupportedException`. Then it creates its collections' indexes; creating an index that exists does nothing. Create the storage where a network call is acceptable, not on a hot path.
 
 | Collection (with `CollectionPrefix`) | What it holds |
 |---|---|
@@ -49,7 +49,7 @@ The storage checks the server when it starts and refuses a standalone server wit
 | `counters`, `aggregatedCounters` | Counter increments, and their merged values |
 | `servers`, `locks`, `sequences` | Server heartbeats, lock leases, the job id counter |
 
-A transaction runs in a MongoDB transaction, which the driver retries on transient errors. State changes only insert counter increments, which a storage-wide process merges every `CountersAggregateInterval`, so busy servers never conflict on a counter. Everything that expires has an `ExpireAt` field with a TTL index, and MongoDB deletes it (its TTL monitor runs about every minute). Fetching claims the oldest visible entry with one atomic `findAndModify`.
+A transaction runs in a MongoDB transaction, which the driver retries on transient errors. It reads from one snapshot (read concern `snapshot`) and commits with write concern `majority`, whatever the client's or database's defaults, so a committed write survives a failover. State changes only insert counter increments, which a storage-wide process merges every `CountersAggregateInterval`, so busy servers never conflict on a counter. Everything that expires has an `ExpireAt` field with a TTL index, and MongoDB deletes it (its TTL monitor runs about every minute). Fetching claims the oldest visible entry with an atomic `findAndModify`, and only when the queue has none, the oldest entry whose worker stopped keeping it alive for longer than `InvisibilityTimeout`. Fetched jobs and lock leases time out by the server's clock (`$$NOW`), so processes whose clocks differ agree on when a worker or a lock holder is gone.
 
 ## Options / API
 
@@ -69,7 +69,7 @@ A transaction runs in a MongoDB transaction, which the driver retries on transie
 ## Things to know
 
 - **Replica set required**, even for development (see above).
-- **Write concern.** Transactions use the client's settings; keep the default `majority` so a commit survives a failover.
+- **Write concern.** Transactions always commit with `majority` and read a snapshot, whatever the client's settings.
 - **List and queue order across processes** follows MongoDB object ids, which order by second and then by process: two processes writing in the same second may interleave.
 - **Times** are stored with millisecond precision.
 

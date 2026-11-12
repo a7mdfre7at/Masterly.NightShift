@@ -29,7 +29,7 @@ Pass `CancellationToken.None` when you create the job; the server substitutes a 
 | `JobTimeout` | The start of the run | The job's cancellation token fires; the job fails with `TimeoutException` and is retried | Yes, if the method observes its token |
 | `Deadline` | The job's creation | Nothing is stopped; late jobs are flagged in the dashboard and a late finish is recorded and alerted | No |
 | `LatencyTimeout` | The job's creation | A job picked up too late is deleted instead of run | It never starts |
-| `SkipIfLate` | The moment the job was meant to run (`ScheduledFor`), or its creation | A run that starts too late is deleted as skipped; checked once, so a retry or a requeue runs | It never starts |
+| `SkipIfLate` | The moment the job was meant to run (`ScheduledFor`), when a continuation became due, or its creation | A run that starts too late is deleted as skipped; checked once, so a retry or a requeue runs | It never starts |
 | `RunWindow` / `Blackout` | The clock | A job picked up at the wrong time of day is rescheduled for the next allowed moment | It never starts until allowed |
 | [Schedule policy](../jobs/schedule-policies.md) (not an attribute) | The job's due time, or a recurring occurrence | A stored business calendar (days, hours, holidays) moves, skips or rejects a delayed job and leaves out blocked recurring occurrences | It never starts until allowed |
 | `ExpireAfter` | The job's end | Changes how long a finished job is kept in storage; with `IncludeFailed`, also a failed one | No |
@@ -214,9 +214,9 @@ When the run starts more than the window after the moment the job was meant to r
 
 Related member: `SkipIfLateAttribute.CheckedParameter` (`"LateStartChecked"`).
 
-"Meant to run" is [`PerformContext.ScheduledFor`](../jobs/job-arguments.md#the-runs-scheduled-time-and-lateness): the time a delayed job was scheduled for, or the occurrence of a recurring job. A job without it, such as a fire-and-forget job, is measured from its creation, so the attribute also skips a job that waited too long in its queue.
+"Meant to run" is [`PerformContext.ScheduledFor`](../jobs/job-arguments.md#the-runs-scheduled-time-and-lateness): the time a delayed job was scheduled for, or the occurrence of a recurring job. A continuation (a fan-in continuation or a chain step too) is measured from the moment its parents let it leave the Awaiting state, not from its creation, so the time its parents waited and ran doesn't make it late. Any other job without it, such as a fire-and-forget job, is measured from its creation, so the attribute also skips a job that waited too long in its queue.
 
-How it works: a server filter. Just before the job method would run, it compares `PerformContext.Lateness` with the window and records the check in the `LateStartChecked` job parameter, so each job is checked once. A retry of a job that passed the check runs however late it is, and so does a job requeued by hand after it was skipped, from the dashboard or with `Requeue`. The check costs one parameter write per job that has the attribute.
+How it works: a server filter. Just before the job method would run, it compares `PerformContext.Lateness` with the window and records the check in the `LateStartChecked` job parameter, so each job is checked once. A retry of a job that passed the check runs however late it is, and so does a job requeued by hand after it was skipped, from the dashboard or with `Requeue`. The check costs one parameter write per job that has the attribute; when that write fails, a warning is logged and the job still runs (a retry is then checked again). A job that also has a `SkipAfter` window (`RecurringJobOptions.SkipAfter` or `ScheduleOptions.SkipAfter`) is checked against the stricter of the two, and the check is recorded once.
 
 `SkipIfLate` and [`LatencyTimeout`](#latencytimeoutattribute) differ in what they count from: `LatencyTimeout` counts from the job's creation and checks every run, so it can't be used on a delayed or recurring job whose wait is planned; `SkipIfLate` counts from the moment the job was meant to run, and checks once.
 
