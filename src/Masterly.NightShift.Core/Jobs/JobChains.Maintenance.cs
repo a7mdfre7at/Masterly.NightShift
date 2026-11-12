@@ -28,8 +28,13 @@ public static partial class JobChains
     private const int ListPageSize = 100;
     private const string ConditionNotMetReason = "Continuation condition was not met";
 
-    // The longest a chain whose joins still wait is left alone between two looks
-    private static readonly TimeSpan MaxWatchInterval = TimeSpan.FromHours(4);
+    // The longest a chain is left alone between two looks while it still runs: a step that was never told to start
+    // is started within this time, and the chain doesn't look settled for longer
+    private static readonly TimeSpan MaxWatchInterval = TimeSpan.FromMinutes(15);
+
+    // The longest a chain is left alone once nothing of it runs any more and its waiting steps wait behind a
+    // failure: they are only decided again when something moves the chain on
+    private static readonly TimeSpan MaxSettledWatchInterval = TimeSpan.FromHours(4);
 
     /// <summary>What a maintenance run did.</summary>
     /// <param name="Ran">False when another server is doing it.</param>
@@ -324,12 +329,13 @@ public static partial class JobChains
 
                     if (info != null)
                     {
-                        started += RedriveLostDecisions(client, connection, info);
+                        int redriven = RedriveLostDecisions(client, connection, info);
+                        started += redriven;
 
                         // The steps just started are counted as waiting once more, and looked at again
                         if (info.HasWaitingJoins())
                         {
-                            next = now + WatchInterval(now - info.CreatedAt);
+                            next = now + WatchInterval(now - info.CreatedAt, running: redriven > 0 || !info.IsSettled);
                         }
                     }
                 }
@@ -350,12 +356,13 @@ public static partial class JobChains
         return started;
     }
 
-    // A young chain is looked at often, an old one that still waits (behind a failure, for a step scheduled far
-    // ahead) less and less
-    private static TimeSpan WatchInterval(TimeSpan age)
+    // A chain that still runs is looked at every few minutes; one that only waits behind a failure, less and less
+    private static TimeSpan WatchInterval(TimeSpan age, bool running)
     {
         TimeSpan shortest = DecisionWindow + DecisionWindow;
-        return age < shortest ? shortest : age > MaxWatchInterval ? MaxWatchInterval : age;
+        TimeSpan longest = running ? MaxWatchInterval : MaxSettledWatchInterval;
+
+        return age < shortest ? shortest : age > longest ? longest : age;
     }
 
     /// <summary>

@@ -169,6 +169,45 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_LooksAgainSoon_AtAChainThatStillRuns_HoweverOldItIs()
+    {
+        // A branch still runs in a chain created three hours ago: a step that waits for the branches and is never
+        // told to start is found within minutes, not hours
+        WatchedChain("c", TimeSpan.FromHours(3), ProcessingState.StateName, SucceededState.StateName);
+
+        JobChains.Maintain(_storage.Object, _client.Object, ref _position);
+
+        double next = Assert.Single(Set(WatchSet)).Score;
+        Assert.InRange(next, JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(9)), JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(16)));
+    }
+
+    [Fact]
+    public void Maintain_LooksAgainLater_AtAChainWhereNothingRuns_AndStepsWaitBehindAFailure()
+    {
+        WatchedChain("c", TimeSpan.FromHours(3), FailedState.StateName, SucceededState.StateName);
+        _states["alert"] = Finished(SucceededState.StateName, DateTime.UtcNow.AddHours(-3));
+
+        JobChains.Maintain(_storage.Object, _client.Object, ref _position);
+
+        double next = Assert.Single(Set(WatchSet)).Score;
+        Assert.InRange(next, JobHelper.ToTimestamp(DateTime.UtcNow.AddHours(2.9)), JobHelper.ToTimestamp(DateTime.UtcNow.AddHours(4.1)));
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Maintain_StartsAStep_WhoseBranchesFinishedAtATimeNobodyCanRead()
+    {
+        // A time that can't be read counts as long ago: the step isn't about to be told for good
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["b"] = new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string> { ["SucceededAt"] = "not a time" } };
+        _states["c"] = new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() };
+
+        JobChains.Maintain(_storage.Object, _client.Object, ref _position);
+
+        _client.Verify(x => x.ChangeState("done", It.IsAny<EnqueuedState>(), AwaitingState.StateName), Times.Once);
+    }
+
+    [Fact]
     public void Maintain_StopsWatchingAChain_ThatWasDeleted_AndLooksLaterAtOneThatIsChanging()
     {
         Set(WatchSet).Add((1, "deleted"));

@@ -6,7 +6,10 @@ namespace Masterly.NightShift;
 /// <param name="State">The job's state name, or <c>null</c> when the job expired.</param>
 /// <param name="Level">The level of the step.</param>
 /// <param name="ParentLevel">The level it waits for, -1 for the first step.</param>
-/// <param name="Job">The step's method call, as the chain defines it.</param>
+/// <param name="Job">
+/// The step's method call, as the chain defines it, or <c>null</c> when it wasn't read or its method can't be
+/// loaded any more (renamed or removed since the chain was created).
+/// </param>
 public sealed record JobChainStepInfo(string Key, string JobId, string? State, int Level, int ParentLevel, Job? Job = null)
 {
     /// <summary>How the step waits for its level's parent, for the dashboard's flowchart.</summary>

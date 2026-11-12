@@ -89,20 +89,30 @@ public static class JobChainRunner
                 previous = connection.GetAllEntriesFromHash(key)?.GetValueOrDefault(LastChainField);
             }
 
-            if (previous != null)
+            // Not the chain of this very job, run again after it recorded its chain: that one isn't a previous one
+            if (previous != null && previous != JobChains.IdForJob(context.BackgroundJob.Id))
             {
                 // A step of the previous chain that was to start long ago and never was told is started now: the
                 // chain then still runs, and this occurrence is skipped for it rather than run beside it
                 JobChains.RedriveLostDecisions(storage, new BackgroundJobClient(storage), previous);
 
-                if (storage.GetChain(previous) is { IsSettled: false })
+                // Read without loading the methods of its steps: a deploy that renamed or removed one doesn't
+                // keep the next occurrences from being decided
+                if (JobChains.IsRunning(storage, previous))
                 {
                     throw new TerminateJobException($"the previous chain '{previous}' is still running");
                 }
             }
         }
 
-        JobChainResult? result = JobChains.FromDefinition(definition).Enqueue(new BackgroundJobClient(storage));
+        // One chain for this occurrence, whose identifier comes from the job that runs it: a job run again after
+        // its chain was recorded (its process stopped before it finished) finds that chain instead of creating
+        // a second one
+        JobChainResult? result = JobChains.CreateOnce(
+            JobChains.FromDefinition(definition),
+            new BackgroundJobClient(storage),
+            JobChains.IdForJob(context.BackgroundJob.Id));
+
         if (result == null)
         {
             return null;

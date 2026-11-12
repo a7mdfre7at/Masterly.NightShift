@@ -111,7 +111,10 @@ public sealed partial class JobChain
     /// <param name="client">Creates the jobs. It must implement <see cref="IBackgroundJobClientV2"/>, as <see cref="BackgroundJobClient"/> does.</param>
     /// <param name="options">Options of the first step: its schedule policy, late-start limit and queue.</param>
     /// <returns>The chain's identifiers, or <c>null</c> when a client filter or a schedule policy didn't let the first step be created.</returns>
-    /// <exception cref="InvalidOperationException">A filter canceled the creation of a later step; the steps already created are deleted.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A filter canceled the creation of a later step, or this process stalled for so long while it created the
+    /// chain that a server took it for abandoned and deleted one of its jobs; the steps already created are deleted.
+    /// </exception>
     public JobChainResult? Enqueue([NotNull] IBackgroundJobClient client, ScheduleOptions? options = null)
     {
         return JobChains.Create(this, client, new EnqueuedState(), options, chainId: null);

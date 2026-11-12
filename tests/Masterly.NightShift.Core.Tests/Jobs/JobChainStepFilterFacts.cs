@@ -1,3 +1,5 @@
+using Masterly.NightShift.Logging;
+
 namespace Masterly.NightShift.Core.Tests;
 
 public sealed class JobChainStepFilterFacts : IDisposable
@@ -269,12 +271,120 @@ public sealed class JobChainStepFilterFacts : IDisposable
     [Fact]
     public void OnStateElection_LetsTheStepRun_WhenItsRecordExpired()
     {
-        Step("0.0");
+        // Old enough for its record to have expired, and marked as a step that was recorded
+        Step("0.0", recorded: true);
         Created(JobChain.RecordRetention + TimeSpan.FromDays(1));
 
         _filter.OnStateElection(_context.Object);
 
         Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_DeletesAnOldStep_OfAChainThatWasNeverCompletelyCreated()
+    {
+        // Scheduled far ahead by a client that stopped before it recorded the chain, and due after what it started
+        // of the record is gone: old, but never listed
+        Step("0.0");
+        Created(JobChain.RecordRetention + TimeSpan.FromDays(16));
+
+        _filter.OnStateElection(_context.Object);
+
+        DeletedState deleted = Assert.IsType<DeletedState>(_context.Object.CandidateState);
+        Assert.Equal($"Chain {ChainId} isn't recorded: it was deleted or never completely created", deleted.Reason);
+    }
+
+    [Fact]
+    public void OnStateElection_ReadsTheMark_OfAnOldStep_WhenTheStorageLoadsNoParameters()
+    {
+        _context.ApplyContext.Connection = _connection.As<IStorageConnection>();
+        _connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns([]);
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainIdParameter)).Returns($"\"{ChainId}\"");
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainStepParameter)).Returns("\"0.0\"");
+        _connection.Setup(x => x.GetJobParameter(JobId, JobChains.ChainRecordedParameter)).Returns("true");
+        Created(JobChain.RecordRetention + TimeSpan.FromDays(1));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_DoesNotHoldAStep_ForALeaseThatEndsMuchLaterThanOneIsEverWritten()
+    {
+        // A damaged record mustn't hold the steps of its chain for good
+        Step("0.0");
+        Record(("0.0", JobId), Lease(since: TimeSpan.FromMinutes(1), until: TimeSpan.FromDays(400)));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ProcessingState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_HoldsAStep_ForALeaseWrittenWithAClockSomewhatAhead()
+    {
+        // Where the storage has no clock, the client's: a few minutes ahead of this server's
+        Step("0.0");
+        Record(("0.0", JobId), Lease(since: TimeSpan.FromMinutes(-10), until: TimeSpan.FromMinutes(12)));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_NeverThrows_WhenTheQueueOfAStepItHoldsCanNotBeKept()
+    {
+        Step("0.0");
+        Record(Lease(since: TimeSpan.FromSeconds(10), until: TimeSpan.FromSeconds(100)));
+        _connection.Setup(x => x.GetStateData(JobId)).Returns(new StateData
+        {
+            Name = EnqueuedState.StateName,
+            Data = new Dictionary<string, string> { ["Queue"] = "critical" },
+        });
+        _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_NeverThrows_WhenNothingOfTheStorageWorks()
+    {
+        // Not even from the path that handles a record it can't read
+        Step("0.0");
+        _connection.Setup(x => x.GetValueFromHash(It.IsAny<string>(), It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+        _connection.Setup(x => x.GetStateData(It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+        _connection.Setup(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+        _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<ScheduledState>(_context.Object.CandidateState);
+    }
+
+    [Fact, GlobalLock(Reason = "Replaces the log provider")]
+    public void OnStateElection_WarnsOnceForAJob_WhoseRecordCanNotBeRead_ThenStaysQuiet()
+    {
+        string jobId = Guid.NewGuid().ToString("N");
+        _context.ApplyContext.BackgroundJob.Id = jobId;
+        Step("0.0");
+        _connection.Setup(x => x.GetValueFromHash(It.IsAny<string>(), It.IsAny<string>())).Throws(new InvalidOperationException("Storage is down"));
+        RecordingLogProvider log = new();
+
+        using (log.Use())
+        {
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                _filter.OnStateElection(new ElectStateContext(_context.ApplyContext.Object));
+            }
+        }
+
+        List<RecordingLogProvider.LogEntry> entries = [.. log.Entries.Where(x => x.Message.Contains(jobId, StringComparison.Ordinal))];
+        Assert.Single(entries, static x => x.Level == LogLevel.Warn);
+        Assert.Equal(3, entries.Count(static x => x.Level == LogLevel.Debug));
     }
 
     [Fact]
@@ -550,15 +660,23 @@ public sealed class JobChainStepFilterFacts : IDisposable
         Assert.Empty(_connection.Invocations);
     }
 
-    private void Step(string key)
+    private void Step(string key, bool recorded = false)
     {
         _connection.Setup(x => x.GetAllItemsFromSet(It.IsAny<string>())).Returns([]);
         _context.ApplyContext.Connection = _connection.As<IStorageConnection>();
-        _context.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+
+        Dictionary<string, string> parameters = new()
         {
             [JobChains.ChainIdParameter] = $"\"{ChainId}\"",
             [JobChains.ChainStepParameter] = $"\"{key}\"",
         };
+
+        if (recorded)
+        {
+            parameters[JobChains.ChainRecordedParameter] = "true";
+        }
+
+        _context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
     }
 
     private void Created(TimeSpan ago) => _context.ApplyContext.BackgroundJob.CreatedAt = DateTime.UtcNow - ago;

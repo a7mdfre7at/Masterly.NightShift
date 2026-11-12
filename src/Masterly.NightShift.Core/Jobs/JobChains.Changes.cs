@@ -30,32 +30,41 @@ public static partial class JobChains
 
     // Creates the steps of the levels from 'from' on that 'include' selects, level by level. 'jobs' has the job of
     // each step, read for the parents and written for the steps created; 'created' receives each job created, in
-    // order, so a failure can delete them.
+    // order, so a failure can delete them. 'levelAt' loads a level's steps when they are created, and no other.
+    // 'whenLapsed' is called when the lease is found lapsed at a renewal: it throws when the chain can't go on.
     private static void CreateLevels(
         IBackgroundJobClientV2 client,
-        IReadOnlyList<ChainLevel> levels,
+        int levelCount,
+        Func<int, ChainLevel> levelAt,
         Dictionary<string, string> jobs,
         string chainId,
         int from,
         Func<int, bool> include,
         List<string> created,
-        ChainLease lease)
+        ChainLease lease,
+        Action whenLapsed)
     {
-        for (int level = from; level < levels.Count; level++)
+        for (int level = from; level < levelCount; level++)
         {
             if (!include(level))
             {
                 continue;
             }
 
-            List<string> parents = ParentJobs(levels, jobs, levels[level].Parent);
-            for (int i = 0; i < levels[level].Steps.Count; i++)
+            ChainLevel steps = levelAt(level);
+            List<string> parents = ParentJobs(jobs, steps.Parent);
+
+            for (int i = 0; i < steps.Steps.Count; i++)
             {
-                // The client says it is still at it, now and then: creating a long chain may take a while
-                lease.RenewIfDue();
+                // The client says it is still at it, now and then: creating a long chain may take a while. When
+                // it didn't in time, a server may have taken the chain for abandoned: no point in going on then
+                if (lease.RenewIfDue())
+                {
+                    whenLapsed();
+                }
 
                 // A parent that expired makes the creation throw InvalidOperationException
-                ChainStep step = levels[level].Steps[i];
+                ChainStep step = steps.Steps[i];
                 string key = Key(level, i);
                 string jobId = Create(client, step.Job, StateFor(step, parents), chainId, key, null);
                 jobs[key] = jobId;
@@ -65,13 +74,64 @@ public static partial class JobChains
     }
 
     /// <summary>
+    /// Checks, after the lease lapsed and was renewed, that no server took the chain for abandoned meanwhile: none
+    /// of the jobs was deleted because the record didn't list it. Each job is read under its lock, so a server that
+    /// looked at it before the renewal has finished, and one that looks after it finds the lease.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A job was deleted, or is gone.</exception>
+    private static void EnsureNoneRefused(IStorageConnection connection, string chainId, IEnumerable<string> jobIds, string change)
+    {
+        if (FirstRefused(connection, chainId, jobIds) is { } jobId)
+        {
+            throw Abandoned(chainId, jobId, change);
+        }
+    }
+
+    /// <summary>The first of the jobs that a server deleted because the record didn't list it, or that is gone; each read under its lock.</summary>
+    private static string? FirstRefused(IStorageConnection connection, string chainId, IEnumerable<string> jobIds)
+    {
+        foreach (string jobId in jobIds)
+        {
+            StateData? state;
+            using (connection.AcquireDistributedJobLock(jobId, CommitLockTimeout))
+            {
+                state = connection.GetStateData(jobId);
+            }
+
+            if (IsRefused(chainId, state))
+            {
+                return jobId;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsRefused(string chainId, StateData? state)
+    {
+        return state == null ||
+               (DeletedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) && JobChainStepFilter.IsRefusal(chainId, state.Reason));
+    }
+
+    private static InvalidOperationException Abandoned(string chainId, string jobId, string change)
+    {
+        return new InvalidOperationException(
+            $"Chain '{chainId}' wasn't {change}: its background job '{jobId}' was deleted before the chain was recorded. " +
+            $"The client didn't confirm for {LeaseTime.TotalSeconds:0} seconds that it was still at it (a step took that long to create, or the process was paused), " +
+            "so a server took the change for abandoned. Nothing of it is left; do it again.");
+    }
+
+    /// <summary>
     /// Deletes the jobs a failed change created, the last first so deleting one never starts another, each only
     /// from a state where it hasn't started. A job a worker took meanwhile doesn't run where
-    /// <see cref="JobChainStepFilter"/> is in place: it waits for the record, and is deleted for lack of one. It is
-    /// read again when it changed between its read and its deletion (a worker that put it on hold).
+    /// <see cref="JobChainStepFilter"/> is in place: it waits while the lease lasts, and is deleted for not being
+    /// listed. It is read again when it changed between its read and its deletion (a worker that put it on hold).
     /// </summary>
-    private static void DeleteCreated(IBackgroundJobClient client, IStorageConnection connection, List<string> created, string chainId, string reason)
+    /// <returns>Whether every job is deleted or gone.</returns>
+    private static bool DeleteCreated(IBackgroundJobClient client, IStorageConnection connection, List<string> created, string chainId, string reason)
     {
+        bool nothingLeft = true;
+
         for (int i = created.Count - 1; i >= 0; i--)
         {
             string jobId = created[i];
@@ -91,14 +151,18 @@ public static partial class JobChains
 
                 if (!deleted && state != null && !DeletedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase))
                 {
-                    Logger.Warn($"Background job '{jobId}' of chain '{chainId}' started before the change of the chain failed, so it wasn't deleted.");
+                    nothingLeft = false;
+                    Logger.Warn($"Background job '{jobId}' of chain '{chainId}' is in the {state} state, so it wasn't deleted after the change of the chain failed.");
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                Logger.WarnException($"Background job '{jobId}' of chain '{chainId}' couldn't be deleted after the change of the chain failed.", ex);
+                nothingLeft = false;
+                Logger.WarnException($"Background job '{jobId}' of chain '{chainId}' couldn't be deleted after the change of the chain failed. The chain's record doesn't list it, so it is deleted when it comes due.", ex);
             }
         }
+
+        return nothingLeft;
     }
 
     /// <summary>Moves a held step out of its hold; a step the delayed job scheduler enqueued meanwhile is left as it is.</summary>

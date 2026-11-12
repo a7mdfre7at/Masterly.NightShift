@@ -32,21 +32,25 @@ namespace Masterly.NightShift;
 /// <item><description>
 /// The record lists no step at all (the creation of the chain stopped halfway), or there is no record and the chain
 /// isn't in the list of chains (it was deleted): the job is deleted (<see cref="NotRecordedReasonFormat"/>). On a
-/// storage that expires records, a job without record that is older than <see cref="JobChain.RecordRetention"/>
-/// runs instead, because its chain's record expired; so does a job whose chain is still listed, because the storage
-/// dropped the record before its time (a cap on expiration times, an eviction).
+/// storage that expires records, a job without record runs instead when its chain's record expired: the job is
+/// older than <see cref="JobChain.RecordRetention"/> and carries the mark of a step that was recorded
+/// (<see cref="JobChains.ChainRecordedParameter"/>), which a job of a chain that was never completely created
+/// doesn't. So does a job whose chain is still listed, because the storage dropped the record before its time
+/// (a cap on expiration times, an eviction).
 /// </description></item>
 /// </list>
 /// <para>
-/// Nothing depends on the age of the job, nor on the clocks of the client and the server agreeing where the storage
-/// has a clock: "being changed" is written and read with it.
+/// Whether a job waits depends neither on its age nor on the clocks of the client and the server agreeing, where
+/// the storage has a clock: "being changed" is written and read with it. On a storage without one (EF Core), it
+/// is written and read with the clocks of the processes, which must agree to within the two minutes it lasts.
 /// </para>
 /// <para>
 /// A job that isn't a step of a chain costs a dictionary lookup when the storage loads the job's parameters with it
 /// (<see cref="BackgroundJob.ParametersSnapshot"/>, as the storages of this project do), and one parameter read
 /// otherwise. A step costs one read of its chain's map of jobs, and a read of the storage's clock while the chain
 /// is being changed. When the record can't be read, the job is neither run nor failed: it is scheduled again later
-/// (<see cref="UnreadableReasonFormat"/>), after a longer time at each attempt, up to fifteen minutes.
+/// (<see cref="UnreadableReasonFormat"/>), after a longer time at each attempt, up to fifteen minutes. The filter
+/// never throws: an exception here would fail the state change, and in the end the job.
 /// </para>
 /// <para>
 /// A step this filter holds keeps its queue (the <c>HeldQueue</c> job parameter), and
@@ -128,9 +132,19 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             // Not run: the record may say the step was replaced. Not failed or deleted either: the step is checked
-            // again, after a longer time at each attempt
-            TimeSpan delay = UnreadableDelay(job.Id);
-            Logger.WarnException($"The chain of background job '{job.Id}' couldn't be checked, so the job is scheduled again in {delay.TotalSeconds:0} seconds instead of running.", ex);
+            // again, after a longer time at each attempt. Said once as a warning for a job, then quietly.
+            TimeSpan delay = UnreadableDelay(job.Id, out bool first);
+            string message = $"The chain of background job '{job.Id}' couldn't be checked, so the job is scheduled again in {delay.TotalSeconds:0} seconds instead of running. It is checked again, less and less often, until the chain can be read.";
+
+            if (first)
+            {
+                Logger.WarnException(message, ex);
+            }
+            else
+            {
+                Logger.DebugException(message, ex);
+            }
+
             Hold(context, string.Format(CultureInfo.InvariantCulture, UnreadableReasonFormat, chainId ?? "?"), delay);
             return;
         }
@@ -180,29 +194,38 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        // A record is written after the jobs it lists are created, and kept for RecordRetention from then at least:
-        // the record of a job this young expires late enough already. So a chain that runs at once costs nothing.
-        DateTime latestStart = context.NewState is ScheduledState scheduled ? scheduled.EnqueueAt : JobClock.UtcNow;
-        if (latestStart - context.BackgroundJob.CreatedAt <= JobChains.RecordRefreshSlack)
+        try
         {
-            return;
-        }
+            // A record is written after the jobs it lists are created, and kept for RecordRetention from then at
+            // least: the record of a job this young expires late enough already. So a chain that runs at once
+            // costs nothing.
+            DateTime latestStart = context.NewState is ScheduledState scheduled ? scheduled.EnqueueAt : JobClock.UtcNow;
+            if (latestStart - context.BackgroundJob.CreatedAt <= JobChains.RecordRefreshSlack)
+            {
+                return;
+            }
 
-        if (!context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            if (!context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                return;
+            }
+
+            string? chainId = TryDeserialize(serialized);
+            if (string.IsNullOrWhiteSpace(chainId) || !JobChains.MayNeedExtending(chainId, latestStart))
+            {
+                return;
+            }
+
+            // After the commit: the record is shared by the steps of the chain, which change state side by side
+            JobStorage storage = context.Storage;
+            IStorageConnection connection = context.Connection;
+            context.RunAfterCommit(() => JobChains.ExtendRecord(storage, connection, chainId, latestStart));
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            return;
+            // Bookkeeping never fails a state change
+            Logger.DebugException($"The record of the chain of background job '{context.BackgroundJob.Id}' couldn't be kept longer; the next state change of one of its steps tries again.", ex);
         }
-
-        string? chainId = TryDeserialize(serialized);
-        if (string.IsNullOrWhiteSpace(chainId) || !JobChains.MayNeedExtending(chainId, latestStart))
-        {
-            return;
-        }
-
-        // After the commit: the record is shared by the steps of the chain, which change state side by side
-        JobStorage storage = context.Storage;
-        IStorageConnection connection = context.Connection;
-        context.RunAfterCommit(() => JobChains.ExtendRecord(storage, connection, chainId, latestStart));
     }
 
     /// <inheritdoc />
@@ -220,10 +243,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             // A client is creating, retrying or replacing the chain, or was: told with the clock the lease was
             // written with
             DateTime now = JobChains.StorageUtcNow(storage, connection);
-            if (lease.Until > now)
+            if (lease.IsLive(now))
             {
                 holdDelay = HoldDelay(lease, now);
                 return Verdict.Wait;
+            }
+
+            if (lease.Until > now)
+            {
+                Logger.Warn($"The record of chain '{chainId}' says the chain is being changed until {lease.Until:u}, much later than a change is ever announced for: it is taken for damaged, and the chain isn't held for it.");
             }
         }
 
@@ -245,8 +273,10 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         }
 
         // A record outlives the steps it lists by RecordRetention at least: without one, a job that old is a step
-        // of a chain whose record expired, and runs as it always did
-        if (JobClock.UtcNow - job.CreatedAt > JobChain.RecordRetention)
+        // of a chain whose record expired, and runs as it always did. Only a job that was listed once: it is
+        // marked when the record that lists it is written, so a job of a chain that was never completely created
+        // (scheduled far ahead, say, by a client that stopped) doesn't run for being old.
+        if (JobClock.UtcNow - job.CreatedAt > JobChain.RecordRetention && IsMarkedRecorded(job, connection))
         {
             return Verdict.Run;
         }
@@ -279,8 +309,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         return delay;
     }
 
+    private static bool IsMarkedRecorded(BackgroundJob job, IStorageConnection connection)
+    {
+        return job.ParametersSnapshot != null
+            ? job.ParametersSnapshot.ContainsKey(JobChains.ChainRecordedParameter)
+            : !string.IsNullOrEmpty(connection.GetJobParameter(job.Id, JobChains.ChainRecordedParameter));
+    }
+
     // Twice as long at each attempt in a row, as far as this process remembers them
-    private static TimeSpan UnreadableDelay(string jobId)
+    private static TimeSpan UnreadableDelay(string jobId, out bool first)
     {
         if (Unreadable.Count >= MaxUnreadable)
         {
@@ -290,12 +327,23 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         int attempts = Unreadable.AddOrUpdate(jobId, 1, static (_, count) => count + 1);
         double seconds = MinUnreadableDelay.TotalSeconds * Math.Pow(2, Math.Min(attempts - 1, 10));
 
+        first = attempts == 1;
         return seconds >= MaxUnreadableDelay.TotalSeconds ? MaxUnreadableDelay : TimeSpan.FromSeconds(seconds);
     }
 
+    // Never throws: the step is held whether or not its queue could be kept. A step whose queue was given only by
+    // its Enqueued state then goes to the default queue when the hold ends, which is logged.
     private static void Hold(ElectStateContext context, string reason, TimeSpan delay)
     {
-        HeldQueue.Remember(context);
+        try
+        {
+            HeldQueue.Remember(context);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.WarnException($"The queue of background job '{context.BackgroundJob.Id}' couldn't be kept while the job is held: unless the job has a queue of its own, it goes to the default queue when the hold ends.", ex);
+        }
+
         context.CandidateState = new ScheduledState(JobClock.UtcNow + delay) { Reason = reason };
     }
 

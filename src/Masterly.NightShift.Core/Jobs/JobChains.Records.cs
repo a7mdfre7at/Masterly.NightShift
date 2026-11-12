@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using Masterly.NightShift.Logging;
 namespace Masterly.NightShift;
 
 public static partial class JobChains
@@ -10,52 +11,18 @@ public static partial class JobChains
     private const string CreatedAtField = "CreatedAt";
     private const string DeleteBehaviorField = "DeleteBehavior";
     private const string CleanupField = "Cleanup";
+    private const string RecordedValue = "true";
 
     // The state data that says when a step finished
     private static readonly string[] FinishedAtFields = ["FailedAt", "SucceededAt", "DeletedAt"];
 
     /// <summary>
-    /// Reads a chain for a list: each step's state, and the method call of the first step only, so no other job type
-    /// is loaded. <c>null</c> when the chain isn't recorded (any more).
+    /// Reads a chain for a list, or to tell whether it is settled: each step's state, and the method call of the
+    /// first step only, so no other job type is loaded. <c>null</c> when the chain isn't recorded (any more).
     /// </summary>
     internal static JobChainInfo? ReadSummary(IStorageConnection connection, string chainId)
     {
-        Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetKey(chainId));
-        if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? serializedJobs))
-        {
-            return null;
-        }
-
-        ChainDefinition dto = SerializationHelper.Deserialize<ChainDefinition>(definition, SerializationOption.Internal)
-            ?? throw new FormatException($"The record of chain '{chainId}' is empty.");
-        Dictionary<string, string> jobs = ParseJobs(serializedJobs, out _);
-
-        List<JobChainStepInfo> steps = [];
-        for (int level = 0; level < dto.Levels.Count; level++)
-        {
-            LevelDefinition levelDefinition = dto.Levels[level];
-            for (int i = 0; i < levelDefinition.Steps.Count; i++)
-            {
-                string key = Key(level, i);
-                if (!jobs.TryGetValue(key, out string? jobId))
-                {
-                    continue;
-                }
-
-                StepDefinition step = levelDefinition.Steps[i];
-                Job? job = level == 0 ? TryReadJob(step.Job) : null;
-                StateData? state = connection.GetStateData(jobId);
-                steps.Add(new JobChainStepInfo(key, jobId, state?.Name, level, levelDefinition.Parent, job)
-                {
-                    Link = step.Link,
-                    Options = step.Options,
-                    LevelKind = levelDefinition.Kind,
-                    FinishedAt = ReadFinishedAt(state),
-                });
-            }
-        }
-
-        return new JobChainInfo(chainId, ReadGeneration(hash), ReadCreatedAt(hash), dto.DeleteBehavior, steps);
+        return ChainRecord.Read(connection, chainId)?.ToInfo(connection, everyMethod: false);
     }
 
     private static Job? TryReadJob(string payload)
@@ -97,16 +64,18 @@ public static partial class JobChains
 
             try
             {
-                return JobHelper.DeserializeNullableDateTime(value);
+                return JobHelper.DeserializeNullableDateTime(value) ?? DateTime.MinValue;
             }
             catch (FormatException)
             {
-                // A state written by something else: when it was reached isn't known
-                return null;
+                // A time nobody can read counts as long ago: a step that waits for this one isn't about to be
+                // told for good
+                return DateTime.MinValue;
             }
         }
 
-        return null;
+        // A finished state that doesn't say when: long ago, for the same reason
+        return state.Name != null && IsSettledState(state.Name) ? DateTime.MinValue : null;
     }
 
     /// <summary>
@@ -148,21 +117,34 @@ public static partial class JobChains
             : connection.GetAllItemsFromSet(SetKey).Contains(chainId);
     }
 
+    /// <summary>
+    /// A chain's record. The definition stays in its stored form, each step's method call serialized: reading,
+    /// settling and deleting a chain need no job type, so a chain whose steps' methods were renamed or removed
+    /// since can still be read and deleted. A method is loaded only where a job is created from it.
+    /// </summary>
     internal sealed record ChainRecord(
         string ChainId,
-        IReadOnlyList<ChainLevel> Levels,
+        ChainDefinition Definition,
         IReadOnlyDictionary<string, string> Jobs,
         int Generation,
-        DateTime CreatedAt,
-        ChainDeleteBehavior DeleteBehavior)
+        DateTime CreatedAt)
     {
         /// <summary>What a retry or a replacement of the chain left to do, see <see cref="ChainCleanup"/>.</summary>
         public ChainCleanup? Cleanup { get; init; }
 
+        public ChainDeleteBehavior DeleteBehavior => Definition.DeleteBehavior;
+
         public static ChainRecord? Read(IStorageConnection connection, string chainId)
         {
             Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetKey(chainId));
-            if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? jobs))
+            if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? serializedJobs))
+            {
+                return null;
+            }
+
+            // A record that lists no first step is what is left of a chain that wasn't created after all
+            Dictionary<string, string> jobs = ParseJobs(serializedJobs, out _);
+            if (!jobs.ContainsKey(Key(0, 0)))
             {
                 return null;
             }
@@ -170,13 +152,7 @@ public static partial class JobChains
             ChainDefinition dto = SerializationHelper.Deserialize<ChainDefinition>(definition, SerializationOption.Internal)
                 ?? throw new FormatException($"The record of chain '{chainId}' is empty.");
 
-            return new ChainRecord(
-                chainId,
-                dto.ToLevels(),
-                ParseJobs(jobs, out _),
-                ReadGeneration(hash),
-                ReadCreatedAt(hash),
-                dto.DeleteBehavior)
+            return new ChainRecord(chainId, dto, jobs, ReadGeneration(hash), ReadCreatedAt(hash))
             {
                 Cleanup = ChainCleanup.Parse(hash.GetValueOrDefault(CleanupField)),
             };
@@ -187,9 +163,11 @@ public static partial class JobChains
         /// changed the chain, and lists the chain: the point from which the chain, or its change, exists. The
         /// record is kept for <see cref="JobChain.RecordRetention"/> after
         /// <paramref name="latestStart"/>, the latest moment a step is known to start, or after now; each state
-        /// change of a step keeps it longer (<see cref="ExtendRecord"/>).
+        /// change of a step keeps it longer (<see cref="ExtendRecord"/>). The jobs in <paramref name="recorded"/>,
+        /// the ones this write lists for the first time, are marked as steps of a recorded chain
+        /// (<see cref="ChainRecordedParameter"/>).
         /// </summary>
-        public void Write(JobStorage storage, IStorageConnection connection, DateTime? latestStart = null)
+        public void Write(JobStorage storage, IStorageConnection connection, DateTime? latestStart, IReadOnlyCollection<string> recorded)
         {
             DateTime now = JobClock.UtcNow;
             DateTime expireAt = RecordExpiry(now, latestStart ?? now);
@@ -206,22 +184,12 @@ public static partial class JobChains
             }
 
             using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-
-            // Every field each time: a field written alone later would stay behind when the others expire
-            transaction.SetRangeInHash(GetKey(ChainId), new Dictionary<string, string>
-            {
-                [DefinitionField] = SerializationHelper.Serialize(ChainDefinition.From(Levels, DeleteBehavior), SerializationOption.Internal),
-                [JobsField] = SerializeJobs(Jobs, null),
-                [GenerationField] = Generation.ToString(CultureInfo.InvariantCulture),
-                [CreatedAtField] = JobHelper.SerializeDateTime(CreatedAt),
-                [DeleteBehaviorField] = DeleteBehavior.ToString(),
-                [CleanupField] = ChainCleanup.Serialize(Cleanup),
-            });
+            WriteFields(transaction);
             transaction.AddToSet(SetKey, ChainId, JobHelper.ToTimestamp(CreatedAt));
 
             // A step that waits for several steps is started once the last of them is committed, which a process
             // that stops then never does: a server looks at the chain again later (RedriveWatched)
-            if (HasJoins(Levels))
+            if (Definition.HasJoins)
             {
                 transaction.AddToSet(WatchSetKey, ChainId, JobHelper.ToTimestamp(now + DecisionWindow));
             }
@@ -229,6 +197,16 @@ public static partial class JobChains
             if (Cleanup != null)
             {
                 transaction.AddToSet(CleanupSetKey, ChainId, JobHelper.ToTimestamp(now));
+            }
+
+            // With the record where the storage can, so no job is marked of a chain that isn't recorded
+            JobStorageTransaction? marking = storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter) ? transaction as JobStorageTransaction : null;
+            if (marking != null)
+            {
+                foreach (string jobId in recorded)
+                {
+                    marking.SetJobParameter(jobId, ChainRecordedParameter, RecordedValue);
+                }
             }
 
             // The record lasts a while after the chain; a storage without expiring hashes keeps it
@@ -241,16 +219,61 @@ public static partial class JobChains
             {
                 RememberExpiry(ChainId, expireAt);
             }
+
+            if (marking == null)
+            {
+                MarkRecorded(connection, recorded);
+            }
+        }
+
+        /// <summary>
+        /// Writes every field of the record, and nothing else. Every field each time: a field written alone later
+        /// would stay behind when the others expire.
+        /// </summary>
+        public void WriteFields(IWriteOnlyTransaction transaction)
+        {
+            transaction.SetRangeInHash(GetKey(ChainId), new Dictionary<string, string>
+            {
+                [DefinitionField] = SerializationHelper.Serialize(Definition, SerializationOption.Internal),
+                [JobsField] = SerializeJobs(Jobs, null),
+                [GenerationField] = Generation.ToString(CultureInfo.InvariantCulture),
+                [CreatedAtField] = JobHelper.SerializeDateTime(CreatedAt),
+                [DeleteBehaviorField] = DeleteBehavior.ToString(),
+                [CleanupField] = ChainCleanup.Serialize(Cleanup),
+            });
+        }
+
+        // After the record, on a storage that can't write a job parameter in a transaction: a job this misses
+        // (the process stops here) is deleted rather than run once its record expired, never the other way round
+        private void MarkRecorded(IStorageConnection connection, IReadOnlyCollection<string> recorded)
+        {
+            try
+            {
+                foreach (string jobId in recorded)
+                {
+                    connection.SetJobParameter(jobId, ChainRecordedParameter, RecordedValue);
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException($"The steps of chain '{ChainId}' couldn't all be marked as recorded. A step that isn't marked is deleted, not run, should it still be waiting when the chain's record has expired.", ex);
+            }
         }
 
         public JobChainResult ToResult() => new(ChainId, Jobs[Key(0, 0)], Jobs);
 
-        public JobChainInfo ToInfo(IStorageConnection connection)
+        /// <summary>
+        /// The chain with the state of each step. With <paramref name="everyMethod"/>, each step's method call is
+        /// loaded, and is <c>null</c> for a step whose method can't be loaded any more; without, only the first
+        /// step's, so no other job type is loaded.
+        /// </summary>
+        public JobChainInfo ToInfo(IStorageConnection connection, bool everyMethod = true)
         {
             List<JobChainStepInfo> steps = [];
-            for (int level = 0; level < Levels.Count; level++)
+            for (int level = 0; level < Definition.Levels.Count; level++)
             {
-                for (int i = 0; i < Levels[level].Steps.Count; i++)
+                LevelDefinition levelDefinition = Definition.Levels[level];
+                for (int i = 0; i < levelDefinition.Steps.Count; i++)
                 {
                     string key = Key(level, i);
                     if (!Jobs.TryGetValue(key, out string? jobId))
@@ -258,13 +281,14 @@ public static partial class JobChains
                         continue;
                     }
 
-                    ChainStep step = Levels[level].Steps[i];
+                    StepDefinition step = levelDefinition.Steps[i];
+                    Job? job = everyMethod || level == 0 ? TryReadJob(step.Job) : null;
                     StateData? state = connection.GetStateData(jobId);
-                    steps.Add(new JobChainStepInfo(key, jobId, state?.Name, level, Levels[level].Parent, step.Job)
+                    steps.Add(new JobChainStepInfo(key, jobId, state?.Name, level, levelDefinition.Parent, job)
                     {
                         Link = step.Link,
                         Options = step.Options,
-                        LevelKind = Levels[level].Kind,
+                        LevelKind = levelDefinition.Kind,
                         FinishedAt = ReadFinishedAt(state),
                     });
                 }
@@ -344,6 +368,10 @@ public static partial class JobChains
             };
         }
 
+        /// <summary>Whether a step waits for a group of several steps.</summary>
+        [JsonIgnore]
+        public bool HasJoins => Levels.Exists(level => level.Parent >= 0 && level.Parent < Levels.Count && Levels[level.Parent].Steps.Count > 1);
+
         public List<ChainLevel> ToLevels()
         {
             if (Levels.Count == 0 || Levels[0].Steps.Count != 1)
@@ -355,6 +383,40 @@ public static partial class JobChains
                 level.Parent,
                 level.Kind,
                 [.. level.Steps.Select(static step => new ChainStep(InvocationData.DeserializePayload(step.Job).DeserializeJob(), step.Link, step.Options))]))];
+        }
+
+        /// <summary>
+        /// Loads the steps of one level, to create jobs from them.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">The method of a step can't be loaded any more: it was renamed or removed.</exception>
+        public ChainLevel ReadLevel(int level, string chainId)
+        {
+            LevelDefinition definition = Levels[level];
+            List<ChainStep> steps = [];
+
+            for (int i = 0; i < definition.Steps.Count; i++)
+            {
+                steps.Add(new ChainStep(ReadJob(level, i, chainId), definition.Steps[i].Link, definition.Steps[i].Options));
+            }
+
+            return new ChainLevel(definition.Parent, definition.Kind, steps);
+        }
+
+        /// <summary>Loads the method call of one step, to create a job from it.</summary>
+        /// <exception cref="InvalidOperationException">The method can't be loaded any more: it was renamed or removed.</exception>
+        public Job ReadJob(int level, int index, string chainId)
+        {
+            try
+            {
+                return InvocationData.DeserializePayload(Levels[level].Steps[index].Job).DeserializeJob();
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                throw new InvalidOperationException(
+                    $"Step '{Key(level, index)}' of chain '{chainId}' can't be created again: its method can't be loaded any more ({ex.Message}). " +
+                    "The chain can still be read and deleted; to run this work again, create a new chain.",
+                    ex);
+            }
         }
     }
 
