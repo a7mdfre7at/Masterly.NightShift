@@ -661,7 +661,7 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
-    public void Chain_ScheduledFarAhead_WhoseCreationStoppedHalfway_IsDeleted_WhenItsFirstStepComesDue()
+    public async Task Chain_ScheduledFarAhead_WhoseCreationStoppedHalfway_IsDeleted_WhenItsFirstStepComesDue()
     {
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
@@ -683,12 +683,18 @@ public class JobChainFacts
 
             // The step comes due long after the client's lease lapsed: the record lists no step
             LapseLease(storage, chainId);
-            client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName);
+            Log.Clear();
+            Assert.True(client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName));
 
-            using IStorageConnection connection = storage.GetConnection();
-            StateData state = connection.GetStateData(first);
-            Assert.Equal(DeletedState.StateName, state.Name);
-            Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", state.Reason);
+            // The step is refused when a worker takes it
+            using (CreateServer(storage))
+            {
+                JobStateInfo finished = await storage.WaitForCompletionAsync(first, Timeout, TestContext.Current.CancellationToken);
+                Assert.Equal(DeletedState.StateName, finished.Name);
+                Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", finished.Reason);
+            }
+
+            Assert.Empty(Log);
         }
         finally
         {
@@ -697,7 +703,7 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
-    public void Job_OfAChainThatWasNeverRecorded_DoesNotRun_ForBeingOlderThanARecordIsKept()
+    public async Task Job_OfAChainThatWasNeverRecorded_DoesNotRun_ForBeingOlderThanARecordIsKept()
     {
         SqlServerStorage storage = CreateStorage();
         BackgroundJobClient client = new(storage);
@@ -718,12 +724,18 @@ public class JobChainFacts
             RemoveRecord(storage, chainId);
             Backdate(46, first, second);
 
-            client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName);
+            Log.Clear();
+            Assert.True(client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName));
 
-            using IStorageConnection connection = storage.GetConnection();
-            StateData state = connection.GetStateData(first);
-            Assert.Equal(DeletedState.StateName, state.Name);
-            Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", state.Reason);
+            // The step is refused when a worker takes it
+            using (CreateServer(storage))
+            {
+                JobStateInfo finished = await storage.WaitForCompletionAsync(first, Timeout, TestContext.Current.CancellationToken);
+                Assert.Equal(DeletedState.StateName, finished.Name);
+                Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", finished.Reason);
+            }
+
+            Assert.Empty(Log);
         }
         finally
         {
