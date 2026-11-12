@@ -28,7 +28,7 @@ public static partial class JobChains
 
         ChainDefinition dto = SerializationHelper.Deserialize<ChainDefinition>(definition, SerializationOption.Internal)
             ?? throw new FormatException($"The record of chain '{chainId}' is empty.");
-        Dictionary<string, string> jobs = SerializationHelper.Deserialize<Dictionary<string, string>>(serializedJobs, SerializationOption.Internal) ?? [];
+        Dictionary<string, string> jobs = ParseJobs(serializedJobs, out _);
 
         List<JobChainStepInfo> steps = [];
         for (int level = 0; level < dto.Levels.Count; level++)
@@ -110,10 +110,11 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// The job the chain's record lists for a step, reading only the record's jobs when the storage can.
-    /// <c>Recorded</c> is false when the chain has no record (any more).
+    /// What the chain's record says about a step, reading only the record's map of jobs when the storage can: the
+    /// job it lists for the step, and whether the chain is being created or changed. A storage without the extended
+    /// API reads the whole record, definition included.
     /// </summary>
-    internal static (bool Recorded, string? JobId) ReadStepJob(JobStorage storage, IStorageConnection connection, string chainId, string stepKey)
+    internal static StepRecord ReadStep(JobStorage storage, IStorageConnection connection, string chainId, string stepKey)
     {
         string key = GetKey(chainId);
         string? serialized = connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.ExtendedApi)
@@ -122,12 +123,19 @@ public static partial class JobChains
 
         if (serialized == null)
         {
-            return (false, null);
+            return default;
         }
 
-        Dictionary<string, string>? jobs = SerializationHelper.Deserialize<Dictionary<string, string>>(serialized, SerializationOption.Internal);
-        return (true, jobs?.GetValueOrDefault(stepKey));
+        Dictionary<string, string> jobs = ParseJobs(serialized, out ChainLeaseTime? lease);
+        return new StepRecord(true, jobs.Count > 0, jobs.GetValueOrDefault(stepKey), lease);
     }
+
+    /// <summary>What a chain's record says about a step.</summary>
+    /// <param name="Recorded">Whether the chain has a record, even one only started.</param>
+    /// <param name="HasSteps">Whether the record lists steps: false for a chain whose creation hasn't finished.</param>
+    /// <param name="JobId">The job the record lists for the step, if any.</param>
+    /// <param name="Lease">Set while the chain is being created or changed; it may have lapsed.</param>
+    internal readonly record struct StepRecord(bool Recorded, bool HasSteps, string? JobId, ChainLeaseTime? Lease);
 
     /// <summary>
     /// Whether the chain is in the list of chains: it is from the moment it is recorded until it is deleted, or
@@ -165,7 +173,7 @@ public static partial class JobChains
             return new ChainRecord(
                 chainId,
                 dto.ToLevels(),
-                SerializationHelper.Deserialize<Dictionary<string, string>>(jobs, SerializationOption.Internal) ?? [],
+                ParseJobs(jobs, out _),
                 ReadGeneration(hash),
                 ReadCreatedAt(hash),
                 dto.DeleteBehavior)
@@ -175,8 +183,9 @@ public static partial class JobChains
         }
 
         /// <summary>
-        /// Writes the record, with what is left to clean up, and lists the chain: the point from which the chain,
-        /// or its change, exists. The record is kept for <see cref="JobChain.RecordRetention"/> after
+        /// Writes the record, with what is left to clean up and without the lease of the client that created or
+        /// changed the chain, and lists the chain: the point from which the chain, or its change, exists. The
+        /// record is kept for <see cref="JobChain.RecordRetention"/> after
         /// <paramref name="latestStart"/>, the latest moment a step is known to start, or after now; each state
         /// change of a step keeps it longer (<see cref="ExtendRecord"/>).
         /// </summary>
@@ -202,13 +211,20 @@ public static partial class JobChains
             transaction.SetRangeInHash(GetKey(ChainId), new Dictionary<string, string>
             {
                 [DefinitionField] = SerializationHelper.Serialize(ChainDefinition.From(Levels, DeleteBehavior), SerializationOption.Internal),
-                [JobsField] = SerializationHelper.Serialize(Jobs, SerializationOption.Internal),
+                [JobsField] = SerializeJobs(Jobs, null),
                 [GenerationField] = Generation.ToString(CultureInfo.InvariantCulture),
                 [CreatedAtField] = JobHelper.SerializeDateTime(CreatedAt),
                 [DeleteBehaviorField] = DeleteBehavior.ToString(),
                 [CleanupField] = ChainCleanup.Serialize(Cleanup),
             });
             transaction.AddToSet(SetKey, ChainId, JobHelper.ToTimestamp(CreatedAt));
+
+            // A step that waits for several steps is started once the last of them is committed, which a process
+            // that stops then never does: a server looks at the chain again later (RedriveWatched)
+            if (HasJoins(Levels))
+            {
+                transaction.AddToSet(WatchSetKey, ChainId, JobHelper.ToTimestamp(now + DecisionWindow));
+            }
 
             if (Cleanup != null)
             {

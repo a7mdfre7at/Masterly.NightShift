@@ -33,16 +33,18 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     /// <summary>
     /// Whether the chain has nothing left to do by itself: every step finished (succeeded, deleted, skipped steps
     /// included, failed for good, or expired), or waits behind a step that failed for good or expired, directly or
-    /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on. A step that waits behind
-    /// a failure but whose condition the failure meets (a step after any failure, after every step whatever the
-    /// outcome) is about to start, so the chain isn't settled until it did.
+    /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on. A waiting step that the
+    /// steps it waits for already decide (it starts, or is skipped) is about to be told, so the chain isn't settled
+    /// until it was; a step still not told five minutes after they finished never will be by them, and counts as
+    /// settled, so a chain is never unsettled for good. A server starts such a step later (the chain maintenance).
     /// </summary>
     public bool IsSettled
     {
         get
         {
-            HashSet<int> blocked = BlockedLevels();
             ILookup<int, JobChainStepInfo>? levels = null;
+            List<int>? undecided = null;
+            HashSet<int>? neverTold = null;
 
             foreach (JobChainStepInfo step in Steps)
             {
@@ -51,20 +53,87 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
                     continue;
                 }
 
-                if (!IsAwaiting(step.State) || !blocked.Contains(step.Level))
+                if (!IsAwaiting(step.State))
                 {
                     return false;
                 }
 
                 levels ??= Steps.ToLookup(static x => x.Level);
-                if (IsAboutToBeDecided(step, levels))
+                switch (Classify(step, levels))
                 {
-                    return false;
+                    case Waiting.AboutToBeTold:
+                        return false;
+
+                    case Waiting.NeverTold:
+                        (neverTold ??= []).Add(step.Level);
+                        break;
+
+                    default:
+                        (undecided ??= []).Add(step.Level);
+                        break;
                 }
             }
 
-            return true;
+            if (undecided == null)
+            {
+                return true;
+            }
+
+            // Nothing decides these yet: they wait for steps still to finish, unless one of them can't
+            HashSet<int> blocked = BlockedLevels(neverTold);
+            return undecided.TrueForAll(blocked.Contains);
         }
+    }
+
+    /// <summary>
+    /// The waiting steps that the steps they wait for decided longer ago than <see cref="JobChains.DecisionWindow"/>
+    /// and that still wait: the process that was to start or skip them stopped, or couldn't.
+    /// </summary>
+    internal List<JobChainStepInfo> NeverToldSteps()
+    {
+        List<JobChainStepInfo> steps = [];
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (!IsAwaiting(step.State))
+            {
+                continue;
+            }
+
+            levels ??= Steps.ToLookup(static x => x.Level);
+            if (Classify(step, levels) == Waiting.NeverTold)
+            {
+                steps.Add(step);
+            }
+        }
+
+        return steps;
+    }
+
+    /// <summary>
+    /// Whether a step still waits for a group of several steps: such a step is started after the last of them is
+    /// committed, by a process that may stop first.
+    /// </summary>
+    internal bool HasWaitingJoins()
+    {
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (!IsAwaiting(step.State))
+            {
+                continue;
+            }
+
+            levels ??= Steps.ToLookup(static x => x.Level);
+            if (levels[step.ParentLevel].Skip(1).Any())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The number of steps that failed for good.</summary>
@@ -73,9 +142,10 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     /// <summary>
     /// The levels whose waiting steps can't start by themselves: the level they wait for has a step that failed for
     /// good or whose job expired (a failed job kept for a while expires too, and nothing starts what waits for it),
-    /// or is blocked itself and still has a step waiting.
+    /// has a step that was never told to start (<paramref name="neverTold"/>), or is blocked itself and still has
+    /// a step waiting.
     /// </summary>
-    private HashSet<int> BlockedLevels()
+    private HashSet<int> BlockedLevels(HashSet<int>? neverTold)
     {
         SortedDictionary<int, int> parents = [];
         HashSet<int> failed = [];
@@ -104,7 +174,7 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
                 continue;
             }
 
-            if (failed.Contains(parent) || (blocked.Contains(parent) && waiting.Contains(parent)))
+            if (failed.Contains(parent) || neverTold?.Contains(parent) == true || (blocked.Contains(parent) && waiting.Contains(parent)))
             {
                 blocked.Add(level);
             }
@@ -114,22 +184,28 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     }
 
     /// <summary>
-    /// Whether the states of the steps a waiting step waits for decide it already: it starts, or is skipped, as soon
-    /// as the step that finished last has told it, a moment after that step's state is stored. Past
-    /// <see cref="JobChains.DecisionWindow"/> that moment is over: the step was never told (the process that was
-    /// to tell it stopped), and waits for a requeue or a retry like the steps behind a failure.
+    /// Whether the states of the steps a waiting step waits for decide it already. It then starts, or is skipped,
+    /// as soon as the step that finished last has told it, a moment after that step's state is stored. Past
+    /// <see cref="JobChains.DecisionWindow"/> that moment is over: the step was never told.
     /// </summary>
-    private static bool IsAboutToBeDecided(JobChainStepInfo step, ILookup<int, JobChainStepInfo> levels)
+    private static Waiting Classify(JobChainStepInfo step, ILookup<int, JobChainStepInfo> levels)
     {
         List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
 
         if (JobChains.Decide(step, parents) == FanInContinuationsSupportAttribute.Decision.Undecided)
         {
-            return false;
+            return Waiting.Undecided;
         }
 
         DateTime? decidedAt = parents.Max(static x => x.FinishedAt);
-        return decidedAt == null || JobClock.UtcNow - decidedAt.Value < JobChains.DecisionWindow;
+        return decidedAt == null || JobClock.UtcNow - decidedAt.Value < JobChains.DecisionWindow ? Waiting.AboutToBeTold : Waiting.NeverTold;
+    }
+
+    private enum Waiting
+    {
+        Undecided,
+        AboutToBeTold,
+        NeverTold,
     }
 
     private static bool IsFailed(string? state) => FailedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);

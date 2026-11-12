@@ -36,8 +36,11 @@ namespace Masterly.NightShift;
 /// <para>
 /// A step runs only when the record lists its job (<see cref="JobChainStepFilter"/>): the jobs of a chain whose
 /// creation stopped halfway, of a deleted chain, and the jobs a retry or a replacement replaced are deleted instead
-/// of running. The record is written once every step is created; a first step that a worker takes before that waits
-/// for it.
+/// of running. The record is started before the first job is created, saying that the chain is being created, and
+/// lists the steps once the last one is created; a first step that a worker takes before that waits for it. The
+/// same holds while a chain is retried or replaced: none of its steps starts until the change is recorded or
+/// given up, and a change that stops halfway leaves the chain as it was. Creating a chain may take as long as it
+/// needs: nothing depends on the age of its jobs.
 /// </para>
 /// </remarks>
 public sealed partial class JobChain

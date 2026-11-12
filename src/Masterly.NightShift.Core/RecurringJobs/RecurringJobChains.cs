@@ -89,9 +89,16 @@ public static class JobChainRunner
                 previous = connection.GetAllEntriesFromHash(key)?.GetValueOrDefault(LastChainField);
             }
 
-            if (previous != null && storage.GetChain(previous) is { IsSettled: false })
+            if (previous != null)
             {
-                throw new TerminateJobException($"the previous chain '{previous}' is still running");
+                // A step of the previous chain that was to start long ago and never was told is started now: the
+                // chain then still runs, and this occurrence is skipped for it rather than run beside it
+                JobChains.RedriveLostDecisions(storage, new BackgroundJobClient(storage), previous);
+
+                if (storage.GetChain(previous) is { IsSettled: false })
+                {
+                    throw new TerminateJobException($"the previous chain '{previous}' is still running");
+                }
             }
         }
 

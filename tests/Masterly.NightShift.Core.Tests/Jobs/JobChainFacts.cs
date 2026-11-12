@@ -1,13 +1,18 @@
 namespace Masterly.NightShift.Core.Tests;
 
-public class JobChainFacts
+public class JobChainFacts : IDisposable
 {
     private readonly PolicyStorage _storage = new();
     private readonly Mock<IBackgroundJobClientV2> _client = new();
     private readonly List<(Job Job, IState State, IDictionary<string, object> Parameters)> _created = [];
+    private readonly TimeSpan _leaseRenewal = JobChains.LeaseRenewal;
 
     public JobChainFacts()
     {
+        // A job just created is in the state it was created in
+        _storage.Connection.Setup(x => x.GetStateData(It.IsAny<string>()))
+            .Returns(new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string>() });
+
         _client.Setup(x => x.Storage).Returns(_storage.Object);
         _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
             .Returns((Job job, IState state, IDictionary<string, object> parameters) =>
@@ -15,6 +20,12 @@ public class JobChainFacts
                 _created.Add((job, state, parameters));
                 return $"job-{_created.Count}";
             });
+    }
+
+    public void Dispose()
+    {
+        JobChains.LeaseRenewal = _leaseRenewal;
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -184,9 +195,20 @@ public class JobChainFacts
     }
 
     [Fact]
-    public void Enqueue_DeletesTheCreatedSteps_WhenTheRecordCanNotBeWritten()
+    public void Enqueue_CreatesNothing_WhenTheRecordCanNotBeStarted()
     {
         _storage.Connection.Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("Storage is down"));
+
+        Assert.Throws<InvalidOperationException>(() => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()), Times.Never);
+    }
+
+    [Fact]
+    public void Enqueue_DeletesTheCreatedSteps_WhenTheRecordCanNotBeWritten()
+    {
+        // The record is started, with the client's lease; the write that lists the steps fails
+        FailWritesAfterTheFirst(new Mock<IWriteOnlyTransaction>());
         _storage.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = EnqueuedState.StateName });
         _storage.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = AwaitingState.StateName });
 
@@ -194,6 +216,116 @@ public class JobChainFacts
 
         _client.Verify(x => x.ChangeState("job-2", It.IsAny<DeletedState>(), AwaitingState.StateName));
         _client.Verify(x => x.ChangeState("job-1", It.IsAny<DeletedState>(), EnqueuedState.StateName));
+    }
+
+    [Fact]
+    public void Enqueue_TakesTheChainAsCreated_WhenTheWriteOfTheRecordThrew_ButWentThrough()
+    {
+        // A lost reply: the commit throws, and the record is there
+        string chainId = null;
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
+            .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
+            {
+                chainId = (string)parameters[JobChains.ChainIdParameter];
+                _created.Add((null, null, parameters));
+                return $"job-{_created.Count}";
+            });
+        JobChain chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b"));
+        Mock<IWriteOnlyTransaction> lostReply = new();
+        lostReply.Setup(x => x.Commit()).Callback(() => _storage.Hashes[JobChains.GetKey(chainId)] = new Dictionary<string, string>
+        {
+            ["Definition"] = JobChains.ToDefinition(chain),
+            ["Jobs"] = "{\"0.0\":\"job-1\",\"1.0\":\"job-2\"}",
+            ["Generation"] = "1",
+        }).Throws(new TimeoutException("The reply was lost"));
+        FailWritesAfterTheFirst(lostReply);
+
+        JobChainResult result = chain.Enqueue(_client.Object);
+
+        Assert.Equal("job-1", result?.RootId);
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        Assert.True(_storage.Hashes.ContainsKey(JobChains.GetKey(chainId)));
+    }
+
+    [Fact]
+    public void Enqueue_StartsTheRecordWithItsLease_BeforeTheFirstJob_AndListsTheStepsOnlyAtTheEnd()
+    {
+        List<string> jobsWhileCreating = [];
+        List<bool> listedWhileCreating = [];
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
+            .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
+            {
+                jobsWhileCreating.Add(_storage.Hashes[JobChains.GetKey((string)parameters[JobChains.ChainIdParameter])]["Jobs"]);
+                listedWhileCreating.Add(_storage.Sets.ContainsKey(JobChains.SetKey));
+                _created.Add((null, null, parameters));
+                return $"job-{_created.Count}";
+            });
+
+        JobChainResult result = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object);
+
+        // While the jobs are created: a lease and no step, in a record that isn't listed
+        Assert.All(jobsWhileCreating, jobs => Assert.StartsWith("{\"changing\":\"", jobs, StringComparison.Ordinal));
+        Assert.All(listedWhileCreating, Assert.False);
+
+        string recorded = _storage.Hashes[JobChains.GetKey(result!.ChainId)]["Jobs"];
+        Assert.DoesNotContain("changing", recorded, StringComparison.Ordinal);
+        Assert.Contains("\"1.0\":\"job-2\"", recorded, StringComparison.Ordinal);
+        Assert.Contains(result.ChainId, _storage.Sets[JobChains.SetKey]);
+    }
+
+    [Fact]
+    public void Enqueue_RenewsItsLease_WhileItCreatesTheSteps_OnlyWhenItHasWorkedForAWhile()
+    {
+        JobChain chain = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")).Then(() => Step("d"));
+
+        chain.Enqueue(_client.Object);
+        int quick = _storage.Commits;
+
+        JobChains.LeaseRenewal = TimeSpan.Zero;
+        chain.Enqueue(_client.Object);
+        int slow = _storage.Commits - quick;
+
+        // The record started and the record written; and, for a client that takes long, the lease before each step
+        Assert.Equal(2, quick);
+        Assert.Equal(5, slow);
+    }
+
+    [Fact]
+    public void Enqueue_RemovesTheRecordItStarted_WhenTheFirstStepIsCanceled()
+    {
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Returns((string)null);
+
+        Assert.Null(JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        Assert.Empty(_storage.Hashes);
+    }
+
+    [Fact]
+    public void Enqueue_ListsAChainWithAStepThatWaitsForSeveral_ToBeLookedAtAgain()
+    {
+        JobChainResult line = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object);
+        Assert.False(_storage.Sets.ContainsKey("chains:joins"));
+
+        JobChainResult joined = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("d"))
+            .Enqueue(_client.Object);
+
+        Assert.Equal([joined!.ChainId], _storage.Sets["chains:joins"]);
+        Assert.NotNull(line);
+    }
+
+    // The record is started by a write that works; the writes after it go to the transaction given
+    private void FailWritesAfterTheFirst(Mock<IWriteOnlyTransaction> later)
+    {
+        int writes = 0;
+        IWriteOnlyTransaction first = _storage.Connection.Object.CreateWriteTransaction();
+        if (later.Setups.Count == 0)
+        {
+            later.Setup(x => x.Commit()).Throws(new InvalidOperationException("Storage is down"));
+        }
+
+        _storage.Connection.Setup(x => x.CreateWriteTransaction()).Returns(() => writes++ == 0 ? first : later.Object);
     }
 
     [Fact]
@@ -476,6 +608,39 @@ public class JobChainFacts
     }
 
     [Fact]
+    public void JobChainInfo_IsSettled_WhenAStepNothingKeepsFromStarting_WasNeverTold()
+    {
+        // Every branch succeeded and the step after them still waits, long after: the process that was to start
+        // it stopped after the last branch was committed. The chain isn't unsettled for good.
+        DateTime longAgo = DateTime.UtcNow - JobChains.DecisionWindow - TimeSpan.FromMinutes(1);
+        JobChainInfo lost = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root, finishedAt: longAgo),
+            Step("1.0", "Succeeded", ChainLink.Then, finishedAt: longAgo),
+            Step("1.1", "Succeeded", ChainLink.Then, finishedAt: longAgo),
+            Step("2.0", "Awaiting", ChainLink.AfterAll),
+            Step("3.0", "Awaiting", ChainLink.Then));
+        JobChainInfo starting = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root, finishedAt: longAgo),
+            Step("1.0", "Succeeded", ChainLink.Then, finishedAt: longAgo),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAll),
+            Step("3.0", "Awaiting", ChainLink.Then));
+        JobChainInfo line = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root, finishedAt: longAgo),
+            Step("1.0", "Awaiting", ChainLink.Then));
+
+        Assert.False(starting.IsSettled);
+        Assert.Empty(starting.NeverToldSteps());
+
+        // The step after the one never told waits behind it, like a step behind a failure
+        Assert.Equal(["2.0"], lost.NeverToldSteps().Select(static x => x.Key));
+        Assert.True(lost.IsSettled);
+
+        Assert.True(line.IsSettled);
+        Assert.Equal(["1.0"], line.NeverToldSteps().Select(static x => x.Key));
+    }
+
+    [Fact]
     public void JobChainInfo_IsSettled_WhenAJoinWaitsForAnExpiredStep_AndTheOthersDoNotDecideIt()
     {
         JobChainInfo chain = Chain(
@@ -549,10 +714,12 @@ public class JobChainFacts
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
             () => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
 
+        // Decided before the chain is recorded: it never was, so none of its steps could run
         Assert.Contains("wasn't created", exception.Message, StringComparison.Ordinal);
         _client.Verify(x => x.ChangeState("job-2", It.IsAny<DeletedState>(), AwaitingState.StateName));
         Assert.False(_storage.Hashes.ContainsKey(JobChains.GetKey(chainId)));
-        Assert.DoesNotContain(chainId, _storage.Sets[JobChains.SetKey]);
+        Assert.False(_storage.Sets.ContainsKey(JobChains.SetKey));
+        Assert.Contains("job:job-1:state-lock", _storage.Locks);
     }
 
     [Fact]
