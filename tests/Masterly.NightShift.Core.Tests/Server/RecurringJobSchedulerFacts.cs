@@ -1123,6 +1123,31 @@ public class RecurringJobSchedulerFacts
 
     [Theory]
     [InlineData(false), InlineData(true)]
+    public void Execute_KeepsTheJobScheduled_AndRetries_WhenItsPolicyCannotBeEvaluated(bool batching)
+    {
+        SetupConnection(batching);
+        _connection.Setup(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("holidays")))
+            .Returns(new SchedulePolicy("holidays").ExcludeDatesFrom("missing-on-this-server").ToFields());
+
+        _recurringJob["TimeZoneId"] = "UTC";
+        _recurringJob["Policy"] = "holidays";
+        _recurringJob["LastExecution"] = JobHelper.SerializeDateTime(_nowInstant.AddMinutes(-1));
+        _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
+
+        RecurringJobScheduler scheduler = CreateScheduler();
+
+        scheduler.Execute(_context.Object);
+
+        _factory.Verify(x => x.Create(It.IsAny<CreateContext>()), Times.Never);
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{RecurringJobId}", It.Is<Dictionary<string, string>>(dict =>
+            dict["Error"].Contains("date provider 'missing-on-this-server' isn't registered on this server", StringComparison.Ordinal) &&
+            !dict.ContainsKey("RetryAttempt"))));
+        _transaction.Verify(x => x.AddToSet("recurring-jobs", RecurringJobId, JobHelper.ToTimestamp(_nowInstant.Add(_delay))));
+        _transaction.Verify(x => x.AddToSet("recurring-jobs", RecurringJobId, -1.0D), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(false), InlineData(true)]
     public void Execute_RunsTheOccurrenceAtTheEnd_ThenTakesTheJobOffTheSchedule(bool batching)
     {
         SetupConnection(batching);

@@ -11,8 +11,10 @@ namespace Masterly.NightShift;
 /// </summary>
 /// <remarks>
 /// <see cref="Contains"/> is called often, from several threads, when servers look for the next allowed instant:
-/// keep it fast, for example with the dates of each year computed once. A provider that throws blocks the instant
-/// checked, and the reason names the error.
+/// keep it fast, for example with the dates of each year computed once. A provider that throws, or isn't registered
+/// on the server asking, allows nothing, and the reason names the error; a recurring job that follows the policy
+/// stays on the schedule and is looked at again later, rather than taken off it. A failing provider is logged at
+/// most once a minute.
 /// </remarks>
 public interface IScheduleDateProvider
 {

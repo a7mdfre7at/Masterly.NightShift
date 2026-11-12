@@ -14,9 +14,11 @@ public class SchedulePolicyFacts
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
-    // Today and tomorrow (UTC) are excluded, so a test running around midnight still finds them blocked
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
-    private static DateTime DayAfterTomorrow => Today.AddDays(2).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+    // Today and tomorrow (UTC) are excluded, so a test running around midnight still finds them blocked. Read once
+    // per test (xUnit creates the class for each one), so every statement of a test agrees on which day it is.
+    private DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    private DateTime DayAfterTomorrow => Today.AddDays(2).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
     [Fact, CleanDatabase]
     public void Policies_AreStoredWithRevisions_AndAreNotDeletedWhileUsed()
@@ -158,7 +160,7 @@ public class SchedulePolicyFacts
 
     public static int Answer() => 42;
 
-    private static SchedulePolicy BlockTodayAndTomorrow(string name)
+    private SchedulePolicy BlockTodayAndTomorrow(string name)
     {
         return new SchedulePolicy(name).ExcludeDate(Today).ExcludeDate(Today.AddDays(1));
     }

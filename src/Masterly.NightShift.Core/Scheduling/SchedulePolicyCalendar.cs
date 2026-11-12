@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Masterly.NightShift.Logging;
 
@@ -11,22 +12,46 @@ namespace Masterly.NightShift;
 public sealed record SchedulePolicyDecision(string Policy, DateTime Instant, bool Allowed, string? Reason);
 
 /// <summary>
+/// Why a policy can't tell whether an instant is allowed: a policy that can't be read, a time zone or a date provider
+/// unknown on this server, a date provider that failed. Such an instant is never allowed, but it isn't blocked for
+/// good either: asked again later, on another server, the answer may differ.
+/// </summary>
+/// <param name="Instant">The first instant that couldn't be evaluated, UTC.</param>
+/// <param name="Reason">Why, such as <c>policy 'p': date provider 'holidays' failed: database down</c>.</param>
+internal sealed record SchedulePolicyFailure(DateTime Instant, string Reason);
+
+/// <summary>What <see cref="SchedulePolicyCalendar.Search"/> found.</summary>
+/// <param name="Allowed">The first instant allowed, or <c>null</c>.</param>
+/// <param name="Failure">
+/// Why the search stopped before finding one, or <c>null</c>. With neither, the whole search found nothing allowed.
+/// </param>
+internal readonly record struct SchedulePolicySearchResult(DateTime? Allowed, SchedulePolicyFailure? Failure);
+
+/// <summary>
 /// A policy with every policy it requires or makes an exception for, read once and evaluated many times: by the
-/// filter that applies policies to jobs, the recurring job scheduler and the previews.
+/// filter that applies policies to jobs, the recurring job scheduler and the previews. Safe to share between threads.
 /// </summary>
 internal sealed class SchedulePolicyCalendar
 {
     /// <summary>How far <see cref="FindNextAllowed"/> looks ahead: about ten years.</summary>
     public static readonly TimeSpan SearchHorizon = TimeSpan.FromDays(3653);
 
-    // Each step of the search moves to the next boundary of a policy (a window's start or end, or midnight), so
-    // ten years take a few thousand steps per policy; this only stops a broken time zone from looping forever
+    // A failing date provider is reported at most this often, whatever the number of jobs and calendars asking it
+    internal static readonly TimeSpan ProviderWarningInterval = TimeSpan.FromMinutes(1);
+
+    // Each step of the search moves to the next boundary of a policy (a window's start or end, midnight or a change
+    // of the UTC offset), so ten years take a few thousand steps per policy; this only stops a broken time zone from
+    // looping forever
     private const int MaxSearchSteps = 1_000_000;
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(SchedulePolicyCalendar));
+    private static readonly ConcurrentDictionary<string, DateTime> ProviderWarnings = new(StringComparer.Ordinal);
 
     private readonly Dictionary<string, Entry> _entries;
-    private int _providerErrorLogged;
+
+    // The date providers that failed while this calendar was used, with their error: they aren't asked again, so a
+    // search doesn't throw at every step, and a calendar shared by a scheduler pass doesn't throw for every job
+    private readonly ConcurrentDictionary<string, string> _failedProviders = new(StringComparer.Ordinal);
 
     private SchedulePolicyCalendar(string name, Dictionary<string, Entry> entries)
     {
@@ -95,32 +120,51 @@ internal sealed class SchedulePolicyCalendar
         return new SchedulePolicyCalendar(name, entries);
     }
 
-    /// <summary>Whether the policy allows a job to start at this instant, and why not.</summary>
+    /// <summary>
+    /// Whether the policy allows a job to start at this instant, and why not. An instant the policy can't evaluate
+    /// isn't allowed.
+    /// </summary>
     public SchedulePolicyDecision Evaluate(DateTime instantUtc)
     {
         DateTime instant = DateTime.SpecifyKind(instantUtc, DateTimeKind.Utc);
-        string? reason = GetBlockReason(Name, instant, [], explain: true);
-        return new SchedulePolicyDecision(Name, instant, reason == null, reason);
+        Verdict verdict = Check(Name, instant, [], explain: true);
+        return new SchedulePolicyDecision(Name, instant, verdict.Outcome == Outcome.Allowed, verdict.Reason);
     }
 
-    /// <summary>Whether the policy allows a job to start at this instant.</summary>
+    /// <summary>Whether the policy allows a job to start at this instant; not when it can't evaluate it.</summary>
     public bool IsAllowed(DateTime instantUtc)
     {
-        return GetBlockReason(Name, DateTime.SpecifyKind(instantUtc, DateTimeKind.Utc), [], explain: false) == null;
+        return Check(Name, DateTime.SpecifyKind(instantUtc, DateTimeKind.Utc), [], explain: false).Outcome == Outcome.Allowed;
     }
 
     /// <summary>
     /// The first instant at or after <paramref name="fromUtc"/> that the policy allows, or <c>null</c> when it
-    /// allows none within <see cref="SearchHorizon"/>.
+    /// allows none within <see cref="SearchHorizon"/> or can't evaluate an instant before the first allowed one.
     /// </summary>
     public DateTime? FindNextAllowed(DateTime fromUtc)
+    {
+        return Search(fromUtc).Allowed;
+    }
+
+    /// <summary>
+    /// Looks for the first instant at or after <paramref name="fromUtc"/> that the policy allows, within
+    /// <see cref="SearchHorizon"/>. Stops at the first instant it can't evaluate, so a policy that can't be read or a
+    /// failing date provider costs one step, not ten years of them.
+    /// </summary>
+    public SchedulePolicySearchResult Search(DateTime fromUtc)
     {
         DateTime instant = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
         DateTime limit = instant + SearchHorizon;
 
         for (int step = 0; step < MaxSearchSteps && instant <= limit; step++)
         {
-            if (IsAllowed(instant)) return instant;
+            Verdict verdict = Check(Name, instant, [], explain: false);
+            if (verdict.Outcome == Outcome.Allowed) return new SchedulePolicySearchResult(instant, null);
+
+            if (verdict.Outcome == Outcome.Unknown)
+            {
+                return new SchedulePolicySearchResult(null, new SchedulePolicyFailure(instant, verdict.Reason!)); // Unknown always has a reason
+            }
 
             DateTime? next = null;
             foreach (Entry entry in _entries.Values)
@@ -129,50 +173,80 @@ internal sealed class SchedulePolicyCalendar
                 if (boundary.HasValue && (!next.HasValue || boundary < next)) next = boundary;
             }
 
-            // No policy has a rule that changes (each one fails to read): nothing is ever allowed
-            if (!next.HasValue) return null;
+            // No policy has a rule that changes: nothing is ever allowed
+            if (!next.HasValue) break;
 
             instant = next.Value;
         }
 
-        return null;
+        return new SchedulePolicySearchResult(null, null);
     }
 
-    private string? GetBlockReason(string name, DateTime instant, HashSet<string> visiting, bool explain)
+    /// <summary>
+    /// Whether a warning about the failing date provider <paramref name="provider"/> is due at <paramref name="now"/>:
+    /// once per <see cref="ProviderWarningInterval"/> for each provider name.
+    /// </summary>
+    internal static bool TryStartProviderWarning(string provider, DateTime now)
+    {
+        DateTime last = ProviderWarnings.GetOrAdd(provider, DateTime.MinValue);
+        if (last != DateTime.MinValue && now - last < ProviderWarningInterval) return false;
+
+        // Another thread that warned meanwhile wins
+        return ProviderWarnings.TryUpdate(provider, now, last);
+    }
+
+    // A rule that blocks the instant decides, whatever the rules that can't be evaluated say. Otherwise a rule that
+    // can't be evaluated makes the instant unknown: not allowed, and not blocked for good either.
+    private Verdict Check(string name, DateTime instant, HashSet<string> visiting, bool explain)
     {
         // A policy that doesn't exist (any more) adds no rule
-        if (!_entries.TryGetValue(name, out Entry? entry)) return null;
+        if (!_entries.TryGetValue(name, out Entry? entry)) return Verdict.Allowed;
 
         if (!visiting.Add(name))
         {
-            return explain ? $"policy '{name}' refers back to itself" : string.Empty;
+            return Verdict.Unknown($"policy '{name}' refers back to itself");
         }
 
         try
         {
-            string? reason = entry.GetOwnBlockReason(instant, explain, this);
-            if (reason != null) return reason;
+            // An entry that failed to read is unknown, and has no references to follow
+            Verdict own = entry.CheckOwnRules(instant, explain, this);
+            if (own.Outcome == Outcome.Blocked || entry.Policy is not { } policy) return own;
 
-            SchedulePolicy policy = entry.Policy!; // An entry that failed to read returned above
+            Verdict? unknown = own.Outcome == Outcome.Unknown ? own : null;
 
             foreach (string required in policy.Required)
             {
-                string? requiredReason = GetBlockReason(required, instant, visiting, explain);
-                if (requiredReason != null)
+                Verdict requiredVerdict = Check(required, instant, visiting, explain);
+                if (requiredVerdict.Outcome == Outcome.Blocked)
                 {
-                    return explain ? $"policy '{name}' requires '{required}', and {requiredReason}" : string.Empty;
+                    return Verdict.Blocked(explain ? $"policy '{name}' requires '{required}', and {requiredVerdict.Reason}" : null);
+                }
+
+                if (requiredVerdict.Outcome == Outcome.Unknown)
+                {
+                    unknown ??= Verdict.Unknown($"policy '{name}' requires '{required}', and {requiredVerdict.Reason}");
                 }
             }
 
             foreach (string excepted in policy.Excepted)
             {
-                if (_entries.ContainsKey(excepted) && GetBlockReason(excepted, instant, visiting, explain: false) == null)
+                if (!_entries.ContainsKey(excepted)) continue;
+
+                Verdict exceptedVerdict = Check(excepted, instant, visiting, explain: false);
+                if (exceptedVerdict.Outcome == Outcome.Allowed)
                 {
-                    return explain ? $"policy '{name}' blocks the times policy '{excepted}' allows" : string.Empty;
+                    return Verdict.Blocked(explain ? $"policy '{name}' blocks the times policy '{excepted}' allows" : null);
+                }
+
+                // Can't tell whether the exception applies, so the instant isn't allowed either
+                if (exceptedVerdict.Outcome == Outcome.Unknown)
+                {
+                    unknown ??= Verdict.Unknown($"policy '{name}' can't tell whether policy '{excepted}' allows this time, as {exceptedVerdict.Reason}");
                 }
             }
 
-            return null;
+            return unknown ?? Verdict.Allowed;
         }
         finally
         {
@@ -180,13 +254,56 @@ internal sealed class SchedulePolicyCalendar
         }
     }
 
+    private Verdict AskProvider(string policyName, string providerName, DateOnly date, bool explain)
+    {
+        if (_failedProviders.TryGetValue(providerName, out string? error))
+        {
+            return Verdict.Unknown($"policy '{policyName}': date provider '{providerName}' failed: {error}");
+        }
+
+        if (!ScheduleDateProviders.TryGet(providerName, out IScheduleDateProvider? provider))
+        {
+            return Verdict.Unknown($"policy '{policyName}': date provider '{providerName}' isn't registered on this server");
+        }
+
+        try
+        {
+            return provider.Contains(date)
+                ? Verdict.Blocked(explain ? $"policy '{policyName}': {Entry.Format(date)} is excluded by date provider '{providerName}'" : null)
+                : Verdict.Allowed;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _failedProviders.TryAdd(providerName, ex.Message);
+            LogProviderError(providerName, ex);
+            return Verdict.Unknown($"policy '{policyName}': date provider '{providerName}' failed: {ex.Message}");
+        }
+    }
+
     private void LogProviderError(string provider, Exception exception)
     {
-        // Once per calendar: a search can ask the provider thousands of times
-        if (Interlocked.Exchange(ref _providerErrorLogged, 1) == 0)
+        // A search or a scheduler pass can ask the provider for thousands of dates and jobs
+        if (TryStartProviderWarning(provider, JobClock.UtcNow))
         {
-            Logger.WarnException($"Schedule date provider '{provider}' failed, so policy '{Name}' blocks the dates it checks.", exception);
+            Logger.WarnException($"Schedule date provider '{provider}' failed, so policy '{Name}' can't tell which dates it excludes and allows none of them. Recurring jobs that follow it wait and try again.", exception);
         }
+    }
+
+    private enum Outcome
+    {
+        Allowed,
+        Blocked,
+        Unknown,
+    }
+
+    // The reason of a blocked instant is only built when explained; an unknown one always has it
+    private readonly record struct Verdict(Outcome Outcome, string? Reason)
+    {
+        public static Verdict Allowed => new(Outcome.Allowed, null);
+
+        public static Verdict Blocked(string? reason) => new(Outcome.Blocked, reason);
+
+        public static Verdict Unknown(string reason) => new(Outcome.Unknown, reason);
     }
 
     private sealed class Entry
@@ -224,7 +341,7 @@ internal sealed class SchedulePolicyCalendar
             }
             catch (FormatException ex)
             {
-                // Blocks everything rather than let jobs start at times the policy may forbid
+                // Allows nothing rather than let jobs start at times the policy may forbid
                 return new Entry(name, null, null, ex.Message);
             }
         }
@@ -241,63 +358,52 @@ internal sealed class SchedulePolicyCalendar
             }
         }
 
-        public string? GetOwnBlockReason(DateTime instant, bool explain, SchedulePolicyCalendar calendar)
+        // The rules that need nothing but the policy come first: when one of them blocks the instant, a date provider
+        // that fails doesn't matter
+        public Verdict CheckOwnRules(DateTime instant, bool explain, SchedulePolicyCalendar calendar)
         {
             if (Policy == null || TimeZone == null)
             {
-                return explain ? $"policy '{Name}' can't be read: {Error}" : string.Empty;
+                return Verdict.Unknown($"policy '{Name}' can't be read: {Error}");
             }
 
             DateTime local = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZone);
 
             if (Policy.Days.Count > 0 && !Policy.Days.Contains(local.DayOfWeek))
             {
-                return explain ? $"policy '{Name}': {local.DayOfWeek} isn't an allowed day" : string.Empty;
+                return Verdict.Blocked(explain ? $"policy '{Name}': {local.DayOfWeek} isn't an allowed day" : null);
             }
 
             DateOnly date = DateOnly.FromDateTime(local);
             if (ExcludedDates.Contains(date))
             {
-                return explain ? $"policy '{Name}': {Format(date)} is excluded" : string.Empty;
+                return Verdict.Blocked(explain ? $"policy '{Name}': {Format(date)} is excluded" : null);
             }
 
             foreach (AnnualDate annualDate in Policy.ExcludedAnnualDates)
             {
                 if (annualDate.Matches(date))
                 {
-                    return explain ? $"policy '{Name}': {annualDate} is excluded every year" : string.Empty;
-                }
-            }
-
-            foreach (string providerName in Policy.DateProviders)
-            {
-                if (!ScheduleDateProviders.TryGet(providerName, out IScheduleDateProvider? provider))
-                {
-                    return explain ? $"policy '{Name}': date provider '{providerName}' isn't registered on this server" : string.Empty;
-                }
-
-                try
-                {
-                    if (provider.Contains(date))
-                    {
-                        return explain ? $"policy '{Name}': {Format(date)} is excluded by date provider '{providerName}'" : string.Empty;
-                    }
-                }
-                catch (Exception ex) when (ex.IsCatchableExceptionType())
-                {
-                    calendar.LogProviderError(providerName, ex);
-                    return explain ? $"policy '{Name}': date provider '{providerName}' failed: {ex.Message}" : string.Empty;
+                    return Verdict.Blocked(explain ? $"policy '{Name}': {annualDate} is excluded every year" : null);
                 }
             }
 
             if (Policy.Windows.Count > 0 && !Policy.Windows.Any(x => x.Contains(local.TimeOfDay)))
             {
-                return explain
+                return Verdict.Blocked(explain
                     ? $"policy '{Name}': {local.ToString("HH:mm", CultureInfo.InvariantCulture)} is outside {string.Join(", ", Policy.Windows)} ({TimeZone.Id})"
-                    : string.Empty;
+                    : null);
             }
 
-            return null;
+            Verdict result = Verdict.Allowed;
+            foreach (string providerName in Policy.DateProviders)
+            {
+                Verdict provided = calendar.AskProvider(Name, providerName, date, explain);
+                if (provided.Outcome == Outcome.Blocked) return provided;
+                if (provided.Outcome == Outcome.Unknown && result.Outcome == Outcome.Allowed) result = provided;
+            }
+
+            return result;
         }
 
         /// <summary>The first instant after <paramref name="instant"/> at which this policy's rules may change.</summary>
@@ -317,11 +423,31 @@ internal sealed class SchedulePolicyCalendar
                     if (candidate <= local) continue;
 
                     DateTime? utc = ToUtcAfter(timeZone, candidate, instant);
-                    if (utc.HasValue) return utc;
+                    if (utc.HasValue) return FirstOffsetChange(timeZone, instant, utc.Value);
                 }
             }
 
-            return instant.AddDays(1);
+            return FirstOffsetChange(timeZone, instant, instant.AddDays(1));
+        }
+
+        // When the clocks change before the boundary, the local times after the change are new ones: going back, the
+        // hour before the change happens a second time, and a window inside it opens again. The change is a boundary.
+        private static DateTime FirstOffsetChange(TimeZoneInfo timeZone, DateTime after, DateTime boundary)
+        {
+            TimeSpan offset = timeZone.GetUtcOffset(after);
+            if (timeZone.GetUtcOffset(boundary) == offset) return boundary;
+
+            // The offset at "low" is the one at "after", the one at "high" isn't: the change is in between
+            long low = after.Ticks;
+            long high = boundary.Ticks;
+            while (high - low > 1)
+            {
+                long middle = low + ((high - low) / 2);
+                if (timeZone.GetUtcOffset(new DateTime(middle, DateTimeKind.Utc)) == offset) low = middle;
+                else high = middle;
+            }
+
+            return new DateTime(high, DateTimeKind.Utc);
         }
 
         // A local time inside the hour skipped when clocks go forward doesn't exist: the first that does is the end
@@ -351,6 +477,47 @@ internal sealed class SchedulePolicyCalendar
             return converted > after ? converted : null;
         }
 
-        private static string Format(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        internal static string Format(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+}
+
+/// <summary>
+/// The calendars of the policies read during one pass of the recurring job scheduler, or one call that reschedules
+/// many recurring jobs: each policy is read once, however many jobs follow it. Safe to share between threads; each
+/// <see cref="WithConnection"/> view reads with its own connection.
+/// </summary>
+internal sealed class SchedulePolicyCalendars
+{
+    private readonly ConcurrentDictionary<(ITimeZoneResolver Resolver, string Name), SchedulePolicyCalendar?> _calendars;
+    private readonly IStorageConnection _connection;
+
+    /// <summary>Reads policies with <paramref name="connection"/> and keeps them.</summary>
+    public SchedulePolicyCalendars([NotNull] IStorageConnection connection)
+        : this(connection, new ConcurrentDictionary<(ITimeZoneResolver Resolver, string Name), SchedulePolicyCalendar?>())
+    {
+    }
+
+    private SchedulePolicyCalendars(
+        IStorageConnection connection,
+        ConcurrentDictionary<(ITimeZoneResolver Resolver, string Name), SchedulePolicyCalendar?> calendars)
+    {
+        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _calendars = calendars;
+    }
+
+    /// <summary>The same calendars, reading the ones not read yet with another connection.</summary>
+    public SchedulePolicyCalendars WithConnection([NotNull] IStorageConnection connection)
+    {
+        return ReferenceEquals(connection, _connection) ? this : new SchedulePolicyCalendars(connection, _calendars);
+    }
+
+    /// <summary>The calendar of a policy, read once; <c>null</c> when there is no policy of this name.</summary>
+    public SchedulePolicyCalendar? Get([NotNull] string name, [NotNull] ITimeZoneResolver timeZoneResolver)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(timeZoneResolver);
+
+        // Two threads may read the same policy at once; either result is the same
+        return _calendars.GetOrAdd((timeZoneResolver, name), static (key, connection) => SchedulePolicyCalendar.Load(connection, key.Name, key.Resolver), _connection);
     }
 }

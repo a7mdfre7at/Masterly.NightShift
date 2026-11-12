@@ -17,6 +17,11 @@ public static class SchedulePolicies
 
     private const string KeyPrefix = "schedule-policy:";
     private const string RecurringJobsSetKey = "recurring-jobs";
+
+    // One lock for every save and delete: a save checks the policies it refers to, a delete the policies that refer
+    // to the deleted one, so a lock on the policy alone would let a save and a delete of two related policies cross
+    private const string LockResource = "lock:schedule-policies";
+
     private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(SchedulePolicies));
 
@@ -61,6 +66,11 @@ public static class SchedulePolicies
         /// do. Nothing is written when the stored policy has the same rules. Sets the policy's
         /// <see cref="SchedulePolicy.Revision"/> and returns it.
         /// </summary>
+        /// <remarks>
+        /// A policy that changes reschedules the recurring jobs that follow it, directly or through other policies.
+        /// Finding them reads every recurring job once, so a change costs one read per recurring job, plus one
+        /// write per job that follows the policy; the policies themselves are read once per call.
+        /// </remarks>
         /// <exception cref="ArgumentException">
         /// A policy it requires or makes an exception for isn't stored, or the references form a cycle.
         /// </exception>
@@ -78,6 +88,11 @@ public static class SchedulePolicies
         /// it, or 0 to create a policy that must not exist yet. Returns the new revision, or <c>null</c> when the
         /// stored revision is another one (the policy was changed, created or deleted meanwhile).
         /// </summary>
+        /// <remarks>
+        /// A policy that changes reschedules the recurring jobs that follow it, directly or through other policies.
+        /// Finding them reads every recurring job once, so a change costs one read per recurring job, plus one
+        /// write per job that follows the policy; the policies themselves are read once per call.
+        /// </remarks>
         /// <exception cref="ArgumentException">
         /// A policy it requires or makes an exception for isn't stored, or the references form a cycle.
         /// </exception>
@@ -94,6 +109,7 @@ public static class SchedulePolicies
         /// Deletes a policy when the stored one still has <paramref name="expectedRevision"/>. Returns <c>false</c>
         /// when there is no such policy or it has another revision. Jobs already scheduled with it run without it.
         /// </summary>
+        /// <remarks>Checking that nothing uses it reads every stored policy and every recurring job.</remarks>
         /// <exception cref="InvalidOperationException">A recurring job or another policy uses it.</exception>
         public bool DeleteSchedulePolicy([NotNull] string name, long expectedRevision)
         {
@@ -102,7 +118,7 @@ public static class SchedulePolicies
             string normalized = key[KeyPrefix.Length..];
 
             using IStorageConnection connection = storage.GetConnection();
-            using (connection.AcquireDistributedLock(GetLockResource(normalized), LockTimeout))
+            using (connection.AcquireDistributedLock(LockResource, LockTimeout))
             {
                 if (ReadRevision(connection, normalized) != expectedRevision) return false;
 
@@ -181,8 +197,6 @@ public static class SchedulePolicies
         }
     }
 
-    internal static string GetLockResource(string normalizedName) => $"lock:{KeyPrefix}{normalizedName}";
-
     internal static SchedulePolicy? Read(IStorageConnection connection, string normalizedName)
     {
         Dictionary<string, string>? fields = connection.GetAllEntriesFromHash(KeyPrefix + normalizedName);
@@ -235,7 +249,7 @@ public static class SchedulePolicies
 
         using (IStorageConnection connection = storage.GetConnection())
         {
-            using (connection.AcquireDistributedLock(GetLockResource(policy.Name), LockTimeout))
+            using (connection.AcquireDistributedLock(LockResource, LockTimeout))
             {
                 long? current = ReadRevision(connection, policy.Name);
                 if (expectedRevision.HasValue && (current ?? 0) != expectedRevision.Value) return null;
@@ -381,9 +395,11 @@ public static class SchedulePolicies
                 }
             }
 
+            // Each policy is read once, however many jobs follow it
+            SchedulePolicyCalendars calendars = new(connection);
             foreach (string recurringJobId in FindRecurringJobs(connection, affected))
             {
-                Reschedule(connection, recurringJobId, now);
+                Reschedule(connection, recurringJobId, now, calendars);
             }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -392,13 +408,14 @@ public static class SchedulePolicies
         }
     }
 
-    private static void Reschedule(IStorageConnection connection, string recurringJobId, DateTime now)
+    private static void Reschedule(IStorageConnection connection, string recurringJobId, DateTime now, SchedulePolicyCalendars calendars)
     {
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, LockTimeout))
         {
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
             if (recurringJob?.Cron == null || recurringJob.Paused || (!recurringJob.NextExecution.HasValue && recurringJob.Error == null)) return;
 
+            recurringJob.PolicyCalendars = calendars;
             recurringJob.RecordScheduleChange(now);
             recurringJob.RetryAttempt = 0;
             recurringJob.ScheduleNext(GlobalTimeZoneResolver.Current, now.AddSeconds(-1));
