@@ -19,6 +19,11 @@ public static class PendingJobs
 {
     private const int PageSize = 500;
 
+    // The jobs of a delegate registered with AddNightShiftFunction (Masterly.NightShift.NetCore) run this method,
+    // with the function's name first
+    private const string DelegateRunnerTypeName = "Masterly.NightShift.DelegateJobFunctionRunner";
+    private const string DelegateRunnerMethodName = "RunAsync";
+
     /// <param name="storage">The storage.</param>
     extension([NotNull] JobStorage storage)
     {
@@ -101,17 +106,34 @@ public static class PendingJobs
             return storage.DeletePendingJobs(job => Matches(job.Job, typeof(T), methodName), $"Pending {typeof(T).Name} jobs deleted");
         }
 
-        /// <summary>Deletes the pending jobs of a <see cref="JobFunction"/> marked with <see cref="JobFunctionAttribute"/>. Returns the number deleted.</summary>
-        /// <param name="functionName">The function's name.</param>
+        /// <summary>
+        /// Deletes the pending jobs of a <see cref="JobFunction"/>: a method marked with <see cref="JobFunctionAttribute"/>,
+        /// or a delegate registered with <c>AddNightShiftFunction</c>. Returns the number deleted.
+        /// </summary>
+        /// <param name="functionName">The function's name, compared without case.</param>
         public int DeletePendingFunctionJobs([NotNull] string functionName)
         {
             ArgumentNullException.ThrowIfNull(functionName);
 
-            return storage.DeletePendingJobs(
-                job => job.Job?.Method.GetCustomAttribute<JobFunctionAttribute>() is { } attribute &&
-                       string.Equals(attribute.Name.Trim(), functionName.Trim(), StringComparison.OrdinalIgnoreCase),
-                $"Pending '{functionName}' jobs deleted");
+            string name = functionName.Trim();
+            return storage.DeletePendingJobs(job => IsFunctionJob(job.Job, name), $"Pending '{name}' jobs deleted");
         }
+    }
+
+    /// <summary>Whether a job runs a function: its method is marked with the name, or it runs the delegate of that name.</summary>
+    internal static bool IsFunctionJob(Job? job, string functionName)
+    {
+        if (job == null) return false;
+
+        if (job.Method.GetCustomAttribute<JobFunctionAttribute>() is { } attribute)
+        {
+            return string.Equals(attribute.Name.Trim(), functionName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return string.Equals(job.Type.FullName, DelegateRunnerTypeName, StringComparison.Ordinal) &&
+               string.Equals(job.Method.Name, DelegateRunnerMethodName, StringComparison.Ordinal) &&
+               job.Args.Count > 0 && job.Args[0] is string name &&
+               string.Equals(name.Trim(), functionName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool Matches(Job? job, Type type, string? methodName)

@@ -264,11 +264,13 @@ internal sealed class JobLineage
             return Strings.Lineage_AfterFinish;
         }
 
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) return Strings.Lineage_AfterSuccess;
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) return Strings.Lineage_AfterDelete;
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnFailedState)) return Strings.Lineage_AfterFailure;
-        if (parsed.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) return Strings.Lineage_OnceStarted;
-        return Strings.Lineage_AfterFinish;
+        // Every outcome a combination accepts, such as OnlyOnSucceededState | OnlyOnFailedState
+        List<string> outcomes = [];
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnSucceededState)) outcomes.Add(Strings.Lineage_AfterSuccess);
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnDeletedState)) outcomes.Add(Strings.Lineage_AfterDelete);
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnFailedState)) outcomes.Add(Strings.Lineage_AfterFailure);
+        if (parsed.HasFlag(JobContinuationOptions.OnlyOnProcessingState)) outcomes.Add(Strings.Lineage_OnceStarted);
+        return outcomes.Count == 0 ? Strings.Lineage_AfterFinish : string.Join(" or ", outcomes);
     }
 }
 

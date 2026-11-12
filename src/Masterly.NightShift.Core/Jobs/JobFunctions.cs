@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
+using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift;
 
@@ -102,6 +103,7 @@ public static class JobFunctions
     public const int MaxNameLength = 100;
 
     private static readonly ConcurrentDictionary<string, JobFunction> Functions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobFunctions));
 
     /// <summary>
     /// Checks a function name, 1 to 100 letters, digits, <c>.</c>, <c>_</c>, <c>-</c> and <c>:</c>, starting with a letter
@@ -124,11 +126,38 @@ public static class JobFunctions
         return trimmed;
     }
 
-    /// <summary>Registers a function, replacing one of the same name.</summary>
+    /// <summary>
+    /// Registers a function. Registering the same one again changes nothing: the same method, or a function of the
+    /// same class, which replaces the one registered.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Another function of the same name is registered: another method, or a function of another class. Remove it
+    /// first to replace it.
+    /// </exception>
     public static void Register([NotNull] JobFunction function)
     {
         ArgumentNullException.ThrowIfNull(function);
-        Functions[function.Name] = function;
+
+        Functions.AddOrUpdate(
+            function.Name,
+            function,
+            (name, registered) => IsSameFunction(registered, function)
+                ? function
+                : throw new InvalidOperationException($"Job function '{name}' is registered already, as {Describe(registered)}; it can't also be {Describe(function)}. Remove it first to replace it."));
+    }
+
+    private static bool IsSameFunction(JobFunction registered, JobFunction function)
+    {
+        if (ReferenceEquals(registered, function)) return true;
+        if (registered is MethodJobFunction method && function is MethodJobFunction other) return method.Type == other.Type && method.Method == other.Method;
+        return registered.GetType() == function.GetType();
+    }
+
+    private static string Describe(JobFunction function)
+    {
+        return function is MethodJobFunction method
+            ? $"{method.Type.ToGenericTypeString()}.{method.Method.Name}"
+            : $"a {function.GetType().ToGenericTypeString()}";
     }
 
     /// <summary>Registers the methods of <typeparamref name="T"/> marked with <see cref="JobFunctionAttribute"/>.</summary>
@@ -137,7 +166,7 @@ public static class JobFunctions
 
     /// <summary>Registers the methods of a type marked with <see cref="JobFunctionAttribute"/>.</summary>
     /// <returns>The names registered.</returns>
-    /// <exception cref="InvalidOperationException">A marked method can't be a job, or two methods have the same name.</exception>
+    /// <exception cref="InvalidOperationException">A marked method can't be a job, two methods have the same name, or a name is registered already for another method.</exception>
     public static IReadOnlyList<string> Add([NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -169,14 +198,18 @@ public static class JobFunctions
         return [.. found.Select(static x => x.Name)];
     }
 
-    /// <summary>Registers the job functions of every type of an assembly.</summary>
+    /// <summary>
+    /// Registers the job functions of every type of an assembly. Types that can't be loaded (a dependency is
+    /// missing) are left out, with a warning.
+    /// </summary>
     /// <returns>The names registered.</returns>
+    /// <exception cref="InvalidOperationException">A marked method can't be a job, a type declares a name twice, or a name is registered already for another method.</exception>
     public static IReadOnlyList<string> AddAssembly([NotNull] Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
         List<string> names = [];
-        foreach (Type type in assembly.GetTypes().Where(static x => x is { IsClass: true, IsGenericTypeDefinition: false }))
+        foreach (Type type in GetLoadableTypes(assembly).Where(static x => x is { IsClass: true, IsGenericTypeDefinition: false }))
         {
             if (type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Any(static x => x.IsDefined(typeof(JobFunctionAttribute), inherit: false)))
@@ -186,6 +219,19 @@ public static class JobFunctions
         }
 
         return names;
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            Logger.WarnException($"Some types of assembly '{assembly.GetName().Name}' can't be loaded, so their job functions aren't registered.", ex);
+            return ex.Types.OfType<Type>();
+        }
     }
 
     /// <summary>Finds a function by name, or <c>null</c>.</summary>
@@ -224,19 +270,23 @@ public static class JobFunctions
 /// <summary>A method marked with <see cref="JobFunctionAttribute"/>: the payload fills its parameters.</summary>
 internal sealed class MethodJobFunction : JobFunction
 {
-    private readonly Type _type;
-    private readonly MethodInfo _method;
     private readonly JobCatalogParameter[] _parameters;
     private readonly JobCatalogParameter[] _userParameters;
 
     public MethodJobFunction(string name, Type type, MethodInfo method)
         : base(name)
     {
-        _type = type;
-        _method = method;
+        Type = type;
+        Method = method;
         _parameters = [.. new JobCatalogEntry(type, method, null).Parameters];
         _userParameters = [.. _parameters.Where(static x => !x.Injected)];
     }
+
+    /// <summary>The class whose method runs.</summary>
+    public Type Type { get; }
+
+    /// <summary>The method marked with <see cref="JobFunctionAttribute"/>.</summary>
+    public MethodInfo Method { get; }
 
     public override Type? PayloadType => _userParameters.Length == 1 ? _userParameters[0].Type : null;
 
@@ -258,7 +308,7 @@ internal sealed class MethodJobFunction : JobFunction
             throw new ArgumentException($"Function '{Name}' takes no payload.", nameof(payload));
         }
 
-        return new Job(_type, _method, args!, queue); // Null arguments are stored as null
+        return new Job(Type, Method, args!, queue); // Null arguments are stored as null
     }
 
     // Several parameters: the payload's properties, by parameter name, without case
@@ -283,7 +333,8 @@ internal sealed class MethodJobFunction : JobFunction
                 throw new ArgumentException($"Function '{Name}' has no parameter '{property.Name}'.", nameof(payload));
             }
 
-            properties[property.Name] = property.Value;
+            // A copy: the document is disposed on return, and an object parameter keeps the element itself
+            properties[property.Name] = property.Value.Clone();
         }
 
         foreach (JobCatalogParameter parameter in _userParameters)

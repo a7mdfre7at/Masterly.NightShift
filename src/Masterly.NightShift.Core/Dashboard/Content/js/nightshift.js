@@ -848,7 +848,7 @@
             this.liveTable = new NightShift.LiveTable(this, config);
             this.activityFeed = new NightShift.ActivityFeed(config);
             this.catalogRunner = document.getElementById('catalogRunner') ? new NightShift.CatalogRunner(document.getElementById('catalogRunner')) : null;
-            this.chainFlows = $('.js-flow').map(function () { return new NightShift.ChainFlow(this); }).get();
+            this.chainFlows = $('.js-flow').map(function () { return NightShift.ChainFlow.create(this); }).get();
             this.operations = new NightShift.Operations();
             this.watchlist = new NightShift.Watchlist(config);
             this.shortcuts = new NightShift.Shortcuts(config);
@@ -2392,9 +2392,13 @@
             this._sizer = element.querySelector('.js-flow-sizer');
             this._stage = element.querySelector('.js-flow-stage');
             this._level = element.querySelector('.js-flow-level');
+            if (!this._viewport || !this._sizer || !this._stage) throw new Error('The chain flowchart is missing its viewport, sizer or stage.');
+
             this._width = parseInt(this._stage.getAttribute('data-width'), 10) || 0;
             this._height = parseInt(this._stage.getAttribute('data-height'), 10) || 0;
             this._zoom = 1;
+            // Until the user zooms, the chart follows the width of the window
+            this._fitted = true;
 
             var self = this;
             $(element).on('click', '.js-flow-zoom', function () {
@@ -2412,12 +2416,30 @@
                 if (e.key === 'Escape' && $(element).hasClass('hf-flow-fullscreen')) self.toggleFullscreen();
             });
 
+            var resizeTimer = null;
+            $(window).on('resize', function () {
+                if (!self._fitted) return;
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () { self.fit(); }, 100);
+            });
+
             this.fit();
         }
+
+        // A chart that can't be built is left as it is drawn, without stopping the rest of the page
+        ChainFlow.create = function (element) {
+            try {
+                return new ChainFlow(element);
+            } catch (e) {
+                if (window.console && console.error) console.error('The chain flowchart could not be set up.', e);
+                return null;
+            }
+        };
 
         ChainFlow.prototype.fit = function () {
             var available = this._viewport.clientWidth - 2;
             this.zoom(this._width > 0 && available > 0 ? Math.min(1, available / this._width) : 1);
+            this._fitted = true;
         };
 
         ChainFlow.prototype.step = function (direction) {
@@ -2434,6 +2456,7 @@
             }
 
             this.zoom(next);
+            this._fitted = false;
         };
 
         ChainFlow.prototype.zoom = function (value) {

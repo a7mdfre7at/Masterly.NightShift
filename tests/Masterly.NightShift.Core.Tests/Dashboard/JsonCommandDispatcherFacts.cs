@@ -44,6 +44,39 @@ public class JsonCommandDispatcherFacts
         Assert.Equal("Chain 'x' hasn't finished.", JsonNode.Parse(context.Response.Text)!["error"]!.GetValue<string>());
     }
 
+    [Fact, StaticLock]
+    public async Task Dispatch_Answers409_AndRecordsIt_WhenAnotherChangeHoldsTheLock()
+    {
+        DashboardContextStub context = AuditedPost(out List<string> audit);
+
+        await new JsonCommandDispatcher((Func<DashboardContext, CommandResult>)(static _ => throw new DistributedLockTimeoutException("lock:chain:c1"))).Dispatch(context);
+
+        Assert.Equal(409, context.Response.StatusCode);
+        Assert.Contains("under way", JsonNode.Parse(context.Response.Text)!["error"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("\"s\":409", Assert.Single(audit), StringComparison.Ordinal);
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatch_Answers422_ForAnOverflow_AndRecordsTheRefusal()
+    {
+        DashboardContextStub context = AuditedPost(out List<string> audit);
+
+        await new JsonCommandDispatcher((Func<DashboardContext, CommandResult>)(static _ => throw new OverflowException("Too large."))).Dispatch(context);
+
+        Assert.Equal(422, context.Response.StatusCode);
+        Assert.Contains("Too large.", Assert.Single(audit), StringComparison.Ordinal);
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatch_RecordsAFailure_AndThrowsIt()
+    {
+        DashboardContextStub context = AuditedPost(out List<string> audit);
+
+        await Assert.ThrowsAsync<IOException>(() => new JsonCommandDispatcher((Func<DashboardContext, CommandResult>)(static _ => throw new IOException("Disk full."))).Dispatch(context));
+
+        Assert.Contains("\"s\":500", Assert.Single(audit), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ChainRetry_Answers422_WhenTheJobIsNotAChainStep()
     {
@@ -111,6 +144,20 @@ public class JsonCommandDispatcherFacts
         Assert.Equal(409, stale.Response.StatusCode);
         Assert.Equal(204, current.Response.StatusCode);
         Assert.Null(_storage.Object.GetSchedulePolicy("p"));
+    }
+
+    private static DashboardContextStub AuditedPost(out List<string> audit)
+    {
+        List<string> entries = [];
+        Mock<IWriteOnlyTransaction> transaction = new();
+        transaction.Setup(x => x.InsertToList(AuditLog.ListKey, It.IsAny<string>())).Callback<string, string>((_, value) => entries.Add(value));
+        Mock<IStorageConnection> connection = new();
+        connection.Setup(x => x.CreateWriteTransaction()).Returns(transaction.Object);
+        Mock<JobStorage> storage = new();
+        storage.Setup(x => x.GetConnection()).Returns(connection.Object);
+
+        audit = entries;
+        return new DashboardContextStub(new DashboardOptions(), new DashboardRequestStub("POST", "/chains/delete/c1"), storage.Object);
     }
 
     private DashboardContextStub Post(string path, string pattern) => Post(path, pattern, out _);

@@ -78,6 +78,12 @@ public sealed partial class JobChain
         branches(group);
 
         if (group.Steps.Count == 0) throw new ArgumentException("A group needs at least one branch.", nameof(branches));
+
+        foreach (ChainStep step in group.Steps)
+        {
+            CheckFanIn(step.Options, nameof(branches));
+        }
+
         return AddLevel(ChainLevelKind.Branches, group.Steps);
     }
 
@@ -120,7 +126,14 @@ public sealed partial class JobChain
     private JobChain AddThen(Job job, JobContinuationOptions options)
     {
         CheckOptions(options, nameof(options));
+        CheckFanIn(options, nameof(options));
         return AddLevel(ChainLevelKind.Then, [new ChainStep(job, ChainLink.Then, options)]);
+    }
+
+    // A step after a level of several steps is a fan-in continuation, which can't wait for every outcome
+    private void CheckFanIn(JobContinuationOptions options, string parameterName)
+    {
+        if (_levels[^1].Steps.Count > 1) JobChains.FanInFor(options, parameterName);
     }
 
     // Consecutive joins wait for the same level: the one before the first of them

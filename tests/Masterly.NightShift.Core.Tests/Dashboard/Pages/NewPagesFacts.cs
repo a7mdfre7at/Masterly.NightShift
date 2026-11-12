@@ -92,7 +92,8 @@ public class NewPagesFacts
     public void ChainDetails_DrawsTheFlowchart_WithItsToolbar_TheChainsFacts_AndItsLogs()
     {
         SetUpChain();
-        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("job-1"))).Returns(["{\"t\":1,\"s\":1,\"l\":1,\"m\":\"Charged the card\"}"]);
+        _renderer.Connection.Setup(x => x.GetListCount(JobConsole.GetConsoleKey("job-1"))).Returns(1);
+        _renderer.Connection.Setup(x => x.GetRangeFromList(JobConsole.GetConsoleKey("job-1"), 0, ChainFlowchart.MaxLogLines - 1)).Returns(["{\"t\":1,\"s\":1,\"l\":1,\"m\":\"Charged the card\"}"]);
 
         string details = _renderer.Render(new ChainDetailsPage("c1"));
 
@@ -223,6 +224,44 @@ public class NewPagesFacts
         Assert.NotNull(DashboardRoutes.Routes.FindDispatcher(path));
     }
 
+    [Fact]
+    public void Chains_ListsAChain_WithoutLoadingTheMethodsOfItsLaterSteps()
+    {
+        SetUpChain();
+        Dictionary<string, string> record = _renderer.Connection.Object.GetAllEntriesFromHash("chain:c1")!;
+        string definition = JobChains.ToDefinition(JobChain.StartWith(() => Run()).Then(() => Later()));
+        record["Definition"] = definition.Replace(nameof(Later), "Removed", StringComparison.Ordinal);
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash("chain:c1")).Returns(record);
+
+        string list = _renderer.Render(new ChainsPage());
+
+        Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
+        Assert.Contains(nameof(Run), list, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Chains_ListsTheChains_NewestFirst_OnAStorageWithoutRanges()
+    {
+        _renderer.Storage.Setup(x => x.HasFeature(JobStorageFeatures.ExtendedApi)).Returns(false);
+        _renderer.Connection.Setup(x => x.GetAllItemsFromSet(JobChains.SetKey)).Returns(["old", "new"]);
+        SetUpRecord("old", DateTime.UtcNow.AddDays(-2));
+        SetUpRecord("new", DateTime.UtcNow.AddMinutes(-1));
+
+        string list = _renderer.Render(new ChainsPage());
+
+        Assert.True(list.IndexOf("/chains/new", StringComparison.Ordinal) < list.IndexOf("/chains/old", StringComparison.Ordinal));
+    }
+
+    private void SetUpRecord(string chainId, DateTime createdAt)
+    {
+        _renderer.Connection.Setup(x => x.GetAllEntriesFromHash($"chain:{chainId}")).Returns(new Dictionary<string, string>
+        {
+            ["Definition"] = JobChains.ToDefinition(JobChain.StartWith(() => Run())),
+            ["Jobs"] = $"{{\"0.0\":\"{chainId}-1\"}}",
+            ["CreatedAt"] = JobHelper.SerializeDateTime(createdAt),
+        });
+    }
+
     private void SetUpChain()
     {
         JobChain chain = JobChain.StartWith(() => Run()).Then(() => Run());
@@ -252,6 +291,11 @@ public class NewPagesFacts
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]
     public static void Run()
+    {
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]
+    public static void Later()
     {
     }
 }

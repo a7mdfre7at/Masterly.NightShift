@@ -33,9 +33,15 @@ public sealed partial class JobChain
 
     /// <summary>Adds a step after the level before it: a continuation of a single step, or of every branch of a group.</summary>
     /// <param name="methodCall">The method call of the step.</param>
-    /// <param name="options">Which outcomes of the level before start the step: by default, when it succeeded.</param>
+    /// <param name="options">
+    /// Which outcomes of the level before start the step: by default, when it succeeded. After a level of several
+    /// steps, <c>OnlyOnFailedState</c> starts it once one of them failed for good (with <c>OnlyOnDeletedState</c>,
+    /// also once one was deleted), failure with success or <c>OnAnyFinishedState</c> once every one finished
+    /// whatever the outcome, and the other options once every one finished in a state they accept.
+    /// </param>
     /// <param name="queue">The queue of the step, or <c>null</c> for the one its method's attributes give. Needs a storage that keeps a job's queue.</param>
     /// <returns>The same chain, for chaining.</returns>
+    /// <exception cref="ArgumentException">The level before has several steps and <paramref name="options"/> includes <c>OnlyOnProcessingState</c>.</exception>
     public JobChain Then([NotNull, InstantHandle] Expression<Action> methodCall, JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState, [CanBeNull] string? queue = null)
     {
         return AddThen(Job.FromExpression(methodCall, queue), options);
@@ -199,7 +205,11 @@ public sealed partial class JobChainBranches
 {
     /// <summary>Adds a branch, which continues the level before the group.</summary>
     /// <param name="methodCall">The method call of the step.</param>
-    /// <param name="options">Which outcomes of the level before start the step: by default, when it succeeded.</param>
+    /// <param name="options">
+    /// Which outcomes of the level before start the step: by default, when it succeeded. After a level of several
+    /// steps, the options work as for <see cref="JobChain.Then(Expression{Action}, JobContinuationOptions, string)"/>,
+    /// and <c>OnlyOnProcessingState</c> makes <see cref="JobChain.ThenMany"/> throw an <see cref="ArgumentException"/>.
+    /// </param>
     /// <param name="queue">The queue of the step, or <c>null</c> for the one its method's attributes give. Needs a storage that keeps a job's queue.</param>
     /// <returns>The same group, for chaining.</returns>
     public JobChainBranches Branch([NotNull, InstantHandle] Expression<Action> methodCall, JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState, [CanBeNull] string? queue = null)
