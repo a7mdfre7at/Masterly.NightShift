@@ -1,8 +1,12 @@
+extern alias ReferencedDapper;
+
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
+using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
 
@@ -266,7 +270,15 @@ public class JobChainFacts
             using IStorageConnection reader = storage.GetConnection();
             Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", reader.GetStateData(first).Reason);
             Assert.DoesNotContain(chainId, reader.GetAllItemsFromSet(JobChains.SetKey));
-            Assert.InRange(((JobStorageConnection)reader).GetHashTtl(JobChains.GetKey(chainId)), TimeSpan.Zero, TimeSpan.FromDays(1));
+
+            // What the client started of the record is kept as long as a record would be (set from this process's
+            // clock, read against SQL Server's), and neither job is marked as a step that was recorded
+            Assert.InRange(
+                ((JobStorageConnection)reader).GetHashTtl(JobChains.GetKey(chainId)),
+                TimeSpan.FromDays(29.9),
+                JobChain.RecordRetention + TimeSpan.FromSeconds(5));
+            Assert.Null(reader.GetJobParameter(first, JobChains.ChainRecordedParameter));
+            Assert.Null(reader.GetJobParameter(second, JobChains.ChainRecordedParameter));
             Assert.Empty(Log);
         }
         finally
@@ -648,6 +660,293 @@ public class JobChainFacts
         Assert.Contains(chain!.ChainId, listed);
     }
 
+    [Fact, CleanDatabase]
+    public void Chain_ScheduledFarAhead_WhoseCreationStoppedHalfway_IsDeleted_WhenItsFirstStepComesDue()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            Assert.Throws<OutOfMemoryException>(
+                () => JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Schedule(client, TimeSpan.FromDays(45)));
+
+            string first = hooks.Created.Single(static x => x.Name == "a").Id;
+            string chainId = Parameter(storage, first, JobChains.ChainIdParameter).Trim('"');
+
+            // What the client started of the record is kept until long after the first step is due, so the step
+            // finds it then: 45 days and the retention, set from this process's clock and read against SQL Server's
+            Assert.InRange(RecordTimeToLive(storage, chainId), TimeSpan.FromDays(74.9), TimeSpan.FromDays(45) + JobChain.RecordRetention + TimeSpan.FromSeconds(5));
+            Assert.Null(Parameter(storage, first, JobChains.ChainRecordedParameter));
+
+            // The step comes due long after the client's lease lapsed: the record lists no step
+            LapseLease(storage, chainId);
+            client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName);
+
+            using IStorageConnection connection = storage.GetConnection();
+            StateData state = connection.GetStateData(first);
+            Assert.Equal(DeletedState.StateName, state.Name);
+            Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", state.Reason);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public void Job_OfAChainThatWasNeverRecorded_DoesNotRun_ForBeingOlderThanARecordIsKept()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            Assert.Throws<OutOfMemoryException>(
+                () => JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Schedule(client, TimeSpan.FromDays(45)));
+
+            string first = hooks.Created.Single(static x => x.Name == "a").Id;
+            string second = hooks.Created.Single(static x => x.Name == "b").Id;
+            string chainId = Parameter(storage, first, JobChains.ChainIdParameter).Trim('"');
+
+            // What was started of the record is gone, and the jobs are older than a record is kept: as old as the
+            // steps of a chain whose record expired, but they were never listed in one
+            RemoveRecord(storage, chainId);
+            Backdate(46, first, second);
+
+            client.ChangeState(first, new EnqueuedState(), ScheduledState.StateName);
+
+            using IStorageConnection connection = storage.GetConnection();
+            StateData state = connection.GetStateData(first);
+            Assert.Equal(DeletedState.StateName, state.Name);
+            Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", state.Reason);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Chain_ThatWasRecorded_StillRuns_OnceItsRecordExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Schedule(client, TimeSpan.FromDays(45));
+
+        // Every step is marked once the chain is recorded (right after the record here: this storage can't
+        // write a job parameter in a transaction)
+        Assert.Equal("true", Parameter(storage, chain!.RootId, JobChains.ChainRecordedParameter));
+        Assert.Equal("true", Parameter(storage, chain.Steps["1.0"], JobChains.ChainRecordedParameter));
+
+        // Long after: the record expired, and the steps are still to run
+        RemoveRecord(storage, chain.ChainId);
+        Backdate(46, chain.RootId, chain.Steps["1.0"]);
+        client.ChangeState(chain.RootId, new EnqueuedState(), ScheduledState.StateName);
+
+        using (CreateServer(storage))
+        {
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(chain.RootId, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(chain.Steps["1.0"], Timeout, TestContext.Current.CancellationToken)).Name);
+        }
+
+        Assert.Equal(["a", "b"], Log);
+    }
+
+    [Fact, CleanDatabase]
+    public void Chain_WhoseClientStalled_IsNotReturnedAsCreated_WhenAServerDeletedItsFirstStepMeanwhile()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        ChainHooks hooks = new() { PauseOnCreating = "c" };
+        hooks.WhilePaused = () =>
+        {
+            // The client stalls for longer than its lease on the chain lasts (rewritten as lapsed: the clock of
+            // the database can't be moved), and a server takes the chain for abandoned
+            string first = hooks.Created.Single(static x => x.Name == "a").Id;
+            LapseLease(storage, Parameter(storage, first, JobChains.ChainIdParameter).Trim('"'));
+            WaitForState(storage, first, DeletedState.StateName);
+        };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            using (CreateServer(storage))
+            {
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                    () => JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(new BackgroundJobClient(storage)));
+
+                Assert.Contains("wasn't created", exception.Message, StringComparison.Ordinal);
+            }
+
+            using IStorageConnection connection = storage.GetConnection();
+            Assert.All(hooks.Created, step => Assert.Equal(DeletedState.StateName, connection.GetStateData(step.Id).Name));
+            Assert.Empty(connection.GetAllItemsFromSet(JobChains.SetKey));
+            Assert.Empty(Log);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public void Chain_WhoseStepsMethodsWereRenamedOrRemoved_CanStillBeRead_AndDeleted()
+    {
+        SqlServerStorage storage = CreateStorage();
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c"))
+            .Schedule(new BackgroundJobClient(storage), TimeSpan.FromHours(1));
+        ForgetTheMethods(storage, chain!.ChainId);
+
+        // Read: the steps and their states, without their method calls
+        JobChainInfo info = storage.GetChain(chain.ChainId);
+        Assert.NotNull(info);
+        Assert.False(info.IsSettled);
+        Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+        Assert.All(info.Steps, static step => Assert.Null(step.Job));
+
+        Assert.Equal(3, storage.DeleteChain(chain.ChainId));
+        Assert.Null(storage.GetChain(chain.ChainId));
+
+        using IStorageConnection connection = storage.GetConnection();
+        Assert.All(chain.Steps.Values, id => Assert.Equal(DeletedState.StateName, connection.GetStateData(id).Name));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RecurringChain_GoesOn_AfterADeployRenamedOrRemovedAMethodOfThePreviousChain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        RecurringJobManager manager = new(storage);
+        manager.AddOrUpdateChain("etl", JobChain.StartWith(() => Record("extract")).Then(() => Record("load")), "0 0 1 1 *", skipWhileRunning: true);
+
+        using (CreateServer(storage))
+        {
+            string first = manager.TriggerJob("etl");
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(first, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.True(storage.TryGetResult(first, out string previous));
+            await WaitUntilSettledAsync(storage, previous);
+
+            // The record of the previous chain now names a method that can't be loaded
+            ForgetTheMethods(storage, previous);
+
+            string second = manager.TriggerJob("etl");
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(second, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.True(storage.TryGetResult(second, out string next));
+            Assert.NotEqual(previous, next);
+            await WaitUntilSettledAsync(storage, next);
+        }
+
+        Assert.Equal(["extract", "load", "extract", "load"], Log);
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RecurringChain_RunAgainAfterItsChainWasRecorded_DoesNotCreateASecondChain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        RecurringJobManager manager = new(storage);
+        manager.AddOrUpdateChain("etl", JobChain.StartWith(() => Record("extract")).Then(() => Record("load")), "0 0 1 1 *");
+
+        using (CreateServer(storage))
+        {
+            string occurrence = manager.TriggerJob("etl");
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(occurrence, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.True(storage.TryGetResult(occurrence, out string chainId));
+            await WaitUntilSettledAsync(storage, chainId);
+
+            // The job that creates the chain runs again, as after a process that stopped before the job finished
+            Assert.True(new BackgroundJobClient(storage).ChangeState(occurrence, new EnqueuedState(), SucceededState.StateName));
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (storage.GetMonitoringApi().JobDetails(occurrence).History.Count(static x => x.StateName == SucceededState.StateName) < 2)
+            {
+                Assert.True(stopwatch.Elapsed < Timeout, "The job that creates the chain didn't run again.");
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
+
+            Assert.True(storage.TryGetResult(occurrence, out string again));
+            Assert.Equal(chainId, again);
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+        }
+
+        using IStorageConnection connection = storage.GetConnection();
+        Assert.Single(connection.GetAllItemsFromSet(JobChains.SetKey));
+        Assert.Equal(["extract", "load"], Log);
+    }
+
+    private static string Parameter(SqlServerStorage storage, string jobId, string name)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.GetJobParameter(jobId, name);
+    }
+
+    /// <summary>Removes the record of a chain and its entry in the list, as its expiry does in time.</summary>
+    private static void RemoveRecord(SqlServerStorage storage, string chainId)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.RemoveHash(JobChains.GetKey(chainId));
+        transaction.RemoveFromSet(JobChains.SetKey, chainId);
+        transaction.Commit();
+    }
+
+    /// <summary>Makes jobs as old as if they had been created that many days earlier.</summary>
+    private static void Backdate(int days, params string[] jobIds)
+    {
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        foreach (string jobId in jobIds)
+        {
+            sql.Execute(
+                $"update [{Constants.DefaultSchema}].Job set CreatedAt = dateadd(day, @days, CreatedAt) where Id = @id",
+                new { days = -days, id = long.Parse(jobId) });
+        }
+    }
+
+    /// <summary>
+    /// What a deploy does that renames or removes the method of the steps: the stored definition of the chain
+    /// names a method that can't be loaded.
+    /// </summary>
+    private static void ForgetTheMethods(SqlServerStorage storage, string chainId)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        string definition = connection.GetAllEntriesFromHash(JobChains.GetKey(chainId))["Definition"];
+        string forgotten = definition.Replace("Record", "Gone", StringComparison.Ordinal);
+        Assert.NotEqual(definition, forgotten);
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(JobChains.GetKey(chainId), new Dictionary<string, string> { ["Definition"] = forgotten });
+        transaction.Commit();
+    }
+
+    /// <summary>Waits, on the calling thread, until a job is in a state.</summary>
+    private static void WaitForState(SqlServerStorage storage, string jobId, string stateName)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (true)
+        {
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                if (connection.GetStateData(jobId)?.Name == stateName)
+                {
+                    return;
+                }
+            }
+
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Job {jobId} didn't reach the {stateName} state.");
+            }
+
+            Thread.Sleep(100);
+        }
+    }
+
     private static TimeSpan RecordTimeToLive(SqlServerStorage storage, string chainId)
     {
         using IStorageConnection connection = storage.GetConnection();
@@ -706,6 +1005,8 @@ public class JobChainFacts
         private int _failedStarts;
 
         public string CrashOnCreating { get; set; }
+        public string PauseOnCreating { get; set; }
+        public Action WhilePaused { get; set; }
         public string FailStartOf { get; set; }
         public int FailedStarts => Volatile.Read(ref _failedStarts);
         public ConcurrentQueue<(string Name, string Id)> Created { get; } = new();
@@ -716,11 +1017,16 @@ public class JobChainFacts
             {
                 throw new OutOfMemoryException("The process stops here.");
             }
+
+            if (PauseOnCreating != null && context.Job.Type == typeof(JobChainFacts) && (string)context.Job.Args[0] == PauseOnCreating)
+            {
+                WhilePaused?.Invoke();
+            }
         }
 
         public void OnCreated(CreatedContext context)
         {
-            if (CrashOnCreating != null && context.Job.Type == typeof(JobChainFacts) && context.BackgroundJob != null)
+            if ((CrashOnCreating != null || PauseOnCreating != null) && context.Job.Type == typeof(JobChainFacts) && context.BackgroundJob != null)
             {
                 Created.Enqueue(((string)context.Job.Args[0], context.BackgroundJob.Id));
             }
