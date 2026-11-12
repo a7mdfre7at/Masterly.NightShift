@@ -16,13 +16,15 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return _locks.Acquire(resource, () => LeaseLock.Acquire(this, resource, timeout, storage.Options.DistributedLockLifetime));
+        string stored = EfLimits.LockResource(resource);
+        return _locks.Acquire(stored, () => LeaseLock.Acquire(this, stored, timeout, storage.Options.DistributedLockLifetime));
     }
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
         ArgumentNullException.ThrowIfNull(job);
         ArgumentNullException.ThrowIfNull(parameters);
+        foreach (string name in parameters.Keys) EfLimits.EnsureJobParameterNameFits(name);
 
         StoredJob stored = StoredJob.Create(0, job, parameters, createdAt, StorageValues.ExpireAt(createdAt, expireIn));
         JobRow row = new()
@@ -50,7 +52,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             cancellationToken.ThrowIfCancellationRequested();
             Task enqueued = storage.Enqueued;
 
-            if (TryFetch(queues) is { } fetched) return fetched;
+            if (TryFetch(queues, out bool contended) is { } fetched) return fetched;
+
+            // Entries were there, but other workers claimed every one first: more may be waiting behind them
+            if (contended) continue;
 
             try
             {
@@ -109,6 +114,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         ArgumentNullException.ThrowIfNull(serverId);
         ArgumentNullException.ThrowIfNull(context);
+        EfLimits.EnsureServerIdFits(serverId);
 
         string data = StorageValues.SerializeServer(context);
         storage.InTransaction(db =>
@@ -194,15 +200,16 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
+        // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
+        if (endingAt < start) return [];
 
         return Read(context => context.Set<SetRow>()
             .Where(x => x.Key == key)
             .OrderBy(static x => x.Score)
             .ThenBy(static x => x.Value)
             .Skip(start)
-            .Take(endingAt - start + 1)
+            .Take((int)Math.Min((long)endingAt - start + 1, int.MaxValue))
             .Select(static x => x.Value)
             .ToList());
     }
@@ -261,14 +268,15 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
+        // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
+        if (endingAt < start) return [];
 
         return Read(context => context.Set<ListRow>()
             .Where(x => x.Key == key)
             .OrderByDescending(static x => x.Id)
             .Skip(start)
-            .Take(endingAt - start + 1)
+            .Take((int)Math.Min((long)endingAt - start + 1, int.MaxValue))
             .Select(static x => x.Value)
             .ToList());
     }
@@ -291,16 +299,27 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         using DbContext context = storage.CreateContext();
         context.Set<LockRow>().Where(x => x.Resource == resource && x.ExpireAt < now).ExecuteDelete();
 
-        try
+        // Providers report a duplicate key with exceptions of their own: the lease is held when its row is there
+        // after the insert failed. A row released in between is taken again once; other failures surface.
+        for (int attempt = 1; ; attempt++)
         {
-            context.Add(new LockRow { Resource = resource, Owner = owner, ExpireAt = expireAt });
-            context.SaveChanges();
-            return true;
-        }
-        catch (DbUpdateException)
-        {
-            // Someone holds a lease that hasn't run out: the insert hit the same key
-            return false;
+            try
+            {
+                context.Add(new LockRow { Resource = resource, Owner = owner, ExpireAt = expireAt });
+                context.SaveChanges();
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                context.ChangeTracker.Clear();
+                if (context.Set<LockRow>().Any(x => x.Resource == resource)) return false;
+
+                if (attempt == 2)
+                {
+                    LogProvider.GetLogger(typeof(EfConnection)).ErrorException($"Couldn't take the lock on '{resource}'.", ex);
+                    throw;
+                }
+            }
         }
     }
 
@@ -322,15 +341,20 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         }
     }
 
-    private EfFetchedJob? TryFetch(string[] queues)
+    /// <summary>
+    /// Claims the oldest visible entry of the first queue that has one. <paramref name="contended"/> tells that
+    /// nothing was claimed only because other workers claimed the entries seen first.
+    /// </summary>
+    private EfFetchedJob? TryFetch(string[] queues, out bool contended)
     {
         DateTime now = JobClock.UtcNow;
         DateTime staleBefore = now - storage.Options.InvisibilityTimeout;
         using DbContext context = storage.CreateContext();
+        contended = false;
 
         foreach (string queue in queues)
         {
-            // Claims the oldest visible entry; when another worker claimed it first, tries the next one
+            // When another worker claimed the entry first, tries the next one
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 var candidate = context.Set<JobQueueRow>()
@@ -346,6 +370,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
                     .ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now).SetProperty(x => x.FetchToken, token));
 
                 if (claimed == 1) return new EfFetchedJob(storage, candidate.Id, candidate.JobId, queue, token);
+                contended = true;
             }
         }
 
@@ -389,35 +414,40 @@ internal static class EfRows
         return job;
     }
 
-    /// <summary>The values of counters: their increments not merged yet, plus their merged values.</summary>
+    /// <summary>
+    /// The values of counters: their increments not merged yet, plus their merged values. Both tables are read by
+    /// one statement, so an aggregator that commits a merge meanwhile isn't seen half done (counted twice or not
+    /// at all) where the database reads one statement from one snapshot.
+    /// </summary>
     public static Dictionary<string, long> ReadCounters(DbContext context, IReadOnlyCollection<string> keys)
     {
         string[] names = [.. keys];
-        Dictionary<string, long> result = context.Set<CounterRow>()
+        if (names.Length == 0) return new Dictionary<string, long>(StringComparer.Ordinal);
+
+        return context.Set<CounterRow>()
             .Where(x => names.Contains(x.Key))
+            .Select(static x => new { x.Key, x.Value })
+            .Concat(context.Set<AggregatedCounterRow>().Where(x => names.Contains(x.Key)).Select(static x => new { x.Key, x.Value }))
             .GroupBy(static x => x.Key)
             .Select(static x => new { x.Key, Value = x.Sum(static y => y.Value) })
             .ToDictionary(static x => x.Key, static x => x.Value, StringComparer.Ordinal);
-
-        foreach (AggregatedCounterRow row in context.Set<AggregatedCounterRow>().AsNoTracking().Where(x => names.Contains(x.Key)))
-        {
-            result[row.Key] = result.GetValueOrDefault(row.Key) + row.Value;
-        }
-
-        return result;
     }
 }
 
 internal sealed class EfTransaction(EntityFrameworkCoreStorage storage, EfConnection connection) : RecordingTransaction
 {
     private const int Attempts = 5;
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(EfTransaction));
 
     /// <summary>
     /// Applies operations in one database transaction. Two transactions that add the same row at once conflict;
-    /// the loser starts again from scratch, so it updates the row the winner added.
+    /// the loser starts again from scratch after a short random pause, so it updates the row the winner added.
     /// </summary>
+    /// <exception cref="ArgumentException">A key, value or name doesn't fit its column; nothing was written.</exception>
     public static void Apply(EntityFrameworkCoreStorage storage, IReadOnlyList<StorageOperation> operations)
     {
+        EfLimits.EnsureFits(operations);
+
         for (int attempt = 1; ; attempt++)
         {
             try
@@ -429,9 +459,12 @@ internal sealed class EfTransaction(EntityFrameworkCoreStorage storage, EfConnec
                 });
                 return;
             }
-            catch (DbUpdateException) when (attempt < Attempts)
+            catch (DbUpdateException ex) when (attempt < Attempts)
             {
-                // Another transaction added the same row first: the next attempt finds and updates it
+                // Another transaction added the same row first: the next attempt finds and updates it. The pause
+                // grows and differs between the losers, so they don't collide again at once.
+                Logger.DebugException($"A transaction conflicted with another one (attempt {attempt} of {Attempts}); trying again.", ex);
+                Thread.Sleep(Random.Shared.Next(5, 20) * attempt);
             }
         }
     }
@@ -610,10 +643,19 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
             db.Set<JobRow>().Where(x => ids.Contains(x.Id)).ExecuteDelete();
         }
 
-        db.Set<SetRow>().Where(x => x.ExpireAt < now).ExecuteDelete();
-        db.Set<ListRow>().Where(x => x.ExpireAt < now).ExecuteDelete();
-        db.Set<HashRow>().Where(x => x.ExpireAt < now).ExecuteDelete();
-        db.Set<AggregatedCounterRow>().Where(x => x.ExpireAt < now).ExecuteDelete();
+        RemoveInBatches(db.Set<SetRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
+        RemoveInBatches(db.Set<ListRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
+        RemoveInBatches(db.Set<HashRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
+        RemoveInBatches(db.Set<AggregatedCounterRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.ExpireAt), cancellationToken);
+    }
+
+    // A batch per statement, so a large backlog never holds its locks, or grows the log, in one statement
+    private static void RemoveInBatches<TRow>(IQueryable<TRow> expired, CancellationToken cancellationToken)
+        where TRow : class
+    {
+        while (!cancellationToken.IsCancellationRequested && expired.Take(BatchSize).ExecuteDelete() == BatchSize)
+        {
+        }
     }
 }
 
@@ -671,9 +713,16 @@ internal sealed class EfCountersAggregator(EntityFrameworkCoreStorage storage) :
                 throw new InvalidOperationException("Counter increments were merged by another process at the same time.");
             }
 
+            // Every merged value of the batch in one query. A key the database matches under another case (a
+            // case-insensitive collation) isn't in the dictionary: Find asks the database for it.
+            string[] keys = [.. increments.Select(static x => x.Key).Distinct(StringComparer.Ordinal)];
+            Dictionary<string, AggregatedCounterRow> existing = context.Set<AggregatedCounterRow>()
+                .Where(x => keys.Contains(x.Key))
+                .ToDictionary(static x => x.Key, StringComparer.Ordinal);
+
             foreach (IGrouping<string, CounterRow> counter in increments.GroupBy(static x => x.Key, StringComparer.Ordinal))
             {
-                AggregatedCounterRow? row = context.Set<AggregatedCounterRow>().Find(counter.Key);
+                AggregatedCounterRow? row = existing.GetValueOrDefault(counter.Key) ?? context.Set<AggregatedCounterRow>().Find(counter.Key);
                 if (row == null) context.Add(row = new AggregatedCounterRow { Key = counter.Key });
                 row.Value += counter.Sum(static x => x.Value);
                 DateTime? expireAt = counter.Max(static x => x.ExpireAt);

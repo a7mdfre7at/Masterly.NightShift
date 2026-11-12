@@ -17,22 +17,11 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         switch (operation)
         {
             case ExpireJobOperation expire:
-                if (context.Set<JobRow>().Find(expire.JobId) is { } expiring) expiring.ExpireAt = expire.ExpireAt;
+                ExpireJob(expire);
                 break;
 
             case AddJobStateOperation add:
-                if (context.Set<JobRow>().Find(add.JobId) is { } job)
-                {
-                    context.Add(new StateRow { JobId = job.Id, Name = add.State.Name, Reason = Truncate(add.State.Reason), CreatedAt = add.State.CreatedAt, Data = add.State.Data });
-                    if (add.SetCurrent)
-                    {
-                        job.StateName = add.State.Name;
-                        job.StateReason = Truncate(add.State.Reason);
-                        job.StateData = add.State.Data;
-                        job.StateChangedAt = add.State.CreatedAt;
-                    }
-                }
-
+                AddJobState(add);
                 break;
 
             case AddToQueueOperation queue:
@@ -47,7 +36,7 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
                 break;
 
             case SetJobParameterOperation parameter:
-                if (context.Set<JobRow>().Find(parameter.JobId) == null) break;
+                if (!JobExists(parameter.JobId)) break;
                 JobParameterRow? existing = Revive(context.Set<JobParameterRow>().Find(parameter.JobId, parameter.Name));
                 if (existing != null) existing.Value = parameter.Value;
                 else context.Add(new JobParameterRow { JobId = parameter.JobId, Name = parameter.Name, Value = parameter.Value });
@@ -117,6 +106,64 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         if (immediate) context.SaveChanges();
     }
 
+    private void ExpireJob(ExpireJobOperation expire)
+    {
+        DateTime? expireAt = expire.ExpireAt;
+
+        // Applied at once, the job row isn't loaded (it carries the job's arguments and state data): only the
+        // column changes. Jobs are never added through this writer, so no tracked change of the row is pending.
+        if (immediate && context.Set<JobRow>().Local.FindEntry(expire.JobId) == null)
+        {
+            context.Set<JobRow>().Where(x => x.Id == expire.JobId).ExecuteUpdate(s => s.SetProperty(x => x.ExpireAt, expireAt));
+        }
+        else if (context.Set<JobRow>().Find(expire.JobId) is { } expiring)
+        {
+            expiring.ExpireAt = expireAt;
+        }
+    }
+
+    private void AddJobState(AddJobStateOperation add)
+    {
+        string? reason = Truncate(add.State.Reason);
+
+        if (immediate && context.Set<JobRow>().Local.FindEntry(add.JobId) == null)
+        {
+            // The current state is written by one statement, without loading the row; the history row is saved
+            // with the transaction's other rows, and only for a job that exists
+            bool exists = add.SetCurrent
+                ? context.Set<JobRow>().Where(x => x.Id == add.JobId).ExecuteUpdate(s => s
+                    .SetProperty(x => x.StateName, add.State.Name)
+                    .SetProperty(x => x.StateReason, reason)
+                    .SetProperty(x => x.StateData, add.State.Data)
+                    .SetProperty(x => x.StateChangedAt, add.State.CreatedAt)) > 0
+                : context.Set<JobRow>().Any(x => x.Id == add.JobId);
+
+            if (exists) AddStateRow(add, reason);
+            return;
+        }
+
+        if (context.Set<JobRow>().Find(add.JobId) is not { } job) return;
+
+        AddStateRow(add, reason);
+        if (add.SetCurrent)
+        {
+            job.StateName = add.State.Name;
+            job.StateReason = reason;
+            job.StateData = add.State.Data;
+            job.StateChangedAt = add.State.CreatedAt;
+        }
+    }
+
+    private void AddStateRow(AddJobStateOperation add, string? reason)
+    {
+        context.Add(new StateRow { JobId = add.JobId, Name = add.State.Name, Reason = reason, CreatedAt = add.State.CreatedAt, Data = add.State.Data });
+    }
+
+    private bool JobExists(long jobId)
+    {
+        return context.Set<JobRow>().Local.FindEntry(jobId) != null || context.Set<JobRow>().Any(x => x.Id == jobId);
+    }
+
     private void AddToSet(string key, string value, double score, bool keepScore)
     {
         SetRow? row = Revive(context.Set<SetRow>().Find(key, value));
@@ -151,28 +198,78 @@ internal sealed class EfOperationWriter(DbContext context, bool immediate)
         foreach (TRow row in context.Set<TRow>().Where(predicate).ToList()) context.Remove(row);
     }
 
+    /// <summary>Keeps the items from position <c>KeepStartingFrom</c> to <c>KeepEndingAt</c>, newest first, and removes the others.</summary>
     private void TrimList(TrimListOperation trim)
     {
-        List<ListRow> newestFirst;
         if (immediate)
         {
             Flush();
-            newestFirst = [.. context.Set<ListRow>().Where(x => x.Key == trim.Key).OrderByDescending(static x => x.Id)];
-        }
-        else
-        {
-            // Rows added in this context have no id yet: they are newer than every saved row, the last added first
-            List<ListRow> added = [.. context.ChangeTracker.Entries<ListRow>()
-                .Where(x => x.State == EntityState.Added && x.Entity.Key == trim.Key)
-                .Select(static x => x.Entity)
-                .Reverse()];
-            newestFirst = [.. added, .. context.Set<ListRow>().Where(x => x.Key == trim.Key).OrderByDescending(static x => x.Id)];
+            TrimSavedList(trim);
+            return;
         }
 
-        for (int i = 0; i < newestFirst.Count; i++)
+        // Rows added in this context have no id yet: they are newer than every saved row, the last added first.
+        // Saved rows are only identified (by id), never loaded, and removed through a stand-in of their key.
+        List<ListRow> added = [.. context.ChangeTracker.Entries<ListRow>()
+            .Where(x => x.State == EntityState.Added && x.Entity.Key == trim.Key)
+            .Select(static x => x.Entity)
+            .Reverse()];
+        List<long> saved = [.. context.Set<ListRow>()
+            .Where(x => x.Key == trim.Key)
+            .OrderByDescending(static x => x.Id)
+            .Select(static x => x.Id)
+            .ToList()
+            .Where(id => context.Set<ListRow>().Local.FindEntry(id)?.State != EntityState.Deleted)];
+
+        for (int i = 0; i < added.Count + saved.Count; i++)
         {
-            if (i < trim.KeepStartingFrom || i > trim.KeepEndingAt) context.Remove(newestFirst[i]);
+            if (i >= trim.KeepStartingFrom && i <= trim.KeepEndingAt) continue;
+
+            if (i < added.Count)
+            {
+                context.Remove(added[i]);
+            }
+            else
+            {
+                long id = saved[i - added.Count];
+                ListRow row = context.Set<ListRow>().Local.FindEntry(id)?.Entity ?? context.Attach(new ListRow { Id = id, Key = trim.Key }).Entity;
+                context.Remove(row);
+            }
         }
+    }
+
+    /// <summary>
+    /// Trims a saved list with at most three statements: the kept items are those between two ids, so the
+    /// others are deleted by comparing ids, whatever the length of the list.
+    /// </summary>
+    private void TrimSavedList(TrimListOperation trim)
+    {
+        IQueryable<ListRow> list = context.Set<ListRow>().Where(x => x.Key == trim.Key);
+        int keepFrom = Math.Max(0, trim.KeepStartingFrom);
+
+        // The ids are read before anything is deleted. Items another transaction inserts meanwhile are newer than
+        // the newest one read, so they are never deleted.
+        long? newest = IdAt(list, 0);
+        if (newest == null) return;
+
+        // Nothing is kept from a range that is empty or starts past the end; everything from the newest kept item
+        // on is kept when the range ends past the end
+        long? newestKept = trim.KeepEndingAt < keepFrom ? null : keepFrom == 0 ? newest : IdAt(list, keepFrom);
+        if (newestKept == null)
+        {
+            list.Where(x => x.Id <= newest).ExecuteDelete();
+            return;
+        }
+
+        long? oldestKept = IdAt(list, trim.KeepEndingAt);
+        if (newestKept != newest) list.Where(x => x.Id > newestKept && x.Id <= newest).ExecuteDelete();
+        if (oldestKept != null) list.Where(x => x.Id < oldestKept).ExecuteDelete();
+    }
+
+    // The id of the item at a position, newest first
+    private static long? IdAt(IQueryable<ListRow> list, int position)
+    {
+        return list.OrderByDescending(static x => x.Id).Select(static x => (long?)x.Id).Skip(position).FirstOrDefault();
     }
 
     private void ExpireKey(ExpireKeyOperation expire)

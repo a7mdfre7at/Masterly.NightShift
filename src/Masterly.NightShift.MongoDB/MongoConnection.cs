@@ -93,6 +93,24 @@ internal static class MongoDocuments
 
         return new BsonDocumentStagePipelineDefinition<BsonDocument, BsonDocument>([stage]);
     }
+
+    /// <summary>An update that sets <paramref name="fields"/>, whose values are literals or expressions such as <see cref="ServerTime"/>.</summary>
+    public static UpdateDefinition<BsonDocument> SetFields(BsonDocument fields)
+    {
+        return new PipelineUpdateDefinition<BsonDocument>(new BsonDocumentStagePipelineDefinition<BsonDocument, BsonDocument>([new BsonDocument("$set", fields)]));
+    }
+
+    /// <summary>The server's clock, plus <paramref name="offset"/>, in an update pipeline or an <c>$expr</c>.</summary>
+    public static BsonValue ServerTime(TimeSpan offset)
+    {
+        return offset == TimeSpan.Zero ? "$$NOW" : new BsonDocument("$add", new BsonArray { "$$NOW", (long)offset.TotalMilliseconds });
+    }
+
+    /// <summary>Matches documents whose date <paramref name="field"/> is earlier than the server's clock minus <paramref name="age"/>.</summary>
+    public static FilterDefinition<BsonDocument> OlderThan(string field, TimeSpan age)
+    {
+        return new BsonDocument("$expr", new BsonDocument("$lt", new BsonArray { $"${field}", ServerTime(-age) }));
+    }
 }
 
 internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnection, ILeaseStore
@@ -147,23 +165,10 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         {
             cancellationToken.ThrowIfCancellationRequested();
             Task enqueued = storage.Enqueued;
-            DateTime now = JobClock.UtcNow;
-            string token = Guid.NewGuid().ToString("N");
 
             foreach (string queue in queues)
             {
-                BsonDocument? entry = _collections.JobQueue.FindOneAndUpdate(
-                    Filter.And(
-                        Filter.Eq("Queue", queue),
-                        Filter.Or(Filter.Eq("FetchedAt", BsonNull.Value), Filter.Lt("FetchedAt", now - storage.Options.InvisibilityTimeout))),
-                    Update.Set("FetchedAt", now).Set("Token", token),
-                    new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("_id"), ReturnDocument = ReturnDocument.After },
-                    cancellationToken);
-
-                if (entry != null)
-                {
-                    return new MongoFetchedJob(storage, entry["_id"].AsObjectId, entry["JobId"].ToInt64(), queue, token);
-                }
+                if (TryClaim(queue, cancellationToken) is { } fetched) return fetched;
             }
 
             try
@@ -285,14 +290,15 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
+        // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
+        if (endingAt < start) return [];
 
         return Values(_collections.Sets
             .Find(Filter.Eq("Key", key))
             .Sort(Builders<BsonDocument>.Sort.Ascending("Score").Ascending("Value"))
             .Skip(start)
-            .Limit(endingAt - start + 1));
+            .Limit((int)Math.Min((long)endingAt - start + 1, int.MaxValue)));
     }
 
     public override TimeSpan GetSetTtl(string key)
@@ -354,14 +360,15 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
+        // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
+        if (endingAt < start) return [];
 
         return Values(_collections.Lists
             .Find(Filter.Eq("Key", key))
             .Sort(Builders<BsonDocument>.Sort.Descending("_id"))
             .Skip(start)
-            .Limit(endingAt - start + 1));
+            .Limit((int)Math.Min((long)endingAt - start + 1, int.MaxValue)));
     }
 
     public override TimeSpan GetListTtl(string key)
@@ -382,26 +389,41 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         return hello["localTime"].ToUniversalTime();
     }
 
+    // Leases run out by the server's clock: the time to live asked for is added to it, and a lease is taken over
+    // once the server's clock passed it, so holders whose clocks differ never take a live lease from each other.
+    // An upsert can't filter with $expr, so the update itself keeps a live lease unchanged: nothing is modified.
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {
+        BsonDocument free = new("$or", new BsonArray
+        {
+            new BsonDocument("$eq", new BsonArray { new BsonDocument("$type", "$ExpireAt"), "missing" }),
+            new BsonDocument("$lt", new BsonArray { "$ExpireAt", "$$NOW" }),
+        });
+
         try
         {
             UpdateResult result = _collections.Locks.UpdateOne(
-                Filter.And(Filter.Eq("_id", resource), Filter.Lt("ExpireAt", JobClock.UtcNow)),
-                Update.Set("Owner", owner).Set("ExpireAt", expireAt),
+                Filter.Eq("_id", resource),
+                MongoDocuments.SetFields(new BsonDocument
+                {
+                    ["Owner"] = new BsonDocument("$cond", new BsonArray { free, new BsonDocument("$literal", owner), "$Owner" }),
+                    ["ExpireAt"] = new BsonDocument("$cond", new BsonArray { free, MongoDocuments.ServerTime(TimeToLive(expireAt)), "$ExpireAt" }),
+                }),
                 new UpdateOptions { IsUpsert = true });
             return result.ModifiedCount > 0 || result.UpsertedId != null;
         }
         catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
         {
-            // Someone holds a lease that hasn't run out: the upsert tried to insert the same id
+            // Another owner's upsert inserted the same id at the same moment
             return false;
         }
     }
 
     bool ILeaseStore.TryRenew(string resource, string owner, DateTime expireAt)
     {
-        return _collections.Locks.UpdateOne(Filter.And(Filter.Eq("_id", resource), Filter.Eq("Owner", owner)), Update.Set("ExpireAt", expireAt)).MatchedCount > 0;
+        return _collections.Locks.UpdateOne(
+            Filter.And(Filter.Eq("_id", resource), Filter.Eq("Owner", owner)),
+            MongoDocuments.SetFields(new BsonDocument("ExpireAt", MongoDocuments.ServerTime(TimeToLive(expireAt))))).MatchedCount > 0;
     }
 
     void ILeaseStore.Release(string resource, string owner)
@@ -415,6 +437,47 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
             // The lease runs out by itself; another owner takes the lock once it does
             LogProvider.GetLogger(typeof(MongoConnection)).WarnException($"Couldn't release the lock on '{resource}'.", ex);
         }
+    }
+
+    /// <summary>
+    /// Claims the oldest visible entry of a queue, else the entry whose worker stopped keeping it alive longest
+    /// ago. Each claim is one atomic findAndModify, so an entry goes to one worker only. They are two, because
+    /// one query matching both kinds sorted by <c>_id</c> can't walk the (Queue, FetchedAt, _id) index for the
+    /// stale ones; the second runs only when the queue has no visible entry, so it reads the fetched ones only.
+    /// Times are the server's, so workers whose clocks differ agree on what is stale.
+    /// </summary>
+    private MongoFetchedJob? TryClaim(string queue, CancellationToken cancellationToken)
+    {
+        string token = Guid.NewGuid().ToString("N");
+        UpdateDefinition<BsonDocument> claim = MongoDocuments.SetFields(new BsonDocument
+        {
+            ["FetchedAt"] = MongoDocuments.ServerTime(TimeSpan.Zero),
+            ["Token"] = new BsonDocument("$literal", token),
+        });
+
+        BsonDocument? entry = _collections.JobQueue.FindOneAndUpdate(
+            Filter.And(Filter.Eq("Queue", queue), Filter.Eq("FetchedAt", BsonNull.Value)),
+            claim,
+            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("_id") },
+            cancellationToken);
+
+        entry ??= _collections.JobQueue.FindOneAndUpdate(
+            Filter.And(
+                Filter.Eq("Queue", queue),
+                Filter.Type("FetchedAt", BsonType.DateTime),
+                MongoDocuments.OlderThan("FetchedAt", storage.Options.InvisibilityTimeout)),
+            claim,
+            new FindOneAndUpdateOptions<BsonDocument> { Sort = Builders<BsonDocument>.Sort.Ascending("FetchedAt").Ascending("_id") },
+            cancellationToken);
+
+        return entry != null ? new MongoFetchedJob(storage, entry["_id"].AsObjectId, entry["JobId"].ToInt64(), queue, token) : null;
+    }
+
+    // A lease's time to live is what is left until expireAt by the local clock, counted from the server's
+    private static TimeSpan TimeToLive(DateTime expireAt)
+    {
+        TimeSpan timeToLive = expireAt - JobClock.UtcNow;
+        return timeToLive > TimeSpan.Zero ? timeToLive : TimeSpan.Zero;
     }
 
     private StoredJob? ReadJob(long id)
@@ -548,14 +611,7 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
                 break;
 
             case TrimListOperation trim:
-                List<BsonValue> ids = [.. collections.Lists
-                    .Find(session, Filter.Eq("Key", trim.Key))
-                    .Sort(Builders<BsonDocument>.Sort.Descending("_id"))
-                    .Project(Builders<BsonDocument>.Projection.Include("_id"))
-                    .ToList()
-                    .Select(static x => x["_id"])];
-                List<BsonValue> trimmed = [.. ids.Where((_, index) => index < trim.KeepStartingFrom || index > trim.KeepEndingAt)];
-                if (trimmed.Count > 0) collections.Lists.DeleteMany(session, Filter.In("_id", trimmed));
+                TrimList(session, collections.Lists, trim);
                 break;
 
             case SetRangeInHashOperation hash:
@@ -583,6 +639,44 @@ internal sealed class MongoTransaction(MongoStorage storage, MongoConnection con
     }
 
     private static FilterDefinition<BsonDocument> SetItem(string key, string value) => Filter.And(Filter.Eq("Key", key), Filter.Eq("Value", value));
+
+    /// <summary>
+    /// Keeps the items from position <c>KeepStartingFrom</c> to <c>KeepEndingAt</c>, newest (highest
+    /// <c>_id</c>) first. The kept items are those between two ids, read through the (Key, _id) index without
+    /// loading the list, so the others are deleted by comparing ids, whatever the length of the list.
+    /// </summary>
+    private static void TrimList(IClientSessionHandle session, IMongoCollection<BsonDocument> lists, TrimListOperation trim)
+    {
+        FilterDefinition<BsonDocument> list = Filter.Eq("Key", trim.Key);
+        BsonValue? newest = IdAt(session, lists, list, 0);
+        if (newest == null) return;
+
+        // Nothing is kept from a range that is empty or starts past the end; everything from the newest kept item
+        // on is kept when the range ends past the end
+        int keepFrom = Math.Max(0, trim.KeepStartingFrom);
+        BsonValue? newestKept = trim.KeepEndingAt < keepFrom ? null : keepFrom == 0 ? newest : IdAt(session, lists, list, keepFrom);
+        if (newestKept == null)
+        {
+            lists.DeleteMany(session, Filter.And(list, Filter.Lte("_id", newest)));
+            return;
+        }
+
+        BsonValue? oldestKept = IdAt(session, lists, list, trim.KeepEndingAt);
+        if (newestKept != newest) lists.DeleteMany(session, Filter.And(list, Filter.Gt("_id", newestKept), Filter.Lte("_id", newest)));
+        if (oldestKept != null) lists.DeleteMany(session, Filter.And(list, Filter.Lt("_id", oldestKept)));
+    }
+
+    // The id of the item at a position, newest first
+    private static BsonValue? IdAt(IClientSessionHandle session, IMongoCollection<BsonDocument> lists, FilterDefinition<BsonDocument> list, int position)
+    {
+        return lists
+            .Find(session, list)
+            .Sort(Builders<BsonDocument>.Sort.Descending("_id"))
+            .Skip(position)
+            .Limit(1)
+            .Project(Builders<BsonDocument>.Projection.Include("_id"))
+            .FirstOrDefault()?["_id"];
+    }
 }
 
 internal sealed class MongoFetchedJob(MongoStorage storage, ObjectId entryId, long jobId, string queue, string token)
@@ -602,7 +696,10 @@ internal sealed class MongoFetchedJob(MongoStorage storage, ObjectId entryId, lo
         storage.Signal();
     }
 
-    protected override void KeepAlive() => storage.Collections.JobQueue.UpdateOne(Owned, MongoDocuments.Update.Set("FetchedAt", JobClock.UtcNow));
+    protected override void KeepAlive()
+    {
+        storage.Collections.JobQueue.UpdateOne(Owned, MongoDocuments.SetFields(new BsonDocument("FetchedAt", MongoDocuments.ServerTime(TimeSpan.Zero))));
+    }
 }
 
 internal sealed class MongoMonitoringApi(MongoStorage storage) : SharedMonitoringApi
@@ -611,18 +708,25 @@ internal sealed class MongoMonitoringApi(MongoStorage storage) : SharedMonitorin
 
     private MongoCollections Collections => storage.Collections;
 
-    /// <summary>The values of counters: their increments not merged yet, plus their merged values.</summary>
+    /// <summary>
+    /// The values of counters: their increments not merged yet, plus their merged values. Both collections are
+    /// read from one snapshot, so a merge committed between the two reads is never seen half done (counted twice
+    /// or not at all).
+    /// </summary>
     public static Dictionary<string, long> ReadCounters(MongoCollections collections, IReadOnlyCollection<string> keys)
     {
         Dictionary<string, long> result = new(StringComparer.Ordinal);
-        BsonDocument group = new("$group", new BsonDocument { ["_id"] = "$Key", ["Value"] = new BsonDocument("$sum", "$Value") });
+        if (keys.Count == 0) return result;
 
-        foreach (BsonDocument row in collections.Counters.Aggregate().Match(Filter.In("Key", keys)).AppendStage<BsonDocument>(group).ToList())
+        BsonDocument group = new("$group", new BsonDocument { ["_id"] = "$Key", ["Value"] = new BsonDocument("$sum", "$Value") });
+        using IClientSessionHandle snapshot = collections.Client.StartSession(new ClientSessionOptions { Snapshot = true });
+
+        foreach (BsonDocument row in collections.Counters.Aggregate(snapshot).Match(Filter.In("Key", keys)).AppendStage<BsonDocument>(group).ToList())
         {
             result[row["_id"].AsString] = row["Value"].ToInt64();
         }
 
-        foreach (BsonDocument row in collections.AggregatedCounters.Find(Filter.In("_id", keys)).ToList())
+        foreach (BsonDocument row in collections.AggregatedCounters.Find(snapshot, Filter.In("_id", keys)).ToList())
         {
             string key = row["_id"].AsString;
             result[key] = result.GetValueOrDefault(key) + row["Value"].ToInt64();

@@ -125,6 +125,69 @@ public sealed class StagingFacts : IDisposable
     }
 
     [Fact]
+    public void Staging_OnSqlite_InsideTheContextsTransaction_FailsAtOnce()
+    {
+        using ShopContext context = CreateContext();
+        using IDbContextTransaction transaction = context.Database.BeginTransaction();
+        context.Orders.Add(new Order { Name = "Book" });
+        context.SaveChanges();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        BackgroundJobClientException exception = Assert.Throws<BackgroundJobClientException>(() => context.NightShift(_storage).Enqueue(() => ConformanceJobs.Record("blocked")));
+
+        Assert.Contains("BeginTransaction", Assert.IsType<InvalidOperationException>(exception.InnerException).Message, StringComparison.Ordinal);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), "Staging waited for SQLite's busy timeout.");
+    }
+
+    [Fact]
+    public void Staging_OnSqlite_BeforeTheContextsTransaction_CommitsWithIt()
+    {
+        string? id;
+        using (ShopContext context = CreateContext())
+        {
+            id = context.NightShift(_storage).Enqueue(() => ConformanceJobs.Record("before"));
+            using IDbContextTransaction transaction = context.Database.BeginTransaction();
+            context.Orders.Add(new Order { Name = "Book" });
+            context.SaveChanges();
+            transaction.Commit();
+        }
+
+        Assert.Equal(EnqueuedState.StateName, State(id!));
+    }
+
+    [Fact]
+    public void StagedJob_NotSaved_KeepsItsReservedIdForAtLeastADay()
+    {
+        string? id;
+        using (ShopContext context = CreateContext())
+        {
+            id = context.NightShift(_storage).Enqueue(() => ConformanceJobs.Record("unsaved"));
+        }
+
+        Assert.True(_storage.GetMonitoringApi().JobDetails(id!)?.ExpireAt > JobClock.UtcNow.AddHours(23));
+    }
+
+    [Fact]
+    public void SaveChanges_WakesTheWorkers_OnlyWhenItSavesStagedQueueEntries()
+    {
+        using ShopContext context = CreateContext();
+        IBackgroundJobClient client = context.NightShift(_storage);
+
+        Task beforeOrder = _storage.Enqueued;
+        context.Orders.Add(new Order { Name = "Book" });
+        context.SaveChanges();
+        Assert.False(beforeOrder.IsCompleted);
+
+        client.Schedule(() => ConformanceJobs.Record("scheduled"), TimeSpan.FromHours(1));
+        context.SaveChanges();
+        Assert.False(beforeOrder.IsCompleted);
+
+        client.Enqueue(() => ConformanceJobs.Record("enqueued"));
+        context.SaveChanges();
+        Assert.True(beforeOrder.IsCompleted);
+    }
+
+    [Fact]
     public void NightShift_Refuses_AContextWithoutTheStoragesTables()
     {
         using EmptyContext context = new(new DbContextOptionsBuilder<EmptyContext>().UseSqlite(_database.ConnectionString).Options);
