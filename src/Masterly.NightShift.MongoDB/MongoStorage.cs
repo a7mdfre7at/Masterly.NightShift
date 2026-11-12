@@ -39,27 +39,43 @@ public sealed class MongoStorageOptions
 /// cluster, because transactions span several documents; a standalone server is refused. Collections and
 /// their indexes are created when the storage starts, and TTL indexes remove what expires.
 /// </summary>
+/// <remarks>
+/// Fetched jobs and distributed locks time out by the server's clock, so processes whose clocks differ agree on
+/// when a job's worker or a lock's holder is gone. List items are ordered by their ObjectId, which the driver
+/// makes from the second they are inserted, a value per process and a counter: items that different processes
+/// insert within the same second are ordered by process, not by the moment they were inserted.
+/// </remarks>
 public sealed class MongoStorage : JobStorage
 {
+    // MongoDB 5.0
+    private const int MinimumWireVersion = 13;
+
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(MongoFetchedJob));
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    /// <summary>A storage on a new client, from a connection string and a database name.</summary>
+    /// <summary>
+    /// A storage on a new client, from a connection string and a database name. It connects to the server at once:
+    /// it reads the server's version and topology, then creates the indexes.
+    /// </summary>
     /// <param name="connectionString">A MongoDB connection string.</param>
     /// <param name="databaseName">The database that holds the collections.</param>
     /// <param name="options">The options, or <c>null</c> for the defaults.</param>
     /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> or <paramref name="databaseName"/> is <c>null</c>.</exception>
-    /// <exception cref="NotSupportedException">The server is a standalone server, without transactions.</exception>
+    /// <exception cref="NotSupportedException">The server is a standalone server, without transactions, or older than MongoDB 5.0.</exception>
     public MongoStorage([NotNull] string connectionString, [NotNull] string databaseName, [CanBeNull] MongoStorageOptions? options = null)
         : this(new MongoClient(connectionString ?? throw new ArgumentNullException(nameof(connectionString))).GetDatabase(databaseName ?? throw new ArgumentNullException(nameof(databaseName))), options)
     {
     }
 
-    /// <summary>A storage on a database of a client the application owns, for example one registered in its service container.</summary>
+    /// <summary>
+    /// A storage on a database of a client the application owns, for example one registered in its service
+    /// container. It connects to the server at once: it reads the server's version and topology, then creates the
+    /// indexes.
+    /// </summary>
     /// <param name="database">The database that holds the collections.</param>
     /// <param name="options">The options, or <c>null</c> for the defaults.</param>
     /// <exception cref="ArgumentNullException"><paramref name="database"/> is <c>null</c>.</exception>
-    /// <exception cref="NotSupportedException">The server is a standalone server, without transactions.</exception>
+    /// <exception cref="NotSupportedException">The server is a standalone server, without transactions, or older than MongoDB 5.0.</exception>
     public MongoStorage([NotNull] IMongoDatabase database, [CanBeNull] MongoStorageOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(database);
@@ -155,20 +171,31 @@ public sealed class MongoStorage : JobStorage
         Interlocked.Exchange(ref _enqueued, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     }
 
-    /// <summary>Runs <paramref name="write"/> in a transaction, which the driver retries on transient errors.</summary>
+    /// <summary>
+    /// Runs <paramref name="write"/> in a transaction, which the driver retries on transient errors. It reads
+    /// from one snapshot and commits once a majority of the replica set has the writes, whatever the defaults of
+    /// the client or the database are, so a committed write survives a failover.
+    /// </summary>
     internal void InTransaction(Action<IClientSessionHandle> write)
     {
         using IClientSessionHandle session = Database.Client.StartSession();
-        session.WithTransaction((handle, _) =>
-        {
-            write(handle);
-            return true;
-        });
+        session.WithTransaction(
+            (handle, _) =>
+            {
+                write(handle);
+                return true;
+            },
+            new TransactionOptions(readConcern: ReadConcern.Snapshot, writeConcern: WriteConcern.WMajority));
     }
 
-    private static void EnsureTransactions(IMongoDatabase database)
+    /// <summary>
+    /// Refuses a server without what the storage needs: multi-document transactions (a replica set or a sharded
+    /// cluster) and MongoDB 5.0 (wire version 13), for snapshot reads outside transactions.
+    /// </summary>
+    /// <param name="hello">The server's answer to the <c>hello</c> command.</param>
+    /// <exception cref="NotSupportedException">The server is a standalone server, or older than MongoDB 5.0.</exception>
+    internal static void EnsureSupported(BsonDocument hello)
     {
-        BsonDocument hello = database.RunCommand<BsonDocument>(new BsonDocument("hello", 1));
         bool replicaSet = hello.Contains("setName");
         bool sharded = hello.TryGetValue("msg", out BsonValue message) && message == "isdbgrid";
 
@@ -178,6 +205,18 @@ public sealed class MongoStorage : JobStorage
                 "The MongoDB storage needs a replica set or a sharded cluster, because its transactions span several documents. " +
                 "A single server can run as a one-member replica set: start it with --replSet and run rs.initiate().");
         }
+
+        int wireVersion = hello.TryGetValue("maxWireVersion", out BsonValue version) && version.IsNumeric ? version.ToInt32() : 0;
+        if (wireVersion < MinimumWireVersion)
+        {
+            throw new NotSupportedException(
+                $"The MongoDB storage needs MongoDB 5.0 or later (wire version {MinimumWireVersion}), but the server reports wire version {wireVersion}.");
+        }
+    }
+
+    private static void EnsureTransactions(IMongoDatabase database)
+    {
+        EnsureSupported(database.RunCommand<BsonDocument>(new BsonDocument("hello", 1)));
     }
 }
 
@@ -203,6 +242,8 @@ internal sealed class MongoCollections(IMongoDatabase database, string prefix)
     public IMongoCollection<BsonDocument> Locks { get; } = database.GetCollection<BsonDocument>(prefix + "locks");
 
     public IMongoCollection<BsonDocument> Sequences { get; } = database.GetCollection<BsonDocument>(prefix + "sequences");
+
+    public IMongoClient Client { get; } = database.Client;
 
     /// <summary>Creates the indexes; creating one that already exists does nothing.</summary>
     public void CreateIndexes()
