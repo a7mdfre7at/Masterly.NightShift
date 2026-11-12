@@ -211,8 +211,10 @@ public sealed class RepeatedFailuresMonitor : JobMonitor
     {
         bool failing = data.ConsecutiveFailures >= Failures && GetWindowStart(data) is { } first && GetLastFailure(data) is { } last && last - first <= Window;
 
-        // Only a success, which resets the count, ends an incident: failures that keep coming further apart don't
-        bool stillFailing = data.State == JobMonitorState.NeedsAttention && data.ConsecutiveFailures > 0;
+        // Only a success ends an incident: failures that keep coming further apart don't. A success since the incident
+        // opened counts even when new failures followed it before this check (they start a new row)
+        bool succeededSince = data.LastSuccessAt is { } success && data.IncidentSince is { } since && success > since;
+        bool stillFailing = data.State == JobMonitorState.NeedsAttention && data.ConsecutiveFailures > 0 && !succeededSince;
 
         return failing || stillFailing
             ? (JobMonitorState.NeedsAttention, string.Create(CultureInfo.InvariantCulture, $"{Method} failed {data.ConsecutiveFailures} times in a row."))

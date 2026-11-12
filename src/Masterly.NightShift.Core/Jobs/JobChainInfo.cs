@@ -29,8 +29,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
 {
     /// <summary>
     /// Whether the chain has nothing left to do by itself: every step finished (succeeded, deleted, skipped steps
-    /// included, failed for good, or expired), or waits behind a step that failed for good, directly or through
-    /// steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on.
+    /// included, failed for good, or expired), or waits behind a step that failed for good or expired, directly or
+    /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on.
     /// </summary>
     public bool IsSettled
     {
@@ -46,7 +46,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
 
     /// <summary>
     /// The levels whose waiting steps can't start by themselves: the level they wait for has a step that failed for
-    /// good, or is blocked itself and still has a step waiting.
+    /// good or whose job expired (a failed job kept for a while expires too, and nothing starts what waits for it),
+    /// or is blocked itself and still has a step waiting.
     /// </summary>
     private HashSet<int> BlockedLevels()
     {
@@ -57,7 +58,7 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         foreach (JobChainStepInfo step in Steps)
         {
             parents.TryAdd(step.Level, step.ParentLevel);
-            if (IsFailed(step.State)) failed.Add(step.Level);
+            if (IsFailed(step.State) || step.State == null) failed.Add(step.Level);
             if (IsAwaiting(step.State)) waiting.Add(step.Level);
         }
 

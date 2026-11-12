@@ -192,6 +192,27 @@ public sealed class JobMonitorsFacts : IDisposable
     }
 
     [Fact]
+    public void RepeatedFailures_Recovers_WhenASuccessAndANewFailureCameBetweenTwoChecks()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+        for (int i = 0; i < 3; i++)
+        {
+            JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(10 * i));
+        }
+
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddMinutes(21));
+        Assert.Equal(AlertKind.MonitorIncident, Assert.Single(_sink.Alerts).Kind);
+
+        // Before the next check the job succeeds once, then fails once: one failure is no longer an incident
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddMinutes(30));
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(40));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddMinutes(41));
+
+        Assert.Equal([AlertKind.MonitorIncident, AlertKind.MonitorRecovered], _sink.Alerts.Select(static x => x.Kind));
+        Assert.Equal(JobMonitorState.Healthy, JobMonitors.GetStatus(_storage.Object).Single().State);
+    }
+
+    [Fact]
     public void RepeatedFailures_JudgesTheLastFailuresInARow_SoTheWindowSlides()
     {
         JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));

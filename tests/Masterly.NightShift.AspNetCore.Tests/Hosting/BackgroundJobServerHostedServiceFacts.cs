@@ -132,6 +132,22 @@ public class BackgroundJobServerHostedServiceFacts
     }
 
     [Fact]
+    public async Task Control_CannotStartTheServer_OnceTheHostStoppedIt()
+    {
+        using ServiceProvider provider = BuildProviderWithLifetime();
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+        await hosted.StopAsync(CancellationToken.None);
+
+        // Nothing would stop or dispose a server started now
+        await Assert.ThrowsAsync<InvalidOperationException>(() => control.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.False(control.IsRunning);
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
+    }
+
+    [Fact]
     public async Task StopAsync_BeforeTheApplicationStarted_KeepsTheServerFromStartingLater()
     {
         using BackgroundJobServerHostedService service = new(_storage.Object, _options, [], _lifetime);

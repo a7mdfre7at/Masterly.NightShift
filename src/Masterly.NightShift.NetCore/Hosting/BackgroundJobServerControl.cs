@@ -13,6 +13,7 @@ public interface IBackgroundJobServerControl
 
     /// <summary>Starts the servers that aren't running. A stopped server starts with a new server id.</summary>
     /// <param name="cancellationToken">Not used: starting doesn't wait.</param>
+    /// <exception cref="InvalidOperationException">The host has stopped or disposed a server: it can't start again.</exception>
     Task StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

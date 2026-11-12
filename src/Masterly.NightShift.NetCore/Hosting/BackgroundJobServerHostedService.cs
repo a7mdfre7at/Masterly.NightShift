@@ -225,10 +225,16 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     internal bool IsRunning => Volatile.Read(ref _processingServer) != null;
 
     /// <summary>Starts the server when it doesn't run, for <see cref="IBackgroundJobServerControl"/>.</summary>
+    /// <exception cref="InvalidOperationException">The host stopped or disposed this service: nothing would stop the server.</exception>
     internal void StartServer()
     {
         lock (_startLock)
         {
+            if (_hostStopped)
+            {
+                throw new InvalidOperationException("The host has stopped the NightShift server; it can't be started again.");
+            }
+
             _stoppedByControl = false;
             if (_processingServer == null) InitializeProcessingServer();
         }

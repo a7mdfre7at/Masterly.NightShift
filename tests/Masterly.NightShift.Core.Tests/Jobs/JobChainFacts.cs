@@ -312,6 +312,30 @@ public class JobChainFacts
     }
 
     [Fact]
+    public void JobChainInfo_IsSettled_WhenStepsWaitBehindAStepWhoseJobExpired()
+    {
+        // A failed first step kept for a while (UseFailedJobRetention) and then expired: nothing starts the rest
+        JobChainInfo line = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "1", null, 0, -1),
+            new JobChainStepInfo("1.0", "2", "Awaiting", 1, 0),
+            new JobChainStepInfo("2.0", "3", "Awaiting", 2, 1),
+        ]);
+
+        // A sibling still running keeps the chain going
+        JobChainInfo running = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "1", "Succeeded", 0, -1),
+            new JobChainStepInfo("1.0", "2", null, 1, 0),
+            new JobChainStepInfo("1.1", "3", "Processing", 1, 0),
+            new JobChainStepInfo("2.0", "4", "Awaiting", 2, 1),
+        ]);
+
+        Assert.True(line.IsSettled);
+        Assert.False(running.IsSettled);
+    }
+
+    [Fact]
     public void JobChainInfo_IsNotSettled_WhenTheStepAfterAFailurePathIsAboutToStart()
     {
         // The failure path ran: the step after it waits only until its continuation is enqueued
