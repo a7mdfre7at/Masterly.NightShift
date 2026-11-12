@@ -263,6 +263,40 @@ public sealed class RedisStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Lease_RenewedAfterItsRelease_IsNotBroughtBack()
+    {
+        RedisStorage storage = Track(RedisTestServer.CreateStorage());
+        using IStorageConnection connection = storage.GetConnection();
+        ILeaseStore leases = (ILeaseStore)connection;
+        Assert.True(leases.TryTake("resource", "owner", JobClock.UtcNow.AddMinutes(1)));
+        leases.Release("resource", "owner");
+
+        // What a renewal still on its way does when it arrives after the release
+        bool renewed = leases.TryRenew("resource", "owner", JobClock.UtcNow.AddMinutes(1));
+
+        Assert.False(renewed);
+        Assert.False(storage.Database.KeyExists(storage.Key("lock:resource")));
+        Assert.True(leases.TryTake("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void Lease_TakenByAnotherOwner_IsNeitherRenewedNorReleased_ByTheEarlierOne()
+    {
+        RedisStorage storage = Track(RedisTestServer.CreateStorage());
+        using IStorageConnection connection = storage.GetConnection();
+        ILeaseStore leases = (ILeaseStore)connection;
+        Assert.True(leases.TryTake("resource", "owner", JobClock.UtcNow.AddMinutes(1)));
+        leases.Release("resource", "owner");
+        Assert.True(leases.TryTake("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+
+        bool renewed = leases.TryRenew("resource", "owner", JobClock.UtcNow.AddMinutes(1));
+        leases.Release("resource", "owner");
+
+        Assert.False(renewed);
+        Assert.True(leases.TryRenew("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
     public void JobParameters_ExpireWithTheirJob()
     {
         RedisStorage storage = Track(RedisTestServer.CreateStorage());
