@@ -28,6 +28,32 @@ public abstract class StorageConformanceFacts : IDisposable
     /// </summary>
     protected virtual bool TimelineReadsCountersAtOnce => true;
 
+    /// <summary>
+    /// Whether a range read that ends before the first position (both ends negative) reads nothing, as on SQL
+    /// Server, where positions are numbered from 0 and a negative one comes before the first item.
+    /// </summary>
+    protected virtual bool RangesEndingBeforeTheFirstItemReadNothing => true;
+
+    /// <summary>
+    /// An empty storage whose workers don't keep their fetched jobs alive, so a fetched job goes back to its queue
+    /// once <paramref name="invisibilityTimeout"/> passes, and whose waiting fetchers look at their queues at
+    /// least that often. <c>null</c> (the default) when the storage can't be configured so: the tests that need
+    /// it are skipped.
+    /// </summary>
+    protected virtual JobStorage? CreateStorageWithoutKeepAlive(TimeSpan invisibilityTimeout) => null;
+
+    /// <summary>
+    /// An empty storage whose distributed locks are leases of <paramref name="lifetime"/> that their holders renew,
+    /// or <c>null</c> (the default) when its locks aren't leases: the tests that need it are skipped.
+    /// </summary>
+    protected virtual JobStorage? CreateStorageWithLockLifetime(TimeSpan lifetime) => null;
+
+    /// <summary>
+    /// Prepares <see cref="Storage"/> so that the returned write makes a transaction's commit fail, or returns
+    /// <c>null</c> (the default) when no write fails a commit deterministically: the test that needs it is skipped.
+    /// </summary>
+    protected virtual Action<IWriteOnlyTransaction>? PrepareWriteThatFailsTheCommit() => null;
+
     public virtual void Dispose()
     {
         (_storage as IDisposable)?.Dispose();
@@ -141,6 +167,35 @@ public abstract class StorageConformanceFacts : IDisposable
         Assert.Null(Connection(x => x.GetStateData(id)));
         Assert.Empty(Connection(x => x.GetAllItemsFromSet("uncommitted")));
         Assert.Equal(0, ExtendedConnection(x => x.GetCounter("uncommitted")));
+    }
+
+    [Fact]
+    public void Transaction_WhoseCommitFails_WritesNothing()
+    {
+        Action<IWriteOnlyTransaction>? failing = PrepareWriteThatFailsTheCommit();
+        Assert.SkipWhen(failing == null, "No write fails the storage's commits.");
+        string id = CreateJob("x");
+
+        using (IStorageConnection connection = Storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.SetJobState(id, new EnqueuedState());
+            transaction.AddToSet("before", "a");
+            transaction.IncrementCounter("before");
+            transaction.InsertToList("before", "a");
+            transaction.SetRangeInHash("before", [new("field", "value")]);
+            failing(transaction);
+            transaction.AddToSet("after", "b");
+
+            Assert.ThrowsAny<Exception>(transaction.Commit);
+        }
+
+        Assert.Null(Connection(x => x.GetStateData(id)));
+        Assert.Empty(Connection(x => x.GetAllItemsFromSet("before")));
+        Assert.Equal(0, ExtendedConnection(x => x.GetCounter("before")));
+        Assert.Empty(ExtendedConnection(x => x.GetAllItemsFromList("before")));
+        Assert.Null(Connection(x => x.GetAllEntriesFromHash("before")));
+        Assert.Empty(Connection(x => x.GetAllItemsFromSet("after")));
     }
 
     [Fact]
@@ -308,6 +363,55 @@ public abstract class StorageConformanceFacts : IDisposable
 
         Write(x => x.TrimList("list", 1, 2));
         Assert.Equal(["4", "3"], ExtendedConnection(x => x.GetAllItemsFromList("list")));
+    }
+
+    [Fact]
+    public void Ranges_NumberPositionsFromZero_SoNegativeOnesComeBeforeTheFirstItem()
+    {
+        Write(x =>
+        {
+            x.AddToSet("set", "a", 1);
+            x.AddToSet("set", "b", 2);
+            x.AddToSet("set", "c", 3);
+            foreach (string key in new[] { "list", "trim-negative-start", "trim-negative", "trim-inverted" })
+            {
+                x.InsertToList(key, "1");
+                x.InsertToList(key, "2");
+                x.InsertToList(key, "3");
+            }
+        });
+
+        Write(x =>
+        {
+            x.TrimList("trim-negative-start", -1, 1);
+            x.TrimList("trim-negative", -3, -1);
+            x.TrimList("trim-inverted", 2, 1);
+        });
+
+        Assert.Equal(["a"], ExtendedConnection(x => x.GetRangeFromSet("set", -2, 0)));
+        Assert.Equal(["b", "c"], ExtendedConnection(x => x.GetRangeFromSet("set", 1, 100)));
+        Assert.Empty(ExtendedConnection(x => x.GetRangeFromSet("set", 2, 1)));
+        Assert.Equal(["3", "2"], ExtendedConnection(x => x.GetRangeFromList("list", -1, 1)));
+        Assert.Empty(ExtendedConnection(x => x.GetRangeFromList("list", 1, 0)));
+        Assert.Equal(["3", "2"], ExtendedConnection(x => x.GetAllItemsFromList("trim-negative-start")));
+        Assert.Empty(ExtendedConnection(x => x.GetAllItemsFromList("trim-negative")));
+        Assert.Empty(ExtendedConnection(x => x.GetAllItemsFromList("trim-inverted")));
+    }
+
+    [Fact]
+    public void Ranges_EndingBeforeTheFirstItem_ReadNothing()
+    {
+        Assert.SkipUnless(RangesEndingBeforeTheFirstItemReadNothing, "The storage reads something for ranges of negative positions.");
+        Write(x =>
+        {
+            x.AddToSet("set", "a", 1);
+            x.AddToSet("set", "b", 2);
+            x.InsertToList("list", "1");
+            x.InsertToList("list", "2");
+        });
+
+        Assert.Empty(ExtendedConnection(x => x.GetRangeFromSet("set", -3, -1)));
+        Assert.Empty(ExtendedConnection(x => x.GetRangeFromList("list", -3, -1)));
     }
 
     [Fact]
@@ -552,7 +656,60 @@ public abstract class StorageConformanceFacts : IDisposable
         Assert.Equal(0, Storage.GetMonitoringApi().FetchedCount("default"));
     }
 
+    [Fact]
+    public void AStaleFetch_CanNeitherRemoveNorRequeue_TheJobOnceAnotherWorkerTookIt()
+    {
+        Assert.SkipUnless(UseStorage(CreateStorageWithoutKeepAlive(TimeSpan.FromSeconds(1))), "The storage can't let a fetch go stale.");
+        string requeued = Enqueue("stale");
+        string removed = Enqueue("stale");
+        IMonitoringApi monitoring = Storage.GetMonitoringApi();
+        using IStorageConnection dead = Storage.GetConnection();
+        using IStorageConnection live = Storage.GetConnection();
+        using CancellationTokenSource cancellation = new(Timeout);
+
+        // A worker that stopped keeping its jobs alive: past the invisibility timeout, another worker takes them
+        IFetchedJob[] stale = [dead.FetchNextJob(["stale"], cancellation.Token), dead.FetchNextJob(["stale"], cancellation.Token)];
+        IFetchedJob[] fresh = [live.FetchNextJob(["stale"], cancellation.Token), live.FetchNextJob(["stale"], cancellation.Token)];
+        Assert.Equal(new[] { requeued, removed }.Order(StringComparer.Ordinal), fresh.Select(static x => x.JobId).Order(StringComparer.Ordinal));
+
+        stale.Single(x => x.JobId == requeued).Requeue();
+        stale.Single(x => x.JobId == removed).RemoveFromQueue();
+        foreach (IFetchedJob job in stale) job.Dispose();
+
+        Assert.Equal(0, monitoring.EnqueuedCount("stale"));
+        Assert.Equal(2, monitoring.FetchedCount("stale"));
+
+        foreach (IFetchedJob job in fresh)
+        {
+            job.RemoveFromQueue();
+            job.Dispose();
+        }
+
+        Assert.Equal(0, monitoring.EnqueuedCount("stale"));
+        Assert.Equal(0, monitoring.FetchedCount("stale"));
+    }
+
     // Locks
+
+    [Fact]
+    public void DistributedLock_HeldLongerThanItsLifetime_StaysExclusive_WhileItsHolderRenewsIt()
+    {
+        TimeSpan lifetime = TimeSpan.FromSeconds(1);
+        Assert.SkipUnless(UseStorage(CreateStorageWithLockLifetime(lifetime)), "The storage's locks aren't leases.");
+        using IStorageConnection first = Storage.GetConnection();
+        using IStorageConnection second = Storage.GetConnection();
+
+        using (first.AcquireDistributedLock("renewed", TimeSpan.FromSeconds(5)))
+        {
+            Thread.Sleep(lifetime * 2.5);
+
+            Assert.Throws<DistributedLockTimeoutException>(() => second.AcquireDistributedLock("renewed", TimeSpan.FromMilliseconds(300)));
+        }
+
+        using (second.AcquireDistributedLock("renewed", TimeSpan.FromSeconds(5)))
+        {
+        }
+    }
 
     [Fact]
     public void DistributedLocks_AreExclusive_AcrossConnections_AndReentrant_OnOne()
@@ -905,6 +1062,14 @@ public abstract class StorageConformanceFacts : IDisposable
     {
         using IStorageConnection connection = Storage.GetConnection();
         return read((JobStorageConnection)connection);
+    }
+
+    /// <summary>Makes <paramref name="storage"/> the test's storage; <c>false</c> when there is none.</summary>
+    private bool UseStorage(JobStorage? storage)
+    {
+        if (storage == null) return false;
+        _storage = storage;
+        return true;
     }
 
     private string? TryFetch(string[] queues)

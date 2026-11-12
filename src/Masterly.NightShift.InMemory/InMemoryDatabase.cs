@@ -1,3 +1,4 @@
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
 
@@ -9,6 +10,11 @@ namespace Masterly.NightShift.InMemory;
 /// </summary>
 internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseStore
 {
+    // At most this many expired jobs are removed under the lock at once; a sweep that hits it sweeps again soon
+    internal const int MaxJobsPerSweep = 1000;
+
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(InMemoryDatabase));
+
     private readonly NightShiftLock _lock = new();
     private readonly Dictionary<long, JobEntry> _jobs = [];
     private readonly Dictionary<string, SortedSet<long>> _jobsByState = new(StringComparer.OrdinalIgnoreCase);
@@ -17,6 +23,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     private readonly Dictionary<string, HashEntry> _hashes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CounterEntry> _counters = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SortedDictionary<long, QueueEntry>> _queues = new(StringComparer.Ordinal);
+
+    // Where each job is queued, so removing an expired job doesn't scan every queue
+    private readonly Dictionary<long, List<(string Queue, long EntryId)>> _queueEntriesByJob = [];
     private readonly Dictionary<string, ServerEntry> _servers = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string Owner, DateTime ExpireAt)> _leases = new(StringComparer.Ordinal);
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -81,8 +90,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             if (!_sets.TryGetValue(key, out SetEntry? set)) return [];
 
             return [.. set.Ordered
-                .GetViewBetween((fromScore, string.Empty), (toScore, SetEntry.MaxValue))
-                .Where(x => x.Score >= fromScore && x.Score <= toScore)
+                .GetViewBetween((fromScore, string.Empty), (toScore, SetEntry.AfterEveryValue))
                 .Take(count)
                 .Select(static x => x.Value)];
         }
@@ -123,8 +131,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_sets.TryGetValue(key, out SetEntry? set) || endingAt < startingFrom) return [];
-            return [.. set.Ordered.Skip(Math.Max(0, startingFrom)).Take(endingAt - Math.Max(0, startingFrom) + 1).Select(static x => x.Value)];
+            if (!_sets.TryGetValue(key, out SetEntry? set)) return [];
+            (int skip, int take) = Range(startingFrom, endingAt);
+            return [.. set.Ordered.Skip(skip).Take(take).Select(static x => x.Value)];
         }
     }
 
@@ -200,9 +209,9 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_lists.TryGetValue(key, out ListEntry? list) || endingAt < startingFrom) return [];
-            int start = Math.Max(0, startingFrom);
-            return [.. list.Items.Skip(start).Take(endingAt - start + 1)];
+            if (!_lists.TryGetValue(key, out ListEntry? list)) return [];
+            (int skip, int take) = Range(startingFrom, endingAt);
+            return [.. list.Items.Skip(skip).Take(take)];
         }
     }
 
@@ -333,14 +342,8 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 enqueued = _enqueued.Task;
             }
 
-            try
-            {
-                enqueued.Wait((int)options.QueuePollInterval.TotalMilliseconds, cancellationToken);
-            }
-            catch (AggregateException)
-            {
-                // The task only ever completes successfully; nothing to report
-            }
+            // The task only ever completes successfully, so this returns or throws OperationCanceledException
+            enqueued.Wait((int)options.QueuePollInterval.TotalMilliseconds, cancellationToken);
         }
     }
 
@@ -430,8 +433,15 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     // Transactions
 
+    /// <summary>Applies every operation, or none: an operation this storage can't apply is refused before any is.</summary>
+    /// <exception cref="NotSupportedException">An operation is unknown, or removes a job another storage fetched.</exception>
     public void Apply(IReadOnlyList<StorageOperation> operations)
     {
+        foreach (StorageOperation operation in operations)
+        {
+            Validate(operation);
+        }
+
         lock (_lock)
         {
             SweepIfDue();
@@ -455,6 +465,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             _jobs.Clear();
             _jobsByState.Clear();
             _queues.Clear();
+            _queueEntriesByJob.Clear();
             _counters.Clear();
             removed += RemoveWhere(_sets, key => !StorageRules.PurgeKeepsSet(key, purge));
             removed += RemoveWhere(_lists, key => !StorageRules.PurgeKeepsList(key, purge));
@@ -470,15 +481,21 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
         }
     }
 
-    /// <summary>Removes everything whose time has come: jobs with their queue entries, sets, lists, hashes and counters.</summary>
+    /// <summary>
+    /// Removes everything whose time has come: jobs with their queue entries (at most <see cref="MaxJobsPerSweep"/>
+    /// at once), sets, lists, hashes and counters.
+    /// </summary>
     public void RemoveExpired()
     {
         lock (_lock)
         {
             DateTime now = JobClock.UtcNow;
-            _nextSweep = now + options.ExpirationCheckInterval;
+            List<long> expired = [.. _jobs.Where(x => x.Value.Job.ExpireAt <= now).Select(static x => x.Key).Take(MaxJobsPerSweep)];
 
-            foreach (long id in _jobs.Where(x => x.Value.Job.ExpireAt <= now).Select(static x => x.Key).ToList())
+            // When more jobs are left, the next call sweeps again instead of waiting a whole interval
+            _nextSweep = expired.Count == MaxJobsPerSweep ? now : now + options.ExpirationCheckInterval;
+
+            foreach (long id in expired)
             {
                 RemoveJob(id);
             }
@@ -532,7 +549,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
         switch (operation)
         {
             case ExpireJobOperation expire:
-                if (_jobs.TryGetValue(expire.JobId, out JobEntry? expiring))
+                if (FindJob(expire.JobId, "the expiration") is { } expiring)
                 {
                     expiring.Job.ExpireAt = expire.ExpireAt.HasValue ? CapExpiration(expire.ExpireAt.Value) : null;
                 }
@@ -540,7 +557,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 break;
 
             case AddJobStateOperation add:
-                if (_jobs.TryGetValue(add.JobId, out JobEntry? job))
+                if (FindJob(add.JobId, "a state") is { } job)
                 {
                     job.History.Add(add.State);
                     if (add.SetCurrent)
@@ -562,10 +579,16 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
                 long entryId = ++_nextQueueEntryId;
                 entries[entryId] = new QueueEntry(entryId, queued.JobId);
+                if (!_queueEntriesByJob.TryGetValue(queued.JobId, out List<(string Queue, long EntryId)>? queuedAt))
+                {
+                    _queueEntriesByJob[queued.JobId] = queuedAt = [];
+                }
+
+                queuedAt.Add((queued.Queue, entryId));
                 break;
 
             case RemoveFromQueueOperation removal:
-                InMemoryFetchedJob fetched = (InMemoryFetchedJob)removal.FetchedJob; // This storage only fetches its own jobs
+                InMemoryFetchedJob fetched = (InMemoryFetchedJob)removal.FetchedJob; // Checked by Validate before the lock
                 if (_queues.TryGetValue(fetched.Queue, out SortedDictionary<long, QueueEntry>? fromQueue)
                     && fromQueue.TryGetValue(fetched.EntryId, out QueueEntry? owned)
                     && owned.Token == fetched.Token)
@@ -576,7 +599,7 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 break;
 
             case SetJobParameterOperation parameter:
-                if (_jobs.TryGetValue(parameter.JobId, out JobEntry? withParameter))
+                if (FindJob(parameter.JobId, "a parameter") is { } withParameter)
                 {
                     withParameter.Job.Parameters[parameter.Name] = parameter.Value;
                 }
@@ -706,20 +729,63 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         if (!_jobs.Remove(id, out JobEntry? entry)) return;
         if (entry.Job.StateName != null) Unindex(entry.Job.StateName, id);
+        if (!_queueEntriesByJob.Remove(id, out List<(string Queue, long EntryId)>? queuedAt)) return;
 
-        foreach (KeyValuePair<string, SortedDictionary<long, QueueEntry>> queue in _queues.ToList())
+        foreach ((string queue, long entryId) in queuedAt)
         {
-            foreach (long entryId in queue.Value.Where(x => x.Value.JobId == id).Select(static x => x.Key).ToList())
+            if (_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries) && entries.Remove(entryId) && entries.Count == 0)
             {
-                RemoveQueueEntry(queue.Key, queue.Value, entryId);
+                _queues.Remove(queue);
             }
         }
     }
 
     private void RemoveQueueEntry(string queue, SortedDictionary<long, QueueEntry> entries, long entryId)
     {
-        entries.Remove(entryId);
+        if (!entries.Remove(entryId, out QueueEntry? removed)) return;
         if (entries.Count == 0) _queues.Remove(queue);
+
+        if (_queueEntriesByJob.TryGetValue(removed.JobId, out List<(string Queue, long EntryId)>? queuedAt))
+        {
+            queuedAt.Remove((queue, entryId));
+            if (queuedAt.Count == 0) _queueEntriesByJob.Remove(removed.JobId);
+        }
+    }
+
+    private static void Validate(StorageOperation operation)
+    {
+        switch (operation)
+        {
+            case RemoveFromQueueOperation { FetchedJob: not InMemoryFetchedJob } removal:
+                throw new NotSupportedException($"Only the jobs this storage fetched can be removed in a transaction, not a {removal.FetchedJob.GetType().Name}.");
+            case ExpireJobOperation or AddJobStateOperation or AddToQueueOperation or RemoveFromQueueOperation or SetJobParameterOperation
+                or CounterOperation or AddToSetOperation or AddRangeToSetOperation or RemoveFromSetOperation or RemoveSetOperation
+                or InsertToListOperation or RemoveFromListOperation or TrimListOperation or SetRangeInHashOperation or RemoveHashOperation
+                or ExpireKeyOperation:
+                return;
+            default:
+                throw new NotSupportedException($"Unknown storage operation {operation.GetType().Name}.");
+        }
+    }
+
+    /// <summary>Finds a job a write targets; a write to a job that doesn't exist (any more) does nothing, as on SQL Server.</summary>
+    private JobEntry? FindJob(long id, string write)
+    {
+        if (_jobs.TryGetValue(id, out JobEntry? job)) return job;
+
+        Logger.Debug($"Ignored {write} of job #{id}: the job doesn't exist, or it expired.");
+        return null;
+    }
+
+    /// <summary>
+    /// The items a range of positions reads, as SQL Server numbers them: from 0, newest or lowest first. Negative
+    /// positions come before the first item, so they read nothing; a range that ends before it starts reads nothing.
+    /// </summary>
+    private static (int Skip, int Take) Range(int startingFrom, int endingAt)
+    {
+        int skip = Math.Max(0, startingFrom);
+        long take = (long)endingAt - skip + 1;
+        return (skip, (int)Math.Clamp(take, 0, int.MaxValue));
     }
 
     private void Index(string stateName, long id)
@@ -789,14 +855,21 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     private sealed class SetEntry
     {
-        public const string MaxValue = "￿￿￿￿";
+        /// <summary>
+        /// The upper bound of a range of scores: the comparer orders it after every value of its score. It is found
+        /// by reference, and a string built at run time is never the same instance as a value read or written.
+        /// </summary>
+        public static readonly string AfterEveryValue = new(char.MaxValue, 1);
 
         public Dictionary<string, double> Scores { get; } = new(StringComparer.Ordinal);
 
         public SortedSet<(double Score, string Value)> Ordered { get; } = new(Comparer<(double Score, string Value)>.Create(static (x, y) =>
         {
             int byScore = x.Score.CompareTo(y.Score);
-            return byScore != 0 ? byScore : string.CompareOrdinal(x.Value, y.Value);
+            if (byScore != 0 || ReferenceEquals(x.Value, y.Value)) return byScore;
+            if (ReferenceEquals(x.Value, AfterEveryValue)) return 1;
+            if (ReferenceEquals(y.Value, AfterEveryValue)) return -1;
+            return string.CompareOrdinal(x.Value, y.Value);
         }));
 
         public DateTime? ExpireAt { get; set; }

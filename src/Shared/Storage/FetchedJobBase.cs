@@ -13,7 +13,7 @@ internal abstract class FetchedJobBase : IFetchedJob
     private readonly NightShiftLock _syncRoot = new();
     private readonly Timer? _keepAlive;
     private bool _done;
-    private bool _disposed;
+    private int _disposed;
 
     protected FetchedJobBase(string jobId, string queue, TimeSpan? keepAliveInterval)
     {
@@ -22,7 +22,7 @@ internal abstract class FetchedJobBase : IFetchedJob
 
         if (keepAliveInterval.HasValue && keepAliveInterval.Value > TimeSpan.Zero)
         {
-            _keepAlive = new Timer(static state => ((FetchedJobBase)state!).RunKeepAlive(), this, keepAliveInterval.Value, keepAliveInterval.Value);
+            _keepAlive = new Timer(static state => ((FetchedJobBase)state!).RunKeepAlive(), this, keepAliveInterval.Value, keepAliveInterval.Value); // The state is this job
         }
     }
 
@@ -50,18 +50,27 @@ internal abstract class FetchedJobBase : IFetchedJob
         }
     }
 
+    /// <summary>
+    /// Stops keeping the job alive and puts it back when it was neither removed nor requeued. A storage error is
+    /// logged, not thrown: the storage puts the job back once its invisibility timeout passes.
+    /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _keepAlive?.Dispose();
 
         lock (_syncRoot)
         {
-            if (!_done)
+            if (_done) return;
+            _done = true;
+
+            try
             {
                 ReturnToQueue();
-                _done = true;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                LogProvider.GetLogger(GetType()).WarnException($"Couldn't put job #{JobId} back in queue '{Queue}'; it returns after the invisibility timeout.", ex);
             }
         }
     }
@@ -92,7 +101,7 @@ internal abstract class FetchedJobBase : IFetchedJob
         {
             lock (_syncRoot)
             {
-                if (_done || _disposed) return;
+                if (_done || Volatile.Read(ref _disposed) != 0) return;
                 KeepAlive();
             }
         }
