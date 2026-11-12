@@ -1,3 +1,5 @@
+using System.Diagnostics.Metrics;
+
 namespace Masterly.NightShift.Core.Tests;
 
 public sealed class StaleJobFilterFacts : IDisposable
@@ -86,6 +88,45 @@ public sealed class StaleJobFilterFacts : IDisposable
     }
 
     [Fact, StaticLock]
+    public void OnStateElection_CountsTheRestart_ThatFailsTheJob()
+    {
+        StaleJobFilter.MaxRestarts = 2;
+        _context.ApplyContext.OldStateName = ProcessingState.StateName;
+        _snapshot[StaleJobFilter.RestartsParameter] = "2";
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.IsType<FailedState>(_context.Object.CandidateState);
+        _context.ApplyContext.Connection.Verify(x => x.SetJobParameter("JobId", StaleJobFilter.RestartsParameter, "3"));
+        _context.ApplyContext.Connection.Verify(x => x.SetJobParameter("JobId", StaleJobFilter.LeaseParameter, It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory, StaticLock]
+    [InlineData(null, "restarted")]
+    [InlineData(0, "failed")]
+    public void OnStateElection_TagsTheRestartMetric_WithWhatBecameOfTheJob(int? limit, string outcome)
+    {
+        StaleJobFilter.MaxRestarts = limit;
+        _context.ApplyContext.OldStateName = ProcessingState.StateName;
+        List<KeyValuePair<string, object>[]> measurements = [];
+        using MeterListener listener = new();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == NightShiftTelemetry.MeterName && instrument.Name == "nightshift.job.stale_restarts")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) => measurements.Add(tags.ToArray()));
+        listener.Start();
+
+        _filter.OnStateElection(_context.Object);
+
+        KeyValuePair<string, object>[] tags = Assert.Single(measurements);
+        Assert.Contains(new KeyValuePair<string, object>("nightshift.job.outcome", outcome), tags);
+    }
+
+    [Fact, StaticLock]
     public void OnStateElection_FailsTheFirstRestart_WithALimitOfZero()
     {
         StaleJobFilter.MaxRestarts = 0;
@@ -123,6 +164,17 @@ public sealed class StaleJobFilterFacts : IDisposable
 
         Assert.Equal(expected, StaleJobFilter.IsLeaseHeldBy(parameters, "worker-a"));
         Assert.True(StaleJobFilter.IsLeaseHeldBy(null, "worker-a"));
+    }
+
+    [Theory]
+    [InlineData("{not json")]
+    [InlineData("[1, 2]")]
+    public void IsLeaseHeldBy_IgnoresALeaseThatCannotBeRead(string lease)
+    {
+        // Read inside the state change: throwing there would keep the job from ever leaving Processing
+        Dictionary<string, string> parameters = new() { [StaleJobFilter.LeaseParameter] = lease };
+
+        Assert.True(StaleJobFilter.IsLeaseHeldBy(parameters, "worker-a"));
     }
 
     [Fact]

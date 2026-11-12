@@ -34,6 +34,28 @@ public class BackgroundJobClientScheduleOptionsExtensionsFacts
         Assert.False(_parameters.ContainsKey(SkipIfLateAttribute.WindowParameter));
     }
 
+    [Theory]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.MoveForward)]
+    public void Enqueue_ThrowsAnException_WhenWhenBlockedIsSetWithoutAPolicy(WhenBlocked whenBlocked)
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>(
+            () => _client.Object.Enqueue(() => Run(), new ScheduleOptions { WhenBlocked = whenBlocked }));
+
+        Assert.Contains("Policy", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()), Times.Never);
+    }
+
+    [Fact]
+    public void Enqueue_AcceptsWhenBlocked_SetBeforeThePolicy()
+    {
+        ScheduleOptions options = new() { WhenBlocked = WhenBlocked.Reject, Policy = "business-hours" };
+
+        _client.Object.Enqueue(() => Run(), options);
+
+        Assert.Equal("Reject", _parameters[ScheduleOptions.WhenBlockedParameter]);
+    }
+
     [Fact]
     public void Schedule_WithADelay_CreatesAScheduledJob_WithTheLateStartLimit()
     {

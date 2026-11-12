@@ -133,6 +133,38 @@ public class RecurringJobManifestFacts
         Assert.Null(entry["job"]["arguments"]);
     }
 
+    [DataCompatibilityRangeFact, StaticLock]
+    public void Export_WritesCompressedArgumentsAsPlainJson_AndApplyReadsThemBack()
+    {
+        string text = new('r', 3000);
+        ArgumentCompression.MinLength = 100;
+
+        try
+        {
+            _hashes["recurring-job:big"] = new Dictionary<string, string>
+            {
+                { "Cron", "0 * * * *" },
+                { "Job", InvocationData.SerializeJob(Job.FromExpression(() => Report(text))).SerializePayload() },
+                { "TimeZoneId", "UTC" },
+                { "Queue", "default" },
+            };
+
+            string json = RecurringJobManifest.Export(_connection.Object);
+            JsonNode? entry = Assert.Single(JsonNode.Parse(json)["recurringJobs"].AsArray());
+            string arguments = entry["job"]["arguments"].GetValue<string>();
+            RecurringJobManifestResult result = RecurringJobManifest.Apply(_manager.Object, _connection.Object, json);
+
+            Assert.False(arguments.StartsWith(ArgumentCompression.Prefix, StringComparison.Ordinal));
+            Assert.Contains(text, arguments, StringComparison.Ordinal);
+            Assert.Equal(["big"], result.Updated);
+            _manager.Verify(x => x.AddOrUpdate("big", It.Is<Job>(j => (string)j.Args[0] == text), "0 * * * *", It.IsAny<RecurringJobOptions>()));
+        }
+        finally
+        {
+            ArgumentCompression.MinLength = null;
+        }
+    }
+
     [Fact]
     public void Parse_RejectsDocumentsItCannotRead()
     {

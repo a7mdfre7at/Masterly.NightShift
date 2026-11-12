@@ -28,6 +28,10 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
     /// <summary>The job parameter with the worker that owns a job picked up again.</summary>
     public const string LeaseParameter = "Lease";
 
+    // The nightshift.job.outcome tag of nightshift.job.stale_restarts
+    internal const string OutcomeRestarted = "restarted";
+    internal const string OutcomeFailed = "failed";
+
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(StaleJobFilter));
 
     /// <summary>Creates the filter.</summary>
@@ -71,19 +75,20 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
 
         int restarts = (int.TryParse(Read(context, RestartsParameter), NumberStyles.Integer, CultureInfo.InvariantCulture, out int previous) ? previous : 0) + 1;
 
-        if (NightShiftTelemetry.JobsStaleRestarted.Enabled)
-        {
-            Job? job = context.BackgroundJob.Job;
-            NightShiftTelemetry.JobsStaleRestarted.Add(1, new KeyValuePair<string, object?>("nightshift.job.name", job != null ? $"{job.Type.Name}.{job.Method.Name}" : null));
-        }
+        // Counted before the limit is checked, so the job's parameters say how many times its server stopped
+        // even when this restart failed it
+        Write(context, RestartsParameter, restarts.ToString(CultureInfo.InvariantCulture));
 
-        if (MaxRestarts is { } max && restarts > max)
+        bool exceeded = MaxRestarts is { } max && restarts > max;
+        CountRestart(context, exceeded);
+
+        if (exceeded)
         {
             string reason = restarts == 1
                 ? "its server stopped before it finished"
                 : $"its server stopped {restarts} times before it finished";
 
-            Logger.Warn($"Background job '{context.BackgroundJob.Id}' failed: {reason}, more than the {max} restarts allowed.");
+            Logger.Warn($"Background job '{context.BackgroundJob.Id}' failed: {reason}, more than the {MaxRestarts} restarts allowed.");
             context.CandidateState = new FailedState(new TerminateJobException($"stale: {reason}", TerminateJobOutcome.Failed), processing.ServerId)
             {
                 Reason = TerminateJobFilter.FormatReason("Failed", $"stale: {reason}"),
@@ -91,8 +96,25 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
             return;
         }
 
-        Write(context, RestartsParameter, restarts.ToString(CultureInfo.InvariantCulture));
         Write(context, LeaseParameter, Serialize(processing.WorkerId));
+    }
+
+    // A restart past the limit fails the job instead of running it again, and is told apart by its outcome tag
+    private static void CountRestart(ElectStateContext context, bool failed)
+    {
+        if (!NightShiftTelemetry.JobsStaleRestarted.Enabled)
+        {
+            return;
+        }
+
+        Job? job = context.BackgroundJob.Job;
+        string? jobName = job != null ? $"{job.Type.Name}.{job.Method.Name}" : null;
+
+        // Once the restart is committed: a state change that fails and is tried again would count it twice
+        context.RunAfterCommit(() => NightShiftTelemetry.JobsStaleRestarted.Add(
+            1,
+            new KeyValuePair<string, object?>("nightshift.job.name", jobName),
+            new KeyValuePair<string, object?>("nightshift.job.outcome", failed ? OutcomeFailed : OutcomeRestarted)));
     }
 
     /// <summary>
@@ -101,9 +123,26 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
     /// </summary>
     internal static bool IsLeaseHeldBy(IReadOnlyDictionary<string, string>? parameters, string workerId)
     {
-        if (parameters == null || !parameters.TryGetValue(LeaseParameter, out string? lease) || string.IsNullOrEmpty(lease)) return true;
+        if (parameters == null || !parameters.TryGetValue(LeaseParameter, out string? lease) || string.IsNullOrEmpty(lease))
+        {
+            return true;
+        }
 
-        return string.Equals(SerializationHelper.Deserialize<string>(lease, SerializationOption.Internal), workerId, StringComparison.Ordinal);
+        string? holder;
+
+        try
+        {
+            holder = SerializationHelper.Deserialize<string>(lease, SerializationOption.Internal);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // This runs inside the state change, under the job's lock: an unreadable lease must not block the job
+            // forever, so it counts as no lease
+            Logger.WarnException($"The '{LeaseParameter}' job parameter can't be read, so it is ignored.", ex);
+            return true;
+        }
+
+        return string.Equals(holder, workerId, StringComparison.Ordinal);
     }
 
     private static string Serialize(string value) => SerializationHelper.Serialize(value, SerializationOption.Internal);

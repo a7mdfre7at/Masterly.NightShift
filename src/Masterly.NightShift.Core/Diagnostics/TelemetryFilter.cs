@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Logging;
@@ -133,6 +134,7 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
 
                     SetCommonTags(activity, "process", job, queue);
                     activity.SetTag("messaging.message.id", context.BackgroundJob.Id);
+                    activity.SetTag("nightshift.recurring_job.id", context.RecurringJobId);
                 }
             }
 
@@ -152,15 +154,43 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
             context.Items[ProcessStartedKey] = Stopwatch.GetTimestamp();
         }
 
-        // Only for jobs meant to run at a moment: a fire-and-forget job has no moment to be late for. Only from the
-        // parameters loaded with the job, so it never queries the storage
-        if (NightShiftTelemetry.JobLateness.Enabled && context.BackgroundJob.ParametersSnapshot != null && context.ScheduledFor.HasValue)
+        if (NightShiftTelemetry.JobLateness.Enabled)
         {
-            NightShiftTelemetry.JobLateness.Record(
-                context.Lateness.TotalSeconds,
-                Tag("nightshift.job.name", jobName),
-                Tag("nightshift.recurring_job.id", context.RecurringJobId));
+            RecordLateness(context, jobName);
         }
+    }
+
+    // Only for jobs meant to run at a moment: a fire-and-forget job has no moment to be late for. Only from the
+    // parameters loaded with the job, so it never queries the storage. Only for the first run: a retry, or a run
+    // picked up again after its server stopped, would add the earlier attempts to the histogram once more. The
+    // recurring job isn't a tag: one series per recurring job would grow without bound; spans carry it.
+    private static void RecordLateness(PerformingContext context, string? jobName)
+    {
+        IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
+        if (parameters == null || IsRepeatedRun(parameters))
+        {
+            return;
+        }
+
+        DateTime? scheduledFor = context.ScheduledFor;
+        if (!scheduledFor.HasValue)
+        {
+            return;
+        }
+
+        NightShiftTelemetry.JobLateness.Record(context.GetLateness(scheduledFor).TotalSeconds, Tag("nightshift.job.name", jobName));
+    }
+
+    private static bool IsRepeatedRun(IReadOnlyDictionary<string, string> parameters)
+    {
+        return IsPositive(parameters, AutomaticRetryAttribute.RetryCountParameter) || IsPositive(parameters, StaleJobFilter.RestartsParameter);
+    }
+
+    private static bool IsPositive(IReadOnlyDictionary<string, string> parameters, string name)
+    {
+        return parameters.TryGetValue(name, out string? value) &&
+               long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number) &&
+               number > 0;
     }
 
     public void OnPerformed(PerformedContext context)
@@ -219,12 +249,14 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // AutomaticRetryAttribute turned the failure of an attempt into a retry
+        // AutomaticRetryAttribute turned the failure of an attempt into a retry. Counted once the retry is
+        // committed: a state change that fails and is tried again would count it twice.
         if (NightShiftTelemetry.JobsRetried.Enabled &&
-            context.NewState.Reason?.StartsWith("Retry attempt", StringComparison.OrdinalIgnoreCase) == true &&
+            context.NewState.Reason?.StartsWith(AutomaticRetryAttribute.RetryAttemptReasonPrefix, StringComparison.OrdinalIgnoreCase) == true &&
             ProcessingState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase))
         {
-            NightShiftTelemetry.JobsRetried.Add(1, Tag("nightshift.job.name", GetJobName(context.BackgroundJob.Job)));
+            string? jobName = GetJobName(context.BackgroundJob.Job);
+            context.RunAfterCommit(() => NightShiftTelemetry.JobsRetried.Add(1, Tag("nightshift.job.name", jobName)));
         }
 
         if (context.NewState is not ProcessingState) return;

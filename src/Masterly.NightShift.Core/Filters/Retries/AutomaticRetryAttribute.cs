@@ -311,7 +311,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
             if (!satisfied) return;
         }
 
-        int retryAttempt = context.GetJobParameter<int>("RetryCount", allowStale: true) + 1;
+        int retryAttempt = context.GetJobParameter<int>(RetryCountParameter, allowStale: true) + 1;
 
         if (retryAttempt <= Attempts)
         {
@@ -337,7 +337,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     {
         if (context.NewState is ScheduledState &&
             context.NewState.Reason != null &&
-            (context.NewState.Reason.StartsWith("Retry attempt", StringComparison.OrdinalIgnoreCase) ||
+            (context.NewState.Reason.StartsWith(RetryAttemptReasonPrefix, StringComparison.OrdinalIgnoreCase) ||
              context.NewState.Reason.StartsWith(RetryLaterReasonPrefix, StringComparison.OrdinalIgnoreCase)))
         {
             transaction.AddToSet("retries", context.BackgroundJob.Id);
@@ -355,6 +355,12 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     }
 
     internal const string RetryLaterReasonPrefix = "Retry later";
+
+    /// <summary>The start of the reason of the state a failed attempt is retried in: <c>Retry attempt 2 of 10: ...</c>.</summary>
+    internal const string RetryAttemptReasonPrefix = "Retry attempt";
+
+    /// <summary>The job parameter with how many times the job has been retried.</summary>
+    internal const string RetryCountParameter = "RetryCount";
 
     /// <summary>Replaceable for tests.</summary>
     internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
@@ -404,7 +410,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
     /// <param name="failedState">Object which contains details about the current failed state.</param>
     private void ScheduleAgainLater(ElectStateContext context, int retryAttempt, FailedState failedState)
     {
-        context.SetJobParameter("RetryCount", retryAttempt);
+        context.SetJobParameter(RetryCountParameter, retryAttempt);
 
         int delayInSeconds;
 
@@ -432,7 +438,7 @@ public sealed class AutomaticRetryAttribute : JobFilterAttribute, IElectStateFil
         // If attempt number is less than max attempts, we should
         // schedule the job to run again later.
 
-        string reason = $"Retry attempt {retryAttempt} of {Attempts}: {exceptionMessage}";
+        string reason = $"{RetryAttemptReasonPrefix} {retryAttempt} of {Attempts}: {exceptionMessage}";
 
         context.CandidateState = delay == TimeSpan.Zero
             ? (IState)new EnqueuedState { Reason = reason }

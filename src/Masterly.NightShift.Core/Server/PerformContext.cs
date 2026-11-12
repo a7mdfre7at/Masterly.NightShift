@@ -65,6 +65,12 @@ public class PerformContext
     /// </summary>
     public const string ScheduledForParameter = "ScheduledFor";
 
+    /// <summary>
+    /// The job parameter with the moment a continuation became due, as a Unix time in milliseconds: when it left the
+    /// Awaiting state, or the time its next state scheduled it for. Written by <see cref="ContinuationsSupportAttribute"/>.
+    /// </summary>
+    internal const string DueAtParameter = "DueAt";
+
     /// <summary>The job parameter with the occurrence of the recurring job that created the job, as a Unix time in seconds.</summary>
     internal const string RecurringTimeParameter = "Time";
 
@@ -109,7 +115,7 @@ public class PerformContext
     /// <summary>
     /// Gets how many times the job has been retried by <see cref="AutomaticRetryAttribute"/>: 0 on its first run.
     /// </summary>
-    public int RetryCount => GetJobParameter<int>("RetryCount", allowStale: true);
+    public int RetryCount => GetJobParameter<int>(AutomaticRetryAttribute.RetryCountParameter, allowStale: true);
 
     /// <summary>
     /// Gets when this run of the job started, in UTC: when the server created the context, just before the
@@ -128,7 +134,10 @@ public class PerformContext
         get
         {
             long? scheduledFor = GetJobParameter<long?>(ScheduledForParameter, allowStale: true);
-            if (scheduledFor.HasValue) return JobHelper.FromMillisecondTimestamp(scheduledFor.Value);
+            if (scheduledFor.HasValue)
+            {
+                return JobHelper.FromMillisecondTimestamp(scheduledFor.Value);
+            }
 
             long? occurrence = GetJobParameter<long?>(RecurringTimeParameter, allowStale: true);
             return occurrence.HasValue ? JobHelper.FromTimestamp(occurrence.Value) : null;
@@ -136,16 +145,32 @@ public class PerformContext
     }
 
     /// <summary>
-    /// Gets how late this run started: the time from <see cref="ScheduledFor"/> to <see cref="StartedAt"/>, or, for a
-    /// job without <see cref="ScheduledFor"/>, from its creation to <see cref="StartedAt"/>. Never negative. A retry
-    /// is measured from the same moment, so its lateness includes the earlier attempts.
+    /// Gets how late this run started: the time from <see cref="ScheduledFor"/> to <see cref="StartedAt"/>. A
+    /// continuation without <see cref="ScheduledFor"/> is measured from the moment it became due, when its parents let
+    /// it leave the Awaiting state, so the time its parents waited and ran doesn't count; any other job without
+    /// <see cref="ScheduledFor"/> from its creation. Never negative. A retry is measured from the same moment, so its
+    /// lateness includes the earlier attempts.
     /// </summary>
-    public TimeSpan Lateness
+    public TimeSpan Lateness => GetLateness(ScheduledFor);
+
+    /// <summary>
+    /// The lateness measured from <paramref name="scheduledFor"/>, the value of <see cref="ScheduledFor"/> the caller
+    /// has already read, or, when it is <c>null</c>, from the moment the job became due or was created.
+    /// </summary>
+    internal TimeSpan GetLateness(DateTime? scheduledFor)
+    {
+        DateTime anchor = scheduledFor ?? DueAt ?? BackgroundJob.CreatedAt;
+        TimeSpan lateness = StartedAt - anchor;
+        return lateness > TimeSpan.Zero ? lateness : TimeSpan.Zero;
+    }
+
+    // When a continuation left the Awaiting state, see DueAtParameter
+    private DateTime? DueAt
     {
         get
         {
-            TimeSpan lateness = StartedAt - (ScheduledFor ?? BackgroundJob.CreatedAt);
-            return lateness > TimeSpan.Zero ? lateness : TimeSpan.Zero;
+            long? dueAt = GetJobParameter<long?>(DueAtParameter, allowStale: true);
+            return dueAt.HasValue ? JobHelper.FromMillisecondTimestamp(dueAt.Value) : null;
         }
     }
 

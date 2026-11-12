@@ -215,6 +215,99 @@ public class SkipIfLateAttributeFacts
         Assert.Throws<ArgumentNullException>(() => new LateStartFilter().OnPerforming(null));
     }
 
+    [Fact]
+    public void OnPerforming_MeasuresAContinuation_FromWhenItBecameDue()
+    {
+        // Created 3 s ago, its parent ran meanwhile, and it became due just now: it is on time
+        _context.BackgroundJob.CreatedAt = DateTime.UtcNow.AddSeconds(-3);
+        _parameters[PerformContext.DueAtParameter] = Millis(DateTime.UtcNow);
+
+        new SkipIfLateAttribute(1).OnPerforming(_context.GetPerformingContext());
+
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"));
+    }
+
+    [Fact]
+    public void OnPerforming_SkipsAContinuation_ThatWaitedTooLongAfterItBecameDue()
+    {
+        _context.BackgroundJob.CreatedAt = DateTime.UtcNow.AddHours(-3);
+        _parameters[PerformContext.DueAtParameter] = Millis(DateTime.UtcNow.AddHours(-2));
+
+        Assert.Throws<TerminateJobException>(
+            () => new SkipIfLateAttribute("01:00:00").OnPerforming(_context.GetPerformingContext()));
+    }
+
+    [Fact]
+    public void Check_RecordsTheCheckOnce_WhenTheAttributeAndSkipAfterBothApply()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(1));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+        PerformingContext context = _context.GetPerformingContext();
+
+        new LateStartFilter().OnPerforming(context);
+        new SkipIfLateAttribute("00:10:00").OnPerforming(context);
+
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"), Times.Once);
+    }
+
+    [Fact]
+    public void Check_TheStricterWindowWins_WhicheverFilterRunsFirst()
+    {
+        // 7 minutes late: within the attribute's 10 minutes, past SkipAfter's 5
+        ScheduledAgo(TimeSpan.FromMinutes(7));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+        PerformingContext context = _context.GetPerformingContext();
+
+        new SkipIfLateAttribute("00:10:00").OnPerforming(context);
+        TerminateJobException exception = Assert.Throws<TerminateJobException>(() => new LateStartFilter().OnPerforming(context));
+
+        Assert.StartsWith("started 7 min late, more than the 5 min allowed", exception.Message, StringComparison.Ordinal);
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"), Times.Once);
+    }
+
+    [Fact]
+    public void Check_DoesNotCheckAgain_AgainstALooserWindow()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(7));
+        _parameters[SkipIfLateAttribute.WindowParameter] = "600";
+        PerformingContext context = _context.GetPerformingContext();
+
+        new SkipIfLateAttribute("00:10:00").OnPerforming(context);
+        new LateStartFilter().OnPerforming(context);
+
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"), Times.Once);
+    }
+
+    [Fact]
+    public void OnPerforming_StillChecksTheJob_WhenTheCheckCannotBeRecorded()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(45));
+        _context.Connection
+            .Setup(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, It.IsAny<string>()))
+            .Throws(new InvalidOperationException("storage is down"));
+
+        TerminateJobException exception = Assert.Throws<TerminateJobException>(
+            () => new SkipIfLateAttribute("00:10:00").OnPerforming(_context.GetPerformingContext()));
+
+        Assert.Equal(TerminateJobOutcome.Skipped, exception.Outcome);
+    }
+
+    [Fact]
+    public void OnPerforming_LetsAJobRun_WhenTheCheckCannotBeRecorded()
+    {
+        ScheduledAgo(TimeSpan.FromMinutes(1));
+        _context.Connection
+            .Setup(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, It.IsAny<string>()))
+            .Throws(new InvalidOperationException("storage is down"));
+
+        new SkipIfLateAttribute("00:10:00").OnPerforming(_context.GetPerformingContext());
+    }
+
+    private static string Millis(DateTime value)
+    {
+        return JobHelper.ToMillisecondTimestamp(value).ToString(CultureInfo.InvariantCulture);
+    }
+
     private void ScheduledAgo(TimeSpan ago)
     {
         DateTime scheduledFor = DateTime.UtcNow - ago;

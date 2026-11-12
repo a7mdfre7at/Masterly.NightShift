@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Diagnostics;
@@ -66,7 +67,7 @@ internal static class JobOutcomes
         Exception thrown = Unwrap(exception);
         if (thrown is RetryLaterException) return JobOutcome.RetryLater;
 
-        if (thrown is TerminateJobException terminate)
+        if (TerminateJobFilter.Find(exception) is { } terminate)
         {
             return terminate.Outcome switch
             {
@@ -86,16 +87,56 @@ internal static class JobOutcomes
         return JobOutcome.Failed;
     }
 
+    // How deep wrapped exceptions are followed, so a cycle or a very long chain can't loop
+    private const int MaxDepth = 16;
+
     /// <summary>
     /// Returns the exception the job method threw: it reaches server filters wrapped in a
-    /// <see cref="JobPerformanceException"/>.
+    /// <see cref="JobPerformanceException"/>, and may itself only wrap the real one, as the
+    /// <see cref="TargetInvocationException"/> of a reflection call or the <see cref="AggregateException"/> of a task
+    /// with one exception do.
     /// </summary>
     [NotNull]
     public static Exception Unwrap([NotNull] Exception exception)
     {
-        return exception is JobPerformanceException && exception.InnerException != null
-            ? exception.InnerException
-            : exception;
+        Exception current = exception;
+
+        for (int depth = 0; depth < MaxDepth && IsWrapper(current) && Next(current) is { } inner; depth++)
+        {
+            current = inner;
+        }
+
+        return current;
+    }
+
+    /// <summary>
+    /// The exception and the ones it wraps, outermost first: each inner exception, and the only one of an
+    /// <see cref="AggregateException"/>. An aggregate of several exceptions ends the chain. At most a few levels deep.
+    /// </summary>
+    public static IEnumerable<Exception> InnerChain([CanBeNull] Exception? exception)
+    {
+        Exception? current = exception;
+
+        for (int depth = 0; current != null && depth < MaxDepth; depth++)
+        {
+            yield return current;
+            current = Next(current);
+        }
+    }
+
+    private static bool IsWrapper(Exception exception)
+    {
+        return exception is JobPerformanceException or TargetInvocationException or AggregateException;
+    }
+
+    private static Exception? Next(Exception exception)
+    {
+        if (exception is AggregateException aggregate)
+        {
+            return aggregate.InnerExceptions.Count == 1 ? aggregate.InnerExceptions[0] : null;
+        }
+
+        return exception.InnerException;
     }
 
     /// <summary>

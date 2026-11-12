@@ -90,6 +90,8 @@ public class Worker : IBackgroundProcess
 
         _queues = queues;
         _performer = performer;
+
+        LongRunningAttribute.NoteLocalWorker(queues);
         _stateChanger = stateChanger;
 
         _jobInitializationWaitTimeout = jobInitializationTimeout;
@@ -108,6 +110,10 @@ public class Worker : IBackgroundProcess
         bool requeueOnException = true;
         List<IDisposable> disposeAfterStateChange = [];
 
+        // The same id names this worker in the Processing state, in the lease its final state change checks, and
+        // in the job's cancellation token
+        string workerId = GetWorkerId(context);
+
         try
         {
             BackgroundJob? backgroundJob = null;
@@ -117,7 +123,7 @@ public class Worker : IBackgroundProcess
                 context.StoppingToken,
                 timeoutCts.Token))
             {
-                ProcessingState processingState = new(context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()));
+                ProcessingState processingState = new(context.ServerId, workerId);
 
                 IState? appliedState = TryChangeState(
                     context,
@@ -147,7 +153,7 @@ public class Worker : IBackgroundProcess
             // it was performed to guarantee that it was performed AT LEAST once.
             // It will be re-queued after the JobTimeout was expired.
 
-            IState? state = PerformJob(context, connection, fetchedJob.JobId, backgroundJob!, disposeAfterStateChange, out IReadOnlyDictionary<string, object>? customData); // Loaded by the change to Processing above
+            IState? state = PerformJob(context, connection, fetchedJob.JobId, workerId, backgroundJob!, disposeAfterStateChange, out IReadOnlyDictionary<string, object>? customData); // Loaded by the change to Processing above
             bool transactionalAck = context.Storage.HasFeature(JobStorageFeatures.Transaction.RemoveFromQueue(fetchedJob.GetType()));
 
             if (state != null)
@@ -164,7 +170,7 @@ public class Worker : IBackgroundProcess
                     out _,
                     CancellationToken.None,
                     context.ShutdownToken,
-                    WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()));
+                    workerId);
             }
 
             // Checkpoint #4. The job was performed, and it is in the one
@@ -197,6 +203,12 @@ public class Worker : IBackgroundProcess
         {
             DisposeAfterStateChange(disposeAfterStateChange);
         }
+    }
+
+    /// <summary>The id of the worker running in <paramref name="context"/>, the same string on every call.</summary>
+    private static string GetWorkerId(BackgroundProcessContext context)
+    {
+        return WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString());
     }
 
     private void DisposeAfterStateChange(List<IDisposable> disposables)
@@ -316,6 +328,7 @@ public class Worker : IBackgroundProcess
         BackgroundProcessContext context,
         IStorageConnection connection,
         string jobId,
+        string workerId,
         BackgroundJob backgroundJob,
         List<IDisposable> disposeAfterStateChange,
         out IReadOnlyDictionary<string, object>? customData)
@@ -340,7 +353,7 @@ public class Worker : IBackgroundProcess
                 backgroundJob = new BackgroundJob(jobId, jobData.Job, jobData.CreatedAt, jobData.ParametersSnapshot);
             }
 
-            using ServerJobCancellationToken jobToken = new(connection, backgroundJob.Id, context.ServerId, WorkerGuidCache.GetOrAdd(context.ExecutionId, static guid => guid.ToString()), context.StoppedToken);
+            using ServerJobCancellationToken jobToken = new(connection, backgroundJob.Id, context.ServerId, workerId, context.StoppedToken);
             // Filters that change the job's state themselves (Throttle, RateLimit, CircuitBreaker) use this
             // worker's state changer, and with it the server's filter provider
             Dictionary<string, object> items = new()

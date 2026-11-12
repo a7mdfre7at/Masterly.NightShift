@@ -69,6 +69,55 @@ public class TerminateJobFacts
     }
 
     [Fact]
+    public void Ctor_TakesAnInnerException_WithTheDefaultOutcome()
+    {
+        TimeoutException inner = new();
+
+        TerminateJobException exception = new("reason", inner);
+
+        Assert.Same(inner, exception.InnerException);
+        Assert.Equal(TerminateJobOutcome.Skipped, exception.Outcome);
+    }
+
+    [Fact]
+    public void Find_ReturnsTheException_FromATaskTheJobWaitedFor()
+    {
+        TerminateJobException exception = new("reason", TerminateJobOutcome.Canceled);
+
+        Assert.Same(exception, TerminateJobFilter.Find(new JobPerformanceException("wrapped", new AggregateException(exception))));
+        Assert.Same(exception, TerminateJobFilter.Find(new FailedState(new AggregateException(new AggregateException(exception)))));
+    }
+
+    [Fact]
+    public void Find_ReturnsTheException_WrappedInAReflectionCall_OrAnExceptionOfTheJobsOwn()
+    {
+        TerminateJobException exception = new("reason");
+
+        Assert.Same(exception, TerminateJobFilter.Find(new System.Reflection.TargetInvocationException(exception)));
+        Assert.Same(exception, TerminateJobFilter.Find(new InvalidOperationException("outer", new InvalidOperationException("middle", exception))));
+    }
+
+    [Fact]
+    public void Find_IgnoresTheException_InAnAggregateOfSeveralExceptions()
+    {
+        // Which one decides how the job ends isn't clear, so the failure goes through the retries as usual
+        AggregateException aggregate = new(new TerminateJobException("reason"), new InvalidOperationException());
+
+        Assert.Null(TerminateJobFilter.Find(aggregate));
+    }
+
+    [Fact]
+    public void OnStateElection_DeletesAJob_WhoseTerminationIsWrapped()
+    {
+        _context.ApplyContext.NewStateObject = new FailedState(new AggregateException(new TerminateJobException("nothing to do")));
+
+        new TerminateJobFilter().OnStateElection(_context.Object);
+
+        DeletedState deleted = Assert.IsType<DeletedState>(_context.Object.CandidateState);
+        Assert.Equal("Skipped: nothing to do", deleted.Reason);
+    }
+
+    [Fact]
     public void Find_ReturnsNull_ForOtherExceptionsAndStates()
     {
         Assert.Null(TerminateJobFilter.Find((Exception)null));

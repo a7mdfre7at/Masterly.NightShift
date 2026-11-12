@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using Masterly.NightShift.Diagnostics;
 using Masterly.NightShift.Server;
 
@@ -90,6 +91,53 @@ public class JobOutcomeFacts
     public void Classify_ReturnsFailed_ForAJobTerminatedAsFailed()
     {
         Assert.Equal(JobOutcome.Failed, ClassifyTerminated(TerminateJobOutcome.Failed));
+    }
+
+    [Fact]
+    public void Classify_ReturnsSkipped_ForATerminationTheJobReceivedFromATaskItWaitedFor()
+    {
+        AggregateException aggregate = new(new TerminateJobException("nothing to do"));
+
+        Assert.Equal(JobOutcome.Skipped, JobOutcomes.Classify(_context.GetPerformedContext(exception: Wrap(aggregate))));
+    }
+
+    [Fact]
+    public void Classify_ReturnsRetryLater_WhenTheRequestIsWrappedInAReflectionCall()
+    {
+        TargetInvocationException wrapped = new(new RetryLaterException(TimeSpan.FromMinutes(5)));
+
+        Assert.Equal(JobOutcome.RetryLater, JobOutcomes.Classify(_context.GetPerformedContext(exception: Wrap(wrapped))));
+    }
+
+    [Fact]
+    public void Unwrap_ReturnsTheExceptionInsideTheWrappers()
+    {
+        InvalidOperationException thrown = new("boom");
+
+        Assert.Same(thrown, JobOutcomes.Unwrap(Wrap(new TargetInvocationException(new AggregateException(thrown)))));
+        Assert.Same(thrown, JobOutcomes.Unwrap(thrown));
+    }
+
+    [Fact]
+    public void Unwrap_KeepsAnAggregateOfSeveralExceptions_AndAnExceptionOfTheJobsOwn()
+    {
+        AggregateException several = new(new InvalidOperationException(), new ArgumentException());
+        InvalidOperationException own = new("own", new ArgumentException());
+
+        Assert.Same(several, JobOutcomes.Unwrap(Wrap(several)));
+        Assert.Same(own, JobOutcomes.Unwrap(Wrap(own)));
+    }
+
+    [Fact]
+    public void InnerChain_StopsAfterAFewLevels()
+    {
+        Exception deep = new InvalidOperationException("bottom");
+        for (int i = 0; i < 100; i++)
+        {
+            deep = new InvalidOperationException($"level {i}", deep);
+        }
+
+        Assert.InRange(JobOutcomes.InnerChain(deep).Count(), 1, 32);
     }
 
     private JobOutcome ClassifyTerminated(TerminateJobOutcome outcome)
