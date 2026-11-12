@@ -186,8 +186,94 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", ReasonOf(first));
         Assert.Empty(Ran);
 
-        // What it started of the record doesn't stay for good
-        Assert.InRange(RecordTimeToLive(chainId), TimeSpan.Zero, TimeSpan.FromDays(1));
+        // What it started of the record doesn't stay for good, and none of the jobs is marked as recorded
+        Assert.InRange(RecordTimeToLive(chainId), TimeSpan.FromDays(29.9), JobChain.RecordRetention);
+        Assert.Null(Parameter(first, JobChains.ChainRecordedParameter));
+    }
+
+    [Fact]
+    public void Chain_ScheduledFarAhead_WhoseCreationStoppedHalfway_DoesNotRunAsHalfAChain_WhenItComesDue()
+    {
+        // Scheduled in 45 days by a client that stops while it creates the third step
+        _filter.CrashOn = "c";
+        Assert.Throws<OutOfMemoryException>(
+            () => JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Schedule(_client, TimeSpan.FromDays(45)));
+
+        string first = _filter.Created.Single(static x => x.Name == "a").Id;
+        string second = _filter.Created.Single(static x => x.Name == "b").Id;
+        string chainId = Parameter(first, JobChains.ChainIdParameter)!.Trim('"');
+
+        // What it started of the record is kept until long after the first step is due
+        Assert.InRange(RecordTimeToLive(chainId), TimeSpan.FromDays(74.9), TimeSpan.FromDays(75));
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromDays(46));
+
+        WaitUntil(() => StateOf(first) == DeletedState.StateName && StateOf(second) == DeletedState.StateName, "the steps to be deleted");
+        Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", ReasonOf(first));
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void Chain_ScheduledFarAhead_WhoseCreationStoppedHalfway_DoesNotRun_EvenWhenWhatItStartedOfTheRecordIsGone()
+    {
+        // The storage dropped it (a cap on expiration times), or it expired: the first step is old enough for a
+        // record to have expired, but was never listed in one
+        _filter.CrashOn = "c";
+        Assert.Throws<OutOfMemoryException>(
+            () => JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Schedule(_client, TimeSpan.FromDays(45)));
+
+        string first = _filter.Created.Single(static x => x.Name == "a").Id;
+        string second = _filter.Created.Single(static x => x.Name == "b").Id;
+        string chainId = Parameter(first, JobChains.ChainIdParameter)!.Trim('"');
+        RemoveRecord(chainId);
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromDays(46));
+
+        WaitUntil(() => StateOf(first) == DeletedState.StateName && StateOf(second) == DeletedState.StateName, "the steps to be deleted");
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void Chain_ThatWasRecorded_StillRuns_OnceItsRecordExpired()
+    {
+        // Every step is marked when the chain is recorded: a step that is still to run when the record is gone,
+        // long after, runs as it always did
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Schedule(_client, TimeSpan.FromDays(45))!;
+        Assert.Equal("true", Parameter(chain.RootId, JobChains.ChainRecordedParameter));
+        Assert.Equal("true", Parameter(chain.Steps["1.0"], JobChains.ChainRecordedParameter));
+        RemoveRecord(chain.ChainId);
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromDays(46));
+
+        WaitUntil(() => Ran.Count == 2, "the steps to run");
+        Assert.Equal(["a", "b"], Ran);
+    }
+
+    [Fact]
+    public void Chain_ThatCanNotDeleteItsScheduledFirstStep_WhenItsCreationFails_LeavesNothingThatRuns()
+    {
+        _filter.ThrowOn = "c";
+        _deletions.FailWithReason = "The chain couldn't be created";
+
+        Assert.ThrowsAny<Exception>(
+            () => JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Schedule(_client, TimeSpan.FromDays(45)));
+        _deletions.FailWithReason = null;
+
+        // The steps are still there, and what was started of the record is kept for them, without any step
+        string first = _filter.Created.Single(static x => x.Name == "a").Id;
+        string chainId = Parameter(first, JobChains.ChainIdParameter)!.Trim('"');
+        Assert.Equal(ScheduledState.StateName, StateOf(first));
+        Assert.Equal("{}", RecordField(chainId, "Jobs"));
+        Assert.Empty(SetItems(JobChains.SetKey));
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromDays(46));
+
+        WaitUntil(() => _filter.Created.All(x => StateOf(x.Id) == DeletedState.StateName), "the steps to be deleted");
+        Assert.Empty(Ran);
     }
 
     [Fact]
@@ -473,6 +559,51 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void RetryChainFrom_IsTakenBack_WhenAServerDeletedOneOfItsNewSteps_WhileTheClientStalled()
+    {
+        // b failed and is retried; c, beside it, failed too, so the new step for "any failure" starts as soon as it
+        // is created, and waits for the retry to be recorded
+        JobChainResult chain = JobChain.StartWith(() => Once("a"))
+            .ThenMany(branches => branches.Branch(() => Once("b")).Branch(() => Once("c")))
+            .ThenAfterAnyFailed(() => Once("alert"))
+            .Then(() => Once("end"), JobContinuationOptions.OnAnyFinishedState)
+            .Enqueue(_client)!;
+        Succeed(chain.Steps["0.0"]);
+        Fail(chain.Steps["1.0"]);
+        Fail(chain.Steps["1.1"]);
+        Succeed(chain.Steps["2.0"]);
+        Succeed(chain.Steps["3.0"]);
+        _filter.Created.Clear();
+
+        // The steps failed by hand left their place in the queue behind: the server finds nothing to run there,
+        // and clears it, before the retry begins
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
+        _filter.PauseOn = "end";
+        _filter.WhilePaused = () =>
+        {
+            // The client stalls inside the creation of the last step for longer than its lease lasts: a server
+            // takes the retry for abandoned, and deletes the new step that was waiting to run
+            string alert = _filter.Created.Single(static x => x.Name == "alert").Id;
+            WaitUntil(() => StateOf(alert) == ScheduledState.StateName, "the new step to wait for the retry");
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => StateOf(alert) == DeletedState.StateName, "the new step to be deleted");
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
+
+        // Not returned as retried with a step that never runs: nothing changed
+        Assert.Contains("wasn't retried", exception.Message, StringComparison.Ordinal);
+        JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+        Assert.Equal(1, info.Generation);
+        Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+        Assert.Equal(FailedState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.All(_filter.Created, step => Assert.Equal(DeletedState.StateName, StateOf(step.Id)));
+        Assert.DoesNotContain("changing", RecordField(chain.ChainId, "Jobs"), StringComparison.Ordinal);
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
     public void RetryChainFrom_HoldsItsStepForMinutes_NotForAnHour()
     {
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
@@ -552,6 +683,82 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(SucceededState.StateName, StateOf(first));
         Assert.Equal(SucceededState.StateName, StateOf(third));
         Assert.Equal(2, Ran.Count(static x => x == "a"));
+    }
+
+    [Fact]
+    public void RecurringChain_GoesOn_AfterADeployRenamedOrRemovedAMethodOfThePreviousChain()
+    {
+        RecurringJobManager manager = new(_storage);
+        manager.AddOrUpdateChain("etl", JobChain.StartWith(() => Run("extract")).Then(() => Run("load")), "0 0 1 1 *", skipWhileRunning: true);
+
+        using BackgroundJobServer server = CreateServer();
+
+        string first = manager.TriggerJob("etl")!;
+        WaitUntil(() => StateOf(first) == SucceededState.StateName, "the recurring chain to be created");
+        Assert.True(_storage.TryGetResult(first, out string? previous));
+        WaitUntilSettled(previous!);
+
+        // The record of the previous chain now names a method that can't be loaded
+        ForgetTheMethods(previous!);
+
+        string second = manager.TriggerJob("etl")!;
+        WaitUntil(() => Ran.Count == 4, "the next chain to run");
+
+        Assert.Equal(SucceededState.StateName, StateOf(second));
+        Assert.Equal(["extract", "load", "extract", "load"], Ran);
+    }
+
+    [Fact]
+    public void Chain_WhoseStepsMethodsWereRenamedOrRemoved_CanStillBeRead_Retried_WhereItNeedsNoneOfThem_AndDeleted()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Enqueue(_client)!;
+        Succeed(chain.Steps["0.0"]);
+        Succeed(chain.Steps["1.0"]);
+        Fail(chain.Steps["2.0"]);
+        ForgetTheMethods(chain.ChainId);
+
+        // Read: the steps and their states, without their method calls
+        JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+        Assert.True(info.IsSettled);
+        Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+        Assert.All(info.Steps, static step => Assert.Null(step.Job));
+
+        // Retried from a step whose following steps must be created again: refused, and nothing changes
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
+        Assert.Contains("can't be created again", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["1.0"]));
+
+        // Retried from its last step: no method is needed for that
+        _storage.RetryChainFrom(chain.Steps["2.0"]);
+        Assert.Equal(EnqueuedState.StateName, StateOf(chain.Steps["2.0"]));
+
+        // Deleted
+        Assert.Equal(1, _storage.DeleteChain(chain.ChainId));
+        Assert.Null(_storage.GetChain(chain.ChainId));
+    }
+
+    [Fact]
+    public void RecurringChain_RunAgainAfterItsChainWasRecorded_DoesNotCreateASecondChain()
+    {
+        // The job that creates the chain is run again, as after a process that stopped before the job finished
+        RecurringJobManager manager = new(_storage);
+        manager.AddOrUpdateChain("etl", JobChain.StartWith(() => Run("extract")).Then(() => Run("load")), "0 0 1 1 *");
+
+        using BackgroundJobServer server = CreateServer();
+
+        string occurrence = manager.TriggerJob("etl")!;
+        WaitUntil(() => StateOf(occurrence) == SucceededState.StateName, "the recurring chain to be created");
+        Assert.True(_storage.TryGetResult(occurrence, out string? chainId));
+        WaitUntilSettled(chainId!);
+
+        Assert.True(_client.ChangeState(occurrence, new EnqueuedState(), SucceededState.StateName));
+        WaitUntil(() => History(occurrence).Count(static x => x.StateName == SucceededState.StateName) == 2, "the job to run again");
+
+        Assert.True(_storage.TryGetResult(occurrence, out string? again));
+        Assert.Equal(chainId, again);
+        Assert.Single(SetItems(JobChains.SetKey));
+        Thread.Sleep(300);
+        Assert.Equal(["extract", "load"], Ran);
     }
 
     [Fact]
@@ -971,6 +1178,30 @@ public sealed class JobChainStorageFacts : IDisposable
     {
         using IStorageConnection connection = _storage.GetConnection();
         return ((JobStorageConnection)connection).GetCounter($"stats:failed:{JobClock.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+    }
+
+    // As if the record were gone: expired, or dropped by the storage
+    private void RemoveRecord(string chainId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.RemoveHash(JobChains.GetKey(chainId));
+        transaction.RemoveFromSet(JobChains.SetKey, chainId);
+        transaction.Commit();
+    }
+
+    // What a deploy does that renames or removes the methods of the steps: the stored definition names methods
+    // that can't be loaded
+    private void ForgetTheMethods(string chainId)
+    {
+        string definition = RecordField(chainId, "Definition")!;
+        string forgotten = definition.Replace("Run", "Gone", StringComparison.Ordinal).Replace("Once", "Gone", StringComparison.Ordinal);
+        Assert.NotEqual(definition, forgotten);
+
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(JobChains.GetKey(chainId), new Dictionary<string, string> { ["Definition"] = forgotten });
+        transaction.Commit();
     }
 
     private JobChainResult CreateWorkflow()

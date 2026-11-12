@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift;
@@ -11,6 +14,12 @@ public static partial class JobChains
 
     /// <summary>The job parameter with a step's key, <c>level.index</c>.</summary>
     public const string ChainStepParameter = "ChainStep";
+
+    /// <summary>
+    /// The job parameter that marks a step of a chain that was recorded: set when the record that lists the step
+    /// is written. A step without it belongs to a chain whose creation, retry or replacement never finished.
+    /// </summary>
+    public const string ChainRecordedParameter = "ChainRecorded";
 
     /// <summary>The set that lists the chains, scored by creation time.</summary>
     public const string SetKey = "chains";
@@ -29,6 +38,11 @@ public static partial class JobChains
     // while its state changes.
     private static readonly TimeSpan CommitLockTimeout = TimeSpan.FromMinutes(1);
 
+    // How long the write of a record may take, from the moment the job it is decided under is locked, before the
+    // lock is taken again to read that job afterwards: a lock a storage keeps by a lease doesn't outlive a holder
+    // that was frozen for longer than the lease, and the shortest of them lasts thirty seconds
+    private static readonly TimeSpan SafeLockTime = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// How long after the steps it waits for finished a waiting step whose condition they meet counts as about to
     /// start (<see cref="JobChainInfo.IsSettled"/>): it is told within seconds. Replaceable for tests.
@@ -46,7 +60,11 @@ public static partial class JobChains
     /// <param name="storage">The storage.</param>
     extension([NotNull] JobStorage storage)
     {
-        /// <summary>Reads a chain with the current state of each step, or <c>null</c> when it isn't recorded (any more).</summary>
+        /// <summary>
+        /// Reads a chain with the current state of each step, or <c>null</c> when it isn't recorded (any more). A
+        /// step whose method can't be loaded any more (it was renamed or removed since the chain was created) has
+        /// no <see cref="JobChainStepInfo.Job"/>.
+        /// </summary>
         [CanBeNull]
         public JobChainInfo? GetChain([NotNull] string chainId)
         {
@@ -73,7 +91,9 @@ public static partial class JobChains
         /// <returns>The chain's jobs after the retry.</returns>
         /// <exception cref="InvalidOperationException">
         /// The job isn't a current step of a recorded chain, a step of the chain hasn't finished yet, the step changed
-        /// meanwhile, or a job the new steps wait for expired.
+        /// meanwhile, a job the new steps wait for expired, a step that must be created again names a method that
+        /// can't be loaded any more, or this process stalled for so long that a server took the retry for abandoned
+        /// and deleted one of its jobs. In each case nothing of the retry is left to run.
         /// </exception>
         [NotNull]
         public JobChainResult RetryChainFrom([NotNull] string stepJobId)
@@ -95,7 +115,10 @@ public static partial class JobChains
         /// that is logged, not thrown.
         /// </summary>
         /// <returns>The new chain's jobs.</returns>
-        /// <exception cref="InvalidOperationException">The chain isn't recorded, or it started.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// The chain isn't recorded, it started, or this process stalled for so long that a server took the
+        /// replacement for abandoned and deleted one of its jobs: the old chain is then kept as it was.
+        /// </exception>
         [NotNull]
         public JobChainResult ReplaceChain([NotNull] string chainId, [NotNull] JobChain chain)
         {
@@ -124,10 +147,24 @@ public static partial class JobChains
         }
     }
 
-    /// <summary>Whether a chain has a step that waits for a group of several steps.</summary>
-    private static bool HasJoins(IReadOnlyList<ChainLevel> levels)
+    /// <summary>
+    /// Whether a recorded chain still has something to do by itself, read without loading the methods of its steps.
+    /// False for a chain that isn't recorded (any more).
+    /// </summary>
+    internal static bool IsRunning(JobStorage storage, string chainId)
     {
-        return levels.Any(level => level.Parent >= 0 && level.Parent < levels.Count && levels[level.Parent].Steps.Count > 1);
+        using IStorageConnection connection = storage.GetConnection();
+        return ReadSummary(connection, chainId) is { IsSettled: false };
+    }
+
+    /// <summary>
+    /// The identifier of the chain a job creates: always the same for the same job, and as long as a random
+    /// one.
+    /// </summary>
+    internal static string IdForJob(string jobId)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"chain-of-job:{jobId}"));
+        return Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
     }
 
     internal static bool IsSettledState(string? state)
@@ -170,19 +207,34 @@ public static partial class JobChains
 
             (int level, int index) = ParseKey(stepKey);
             HashSet<int> retried = [level];
-            for (int next = level + 1; next < record.Levels.Count; next++)
+            for (int next = level + 1; next < record.Definition.Levels.Count; next++)
             {
-                if (retried.Contains(record.Levels[next].Parent))
+                if (retried.Contains(record.Definition.Levels[next].Parent))
                 {
                     retried.Add(next);
                 }
             }
+
+            // The methods of the steps to create are loaded before anything changes: one that was renamed or removed
+            // since the chain was created refuses the retry, clearly, and leaves the chain as it is. The other
+            // steps' methods aren't needed.
+            Dictionary<int, ChainLevel> levels = [];
+            foreach (int next in retried.Where(x => x != level).Order())
+            {
+                levels[next] = record.Definition.ReadLevel(next, chainId);
+            }
+
+            StateData? stepState = connection.GetStateData(stepJobId);
+            Job? stepJob = stepState == null ? record.Definition.ReadJob(level, index, chainId) : null;
 
             // From here no step of the chain starts until the retry is recorded or given up. Should this process
             // stop before, the lease lapses and the record still lists the old steps: nothing is lost.
             ChainLease lease = ChainLease.Take(storage, connection, record);
             List<string> created = [];
             ChainRecord updated = record;
+            ChainCleanup? cleanup = null;
+            string? heldId = null;
+            string? refused = null;
             bool recorded = false;
 
             try
@@ -191,84 +243,131 @@ public static partial class JobChains
                 // failure doesn't start from the old one. The hold is short: the lease protects it, and should this
                 // process stop, the step runs again when it ends, with the old steps after it, which are still
                 // the ones the record lists.
-                StateData? stepState = connection.GetStateData(stepJobId);
-                string heldId = Hold(client, record, stepKey, stepJobId, stepState);
-                Dictionary<string, string> jobs = new(record.Jobs, StringComparer.Ordinal) { [stepKey] = heldId };
+                string held = heldId = Hold(client, chainId, stepKey, stepJobId, stepState, stepJob);
+                Dictionary<string, string> jobs = new(record.Jobs, StringComparer.Ordinal) { [stepKey] = held };
 
-                try
+                CreateLevels(
+                    client,
+                    record.Definition.Levels.Count,
+                    next => levels[next],
+                    jobs,
+                    chainId,
+                    level + 1,
+                    retried.Contains,
+                    created,
+                    lease,
+                    () => EnsureRetryCanGoOn(connection, chainId, held, created));
+
+                // The old steps after it wait for it too: the record stops listing them, so they can't run
+                // beside the new ones, and they are deleted, the deepest first. Written with the record, so a
+                // retry interrupted from here on is finished later.
+                cleanup = new ChainCleanup
                 {
-                    CreateLevels(client, record.Levels, jobs, chainId, level + 1, retried.Contains, created, lease);
+                    Reason = ChainRetryReplacedReason,
+                    Delete =
+                    [
+                        .. record.Cleanup?.Delete ?? [],
+                        .. DeepestFirst(record.Jobs.Where(x => ParseKey(x.Key).Level != level && retried.Contains(ParseKey(x.Key).Level))),
+                    ],
+                    Release = held,
+                };
 
-                    // The old steps after it wait for it too: the record stops listing them, so they can't run
-                    // beside the new ones, and they are deleted, the deepest first. Written with the record, so a
-                    // retry interrupted from here on is finished later.
-                    ChainCleanup cleanup = new()
+                updated = record with { Jobs = jobs, Generation = record.Generation + 1, Cleanup = cleanup };
+                Stopwatch locked;
+
+                // Under the step's lock: it is still held, so nothing after it started, and nothing does
+                // before the record is written
+                using (connection.AcquireDistributedJobLock(held, CommitLockTimeout))
+                {
+                    locked = Stopwatch.StartNew();
+                    EnsureStillHeld(connection, chainId, held);
+
+                    // A lease that lapsed is renewed, and what a server may have done meanwhile is looked at
+                    if (lease.HasLapsed())
                     {
-                        Reason = ChainRetryReplacedReason,
-                        Delete =
-                        [
-                            .. record.Cleanup?.Delete ?? [],
-                            .. DeepestFirst(record.Jobs.Where(x => ParseKey(x.Key).Level != level && retried.Contains(ParseKey(x.Key).Level))),
-                        ],
-                        Release = heldId,
-                    };
-
-                    updated = record with { Jobs = jobs, Generation = record.Generation + 1, Cleanup = cleanup };
-
-                    // Under the step's lock: it is still held, so nothing after it started, and nothing does
-                    // before the record is written
-                    using (connection.AcquireDistributedJobLock(heldId, CommitLockTimeout))
-                    {
-                        if (!ScheduledState.StateName.Equals(connection.GetStateData(heldId)?.Name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            throw new InvalidOperationException(
-                                $"Chain '{chainId}' wasn't retried: the retry took longer than its step was held ({HoldTime.TotalMinutes:0} minutes), so background job '{heldId}' left the hold by itself. The chain is as it was; retry it again once it has finished.");
-                        }
-
-                        WriteCommitted(connection, storage, updated, latestStart: null);
-                        recorded = true;
+                        lease.Renew();
+                        EnsureNoneRefused(connection, chainId, created, "retried");
                     }
+
+                    WriteCommitted(connection, storage, updated, latestStart: null, [.. created, held]);
+                    recorded = true;
                 }
-                catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
+
+                // A process frozen while it wrote the record may have lost its lock and its lease: the step may
+                // have left its hold and finished meanwhile, and a server deleted the new steps after it, which
+                // the record didn't list yet. The retry is taken back then.
+                if (locked.Elapsed > SafeLockTime)
                 {
-                    DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
+                    refused = FirstRefused(connection, chainId, created);
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
+            {
+                bool nothingLeft = DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
+                if (heldId != null)
+                {
                     if (stepState != null)
                     {
                         Release(client, stepJobId, Restore(stepState), chainId);
                     }
                     else
                     {
-                        DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
+                        nothingLeft &= DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
                     }
-
-                    throw;
                 }
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
-            {
-                lease.Release();
+
+                lease.GiveUp(nothingLeft);
                 throw;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                // Only the release of the step's lock can fail once the record is written: the retry is recorded
-                Logger.WarnException($"Chain '{chainId}' was retried, but the lock of its step couldn't be released cleanly.", ex);
+                // Only the release of the step's lock, or the last look at the new steps, can fail once the record
+                // is written: the retry is recorded
+                Logger.WarnException($"Chain '{chainId}' was retried, but its new steps couldn't be read again afterwards.", ex);
+            }
+
+            if (refused != null)
+            {
+                // The record goes back first, so the new steps aren't listed while they are deleted
+                lease.GiveUp(nothingLeft: false);
+                DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
+                throw new InvalidOperationException(
+                    $"Chain '{chainId}' wasn't retried: this process was frozen while it recorded the retry, and background job '{heldId}' left its hold and ran again meanwhile, alone; the new step '{refused}', which the record didn't list yet, was deleted for it. The steps after it are as they were before the retry; retry the chain again once that run has finished.");
             }
 
             // The retry is recorded: nothing fails it from here on. Should the step not be released, it runs when
             // its hold ends, or when a server's chain maintenance releases it.
-            CompleteCleanup(storage, client, connection, chainId, updated.Cleanup!, heldJustNow: true, out int replaced); // Set where the record is written
+            CompleteCleanup(storage, client, connection, chainId, cleanup!, heldJustNow: true, out int replaced); // Set before the record is written
 
             Logger.Info($"Chain '{chainId}' retried from step '{stepKey}' (generation {updated.Generation}): {created.Count} steps created after it, {replaced} waiting steps deleted.");
             return updated.ToResult();
         }
     }
 
-    // Holds the step to retry, or creates it again, held, when its job expired; returns the held job
-    private static string Hold(IBackgroundJobClientV2 client, ChainRecord record, string stepKey, string stepJobId, StateData? stepState)
+    private static void EnsureStillHeld(IStorageConnection connection, string chainId, string heldId)
     {
-        string chainId = record.ChainId;
+        if (!ScheduledState.StateName.Equals(connection.GetStateData(heldId)?.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Chain '{chainId}' wasn't retried: the retry took longer than its step was held ({HoldTime.TotalMinutes:0} minutes), so background job '{heldId}' left the hold by itself. The chain is as it was; retry it again once it has finished.");
+        }
+    }
 
+    // After the lease lapsed while the retry created its steps: the step is still held, and no server deleted a
+    // step created so far for not being listed
+    private static void EnsureRetryCanGoOn(IStorageConnection connection, string chainId, string heldId, List<string> created)
+    {
+        using (connection.AcquireDistributedJobLock(heldId, CommitLockTimeout))
+        {
+            EnsureStillHeld(connection, chainId, heldId);
+        }
+
+        EnsureNoneRefused(connection, chainId, created, "retried");
+    }
+
+    // Holds the step to retry, or creates it again, held, when its job expired; returns the held job
+    private static string Hold(IBackgroundJobClientV2 client, string chainId, string stepKey, string stepJobId, StateData? stepState, Job? stepJob)
+    {
         if (stepState != null)
         {
             if (!client.ChangeState(stepJobId, Hold(ChainRetriedReason), stepState.Name))
@@ -279,8 +378,7 @@ public static partial class JobChains
             return stepJobId;
         }
 
-        (int level, int index) = ParseKey(stepKey);
-        string recreated = Create(client, record.Levels[level].Steps[index].Job, Hold(ChainRetriedReason), chainId, stepKey, null);
+        string recreated = Create(client, stepJob!, Hold(ChainRetriedReason), chainId, stepKey, null); // Loaded by the caller when the step's job expired
         Logger.Warn($"Step '{stepKey}' of chain '{chainId}' was created again as background job '{recreated}' to retry it: its job '{stepJobId}' expired.");
         return recreated;
     }
@@ -330,18 +428,9 @@ public static partial class JobChains
                 Delete = [.. record.Cleanup?.Delete ?? [], .. DeepestFirst(record.Jobs)],
             };
 
-            JobChainResult result;
-            try
-            {
-                result = CreateJobs(chain, client, connection, lease, rootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt, cleanup, rootId)
-                    ?? throw new InvalidOperationException($"The first step of the new chain '{chainId}' wasn't created: a client filter canceled it.");
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                // The old chain is kept as it was
-                lease.Release();
-                throw;
-            }
+            // Whatever fails gives the lease up: the old chain is kept as it was
+            JobChainResult result = CreateJobs(chain, client, connection, lease, rootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt, cleanup, rootId)
+                ?? throw new InvalidOperationException($"The first step of the new chain '{chainId}' wasn't created: a client filter canceled it.");
 
             // The new chain is recorded: nothing fails the replacement from here on
             CompleteCleanup(storage, client, connection, chainId, cleanup, heldJustNow: false, out int deleted);
@@ -478,43 +567,52 @@ public static partial class JobChains
         // The record comes before the first job, with nothing in it but the lease: every job of the chain finds
         // it, and waits while it lasts. It lists no step until the last one is created, so nothing of a chain
         // whose creation stops halfway ever runs.
-        ChainLease lease = ChainLease.TakeForNewChain(storage, connection, chainId);
-        JobChainResult? result;
+        ChainLease lease = ChainLease.TakeForNewChain(storage, connection, chainId, (rootState as ScheduledState)?.EnqueueAt);
 
-        try
-        {
-            result = CreateJobs(
-                chain,
-                clientV2,
-                connection,
-                lease,
-                rootState,
-                rootOptions?.ToParameters() ?? new Dictionary<string, object>(StringComparer.Ordinal),
-                rootOptions?.Queue,
-                chainId,
-                1,
-                JobClock.UtcNow,
-                cleanup: null,
-                replacedRootId: null);
-        }
-        catch (Exception ex) when (ex.IsCatchableExceptionType())
-        {
-            lease.RemovePendingRecord();
-            throw;
-        }
+        return CreateJobs(
+            chain,
+            clientV2,
+            connection,
+            lease,
+            rootState,
+            rootOptions?.ToParameters() ?? new Dictionary<string, object>(StringComparer.Ordinal),
+            rootOptions?.Queue,
+            chainId,
+            1,
+            JobClock.UtcNow,
+            cleanup: null,
+            replacedRootId: null);
+    }
 
-        if (result == null)
-        {
-            lease.RemovePendingRecord();
-        }
+    /// <summary>
+    /// Creates a chain under an identifier chosen by the caller, once: when a chain is recorded under it already,
+    /// that one is returned and nothing is created. For work that may be done again after it succeeded (a job that
+    /// creates a chain and is run again because its process stopped before it finished).
+    /// </summary>
+    internal static JobChainResult? CreateOnce(JobChain chain, IBackgroundJobClient client, string chainId)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        JobStorage storage = (client as IBackgroundJobClientV2)?.Storage
+            ?? throw new NotSupportedException("A chain needs a client that implements IBackgroundJobClientV2, as BackgroundJobClient does.");
 
-        return result;
+        using IStorageConnection connection = storage.GetConnection();
+        using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
+        {
+            if (ChainRecord.Read(connection, chainId) is { } existing)
+            {
+                Logger.Info($"Chain '{chainId}' is recorded already (generation {existing.Generation}): it isn't created again.");
+                return existing.ToResult();
+            }
+
+            return Create(chain, client, new EnqueuedState(), null, chainId);
+        }
     }
 
     /// <summary>
     /// Creates the jobs of a chain under the lease of its record and writes the record that lists them, the point
-    /// from which the chain exists. Whatever fails before deletes the jobs created; the caller gives the lease back.
-    /// Nothing fails after: the chain is recorded.
+    /// from which the chain exists. Whatever fails before deletes the jobs created and gives the lease up. Nothing
+    /// fails after, except the last look at the first step, which takes the chain back when a server deleted that
+    /// step while this process was frozen.
     /// </summary>
     /// <returns><c>null</c> when a client filter canceled the first step: nothing was created.</returns>
     private static JobChainResult? CreateJobs(
@@ -533,35 +631,44 @@ public static partial class JobChains
     {
         IReadOnlyList<ChainLevel> levels = chain.Levels;
         Dictionary<string, string> jobs = new(StringComparer.Ordinal);
-
-        if (rootQueue != null && !client.Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
-        {
-            throw new NotSupportedException("The current storage can't keep the queue of a job. Use the QueueAttribute instead of ScheduleOptions.Queue.");
-        }
-
-        Job rootJob = rootQueue != null ? WithQueue(levels[0].Steps[0].Job, rootQueue) : levels[0].Steps[0].Job;
-        string? rootId = CreateOrNull(client, rootJob, rootState, chainId, Key(0, 0), rootParameters);
-        if (rootId == null)
-        {
-            return null;
-        }
-
-        jobs[Key(0, 0)] = rootId;
-        List<string> created = [rootId];
-        ChainRecord record = new(chainId, levels, jobs, generation, createdAt, chain.DeleteBehavior) { Cleanup = cleanup };
+        string change = replacedRootId != null ? "replaced" : "created";
+        List<string> created = [];
+        ChainRecord? record = null;
         StateData? root = null;
+        string? rootId = null;
         bool recorded = false;
+        bool lost = false;
 
         try
         {
-            CreateLevels(client, levels, jobs, chainId, 1, static _ => true, created, lease);
+            if (rootQueue != null && !client.Storage.HasFeature(JobStorageFeatures.JobQueueProperty))
+            {
+                throw new NotSupportedException("The current storage can't keep the queue of a job. Use the QueueAttribute instead of ScheduleOptions.Queue.");
+            }
+
+            Job rootJob = rootQueue != null ? WithQueue(levels[0].Steps[0].Job, rootQueue) : levels[0].Steps[0].Job;
+            string? first = rootId = CreateOrNull(client, rootJob, rootState, chainId, Key(0, 0), rootParameters);
+            if (first == null)
+            {
+                lease.GiveUp(nothingLeft: true);
+                return null;
+            }
+
+            jobs[Key(0, 0)] = first;
+            created.Add(first);
+            record = new ChainRecord(chainId, ChainDefinition.From(levels, chain.DeleteBehavior), jobs, generation, createdAt) { Cleanup = cleanup };
+
+            CreateLevels(client, levels.Count, level => levels[level], jobs, chainId, 1, static _ => true, created, lease, () => EnsureNoneRefused(connection, chainId, created, change));
+            Stopwatch locked;
 
             // The decision is taken under the lock of the first step, the only step that can be due before the
             // chain is recorded, and of the first step it replaces: a worker that looks at one of them either did
             // before, and what it decided is read here, or does after, and reads the record written here.
             using (replacedRootId != null ? connection.AcquireDistributedJobLock(replacedRootId, CommitLockTimeout) : null)
-            using (connection.AcquireDistributedJobLock(rootId, CommitLockTimeout))
+            using (connection.AcquireDistributedJobLock(first, CommitLockTimeout))
             {
+                locked = Stopwatch.StartNew();
+
                 if (replacedRootId != null)
                 {
                     string? replacedState = connection.GetStateData(replacedRootId)?.Name;
@@ -571,35 +678,66 @@ public static partial class JobChains
                     }
                 }
 
-                root = connection.GetStateData(rootId);
-                if (root == null || (DeletedState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase) && JobChainStepFilter.IsRefusal(chainId, root.Reason)))
+                root = connection.GetStateData(first);
+                if (IsRefused(chainId, root))
                 {
-                    throw new InvalidOperationException(
-                        $"Chain '{chainId}' wasn't {(replacedRootId != null ? "replaced" : "created")}: its first step was deleted before the chain was recorded. " +
-                        $"The client didn't confirm for {LeaseTime.TotalSeconds:0} seconds that it was still creating the chain (a step took that long to create, or the process was paused), " +
-                        "so a server took the chain for abandoned. Nothing of the new chain is left; create it again.");
+                    throw Abandoned(chainId, first, change);
                 }
 
-                WriteCommitted(connection, client.Storage, record, (rootState as ScheduledState)?.EnqueueAt);
+                // A lease that lapsed is renewed, and what a server may have done to the other jobs meanwhile is
+                // looked at: one of them deleted for not being listed would leave a chain that can't finish
+                if (lease.HasLapsed())
+                {
+                    lease.Renew();
+                    EnsureNoneRefused(connection, chainId, created.Skip(1), change);
+                }
+
+                WriteCommitted(connection, client.Storage, record, (rootState as ScheduledState)?.EnqueueAt, created);
                 recorded = true;
             }
+
+            // A process frozen while it wrote the record may have lost its lock and its lease, and a server may
+            // have deleted the first step for a chain it took for abandoned: it is read once more
+            lost = IsRefused(chainId, ReadAgain(connection, first, relock: locked.Elapsed > SafeLockTime));
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
         {
             // Not a chain without its later steps or its record: delete what was created, the last steps first so
             // nothing starts. The record lists none of them, so a step a worker took meanwhile doesn't run: it
-            // waits while the lease lasts, and is deleted afterwards.
-            DeleteCreated(client, connection, created, chainId, ChainNotCreatedReason);
+            // waits while the lease lasts, and is deleted afterwards. A job that can't be deleted keeps the record
+            // started for the chain, without any step, so it is deleted when it comes due.
+            lease.GiveUp(DeleteCreated(client, connection, created, chainId, ChainNotCreatedReason));
             throw;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            // Only the release of a job's lock can fail once the record is written: the chain exists
-            Logger.WarnException($"Chain '{chainId}' was recorded, but the lock of its first step couldn't be released cleanly.", ex);
+            // Only the release of a job's lock, or the last read of the first step, can fail once the record is
+            // written: the chain exists
+            Logger.WarnException($"Chain '{chainId}' was recorded, but its first step couldn't be read again afterwards.", ex);
         }
 
-        SettleFirstStep(client, connection, chainId, rootId, root);
-        return record.ToResult();
+        if (lost)
+        {
+            // The record goes first, so none of the steps is listed while they are deleted
+            lease.GiveUp(nothingLeft: false);
+            if (DeleteCreated(client, connection, created, chainId, ChainNotCreatedReason) && replacedRootId == null)
+            {
+                lease.GiveUp(nothingLeft: true);
+            }
+
+            throw Abandoned(chainId, rootId!, change); // Created, or the chain wasn't recorded
+        }
+
+        SettleFirstStep(client, connection, chainId, rootId!, root); // Created, or the chain wasn't recorded
+        return record!.ToResult(); // Built before the chain is recorded
+    }
+
+    private static StateData? ReadAgain(IStorageConnection connection, string jobId, bool relock)
+    {
+        using (relock ? connection.AcquireDistributedJobLock(jobId, CommitLockTimeout) : null)
+        {
+            return connection.GetStateData(jobId);
+        }
     }
 
     /// <summary>
@@ -607,11 +745,11 @@ public static partial class JobChains
     /// (a lost reply): the record is read again, and when it is the one written, the write counts as done, so the
     /// steps of a recorded chain aren't deleted as if it had failed.
     /// </summary>
-    private static void WriteCommitted(IStorageConnection connection, JobStorage storage, ChainRecord record, DateTime? latestStart)
+    private static void WriteCommitted(IStorageConnection connection, JobStorage storage, ChainRecord record, DateTime? latestStart, IReadOnlyCollection<string> recorded)
     {
         try
         {
-            record.Write(storage, connection, latestStart);
+            record.Write(storage, connection, latestStart, recorded);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType() && IsWritten(connection, record))
         {
@@ -686,12 +824,13 @@ public static partial class JobChains
         return client.Create(job, state, parameters);
     }
 
-    private static List<string> ParentJobs(IReadOnlyList<ChainLevel> levels, Dictionary<string, string> jobs, int parentLevel)
+    // The jobs of the steps of a level, in order: the ones the map lists for it
+    private static List<string> ParentJobs(Dictionary<string, string> jobs, int parentLevel)
     {
         List<string> parents = [];
-        for (int i = 0; i < levels[parentLevel].Steps.Count; i++)
+        for (int i = 0; jobs.TryGetValue(Key(parentLevel, i), out string? jobId); i++)
         {
-            parents.Add(jobs[Key(parentLevel, i)]);
+            parents.Add(jobId);
         }
 
         return parents;
