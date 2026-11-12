@@ -62,9 +62,13 @@ Whether the current deployment is alive doesn't depend on the clocks of the serv
 
 A server that has just started hasn't watched anything yet, so it takes the current deployment to be alive until it has seen its value unchanged for `TakeOverAfter`. A deployment seen before, or one with a lower [deployment order](#deployment-order), therefore waits that long after its first server starts before it takes over, also from a deployment whose servers are long gone. A deployment never seen, or one with a higher order, takes over at once.
 
+Silence only counts while the watching server itself was checking. When more than one and a half times `CheckInterval` passed since the start of its last check that succeeded (the storage was down, the process was suspended), the server saw nothing of that time, and the servers of the current deployment may not have been able to check either. It then drops what it watched and starts watching again, as a server that has just started does, and logs that at the information level. So after a storage outage a fenced deployment waits the whole `TakeOverAfter` again, and doesn't take over from a deployment whose servers are alive. A check that failed doesn't count as a check. A deployment never seen, or one with a higher order, still takes over at once.
+
+The time between two checks is `CheckInterval` plus the time the first of them took, the wait for the lock included. A server whose checks regularly take more than half of `CheckInterval` therefore starts watching again at every check, and never finds the current deployment silent, so it stays fenced when the servers of that deployment are gone: keep `CheckInterval` well above the time a check takes.
+
 | Setting | Default | What it does |
 |---|---|---|
-| `DeploymentFencing.CheckInterval` | 15 seconds | How often a server checks. Each server publishes its interval with its check |
+| `DeploymentFencing.CheckInterval` | 15 seconds | How often a server checks. Each server publishes its interval with its check. Checks more than one and a half times this apart make the server watch afresh |
 | `DeploymentFencing.TakeOverAfter` | 30 seconds | How long the current deployment must be silent before a deployment seen before, or one with a lower order, takes over |
 
 Both are static properties and must be greater than zero: zero or a negative value throws `ArgumentOutOfRangeException`. A deployment is silent only after it missed at least two checks. So a `TakeOverAfter` shorter than twice `CheckInterval` isn't refused, but counts as twice `CheckInterval`, and each server logs one warning that says so. A deployment whose servers check less often than this server is given at least twice the interval it published.

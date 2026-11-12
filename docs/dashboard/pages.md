@@ -161,7 +161,9 @@ The first 200 steps are drawn, whole levels at a time; the others are listed bel
 - **Retry from here** on a failed or deleted step, once the chain has settled (nothing is running or waiting to run): the step runs again with everything after it, and the steps before it aren't re-run. It calls `RetryChainFrom`.
 - **Delete** while the chain is still running: deletes the steps that haven't finished, following the chain's delete behavior (`Restrict` refuses while a step is processing).
 
-A chain step's job page links to its chain next to the job's tags. Its history can show a short `Scheduled` state with the reason `Waiting for chain ... to be recorded`, when a worker took the step while its chain was being created, retried or replaced, and a job that its chain's record doesn't list is deleted with a reason that says so: see [When a step runs](../jobs/chains.md#when-a-step-runs).
+A step whose method was renamed or removed since the chain was created shows its step key (`1.0`) in place of the method, without arguments; **Retry from here** is refused, with the reason shown, when the retry would have to create such a step again.
+
+A chain step's job page links to its chain next to the job's tags. Its history can show a short `Scheduled` state with the reason `Waiting for chain ... to be recorded`, when a worker took the step while its chain was being created, retried or replaced; a first step held this way while its chain was created is then `Enqueued` with the reason `The chain is recorded`. A job that its chain's record doesn't list is deleted with a reason that says so: see [When a step runs](../jobs/chains.md#when-a-step-runs).
 
 ### Retries
 
