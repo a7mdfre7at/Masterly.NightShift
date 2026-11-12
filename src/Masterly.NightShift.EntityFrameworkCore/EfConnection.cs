@@ -338,6 +338,9 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         return Read(context => EfRows.ReadCounters(context, [key])).GetValueOrDefault(key);
     }
 
+    /// <summary>The database's time, where the storage reads it (the feature tells); not supported otherwise.</summary>
+    public override DateTime GetUtcDateTime() => storage.Clock.TryRead(out DateTime now) ? now : base.GetUtcDateTime();
+
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {
         DateTime now = JobClock.UtcNow;

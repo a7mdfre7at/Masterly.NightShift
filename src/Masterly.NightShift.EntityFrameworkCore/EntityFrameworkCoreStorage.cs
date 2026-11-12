@@ -49,6 +49,22 @@ public sealed class EntityFrameworkCoreStorageOptions
     /// of this time. Thirty seconds by default.
     /// </summary>
     public TimeSpan DistributedLockLifetime { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The statement that reads the database's clock: SQL that answers the database's current time in UTC as a
+    /// single value (a date and time, or text such as <c>2026-01-31 12:00:00.000</c>), for example
+    /// <c>select utc_timestamp(6)</c>. <c>null</c> (the default) uses the statement the storage knows for the
+    /// provider: SQL Server, PostgreSQL (Npgsql), MySQL and MariaDB (Pomelo and Oracle's MySQL provider), Oracle
+    /// and SQLite have one. Set it for another provider, or to replace the statement of one of these.
+    /// </summary>
+    /// <remarks>
+    /// The statement is run once, the first time the clock is asked for, before it is used: the storage reads the
+    /// database's clock only when the statement answered a time and, for every statement but the built-in ones
+    /// of SQL Server and SQLite, a time within 30 minutes of this process's clock (a statement that answers
+    /// local time instead of UTC is told that way). Otherwise the process keeps its own clock and logs a warning
+    /// that says why. See the remarks of <see cref="EntityFrameworkCoreStorage"/>.
+    /// </remarks>
+    public string? DatabaseClockSql { get; set; }
 }
 
 /// <summary>
@@ -68,6 +84,30 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// <para>
 /// A dedicated context records the version of the tables it creates, and refuses tables of another version.
 /// With an application's context, the application's migrations create and upgrade the tables.
+/// </para>
+/// <para>
+/// The storage reads the database's clock (<c>JobStorageConnection.GetUtcDateTime</c>, advertised as the feature
+/// <c>Connection.GetUtcDateTime</c>) on the providers it knows a statement for: SQL Server, PostgreSQL (Npgsql),
+/// MySQL and MariaDB (Pomelo and Oracle's MySQL provider), Oracle and SQLite; for another provider, set
+/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>. The schedulers, the dashboard and
+/// the lease of a chain that is being created then go by that one clock, so the clocks of the
+/// processes that share the storage needn't agree for them. SQLite runs inside the process and reads the
+/// machine's own clock, which is the same clock for every process on that machine. Each read is one more
+/// statement on a context of the storage.
+/// </para>
+/// <para>
+/// The statement is checked once, the first time the clock is asked for (see
+/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>). For an unknown provider without the option
+/// (logged once as information), or a statement that fails the check (logged once as a warning), the storage
+/// doesn't advertise the feature and the process tells the time with its own clock, for as long as the storage
+/// object lives. While the database can't be reached at all, nothing is decided: <see cref="HasFeature"/> throws
+/// the provider's exception for <c>Connection.GetUtcDateTime</c>, and the next call checks again. Once the
+/// database's clock is in use, a read of it that fails throws like any other read; the storage never goes back
+/// to the process's clock.
+/// </para>
+/// <para>
+/// Fetched jobs' invisibility, the expiry of distributed locks and of rows, and the times written into states
+/// still go by the clock of the process that writes or compares them (<see cref="JobClock"/>).
 /// </para>
 /// </remarks>
 public sealed class EntityFrameworkCoreStorage : JobStorage
@@ -131,11 +171,18 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
             throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
         }
 
+        if (options.DatabaseClockSql != null && string.IsNullOrWhiteSpace(options.DatabaseClockSql))
+        {
+            throw new ArgumentException("The database clock SQL must be a statement, or null for the provider's.", nameof(options));
+        }
+
         _contextFactory = contextFactory;
         Options = options;
 
-        // Providers have no common way to read the server's clock
-        _features[JobStorageFeatures.Connection.GetUtcDateTime] = false;
+        // Providers have no common way to read the database's clock: whether this one's is read is found out
+        // the first time the feature is asked for, not here, where the database may not be reachable yet
+        _features.Remove(JobStorageFeatures.Connection.GetUtcDateTime);
+        Clock = new EfDatabaseClock(this);
 
         if (dedicated && options.PrepareSchemaIfNecessary)
         {
@@ -152,6 +199,9 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
 
     internal Task Enqueued => Volatile.Read(ref _enqueued).Task;
 
+    /// <summary>The database's clock, where it is read. Replaceable for tests.</summary>
+    internal EfDatabaseClock Clock { get; set; }
+
     /// <inheritdoc />
     public override IMonitoringApi GetMonitoringApi() => new EfMonitoringApi(this);
 
@@ -166,9 +216,20 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <c>Connection.GetUtcDateTime</c> is supported when the database's clock is read (see the remarks of
+    /// <see cref="EntityFrameworkCoreStorage"/>). The first call that asks for it runs one statement against the
+    /// database to find out, and throws the provider's exception when the database can't be reached; later calls
+    /// answer from memory.
+    /// </remarks>
     public override bool HasFeature(string featureId)
     {
         ArgumentNullException.ThrowIfNull(featureId);
+        if (string.Equals(featureId, JobStorageFeatures.Connection.GetUtcDateTime, StringComparison.OrdinalIgnoreCase))
+        {
+            return Clock.IsRead();
+        }
+
         return _features.TryGetValue(featureId, out bool supported) ? supported : base.HasFeature(featureId);
     }
 
@@ -220,6 +281,7 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         logger.Info($"    Expiration check interval: {Options.JobExpirationCheckInterval}.");
         logger.Info($"    Counters aggregate interval: {Options.CountersAggregateInterval}.");
         logger.Info($"    Distributed lock lifetime: {Options.DistributedLockLifetime}.");
+        logger.Info($"    Database clock SQL: {Options.DatabaseClockSql ?? "(the provider's)"}.");
     }
 
     /// <inheritdoc />
