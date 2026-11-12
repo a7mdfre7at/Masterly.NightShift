@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using Masterly.NightShift.Logging;
@@ -13,20 +14,29 @@ namespace Masterly.NightShift;
 /// by the current servers, and their running jobs finish.
 /// </summary>
 /// <remarks>
-/// <para>Every server refreshes its deployment's <c>Seen:{id}</c> field at each check. A deployment id the cluster
-/// has never seen takes over at once, even while servers of the current deployment are alive: fencing can't tell
-/// versions apart, so an unseen id is taken to be the newer one. A server started by mistake with an id never used
-/// (an old build with a new id, a developer's machine pointed at the wrong storage) fences the current servers, and
-/// a warning is logged when such a takeover pauses live servers. A deployment seen before (an old version
-/// restarted, a rollback) takes over only once no server of the current deployment has checked in for
+/// <para>Every server writes a new value to its deployment's <c>Seen:{id}</c> field at each check. A deployment id
+/// the cluster has never seen takes over at once, even while servers of the current deployment are alive: fencing
+/// can't tell versions apart, so an unseen id is taken to be the newer one. A server started by mistake with an id
+/// never used (an old build with a new id, a developer's machine pointed at the wrong storage) fences the current
+/// servers, and a warning is logged when such a takeover pauses live servers. A deployment seen before (an old
+/// version restarted, a rollback) takes over only once the current deployment has been silent for
 /// <see cref="TakeOverAfter"/>, so a crash-looping old server doesn't fence the new ones.</para>
+/// <para>Whether a deployment is alive doesn't depend on the clocks of the servers: each server watches the
+/// <c>Seen</c> value of the current deployment and measures, with its own monotonic clock, how long it has stayed
+/// the same. A server that has just started hasn't watched yet, so it takes the current deployment to be alive
+/// until it has seen its value unchanged for <see cref="TakeOverAfter"/>; a deployment never seen, or one with a
+/// higher order, still takes over at once.</para>
 /// <para>A deployment order (<see cref="DeploymentOrder"/>, the second argument of <c>UseDeploymentFencing</c>)
 /// tells versions apart: a number that grows with each deploy, kept in the <c>Order:{id}</c> field. When this
 /// deployment and the current one both have an order, the higher one wins: a deployment with a higher order takes
 /// over at once, seen before or not, and one with a lower order (a stray instance of an old image, an old build
 /// deployed by accident) never takes over while servers of the current deployment are alive, only once they have
 /// been silent for <see cref="TakeOverAfter"/>. With equal orders, or when either deployment has none, the rules
-/// above apply.</para>
+/// above apply. A deployment id has one order: when servers of the same id are started with different orders, or
+/// some without one, the highest applies to all of them, and each server that was given another logs a warning.</para>
+/// <para>The fields of a deployment that isn't the current one, shows no sign of life and was last seen more than
+/// seven days ago are removed, so the hash doesn't grow with every release. Such a deployment counts as never seen
+/// when it comes back.</para>
 /// <para>To roll back on purpose, deploy with a new deployment id and, with orders, a higher order.</para>
 /// </remarks>
 public static class DeploymentFencing
@@ -41,27 +51,65 @@ public static class DeploymentFencing
     public const int MaxDeploymentIdLength = 64;
 
     internal const string CurrentField = "Current";
-    private const string SeenPrefix = "Seen:";
+
+    // A deployment id has at most 64 characters, so these fields are never shortened and end with the id
+    internal const string SeenPrefix = "Seen:";
     private const string OrderPrefix = "Order:";
     private const int MaxFieldLength = 100;
+    private const char SeenSeparator = '|';
+
+    /// <summary>How long a deployment must have been gone before its fields are removed from the hash.</summary>
+    internal static readonly TimeSpan ForgetAfter = TimeSpan.FromDays(7);
+
+    // A check interval read from the storage counts up to this; a longer one is taken for damaged data
+    private static readonly TimeSpan LongestPublishedCheckInterval = TimeSpan.FromDays(1);
 
     /// <summary>The deployment of the servers of this process, or <c>null</c> when fencing is off.</summary>
     public static string? DeploymentId { get; internal set; }
 
     /// <summary>
-    /// The order of the deployment of this process among the deployments, or <c>null</c> when none was given: a
-    /// number that grows with each deploy, such as the pipeline's run number.
+    /// The order the deployment of this process was given among the deployments, or <c>null</c> when none was
+    /// given: a number that grows with each deploy, such as the pipeline's run number.
     /// </summary>
     public static long? DeploymentOrder { get; internal set; }
 
-    /// <summary>How often a server checks the deployment. 15 seconds.</summary>
-    public static TimeSpan CheckInterval { get; set; } = TimeSpan.FromSeconds(15);
+    /// <summary>
+    /// How often a server checks the deployment. 15 seconds. Each server publishes its interval with its check, so
+    /// the servers of other deployments wait for at least two of them before they take it to be silent.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is zero or negative.</exception>
+    public static TimeSpan CheckInterval
+    {
+        get;
+        set => field = value > TimeSpan.Zero
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), value, "CheckInterval must be greater than zero.");
+    } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// How long the current deployment must be silent before a deployment seen before, or one with a lower order,
-    /// takes over. 30 seconds.
+    /// takes over. 30 seconds. At least two checks of the current deployment must be missed, so a value below twice
+    /// <see cref="CheckInterval"/> isn't refused but counts as twice <see cref="CheckInterval"/>, and the server
+    /// logs a warning that says so.
     /// </summary>
-    public static TimeSpan TakeOverAfter { get; set; } = TimeSpan.FromSeconds(30);
+    /// <exception cref="ArgumentOutOfRangeException">The value is zero or negative.</exception>
+    public static TimeSpan TakeOverAfter
+    {
+        get;
+        set => field = value > TimeSpan.Zero
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), value, "TakeOverAfter must be greater than zero.");
+    } = TimeSpan.FromSeconds(30);
+
+    /// <summary><see cref="TakeOverAfter"/>, or twice <see cref="CheckInterval"/> when that is longer.</summary>
+    internal static TimeSpan EffectiveTakeOverAfter
+    {
+        get
+        {
+            TimeSpan twoChecks = CheckInterval + CheckInterval;
+            return TakeOverAfter > twoChecks ? TakeOverAfter : twoChecks;
+        }
+    }
 
     /// <summary>The deployment the cluster runs, or <c>null</c> when no fenced server has run yet.</summary>
     [CanBeNull]
@@ -130,6 +178,51 @@ public static class DeploymentFencing
             : null;
     }
 
+    /// <summary>
+    /// The value a check writes to its deployment's <c>Seen</c> field. Other servers only look at whether it
+    /// changed, so it must differ from the one before: the number counts the checks of the deployment. The date
+    /// and the interval are hints, for removing deployments long gone and for servers with another interval.
+    /// </summary>
+    internal static string FormatSeen(DateTime now, long sequence, TimeSpan checkInterval)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{JobHelper.SerializeDateTime(now)}{SeenSeparator}{sequence}{SeenSeparator}{(long)checkInterval.TotalMilliseconds}");
+    }
+
+    /// <summary>Reads what it can of a <c>Seen</c> value; a part that is missing or damaged is <c>null</c> or zero.</summary>
+    internal static (DateTime? LastSeen, long Sequence, TimeSpan? CheckInterval) ReadSeen(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return (null, 0, null);
+        }
+
+        string[] parts = value.Split(SeenSeparator);
+
+        DateTime? lastSeen = null;
+        try
+        {
+            lastSeen = JobHelper.DeserializeDateTime(parts[0]);
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException)
+        {
+            // Not a date: the value still shows whether the deployment is alive, by changing
+        }
+
+        long sequence = parts.Length > 1 && long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out long parsed) && parsed < long.MaxValue
+            ? parsed
+            : 0;
+
+        TimeSpan? checkInterval = parts.Length > 2 &&
+            long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out long milliseconds) &&
+            milliseconds > 0 && milliseconds <= LongestPublishedCheckInterval.TotalMilliseconds
+            ? TimeSpan.FromMilliseconds(milliseconds)
+            : null;
+
+        return (lastSeen, sequence, checkInterval);
+    }
+
     /// <summary>A deployment with its order, when it has one: <c>2026.11.3 (order 42)</c>.</summary>
     internal static string Describe(string deploymentId, long? order)
     {
@@ -143,10 +236,23 @@ public static class DeploymentFencing
 internal sealed class DeploymentFencingProcess(string deploymentId, long? deploymentOrder) : IBackgroundProcess
 {
     private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan RetryForgettingAfter = TimeSpan.FromHours(1);
+    private static readonly long Started = Stopwatch.GetTimestamp();
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeploymentFencingProcess));
+
+    // What this server has watched of each deployment's Seen field: the last value it read, and when, by its own
+    // monotonic clock, it saw that value for the first time. The clocks of the other servers play no part
+    private readonly Dictionary<string, Observation> _observations = new(StringComparer.Ordinal);
 
     // The newer deployment this one was last reported fenced by, so the warning is logged once, not at every check
     private string? _fencedByNewer;
+
+    // What the warnings about the configuration were last logged for, so each is logged once
+    private (long? Given, long? Stored)? _warnedOrders;
+    private (TimeSpan TakeOverAfter, TimeSpan CheckInterval)? _warnedTimes;
+
+    // After a failure, the fields of deployments long gone are left alone for a while
+    private TimeSpan _forgetNotBefore;
 
     /// <summary>The process of a deployment with the order given to <c>UseDeploymentFencing</c>.</summary>
     public DeploymentFencingProcess(string deploymentId)
@@ -156,6 +262,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     public string DeploymentId { get; } = deploymentId;
 
+    /// <summary>The order this server was started with. The one that applies is the highest given to the id.</summary>
     public long? DeploymentOrder { get; } = deploymentOrder;
 
     public void Execute(BackgroundProcessContext context)
@@ -164,17 +271,24 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
         using (IStorageConnection connection = context.Storage.GetConnection())
         {
-            Check(connection, context.ServerId, JobClock.UtcNow);
+            Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started));
         }
 
         context.Wait(DeploymentFencing.CheckInterval);
     }
 
     /// <summary>Records this deployment, claims the cluster when it may, and pauses or resumes the server. Returns whether it is fenced.</summary>
-    internal bool Check(IStorageConnection connection, string serverId, DateTime now)
+    /// <param name="connection">The connection to read and write the hash with.</param>
+    /// <param name="serverId">The server to pause or resume.</param>
+    /// <param name="now">The time of this server's clock, written as a hint only: nothing is decided by it but when a deployment long gone is forgotten.</param>
+    /// <param name="uptime">A reading of this server's monotonic clock, which says how long a deployment has been silent.</param>
+    internal bool Check(IStorageConnection connection, string serverId, DateTime now, TimeSpan uptime)
     {
+        WarnOnceAboutTheTakeOverTime();
+
         string? current;
         long? currentOrder;
+        long? order;
         bool fenced;
         bool older = false;
 
@@ -182,13 +296,22 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         {
             Dictionary<string, string> hash = connection.GetAllEntriesFromHash(DeploymentFencing.HashKey) ?? [];
             current = hash.GetValueOrDefault(DeploymentFencing.CurrentField) is { Length: > 0 } stored ? stored : null;
+            Observe(hash, current, uptime);
+
+            // One id has one order: the highest any of its servers was started with
+            long? storedOrder = DeploymentFencing.ReadOrder(hash, DeploymentId);
+            order = Highest(DeploymentOrder, storedOrder);
+            WarnOnceAboutAnotherOrder(storedOrder, order);
+
             currentOrder = current != null ? DeploymentFencing.ReadOrder(hash, current) : null;
-            bool seen = hash.ContainsKey(DeploymentFencing.SeenField(DeploymentId));
-            bool currentAlive = current != null && current != DeploymentId && IsAlive(hash, current, now);
+            string seenField = DeploymentFencing.SeenField(DeploymentId);
+            bool seen = hash.ContainsKey(seenField);
+            string? another = current != null && current != DeploymentId ? current : null;
+            bool currentAlive = another != null && IsAlive(DeploymentFencing.SeenField(another), uptime);
 
             // The orders decide when both deployments have one and they differ: the ids can't be compared
             bool newer = false;
-            if (current != null && current != DeploymentId && DeploymentOrder is { } own && currentOrder is { } other && own != other)
+            if (another != null && order is { } own && currentOrder is { } other && own != other)
             {
                 newer = own > other;
                 older = !newer;
@@ -198,69 +321,269 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             // with a lower order, or seen before, only once the current is silent
             fenced = currentAlive && (older || (!newer && seen));
 
-            // Each check refreshes the deployment's last sign of life
+            // Each check writes a value the deployment's field didn't hold: its sign of life
             Dictionary<string, string> changes = new(StringComparer.Ordinal)
             {
-                [DeploymentFencing.SeenField(DeploymentId)] = JobHelper.SerializeDateTime(now),
+                [seenField] = DeploymentFencing.FormatSeen(
+                    now,
+                    DeploymentFencing.ReadSeen(hash.GetValueOrDefault(seenField)).Sequence + 1,
+                    DeploymentFencing.CheckInterval),
             };
 
-            // The order goes with the deployment, so a current deployment claimed by a server without one has none
-            string orderField = DeploymentFencing.OrderField(DeploymentId);
-            string order = DeploymentOrder?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-            if (hash.GetValueOrDefault(orderField, string.Empty) != order)
+            // Only ever raised: a server started with a lower order, or without one, doesn't take it from the others
+            if (order.HasValue && order != storedOrder)
             {
-                changes[orderField] = order;
+                changes[DeploymentFencing.OrderField(DeploymentId)] = order.Value.ToString(CultureInfo.InvariantCulture);
             }
 
             if (!fenced && current != DeploymentId)
             {
-                if (currentAlive && newer)
+                // What the log says only: whether the servers of the current deployment were seen to be running
+                bool running = another != null && currentAlive && IsLikelyRunning(DeploymentFencing.SeenField(another), now);
+
+                if (running && newer)
                 {
                     Logger.Info(string.Create(
                         CultureInfo.InvariantCulture,
-                        $"Deployment '{DeploymentId}' (order {DeploymentOrder}) takes over from '{current}' (order {currentOrder}), whose servers are still running: they stop taking jobs."));
+                        $"Deployment '{DeploymentId}' (order {order}) takes over from '{current}' (order {currentOrder}), whose servers are still running: they stop taking jobs."));
                 }
-                else if (currentAlive)
+                else if (running)
                 {
                     // Without orders that decide, only a deployment never seen gets here while the current one is alive
-                    Logger.Warn($"Deployment '{DeploymentId}', never seen before, takes over from '{current}', whose servers are still running: they stop taking jobs. If '{DeploymentId}' isn't the newer build, stop its servers; '{current}' takes over again once they have been gone for {DeploymentFencing.TakeOverAfter}.");
+                    Logger.Warn($"Deployment '{DeploymentId}', never seen before, takes over from '{current}', whose servers are still running: they stop taking jobs. If '{DeploymentId}' isn't the newer build, stop its servers; '{current}' takes over again once they have been gone for {DeploymentFencing.EffectiveTakeOverAfter}.");
                 }
 
                 Logger.Info($"Deployment '{DeploymentId}' is now the current one{(current != null ? $", after '{current}'" : string.Empty)}: servers of other deployments stop taking jobs.");
                 changes[DeploymentFencing.CurrentField] = DeploymentId;
                 current = DeploymentId;
-                currentOrder = DeploymentOrder;
+                currentOrder = order;
             }
 
-            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-            transaction.SetRangeInHash(DeploymentFencing.HashKey, changes);
-            transaction.Commit();
+            Write(connection, hash, changes, FindForgotten(hash, current, now, uptime), uptime);
         }
 
         bool fencedByNewer = fenced && older;
-        WarnOnceWhenFencedByNewer(fencedByNewer, current, currentOrder);
-        UpdatePause(connection, serverId, fenced, current, fencedByNewer ? currentOrder : null);
+        WarnOnceWhenFencedByNewer(fencedByNewer, order, current, currentOrder);
+        UpdatePause(connection, serverId, fenced, order, current, fencedByNewer ? currentOrder : null);
         return fenced;
     }
 
-    private static bool IsAlive(Dictionary<string, string> hash, string deployment, DateTime now)
+    private static long? Highest(long? first, long? second)
     {
-        if (!hash.TryGetValue(DeploymentFencing.SeenField(deployment), out string? value) || string.IsNullOrEmpty(value))
+        if (first.HasValue && second.HasValue)
+        {
+            return Math.Max(first.Value, second.Value);
+        }
+
+        return first ?? second;
+    }
+
+    // Remembers each deployment's Seen value and when it was first read. A value read for the first time, also
+    // the very first one after this server started, is a sign of life at that moment: not knowing better, the
+    // deployment is alive until it has been watched without one for long enough
+    private void Observe(Dictionary<string, string> hash, string? current, TimeSpan uptime)
+    {
+        HashSet<string> fields = new(StringComparer.Ordinal);
+
+        foreach (KeyValuePair<string, string> entry in hash)
+        {
+            if (entry.Key.StartsWith(DeploymentFencing.SeenPrefix, StringComparison.Ordinal))
+            {
+                fields.Add(entry.Key);
+                ObserveValue(entry.Key, entry.Value ?? string.Empty, uptime);
+            }
+        }
+
+        // A current deployment without the field is watched too: it is silent once the field has stayed away
+        if (current != null && fields.Add(DeploymentFencing.SeenField(current)))
+        {
+            ObserveValue(DeploymentFencing.SeenField(current), string.Empty, uptime);
+        }
+
+        foreach (string gone in _observations.Keys.Where(x => !fields.Contains(x)).ToArray())
+        {
+            _observations.Remove(gone);
+        }
+    }
+
+    private void ObserveValue(string field, string value, TimeSpan uptime)
+    {
+        if (!_observations.TryGetValue(field, out Observation observation))
+        {
+            _observations[field] = new Observation(value, uptime, SawChange: false);
+        }
+        else if (observation.Value != value)
+        {
+            _observations[field] = new Observation(value, uptime, SawChange: true);
+        }
+    }
+
+    // Alive while its value changed recently, by this server's own measure of time
+    private bool IsAlive(string seenField, TimeSpan uptime)
+    {
+        return _observations.TryGetValue(seenField, out Observation observation) &&
+               uptime - observation.Since <= GetSilenceLimit(observation.Value);
+    }
+
+    // For the wording of a log line only. A server that has watched the value change knows the deployment runs;
+    // one that just started can only compare the date the value holds with its own clock, as a guess
+    private bool IsLikelyRunning(string seenField, DateTime now)
+    {
+        if (!_observations.TryGetValue(seenField, out Observation observation))
         {
             return false;
+        }
+
+        if (observation.SawChange)
+        {
+            return true;
+        }
+
+        return DeploymentFencing.ReadSeen(observation.Value).LastSeen is { } lastSeen &&
+               (now - lastSeen).Duration() <= GetSilenceLimit(observation.Value);
+    }
+
+    // How long a deployment may show no sign of life before it is silent: at least two of its own checks, by the
+    // interval it published, so a deployment that checks less often than this one expects isn't taken for dead
+    private static TimeSpan GetSilenceLimit(string seenValue)
+    {
+        TimeSpan limit = DeploymentFencing.EffectiveTakeOverAfter;
+
+        if (DeploymentFencing.ReadSeen(seenValue).CheckInterval is { } interval && interval + interval > limit)
+        {
+            limit = interval + interval;
+        }
+
+        return limit;
+    }
+
+    // The fields of the deployments that are gone for good: not the current one or this one, without a sign of
+    // life for as long as this server has watched, and last seen long ago by the date their servers wrote. The date
+    // alone decides nothing: a deployment whose servers are alive is never forgotten, whatever the clocks say
+    private List<string> FindForgotten(Dictionary<string, string> hash, string? current, DateTime now, TimeSpan uptime)
+    {
+        List<string> forgotten = [];
+        if (uptime < _forgetNotBefore)
+        {
+            return forgotten;
+        }
+
+        foreach (KeyValuePair<string, Observation> entry in _observations)
+        {
+            string deployment = entry.Key[DeploymentFencing.SeenPrefix.Length..];
+            if (deployment == current || deployment == DeploymentId || !hash.ContainsKey(entry.Key) || IsAlive(entry.Key, uptime))
+            {
+                continue;
+            }
+
+            if (DeploymentFencing.ReadSeen(entry.Value.Value).LastSeen is { } lastSeen && now - lastSeen > DeploymentFencing.ForgetAfter)
+            {
+                forgotten.Add(entry.Key);
+
+                string orderField = DeploymentFencing.OrderField(deployment);
+                if (hash.ContainsKey(orderField))
+                {
+                    forgotten.Add(orderField);
+                }
+            }
+        }
+
+        return forgotten;
+    }
+
+    private void Write(
+        IStorageConnection connection,
+        Dictionary<string, string> hash,
+        Dictionary<string, string> changes,
+        List<string> forgotten,
+        TimeSpan uptime)
+    {
+        if (forgotten.Count == 0)
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.SetRangeInHash(DeploymentFencing.HashKey, changes);
+            transaction.Commit();
+            return;
+        }
+
+        // A field can't be removed alone, so the hash is written again without the forgotten ones, in one
+        // transaction and under the lock every check holds
+        Dictionary<string, string> kept = new(hash, StringComparer.Ordinal);
+        foreach (string field in forgotten)
+        {
+            kept.Remove(field);
+        }
+
+        foreach (KeyValuePair<string, string> change in changes)
+        {
+            kept[change.Key] = change.Value;
         }
 
         try
         {
-            return now - JobHelper.DeserializeDateTime(value) <= DeploymentFencing.TakeOverAfter;
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.RemoveHash(DeploymentFencing.HashKey);
+            transaction.SetRangeInHash(DeploymentFencing.HashKey, kept);
+            transaction.Commit();
         }
-        catch (Exception ex) when (ex is FormatException or OverflowException)
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            return false;
+            // Forgetting is housekeeping: the check itself goes on. Every field that must stay is written, so a
+            // transaction that removed the hash and then failed leaves nothing missing
+            _forgetNotBefore = uptime + RetryForgettingAfter;
+            Logger.WarnException($"The deployments long gone couldn't be removed from '{DeploymentFencing.HashKey}'. It is tried again in {RetryForgettingAfter}.", ex);
+
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.SetRangeInHash(DeploymentFencing.HashKey, kept);
+            transaction.Commit();
+            return;
         }
+
+        string[] deployments = [.. forgotten
+            .Where(static x => x.StartsWith(DeploymentFencing.SeenPrefix, StringComparison.Ordinal))
+            .Select(static x => x[DeploymentFencing.SeenPrefix.Length..])];
+
+        foreach (string field in forgotten)
+        {
+            _observations.Remove(field);
+        }
+
+        Logger.Info($"Forgot {deployments.Length} deployment(s) not seen for {DeploymentFencing.ForgetAfter.TotalDays:0} days: {string.Join(", ", deployments.Take(10))}{(deployments.Length > 10 ? ", ..." : string.Empty)}. One that comes back counts as never seen.");
     }
 
-    private void WarnOnceWhenFencedByNewer(bool fencedByNewer, string? current, long? currentOrder)
+    private void WarnOnceAboutTheTakeOverTime()
+    {
+        TimeSpan takeOverAfter = DeploymentFencing.TakeOverAfter;
+        TimeSpan checkInterval = DeploymentFencing.CheckInterval;
+
+        if (takeOverAfter >= checkInterval + checkInterval || _warnedTimes == (takeOverAfter, checkInterval))
+        {
+            return;
+        }
+
+        _warnedTimes = (takeOverAfter, checkInterval);
+        Logger.Warn($"DeploymentFencing.TakeOverAfter ({takeOverAfter}) is less than twice DeploymentFencing.CheckInterval ({checkInterval}), so a deployment that misses a single check would look silent: {checkInterval + checkInterval} is used instead. Set TakeOverAfter to at least twice CheckInterval.");
+    }
+
+    private void WarnOnceAboutAnotherOrder(long? storedOrder, long? order)
+    {
+        // Nothing stored yet: this server is the first of its deployment to bring an order
+        if (!storedOrder.HasValue || storedOrder == DeploymentOrder || _warnedOrders == (DeploymentOrder, storedOrder))
+        {
+            return;
+        }
+
+        _warnedOrders = (DeploymentOrder, storedOrder);
+        string given = DeploymentOrder.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"with order {DeploymentOrder.Value}")
+            : "without an order";
+
+        Logger.Warn(string.Create(
+            CultureInfo.InvariantCulture,
+            $"This server of deployment '{DeploymentId}' was started {given}, but other servers of '{DeploymentId}' were started with order {storedOrder.Value}. A deployment id has one order, so the highest, {order}, applies to all of them. Start every server of a deployment with the same order, and give a new deployment a new id."));
+    }
+
+    private void WarnOnceWhenFencedByNewer(bool fencedByNewer, long? order, string? current, long? currentOrder)
     {
         if (!fencedByNewer)
         {
@@ -276,10 +599,10 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         _fencedByNewer = current;
         Logger.Warn(string.Create(
             CultureInfo.InvariantCulture,
-            $"Deployment '{DeploymentId}' (order {DeploymentOrder}) is fenced, because the newer deployment '{current}' (order {currentOrder}) is the current one: its servers take no jobs while servers of '{current}' are running, and it takes over only once they have been gone for {DeploymentFencing.TakeOverAfter}. To make '{DeploymentId}' the current deployment, deploy it with an order above {currentOrder}."));
+            $"Deployment '{DeploymentId}' (order {order}) is fenced, because the newer deployment '{current}' (order {currentOrder}) is the current one: its servers take no jobs while servers of '{current}' are running, and it takes over only once they have been gone for {DeploymentFencing.EffectiveTakeOverAfter}. To make '{DeploymentId}' the current deployment, deploy it with an order above {currentOrder}."));
     }
 
-    private void UpdatePause(IStorageConnection connection, string serverId, bool fenced, string? current, long? newerOrder)
+    private void UpdatePause(IStorageConnection connection, string serverId, bool fenced, long? order, string? current, long? newerOrder)
     {
         DrainMode.InvalidateCache();
         DrainModeStatus status = DrainMode.Read(connection);
@@ -292,7 +615,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             {
                 // The warning about the newer deployment said why; this is the server's part of it
                 Logger.Info($"Server '{serverId}' of deployment '{DeploymentId}' stops taking jobs: the newer deployment '{current}' is the current one.");
-                DrainMode.PauseServer(connection, serverId, string.Create(CultureInfo.InvariantCulture, $"{DeploymentFencing.FencedReasonPrefix}deployment '{DeploymentId}' (order {DeploymentOrder}) is older than '{current}' (order {newerOrder.Value})"));
+                DrainMode.PauseServer(connection, serverId, string.Create(CultureInfo.InvariantCulture, $"{DeploymentFencing.FencedReasonPrefix}deployment '{DeploymentId}' (order {order}) is older than '{current}' (order {newerOrder.Value})"));
                 return;
             }
 
@@ -308,4 +631,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     }
 
     public override string ToString() => $"Deployment fencing ({DeploymentFencing.Describe(DeploymentId, DeploymentOrder)})";
+
+    // Since: this server's monotonic time when it first read the value
+    private readonly record struct Observation(string Value, TimeSpan Since, bool SawChange);
 }

@@ -31,6 +31,9 @@ internal sealed class PolicyStorage
     public List<string> Locks { get; } = [];
     public int Commits { get; private set; }
 
+    /// <summary>Makes a transaction that removes a hash fail when it commits, after the hash is gone.</summary>
+    public bool FailCommitsThatRemoveAHash { get; set; }
+
     public JobStorage Object => Storage.Object;
 
     /// <summary>Stores a policy as <c>SaveSchedulePolicy</c> would, with a revision.</summary>
@@ -81,8 +84,13 @@ internal sealed class PolicyStorage
                     }
                 });
             });
+        List<string> removedHashes = [];
         transaction.Setup(x => x.RemoveHash(It.IsAny<string>()))
-            .Callback((string key) => pending.Add(() => Hashes.Remove(key)));
+            .Callback((string key) =>
+            {
+                removedHashes.Add(key);
+                pending.Add(() => Hashes.Remove(key));
+            });
         transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>()))
             .Callback((string key, string value) => pending.Add(() => AddToSet(key, value)));
         transaction.Setup(x => x.AddToSet(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>()))
@@ -97,6 +105,18 @@ internal sealed class PolicyStorage
             }));
         transaction.Setup(x => x.Commit()).Callback(() =>
         {
+            if (FailCommitsThatRemoveAHash && removedHashes.Count > 0)
+            {
+                // The worst a storage without atomic transactions could do: the hash is gone, the rest isn't written
+                foreach (string key in removedHashes)
+                {
+                    Hashes.Remove(key);
+                }
+
+                pending.Clear();
+                throw new InvalidOperationException("The transaction failed after removing a hash.");
+            }
+
             foreach (Action action in pending)
             {
                 action();

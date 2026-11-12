@@ -470,7 +470,9 @@ public static class GlobalConfigurationExtensions
         /// <param name="deploymentOrder">
         /// Your pipeline's run number or the deploy time (as a Unix timestamp, for example): any number, zero or
         /// more, that grows with each deploy. A rollback is a new deploy with a higher number. The order only
-        /// decides between two deployments that both have one.
+        /// decides between two deployments that both have one. Start every server of a deployment with the same
+        /// order: a deployment id has one order, so when its servers were given different ones, or some none, the
+        /// highest applies to all of them and each server given another logs a warning.
         /// </param>
         /// <returns>The same configuration, for chaining.</returns>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="deploymentOrder"/> is negative.</exception>
