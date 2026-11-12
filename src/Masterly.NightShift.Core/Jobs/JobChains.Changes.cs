@@ -4,11 +4,12 @@ namespace Masterly.NightShift;
 
 public static partial class JobChains
 {
-    // How long a step stays held while a chain changes: long enough for the change, short enough that a process
-    // stopping in the middle of it doesn't hold the step for good (the delayed job scheduler enqueues it then)
-    private static readonly TimeSpan HoldTime = TimeSpan.FromHours(1);
+    // How long the step a retry starts from stays out of its state while the retry is prepared. Short: the chain's
+    // lease keeps the step from running meanwhile, even when the hold ends first; and should the retrying process
+    // stop, the step runs again this long after, with the steps the record still lists after it.
+    private static readonly TimeSpan HoldTime = TimeSpan.FromMinutes(5);
 
-    /// <summary>A state that keeps a step from running, and from deciding its continuations, while a chain changes.</summary>
+    /// <summary>A state that takes a step out of the state it finished in, so nothing reacts to that state, while a retry is prepared.</summary>
     private static ScheduledState Hold(string reason) => new(JobClock.UtcNow + HoldTime) { Reason = reason };
 
     /// <summary>The state a held step goes back to when the change fails: the one it was in.</summary>
@@ -37,7 +38,8 @@ public static partial class JobChains
         string chainId,
         int from,
         Func<int, bool> include,
-        List<string> created)
+        List<string> created,
+        ChainLease lease)
     {
         for (int level = from; level < levels.Count; level++)
         {
@@ -49,6 +51,9 @@ public static partial class JobChains
             List<string> parents = ParentJobs(levels, jobs, levels[level].Parent);
             for (int i = 0; i < levels[level].Steps.Count; i++)
             {
+                // The client says it is still at it, now and then: creating a long chain may take a while
+                lease.RenewIfDue();
+
                 // A parent that expired makes the creation throw InvalidOperationException
                 ChainStep step = levels[level].Steps[i];
                 string key = Key(level, i);
@@ -194,6 +199,8 @@ public static partial class JobChains
                EnqueuedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase) ||
                ScheduledState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsAwaiting(string? state) => AwaitingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsProcessing(string? state) => ProcessingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 

@@ -6,9 +6,10 @@ namespace Masterly.NightShift;
 
 /// <summary>
 /// Keeps the chains tidy, on one server at a time: every few minutes it removes from the list of chains the ones
-/// whose record expired, and finishes what an interrupted <c>RetryChainFrom</c> or <c>ReplaceChain</c> left to do
-/// (replaced jobs to delete, a held step to enqueue). Each run does a bounded amount of work. It needs a storage
-/// with expiring hashes and ranges of sets (<see cref="JobStorageFeatures.ExtendedApi"/>) and does nothing without.
+/// whose record expired (on a storage with <see cref="JobStorageFeatures.ExtendedApi"/>: nothing expires without),
+/// finishes what an interrupted <c>RetryChainFrom</c> or <c>ReplaceChain</c> left to do (replaced jobs to delete, a
+/// held step to enqueue), and starts the steps that wait for several steps and were never told to start. Each run
+/// does a bounded amount of work, and the next comes sooner when work is left.
 /// </summary>
 internal sealed class JobChainMaintenanceProcess(IBackgroundJobFactory factory, IBackgroundJobStateChanger stateChanger) : IBackgroundProcess
 {
@@ -20,13 +21,18 @@ internal sealed class JobChainMaintenanceProcess(IBackgroundJobFactory factory, 
     /// <summary>The time between two runs. Replaceable for tests.</summary>
     internal static TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>The time until the next run when one stopped at a limit with work left. Replaceable for tests.</summary>
+    internal static TimeSpan BusyInterval { get; set; } = TimeSpan.FromSeconds(10);
+
     public void Execute(BackgroundProcessContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        bool moreToDo = false;
+
         try
         {
-            JobChains.Maintain(context.Storage, new BackgroundJobClient(context.Storage, factory, stateChanger), ref _listPosition);
+            moreToDo = JobChains.Maintain(context.Storage, new BackgroundJobClient(context.Storage, factory, stateChanger), ref _listPosition).MoreToDo;
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -34,7 +40,8 @@ internal sealed class JobChainMaintenanceProcess(IBackgroundJobFactory factory, 
             Logger.WarnException("The chains couldn't be maintained; the next run tries again.", ex);
         }
 
-        context.Wait(Interval);
+        // Each run does a bounded amount of work; with more left, the next one comes sooner
+        context.Wait(moreToDo ? BusyInterval : Interval);
     }
 
     public override string ToString() => "Job chain maintenance";

@@ -345,7 +345,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     }
 
     /// <summary>A parent that no longer exists counts as deleted, so it can't block the continuation forever.</summary>
-    private static string? GetParentState(IStorageConnection connection, string parentId)
+    internal static string? GetParentState(IStorageConnection connection, string parentId)
     {
         StateData? state = connection.GetStateData(parentId);
         if (state != null)

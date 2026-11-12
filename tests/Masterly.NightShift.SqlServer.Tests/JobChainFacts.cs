@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -227,40 +228,51 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
-    public async Task Chain_ThatWasNeverRecorded_IsDeleted_AndNoneOfItsStepsRuns()
+    public async Task Chain_WhoseCreationStoppedHalfway_HasItsFirstStepHeld_ThenDeleted_AndNoneOfItsStepsRuns()
     {
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
-        JobChainResult chain;
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
 
         try
         {
-            // As if the client had stopped after creating the jobs, before writing the record, a while ago
-            JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(-10));
-            chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Enqueue(new BackgroundJobClient(storage));
+            // The client stops for good after creating two of three steps: the record it started lists none
+            Assert.Throws<OutOfMemoryException>(
+                () => JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(new BackgroundJobClient(storage)));
+
+            string first = hooks.Created.Single(static x => x.Name == "a").Id;
+            string second = hooks.Created.Single(static x => x.Name == "b").Id;
+            string chainId;
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                chainId = connection.GetJobParameter(first, JobChains.ChainIdParameter).Trim('"');
+            }
+
+            using (CreateServer(storage))
+            {
+                // While the client's lease lasts, by the clock of the database, the first step waits
+                StateData held = await WaitForStateAsync(storage, first, static x => x.Name == ScheduledState.StateName);
+                Assert.Equal($"Waiting for chain {chainId} to be recorded", held.Reason);
+                Assert.Empty(Log);
+
+                // As if the two minutes of the lease had passed
+                LapseLease(storage, chainId);
+
+                Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(first, Timeout, TestContext.Current.CancellationToken)).Name);
+                Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(second, Timeout, TestContext.Current.CancellationToken)).Name);
+            }
+
+            using IStorageConnection reader = storage.GetConnection();
+            Assert.Equal($"Chain {chainId} isn't recorded: it was deleted or never completely created", reader.GetStateData(first).Reason);
+            Assert.DoesNotContain(chainId, reader.GetAllItemsFromSet(JobChains.SetKey));
+            Assert.InRange(((JobStorageConnection)reader).GetHashTtl(JobChains.GetKey(chainId)), TimeSpan.Zero, TimeSpan.FromDays(1));
+            Assert.Empty(Log);
         }
         finally
         {
-            JobClock.TimeProvider = TimeProvider.System;
+            GlobalJobFilters.Filters.Remove(hooks);
         }
-
-        using (IStorageConnection connection = storage.GetConnection())
-        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
-        {
-            transaction.RemoveHash(JobChains.GetKey(chain!.ChainId));
-            transaction.RemoveFromSet(JobChains.SetKey, chain.ChainId);
-            transaction.Commit();
-        }
-
-        using (CreateServer(storage))
-        {
-            Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(chain.RootId, Timeout, TestContext.Current.CancellationToken)).Name);
-            Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(chain.Steps["1.0"], Timeout, TestContext.Current.CancellationToken)).Name);
-        }
-
-        using IStorageConnection reader = storage.GetConnection();
-        Assert.Equal($"Chain {chain.ChainId} isn't recorded: it was deleted or never completely created", reader.GetStateData(chain.RootId).Reason);
-        Assert.Empty(Log);
     }
 
     [Fact, CleanDatabase]
@@ -270,21 +282,12 @@ public class JobChainFacts
         Log.Clear();
         BackgroundJobClient client = new(storage);
         JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Enqueue(client);
-        string orphan;
 
-        try
-        {
-            // Left behind by something that stopped halfway, long enough ago not to be a change in progress
-            JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(-10));
-            orphan = client.Create(
-                Job.FromExpression(() => Record("orphan")),
-                new EnqueuedState(),
-                new Dictionary<string, object> { [JobChains.ChainIdParameter] = chain!.ChainId, [JobChains.ChainStepParameter] = "1.0" });
-        }
-        finally
-        {
-            JobClock.TimeProvider = TimeProvider.System;
-        }
+        // Left behind by something that stopped halfway
+        string orphan = client.Create(
+            Job.FromExpression(() => Record("orphan")),
+            new EnqueuedState(),
+            new Dictionary<string, object> { [JobChains.ChainIdParameter] = chain!.ChainId, [JobChains.ChainStepParameter] = "1.0" });
 
         using (CreateServer(storage))
         {
@@ -295,6 +298,209 @@ public class JobChainFacts
         using IStorageConnection connection = storage.GetConnection();
         Assert.Equal($"Not a current step of chain {chain.ChainId}", connection.GetStateData(orphan).Reason);
         Assert.Equal(["a", "b"], Log);
+    }
+
+    [Theory, CleanDatabase]
+    [InlineData("x")]
+    [InlineData("y")]
+    public async Task ReplaceChain_ThatStopsBeforeItIsRecorded_LeavesTheOldChainToRunAtItsTime_AndNothingOfTheNewOneRuns(string stopsAt)
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        DateTimeOffset due = DateTimeOffset.UtcNow.AddDays(30);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Schedule(client, due);
+        ChainHooks hooks = new() { CrashOnCreating = stopsAt };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // The process stops while it replaces the chain: nothing is rolled back
+            Assert.Throws<OutOfMemoryException>(() => storage.ReplaceChain(chain!.ChainId, JobChain.StartWith(() => Record("x")).Then(() => Record("y"))));
+
+            // The old first step wasn't touched: still scheduled for next month, and still what the record lists
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                StateData root = connection.GetStateData(chain.RootId);
+                Assert.Equal(ScheduledState.StateName, root.Name);
+                Assert.Equal(JobHelper.SerializeDateTime(due.UtcDateTime), root.Data["EnqueueAt"]);
+            }
+
+            Assert.Equal(chain.Steps.Values, storage.GetChain(chain.ChainId).Steps.Select(static x => x.JobId));
+
+            // As if the lease of the process that stopped had lapsed, and the old chain were due
+            LapseLease(storage, chain.ChainId);
+            Assert.True(client.ChangeState(chain.RootId, new EnqueuedState(), ScheduledState.StateName));
+            foreach ((string _, string id) in hooks.Created)
+            {
+                client.ChangeState(id, new EnqueuedState(), ScheduledState.StateName);
+            }
+
+            using (CreateServer(storage))
+            {
+                await WaitUntilSettledAsync(storage, chain.ChainId);
+                foreach ((string _, string id) in hooks.Created)
+                {
+                    Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(id, Timeout, TestContext.Current.CancellationToken)).Name);
+                }
+            }
+
+            Assert.Equal(["a", "b"], Log);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RetryChainFrom_ThatStopsBeforeItIsRecorded_RunsTheStepAgain_WithTheStepsThatFollowedItBefore()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
+        Assert.True(client.ChangeState(chain!.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(chain.Steps["1.0"], new FailedState(new InvalidOperationException("failed")), null));
+        ChainHooks hooks = new() { CrashOnCreating = "d" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // The process stops after it created the first of the new steps: nothing is rolled back
+            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(chain.Steps["1.0"]));
+
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                StateData held = connection.GetStateData(chain.Steps["1.0"]);
+                Assert.Equal(ScheduledState.StateName, held.Name);
+                Assert.InRange(JobHelper.DeserializeDateTime(held.Data["EnqueueAt"]) - DateTime.UtcNow, TimeSpan.FromMinutes(3), TimeSpan.FromMinutes(5));
+            }
+
+            Assert.Equal(chain.Steps.Values, storage.GetChain(chain.ChainId).Steps.Select(static x => x.JobId));
+
+            // As if the lease of the process that stopped had lapsed, and the hold of the step had ended
+            LapseLease(storage, chain.ChainId);
+            Assert.True(client.ChangeState(chain.Steps["1.0"], new EnqueuedState(), ScheduledState.StateName));
+
+            using (CreateServer(storage))
+            {
+                await WaitUntilSettledAsync(storage, chain.ChainId);
+                string created = hooks.Created.Single(static x => x.Name == "c").Id;
+                Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(created, Timeout, TestContext.Current.CancellationToken)).Name);
+            }
+
+            // The step ran again, once, and the steps the record still lists after it followed
+            Assert.Equal(["b", "c", "d"], Log);
+            using IStorageConnection reader = storage.GetConnection();
+            Assert.All(chain.Steps.Values, id => Assert.Equal(SucceededState.StateName, reader.GetStateData(id).Name));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Join_ThatWasNeverToldToStart_IsStartedByAServer_AndTheChainIsNotUnsettledMeanwhile()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        JobChainResult chain = JobChain.StartWith(() => Record("a"))
+            .ThenMany(branches => branches.Branch(() => Record("c")).Branch(() => Record("d")))
+            .ThenAfterAll(() => Record("done"))
+            .Enqueue(new BackgroundJobClient(storage));
+        ChainHooks hooks = new() { FailStartOf = "done" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // Both branches finish, and the step after them can't be started: it stays where it is
+            using (CreateServer(storage, workers: 2))
+            {
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                while (hooks.FailedStarts < 3)
+                {
+                    if (stopwatch.Elapsed > Timeout)
+                    {
+                        throw new TimeoutException("The start of the join didn't fail.");
+                    }
+
+                    await Task.Delay(100, TestContext.Current.CancellationToken);
+                }
+            }
+
+            hooks.FailStartOf = null;
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                Assert.Equal(AwaitingState.StateName, connection.GetStateData(chain!.Steps["2.0"]).Name);
+            }
+
+            Assert.False(storage.GetChain(chain.ChainId).IsSettled);
+
+            // Later nobody is about to start it any more: the chain counts as settled rather than running for good,
+            // and a server finds the step and starts it
+            JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+            Assert.True(storage.GetChain(chain.ChainId).IsSettled);
+
+            using (CreateServer(storage))
+            {
+                Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(chain.Steps["2.0"], Timeout, TestContext.Current.CancellationToken)).Name);
+            }
+
+            Assert.Equal(1, Log.Count(static x => x == "done"));
+        }
+        finally
+        {
+            JobClock.TimeProvider = TimeProvider.System;
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Job_HeldInAQueue_KeepsIt_WhenItsSchedulePolicyBlocksItAgain()
+    {
+        // A queue given only by the Enqueued state is remembered when a policy moves the job forward, and must
+        // still be when the policy moves it forward a second time
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        storage.SaveSchedulePolicy(new SchedulePolicy("closed").ExcludeDate(today).ExcludeDate(today.AddDays(1)));
+
+        string jobId = client.Create(
+            Job.FromExpression(() => Record("queued")),
+            new EnqueuedState("critical"),
+            new Dictionary<string, object> { [ScheduleOptions.PolicyParameter] = "closed" });
+
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            Assert.Equal(ScheduledState.StateName, connection.GetStateData(jobId).Name);
+            Assert.Equal("\"critical\"", connection.GetJobParameter(jobId, "HeldQueue"));
+        }
+
+        // The server listens to the default queue only
+        using (CreateServer(storage))
+        {
+            // Due while the policy still blocks: moved forward again
+            Assert.True(client.ChangeState(jobId, new ScheduledState(TimeSpan.FromMilliseconds(100)), ScheduledState.StateName));
+            await WaitForStateAsync(storage, jobId, static x => x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                Assert.Equal("\"critical\"", connection.GetJobParameter(jobId, "HeldQueue"));
+            }
+
+            // Due once the policy allows it: enqueued where it was to go
+            storage.SaveSchedulePolicy(new SchedulePolicy("closed"));
+            Assert.True(client.ChangeState(jobId, new ScheduledState(TimeSpan.FromMilliseconds(100)), ScheduledState.StateName));
+            StateData enqueued = await WaitForStateAsync(storage, jobId, static x => x.Name == EnqueuedState.StateName);
+
+            Assert.Equal("critical", enqueued.Data["Queue"]);
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Empty(Log);
     }
 
     [Fact, CleanDatabase]
@@ -442,6 +648,89 @@ public class JobChainFacts
     {
         using IStorageConnection connection = storage.GetConnection();
         return ((JobStorageConnection)connection).GetHashTtl(JobChains.GetKey(chainId));
+    }
+
+    private static async Task<StateData> WaitForStateAsync(SqlServerStorage storage, string jobId, Func<StateData, bool> condition)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (true)
+        {
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                StateData state = connection.GetStateData(jobId);
+                if (state != null && condition(state))
+                {
+                    return state;
+                }
+            }
+
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Job {jobId} didn't reach the expected state.");
+            }
+
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Rewrites the lease in a chain's record as one that lapsed long ago, as time would: the lease is told with
+    /// the clock of the database, which a test can't move.
+    /// </summary>
+    private static void LapseLease(SqlServerStorage storage, string chainId)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        string jobs = connection.GetAllEntriesFromHash(JobChains.GetKey(chainId))["Jobs"];
+
+        int start = jobs.IndexOf("\"changing\":\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The chain's record carries no lease.");
+        int valueStart = start + "\"changing\":\"".Length;
+        int valueEnd = jobs.IndexOf('"', valueStart);
+        string lapsed = string.Concat(jobs.AsSpan(0, valueStart), "2000-01-01T00:00:00.0000000Z/2000-01-01T00:02:00.0000000Z", jobs.AsSpan(valueEnd));
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(JobChains.GetKey(chainId), new Dictionary<string, string> { ["Jobs"] = lapsed });
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// What a test makes happen while a chain is created or changed: the process stopping at the creation of a
+    /// step (an exception no rollback catches), or the start of a waiting step failing.
+    /// </summary>
+    private sealed class ChainHooks : IClientFilter, IElectStateFilter
+    {
+        private int _failedStarts;
+
+        public string CrashOnCreating { get; set; }
+        public string FailStartOf { get; set; }
+        public int FailedStarts => Volatile.Read(ref _failedStarts);
+        public ConcurrentQueue<(string Name, string Id)> Created { get; } = new();
+
+        public void OnCreating(CreatingContext context)
+        {
+            if (CrashOnCreating != null && context.Job.Type == typeof(JobChainFacts) && (string)context.Job.Args[0] == CrashOnCreating)
+            {
+                throw new OutOfMemoryException("The process stops here.");
+            }
+        }
+
+        public void OnCreated(CreatedContext context)
+        {
+            if (CrashOnCreating != null && context.Job.Type == typeof(JobChainFacts) && context.BackgroundJob != null)
+            {
+                Created.Enqueue(((string)context.Job.Args[0], context.BackgroundJob.Id));
+            }
+        }
+
+        public void OnStateElection(ElectStateContext context)
+        {
+            if (FailStartOf != null && context.CandidateState is EnqueuedState && context.CurrentState == AwaitingState.StateName &&
+                context.BackgroundJob.Job?.Type == typeof(JobChainFacts) && (string)context.BackgroundJob.Job.Args[0] == FailStartOf)
+            {
+                Interlocked.Increment(ref _failedStarts);
+                throw new InvalidOperationException("The storage is down.");
+            }
+        }
     }
 
     /// <summary>The system clock, moved by a fixed time.</summary>

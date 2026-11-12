@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
@@ -15,31 +16,41 @@ namespace Masterly.NightShift;
 /// chain decides:
 /// </para>
 /// <list type="bullet">
+/// <item><description>
+/// The record says the chain is being created, retried or replaced: the client that does it wrote so before it
+/// created or changed the first job, and says it again while it works. The job, listed or not, goes to the Scheduled
+/// state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time, and is checked again; that isn't a
+/// retry. The client enqueues a first step held that way as soon as the chain is recorded. A client that stops in
+/// the middle stops saying so, and two minutes later the record counts as it stands.
+/// </description></item>
 /// <item><description>The record lists the job for its step: it runs.</description></item>
 /// <item><description>
-/// The job is younger than <see cref="CreationGrace"/> and the record doesn't list it, or there is no record yet:
-/// the chain is being created, retried or replaced, by a client that writes the record once every job exists. The
-/// job goes to the Scheduled state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time, and is
-/// checked again; that isn't a retry. The client enqueues a first step held that way as soon as the record is
-/// written, so a chain starts without waiting for the hold to end.
-/// </description></item>
-/// <item><description>
 /// The record lists another job for the step, or none: the job was replaced by <c>RetryChainFrom</c> or
-/// <c>ReplaceChain</c>, or was never part of the chain. It is deleted (<see cref="NotCurrentReasonFormat"/>).
+/// <c>ReplaceChain</c>, or belongs to a change that was abandoned. It is deleted
+/// (<see cref="NotCurrentReasonFormat"/>).
 /// </description></item>
 /// <item><description>
-/// There is no record, and the chain isn't in the list of chains: it was deleted, or its creation never finished.
-/// The job is deleted (<see cref="NotRecordedReasonFormat"/>). On a storage that expires records, a job older than
-/// <see cref="JobChain.RecordRetention"/> runs instead, because its chain's record expired; so does a job whose
-/// chain is still listed, because the storage dropped the record before its time (a cap on expiration times, an
-/// eviction).
+/// The record lists no step at all (the creation of the chain stopped halfway), or there is no record and the chain
+/// isn't in the list of chains (it was deleted): the job is deleted (<see cref="NotRecordedReasonFormat"/>). On a
+/// storage that expires records, a job without record that is older than <see cref="JobChain.RecordRetention"/>
+/// runs instead, because its chain's record expired; so does a job whose chain is still listed, because the storage
+/// dropped the record before its time (a cap on expiration times, an eviction).
 /// </description></item>
 /// </list>
 /// <para>
+/// Nothing depends on the age of the job, nor on the clocks of the client and the server agreeing where the storage
+/// has a clock: "being changed" is written and read with it.
+/// </para>
+/// <para>
 /// A job that isn't a step of a chain costs a dictionary lookup when the storage loads the job's parameters with it
 /// (<see cref="BackgroundJob.ParametersSnapshot"/>, as the storages of this project do), and one parameter read
-/// otherwise. A step costs one read of its chain's record. When the record can't be read, the job is neither run
-/// nor failed: it is scheduled again a little later (<see cref="UnreadableReasonFormat"/>).
+/// otherwise. A step costs one read of its chain's map of jobs, and a read of the storage's clock while the chain
+/// is being changed. When the record can't be read, the job is neither run nor failed: it is scheduled again later
+/// (<see cref="UnreadableReasonFormat"/>), after a longer time at each attempt, up to fifteen minutes.
+/// </para>
+/// <para>
+/// A step this filter holds keeps its queue (the <c>HeldQueue</c> job parameter), and
+/// <see cref="DrainModeFilter"/>, registered by default too, puts it back there when the hold ends.
 /// </para>
 /// <para>
 /// Each state change of a step also keeps the chain's record for <see cref="JobChain.RecordRetention"/> longer (from
@@ -56,28 +67,29 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     /// <summary>The reason of a step deleted because its chain has no record; <c>{0}</c> is the chain.</summary>
     public const string NotRecordedReasonFormat = "Chain {0} isn't recorded: it was deleted or never completely created";
 
-    /// <summary>The reason of a step held until its chain is recorded; <c>{0}</c> is the chain.</summary>
+    /// <summary>The reason of a step held while its chain is being created, retried or replaced; <c>{0}</c> is the chain.</summary>
     public const string WaitingReasonFormat = "Waiting for chain {0} to be recorded";
 
     /// <summary>The reason of a step held because its chain's record couldn't be read; <c>{0}</c> is the chain.</summary>
     public const string UnreadableReasonFormat = "Waiting: the record of chain {0} couldn't be read";
 
+    /// <summary>The reason a step is enqueued with once its chain is recorded, after it waited for that.</summary>
+    internal const string RecordedReason = "The chain is recorded";
+
+    // How many jobs whose chain couldn't be read a process remembers at most; past it, they are all forgotten
+    private const int MaxUnreadable = 10_000;
+
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobChainStepFilter));
 
     private static readonly TimeSpan MinHoldDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxHoldDelay = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan UnreadableHoldDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan MinUnreadableDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan MaxUnreadableDelay = TimeSpan.FromMinutes(15);
 
-    /// <summary>
-    /// How long after its creation a job that its chain's record doesn't list is held rather than deleted: the time
-    /// a client may take to create, retry or replace a chain before it writes the record. Replaceable for tests.
-    /// </summary>
-    internal static TimeSpan CreationGrace { get; set; } = TimeSpan.FromMinutes(5);
+    // How many times in a row this process couldn't read the chain of a job: the job waits longer each time
+    private static readonly ConcurrentDictionary<string, int> Unreadable = new(StringComparer.Ordinal);
 
-    /// <summary>The reason a step is enqueued with once its chain is recorded, after it waited for that.</summary>
-    internal const string RecordedReason = "The chain is recorded";
-
-    /// <summary>The reason a step waiting for its chain's record is held with.</summary>
+    /// <summary>The reason a step waiting for its chain to be recorded is held with.</summary>
     internal static string WaitingReason(string chainId) => string.Format(CultureInfo.InvariantCulture, WaitingReasonFormat, chainId);
 
     /// <summary>Whether a deleted step's reason says this filter deleted it: its chain's record didn't list it.</summary>
@@ -92,13 +104,8 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.CandidateState is EnqueuedState enqueuedState)
-        {
-            // A step held here goes back to the queue it was held from
-            HeldQueue.Restore(context, enqueuedState);
-            return;
-        }
-
+        // Only a job about to run. A step held here is put back in its queue by DrainModeFilter, after the filters
+        // that may still schedule it again: restoring the queue here, first, would forget it for those.
         if (context.CandidateState is not ProcessingState)
         {
             return;
@@ -106,24 +113,31 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         BackgroundJob job = context.BackgroundJob;
         string? chainId = null;
-        string? stepKey = null;
         Verdict verdict;
+        TimeSpan holdDelay;
 
         try
         {
-            if (!TryReadStep(job, context.Connection, out chainId, out stepKey))
+            if (!TryReadStep(job, context.Connection, out chainId, out string? stepKey))
             {
                 return;
             }
 
-            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey);
+            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey, out holdDelay);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            // Not run: the record may say the step was replaced. Not failed either: the step is checked again
-            Logger.WarnException($"The chain of background job '{job.Id}' couldn't be checked, so the job is scheduled again in {UnreadableHoldDelay.TotalSeconds:0} seconds instead of running.", ex);
-            Hold(context, string.Format(CultureInfo.InvariantCulture, UnreadableReasonFormat, chainId ?? "?"), UnreadableHoldDelay);
+            // Not run: the record may say the step was replaced. Not failed or deleted either: the step is checked
+            // again, after a longer time at each attempt
+            TimeSpan delay = UnreadableDelay(job.Id);
+            Logger.WarnException($"The chain of background job '{job.Id}' couldn't be checked, so the job is scheduled again in {delay.TotalSeconds:0} seconds instead of running.", ex);
+            Hold(context, string.Format(CultureInfo.InvariantCulture, UnreadableReasonFormat, chainId ?? "?"), delay);
             return;
+        }
+
+        if (!Unreadable.IsEmpty)
+        {
+            Unreadable.TryRemove(job.Id, out _);
         }
 
         switch (verdict)
@@ -132,12 +146,11 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 break;
 
             case Verdict.Wait:
-                Hold(context, WaitingReason(chainId), HoldDelay(JobClock.UtcNow - job.CreatedAt));
-                ReleaseOnceHeldIfRecorded(context, chainId, stepKey);
+                Hold(context, WaitingReason(chainId), holdDelay);
                 break;
 
             case Verdict.NotCurrent:
-                Logger.Warn($"Background job '{job.Id}' doesn't run: the record of chain '{chainId}' lists another job for its step. It was replaced by a retry or a replacement of the chain, and is deleted.");
+                Logger.Warn($"Background job '{job.Id}' doesn't run: the record of chain '{chainId}' lists another job for its step. It was replaced by a retry or a replacement of the chain, or belongs to one that was abandoned, and is deleted.");
                 context.CandidateState = new DeletedState { Reason = string.Format(CultureInfo.InvariantCulture, NotCurrentReasonFormat, chainId) };
                 break;
 
@@ -197,30 +210,35 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
     }
 
-    private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey)
+    private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey, out TimeSpan holdDelay)
     {
-        (bool recorded, string? current) = JobChains.ReadStepJob(storage, connection, chainId, stepKey);
-        if (string.Equals(current, job.Id, StringComparison.Ordinal))
+        holdDelay = TimeSpan.Zero;
+        JobChains.StepRecord record = JobChains.ReadStep(storage, connection, chainId, stepKey);
+
+        if (record.Lease is { } lease)
+        {
+            // A client is creating, retrying or replacing the chain, or was: told with the clock the lease was
+            // written with
+            DateTime now = JobChains.StorageUtcNow(storage, connection);
+            if (lease.Until > now)
+            {
+                holdDelay = HoldDelay(lease, now);
+                return Verdict.Wait;
+            }
+        }
+
+        if (string.Equals(record.JobId, job.Id, StringComparison.Ordinal))
         {
             return Verdict.Run;
         }
 
-        TimeSpan age = JobClock.UtcNow - job.CreatedAt;
-
-        // A client creates the jobs of a chain, of a retry or of a replacement first and writes the record last, so
-        // a job this young may be about to be listed. It isn't waited for here: the job is locked meanwhile, and
-        // the client needs that lock to create the steps that continue the job.
-        if (age < CreationGrace)
+        if (record.Recorded)
         {
-            return Verdict.Wait;
+            // A record that lists no step is all there is of a chain whose creation stopped halfway
+            return record.HasSteps ? Verdict.NotCurrent : Verdict.NotRecorded;
         }
 
-        if (recorded)
-        {
-            return Verdict.NotCurrent;
-        }
-
-        // Where records never expire, a chain without one was deleted or never recorded
+        // Where records never expire, a chain without one was deleted
         if (!storage.HasFeature(JobStorageFeatures.ExtendedApi))
         {
             return Verdict.NotRecorded;
@@ -228,7 +246,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         // A record outlives the steps it lists by RecordRetention at least: without one, a job that old is a step
         // of a chain whose record expired, and runs as it always did
-        if (age > JobChain.RecordRetention)
+        if (JobClock.UtcNow - job.CreatedAt > JobChain.RecordRetention)
         {
             return Verdict.Run;
         }
@@ -245,60 +263,34 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         return Verdict.NotRecorded;
     }
 
-    /// <summary>
-    /// The record may be written between its read and the moment the hold is stored, after the client looked for a
-    /// held first step: then nobody would enqueue the step before its hold ends. So the record is read once more
-    /// when the hold is stored, and a step it lists is enqueued at once.
-    /// </summary>
-    private static void ReleaseOnceHeldIfRecorded(ElectStateContext context, string chainId, string stepKey)
+    // Longer the longer the change has lasted, so a chain that takes long to create, or a client that stopped,
+    // doesn't fill the step's history; and not much past the moment the lease lapses unless it is renewed
+    private static TimeSpan HoldDelay(JobChains.ChainLeaseTime lease, DateTime now)
     {
-        // Without work after the commit, the hold ends by itself
-        if (context.AfterCommit == null)
+        TimeSpan lasted = now - lease.Since;
+        TimeSpan delay = lasted < MinHoldDelay ? MinHoldDelay : lasted > MaxHoldDelay ? MaxHoldDelay : lasted;
+        TimeSpan untilLapsed = lease.Until - now + TimeSpan.FromSeconds(1);
+
+        if (delay > untilLapsed)
         {
-            return;
-        }
-
-        JobStorage storage = context.Storage;
-        IStorageConnection connection = context.Connection;
-        string jobId = context.BackgroundJob.Id;
-
-        context.AfterCommit.Add(() =>
-        {
-            if (!string.Equals(JobChains.ReadStepJob(storage, connection, chainId, stepKey).JobId, jobId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            StateData? state = connection.GetStateData(jobId);
-            if (state == null ||
-                !ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(state.Reason, WaitingReason(chainId), StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            new BackgroundJobStateChanger().ChangeState(new StateChangeContext(
-                storage,
-                connection,
-                jobId,
-                new EnqueuedState { Reason = RecordedReason },
-                ScheduledState.StateName));
-        });
-    }
-
-    // Longer each time, so a chain whose creation takes long, or never finishes, doesn't fill its step's history;
-    // and not past the grace by more than a moment, so a step that is to be deleted is deleted then
-    private static TimeSpan HoldDelay(TimeSpan age)
-    {
-        TimeSpan delay = age < MinHoldDelay ? MinHoldDelay : age > MaxHoldDelay ? MaxHoldDelay : age;
-        TimeSpan untilDecided = CreationGrace - age + TimeSpan.FromSeconds(1);
-
-        if (delay > untilDecided)
-        {
-            delay = untilDecided > MinHoldDelay ? untilDecided : MinHoldDelay;
+            delay = untilLapsed > MinHoldDelay ? untilLapsed : MinHoldDelay;
         }
 
         return delay;
+    }
+
+    // Twice as long at each attempt in a row, as far as this process remembers them
+    private static TimeSpan UnreadableDelay(string jobId)
+    {
+        if (Unreadable.Count >= MaxUnreadable)
+        {
+            Unreadable.Clear();
+        }
+
+        int attempts = Unreadable.AddOrUpdate(jobId, 1, static (_, count) => count + 1);
+        double seconds = MinUnreadableDelay.TotalSeconds * Math.Pow(2, Math.Min(attempts - 1, 10));
+
+        return seconds >= MaxUnreadableDelay.TotalSeconds ? MaxUnreadableDelay : TimeSpan.FromSeconds(seconds);
     }
 
     private static void Hold(ElectStateContext context, string reason, TimeSpan delay)
