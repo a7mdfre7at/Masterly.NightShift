@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -229,6 +231,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
         Assert.Throws<SqliteException>(() => ((JobStorageConnection)connection).GetUtcDateTime());
         Assert.True(storage.HasFeature(Feature));
+        Assert.Throws<SqliteException>(() => connection.Heartbeat("server"));
     }
 
     [Fact]
@@ -294,6 +297,44 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
+    public void Heartbeats_AreWrittenAndTimedOut_WithTheDatabasesClock()
+    {
+        // A database whose clock is 90 seconds behind this process's
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions
+        {
+            DatabaseClockSql = "select strftime('%Y-%m-%d %H:%M:%f', 'now', '-90 seconds')",
+        });
+        using IStorageConnection connection = storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        DateTime announced = Heartbeat(storage);
+        connection.Heartbeat("server");
+        DateTime beaten = Heartbeat(storage);
+
+        Assert.InRange(announced, DateTime.UtcNow.AddSeconds(-120), DateTime.UtcNow.AddSeconds(-60));
+        Assert.InRange(beaten, announced, DateTime.UtcNow.AddSeconds(-60));
+
+        // By this process's clock the heartbeat is 90 seconds old; by the clock it was written with, it is new
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
+        Assert.Single(storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void Heartbeats_AreWrittenAndTimedOut_WithTheProcessClock_WhenTheDatabasesIsNotRead()
+    {
+        EntityFrameworkCoreStorage storage = _database.CreateStorage();
+        storage.Clock = new EfDatabaseClock(storage, static _ => "Contoso.EntityFrameworkCore.Db");
+        using IStorageConnection connection = storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        connection.Heartbeat("server");
+
+        Assert.InRange(Heartbeat(storage), DateTime.UtcNow.AddSeconds(-30), DateTime.UtcNow.AddSeconds(30));
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromSeconds(30)));
+        Assert.Equal(1, connection.RemoveTimedOutServers(TimeSpan.Zero));
+    }
+
+    [Fact]
     public void TryConvert_ReadsWhatProvidersAnswer_AsUtc()
     {
         DateTime expected = new(2026, 11, 13, 10, 11, 12, 345, DateTimeKind.Utc);
@@ -353,6 +394,12 @@ public sealed class EfDatabaseClockFacts : IDisposable
     {
         using IStorageConnection connection = storage.GetConnection();
         return ((JobStorageConnection)connection).GetUtcDateTime();
+    }
+
+    private static DateTime Heartbeat(EntityFrameworkCoreStorage storage)
+    {
+        ServerDto server = Assert.Single(storage.GetMonitoringApi().Servers());
+        return Assert.NotNull(server.Heartbeat);
     }
 
     private static ClockContext InTransaction(ClockContext context, DbTransaction transaction)

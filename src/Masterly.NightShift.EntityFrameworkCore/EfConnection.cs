@@ -141,6 +141,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         EfLimits.EnsureServerIdFits(serverId);
 
         string data = StorageValues.SerializeServer(context);
+
+        // Heartbeats are written and timed out with the database's clock where it is read, as on SQL Server: the
+        // dashboard compares them with that clock, and a server whose clock runs ahead never takes another for
+        // dead. Read before the transaction, on a context of its own.
+        DateTime now = storage.Clock.UtcNow();
         storage.InTransaction(db =>
         {
             ServerRow? row = db.Set<ServerRow>().Find(serverId);
@@ -150,7 +155,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             }
 
             row.Data = data;
-            row.LastHeartbeat = JobClock.UtcNow;
+            row.LastHeartbeat = now;
         });
     }
 
@@ -163,7 +168,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override void Heartbeat(string serverId)
     {
         ArgumentNullException.ThrowIfNull(serverId);
-        DateTime now = JobClock.UtcNow;
+        DateTime now = storage.Clock.UtcNow();
 
         if (Read(context => context.Set<ServerRow>().Where(x => x.Id == serverId).ExecuteUpdate(s => s.SetProperty(x => x.LastHeartbeat, now))) == 0)
         {
@@ -178,7 +183,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
         }
 
-        DateTime cutoff = JobClock.UtcNow - timeOut;
+        DateTime cutoff = storage.Clock.UtcNow() - timeOut;
         return Read(context => context.Set<ServerRow>().Where(x => x.LastHeartbeat < cutoff).ExecuteDelete());
     }
 
