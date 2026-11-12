@@ -250,6 +250,10 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
         // registered after the server starts; it does nothing while there are none
         processes.Add(new JobMonitorProcess().UseBackgroundPool(1));
 
+        // Unlists the chains whose record expired and finishes interrupted retries and replacements of chains,
+        // one server at a time. Always added: it does next to nothing while there are no chains
+        processes.Add(new JobChainMaintenanceProcess(factory, stateChanger).UseBackgroundPool(1));
+
         if (!_options.IsLightweightServer)
         {
             processes.Add(

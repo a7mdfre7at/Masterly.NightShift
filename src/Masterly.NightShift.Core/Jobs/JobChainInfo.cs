@@ -17,6 +17,9 @@ public sealed record JobChainStepInfo(string Key, string JobId, string? State, i
 
     /// <summary>The kind of the step's level: the first step, a <c>Then</c>, a group of branches or of joins.</summary>
     internal ChainLevelKind LevelKind { get; init; }
+
+    /// <summary>When the step reached the Succeeded, Failed or Deleted state it is in, or <c>null</c> when that isn't known.</summary>
+    internal DateTime? FinishedAt { get; init; }
 }
 
 /// <summary>A stored chain, as <c>GetChain</c> reads it.</summary>
@@ -30,14 +33,27 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     /// <summary>
     /// Whether the chain has nothing left to do by itself: every step finished (succeeded, deleted, skipped steps
     /// included, failed for good, or expired), or waits behind a step that failed for good or expired, directly or
-    /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on.
+    /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on. A step that waits behind
+    /// a failure but whose condition the failure meets (a step after any failure, after every step whatever the
+    /// outcome) is about to start, so the chain isn't settled until it did.
     /// </summary>
     public bool IsSettled
     {
         get
         {
             HashSet<int> blocked = BlockedLevels();
-            return Steps.All(step => JobChains.IsSettledState(step.State) || (IsAwaiting(step.State) && blocked.Contains(step.Level)));
+            ILookup<int, JobChainStepInfo>? levels = null;
+
+            foreach (JobChainStepInfo step in Steps)
+            {
+                if (JobChains.IsSettledState(step.State)) continue;
+                if (!IsAwaiting(step.State) || !blocked.Contains(step.Level)) return false;
+
+                levels ??= Steps.ToLookup(static x => x.Level);
+                if (IsAboutToBeDecided(step, levels)) return false;
+            }
+
+            return true;
         }
     }
 
@@ -71,6 +87,22 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
         }
 
         return blocked;
+    }
+
+    /// <summary>
+    /// Whether the states of the steps a waiting step waits for decide it already: it starts, or is skipped, as soon
+    /// as the step that finished last has told it, a moment after that step's state is stored. Past
+    /// <see cref="JobChains.DecisionWindow"/> that moment is over: the step was never told (the process that was
+    /// to tell it stopped), and waits for a requeue or a retry like the steps behind a failure.
+    /// </summary>
+    private static bool IsAboutToBeDecided(JobChainStepInfo step, ILookup<int, JobChainStepInfo> levels)
+    {
+        List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
+
+        if (JobChains.Decide(step, parents) == FanInContinuationsSupportAttribute.Decision.Undecided) return false;
+
+        DateTime? decidedAt = parents.Max(static x => x.FinishedAt);
+        return decidedAt == null || JobClock.UtcNow - decidedAt.Value < JobChains.DecisionWindow;
     }
 
     private static bool IsFailed(string? state) => FailedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);

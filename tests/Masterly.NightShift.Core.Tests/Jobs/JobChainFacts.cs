@@ -350,6 +350,237 @@ public class JobChainFacts
     }
 
     [Fact]
+    public void JobChainInfo_IsNotSettled_UntilAFailureJoinRan_AfterABranchFailed()
+    {
+        // The branch's failure is stored, and the join that waits for a failure is told a moment later
+        JobChainInfo starting = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", "Failed", ChainLink.Then),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAll),
+            Step("2.1", "Awaiting", ChainLink.AfterAnyFailed));
+        JobChainInfo ran = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", "Failed", ChainLink.Then),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAll),
+            Step("2.1", "Succeeded", ChainLink.AfterAnyFailed));
+
+        Assert.False(starting.IsSettled);
+        Assert.True(ran.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsSettled_WhenAJoinForEverySuccessWaitsBehindAFailure()
+    {
+        JobChainInfo chain = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", "Failed", ChainLink.Then),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAll));
+
+        Assert.True(chain.IsSettled);
+    }
+
+    [Theory]
+    [InlineData((int)ChainLink.AfterAnyFailed, "Failed", "Processing", false)]
+    [InlineData((int)ChainLink.AfterAnyFailedOrCanceled, "Failed", "Succeeded", false)]
+    [InlineData((int)ChainLink.AfterAllCompleted, "Failed", "Succeeded", false)]
+    [InlineData((int)ChainLink.AfterAllCompleted, "Failed", "Deleted", false)]
+    [InlineData((int)ChainLink.AfterAny, "Failed", "Succeeded", false)]
+    [InlineData((int)ChainLink.AfterAny, "Failed", "Failed", true)]
+    [InlineData((int)ChainLink.AfterAny, "Failed", "Deleted", true)]
+    [InlineData((int)ChainLink.AfterAll, "Failed", "Failed", true)]
+    public void JobChainInfo_IsSettled_ForAJoinBehindAFailure_UnlessTheBranchesDecideIt(int link, string first, string second, bool settled)
+    {
+        JobChainInfo chain = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", first, ChainLink.Then),
+            Step("1.1", second, ChainLink.Then),
+            Step("2.0", "Awaiting", (ChainLink)link));
+
+        Assert.Equal(settled, chain.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsNotSettled_WhileAJoinBehindAFailureIsAboutToBeSkipped()
+    {
+        // A deleted branch decides the join for every success: it is skipped, which starts the step after it
+        JobChainInfo chain = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", "Failed", ChainLink.Then),
+            Step("1.1", "Deleted", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAll),
+            Step("3.0", "Awaiting", ChainLink.Then, JobContinuationOptions.OnAnyFinishedState));
+
+        Assert.False(chain.IsSettled);
+    }
+
+    [Theory]
+    [InlineData((int)ChainLink.Then, JobContinuationOptions.OnlyOnFailedState, false)]
+    [InlineData((int)ChainLink.Then, JobContinuationOptions.OnlyOnFailedState | JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData((int)ChainLink.Then, JobContinuationOptions.OnlyOnSucceededState, true)]
+    [InlineData((int)ChainLink.Then, JobContinuationOptions.OnlyOnDeletedState, true)]
+    [InlineData((int)ChainLink.Then, JobContinuationOptions.OnAnyFinishedState, true)]
+    [InlineData((int)ChainLink.AfterAnyFailed, JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData((int)ChainLink.AfterAnyFailedOrCanceled, JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData((int)ChainLink.AfterAllCompleted, JobContinuationOptions.OnlyOnSucceededState, false)]
+    [InlineData((int)ChainLink.AfterAll, JobContinuationOptions.OnlyOnSucceededState, true)]
+    [InlineData((int)ChainLink.AfterAny, JobContinuationOptions.OnlyOnSucceededState, true)]
+    public void JobChainInfo_IsSettled_ForAStepAfterASingleFailedStep_UnlessItWaitsForTheFailure(int link, JobContinuationOptions options, bool settled)
+    {
+        JobChainInfo chain = Chain(
+            Step("0.0", "Failed", ChainLink.Root),
+            Step("1.0", "Awaiting", (ChainLink)link, options));
+
+        Assert.Equal(settled, chain.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsNotSettled_WhileAThenAfterAGroup_ThatWaitsForAFailure_IsAboutToStart()
+    {
+        JobChainInfo chain = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", "Failed", ChainLink.Then),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.Then, JobContinuationOptions.OnlyOnFailedState));
+
+        Assert.False(chain.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsSettled_WhenTheStepThatWasToStartWasNeverTold()
+    {
+        // The branch failed long ago and the join still waits: the process that was to start it stopped. It waits
+        // for a requeue or a retry, like the steps behind a failure.
+        DateTime longAgo = DateTime.UtcNow - JobChains.DecisionWindow - TimeSpan.FromMinutes(1);
+        JobChainInfo lost = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root, finishedAt: longAgo),
+            Step("1.0", "Failed", ChainLink.Then, finishedAt: longAgo),
+            Step("1.1", "Succeeded", ChainLink.Then, finishedAt: longAgo),
+            Step("2.0", "Awaiting", ChainLink.AfterAnyFailed));
+        JobChainInfo recent = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root, finishedAt: longAgo),
+            Step("1.0", "Failed", ChainLink.Then, finishedAt: longAgo),
+            Step("1.1", "Succeeded", ChainLink.Then, finishedAt: DateTime.UtcNow),
+            Step("2.0", "Awaiting", ChainLink.AfterAnyFailed));
+
+        Assert.True(lost.IsSettled);
+        Assert.False(recent.IsSettled);
+    }
+
+    [Fact]
+    public void JobChainInfo_IsSettled_WhenAJoinWaitsForAnExpiredStep_AndTheOthersDoNotDecideIt()
+    {
+        JobChainInfo chain = Chain(
+            Step("0.0", "Succeeded", ChainLink.Root),
+            Step("1.0", null, ChainLink.Then),
+            Step("1.1", "Succeeded", ChainLink.Then),
+            Step("2.0", "Awaiting", ChainLink.AfterAllCompleted));
+
+        Assert.True(chain.IsSettled);
+    }
+
+    [Fact]
+    public void StatisticsHistory_DoesNotCountAStep_PutBackIntoTheStateItWasIn()
+    {
+        StatisticsHistoryAttribute filter = new();
+        ElectStateContextMock restored = new();
+        restored.ApplyContext.NewStateObject = new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() });
+        ElectStateContextMock failed = new();
+        failed.ApplyContext.NewStateObject = new FailedState(new InvalidOperationException("failed"));
+
+        filter.OnStateElection(restored.Object);
+        filter.OnStateElection(failed.Object);
+
+        restored.ApplyContext.Transaction.Verify(x => x.IncrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        failed.ApplyContext.Transaction.Verify(x => x.IncrementCounter(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void GlobalFilters_CheckTheStepsOfChains_BeforeAnyOtherFilter()
+    {
+        Assert.IsType<JobChainStepFilter>(GlobalJobFilters.Filters.First().Instance);
+        Assert.Equal(JobFilter.DefaultOrder, GlobalJobFilters.Filters.First().Order);
+    }
+
+    [Fact]
+    public void Enqueue_EnqueuesTheFirstStep_ThatAWorkerHeldUntilTheChainIsRecorded()
+    {
+        string chainId = null;
+        _storage.Connection.Setup(x => x.GetStateData("job-1"))
+            .Returns(() => new StateData { Name = ScheduledState.StateName, Reason = $"Waiting for chain {chainId} to be recorded", Data = new Dictionary<string, string>() });
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
+            .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
+            {
+                chainId = (string)parameters[JobChains.ChainIdParameter];
+                _created.Add((null, null, parameters));
+                return $"job-{_created.Count}";
+            });
+
+        JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object);
+
+        _client.Verify(x => x.ChangeState("job-1", It.Is<EnqueuedState>(state => state.Reason == "The chain is recorded"), ScheduledState.StateName), Times.Once);
+    }
+
+    [Fact]
+    public void Enqueue_TakesTheChainBack_WhenItsFirstStepWasDeletedBeforeTheChainWasRecorded()
+    {
+        // Creating the chain took longer than a step waits for its record: a worker took the first step and
+        // deleted it for lack of one
+        string chainId = null;
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()))
+            .Returns((Job _, IState _, IDictionary<string, object> parameters) =>
+            {
+                chainId = (string)parameters[JobChains.ChainIdParameter];
+                _created.Add((null, null, parameters));
+                return $"job-{_created.Count}";
+            });
+        _storage.Connection.Setup(x => x.GetStateData("job-1"))
+            .Returns(() => new StateData { Name = DeletedState.StateName, Reason = $"Chain {chainId} isn't recorded: it was deleted or never completely created", Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = AwaitingState.StateName });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client.Object));
+
+        Assert.Contains("wasn't created", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.ChangeState("job-2", It.IsAny<DeletedState>(), AwaitingState.StateName));
+        Assert.False(_storage.Hashes.ContainsKey(JobChains.GetKey(chainId)));
+        Assert.DoesNotContain(chainId, _storage.Sets[JobChains.SetKey]);
+    }
+
+    [Fact]
+    public void Schedule_LeavesAScheduledFirstStepAlone_OnceTheChainIsRecorded()
+    {
+        _storage.Connection.Setup(x => x.GetStateData("job-1"))
+            .Returns(new StateData { Name = ScheduledState.StateName, Data = new Dictionary<string, string> { ["EnqueueAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow.AddHours(1)) } });
+
+        JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Schedule(_client.Object, TimeSpan.FromHours(1));
+
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+    }
+
+    private static JobChainInfo Chain(params JobChainStepInfo[] steps) => new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade, steps);
+
+    private static JobChainStepInfo Step(
+        string key,
+        string state,
+        ChainLink link,
+        JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState,
+        DateTime? finishedAt = null)
+    {
+        int level = int.Parse(key.AsSpan(0, key.IndexOf('.', StringComparison.Ordinal)), System.Globalization.CultureInfo.InvariantCulture);
+        bool finished = state is "Succeeded" or "Failed" or "Deleted";
+
+        return new JobChainStepInfo(key, $"job-{key}", state, level, level - 1)
+        {
+            Link = link,
+            Options = options,
+            FinishedAt = finished ? finishedAt ?? DateTime.UtcNow : null,
+        };
+    }
+
+    [Fact]
     public void DeleteChain_KeepsTheRecord_WhenAStepStartedWhileItWasDeleted()
     {
         RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")), ["root", "next"]);

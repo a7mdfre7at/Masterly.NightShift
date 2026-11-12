@@ -376,17 +376,32 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     /// </param>
     internal Decision Evaluate(AwaitingJobsState awaiting, Func<string, string?> getParentState, string? finishedParentId = null)
     {
+        return Evaluate(awaiting.Mode, awaiting.Options, awaiting.ParentIds, getParentState, _knownFinalStates, finishedParentId);
+    }
+
+    /// <summary>
+    /// The decision itself, from the fan-in's mode and options and the parents' state names alone: what this filter
+    /// decides when a parent finishes, and what tells whether a waiting step of a chain is about to start.
+    /// </summary>
+    internal static Decision Evaluate(
+        FanInMode mode,
+        JobContinuationOptions options,
+        IReadOnlyList<string> parentIds,
+        Func<string, string?> getParentState,
+        HashSet<string> knownFinalStates,
+        string? finishedParentId = null)
+    {
         // "Any" modes start at the first parent that satisfies; "all" modes skip at the first that doesn't
-        bool anyMode = awaiting.Mode is FanInMode.Any or FanInMode.AnyFailed or FanInMode.AnyFailedOrCanceled;
+        bool anyMode = mode is FanInMode.Any or FanInMode.AnyFailed or FanInMode.AnyFailedOrCanceled;
 
         if (finishedParentId != null)
         {
-            foreach (string parentId in FinishedParentFirst(awaiting.ParentIds, finishedParentId))
+            foreach (string parentId in FinishedParentFirst(parentIds, finishedParentId))
             {
                 string? stateName = getParentState(parentId);
-                if (stateName == null || !IsFinished(stateName, awaiting.Mode)) return Decision.Undecided;
+                if (stateName == null || !IsFinished(stateName, mode, knownFinalStates)) return Decision.Undecided;
 
-                bool ok = Satisfies(stateName, awaiting);
+                bool ok = Satisfies(stateName, mode, options, knownFinalStates);
                 if (anyMode && ok) return Decision.Start;
                 if (!anyMode && !ok) return Decision.Skip;
             }
@@ -398,20 +413,20 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         int finished = 0;
         int satisfied = 0;
 
-        foreach (string parentId in awaiting.ParentIds)
+        foreach (string parentId in parentIds)
         {
             string? stateName = getParentState(parentId);
-            if (stateName == null || !IsFinished(stateName, awaiting.Mode)) continue;
+            if (stateName == null || !IsFinished(stateName, mode, knownFinalStates)) continue;
 
             finished++;
-            bool ok = Satisfies(stateName, awaiting);
+            bool ok = Satisfies(stateName, mode, options, knownFinalStates);
             if (ok) satisfied++;
 
             if (anyMode && ok) return Decision.Start;
             if (!anyMode && !ok) return Decision.Skip;
         }
 
-        if (finished < awaiting.ParentIds.Count) return Decision.Undecided;
+        if (finished < parentIds.Count) return Decision.Undecided;
 
         return anyMode
             ? (satisfied > 0 ? Decision.Start : Decision.Skip)
@@ -419,22 +434,22 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     }
 
     // The modes that count failures count a parent that failed for good as finished
-    private bool IsFinished(string stateName, FanInMode mode)
+    private static bool IsFinished(string stateName, FanInMode mode, HashSet<string> knownFinalStates)
     {
-        return _knownFinalStates.Contains(stateName) ||
+        return knownFinalStates.Contains(stateName) ||
                (mode is FanInMode.AnyFailed or FanInMode.AnyFailedOrCanceled or FanInMode.AllCompleted && IsFailed(stateName));
     }
 
     private static bool IsFailed(string stateName) => FailedState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase);
 
-    private bool Satisfies(string stateName, AwaitingJobsState awaiting)
+    private static bool Satisfies(string stateName, FanInMode mode, JobContinuationOptions options, HashSet<string> knownFinalStates)
     {
-        return awaiting.Mode switch
+        return mode switch
         {
             FanInMode.AnyFailed => IsFailed(stateName),
             FanInMode.AnyFailedOrCanceled => IsFailed(stateName) || DeletedState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase),
             FanInMode.AllCompleted => true,
-            _ => Satisfies(stateName, awaiting.Options),
+            _ => Satisfies(stateName, options, knownFinalStates),
         };
     }
 
@@ -454,11 +469,11 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
     }
 
-    private bool Satisfies(string stateName, JobContinuationOptions options)
+    private static bool Satisfies(string stateName, JobContinuationOptions options, HashSet<string> knownFinalStates)
     {
         if (options == JobContinuationOptions.OnAnyFinishedState)
         {
-            return _knownFinalStates.Contains(stateName);
+            return knownFinalStates.Contains(stateName);
         }
 
         if (options.HasFlag(JobContinuationOptions.OnlyOnSucceededState) &&
