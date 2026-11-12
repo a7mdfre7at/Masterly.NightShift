@@ -39,7 +39,7 @@ public sealed class SchedulePoliciesFacts : IDisposable
         Assert.Equal("09:00-17:00", hash["Windows"]);
         Assert.Equal("1", hash["Revision"]);
         Assert.Contains("business-hours", _storage.Sets[SchedulePolicies.SetKey]);
-        Assert.Contains("lock:schedule-policy:business-hours", _storage.Locks);
+        Assert.Contains("lock:schedule-policies", _storage.Locks);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
@@ -165,6 +165,17 @@ public sealed class SchedulePoliciesFacts : IDisposable
         Assert.DoesNotContain("p", _storage.Sets[SchedulePolicies.SetKey]);
     }
 
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void SaveAndDelete_TakeTheSameLock_WhateverThePolicy()
+    {
+        _storage.Add(new SchedulePolicy("trading"));
+
+        _storage.Object.SaveSchedulePolicy(new SchedulePolicy("business-hours").Require("trading"));
+        Assert.Throws<InvalidOperationException>(() => _storage.Object.DeleteSchedulePolicy("trading", 1));
+
+        Assert.Equal(["lock:schedule-policies", "lock:schedule-policies"], _storage.Locks);
+    }
+
     [Fact]
     public void DeleteSchedulePolicy_ReturnsFalse_WhenThePolicyDoesNotExist()
     {
@@ -258,6 +269,24 @@ public sealed class SchedulePoliciesFacts : IDisposable
         Assert.Equal(JobHelper.SerializeDateTime(Now), _storage.Hashes["recurring-job:direct"]["ScheduleChangedAt"]);
         Assert.False(_storage.Hashes["recurring-job:paused"].ContainsKey("NextExecution"));
         Assert.Equal(JobHelper.SerializeDateTime(Now.AddHours(2)), _storage.Hashes["recurring-job:unrelated"]["NextExecution"]);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void SaveSchedulePolicy_ReadsEachPolicyOnce_WhenItReschedulesManyJobs()
+    {
+        _storage.Add(new SchedulePolicy("weekdays"));
+        _storage.Add(new SchedulePolicy("reports").Require("weekdays"));
+        _storage.AddRecurringJob("first", RecurringJob("reports", Now.AddHours(2)));
+        _storage.AddRecurringJob("second", RecurringJob("reports", Now.AddHours(2)));
+        _storage.AddRecurringJob("third", RecurringJob("reports", Now.AddHours(2)));
+
+        _storage.Object.SaveSchedulePolicy(new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Saturday));
+
+        // Once to find the policies that refer to the saved one, once to evaluate it for the three jobs
+        _storage.Connection.Verify(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("reports")), Times.Exactly(2));
+        Assert.Equal(
+            JobHelper.SerializeDateTime(new DateTime(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc)),
+            _storage.Hashes["recurring-job:third"]["NextExecution"]);
     }
 
     private static Dictionary<string, string> RecurringJob(string policy, DateTime? nextExecution, bool paused = false)

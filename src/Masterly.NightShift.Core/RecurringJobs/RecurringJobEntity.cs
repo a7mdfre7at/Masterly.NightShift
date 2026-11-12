@@ -157,9 +157,21 @@ internal sealed class RecurringJobEntity
 
     /// <summary>
     /// Where <see cref="ScheduleNext(ITimeZoneResolver, DateTime, DateTime, TimeSpan)"/> reads <see cref="Policy"/>
-    /// from. Without it the policy is ignored.
+    /// from: the calendars of a whole scheduler pass, or of this job alone. Without it the policy is ignored.
     /// </summary>
-    public IStorageConnection? PolicySource { get; set; }
+    public SchedulePolicyCalendars? PolicyCalendars { get; set; }
+
+    /// <summary>
+    /// How long a job waits when its policy can't be evaluated (<see cref="PolicyFailure"/>) before it is looked at
+    /// again. The scheduler sets its polling interval.
+    /// </summary>
+    public TimeSpan PolicyRetryDelay { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Why the last call to <see cref="ScheduleNext(ITimeZoneResolver, DateTime, DateTime, TimeSpan)"/> couldn't
+    /// evaluate <see cref="Policy"/>, or <c>null</c>. The job then stays on the schedule and is looked at again.
+    /// </summary>
+    public SchedulePolicyFailure? PolicyFailure { get; private set; }
 
     // A blocked occurrence makes the search jump to the next instant the policy allows; this bounds the jumps for
     // a schedule whose occurrences keep missing the allowed times
@@ -321,6 +333,7 @@ internal sealed class RecurringJobEntity
         ArgumentNullException.ThrowIfNull(timeZoneResolver);
 
         List<DateTime> result = [];
+        PolicyFailure = null;
 
         if (Paused)
         {
@@ -331,8 +344,7 @@ internal sealed class RecurringJobEntity
 
         CronExpression cron = ParseCronExpression(Cron!); // An entry without a cron returned above
         TimeZoneInfo timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
-        SchedulePolicyCalendar? calendar = LoadPolicy(timeZoneResolver);
-        bool neverAllowed = false;
+        PolicySearch search = new(cron, timeZone, LoadPolicy(timeZoneResolver));
 
         if (MisfireHandling == MisfireHandlingMode.RunLatest && SkipAfter.HasValue)
         {
@@ -344,19 +356,16 @@ internal sealed class RecurringJobEntity
 
         // Before the window opens, the first occurrence is the first one at or after its start, so no
         // misfire handling mode catches up on the occurrences before it
-        DateTime? next = SkipBlocked(
-            cron,
-            timeZone,
-            calendar,
+        DateTime? next = search.SkipBlocked(
             StartAt.HasValue && StartAt.Value > from
                 ? cron.GetNextOccurrence(StartAt.Value, timeZone, inclusive: true)
-                : cron.GetNextOccurrence(from, timeZone, inclusive: false),
-            ref neverAllowed);
+                : cron.GetNextOccurrence(from, timeZone, inclusive: false));
 
         DateTime? latestMissed = null;
+        DateTime? deferredTo = null;
 
         // Occurrences after the window's end never run, whatever the misfire handling mode
-        for (; next <= now && !neverAllowed && !IsAfterEnd(next); next = SkipBlocked(cron, timeZone, calendar, cron.GetNextOccurrence(next.Value, timeZone, inclusive: false), ref neverAllowed))
+        for (; next <= now && !search.Stopped && !IsAfterEnd(next); next = search.SkipBlocked(cron.GetNextOccurrence(next.Value, timeZone, inclusive: false)))
         {
             if (result.Count >= MaxExecutionsPerPass)
             {
@@ -373,8 +382,20 @@ internal sealed class RecurringJobEntity
                 switch (MisfireHandling)
                 {
                     case MisfireHandlingMode.Relaxed:
-                        next = now;
-                        result.Add(next.Value);
+                        // The missed occurrence was allowed at its time, and runs now only when the policy allows now
+                        // too. Otherwise it waits for the next time the policy allows, still counted from the last
+                        // execution, so it isn't lost.
+                        DateTime? runAt = search.NextAllowed(now);
+                        if (runAt == now)
+                        {
+                            next = now;
+                            result.Add(now);
+                        }
+                        else
+                        {
+                            deferredTo = runAt;
+                        }
+
                         break;
                     case MisfireHandlingMode.Strict:
                         result.Add(next.Value);
@@ -392,6 +413,14 @@ internal sealed class RecurringJobEntity
                         break;
                 }
             }
+
+            if (deferredTo.HasValue || search.Stopped) break;
+        }
+
+        if (search.Failure is { } failure)
+        {
+            ScheduleAfterPolicyFailure(cron, timeZone, failure, now);
+            return result;
         }
 
         if (latestMissed.HasValue && !result.Contains(latestMissed.Value) &&
@@ -402,16 +431,39 @@ internal sealed class RecurringJobEntity
         }
 
         // After the window's end the job leaves the schedule, but stays registered
-        NextExecution = IsAfterEnd(next) || neverAllowed ? null : next;
+        NextExecution = deferredTo ?? (IsAfterEnd(next) || search.NeverAllowed ? null : next);
         Error = null;
 
-        if (neverAllowed && !IsAfterEnd(next))
+        if (search.NeverAllowed && !IsAfterEnd(next))
         {
-            // Registering the job again or saving the policy schedules it again, as for any error
+            // Only a search that evaluated every instant it met ends here. Registering the job again or saving the
+            // policy schedules it again, as for any error.
             Error = $"Schedule policy '{Policy}' allows none of its next occurrences in the next ten years.";
         }
 
         return result;
+    }
+
+    // The policy can't tell whether the next occurrences may run, for example because a date provider failed or isn't
+    // registered on this server: they don't run, but the job stays on the schedule and is looked at again, from its
+    // last execution, so a missed occurrence is handled by the misfire mode once the policy can be evaluated.
+    // A RunLatest occurrence found before the failure waits too, so that a later one doesn't run as well.
+    private void ScheduleAfterPolicyFailure(CronExpression cron, TimeZoneInfo timeZone, SchedulePolicyFailure failure, DateTime now)
+    {
+        PolicyFailure = failure;
+
+        // Every occurrence that may run is after the window's end
+        if (IsAfterEnd(failure.Instant))
+        {
+            NextExecution = null;
+            Error = null;
+            return;
+        }
+
+        // The occurrences before the failing instant were evaluated and are blocked
+        DateTime? candidate = failure.Instant > now ? cron.GetNextOccurrence(failure.Instant, timeZone, inclusive: true) : null;
+        NextExecution = candidate ?? now.Add(PolicyRetryDelay);
+        Error = $"Schedule policy '{Policy}' can't be evaluated, so the job waits and tries again: {failure.Reason}.";
     }
 
     /// <summary>The occurrences of the next runs after <paramref name="from"/>, with the policy applied.</summary>
@@ -419,12 +471,12 @@ internal sealed class RecurringJobEntity
     {
         CronExpression cron = ParseCronExpression(Cron!); // Checked by the caller
         TimeZoneInfo timeZone = timeZoneResolver.GetTimeZoneById(TimeZoneId);
-        SchedulePolicyCalendar? calendar = LoadPolicy(timeZoneResolver);
-        bool neverAllowed = false;
+        PolicySearch search = new(cron, timeZone, LoadPolicy(timeZoneResolver));
 
-        for (DateTime? next = SkipBlocked(cron, timeZone, calendar, cron.GetNextOccurrence(from, timeZone, inclusive: true), ref neverAllowed);
-             next.HasValue && !neverAllowed && !IsAfterEnd(next);
-             next = SkipBlocked(cron, timeZone, calendar, cron.GetNextOccurrence(next.Value, timeZone, inclusive: false), ref neverAllowed))
+        // An occurrence the policy can't evaluate isn't listed, nor the ones after it
+        for (DateTime? next = search.SkipBlocked(cron.GetNextOccurrence(from, timeZone, inclusive: true));
+             next.HasValue && !search.Stopped && !IsAfterEnd(next);
+             next = search.SkipBlocked(cron.GetNextOccurrence(next.Value, timeZone, inclusive: false)))
         {
             yield return next.Value;
         }
@@ -432,37 +484,61 @@ internal sealed class RecurringJobEntity
 
     private SchedulePolicyCalendar? LoadPolicy(ITimeZoneResolver timeZoneResolver)
     {
-        return Policy != null && PolicySource != null
-            ? SchedulePolicyCalendar.Load(PolicySource, Policy, timeZoneResolver)
+        return Policy != null && PolicyCalendars != null
+            ? PolicyCalendars.Get(Policy, timeZoneResolver)
             : null;
     }
 
-    // The first occurrence at or after the given one that the policy allows. A blocked stretch is skipped whole:
-    // the search moves to the next instant the policy allows and takes the first occurrence from there.
-    private static DateTime? SkipBlocked(
-        CronExpression cron,
-        TimeZoneInfo timeZone,
-        SchedulePolicyCalendar? calendar,
-        DateTime? occurrence,
-        ref bool neverAllowed)
+    // Applies a policy to the occurrences of a schedule, and remembers why it stopped
+    private sealed class PolicySearch(CronExpression cron, TimeZoneInfo timeZone, SchedulePolicyCalendar? calendar)
     {
-        if (calendar == null || !occurrence.HasValue) return occurrence;
+        /// <summary>A whole search, without an instant it couldn't evaluate, found no occurrence allowed.</summary>
+        public bool NeverAllowed { get; private set; }
 
-        DateTime limit = occurrence.Value + SchedulePolicyCalendar.SearchHorizon;
+        /// <summary>The first instant the policy couldn't evaluate, or <c>null</c>.</summary>
+        public SchedulePolicyFailure? Failure { get; private set; }
 
-        for (int jump = 0; jump < MaxBlockedJumps && occurrence.HasValue && occurrence.Value <= limit; jump++)
+        public bool Stopped => NeverAllowed || Failure != null;
+
+        // The first occurrence at or after the given one that the policy allows. A blocked stretch is skipped
+        // whole: the search moves to the next instant the policy allows and takes the first occurrence from there.
+        public DateTime? SkipBlocked(DateTime? occurrence)
         {
-            if (calendar.IsAllowed(occurrence.Value)) return occurrence;
+            if (calendar == null || !occurrence.HasValue) return occurrence;
 
-            DateTime? allowedFrom = calendar.FindNextAllowed(occurrence.Value);
-            if (!allowedFrom.HasValue) break;
+            DateTime limit = occurrence.Value + SchedulePolicyCalendar.SearchHorizon;
 
-            occurrence = cron.GetNextOccurrence(allowedFrom.Value, timeZone, inclusive: true);
+            for (int jump = 0; jump < MaxBlockedJumps && occurrence.HasValue && occurrence.Value <= limit; jump++)
+            {
+                SchedulePolicySearchResult found = calendar.Search(occurrence.Value);
+                if (found.Failure != null)
+                {
+                    Failure = found.Failure;
+                    return occurrence;
+                }
+
+                if (!found.Allowed.HasValue) break;
+                if (found.Allowed.Value == occurrence.Value) return occurrence;
+
+                occurrence = cron.GetNextOccurrence(found.Allowed.Value, timeZone, inclusive: true);
+            }
+
+            // No occurrence the policy allows in sight. A schedule that has no more occurrences just ends.
+            if (occurrence.HasValue) NeverAllowed = true;
+            return occurrence;
         }
 
-        // No occurrence the policy allows in sight. A schedule that has no more occurrences just ends.
-        if (occurrence.HasValue) neverAllowed = true;
-        return occurrence;
+        // The first instant at or after the given one that the policy allows
+        public DateTime? NextAllowed(DateTime instant)
+        {
+            if (calendar == null) return instant;
+
+            SchedulePolicySearchResult found = calendar.Search(instant);
+            if (found.Failure != null) Failure = found.Failure;
+            else if (!found.Allowed.HasValue) NeverAllowed = true;
+
+            return found.Allowed;
+        }
     }
 
     private bool IsAfterEnd(DateTime? occurrence)

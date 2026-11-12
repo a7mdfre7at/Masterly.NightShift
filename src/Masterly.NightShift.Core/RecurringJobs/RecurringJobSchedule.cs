@@ -46,7 +46,7 @@ public static class RecurringJobSchedule
             ? recurringJob.StartAt.Value.AddTicks(-1)
             : now;
 
-        if (recurringJob.Policy != null && recurringJob.PolicySource != null)
+        if (recurringJob.Policy != null && recurringJob.PolicyCalendars != null)
         {
             // From the instant after "from", as Cron.GetNextOccurrences counts
             return [.. recurringJob.GetNextOccurrences(timeZoneResolver, from.AddTicks(1)).Take(count)];

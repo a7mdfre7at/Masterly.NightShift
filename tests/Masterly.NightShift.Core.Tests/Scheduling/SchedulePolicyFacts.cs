@@ -277,6 +277,15 @@ public class SchedulePolicyFacts
     }
 
     [Fact]
+    public void ScheduleWindow_Default_ContainsNothing()
+    {
+        ScheduleWindow empty = default;
+
+        Assert.False(empty.Contains(TimeSpan.Zero));
+        Assert.False(empty.Contains(TimeSpan.FromHours(12)));
+    }
+
+    [Fact]
     public void ScheduleWindow_Contains_HandlesDayAndOvernightWindows()
     {
         ScheduleWindow day = new(TimeSpan.FromHours(9), TimeSpan.FromHours(17));

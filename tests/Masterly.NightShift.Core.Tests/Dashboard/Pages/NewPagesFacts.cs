@@ -29,7 +29,7 @@ public class NewPagesFacts
             ["Declared"] = "1",
             ["SkipAfter"] = "1800",
         });
-        _renderer.Connection.Setup(x => x.GetRangeFromList(RecurringJobHistory.GetKey("nightly"), 0, 49)).Returns(["41"]);
+        _renderer.Connection.Setup(x => x.GetRangeFromList(RecurringJobHistory.GetKey("nightly"), 0, 19)).Returns(["41"]);
         _renderer.Monitoring.Setup(x => x.JobDetails("41")).Returns(new Masterly.NightShift.Storage.Monitoring.JobDetailsDto
         {
             CreatedAt = DateTime.UtcNow.AddHours(-1),

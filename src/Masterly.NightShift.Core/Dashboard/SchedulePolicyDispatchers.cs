@@ -7,10 +7,51 @@ namespace Masterly.NightShift.Dashboard;
 /// <summary>Saves and deletes schedule policies from the dashboard, with the revision the form was read with.</summary>
 internal static class SchedulePolicyDispatchers
 {
+    private const int UnprocessableEntity = 422;
+
+    /// <summary>
+    /// Saves the policy of the form. Its name is in the audit entry, whatever the answer, as the save's address
+    /// doesn't carry it.
+    /// </summary>
     public static async Task<CommandResult> SaveAsync(DashboardContext context)
     {
         string name = await GetAsync(context, "name") ?? throw new ArgumentException("A name is required.");
-        long revision = long.TryParse(await GetAsync(context, "revision"), NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed) ? parsed : 0;
+        string detail = $"policy '{name}'";
+
+        try
+        {
+            return await SaveAsync(context, name, detail);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException or OverflowException
+                                       or TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return new CommandResult(UnprocessableEntity, RecurringJobUpdateDispatcher.GetMessage(ex), detail);
+        }
+    }
+
+    public static CommandResult Delete(DashboardContext context)
+    {
+        string name = RouteValues.Get(context, "Name");
+        string revisionText = RouteValues.Get(context, "Revision");
+
+        if (!TryParseRevision(revisionText, out long revision))
+        {
+            return CommandResult.Refused(UnprocessableEntity, $"'{revisionText}' isn't a revision.");
+        }
+
+        return context.Storage.DeleteSchedulePolicy(name, revision)
+            ? CommandResult.Done()
+            : CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict);
+    }
+
+    private static async Task<CommandResult> SaveAsync(DashboardContext context, string name, string detail)
+    {
+        // A form without a revision creates the policy
+        long revision = 0;
+        if (await GetAsync(context, "revision") is { } revisionText && !TryParseRevision(revisionText, out revision))
+        {
+            return new CommandResult(UnprocessableEntity, $"'{revisionText}' isn't a revision.", detail);
+        }
 
         SchedulePolicy policy = new SchedulePolicy(name).WithDescription(await GetAsync(context, "description"));
 
@@ -22,7 +63,18 @@ internal static class SchedulePolicyDispatchers
         IList<string> days = await context.Request.GetFormValuesAsync("days");
         if (days is { Count: > 0 })
         {
-            policy.AllowWeekdays([.. days.Select(static x => Enum.Parse<DayOfWeek>(x, ignoreCase: true))]);
+            List<DayOfWeek> allowed = [];
+            foreach (string day in days)
+            {
+                if (!TryParseDay(day, out DayOfWeek parsedDay))
+                {
+                    return new CommandResult(UnprocessableEntity, $"'{day}' isn't a day of the week.", detail);
+                }
+
+                allowed.Add(parsedDay);
+            }
+
+            policy.AllowWeekdays([.. allowed]);
         }
 
         foreach (string window in List(await GetAsync(context, "windows")))
@@ -50,18 +102,19 @@ internal static class SchedulePolicyDispatchers
 
         long? saved = context.Storage.UpdateSchedulePolicy(policy, revision);
         return saved.HasValue
-            ? CommandResult.Done($"revision {saved.Value.ToString(CultureInfo.InvariantCulture)}")
-            : CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict);
+            ? CommandResult.Done($"{detail}, revision {saved.Value.ToString(CultureInfo.InvariantCulture)}")
+            : new CommandResult((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict, detail);
     }
 
-    public static CommandResult Delete(DashboardContext context)
+    private static bool TryParseRevision(string text, out long revision)
     {
-        string name = RouteValues.Get(context, "Name");
-        long revision = long.Parse(RouteValues.Get(context, "Revision"), CultureInfo.InvariantCulture);
+        return long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out revision);
+    }
 
-        return context.Storage.DeleteSchedulePolicy(name, revision)
-            ? CommandResult.Done()
-            : CommandResult.Refused((int)HttpStatusCode.Conflict, Strings.PoliciesPage_Conflict);
+    // A day's name; a number only when it names a day, so "99999999999" is refused rather than overflowing
+    private static bool TryParseDay(string text, out DayOfWeek day)
+    {
+        return Enum.TryParse(text.Trim(), ignoreCase: true, out day) && Enum.IsDefined(day);
     }
 
     private static async Task<string?> GetAsync(DashboardContext context, string key)

@@ -66,6 +66,10 @@ public class RecurringJobScheduler : IBackgroundProcess
     private static readonly int MaxRetryAttemptCount = 5;
     private static readonly int MaxSupportedVersion = 2;
 
+    // A job whose schedule changed this recently reads its policy again rather than take the one the pass read: the
+    // policy may have been changed (and the job rescheduled with it) after the pass read it. Covers clock skew too.
+    private static readonly TimeSpan RecentScheduleChange = TimeSpan.FromMinutes(1);
+
     private readonly ILog _logger = LogProvider.For<RecurringJobScheduler>();
     private readonly ConcurrentDictionary<Type, bool> _isBatchingAvailableCache = new();
 
@@ -203,6 +207,9 @@ public class RecurringJobScheduler : IBackgroundProcess
         {
             int jobsProcessed = 0;
 
+            // Each policy is read once per pass, however many jobs follow it
+            SchedulePolicyCalendars calendars = new(connection);
+
             DateTime now = DateTime.SpecifyKind(
                 !context.Storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)
                     ? _nowFactory()
@@ -230,7 +237,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                             {
                                 using (IStorageConnection dedicated = context.Storage.GetConnection())
                                 {
-                                    TryEnqueueBackgroundJob(context, dedicated, recurringJobId, now);
+                                    TryEnqueueBackgroundJob(context, dedicated, recurringJobId, now, calendars);
                                 }
 
                                 Interlocked.Increment(ref jobsProcessed);
@@ -242,7 +249,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                         {
                             if (context.IsStopping) break;
 
-                            TryEnqueueBackgroundJob(context, connection, recurringJobId, now);
+                            TryEnqueueBackgroundJob(context, connection, recurringJobId, now, calendars);
                             jobsProcessed++;
                         }
                     }
@@ -265,7 +272,7 @@ public class RecurringJobScheduler : IBackgroundProcess
                     string? recurringJobId = connection.GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp);
                     if (recurringJobId == null) break;
 
-                    TryEnqueueBackgroundJob(context, connection, recurringJobId, now);
+                    TryEnqueueBackgroundJob(context, connection, recurringJobId, now, calendars);
                     jobsProcessed++;
                 }
             }
@@ -278,7 +285,8 @@ public class RecurringJobScheduler : IBackgroundProcess
         BackgroundProcessContext context,
         IStorageConnection connection,
         string recurringJobId,
-        DateTime now)
+        DateTime now,
+        SchedulePolicyCalendars calendars)
     {
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, LockTimeout))
         {
@@ -294,7 +302,7 @@ public class RecurringJobScheduler : IBackgroundProcess
 
             try
             {
-                recurringJob = new RecurringJobEntity(recurringJobId, hash) { PolicySource = connection };
+                recurringJob = new RecurringJobEntity(recurringJobId, hash) { PolicyRetryDelay = PollingInterval };
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -303,6 +311,10 @@ public class RecurringJobScheduler : IBackgroundProcess
                 RetryUnreadableRecurringJob(connection, recurringJobId, hash, now, ex);
                 return;
             }
+
+            recurringJob.PolicyCalendars = recurringJob.ScheduleChangedAt > now - RecentScheduleChange
+                ? new SchedulePolicyCalendars(connection)
+                : calendars.WithConnection(connection);
 
             ScheduleRecurringJob(context, connection, recurringJobId, recurringJob, now);
         }
@@ -452,6 +464,12 @@ public class RecurringJobScheduler : IBackgroundProcess
 
             recurringJob.IsChanged(now, out IReadOnlyDictionary<string, string>? changedFields);
             transaction.UpdateRecurringJob(recurringJob, changedFields, _logger);
+
+            // Once per new error: the job is looked at again every polling interval while its policy can't be evaluated
+            if (exception == null && recurringJob.PolicyFailure != null && changedFields.ContainsKey("Error"))
+            {
+                _logger.Warn($"Recurring job '{recurringJobId}' waits until {recurringJob.NextExecution:u}: {recurringJob.Error}");
+            }
 
             // We should commit transaction outside of the internal try/catch block, because these
             // exceptions are always due to network issues, and in case of a timeout exception we

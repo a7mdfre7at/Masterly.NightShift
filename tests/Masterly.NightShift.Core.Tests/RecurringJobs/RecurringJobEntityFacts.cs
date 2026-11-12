@@ -300,13 +300,125 @@ public class RecurringJobEntityFacts
     [Fact]
     public void ScheduleNext_StopsSchedulingWithAnError_WhenThePolicyAllowsNoOccurrence()
     {
-        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("never").ExcludeDatesFrom("not-registered"));
+        RecurringJobEntity entity = CreatePolicyEntity(
+            new SchedulePolicy("never").AllowWeekdays(DayOfWeek.Monday).ExceptWhen("mondays"),
+            new SchedulePolicy("mondays").AllowWeekdays(DayOfWeek.Monday));
 
         List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(3), TimeSpan.Zero)];
 
         Assert.Empty(executions);
         Assert.Null(entity.NextExecution);
+        Assert.Null(entity.PolicyFailure);
         Assert.Equal("Schedule policy 'never' allows none of its next occurrences in the next ten years.", entity.Error);
+    }
+
+    [Fact, StaticLock]
+    public void ScheduleNext_KeepsTheJobScheduled_WithARetry_WhenTheDateProviderIsNotRegisteredOnThisServer()
+    {
+        ScheduleDateProviders.Clear();
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("holidays").ExcludeDatesFrom("not-registered"));
+        entity.PolicyRetryDelay = TimeSpan.FromSeconds(15);
+
+        // The first occurrence, 16:00, is in the past: the job is looked at again after the retry delay
+        List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1), TimeSpan.Zero)];
+
+        Assert.Empty(executions);
+        Assert.Equal(_nowInstant.AddHours(1).AddSeconds(15), entity.NextExecution);
+        Assert.Equal(_nowInstant.Date.AddHours(16), entity.PolicyFailure?.Instant);
+        Assert.Equal(
+            "Schedule policy 'holidays' can't be evaluated, so the job waits and tries again: policy 'holidays': date provider 'not-registered' isn't registered on this server.",
+            entity.Error);
+    }
+
+    [Fact, StaticLock]
+    public void ScheduleNext_KeepsTheNextOccurrence_WhenTheDateProviderIsNotRegistered_AndTheOccurrenceIsAhead()
+    {
+        ScheduleDateProviders.Clear();
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("holidays").ExcludeDatesFrom("not-registered"));
+
+        // Registered by a client without the provider: the servers, which have it, decide when the occurrence is due
+        entity.ScheduleNext(UtcResolver(), _nowInstant);
+
+        Assert.Equal(_nowInstant.Date.AddHours(16), entity.NextExecution);
+        Assert.NotNull(entity.Error);
+    }
+
+    [Fact, StaticLock]
+    public void ScheduleNext_RunsTheMissedOccurrence_OnceTheDateProviderWorksAgain()
+    {
+        ThrowingDates provider = new();
+        ScheduleDateProviders.Set("flaky", provider);
+        try
+        {
+            _recurringJob["Misfire"] = "1";
+            RecurringJobEntity first = CreatePolicyEntity(new SchedulePolicy("flaky").ExcludeDatesFrom("flaky"));
+            List<DateTime> failing = [.. first.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1), TimeSpan.Zero)];
+
+            // The next pass reads the job and its policy again; the last execution hasn't moved
+            provider.Fails = false;
+            RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("flaky").ExcludeDatesFrom("flaky"));
+            List<DateTime> working = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1).AddMinutes(1), TimeSpan.Zero)];
+
+            Assert.Empty(failing);
+            Assert.Equal([_nowInstant.Date.AddHours(16)], working);
+            Assert.Equal(_nowInstant.Date.AddHours(17), entity.NextExecution);
+            Assert.Null(entity.Error);
+            Assert.Null(entity.PolicyFailure);
+        }
+        finally
+        {
+            ScheduleDateProviders.Clear();
+        }
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRelaxed_DoesNotRunAMissedOccurrence_WhenThePolicyBlocksNow_AndWaitsForTheNextAllowedTime()
+    {
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("office").AllowBetween("09:00", "17:00"));
+
+        // 16:00 was missed; at 17:30 the office is closed, so it runs tomorrow at 09:00 rather than now
+        List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.Date.AddHours(17).AddMinutes(30), TimeSpan.Zero)];
+        List<DateTime> tomorrow = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.Date.AddDays(1).AddHours(9), TimeSpan.Zero)];
+
+        Assert.Empty(executions);
+        Assert.Equal([_nowInstant.Date.AddDays(1).AddHours(9)], tomorrow);
+    }
+
+    [Fact]
+    public void ScheduleNext_WithRelaxed_RunsAMissedOccurrenceNow_WhenThePolicyAllowsNow()
+    {
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("office").AllowBetween("09:00", "17:00"));
+        DateTime now = _nowInstant.Date.AddHours(16).AddMinutes(30);
+
+        List<DateTime> executions = [.. entity.ScheduleNext(UtcResolver(), _nowInstant, now, TimeSpan.Zero)];
+
+        Assert.Equal([now], executions);
+        Assert.Equal(_nowInstant.Date.AddDays(1).AddHours(9), entity.NextExecution);
+    }
+
+    [Fact]
+    public void ScheduleNext_ReadsEachPolicyOnce_WithCalendarsSharedByAPass()
+    {
+        PolicyStorage storage = new();
+        storage.Add(new SchedulePolicy("office").AllowBetween("09:00", "17:00"));
+        SchedulePolicyCalendars calendars = new(storage.Connection.Object);
+        _recurringJob["TimeZoneId"] = "UTC";
+        _recurringJob["Cron"] = "0 * * * *";
+        _recurringJob["Policy"] = "office";
+
+        ITimeZoneResolver resolver = UtcResolver();
+        PolicyStorage dedicated = new();
+        RecurringJobEntity first = new(RecurringJobId, _recurringJob) { PolicyCalendars = calendars };
+        RecurringJobEntity second = new("second", _recurringJob) { PolicyCalendars = calendars };
+        RecurringJobEntity third = new("third", _recurringJob) { PolicyCalendars = calendars.WithConnection(dedicated.Connection.Object) };
+
+        first.ScheduleNext(resolver, _nowInstant);
+        second.ScheduleNext(resolver, _nowInstant);
+        third.ScheduleNext(resolver, _nowInstant);
+
+        storage.Connection.Verify(x => x.GetAllEntriesFromHash(SchedulePolicies.GetKey("office")), Times.Once);
+        dedicated.Connection.Verify(x => x.GetAllEntriesFromHash(It.IsAny<string>()), Times.Never);
+        Assert.Equal(_nowInstant.Date.AddHours(16), third.NextExecution);
     }
 
     [Fact]
@@ -315,7 +427,7 @@ public class RecurringJobEntityFacts
         _recurringJob["TimeZoneId"] = "UTC";
         _recurringJob["Cron"] = "0 * * * *";
         _recurringJob["Policy"] = "gone";
-        RecurringJobEntity missing = new(RecurringJobId, _recurringJob) { PolicySource = new PolicyStorage().Connection.Object };
+        RecurringJobEntity missing = new(RecurringJobId, _recurringJob) { PolicyCalendars = new SchedulePolicyCalendars(new PolicyStorage().Connection.Object) };
         RecurringJobEntity noSource = new(RecurringJobId, _recurringJob);
 
         missing.ScheduleNext(UtcResolver(), _nowInstant.Date.AddHours(17).AddMinutes(30));
@@ -354,14 +466,15 @@ public class RecurringJobEntityFacts
         Assert.Equal(string.Empty, cleared["Policy"]);
     }
 
-    private RecurringJobEntity CreatePolicyEntity(SchedulePolicy policy)
+    private RecurringJobEntity CreatePolicyEntity(SchedulePolicy policy, params SchedulePolicy[] others)
     {
         PolicyStorage storage = new();
         storage.Add(policy);
+        foreach (SchedulePolicy other in others) storage.Add(other);
         _recurringJob["TimeZoneId"] = "UTC";
         _recurringJob["Cron"] = "0 * * * *";
         _recurringJob["Policy"] = policy.Name;
-        return new RecurringJobEntity(RecurringJobId, _recurringJob) { PolicySource = storage.Connection.Object };
+        return new RecurringJobEntity(RecurringJobId, _recurringJob) { PolicyCalendars = new SchedulePolicyCalendars(storage.Connection.Object) };
     }
 
     private static ITimeZoneResolver UtcResolver()
@@ -374,5 +487,12 @@ public class RecurringJobEntityFacts
     private RecurringJobEntity CreateEntity()
     {
         return new RecurringJobEntity(RecurringJobId, _recurringJob);
+    }
+
+    private sealed class ThrowingDates : IScheduleDateProvider
+    {
+        public bool Fails { get; set; } = true;
+
+        public bool Contains(DateOnly day) => Fails ? throw new InvalidOperationException("database down") : false;
     }
 }

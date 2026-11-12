@@ -82,7 +82,7 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
         Assert.True(Calendar(policy).IsAllowed(Utc("2026-12-24 22:30")));
     }
 
-    [Fact]
+    [Fact, StaticLock]
     public void Evaluate_BlocksTheDatesOfADateProvider()
     {
         ScheduleDateProviders.Set("holidays", new Dates(new DateOnly(2026, 11, 18)));
@@ -92,7 +92,7 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
         Assert.True(Calendar(policy).IsAllowed(Utc("2026-11-19 10:00")));
     }
 
-    [Fact]
+    [Fact, StaticLock]
     public void Evaluate_BlocksEverything_WhenTheDateProviderIsNotRegistered()
     {
         SchedulePolicy policy = new SchedulePolicy("p").ExcludeDatesFrom("holidays");
@@ -104,7 +104,7 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
         Assert.Null(Calendar(policy).FindNextAllowed(Utc("2026-11-18 10:00")));
     }
 
-    [Fact]
+    [Fact, StaticLock]
     public void Evaluate_BlocksTheDate_WhenTheDateProviderThrows()
     {
         ScheduleDateProviders.Set("holidays", new ThrowingDates());
@@ -236,6 +236,123 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
     }
 
     [Fact]
+    public void FindNextAllowed_FindsTheSecondPassOfAWindow_WhenClocksGoBack()
+    {
+        // In Berlin, 2026-10-25 03:00 CEST goes back to 02:00 CET: from 02:50 CEST (00:50 UTC), 02:30 comes again
+        // at 01:30 UTC
+        SchedulePolicy policy = new SchedulePolicy("night").InTimeZone(SchedulePolicyFacts.BerlinTimeZoneId).AllowBetween("02:30", "02:45");
+
+        Assert.Equal(Utc("2026-10-25 01:30"), Calendar(policy).FindNextAllowed(Utc("2026-10-25 00:50")));
+    }
+
+    [Fact]
+    public void FindNextAllowed_FindsTheRepeatedHour_OfAWindowCrossingMidnight_WhenClocksGoBack()
+    {
+        // 02:20 CEST (00:20 UTC) is after the window's end; at 01:00 UTC the clocks show 02:00 CET, inside it again
+        SchedulePolicy policy = new SchedulePolicy("night").InTimeZone(SchedulePolicyFacts.BerlinTimeZoneId).AllowBetween("22:00", "02:15");
+
+        Assert.Equal(Utc("2026-10-25 01:00"), Calendar(policy).FindNextAllowed(Utc("2026-10-25 00:20")));
+    }
+
+    [Fact, StaticLock]
+    public void Search_StopsAtTheFirstInstantItCannotEvaluate_InsteadOfSearchingTenYears()
+    {
+        SchedulePolicy policy = new SchedulePolicy("p").ExcludeDatesFrom("not-registered");
+
+        SchedulePolicySearchResult result = Calendar(policy).Search(Utc("2026-11-18 10:00"));
+
+        Assert.Null(result.Allowed);
+        Assert.Equal(Utc("2026-11-18 10:00"), result.Failure?.Instant);
+        Assert.Equal("policy 'p': date provider 'not-registered' isn't registered on this server", result.Failure?.Reason);
+    }
+
+    [Fact, StaticLock]
+    public void Search_FailsAtTheFirstInstantTheRulesDoNotBlock_WhenADateProviderCannotBeAsked()
+    {
+        // Saturday is blocked by the policy's days, whatever the provider says; Monday needs the provider
+        SchedulePolicy policy = new SchedulePolicy("p").AllowWeekdays(DayOfWeek.Monday).ExcludeDatesFrom("not-registered");
+
+        SchedulePolicyDecision saturday = Calendar(policy).Evaluate(Utc("2026-11-21 10:00"));
+        SchedulePolicySearchResult result = Calendar(policy).Search(Utc("2026-11-21 10:00"));
+
+        Assert.Equal("policy 'p': Saturday isn't an allowed day", saturday.Reason);
+        Assert.Equal(Utc("2026-11-23 00:00"), result.Failure?.Instant);
+    }
+
+    [Fact]
+    public void Search_ReportsNoFailure_WhenItsRulesAllowNothing()
+    {
+        SchedulePolicy never = new SchedulePolicy("never").AllowWeekdays(DayOfWeek.Monday).ExceptWhen("mondays");
+        SchedulePolicy mondays = new SchedulePolicy("mondays").AllowWeekdays(DayOfWeek.Monday);
+
+        Assert.Equal(default, Calendar(never, mondays).Search(Utc("2026-11-18 10:00")));
+    }
+
+    [Fact, StaticLock]
+    public void Search_AsksAFailingDateProviderOnce_PerCalendar()
+    {
+        CountingThrowingDates provider = new();
+        ScheduleDateProviders.Set("holidays", provider);
+        SchedulePolicyCalendar calendar = Calendar(new SchedulePolicy("p").ExcludeDatesFrom("holidays"));
+
+        SchedulePolicySearchResult first = calendar.Search(Utc("2026-11-18 10:00"));
+        SchedulePolicySearchResult second = calendar.Search(Utc("2026-11-19 10:00"));
+        SchedulePolicyDecision decision = calendar.Evaluate(Utc("2026-11-20 10:00"));
+
+        Assert.Equal(1, provider.Calls);
+        Assert.Equal("policy 'p': date provider 'holidays' failed: database down", first.Failure?.Reason);
+        Assert.Equal(Utc("2026-11-19 10:00"), second.Failure?.Instant);
+        Assert.False(decision.Allowed);
+    }
+
+    [Fact, StaticLock]
+    public void Evaluate_BlocksTheInstant_WhenAnExceptedPolicyCannotBeEvaluated()
+    {
+        SchedulePolicy maintenance = new SchedulePolicy("maintenance").ExcludeDatesFrom("not-registered");
+        SchedulePolicy policy = new SchedulePolicy("p").ExceptWhen("maintenance");
+
+        SchedulePolicyCalendar calendar = Calendar(policy, maintenance);
+        SchedulePolicyDecision decision = calendar.Evaluate(Utc("2026-11-18 10:00"));
+
+        Assert.False(decision.Allowed);
+        Assert.Equal(
+            "policy 'p' can't tell whether policy 'maintenance' allows this time, as policy 'maintenance': date provider 'not-registered' isn't registered on this server",
+            decision.Reason);
+        Assert.NotNull(calendar.Search(Utc("2026-11-18 10:00")).Failure);
+    }
+
+    [Fact]
+    public void Evaluate_BlocksTheInstant_WhenAnExceptedPolicyCannotBeRead_OrHasAnUnknownTimeZone()
+    {
+        PolicyStorage storage = new();
+        storage.Hashes[SchedulePolicies.GetKey("broken")] = new Dictionary<string, string> { ["Days"] = "Someday" };
+        storage.Hashes[SchedulePolicies.GetKey("far")] = new Dictionary<string, string> { ["TimeZone"] = "Nowhere/Never" };
+        storage.Add(new SchedulePolicy("p").ExceptWhen("broken"));
+        storage.Add(new SchedulePolicy("q").ExceptWhen("far"));
+
+        SchedulePolicyDecision broken = SchedulePolicyCalendar.Load(storage.Connection.Object, "p", GlobalTimeZoneResolver.Current)!.Evaluate(Utc("2026-11-18 10:00"));
+        SchedulePolicyDecision far = SchedulePolicyCalendar.Load(storage.Connection.Object, "q", GlobalTimeZoneResolver.Current)!.Evaluate(Utc("2026-11-18 10:00"));
+
+        Assert.False(broken.Allowed);
+        Assert.StartsWith("policy 'p' can't tell whether policy 'broken' allows this time, as policy 'broken' can't be read", broken.Reason, StringComparison.Ordinal);
+        Assert.False(far.Allowed);
+        Assert.Contains("time zone 'Nowhere/Never'", far.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact, StaticLock]
+    public void TryStartProviderWarning_WarnsOncePerMinute_ForEachProvider()
+    {
+        string provider = $"warned-{Guid.NewGuid():N}";
+        string other = $"other-{Guid.NewGuid():N}";
+        DateTime now = Utc("2026-11-18 10:00");
+
+        Assert.True(SchedulePolicyCalendar.TryStartProviderWarning(provider, now));
+        Assert.False(SchedulePolicyCalendar.TryStartProviderWarning(provider, now.AddSeconds(59)));
+        Assert.True(SchedulePolicyCalendar.TryStartProviderWarning(other, now.AddSeconds(59)));
+        Assert.True(SchedulePolicyCalendar.TryStartProviderWarning(provider, now.AddMinutes(1)));
+    }
+
+    [Fact]
     public void Load_ReadsThePolicyAndItsReferences_FromStorage()
     {
         PolicyStorage storage = new();
@@ -301,5 +418,16 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
     private sealed class ThrowingDates : IScheduleDateProvider
     {
         public bool Contains(DateOnly day) => throw new InvalidOperationException("database down");
+    }
+
+    private sealed class CountingThrowingDates : IScheduleDateProvider
+    {
+        public int Calls { get; private set; }
+
+        public bool Contains(DateOnly day)
+        {
+            Calls++;
+            throw new InvalidOperationException("database down");
+        }
     }
 }

@@ -343,9 +343,14 @@ public readonly record struct ScheduleWindow
     /// <summary>When the window closes, as a time of day. Before <see cref="Start"/> for a window crossing midnight.</summary>
     public TimeSpan End { get; }
 
-    /// <summary>Whether a time of day is inside the window.</summary>
+    /// <summary>
+    /// Whether a time of day is inside the window. A window whose start and end are the same, which only
+    /// <c>default(ScheduleWindow)</c> can be, contains nothing.
+    /// </summary>
     public bool Contains(TimeSpan timeOfDay)
     {
+        if (Start == End) return false;
+
         return Start < End
             ? timeOfDay >= Start && timeOfDay < End
             : timeOfDay >= Start || timeOfDay < End;
