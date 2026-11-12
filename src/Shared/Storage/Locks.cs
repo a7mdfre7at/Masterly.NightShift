@@ -89,6 +89,14 @@ internal interface ILeaseStore
 /// finds the lease gone (another owner took it after it ran out), the lock is <see cref="Lost"/> and the timer
 /// stops: renewing it again could only take the lease back from its new owner.
 /// </summary>
+/// <remarks>
+/// The store is never called under the lock that guards the state, so <see cref="Dispose"/> doesn't wait for a
+/// renewal in progress. Against a slow or unreachable store a renewal takes as long as the store's timeout, and
+/// Dispose runs where a worker finishes a job. A renewal that began before the lock was disposed and reaches the
+/// store later changes nothing: a store renews and releases a lease only for its owner, so the renewal either
+/// extends a lease that the release then removes, or finds the lease released and does nothing. Its result is
+/// dropped.
+/// </remarks>
 internal sealed class LeaseLock : IDisposable
 {
     // Renewing more often than this would only load the store
@@ -103,6 +111,7 @@ internal sealed class LeaseLock : IDisposable
     private readonly Timer _renewal;
     private bool _disposed;
     private bool _lost;
+    private bool _renewing;
 
     private LeaseLock(ILeaseStore store, string resource, string owner, TimeSpan timeToLive)
     {
@@ -152,20 +161,24 @@ internal sealed class LeaseLock : IDisposable
         }
     }
 
-    /// <summary>Stops renewing the lease and releases it. Never throws for a storage error: the lease runs out by itself.</summary>
+    /// <summary>
+    /// Stops renewing the lease and releases it, without waiting for a renewal in progress. Never throws for a
+    /// storage error: the lease runs out by itself.
+    /// </summary>
     public void Dispose()
     {
         bool lost;
 
-        // Taken by a renewal in progress too, so a renewal never runs (or reports a lost lease) after this
+        // Only the state is guarded, so this never waits for the store. A renewal that began before this sees the
+        // lock disposed when it comes back, and no tick begins one after.
         lock (_syncRoot)
         {
             if (_disposed) return;
             _disposed = true;
             lost = _lost;
+            _renewal.Dispose();
         }
 
-        _renewal.Dispose();
         if (lost) return;
 
         try
@@ -183,21 +196,41 @@ internal sealed class LeaseLock : IDisposable
     {
         lock (_syncRoot)
         {
-            if (_disposed || _lost) return;
+            // A renewal slower than the timer's period isn't joined by a second one: a later tick tries again
+            if (_disposed || _lost || _renewing) return;
+            _renewing = true;
+        }
 
-            try
-            {
-                if (!_store.TryRenew(_resource, _owner, StorageValues.ExpireAt(JobClock.UtcNow, _timeToLive)))
-                {
-                    _lost = true;
-                    _renewal.Change(Timeout.Infinite, Timeout.Infinite);
-                    Logger.Warn($"Lost the lock on '{_resource}': its lease ran out and another owner may have taken it.");
-                }
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
+        bool renewed = false;
+        Exception? failure = null;
+
+        try
+        {
+            renewed = _store.TryRenew(_resource, _owner, StorageValues.ExpireAt(JobClock.UtcNow, _timeToLive));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            failure = ex;
+        }
+
+        lock (_syncRoot)
+        {
+            _renewing = false;
+
+            // Disposed meanwhile: the lease was released, so a renewal that didn't find it says nothing about
+            // another owner, and one that failed no longer matters
+            if (_disposed) return;
+
+            if (failure != null)
             {
                 // The next tick tries again, before the lease runs out
-                Logger.WarnException($"Couldn't renew the lock on '{_resource}'.", ex);
+                Logger.WarnException($"Couldn't renew the lock on '{_resource}'.", failure);
+            }
+            else if (!renewed)
+            {
+                _lost = true;
+                _renewal.Change(Timeout.Infinite, Timeout.Infinite);
+                Logger.Warn($"Lost the lock on '{_resource}': its lease ran out and another owner may have taken it.");
             }
         }
     }

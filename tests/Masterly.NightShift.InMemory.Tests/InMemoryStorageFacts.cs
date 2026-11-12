@@ -209,6 +209,37 @@ public class InMemoryStorageFacts
     }
 
     [Fact]
+    public void Lease_RenewedAfterItsRelease_IsNotBroughtBack()
+    {
+        InMemoryStorage storage = new();
+        ILeaseStore leases = storage.Database;
+        Assert.True(leases.TryTake("resource", "owner", JobClock.UtcNow.AddMinutes(1)));
+        leases.Release("resource", "owner");
+
+        // What a renewal still on its way does when it arrives after the release
+        bool renewed = leases.TryRenew("resource", "owner", JobClock.UtcNow.AddMinutes(1));
+
+        Assert.False(renewed);
+        Assert.True(leases.TryTake("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void Lease_TakenByAnotherOwner_IsNeitherRenewedNorReleased_ByTheEarlierOne()
+    {
+        InMemoryStorage storage = new();
+        ILeaseStore leases = storage.Database;
+        Assert.True(leases.TryTake("resource", "owner", JobClock.UtcNow.AddMinutes(1)));
+        leases.Release("resource", "owner");
+        Assert.True(leases.TryTake("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+
+        bool renewed = leases.TryRenew("resource", "owner", JobClock.UtcNow.AddMinutes(1));
+        leases.Release("resource", "owner");
+
+        Assert.False(renewed);
+        Assert.True(leases.TryRenew("resource", "other-owner", JobClock.UtcNow.AddMinutes(1)));
+    }
+
+    [Fact]
     public void UseInMemoryStorage_MakesItTheCurrentStorage()
     {
         Mock<IGlobalConfiguration> configuration = new();
