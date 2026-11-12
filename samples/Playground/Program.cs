@@ -4,16 +4,20 @@
 //
 // Then open http://localhost:5080. Jobs live in memory, so every restart starts clean.
 
+using System.Net;
 using System.Text;
 using Masterly.NightShift;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Playground;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Logging.AddSimpleConsole(o => o.IncludeScopes = true);
 
-// Alerts are also sent as webhooks to this app's own /webhook-inbox, so you can see the payloads
-string baseUrl = builder.Configuration["Playground:Url"] ?? "http://localhost:5080";
+// Alerts are also sent as webhooks to this app's own /webhook-inbox, so you can see the payloads. The address is
+// Playground:Url, or else the first http address the app listens on (--urls, ASPNETCORE_URLS, launchSettings.json)
+string baseUrl = builder.Configuration["Playground:Url"] ?? GetListeningUrl(builder.Configuration["urls"]) ?? "http://localhost:5080";
 
 // Monitors are checked every 5 seconds instead of 30, to see them change quickly
 JobMonitors.CheckInterval = TimeSpan.FromSeconds(5);
@@ -35,7 +39,7 @@ builder.Services.AddNightShift(config => config
     .UseWebhookAlerts($"{baseUrl}/webhook-inbox", o => o.Format = WebhookFormat.Json)
     .UseJobMonitor(new LongRunningMonitor("slow-report", "MonitoredJobs.SlowReport", TimeSpan.FromSeconds(10)))
     .UseJobMonitor(new RepeatedFailuresMonitor("flaky-sync", "MonitoredJobs.FlakySync", failures: 2, window: TimeSpan.FromHours(1)))
-    .UseJobMonitor(new DailyDeadlineMonitor("daily-close", "MonitoredJobs.DailyClose", DailyCloseDeadline.Value, TimeZoneInfo.Utc)));
+    .UseJobMonitor(new DailyDeadlineMonitor("daily-close", "MonitoredJobs.DailyClose", DailyCloseDeadline.Value, DailyCloseDeadline.TimeZone)));
 
 builder.Services.AddNightShiftServer(o =>
 {
@@ -75,6 +79,9 @@ builder.Services.AddNightShiftRecurringJobs(jobs => jobs
 JobCatalog.Add<MaintenanceJobs>();
 
 builder.Services.AddHostedService<TelemetryWatcher>();
+
+// With IAntiforgery registered, the dashboard checks an antiforgery token on every POST it receives (its pages and
+// scripts send one); without it, it accepts only POSTs its own scripts send from the same origin
 builder.Services.AddAntiforgery();
 builder.Services.AddHealthChecks()
     .AddNightShift(o => o.Scope = NightShiftHealthCheckScope.Process, name: "nightshift-server", tags: ["live"])
@@ -88,10 +95,19 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = c => c.
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
 
 app.MapGet("/", () => Results.Content(HomePage.Render(Experiments.All), "text/html; charset=utf-8"));
-app.MapGet("/events", (long? after) => Results.Json(PlaygroundLog.Instance.Since(after ?? 0)));
-app.MapPost("/events/clear", () => PlaygroundLog.Instance.Clear());
 
-app.MapPost("/try/{id}", async (string id, IServiceProvider services) =>
+// The Playground's own endpoints run any experiment and show every alert and log line, with no sign-in and no
+// antiforgery check: they answer only requests from this machine, even when the app listens on other addresses
+RouteGroupBuilder local = app.MapGroup(string.Empty).AddEndpointFilter(static async (context, next) =>
+    context.HttpContext.Connection.RemoteIpAddress is { } address
+        && IPAddress.IsLoopback(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address)
+        ? await next(context)
+        : Results.StatusCode(StatusCodes.Status403Forbidden));
+
+local.MapGet("/events", (long? after) => Results.Json(PlaygroundLog.Instance.Since(after ?? 0)));
+local.MapPost("/events/clear", () => PlaygroundLog.Instance.Clear());
+
+local.MapPost("/try/{id}", async (string id, IServiceProvider services) =>
 {
     Experiment? experiment = Experiments.All.FirstOrDefault(x => x.Id == id);
     if (experiment?.Run == null) return Results.NotFound();
@@ -107,7 +123,7 @@ app.MapPost("/try/{id}", async (string id, IServiceProvider services) =>
     }
 });
 
-app.MapPost("/webhook-inbox", async (HttpRequest request) =>
+local.MapPost("/webhook-inbox", async (HttpRequest request) =>
 {
     using StreamReader reader = new(request.Body, Encoding.UTF8);
     string body = await reader.ReadToEndAsync();
@@ -115,4 +131,29 @@ app.MapPost("/webhook-inbox", async (HttpRequest request) =>
     return Results.Ok();
 });
 
+// The webhooks go to baseUrl: say so when the app doesn't listen there, so a missing webhook is explained
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    ICollection<string> addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses ?? [];
+    if (addresses.Count > 0 && !addresses.Any(x => x.TrimEnd('/').Equals(baseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)))
+    {
+        app.Logger.LogWarning(
+            "Webhook alerts go to {WebhookUrl}/webhook-inbox, but the app listens on {Addresses}. Set Playground:Url to one of them to see the webhooks.",
+            baseUrl,
+            string.Join(", ", addresses));
+    }
+});
+
 app.Run();
+
+// The first http address of a --urls value, with a wildcard host made localhost
+static string? GetListeningUrl(string? urls)
+{
+    string? url = urls?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .FirstOrDefault(static x => x.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
+    if (url == null) return null;
+
+    UriBuilder builder = new(url.Replace("://*", "://localhost", StringComparison.Ordinal).Replace("://+", "://localhost", StringComparison.Ordinal));
+    if (builder.Host is "0.0.0.0" or "[::]") builder.Host = "localhost";
+    return builder.Uri.GetLeftPart(UriPartial.Authority);
+}

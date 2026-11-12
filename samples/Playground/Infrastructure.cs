@@ -96,8 +96,20 @@ public static class PlaygroundState
     public static string? SlowJobId { get; set; }
 }
 
-/// <summary>The daily-close monitor expects its job by this time of day (UTC): three minutes after the app starts.</summary>
+/// <summary>
+/// The daily-close monitor expects its job by this time of day, in <see cref="TimeZone"/>: two to three minutes after
+/// the app starts. That is UTC, unless the app starts in the last minutes of a UTC day: a deadline after midnight
+/// would be for a day that hasn't begun, and today's would be over already, so the monitor then reads its day in
+/// UTC-01:00, where the deadline is still a few minutes away.
+/// </summary>
 public static class DailyCloseDeadline
 {
-    public static TimeSpan Value { get; } = TimeSpan.FromMinutes(Math.Floor((DateTime.UtcNow.TimeOfDay + TimeSpan.FromMinutes(3)).TotalMinutes) % (24 * 60));
+    private static readonly TimeSpan Lead = TimeSpan.FromMinutes(3);
+    private static readonly DateTime StartedAt = DateTime.UtcNow;
+
+    public static TimeZoneInfo TimeZone { get; } = StartedAt.TimeOfDay + Lead + TimeSpan.FromMinutes(1) < TimeSpan.FromDays(1)
+        ? TimeZoneInfo.Utc
+        : TimeZoneInfo.CreateCustomTimeZone("UTC-01:00", TimeSpan.FromHours(-1), "UTC-01:00", "UTC-01:00");
+
+    public static TimeSpan Value { get; } = TimeSpan.FromMinutes(Math.Floor((TimeZoneInfo.ConvertTimeFromUtc(StartedAt, TimeZone).TimeOfDay + Lead).TotalMinutes));
 }
