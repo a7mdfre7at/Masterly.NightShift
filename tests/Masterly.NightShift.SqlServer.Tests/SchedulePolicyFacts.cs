@@ -191,4 +191,82 @@ public class SchedulePolicyFacts
     {
         return new SqlServerStorage(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
     }
+
+    [Fact, CleanDatabase]
+    public async Task DueJob_WaitsWhileItsDateProviderThrows_AndRunsOnceTheProviderWorks()
+    {
+        FlakyDates provider = new() { Down = true };
+        GlobalConfiguration.Configuration.UseScheduleDateProvider("flaky-dates", provider);
+        SqlServerStorage storage = CreateStorage();
+        storage.SaveSchedulePolicy(new SchedulePolicy("flaky-days").ExcludeDatesFrom("flaky-dates"));
+        BackgroundJobClient client = new(storage);
+
+        // Skip must not delete it, at creation or when it is due: the policy blocks nothing, it can't be evaluated
+        string jobId = client.Schedule(
+            () => Answer(),
+            TimeSpan.FromSeconds(1),
+            new ScheduleOptions { Policy = "flaky-days", WhenBlocked = WhenBlocked.Skip });
+        Assert.NotNull(jobId);
+
+        JobStateInfo final;
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, SchedulePollingInterval = TimeSpan.FromMilliseconds(200) }, storage))
+        {
+            StateData waiting = await WaitForStateAsync(storage, jobId, static x => x.Reason?.StartsWith("Waiting for policy", StringComparison.Ordinal) == true);
+
+            Assert.Equal(ScheduledState.StateName, waiting.Name);
+            Assert.StartsWith(
+                "Waiting for policy, next check in 1 min: policy 'flaky-days': date provider 'flaky-dates' failed",
+                waiting.Reason,
+                StringComparison.Ordinal);
+            Assert.InRange(
+                JobHelper.DeserializeDateTime(waiting.Data["EnqueueAt"]),
+                DateTime.UtcNow.AddSeconds(20),
+                DateTime.UtcNow.AddSeconds(70));
+
+            // Written once the state is committed, so it may come a moment after the state
+            await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => x == "1");
+
+            // The provider works again. The next check is a minute away, so the job is made due now
+            provider.Down = false;
+            Assert.True(client.Reschedule(jobId, TimeSpan.FromSeconds(1), ScheduledState.StateName));
+
+            final = await storage.WaitForCompletionAsync(jobId, Timeout, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(SucceededState.StateName, final.Name);
+
+        // The policy was evaluated, so the count of failed checks is gone
+        await WaitForParameterAsync(storage, jobId, SchedulePolicyFilter.CheckAttemptsParameter, static x => string.IsNullOrEmpty(x));
+    }
+
+    private static async Task WaitForParameterAsync(SqlServerStorage storage, string jobId, string name, Func<string, bool> condition)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (true)
+        {
+            string value;
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                value = connection.GetJobParameter(jobId, name);
+            }
+
+            if (condition(value)) return;
+
+            if (stopwatch.Elapsed > Timeout) throw new TimeoutException($"Parameter {name} of job {jobId} is '{value}', not the expected value.");
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private sealed class FlakyDates : IScheduleDateProvider
+    {
+        private volatile bool _down;
+
+        public bool Down
+        {
+            get => _down;
+            set => _down = value;
+        }
+
+        public bool Contains(DateOnly day) => _down ? throw new InvalidOperationException("holiday database down") : false;
+    }
 }
