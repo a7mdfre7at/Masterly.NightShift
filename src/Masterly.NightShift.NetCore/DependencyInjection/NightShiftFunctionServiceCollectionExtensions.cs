@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using Masterly.NightShift.Common;
 using System.Reflection;
+using Masterly.NightShift.Common;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Masterly.NightShift;

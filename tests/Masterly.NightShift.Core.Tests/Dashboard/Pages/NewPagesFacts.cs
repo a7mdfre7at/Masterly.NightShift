@@ -1,6 +1,6 @@
-using Masterly.NightShift.Server;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Core.Tests.Dashboard.Pages;
 

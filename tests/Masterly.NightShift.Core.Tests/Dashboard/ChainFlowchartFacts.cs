@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Masterly.NightShift.Core.Tests.Dashboard.Pages;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
