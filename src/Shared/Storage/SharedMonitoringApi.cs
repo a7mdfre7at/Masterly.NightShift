@@ -213,7 +213,8 @@ internal abstract class SharedMonitoringApi : JobStorageMonitor
             StateData = state,
         });
 
-        List<long> parentIds = [];
+        // A set: continuations of the same parent (a chain's branches) would ask for it several times
+        HashSet<long> parentIds = [];
         foreach (KeyValuePair<string, AwaitingJobDto?> pair in jobs)
         {
             if (TryGetParentId(pair.Value, out long parentId))

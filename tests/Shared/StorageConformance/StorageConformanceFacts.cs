@@ -676,6 +676,26 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void Monitoring_AwaitingJobs_ListContinuationsOfTheSameParent_AndPendingJobsCanBeDeleted()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs), "The storage doesn't list awaiting jobs.");
+        string parent = CreateJob("parent");
+        string[] children = [CreateJob("first"), CreateJob("second"), CreateJob("third")];
+        Write(x =>
+        {
+            x.SetJobState(parent, new ScheduledState(TimeSpan.FromHours(1)));
+            foreach (string child in children) x.SetJobState(child, new AwaitingState(parent));
+        });
+
+        JobStorageMonitor monitoring = (JobStorageMonitor)Storage.GetMonitoringApi();
+        JobList<AwaitingJobDto?> awaiting = monitoring.AwaitingJobs(0, 10);
+
+        Assert.Equal(children.OrderBy(static x => x), awaiting.Select(static x => x.Key).OrderBy(static x => x));
+        Assert.All(awaiting, static x => Assert.Equal(ScheduledState.StateName, x.Value?.ParentStateName));
+        Assert.Equal(4, Storage.GetPendingJobs().Count);
+    }
+
+    [Fact]
     public void Monitoring_Timelines_ReadTheDailyAndHourlyCounters()
     {
         Assert.SkipUnless(TimelineReadsCountersAtOnce, "The storage aggregates counters before the graphs read them.");
