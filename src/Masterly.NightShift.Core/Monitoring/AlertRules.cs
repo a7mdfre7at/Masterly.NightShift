@@ -24,7 +24,7 @@ public sealed class AlertRule
     public AlertKind Kinds { get; private set; } = AlertKind.All;
 
     /// <summary>
-    /// How long the same alert (kind, job method and resource) is held back after it was let through. Zero, the
+    /// How long the same alert (kind, monitor, job method and resource) is held back after it was let through. Zero, the
     /// default, lets every alert through.
     /// </summary>
     public TimeSpan Cooldown { get; private set; }
@@ -83,7 +83,7 @@ public sealed class AlertRule
 
         if (Cooldown <= TimeSpan.Zero) return true;
 
-        string key = $"{alert.Kind}|{alert.Method}|{alert.Resource}";
+        string key = $"{alert.Kind}|{alert.Monitor}|{alert.Method}|{alert.Resource}";
         DateTime now = JobClock.UtcNow;
 
         while (true)

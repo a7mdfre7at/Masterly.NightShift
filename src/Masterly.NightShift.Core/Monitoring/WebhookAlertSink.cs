@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -94,14 +95,30 @@ public sealed record WebhookDelivery(string AlertId, string Title, DateTime At, 
 /// Posts alerts to an HTTP endpoint without blocking the job that raised them. Register it with
 /// <c>GlobalConfiguration.Configuration.UseWebhookAlerts(url)</c>.
 /// </summary>
-public sealed class WebhookAlertSink : IAlertSink, IDisposable
+/// <remarks>
+/// <para>A delivery that fails with a network error, a timeout, a 5xx status, 408 or 429 is retried after
+/// <see cref="WebhookAlertOptions.RetryDelays"/>, or after the <c>Retry-After</c> the endpoint sent when that is
+/// longer (at most <see cref="MaxRetryAfter"/>). Another 4xx status, or a 3xx, isn't retried: the request itself is
+/// wrong. Alerts waiting for a retry don't hold a request slot, and at most
+/// <see cref="WebhookAlertOptions.MaxConcurrentRequests"/> of them wait at once; a failed alert beyond that isn't
+/// retried and is counted in <see cref="Dropped"/>.</para>
+/// <para>The sink's own <see cref="HttpClient"/> doesn't follow redirects, so the headers of
+/// <see cref="WebhookAlertOptions.Headers"/>, an authorization token for example, never reach another host.</para>
+/// </remarks>
+public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
 {
     private static readonly ILog Logger = LogProvider.For<WebhookAlertSink>();
 
     private static readonly JsonSerializerOptions JsonSettings = Dashboard.DashboardJson.Options;
 
-    /// <summary>The longest <see cref="Dispose"/> waits for requests in flight.</summary>
+    /// <summary>The longest <see cref="DisposeAsync"/> waits for requests in flight.</summary>
     public static readonly TimeSpan MaxDisposeWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>The longest wait before a retry an endpoint can ask for with <c>Retry-After</c>: 10 minutes.</summary>
+    public static readonly TimeSpan MaxRetryAfter = TimeSpan.FromMinutes(10);
+
+    // How long Dispose waits, after canceling them, for the requests in flight to record their outcome
+    private static readonly TimeSpan CanceledRequestsWait = TimeSpan.FromSeconds(1);
 
     private const int DiscordMaxContentLength = 2000;
 
@@ -118,15 +135,27 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     private readonly bool _ownsHttpClient;
     private readonly SemaphoreSlim _inFlight;
 
-    // Canceled at the end of Dispose's wait, so no request outlives the sink, whatever the timeout and whoever
-    // owns the client. Never disposed: SendAsync may still link to it after Dispose, and a source without a
-    // timer or a wait handle holds nothing that needs disposing.
+    // Canceled when the sink is disposed, so no request outlives it, whatever the timeout and whoever owns the
+    // client. Never disposed: SendAsync may still link to it after Dispose, and a source without a timer or a wait
+    // handle holds nothing that needs disposing.
     private readonly CancellationTokenSource _disposeCts = new();
+
+    // Canceled as soon as disposing starts: an alert waiting for a retry isn't worth waiting for. Never disposed,
+    // like _disposeCts.
+    private readonly CancellationTokenSource _retryCts = new();
+
+    // What requests are made of, read once: changing the options later changes nothing while alerts are sent
+    private readonly Uri _url;
+    private readonly string _loggableUrl;
+    private readonly KeyValuePair<string, string>[] _headers;
+    private readonly TimeSpan[] _retryDelays;
+    private readonly TimeSpan _timeout;
 
     private readonly int _maxConcurrentRequests;
     private long _sent;
     private long _dropped;
     private long _failed;
+    private int _pendingRetries;
     private int _disposed;
     private readonly LinkedList<WebhookDelivery> _deliveries = new();
 
@@ -138,31 +167,61 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
 
     /// <summary>
     /// Creates the sink with the given client, for example one with a stub handler in tests. The client's own
-    /// settings, <see cref="HttpClient.Timeout"/> included, are left as they are; <see cref="WebhookAlertOptions.Timeout"/>
-    /// is applied to each request. The caller keeps ownership: <see cref="Dispose"/> doesn't dispose the client.
+    /// settings, <see cref="HttpClient.Timeout"/> and whether it follows redirects included, are left as they are;
+    /// <see cref="WebhookAlertOptions.Timeout"/> is applied to each request. The caller keeps ownership:
+    /// <see cref="Dispose"/> doesn't dispose the client, and it is up to the caller to keep it from following
+    /// redirects, so the headers don't reach another host.
     /// </summary>
     public WebhookAlertSink([NotNull] WebhookAlertOptions options, [CanBeNull] HttpClient? httpClient)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
         if (string.IsNullOrWhiteSpace(options.Url)) throw new ArgumentException("WebhookAlertOptions.Url is required.", nameof(options));
+
+        // The URL itself stays out of the message: Slack, Mattermost and Discord put the webhook's secret in it
+        if (!Uri.TryCreate(options.Url, UriKind.Absolute, out Uri? url) || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("WebhookAlertOptions.Url must be an absolute http or https URL.", nameof(options));
+        }
+
         if (options.MaxConcurrentRequests <= 0) throw new ArgumentOutOfRangeException(nameof(options), "MaxConcurrentRequests must be positive.");
         if (!IsValidTimeout(options.Timeout)) throw new ArgumentOutOfRangeException(nameof(options), "Timeout must be positive or Timeout.InfiniteTimeSpan.");
+        if (options.RetryDelays.Any(static x => x < TimeSpan.Zero || x.TotalMilliseconds > int.MaxValue))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "RetryDelays must be zero or positive, and at most 24 days.");
+        }
+
+        _url = url;
+        _loggableUrl = GetLoggableUrl(options.Url);
+        _headers = [.. options.Headers];
+        _retryDelays = [.. options.RetryDelays];
+        _timeout = options.Timeout;
 
         // A caller's client may already have sent requests, and then its Timeout can't be changed. The sink's
         // timeout is enforced per request instead, so its own client doesn't need one either.
         _ownsHttpClient = httpClient == null;
-        _httpClient = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        _httpClient = httpClient ?? new HttpClient(CreateHandler()) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         _maxConcurrentRequests = options.MaxConcurrentRequests;
         _inFlight = new SemaphoreSlim(_maxConcurrentRequests, _maxConcurrentRequests);
     }
 
-    /// <summary>The options.</summary>
+    /// <summary>
+    /// The options. <see cref="WebhookAlertOptions.Url"/>, <see cref="WebhookAlertOptions.Headers"/>,
+    /// <see cref="WebhookAlertOptions.Timeout"/>, <see cref="WebhookAlertOptions.RetryDelays"/> and
+    /// <see cref="WebhookAlertOptions.MaxConcurrentRequests"/> are read when the sink is created, so changing them
+    /// later changes nothing; the others are read for each alert.
+    /// </summary>
     public WebhookAlertOptions Options { get; }
 
     /// <summary>Alerts delivered with a successful status code.</summary>
     public long Sent => Interlocked.Read(ref _sent);
 
-    /// <summary>Alerts dropped because too many requests were in flight.</summary>
+    /// <summary>Alerts waiting for a retry, for tests.</summary>
+    internal int PendingRetries => Volatile.Read(ref _pendingRetries);
+
+    /// <summary>
+    /// Alerts dropped because too many requests were in flight, or failed alerts not retried because too many
+    /// already waited for a retry.
+    /// </summary>
     public long Dropped => Interlocked.Read(ref _dropped);
 
     /// <summary>Alerts whose request failed or returned a non-success status code.</summary>
@@ -203,7 +262,7 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
             return;
         }
 
-        Task.Run(() => SendAndReleaseAsync(alert));
+        _ = Task.Run(() => SendInBackgroundAsync(alert));
     }
 
     /// <summary>Builds the request body for an alert.</summary>
@@ -275,8 +334,12 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
     {
         ArgumentNullException.ThrowIfNull(alert);
 
-        return await SendCoreAsync(alert).ConfigureAwait(false);
+        SendResult result = await SendCoreAsync(alert, attempt: 1).ConfigureAwait(false);
+        return result.Sent;
     }
+
+    /// <summary>The handler of the sink's own client: it doesn't follow redirects.</summary>
+    internal static SocketsHttpHandler CreateHandler() => new() { AllowAutoRedirect = false };
 
     /// <summary>
     /// The URL as it may appear in logs: scheme, host and port, plus a short hash of the whole URL to tell
@@ -445,33 +508,88 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
             || (timeout > TimeSpan.Zero && timeout.TotalMilliseconds <= int.MaxValue);
     }
 
-    private async Task SendAndReleaseAsync(Alert alert)
+    private async Task SendInBackgroundAsync(Alert alert)
     {
-        bool sent;
+        // Nothing waits for this task, so nothing may escape it
         try
         {
-            sent = await SendCoreAsync(alert, attempt: 1).ConfigureAwait(false);
+            SendResult result;
+            try
+            {
+                result = await SendCoreAsync(alert, attempt: 1).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Publish took this slot, so it's released exactly once
+                _inFlight.Release();
+            }
+
+            if (result.Retryable) await RetryAsync(alert, result).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.ErrorException($"Webhook alert '{alert.Title}' could not be delivered to {_loggableUrl}.", ex);
+        }
+    }
+
+    private async Task RetryAsync(Alert alert, SendResult result)
+    {
+        if (_retryDelays.Length == 0 || Volatile.Read(ref _disposed) != 0) return;
+
+        // Retries don't hold a slot while they wait, so their number is limited on its own
+        if (Interlocked.Increment(ref _pendingRetries) > _maxConcurrentRequests)
+        {
+            Interlocked.Decrement(ref _pendingRetries);
+            Interlocked.Increment(ref _dropped);
+            Logger.Warn($"Webhook alert '{alert.Title}' won't be retried: {_maxConcurrentRequests} alerts already wait for a retry.");
+            return;
+        }
+
+        try
+        {
+            for (int retry = 0; retry < _retryDelays.Length && Volatile.Read(ref _disposed) == 0; retry++)
+            {
+                try
+                {
+                    await Task.Delay(GetRetryDelay(_retryDelays[retry], result.RetryAfter), _retryCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    Logger.Debug($"Webhook alert '{alert.Title}' won't be retried: the sink was disposed.");
+                    return;
+                }
+
+                result = await SendCoreAsync(alert, attempt: retry + 2).ConfigureAwait(false);
+                if (!result.Retryable) return;
+            }
         }
         finally
         {
-            // Publish took this slot, so it's released exactly once
-            _inFlight.Release();
+            Interlocked.Decrement(ref _pendingRetries);
         }
+    }
 
-        // Retries don't hold a slot while they wait
-        for (int retry = 0; !sent && retry < Options.RetryDelays.Count && Volatile.Read(ref _disposed) == 0; retry++)
-        {
-            try
-            {
-                await Task.Delay(Options.RetryDelays[retry], _disposeCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
+    // A Retry-After longer than the configured delay wins, up to MaxRetryAfter
+    internal static TimeSpan GetRetryDelay(TimeSpan configured, TimeSpan? retryAfter)
+    {
+        return retryAfter is { } asked && asked > configured
+            ? (asked > MaxRetryAfter ? MaxRetryAfter : asked)
+            : configured;
+    }
 
-            sent = await SendCoreAsync(alert, attempt: retry + 2).ConfigureAwait(false);
-        }
+    private static TimeSpan? GetRetryAfter(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter is not { } retryAfter) return null;
+        if (retryAfter.Delta is { } delta) return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
+        if (retryAfter.Date is { } date) return date.UtcDateTime > JobClock.UtcNow ? date.UtcDateTime - JobClock.UtcNow : TimeSpan.Zero;
+        return null;
+    }
+
+    // Worth another attempt: the endpoint is down or overloaded, or asked for one. Another 4xx (or a redirect,
+    // which the sink doesn't follow) fails the same way each time.
+    private static bool IsTransient(HttpStatusCode statusCode)
+    {
+        return (int)statusCode >= 500 || statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests;
     }
 
     private void Record(Alert alert, int attempt, bool succeeded, int? statusCode, string? error)
@@ -483,19 +601,17 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
         }
     }
 
-    private Task<bool> SendCoreAsync(Alert alert) => SendCoreAsync(alert, attempt: 1);
-
-    private async Task<bool> SendCoreAsync(Alert alert, int attempt)
+    private async Task<SendResult> SendCoreAsync(Alert alert, int attempt)
     {
-        TimeSpan timeout = Options.Timeout;
+        TimeSpan timeout = _timeout;
 
         using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
         try
         {
-            using HttpRequestMessage request = new(HttpMethod.Post, Options.Url);
+            using HttpRequestMessage request = new(HttpMethod.Post, _url);
             request.Content = new StringContent(CreateBody(alert), Encoding.UTF8, "application/json");
 
-            foreach (KeyValuePair<string, string> header in Options.Headers)
+            foreach (KeyValuePair<string, string> header in _headers)
             {
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
@@ -508,74 +624,119 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable
             if (response.IsSuccessStatusCode)
             {
                 Interlocked.Increment(ref _sent);
-                return true;
+                return new SendResult(Sent: true, Retryable: false, RetryAfter: null);
             }
 
             Interlocked.Increment(ref _failed);
-            Logger.Warn($"Webhook alert '{alert.Title}' was rejected by {GetLoggableUrl(Options.Url)}: HTTP {(int)response.StatusCode}.");
-            return false;
+            Logger.Warn($"Webhook alert '{alert.Title}' was rejected by {_loggableUrl}: HTTP {(int)response.StatusCode}.");
+            return new SendResult(Sent: false, Retryable: IsTransient(response.StatusCode), GetRetryAfter(response));
         }
         catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
         {
             Record(alert, attempt, false, null, "The sink was disposed");
             Interlocked.Increment(ref _failed);
-            Logger.Warn($"Webhook alert '{alert.Title}' was not sent to {GetLoggableUrl(Options.Url)}: the sink was disposed before an answer came.");
-            return false;
+            Logger.Warn($"Webhook alert '{alert.Title}' was not sent to {_loggableUrl}: the sink was disposed before an answer came.");
+            return new SendResult(Sent: false, Retryable: false, RetryAfter: null);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
             Record(alert, attempt, false, null, $"No answer within {timeout}");
             Interlocked.Increment(ref _failed);
-            Logger.Warn($"Webhook alert '{alert.Title}' could not be sent to {GetLoggableUrl(Options.Url)}: no answer within {timeout}.");
-            return false;
+            Logger.Warn($"Webhook alert '{alert.Title}' could not be sent to {_loggableUrl}: no answer within {timeout}.");
+            return new SendResult(Sent: false, Retryable: true, RetryAfter: null);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             // HttpClient's exceptions name the host at most, never the path
             Record(alert, attempt, false, null, ex.Message);
             Interlocked.Increment(ref _failed);
-            Logger.WarnException($"Webhook alert '{alert.Title}' could not be sent to {GetLoggableUrl(Options.Url)}.", ex);
-            return false;
+            Logger.WarnException($"Webhook alert '{alert.Title}' could not be sent to {_loggableUrl}.", ex);
+            return new SendResult(Sent: false, Retryable: true, RetryAfter: null);
         }
     }
 
     /// <summary>
-    /// Stops sending alerts, waits for the requests <see cref="Publish"/> started to finish, cancels the requests
-    /// still running after the wait (those of <see cref="SendAsync"/> too), then disposes the
-    /// <see cref="HttpClient"/> the sink created; a client passed in is left to its owner. The wait lasts at most
-    /// <see cref="WebhookAlertOptions.Timeout"/>, and never more than <see cref="MaxDisposeWait"/>, also when the
-    /// timeout is <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>.
+    /// Stops sending alerts at once: later <see cref="Publish"/> calls are ignored, alerts waiting for a retry are
+    /// given up, and the requests in flight (those of <see cref="SendAsync"/> too) are canceled and counted in
+    /// <see cref="Failed"/>. It waits a moment for them to end, then disposes the <see cref="HttpClient"/> the sink
+    /// created; a client passed in is left to its owner. To let the requests in flight finish first, use
+    /// <see cref="DisposeAsync"/>.
     /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-        // Holding every slot means every request Publish started has released its own. The semaphore isn't
-        // disposed: a SemaphoreSlim that never handed out its wait handle holds nothing that needs disposing.
-        TimeSpan wait = Options.Timeout == System.Threading.Timeout.InfiniteTimeSpan || Options.Timeout > MaxDisposeWait ? MaxDisposeWait : Options.Timeout;
+        _retryCts.Cancel();
+        _disposeCts.Cancel();
+
+        if (!WaitForRequests(CanceledRequestsWait))
+        {
+            Logger.Warn($"Disposed the webhook alert sink for {_loggableUrl} while canceled requests were still ending.");
+        }
+
+        DisposeClient();
+    }
+
+    /// <summary>
+    /// Stops sending alerts: later <see cref="Publish"/> calls are ignored and alerts waiting for a retry are given up.
+    /// Waits, without blocking a thread, for the requests <see cref="Publish"/> started to finish, then cancels the
+    /// requests still running (those of <see cref="SendAsync"/> too) and disposes the <see cref="HttpClient"/> the
+    /// sink created; a client passed in is left to its owner. The wait lasts at most
+    /// <see cref="WebhookAlertOptions.Timeout"/>, and never more than <see cref="MaxDisposeWait"/>, also when the
+    /// timeout is <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        _retryCts.Cancel();
+
+        TimeSpan wait = _timeout == System.Threading.Timeout.InfiniteTimeSpan || _timeout > MaxDisposeWait ? MaxDisposeWait : _timeout;
+        if (!await WaitForRequestsAsync(wait).ConfigureAwait(false))
+        {
+            Logger.Warn($"Disposing the webhook alert sink for {_loggableUrl} while requests are still in flight; they are canceled.");
+        }
+
+        _disposeCts.Cancel();
+        DisposeClient();
+    }
+
+    // Holding every slot means every request Publish started has released its own. The semaphore isn't disposed:
+    // a SemaphoreSlim that never handed out its wait handle holds nothing that needs disposing.
+    private bool WaitForRequests(TimeSpan wait)
+    {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        bool drained = true;
 
         for (int i = 0; i < _maxConcurrentRequests; i++)
         {
             TimeSpan remaining = wait - stopwatch.Elapsed;
-            if (remaining <= TimeSpan.Zero || !_inFlight.Wait(remaining))
-            {
-                drained = false;
-                break;
-            }
+            if (remaining <= TimeSpan.Zero || !_inFlight.Wait(remaining)) return false;
         }
 
-        if (!drained)
+        return true;
+    }
+
+    private async Task<bool> WaitForRequestsAsync(TimeSpan wait)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        for (int i = 0; i < _maxConcurrentRequests; i++)
         {
-            Logger.Warn($"Disposing the webhook alert sink for {GetLoggableUrl(Options.Url)} while requests are still in flight; they are canceled.");
+            TimeSpan remaining = wait - stopwatch.Elapsed;
+            if (remaining <= TimeSpan.Zero || !await _inFlight.WaitAsync(remaining).ConfigureAwait(false)) return false;
         }
 
-        _disposeCts.Cancel();
+        return true;
+    }
 
+    private void DisposeClient()
+    {
         if (_ownsHttpClient)
         {
             _httpClient.Dispose();
         }
     }
+
+    /// <summary>How an attempt ended.</summary>
+    private readonly record struct SendResult(bool Sent, bool Retryable, TimeSpan? RetryAfter);
 }
