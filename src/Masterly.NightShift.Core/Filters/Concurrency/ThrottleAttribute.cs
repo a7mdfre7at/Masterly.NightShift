@@ -129,7 +129,10 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
     public void OnPerforming(PerformingContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (MaxConcurrency <= 0) throw new InvalidOperationException("MaxConcurrency should be greater than zero.");
+        if (MaxConcurrency <= 0)
+        {
+            throw new InvalidOperationException("MaxConcurrency should be greater than zero.");
+        }
 
         string resource = ConcurrencyControl.FormatResourceKey(Resource, context.BackgroundJob.Job!, MaxResourceLength);
         string key = GetKey(resource);
@@ -304,7 +307,10 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                 }
             }
 
-            if (held.Count == 0) return false;
+            if (held.Count == 0)
+            {
+                return false;
+            }
 
             using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
@@ -409,7 +415,10 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
                     inUse = 0;
                     foreach ((long Timestamp, string? JobId) in live)
                     {
-                        if (!finished.Contains(JobId)) inUse++;
+                        if (!finished.Contains(JobId))
+                        {
+                            inUse++;
+                        }
                     }
 
                     acquired = inUse < MaxConcurrency;
@@ -457,7 +466,10 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
 
         foreach ((long Timestamp, string? JobId) in live)
         {
-            if (!checkedHolders.Add(JobId)) continue;
+            if (!checkedHolders.Add(JobId))
+            {
+                continue;
+            }
 
             try
             {
@@ -480,7 +492,11 @@ public sealed class ThrottleAttribute : JobFilterAttribute, IServerFilter, IElec
 
     private static int NotNegative(int value, string name)
     {
-        if (value < 0) throw new ArgumentOutOfRangeException(name, value, $"{name} should be zero or greater.");
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(name, value, $"{name} should be zero or greater.");
+        }
+
         return value;
     }
 

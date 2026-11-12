@@ -10,7 +10,10 @@ public class Services
 
     public async Task<int> WriteIndex([FromResult] int? index)
     {
-        if (index == null) throw new ArgumentNullException(nameof(index));
+        if (index == null)
+        {
+            throw new ArgumentNullException(nameof(index));
+        }
 
         Console.Write("Hello, world!\r\n"[index.Value]);
         await Task.Yield();

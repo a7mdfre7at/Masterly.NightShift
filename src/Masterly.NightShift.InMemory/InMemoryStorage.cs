@@ -60,11 +60,30 @@ public sealed class InMemoryStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(options);
         Settings = options.Copy();
-        if (Settings.QueuePollInterval <= TimeSpan.Zero) throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
-        if (Settings.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (Settings.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
-        if (Settings.MaxExpirationTime <= TimeSpan.Zero) throw new ArgumentException("The max expiration time must be positive when set.", nameof(options));
-        if (Settings.DistributedLockLifetime <= TimeSpan.Zero) throw new ArgumentException("The lock lifetime must be positive.", nameof(options));
+        if (Settings.QueuePollInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
+        }
+
+        if (Settings.InvisibilityTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        }
+
+        if (Settings.ExpirationCheckInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        }
+
+        if (Settings.MaxExpirationTime <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The max expiration time must be positive when set.", nameof(options));
+        }
+
+        if (Settings.DistributedLockLifetime <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The lock lifetime must be positive.", nameof(options));
+        }
 
         Database = new InMemoryDatabase(Settings);
     }
@@ -139,7 +158,10 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         (long entryId, long jobId, string queue, string token) = _database.Fetch(queues, cancellationToken);
         return new InMemoryFetchedJob(_database, entryId, jobId, queue, token, storage.Settings);
@@ -149,7 +171,10 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (StorageValues.TryParseJobId(id, out long jobId)) _database.SetJobParameter(jobId, name, value);
+        if (StorageValues.TryParseJobId(id, out long jobId))
+        {
+            _database.SetJobParameter(jobId, name, value);
+        }
     }
 
     public override string? GetJobParameter(string id, string name)
@@ -187,12 +212,19 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     public override void Heartbeat(string serverId)
     {
         ArgumentNullException.ThrowIfNull(serverId);
-        if (!_database.Heartbeat(serverId)) throw new BackgroundServerGoneException();
+        if (!_database.Heartbeat(serverId))
+        {
+            throw new BackgroundServerGoneException();
+        }
     }
 
     public override int RemoveTimedOutServers(TimeSpan timeOut)
     {
-        if (timeOut.Duration() != timeOut) throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        if (timeOut.Duration() != timeOut)
+        {
+            throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        }
+
         return _database.RemoveTimedOutServers(timeOut);
     }
 
@@ -210,8 +242,16 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
-        if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        if (count <= 0)
+        {
+            throw new ArgumentException("The value must be a positive number", nameof(count));
+        }
+
+        if (toScore < fromScore)
+        {
+            throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        }
+
         return _database.GetFirstByLowestScoreFromSet(key, fromScore, toScore, count);
     }
 

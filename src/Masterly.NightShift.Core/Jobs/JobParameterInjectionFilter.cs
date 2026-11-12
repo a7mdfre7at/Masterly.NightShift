@@ -30,19 +30,28 @@ public class JobParameterInjectionFilter : IServerFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.BackgroundJob.Job?.Args is not object[] argumentsArray) return;
+        if (context.BackgroundJob.Job?.Args is not object[] argumentsArray)
+        {
+            return;
+        }
 
         ParameterInfo[] parameters = context.BackgroundJob.Job.Method.GetParameters();
 
         for (int index = 0; index < parameters.Length; index++)
         {
             FromParameterAttribute? attribute = parameters[index].GetCustomAttribute<FromParameterAttribute>();
-            if (attribute == null) continue;
+            if (attribute == null)
+            {
+                continue;
+            }
 
             Type parameterType = parameters[index].ParameterType;
             string parameterName = attribute.ParameterName;
 
-            if (string.IsNullOrEmpty(parameterName)) continue;
+            if (string.IsNullOrEmpty(parameterName))
+            {
+                continue;
+            }
 
             string? serialized = context.Connection.GetJobParameter(context.BackgroundJob.Id, parameterName);
             if (serialized != null)

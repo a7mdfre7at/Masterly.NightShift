@@ -39,7 +39,11 @@ public abstract class JobMonitor
     {
         Name = SchedulePolicy.NormalizeName(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        if (!method.Contains('.', StringComparison.Ordinal)) throw new ArgumentException($"'{method}' isn't a method as Type.Method.", nameof(method));
+        if (!method.Contains('.', StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"'{method}' isn't a method as Type.Method.", nameof(method));
+        }
+
         Method = method.Trim();
     }
 
@@ -81,8 +85,15 @@ public sealed class DailyDeadlineMonitor : JobMonitor
     public DailyDeadlineMonitor([NotNull] string name, [NotNull] string method, TimeSpan by, [CanBeNull] TimeZoneInfo? timeZone = null, TimeSpan grace = default)
         : base(name, method)
     {
-        if (by < TimeSpan.Zero || by >= TimeSpan.FromDays(1)) throw new ArgumentOutOfRangeException(nameof(by), by, "A time of day is between 00:00 and 23:59:59.");
-        if (grace < TimeSpan.Zero || grace > TimeSpan.FromHours(12)) throw new ArgumentOutOfRangeException(nameof(grace), grace, "The grace is between 0 and 12 hours.");
+        if (by < TimeSpan.Zero || by >= TimeSpan.FromDays(1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(by), by, "A time of day is between 00:00 and 23:59:59.");
+        }
+
+        if (grace < TimeSpan.Zero || grace > TimeSpan.FromHours(12))
+        {
+            throw new ArgumentOutOfRangeException(nameof(grace), grace, "The grace is between 0 and 12 hours.");
+        }
 
         By = by;
         TimeZone = timeZone ?? TimeZoneInfo.Utc;
@@ -148,7 +159,11 @@ public sealed class LongRunningMonitor : JobMonitor
     public LongRunningMonitor([NotNull] string name, [NotNull] string method, TimeSpan threshold)
         : base(name, method)
     {
-        if (threshold < TimeSpan.FromSeconds(5) || threshold > TimeSpan.FromDays(7)) throw new ArgumentOutOfRangeException(nameof(threshold), threshold, "The threshold is between 5 seconds and 7 days.");
+        if (threshold < TimeSpan.FromSeconds(5) || threshold > TimeSpan.FromDays(7))
+        {
+            throw new ArgumentOutOfRangeException(nameof(threshold), threshold, "The threshold is between 5 seconds and 7 days.");
+        }
+
         Threshold = threshold;
     }
 
@@ -163,8 +178,15 @@ public sealed class LongRunningMonitor : JobMonitor
 
         foreach (KeyValuePair<string, ProcessingJobDto?> job in monitoring.ProcessingJobs(0, MaxProcessingJobsRead))
         {
-            if (job.Value?.Job is not { } processing || job.Value.StartedAt is not { } startedAt) continue;
-            if (JobMonitors.GetMethodKey(processing) != Method) continue;
+            if (job.Value?.Job is not { } processing || job.Value.StartedAt is not { } startedAt)
+            {
+                continue;
+            }
+
+            if (JobMonitors.GetMethodKey(processing) != Method)
+            {
+                continue;
+            }
 
             TimeSpan running = now - startedAt;
             if (running > Threshold)
@@ -194,8 +216,15 @@ public sealed class RepeatedFailuresMonitor : JobMonitor
     public RepeatedFailuresMonitor([NotNull] string name, [NotNull] string method, int failures, TimeSpan window)
         : base(name, method)
     {
-        if (failures is < 2 or > MaxFailures) throw new ArgumentOutOfRangeException(nameof(failures), failures, "The number of failures is between 2 and 20.");
-        if (window < TimeSpan.FromHours(1) || window > TimeSpan.FromDays(7)) throw new ArgumentOutOfRangeException(nameof(window), window, "The window is between 1 hour and 7 days.");
+        if (failures is < 2 or > MaxFailures)
+        {
+            throw new ArgumentOutOfRangeException(nameof(failures), failures, "The number of failures is between 2 and 20.");
+        }
+
+        if (window < TimeSpan.FromHours(1) || window > TimeSpan.FromDays(7))
+        {
+            throw new ArgumentOutOfRangeException(nameof(window), window, "The window is between 1 hour and 7 days.");
+        }
 
         Failures = failures;
         Window = window;
@@ -291,11 +320,17 @@ internal sealed record JobMonitorData(
     private static List<DateTime> Dates(IDictionary<string, string> hash, string field)
     {
         List<DateTime> dates = [];
-        if (Text(hash, field) is not { } value) return dates;
+        if (Text(hash, field) is not { } value)
+        {
+            return dates;
+        }
 
         foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (ParseDate(part) is { } date) dates.Add(date);
+            if (ParseDate(part) is { } date)
+            {
+                dates.Add(date);
+            }
         }
 
         return dates;
@@ -409,7 +444,10 @@ public static class JobMonitors
             foreach (JobMonitor monitor in ForMethod(method))
             {
                 string key = GetKey(monitor.Name);
-                if (succeeded && TryRecordPlainSuccess(connection, monitor, key, now)) continue;
+                if (succeeded && TryRecordPlainSuccess(connection, monitor, key, now))
+                {
+                    continue;
+                }
 
                 using (connection.AcquireDistributedLock($"lock:{key}", LockTimeout))
                 {
@@ -428,7 +466,10 @@ public static class JobMonitors
     private static bool TryRecordPlainSuccess(IStorageConnection connection, JobMonitor monitor, string key, DateTime now)
     {
         JobMonitorData data = JobMonitorData.Read(connection.GetAllEntriesFromHash(key));
-        if (data.ConsecutiveFailures > 0 || data.RecentFailures.Count > 0) return false;
+        if (data.ConsecutiveFailures > 0 || data.RecentFailures.Count > 0)
+        {
+            return false;
+        }
 
         if (data.LastSuccessAt is not { } recorded || !monitor.IsSuccessFresh(recorded, now))
         {
@@ -454,7 +495,10 @@ public static class JobMonitors
 
         // The last failures in a row, so the window of a RepeatedFailuresMonitor slides with them
         List<DateTime> recent = firstInARow ? [now] : [.. data.RecentFailures, now];
-        if (recent.Count > RepeatedFailuresMonitor.MaxFailures) recent.RemoveRange(0, recent.Count - RepeatedFailuresMonitor.MaxFailures);
+        if (recent.Count > RepeatedFailuresMonitor.MaxFailures)
+        {
+            recent.RemoveRange(0, recent.Count - RepeatedFailuresMonitor.MaxFailures);
+        }
 
         return new Dictionary<string, string>
         {
@@ -480,7 +524,10 @@ public static class JobMonitors
     {
         foreach (JobMonitor monitor in GetAll())
         {
-            if (monitor.Paused) continue;
+            if (monitor.Paused)
+            {
+                continue;
+            }
 
             try
             {
@@ -543,7 +590,10 @@ public static class JobMonitors
 
     private static void Raise(AlertKind kind, JobMonitor monitor, string title, string message)
     {
-        if (!Alerts.HasSinks) return;
+        if (!Alerts.HasSinks)
+        {
+            return;
+        }
 
         Alerts.Raise(new Alert(kind, title, message) { Method = monitor.Method, Monitor = monitor.Name });
     }
@@ -559,13 +609,22 @@ internal sealed class JobMonitorFilter : IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!JobMonitors.Any || context.BackgroundJob.Job is not { } job) return;
+        if (!JobMonitors.Any || context.BackgroundJob.Job is not { } job)
+        {
+            return;
+        }
 
         bool succeeded = context.NewState is SucceededState;
-        if (!succeeded && context.NewState is not FailedState) return;
+        if (!succeeded && context.NewState is not FailedState)
+        {
+            return;
+        }
 
         string method = JobMonitors.GetMethodKey(job);
-        if (!JobMonitors.ForMethod(method).Any()) return;
+        if (!JobMonitors.ForMethod(method).Any())
+        {
+            return;
+        }
 
         JobStorage storage = context.Storage;
         DateTime now = JobClock.UtcNow;

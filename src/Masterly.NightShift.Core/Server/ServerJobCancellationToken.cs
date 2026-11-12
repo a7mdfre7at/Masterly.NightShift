@@ -60,7 +60,11 @@ internal sealed class ServerJobCancellationToken : IJobCancellationToken, IDispo
     {
         lock (_syncRoot)
         {
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
 
             _watchedTokens?.TryRemove(this, out _);

@@ -157,7 +157,10 @@ public class BackgroundJobClient : IBackgroundJobClient, IBackgroundJobClientV2
         ArgumentNullException.ThrowIfNull(stateFactory);
 
         string?[] ids = new string?[jobs.Count];
-        if (ids.Length == 0) return ids;
+        if (ids.Length == 0)
+        {
+            return ids;
+        }
 
         try
         {

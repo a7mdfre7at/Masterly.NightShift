@@ -175,7 +175,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
     public WebhookAlertSink([NotNull] WebhookAlertOptions options, [CanBeNull] HttpClient? httpClient)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
-        if (string.IsNullOrWhiteSpace(options.Url)) throw new ArgumentException("WebhookAlertOptions.Url is required.", nameof(options));
+        if (string.IsNullOrWhiteSpace(options.Url))
+        {
+            throw new ArgumentException("WebhookAlertOptions.Url is required.", nameof(options));
+        }
 
         // The URL itself stays out of the message: Slack, Mattermost and Discord put the webhook's secret in it
         if (!Uri.TryCreate(options.Url, UriKind.Absolute, out Uri? url) || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
@@ -183,8 +186,16 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
             throw new ArgumentException("WebhookAlertOptions.Url must be an absolute http or https URL.", nameof(options));
         }
 
-        if (options.MaxConcurrentRequests <= 0) throw new ArgumentOutOfRangeException(nameof(options), "MaxConcurrentRequests must be positive.");
-        if (!IsValidTimeout(options.Timeout)) throw new ArgumentOutOfRangeException(nameof(options), "Timeout must be positive or Timeout.InfiniteTimeSpan.");
+        if (options.MaxConcurrentRequests <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxConcurrentRequests must be positive.");
+        }
+
+        if (!IsValidTimeout(options.Timeout))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Timeout must be positive or Timeout.InfiniteTimeSpan.");
+        }
+
         if (options.RetryDelays.Any(static x => x < TimeSpan.Zero || x.TotalMilliseconds > int.MaxValue))
         {
             throw new ArgumentOutOfRangeException(nameof(options), "RetryDelays must be zero or positive, and at most 24 days.");
@@ -246,8 +257,15 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
     public void Publish(Alert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
-        if ((Options.Events & alert.Kind) == 0) return;
-        if (Options.Rule != null && !Options.Rule.Allows(alert)) return;
+        if ((Options.Events & alert.Kind) == 0)
+        {
+            return;
+        }
+
+        if (Options.Rule != null && !Options.Rule.Allows(alert))
+        {
+            return;
+        }
 
         if (Volatile.Read(ref _disposed) != 0)
         {
@@ -281,9 +299,20 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
             StringBuilder text = new();
             text.Append('*').Append(EscapeSlack(alert.Title)).Append('*');
             text.Append('\n').Append(EscapeSlack(alert.Message));
-            if (alert.JobId != null) text.Append("\nJob: ").Append(EscapeSlack(alert.JobId));
-            if (alert.Resource != null) text.Append("\nResource: ").Append(EscapeSlack(alert.Resource));
-            if (alert.ServerId != null) text.Append("\nServer: ").Append(EscapeSlack(alert.ServerId));
+            if (alert.JobId != null)
+            {
+                text.Append("\nJob: ").Append(EscapeSlack(alert.JobId));
+            }
+
+            if (alert.Resource != null)
+            {
+                text.Append("\nResource: ").Append(EscapeSlack(alert.Resource));
+            }
+
+            if (alert.ServerId != null)
+            {
+                text.Append("\nServer: ").Append(EscapeSlack(alert.ServerId));
+            }
 
             return JsonSerializer.Serialize(new { text = text.ToString() }, JsonSettings);
         }
@@ -300,9 +329,20 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
             StringBuilder text = new();
             text.Append("**").Append(EscapeDiscord(alert.Title)).Append("**");
             text.Append('\n').Append(EscapeDiscord(alert.Message));
-            if (alert.JobId != null) text.Append("\nJob: ").Append(EscapeDiscord(alert.JobId));
-            if (alert.Resource != null) text.Append("\nResource: ").Append(EscapeDiscord(alert.Resource));
-            if (alert.ServerId != null) text.Append("\nServer: ").Append(EscapeDiscord(alert.ServerId));
+            if (alert.JobId != null)
+            {
+                text.Append("\nJob: ").Append(EscapeDiscord(alert.JobId));
+            }
+
+            if (alert.Resource != null)
+            {
+                text.Append("\nResource: ").Append(EscapeDiscord(alert.Resource));
+            }
+
+            if (alert.ServerId != null)
+            {
+                text.Append("\nServer: ").Append(EscapeDiscord(alert.ServerId));
+            }
 
             string content = text.Length <= DiscordMaxContentLength ? text.ToString() : text.ToString(0, DiscordMaxContentLength - 1) + "…";
 
@@ -348,7 +388,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
     /// </summary>
     internal static string GetLoggableUrl(string? url)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return "(invalid URL)";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+        {
+            return "(invalid URL)";
+        }
 
         string server = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
         bool hasSecretParts = uri.UserInfo.Length > 0 || uri.PathAndQuery != "/" || uri.Fragment.Length > 0;
@@ -377,7 +420,11 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
                 return JsonSerializer.Serialize(new { text = Render(template, alert, EscapeSlack) }, JsonSettings);
             case WebhookFormat.Discord:
                 string content = Render(template, alert, EscapeDiscord);
-                if (content.Length > DiscordMaxContentLength) content = string.Concat(content.AsSpan(0, DiscordMaxContentLength - 1), "…");
+                if (content.Length > DiscordMaxContentLength)
+                {
+                    content = string.Concat(content.AsSpan(0, DiscordMaxContentLength - 1), "…");
+                }
+
                 return JsonSerializer.Serialize(new { content, allowed_mentions = new { parse = Array.Empty<string>() } }, JsonSettings);
             case WebhookFormat.Teams:
                 return CreateTeamsBody(alert, Render(template, alert, EscapeTeams));
@@ -462,7 +509,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
 
     private static void WriteFact(Utf8JsonWriter writer, string title, string? value)
     {
-        if (string.IsNullOrEmpty(value)) return;
+        if (string.IsNullOrEmpty(value))
+        {
+            return;
+        }
 
         writer.WriteStartObject();
         writer.WriteString("title", title);
@@ -472,12 +522,19 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
 
     private static string EscapeTeams(string value)
     {
-        if (value.Length > TeamsMaxTextLength) value = string.Concat(value.AsSpan(0, TeamsMaxTextLength - 1), "…");
+        if (value.Length > TeamsMaxTextLength)
+        {
+            value = string.Concat(value.AsSpan(0, TeamsMaxTextLength - 1), "…");
+        }
 
         StringBuilder text = new(value.Length + 16);
         foreach (char character in value)
         {
-            if (TeamsMarkdownCharacters.Contains(character)) text.Append('\\');
+            if (TeamsMarkdownCharacters.Contains(character))
+            {
+                text.Append('\\');
+            }
+
             text.Append(character);
         }
 
@@ -489,7 +546,11 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
         StringBuilder text = new(value.Length + 16);
         foreach (char character in value)
         {
-            if (DiscordMarkdownCharacters.Contains(character)) text.Append('\\');
+            if (DiscordMarkdownCharacters.Contains(character))
+            {
+                text.Append('\\');
+            }
+
             text.Append(character);
         }
 
@@ -524,7 +585,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
                 _inFlight.Release();
             }
 
-            if (result.Retryable) await RetryAsync(alert, result).ConfigureAwait(false);
+            if (result.Retryable)
+            {
+                await RetryAsync(alert, result).ConfigureAwait(false);
+            }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -534,7 +598,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
 
     private async Task RetryAsync(Alert alert, SendResult result)
     {
-        if (_retryDelays.Length == 0 || Volatile.Read(ref _disposed) != 0) return;
+        if (_retryDelays.Length == 0 || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
 
         // Retries don't hold a slot while they wait, so their number is limited on its own
         if (Interlocked.Increment(ref _pendingRetries) > _maxConcurrentRequests)
@@ -560,7 +627,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
                 }
 
                 result = await SendCoreAsync(alert, attempt: retry + 2).ConfigureAwait(false);
-                if (!result.Retryable) return;
+                if (!result.Retryable)
+                {
+                    return;
+                }
             }
         }
         finally
@@ -579,9 +649,21 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
 
     private static TimeSpan? GetRetryAfter(HttpResponseMessage response)
     {
-        if (response.Headers.RetryAfter is not { } retryAfter) return null;
-        if (retryAfter.Delta is { } delta) return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
-        if (retryAfter.Date is { } date) return date.UtcDateTime > JobClock.UtcNow ? date.UtcDateTime - JobClock.UtcNow : TimeSpan.Zero;
+        if (response.Headers.RetryAfter is not { } retryAfter)
+        {
+            return null;
+        }
+
+        if (retryAfter.Delta is { } delta)
+        {
+            return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
+        }
+
+        if (retryAfter.Date is { } date)
+        {
+            return date.UtcDateTime > JobClock.UtcNow ? date.UtcDateTime - JobClock.UtcNow : TimeSpan.Zero;
+        }
+
         return null;
     }
 
@@ -597,7 +679,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
         lock (_deliveries)
         {
             _deliveries.AddFirst(new WebhookDelivery(alert.Id, alert.Title, JobClock.UtcNow, attempt, succeeded, statusCode, error));
-            if (_deliveries.Count > MaxDeliveries) _deliveries.RemoveLast();
+            if (_deliveries.Count > MaxDeliveries)
+            {
+                _deliveries.RemoveLast();
+            }
         }
     }
 
@@ -664,7 +749,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
     /// </summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
 
         _retryCts.Cancel();
         _disposeCts.Cancel();
@@ -687,7 +775,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
 
         _retryCts.Cancel();
 
@@ -710,7 +801,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
         for (int i = 0; i < _maxConcurrentRequests; i++)
         {
             TimeSpan remaining = wait - stopwatch.Elapsed;
-            if (remaining <= TimeSpan.Zero || !_inFlight.Wait(remaining)) return false;
+            if (remaining <= TimeSpan.Zero || !_inFlight.Wait(remaining))
+            {
+                return false;
+            }
         }
 
         return true;
@@ -723,7 +817,10 @@ public sealed class WebhookAlertSink : IAlertSink, IDisposable, IAsyncDisposable
         for (int i = 0; i < _maxConcurrentRequests; i++)
         {
             TimeSpan remaining = wait - stopwatch.Elapsed;
-            if (remaining <= TimeSpan.Zero || !await _inFlight.WaitAsync(remaining).ConfigureAwait(false)) return false;
+            if (remaining <= TimeSpan.Zero || !await _inFlight.WaitAsync(remaining).ConfigureAwait(false))
+            {
+                return false;
+            }
         }
 
         return true;

@@ -40,7 +40,10 @@ public class HtmlHelper
         try
         {
             DisplayNameType = typeof(DisplayNameAttribute);
-            if (DisplayNameType == null) return;
+            if (DisplayNameType == null)
+            {
+                return;
+            }
 
             ParameterExpression p = Expression.Parameter(typeof(object));
             UnaryExpression converted = Expression.Convert(p, DisplayNameType);
@@ -236,7 +239,10 @@ public class HtmlHelper
 
     public string? ToHumanDuration(TimeSpan? duration, bool displaySign = true)
     {
-        if (duration == null) return null;
+        if (duration == null)
+        {
+            return null;
+        }
 
         StringBuilder builder = new();
         if (displaySign)

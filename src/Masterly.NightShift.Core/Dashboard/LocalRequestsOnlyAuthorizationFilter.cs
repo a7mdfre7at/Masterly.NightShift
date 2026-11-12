@@ -38,19 +38,27 @@ public class LocalRequestsOnlyAuthorizationFilter : IDashboardAuthorizationFilte
 
         // if unknown, assume not local
         if (string.IsNullOrEmpty(context.Request.RemoteIpAddress))
+        {
             return false;
+        }
 
         // A proxy sent it: the client is somewhere else, whatever the connection's address
         if (IsForwarded(context.Request))
+        {
             return false;
+        }
 
         // check if localhost
         if (context.Request.RemoteIpAddress is "127.0.0.1" or "::1")
+        {
             return true;
+        }
 
         // compare with local address
         if (context.Request.RemoteIpAddress == context.Request.LocalIpAddress)
+        {
             return true;
+        }
 
         // Handle addresses such as ::ffff:127.0.0.1 (IP v4 mapped to IP v6)
         return IPAddress.TryParse(context.Request.RemoteIpAddress, out IPAddress? address) && IPAddress.IsLoopback(address);

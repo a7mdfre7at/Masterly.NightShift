@@ -75,7 +75,10 @@ internal sealed class BackgroundExecution : IBackgroundExecution
             try
             {
                 // Being unable to wait means the execution was stopped meanwhile
-                if (nextDelay != TimeSpan.Zero && !HandleDelay(executionId, nextDelay)) break;
+                if (nextDelay != TimeSpan.Zero && !HandleDelay(executionId, nextDelay))
+                {
+                    break;
+                }
 
                 callback(executionId, state);
                 HandleSuccess(out nextDelay);
@@ -108,7 +111,10 @@ internal sealed class BackgroundExecution : IBackgroundExecution
             try
             {
                 // Being unable to wait means the execution was stopped meanwhile
-                if (nextDelay != TimeSpan.Zero && !await HandleDelayAsync(executionId, nextDelay).ConfigureAwait(true)) break;
+                if (nextDelay != TimeSpan.Zero && !await HandleDelayAsync(executionId, nextDelay).ConfigureAwait(true))
+                {
+                    break;
+                }
 
                 await callback(executionId, state).ConfigureAwait(true);
                 HandleSuccess(out nextDelay);
@@ -131,7 +137,11 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     {
         lock (_stopped)
         {
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
 
             _stopRegistration.Dispose();
@@ -143,7 +153,10 @@ internal sealed class BackgroundExecution : IBackgroundExecution
 
     public void NotifySucceeded()
     {
-        if (StopRequested) return;
+        if (StopRequested)
+        {
+            return;
+        }
 
         // This is an optimization to avoid lock acquisitions on every
         // loop iteration. It is possible that value will become null
@@ -279,7 +292,10 @@ internal sealed class BackgroundExecution : IBackgroundExecution
     {
         lock (_stopped)
         {
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
 
             if (_failedSince != null)
             {
@@ -312,7 +328,10 @@ internal sealed class BackgroundExecution : IBackgroundExecution
         {
             retryDelay = FallbackRetryDelay;
 
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
 
             _exceptionsCount++;
             _lastException = Stopwatch.StartNew();

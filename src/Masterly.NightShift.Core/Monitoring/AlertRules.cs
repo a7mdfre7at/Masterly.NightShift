@@ -73,15 +73,28 @@ public sealed class AlertRule
     {
         ArgumentNullException.ThrowIfNull(alert);
 
-        if ((Kinds & alert.Kind) == 0) return false;
+        if ((Kinds & alert.Kind) == 0)
+        {
+            return false;
+        }
 
         if (alert.Method != null)
         {
-            if (_include.Count > 0 && !_include.Any(x => x.IsMatch(alert.Method))) return false;
-            if (_exclude.Any(x => x.IsMatch(alert.Method))) return false;
+            if (_include.Count > 0 && !_include.Any(x => x.IsMatch(alert.Method)))
+            {
+                return false;
+            }
+
+            if (_exclude.Any(x => x.IsMatch(alert.Method)))
+            {
+                return false;
+            }
         }
 
-        if (Cooldown <= TimeSpan.Zero) return true;
+        if (Cooldown <= TimeSpan.Zero)
+        {
+            return true;
+        }
 
         string key = $"{alert.Kind}|{alert.Monitor}|{alert.Method}|{alert.Resource}";
         DateTime now = JobClock.UtcNow;
@@ -96,7 +109,10 @@ public sealed class AlertRule
                     return false;
                 }
 
-                if (_lastSent.TryUpdate(key, now, last)) return true;
+                if (_lastSent.TryUpdate(key, now, last))
+                {
+                    return true;
+                }
             }
             else if (_lastSent.TryAdd(key, now))
             {
@@ -133,6 +149,9 @@ public sealed class AlertRuleSink([NotNull] IAlertSink inner, [NotNull] AlertRul
     /// <inheritdoc />
     public void Publish(Alert alert)
     {
-        if (Rule.Allows(alert)) Inner.Publish(alert);
+        if (Rule.Allows(alert))
+        {
+            Inner.Publish(alert);
+        }
     }
 }

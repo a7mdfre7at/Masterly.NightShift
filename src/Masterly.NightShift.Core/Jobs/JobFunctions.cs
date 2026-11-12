@@ -70,7 +70,10 @@ public abstract class JobFunction([NotNull] string name)
             return null;
         }
 
-        if (type.IsInstanceOfType(payload)) return payload;
+        if (type.IsInstanceOfType(payload))
+        {
+            return payload;
+        }
 
         try
         {
@@ -148,8 +151,16 @@ public static class JobFunctions
 
     private static bool IsSameFunction(JobFunction registered, JobFunction function)
     {
-        if (ReferenceEquals(registered, function)) return true;
-        if (registered is MethodJobFunction method && function is MethodJobFunction other) return method.Type == other.Type && method.Method == other.Method;
+        if (ReferenceEquals(registered, function))
+        {
+            return true;
+        }
+
+        if (registered is MethodJobFunction method && function is MethodJobFunction other)
+        {
+            return method.Type == other.Type && method.Method == other.Method;
+        }
+
         return registered.GetType() == function.GetType();
     }
 
@@ -175,7 +186,10 @@ public static class JobFunctions
         foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
             JobFunctionAttribute? attribute = method.GetCustomAttribute<JobFunctionAttribute>();
-            if (attribute == null) continue;
+            if (attribute == null)
+            {
+                continue;
+            }
 
             if (!JobCatalog.IsRunnable(method))
             {

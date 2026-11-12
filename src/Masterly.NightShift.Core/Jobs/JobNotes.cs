@@ -62,8 +62,15 @@ public static class JobNotes
         ArgumentNullException.ThrowIfNull(text);
 
         text = text.Trim();
-        if (text.Length == 0 && !acknowledges) throw new ArgumentException("A note needs some text.", nameof(text));
-        if (text.Length > MaxLength) text = text[..MaxLength];
+        if (text.Length == 0 && !acknowledges)
+        {
+            throw new ArgumentException("A note needs some text.", nameof(text));
+        }
+
+        if (text.Length > MaxLength)
+        {
+            text = text[..MaxLength];
+        }
 
         JobNote note = new()
         {
@@ -78,7 +85,10 @@ public static class JobNotes
         {
             List<JobNote> notes = [.. Read(connection, jobId)];
             notes.Add(note);
-            if (notes.Count > MaxNotes) notes.RemoveRange(0, notes.Count - MaxNotes);
+            if (notes.Count > MaxNotes)
+            {
+                notes.RemoveRange(0, notes.Count - MaxNotes);
+            }
 
             // Written with options of its own, like the audit log: a source-generated resolver an application sets
             // with UseSerializerSettings doesn't know JobNote
@@ -100,7 +110,10 @@ public static class JobNotes
     /// <summary>Parses the serialized parameter value.</summary>
     public static IReadOnlyList<JobNote> Parse([CanBeNull] string? serialized)
     {
-        if (serialized == null || serialized.Length == 0) return [];
+        if (serialized == null || serialized.Length == 0)
+        {
+            return [];
+        }
 
         try
         {

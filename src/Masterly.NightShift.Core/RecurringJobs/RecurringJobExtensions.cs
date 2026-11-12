@@ -40,7 +40,10 @@ internal static class RecurringJobExtensions
             ArgumentNullException.ThrowIfNull(recurringJobId);
 
             Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (recurringJob == null || recurringJob.Count == 0) return null;
+            if (recurringJob == null || recurringJob.Count == 0)
+            {
+                return null;
+            }
 
             return new RecurringJobEntity(recurringJobId, recurringJob) { PolicyCalendars = new SchedulePolicyCalendars(connection) };
         }
@@ -52,7 +55,10 @@ internal static class RecurringJobExtensions
             ArgumentNullException.ThrowIfNull(recurringJobId);
 
             Dictionary<string, string>? recurringJob = connection.GetAllEntriesFromHash($"recurring-job:{recurringJobId}");
-            if (recurringJob == null || recurringJob.Count == 0) recurringJob = [];
+            if (recurringJob == null || recurringJob.Count == 0)
+            {
+                recurringJob = [];
+            }
 
             return new RecurringJobEntity(recurringJobId, recurringJob) { PolicyCalendars = new SchedulePolicyCalendars(connection) };
         }

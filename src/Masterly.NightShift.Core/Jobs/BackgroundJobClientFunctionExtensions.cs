@@ -41,7 +41,10 @@ public static class BackgroundJobClientFunctionExtensions
         ArgumentNullException.ThrowIfNull(name);
 
         Job job = JobFunctions.CreateJob(name, payload, options?.Queue);
-        if (options == null) return client.Create(job, state);
+        if (options == null)
+        {
+            return client.Create(job, state);
+        }
 
         if (client is not IBackgroundJobClientV2 clientV2)
         {

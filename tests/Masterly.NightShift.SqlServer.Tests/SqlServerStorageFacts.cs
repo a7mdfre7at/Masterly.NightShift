@@ -400,7 +400,11 @@ public class SqlServerStorageFacts
             // Called before each connection is opened
             ImpersonationFunc = () =>
             {
-                if (Interlocked.Increment(ref attempts) == 2) CreateDatabase(databaseName);
+                if (Interlocked.Increment(ref attempts) == 2)
+                {
+                    CreateDatabase(databaseName);
+                }
+
                 return null;
             }
         };

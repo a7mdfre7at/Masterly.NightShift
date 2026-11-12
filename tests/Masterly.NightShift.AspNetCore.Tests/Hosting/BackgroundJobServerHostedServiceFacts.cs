@@ -71,7 +71,10 @@ public class BackgroundJobServerHostedServiceFacts
         _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Exactly(2));
 
         await control.StopAsync(TestContext.Current.CancellationToken);
-        foreach (IHostedService service in hosted) ((IDisposable)service).Dispose();
+        foreach (IHostedService service in hosted)
+        {
+            ((IDisposable)service).Dispose();
+        }
     }
 
     [Fact]

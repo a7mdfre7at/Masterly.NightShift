@@ -69,7 +69,11 @@ public class BatchCommandDispatcherFacts
 
         await new BatchCommandDispatcher((_, id) =>
         {
-            if (id == "shop") throw new AggregateException(new JobLoadException("Could not load the job.", new InvalidOperationException("Could not resolve assembly 'Shop.Web'.")));
+            if (id == "shop")
+            {
+                throw new AggregateException(new JobLoadException("Could not load the job.", new InvalidOperationException("Could not resolve assembly 'Shop.Web'.")));
+            }
+
             called.Add(id);
         }).Dispatch(context);
 
@@ -97,7 +101,10 @@ public class BatchCommandDispatcherFacts
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => new BatchCommandDispatcher((_, id) =>
         {
-            if (id == "b") throw new InvalidOperationException("storage down");
+            if (id == "b")
+            {
+                throw new InvalidOperationException("storage down");
+            }
         }).Dispatch(context));
 
         string entry = Assert.Single(audit);

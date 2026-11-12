@@ -7,7 +7,11 @@ public static class NewFeatures
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public static bool TryExceptional(bool throwException)
     {
-        if (throwException) throw new InvalidOperationException();
+        if (throwException)
+        {
+            throw new InvalidOperationException();
+        }
+
         return true;
     }
 

@@ -69,14 +69,21 @@ public class Pager
 
     public virtual string PageUrl(int page)
     {
-        if (page < 1 || page > TotalPageCount) return "#";
+        if (page < 1 || page > TotalPageCount)
+        {
+            return "#";
+        }
 
         return BasePageUrl + "?from=" + (page - 1) * RecordsPerPage + "&count=" + RecordsPerPage + QuerySuffix;
     }
 
     public string RecordsPerPageUrl(int perPage)
     {
-        if (perPage <= 0) return "#";
+        if (perPage <= 0)
+        {
+            return "#";
+        }
+
         perPage = Math.Min(perPage, MaxRecordsPerPage);
         return BasePageUrl + "?from=0&count=" + perPage + QuerySuffix;
     }
@@ -86,23 +93,35 @@ public class Pager
         // start page index
         _startPageIndex = CurrentPage - PageItemsCount / 2;
         if (_startPageIndex + PageItemsCount > TotalPageCount)
+        {
             _startPageIndex = TotalPageCount + 1 - PageItemsCount;
+        }
+
         if (_startPageIndex < 1)
+        {
             _startPageIndex = 1;
+        }
 
         // end page index
         _endPageIndex = _startPageIndex + PageItemsCount - 1;
         if (_endPageIndex > TotalPageCount)
+        {
             _endPageIndex = TotalPageCount;
+        }
 
         List<Item> pagerItems = [];
-        if (TotalPageCount == 0) return pagerItems;
+        if (TotalPageCount == 0)
+        {
+            return pagerItems;
+        }
 
         AddPrevious(pagerItems);
 
         // first page
         if (_startPageIndex > 1)
+        {
             pagerItems.Add(new Item(1, false, ItemType.Page));
+        }
 
         // more page before numeric page buttons
         AddMoreBefore(pagerItems);
@@ -115,7 +134,9 @@ public class Pager
 
         // last page
         if (_endPageIndex < TotalPageCount)
+        {
             pagerItems.Add(new Item(TotalPageCount, false, ItemType.Page));
+        }
 
         // Next page
         AddNext(pagerItems);

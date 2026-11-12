@@ -208,7 +208,10 @@ public sealed class SchedulePolicyCalendarFacts : IDisposable
         SchedulePolicy onlyLeapDays = new("only-leap-days");
         for (DateOnly day = new(2026, 1, 1); day.Year < 2030; day = day.AddDays(1))
         {
-            if (day is not { Month: 2, Day: 29 }) onlyLeapDays.ExcludeDate(day);
+            if (day is not { Month: 2, Day: 29 })
+            {
+                onlyLeapDays.ExcludeDate(day);
+            }
         }
 
         SchedulePolicy policy = new SchedulePolicy("p").Require("only-leap-days");

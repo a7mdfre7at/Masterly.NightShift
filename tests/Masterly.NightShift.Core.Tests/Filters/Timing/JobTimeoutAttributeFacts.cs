@@ -365,7 +365,10 @@ public class JobTimeoutAttributeFacts
         [JobTimeout(30)]
         public string WaitForToken(CancellationToken token)
         {
-            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10))) return "not canceled";
+            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+            {
+                return "not canceled";
+            }
 
             token.ThrowIfCancellationRequested();
             return "never";
@@ -374,7 +377,10 @@ public class JobTimeoutAttributeFacts
         [JobTimeout(30)]
         public string WaitForJobToken(IJobCancellationToken token)
         {
-            if (!token.ShutdownToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(10))) return "not canceled";
+            if (!token.ShutdownToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+            {
+                return "not canceled";
+            }
 
             token.ThrowIfCancellationRequested();
             return "never";
@@ -387,7 +393,10 @@ public class JobTimeoutAttributeFacts
         [JobTimeout(1)]
         public string WaitForToken(CancellationToken token)
         {
-            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10))) return "not canceled";
+            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+            {
+                return "not canceled";
+            }
 
             token.ThrowIfCancellationRequested();
             return "never";

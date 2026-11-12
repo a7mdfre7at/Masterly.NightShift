@@ -27,7 +27,11 @@ internal static class Sparkline
             lastX = 1 + i * step;
             lastY = height - 1 - (double)values[i] / max * (height - 2);
 
-            if (i > 0) points.Append(' ');
+            if (i > 0)
+            {
+                points.Append(' ');
+            }
+
             points.Append(lastX.ToString("0.#", CultureInfo.InvariantCulture)).Append(',').Append(lastY.ToString("0.#", CultureInfo.InvariantCulture));
         }
 

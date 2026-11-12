@@ -108,7 +108,11 @@ public class QueueInsightsFacts : IDisposable
     {
         ApplyStateContextMock context = new() { NewStateObject = new ProcessingState("srv", "w"), OldStateName = EnqueuedState.StateName };
         context.BackgroundJob.Id = "42";
-        if (jobQueue != null) context.BackgroundJob.Job = new Job(typeof(QueueInsightsFacts), typeof(QueueInsightsFacts).GetMethod(nameof(Dispose)), [], jobQueue);
+        if (jobQueue != null)
+        {
+            context.BackgroundJob.Job = new Job(typeof(QueueInsightsFacts), typeof(QueueInsightsFacts).GetMethod(nameof(Dispose)), [], jobQueue);
+        }
+
         context.Connection.Setup(x => x.GetStateData("42")).Returns(new StateData
         {
             Name = EnqueuedState.StateName,

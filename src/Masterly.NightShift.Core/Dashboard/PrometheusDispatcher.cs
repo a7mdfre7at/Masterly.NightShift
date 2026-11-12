@@ -155,7 +155,11 @@ internal sealed class PrometheusDispatcher : IDashboardDispatcher
     private static void Sample(StringBuilder builder, string name, string? labels, double value)
     {
         builder.Append(name);
-        if (!string.IsNullOrEmpty(labels)) builder.Append('{').Append(labels).Append('}');
+        if (!string.IsNullOrEmpty(labels))
+        {
+            builder.Append('{').Append(labels).Append('}');
+        }
+
         builder.Append(' ').Append(value.ToString("0.###", CultureInfo.InvariantCulture)).Append('\n');
     }
 

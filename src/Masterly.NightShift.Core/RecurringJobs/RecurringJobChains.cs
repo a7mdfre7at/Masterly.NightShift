@@ -96,7 +96,10 @@ public static class JobChainRunner
         }
 
         JobChainResult? result = JobChains.FromDefinition(definition).Enqueue(new BackgroundJobClient(storage));
-        if (result == null) return null;
+        if (result == null)
+        {
+            return null;
+        }
 
         if (key != null)
         {

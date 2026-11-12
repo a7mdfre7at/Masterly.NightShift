@@ -33,7 +33,11 @@ public class RedisConformanceFacts : StorageConformanceFacts
 
     public override void Dispose()
     {
-        foreach (RedisStorage storage in _storages) RedisTestServer.Delete(storage);
+        foreach (RedisStorage storage in _storages)
+        {
+            RedisTestServer.Delete(storage);
+        }
+
         GC.SuppressFinalize(this);
     }
 

@@ -357,8 +357,16 @@ public class JobChainFacts
                 while (true)
                 {
                     using IStorageConnection connection = storage.GetConnection();
-                    if (!connection.GetAllItemsFromSet("chains:cleanup").Contains(chain.ChainId)) break;
-                    if (stopwatch.Elapsed > Timeout) throw new TimeoutException("The replacement wasn't finished.");
+                    if (!connection.GetAllItemsFromSet("chains:cleanup").Contains(chain.ChainId))
+                    {
+                        break;
+                    }
+
+                    if (stopwatch.Elapsed > Timeout)
+                    {
+                        throw new TimeoutException("The replacement wasn't finished.");
+                    }
+
                     await Task.Delay(100, TestContext.Current.CancellationToken);
                 }
             }
@@ -410,8 +418,16 @@ public class JobChainFacts
             while (true)
             {
                 using IStorageConnection connection = storage.GetConnection();
-                if (!connection.GetAllItemsFromSet(JobChains.SetKey).Any(static x => x.StartsWith("expired", StringComparison.Ordinal))) break;
-                if (stopwatch.Elapsed > Timeout) throw new TimeoutException("The expired chains didn't leave the list.");
+                if (!connection.GetAllItemsFromSet(JobChains.SetKey).Any(static x => x.StartsWith("expired", StringComparison.Ordinal)))
+                {
+                    break;
+                }
+
+                if (stopwatch.Elapsed > Timeout)
+                {
+                    throw new TimeoutException("The expired chains didn't leave the list.");
+                }
+
                 await Task.Delay(100, TestContext.Current.CancellationToken);
             }
         }
@@ -478,7 +494,10 @@ public class JobChainFacts
             Thread.Sleep(50);
         }
 
-        if (!Log.Contains("sibling")) throw new TimeoutException("The processing continuation didn't start while the parent ran.");
+        if (!Log.Contains("sibling"))
+        {
+            throw new TimeoutException("The processing continuation didn't start while the parent ran.");
+        }
     }
 
     private static async Task WaitUntilSettledAsync(SqlServerStorage storage, string chainId)
@@ -486,7 +505,11 @@ public class JobChainFacts
         Stopwatch stopwatch = Stopwatch.StartNew();
         while (storage.GetChain(chainId) is not { IsSettled: true })
         {
-            if (stopwatch.Elapsed > Timeout) throw new TimeoutException($"Chain {chainId} didn't settle.");
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Chain {chainId} didn't settle.");
+            }
+
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }

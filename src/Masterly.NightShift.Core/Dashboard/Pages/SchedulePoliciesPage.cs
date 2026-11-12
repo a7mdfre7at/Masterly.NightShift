@@ -21,7 +21,10 @@ internal partial class SchedulePoliciesPage
             {
                 try
                 {
-                    if (Storage.GetSchedulePolicy(name) is { } policy) readable.Add(policy);
+                    if (Storage.GetSchedulePolicy(name) is { } policy)
+                    {
+                        readable.Add(policy);
+                    }
                 }
                 catch (FormatException)
                 {
@@ -73,7 +76,11 @@ internal partial class SchedulePoliciesPage
         List<string> parts = [.. dates.Take(maxDatesShown)];
 
         int more = policy.ExcludedDates.Count + policy.ExcludedAnnualDates.Count - parts.Count;
-        if (more > 0) parts.Add($"+{more.ToString(CultureInfo.CurrentCulture)}");
+        if (more > 0)
+        {
+            parts.Add($"+{more.ToString(CultureInfo.CurrentCulture)}");
+        }
+
         parts.AddRange(policy.DateProviders.Select(static x => $"[{x}]"));
 
         return string.Join(", ", parts);

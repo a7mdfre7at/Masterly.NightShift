@@ -142,8 +142,15 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
         // Lock-free fast paths: a closed circuit, the probe itself running again (after a crash, for example),
         // and an open period that hasn't ended yet.
-        if (circuit.State is not OpenState and not HalfOpenState) return;
-        if (circuit.State == HalfOpenState && jobId.Equals(circuit.ProbeJobId, StringComparison.Ordinal)) return;
+        if (circuit.State is not OpenState and not HalfOpenState)
+        {
+            return;
+        }
+
+        if (circuit.State == HalfOpenState && jobId.Equals(circuit.ProbeJobId, StringComparison.Ordinal))
+        {
+            return;
+        }
 
         DateTime? holdUntil = GetOpenPeriodEnd(circuit, ConcurrencyControl.Clock(), out string? reason);
 
@@ -201,7 +208,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     public void OnStateElection(ElectStateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.BackgroundJob.Job == null) return;
+        if (context.BackgroundJob.Job == null)
+        {
+            return;
+        }
 
         if (context.CandidateState is EnqueuedState enqueuedState)
         {
@@ -284,10 +294,16 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // Whether a failure with this exception counts, see OnlyOn and ExceptOn.
     private bool Counts(Exception? exception)
     {
-        if (exception == null) return true;
+        if (exception == null)
+        {
+            return true;
+        }
 
         // A job that skipped or canceled itself didn't fail; one that failed on purpose did
-        if (TerminateJobFilter.Find(exception) is { DeletesJob: true }) return false;
+        if (TerminateJobFilter.Find(exception) is { DeletesJob: true })
+        {
+            return false;
+        }
 
         Type exceptionType = exception.GetType();
         Type[] onlyOn = OnlyOn;
@@ -312,7 +328,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private static bool IsFailureCounted(IState requestedState, string key)
     {
-        if (!CountedFailures.TryGetValue(requestedState, out HashSet<string>? keys)) return false;
+        if (!CountedFailures.TryGetValue(requestedState, out HashSet<string>? keys))
+        {
+            return false;
+        }
 
         lock (keys)
         {
@@ -474,7 +493,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             // the failure again, and doesn't alert. Raised once the job's lock is released, so a slow alert sink
             // doesn't hold up the state change.
             Alert? alert = CreateOpenedAlert(context, resource, opened);
-            if (alert != null) context.RunAfterCommitAttempt(() => Alerts.Raise(alert));
+            if (alert != null)
+            {
+                context.RunAfterCommitAttempt(() => Alerts.Raise(alert));
+            }
         }
     }
 
@@ -511,7 +533,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
             CircuitState circuit = ReadCircuit(context.Connection, resource, out bool stored);
             ConcurrencyControl.Partition(context.Connection.GetAllItemsFromSet(failuresKey), windowStart, ownJobId: null, out List<(long Timestamp, string JobId)>? live, out List<string>? stale);
 
-            if (!stored || live.Count > 0 || circuit.State != ClosedState || now - circuit.OpenedAt < GetRetention()) return;
+            if (!stored || live.Count > 0 || circuit.State != ClosedState || now - circuit.OpenedAt < GetRetention())
+            {
+                return;
+            }
 
             using IWriteOnlyTransaction transaction = context.Connection.CreateWriteTransaction();
             foreach (string member in stale)
@@ -530,7 +555,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
 
     private Alert? CreateOpenedAlert(ElectStateContext context, string resource, int failures)
     {
-        if (!Alerts.HasSinks) return null;
+        if (!Alerts.HasSinks)
+        {
+            return null;
+        }
 
         return new Alert(
             AlertKind.CircuitOpened,
@@ -618,7 +646,10 @@ public sealed class CircuitBreakerAttribute : JobFilterAttribute, IServerFilter,
     // An open or half-open circuit is kept; a closed one expires a day after its retention.
     private void SetHashExpiration(JobStorageTransaction? transaction, string resource, string state)
     {
-        if (transaction == null) return;
+        if (transaction == null)
+        {
+            return;
+        }
 
         if (state == ClosedState)
         {

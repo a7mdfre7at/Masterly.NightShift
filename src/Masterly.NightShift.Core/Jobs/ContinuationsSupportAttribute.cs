@@ -255,7 +255,10 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         // for and their next state.
         foreach (Continuation continuation in continuations)
         {
-            if (string.IsNullOrWhiteSpace(continuation.JobId)) continue;
+            if (string.IsNullOrWhiteSpace(continuation.JobId))
+            {
+                continue;
+            }
 
             StateData? currentState = GetContinuationState(context, continuation.JobId, ContinuationStateFetchTimeout);
             if (currentState == null)
@@ -265,13 +268,19 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
             // All continuations should be in the awaiting state. If someone changed 
             // the state of a continuation, we should simply skip it.
-            if (currentState.Name != AwaitingState.StateName) continue;
+            if (currentState.Name != AwaitingState.StateName)
+            {
+                continue;
+            }
 
             IState? nextState;
             FanInContinuationsSupportAttribute.Decision decision = Decide(context.CandidateState.Name, continuation.Options, _knownFinalStates);
 
             // A failure or the start of processing leaves the continuations that wait for another outcome waiting
-            if (decision == FanInContinuationsSupportAttribute.Decision.Undecided) continue;
+            if (decision == FanInContinuationsSupportAttribute.Decision.Undecided)
+            {
+                continue;
+            }
 
             if (decision == FanInContinuationsSupportAttribute.Decision.Skip)
             {
@@ -393,7 +402,10 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
     private static bool TryGetFailedException(IDictionary<string, string> data, [NotNullWhen(true)] out string? serialized)
     {
         serialized = null;
-        if (!data.TryGetValue("ExceptionType", out string? type) || string.IsNullOrEmpty(type)) return false;
+        if (!data.TryGetValue("ExceptionType", out string? type) || string.IsNullOrEmpty(type))
+        {
+            return false;
+        }
 
         data.TryGetValue("ExceptionMessage", out string? message);
         serialized = SerializationHelper.Serialize(new ExceptionInfo(type, message, null), SerializationOption.User);
@@ -408,7 +420,10 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
     /// </summary>
     internal static FanInContinuationsSupportAttribute.Decision Decide(string? parentStateName, JobContinuationOptions options, HashSet<string> knownFinalStates)
     {
-        if (parentStateName == null) return FanInContinuationsSupportAttribute.Decision.Undecided;
+        if (parentStateName == null)
+        {
+            return FanInContinuationsSupportAttribute.Decision.Undecided;
+        }
 
         if (ShouldStartContinuation(parentStateName, options, addedLate: false, knownFinalStates))
         {

@@ -57,9 +57,15 @@ internal static class BulkStateChange
             foreach (KeyValuePair<string, bool> item in items)
             {
                 // Seen before: changed by this call, or skipped because it wasn't in the list's state
-                if (!seen.Add(item.Key) || !item.Value) continue;
+                if (!seen.Add(item.Key) || !item.Value)
+                {
+                    continue;
+                }
 
-                if (change(item.Key)) changedOnThisPage++;
+                if (change(item.Key))
+                {
+                    changedOnThisPage++;
+                }
 
                 if (IsOutOfTime(elapsed, timeBudget))
                 {
@@ -69,7 +75,10 @@ internal static class BulkStateChange
             }
 
             processed += changedOnThisPage;
-            if (outOfTime) break;
+            if (outOfTime)
+            {
+                break;
+            }
 
             if (changedOnThisPage > 0)
             {
@@ -109,7 +118,10 @@ internal static class BulkStateChange
 
         for (int i = 0; i < ids.Count; i++)
         {
-            if (change(ids[i])) processed++;
+            if (change(ids[i]))
+            {
+                processed++;
+            }
 
             int done = i + 1;
             if (done < ids.Count && (done >= limit || IsOutOfTime(elapsed, timeBudget)))
@@ -139,7 +151,11 @@ internal static class BulkStateChange
 
         using (IStorageConnection connection = storage.GetReadOnlyConnection())
         {
-            if (connection.GetAllEntriesFromHash(BatchJob.GetHashKey(batchId)) == null) return null;
+            if (connection.GetAllEntriesFromHash(BatchJob.GetHashKey(batchId)) == null)
+            {
+                return null;
+            }
+
             jobIds = BatchJob.GetJobIds(connection, batchId);
         }
 
@@ -164,7 +180,10 @@ internal static class BulkStateChange
             for (int i = 0; i < chunk.Count; i++)
             {
                 KeyValuePair<string, string?>? job = states[i];
-                if (job.HasValue && action(client, job.Value.Key, job.Value.Value)) processed++;
+                if (job.HasValue && action(client, job.Value.Key, job.Value.Value))
+                {
+                    processed++;
+                }
 
                 // Jobs already handled aren't selected again, so another call goes on where this one stopped
                 int done = from + i + 1;

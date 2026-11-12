@@ -30,7 +30,10 @@ internal static class BackgroundJobServerOptionsBinder
     private static void Read<T>(IConfiguration configuration, string key, Func<string, T> parse, Action<T> assign)
     {
         IConfigurationSection section = configuration.GetSection(key);
-        if (string.IsNullOrWhiteSpace(section.Value)) return;
+        if (string.IsNullOrWhiteSpace(section.Value))
+        {
+            return;
+        }
 
         try
         {
@@ -55,7 +58,10 @@ internal static class BackgroundJobServerOptionsBinder
             : section.GetChildren().Select(static child => child.Value);
 
         string[] queues = [.. values.Where(static value => !string.IsNullOrWhiteSpace(value)).Select(static value => value!.Trim())];
-        if (queues.Length == 0) return;
+        if (queues.Length == 0)
+        {
+            return;
+        }
 
         options.Queues = queues;
     }

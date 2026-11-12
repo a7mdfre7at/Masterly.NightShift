@@ -173,10 +173,17 @@ public class SchedulePolicyFacts
             using (IStorageConnection connection = storage.GetConnection())
             {
                 StateData state = connection.GetStateData(jobId);
-                if (state != null && condition(state)) return state;
+                if (state != null && condition(state))
+                {
+                    return state;
+                }
             }
 
-            if (stopwatch.Elapsed > Timeout) throw new TimeoutException($"Job {jobId} didn't reach the expected state.");
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Job {jobId} didn't reach the expected state.");
+            }
+
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
@@ -250,9 +257,16 @@ public class SchedulePolicyFacts
                 value = connection.GetJobParameter(jobId, name);
             }
 
-            if (condition(value)) return;
+            if (condition(value))
+            {
+                return;
+            }
 
-            if (stopwatch.Elapsed > Timeout) throw new TimeoutException($"Parameter {name} of job {jobId} is '{value}', not the expected value.");
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Parameter {name} of job {jobId} is '{value}', not the expected value.");
+            }
+
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }

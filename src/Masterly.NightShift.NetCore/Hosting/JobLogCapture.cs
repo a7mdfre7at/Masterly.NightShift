@@ -85,10 +85,16 @@ internal static class JobLogCapture
     [CanBeNull]
     public static IJobFilterProvider? AddTo([CanBeNull] IJobFilterProvider? filterProvider, [NotNull] IServiceProvider services)
     {
-        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is CaptureFilter)) return filterProvider;
+        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is CaptureFilter))
+        {
+            return filterProvider;
+        }
 
         NightShiftJobLogOptions? options = services.GetService<NightShiftJobLogOptions>();
-        if (options == null) return filterProvider;
+        if (options == null)
+        {
+            return filterProvider;
+        }
 
         return new ServerFilterProvider(filterProvider ?? JobFilterProviders.Providers, new CaptureFilter(options));
     }
@@ -120,7 +126,10 @@ internal static class JobLogCapture
 
             CaptureState? state = CurrentState.Value;
             CurrentState.Value = null;
-            if (state == null) return;
+            if (state == null)
+            {
+                return;
+            }
 
             try
             {
@@ -175,7 +184,10 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
     public void Write(JobConsoleLevel level, string category, string message)
     {
         // A line the console's own storage writes log doesn't come back here
-        if (_writing || _completed) return;
+        if (_writing || _completed)
+        {
+            return;
+        }
 
         if (Volatile.Read(ref _lines) >= Options.MaxLinesPerJob)
         {
@@ -185,7 +197,10 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
 
         // A line the redaction leaves out doesn't count against the limit
         string? text = Prepare($"[{ShortCategory(category)}] {message}");
-        if (text == null) return;
+        if (text == null)
+        {
+            return;
+        }
 
         if (Interlocked.Increment(ref _lines) > Options.MaxLinesPerJob)
         {
@@ -199,19 +214,31 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
     /// <summary>Writes a line about the run itself, redacted and cut like the others but not counted.</summary>
     public void WriteLifecycle(JobConsoleLevel level, string message)
     {
-        if (_completed) return;
+        if (_completed)
+        {
+            return;
+        }
 
         // An exception's message can hold what the redaction is there to hide
         string? text = Prepare($"[nightshift] {message}");
-        if (text != null) WriteToConsole(level, text);
+        if (text != null)
+        {
+            WriteToConsole(level, text);
+        }
     }
 
     public void WriteDropped()
     {
-        if (_completed) return;
+        if (_completed)
+        {
+            return;
+        }
 
         int dropped = Volatile.Read(ref _dropped);
-        if (dropped > 0) WriteToConsole(JobConsoleLevel.Warning, $"[nightshift] {dropped} more log lines were left out (MaxLinesPerJob is {Options.MaxLinesPerJob}).");
+        if (dropped > 0)
+        {
+            WriteToConsole(JobConsoleLevel.Warning, $"[nightshift] {dropped} more log lines were left out (MaxLinesPerJob is {Options.MaxLinesPerJob}).");
+        }
     }
 
     private string? Prepare(string text)
@@ -279,10 +306,16 @@ internal sealed class JobConsoleLoggerProvider(NightShiftJobLogOptions options) 
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (!IsEnabled(logLevel) || JobLogCapture.Current is not { } capture) return;
+            if (!IsEnabled(logLevel) || JobLogCapture.Current is not { } capture)
+            {
+                return;
+            }
 
             string message = formatter(state, exception);
-            if (exception != null) message = $"{message} ({exception.GetType().Name}: {exception.Message})";
+            if (exception != null)
+            {
+                message = $"{message} ({exception.GetType().Name}: {exception.Message})";
+            }
 
             capture.Write(ToConsoleLevel(logLevel), category, message);
         }
@@ -327,8 +360,15 @@ internal static class NightShiftCategories
     /// </summary>
     public static bool Contains(string category)
     {
-        if (!category.StartsWith(Prefix, StringComparison.Ordinal)) return false;
-        if (LoggerNames.Contains(category)) return true;
+        if (!category.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (LoggerNames.Contains(category))
+        {
+            return true;
+        }
 
         // The full name of a constructed generic type ends with its arguments
         int arguments = category.IndexOfAny(['[', '<']);
@@ -337,7 +377,10 @@ internal static class NightShiftCategories
         // A type's logger is created by its code, so its assembly is loaded already
         foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
-            if (AssemblyNames.Contains(assembly.GetName().Name ?? string.Empty) && assembly.GetType(typeName, throwOnError: false) != null) return true;
+            if (AssemblyNames.Contains(assembly.GetName().Name ?? string.Empty) && assembly.GetType(typeName, throwOnError: false) != null)
+            {
+                return true;
+            }
         }
 
         return false;

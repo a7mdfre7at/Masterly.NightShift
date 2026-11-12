@@ -34,7 +34,10 @@ public class JobCatalogRunDispatcherFacts : IDisposable
     private DashboardContextStub Context(string method = "POST", bool readOnly = false, (string, string)[] form = null)
     {
         DashboardRequestStub request = new(method);
-        foreach ((string? key, string? value) in form ?? []) request.Form[key] = [value];
+        foreach ((string? key, string? value) in form ?? [])
+        {
+            request.Form[key] = [value];
+        }
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
         {
@@ -307,7 +310,11 @@ public class JobCatalogRunDispatcherFacts : IDisposable
         request.Form["source"] = ["41"];
         foreach ((string? key, string? value) in form)
         {
-            if (!request.Form.TryGetValue(key, out List<string>? values)) request.Form[key] = values = [];
+            if (!request.Form.TryGetValue(key, out List<string>? values))
+            {
+                request.Form[key] = values = [];
+            }
+
             values.Add(value);
         }
 

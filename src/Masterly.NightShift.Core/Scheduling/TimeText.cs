@@ -95,7 +95,10 @@ public static partial class TimeText
         error = null;
 
         string phrase = WhitespaceRegex().Replace(text.Trim(), " ").ToLowerInvariant();
-        if (phrase.Length == 0) return false;
+        if (phrase.Length == 0)
+        {
+            return false;
+        }
 
         if (phrase is "now" or "immediately" or "asap")
         {
@@ -110,10 +113,16 @@ public static partial class TimeText
             string unit = relative.Groups[2].Value;
             double seconds;
 
-            if (unit.StartsWith('s')) seconds = amount;
+            if (unit.StartsWith('s'))
+            {
+                seconds = amount;
+            }
             else if (unit.StartsWith("mo", StringComparison.Ordinal))
             {
-                if (amount > MaxRelativeMonths) return false;
+                if (amount > MaxRelativeMonths)
+                {
+                    return false;
+                }
 
                 // Months differ in length, so "in 1.5 months" has no single answer
                 if (amount != Math.Floor(amount))
@@ -125,12 +134,27 @@ public static partial class TimeText
                 result = AddMonths(utcNow, (int)amount, timeZone);
                 return true;
             }
-            else if (unit.StartsWith('m')) seconds = amount * 60;
-            else if (unit.StartsWith('h')) seconds = amount * 3600;
-            else if (unit.StartsWith('d')) seconds = amount * 86400;
-            else seconds = amount * 7 * 86400;
+            else if (unit.StartsWith('m'))
+            {
+                seconds = amount * 60;
+            }
+            else if (unit.StartsWith('h'))
+            {
+                seconds = amount * 3600;
+            }
+            else if (unit.StartsWith('d'))
+            {
+                seconds = amount * 86400;
+            }
+            else
+            {
+                seconds = amount * 7 * 86400;
+            }
 
-            if (seconds > MaxRelativeDelay.TotalSeconds) return false;
+            if (seconds > MaxRelativeDelay.TotalSeconds)
+            {
+                return false;
+            }
 
             result = utcNow.AddSeconds(seconds);
             return true;
@@ -143,7 +167,10 @@ public static partial class TimeText
             {
                 bool hasZone = phrase.EndsWith('z') || phrase.Contains('+') || phrase.LastIndexOf('-') > 9;
                 result = hasZone ? DateTime.SpecifyKind(absolute, DateTimeKind.Utc) : ToUtc(DateTime.SpecifyKind(absolute, DateTimeKind.Unspecified), timeZone);
-                if (result >= utcNow) return true;
+                if (result >= utcNow)
+                {
+                    return true;
+                }
 
                 error = $"The time '{text}' is in the past.";
                 return false;
@@ -183,7 +210,7 @@ public static partial class TimeText
                 case "noon": case "midday": time = TimeSpan.FromHours(12); bareHour = null; midnight = false; continue;
                 case "midnight": time = TimeSpan.Zero; bareHour = null; midnight = true; continue;
                 case "morning": time ??= TimeSpan.FromHours(9); partOfDay ??= token; continue;
-                case "afternoon": time ??= TimeSpan.FromHours(14); if (partOfDay != "evening") partOfDay = token; continue;
+                case "afternoon": time ??= TimeSpan.FromHours(14); if (partOfDay != "evening") { partOfDay = token; } continue;
                 case "evening": time ??= TimeSpan.FromHours(18); partOfDay = token; continue;
                 case "next": nextWeek = true; continue;
                 case "this":
@@ -228,7 +255,11 @@ public static partial class TimeText
                 // "friday" and "next friday" both mean the coming Friday. Today's name is settled after the loop,
                 // because the time that decides it can come before or after the name
                 int ahead = ((int)day - (int)local.DayOfWeek + 7) % 7;
-                if (ahead == 0 && nextWeek) ahead = 7;
+                if (ahead == 0 && nextWeek)
+                {
+                    ahead = 7;
+                }
+
                 date = local.Date.AddDays(ahead);
                 todayByName = ahead == 0;
                 continue;
@@ -243,15 +274,29 @@ public static partial class TimeText
             }
 
             Match match = TimeOfDayRegex().Match(timeText);
-            if (!match.Success) return false;
+            if (!match.Success)
+            {
+                return false;
+            }
 
             int hour = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             int minute = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 0;
             string meridiem = match.Groups[3].Value;
 
-            if (hour > 23 || minute > 59) return false;
-            if (meridiem == "pm" && hour < 12) hour += 12;
-            if (meridiem == "am" && hour == 12) hour = 0;
+            if (hour > 23 || minute > 59)
+            {
+                return false;
+            }
+
+            if (meridiem == "pm" && hour < 12)
+            {
+                hour += 12;
+            }
+
+            if (meridiem == "am" && hour == 12)
+            {
+                hour = 0;
+            }
 
             time = new TimeSpan(hour, minute, 0);
             midnight = false;
@@ -260,7 +305,10 @@ public static partial class TimeText
             bareHour = meridiem.Length == 0 && hour >= 1 && hour <= 12 && match.Groups[1].Value[0] != '0' ? hour : null;
         }
 
-        if (date == null && time == null) return false;
+        if (date == null && time == null)
+        {
+            return false;
+        }
 
         if (bareHour != null && time != null && partOfDay is "afternoon" or "evening")
         {
@@ -271,8 +319,14 @@ public static partial class TimeText
         // evening, like "12": "tomorrow evening at midnight" is 00:00 the day after tomorrow
         if (midnight)
         {
-            if (partOfDay == "evening") time = TimeSpan.FromHours(24);
-            else date ??= local.Date.AddDays(1);
+            if (partOfDay == "evening")
+            {
+                time = TimeSpan.FromHours(24);
+            }
+            else
+            {
+                date ??= local.Date.AddDays(1);
+            }
         }
 
         // "tonight at 00:00" is the midnight that ends tonight too
@@ -291,7 +345,10 @@ public static partial class TimeText
         DateTime when = (date ?? local.Date) + (time ?? TimeSpan.FromHours(9));
 
         // "at 15:00" with no date means the next 15:00
-        if (date == null && when <= local) when = when.AddDays(1);
+        if (date == null && when <= local)
+        {
+            when = when.AddDays(1);
+        }
 
         // A day name without a time that already passed today was pushed a week; a date in the past is an error
         if (when < local.AddSeconds(-1))
@@ -313,7 +370,11 @@ public static partial class TimeText
     /// </summary>
     private static TimeSpan AfterNoon(int hour, string partOfDay, TimeSpan time)
     {
-        if (hour < 12) return time.Add(TimeSpan.FromHours(12));
+        if (hour < 12)
+        {
+            return time.Add(TimeSpan.FromHours(12));
+        }
+
         return partOfDay == "evening" ? time.Add(TimeSpan.FromHours(12)) : time;
     }
 

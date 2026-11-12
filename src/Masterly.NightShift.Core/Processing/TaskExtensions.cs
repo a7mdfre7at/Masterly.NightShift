@@ -159,13 +159,19 @@ internal static class TaskExtensions
 
             // Awaitable type must have a public parameterless GetAwaiter instance method, ...
             MethodInfo? getAwaiter = returnType.GetRuntimeMethod("GetAwaiter", EmptyTypes);
-            if (getAwaiter == null || getAwaiter.IsStatic || !getAwaiter.IsPublic) return null;
+            if (getAwaiter == null || getAwaiter.IsStatic || !getAwaiter.IsPublic)
+            {
+                return null;
+            }
 
             Type awaiterType = getAwaiter.ReturnType;
 
             // ... and also have a public parameterless GetResult instance method
             MethodInfo? getResult = awaiterType.GetRuntimeMethod("GetResult", EmptyTypes);
-            if (getResult == null || getResult.IsStatic || !getResult.IsPublic) return null;
+            if (getResult == null || getResult.IsStatic || !getResult.IsPublic)
+            {
+                return null;
+            }
 
             object? awaiter = getAwaiter.Invoke(obj, null);
             return getResult.Invoke(awaiter, null);

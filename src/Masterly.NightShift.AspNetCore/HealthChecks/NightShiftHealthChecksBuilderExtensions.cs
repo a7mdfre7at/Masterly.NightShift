@@ -37,7 +37,10 @@ public static class NightShiftHealthChecksBuilderExtensions
 
             NightShiftHealthCheckOptions options = new();
             configure?.Invoke(options);
-            if (options.HeartbeatTimeout <= TimeSpan.Zero) throw new ArgumentException("HeartbeatTimeout must be positive.", nameof(configure));
+            if (options.HeartbeatTimeout <= TimeSpan.Zero)
+            {
+                throw new ArgumentException("HeartbeatTimeout must be positive.", nameof(configure));
+            }
 
             if (options.Scope == NightShiftHealthCheckScope.Process)
             {

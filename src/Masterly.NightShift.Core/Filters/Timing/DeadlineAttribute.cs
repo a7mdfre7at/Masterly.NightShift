@@ -32,7 +32,10 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
         ArgumentNullException.ThrowIfNull(timeout);
 
         Timeout = TimeSpan.Parse(timeout, CultureInfo.InvariantCulture);
-        if (Timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeout), "The deadline should be greater than zero.");
+        if (Timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout), "The deadline should be greater than zero.");
+        }
     }
 
     /// <summary>
@@ -64,10 +67,16 @@ public sealed class DeadlineAttribute : JobFilterAttribute, IClientFilter, IElec
     public void OnStateElection(ElectStateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.CandidateState is not SucceededState) return;
+        if (context.CandidateState is not SucceededState)
+        {
+            return;
+        }
 
         DateTime? deadline = ReadDeadline(context.Connection, context.BackgroundJob.Id);
-        if (deadline == null) return;
+        if (deadline == null)
+        {
+            return;
+        }
 
         DateTime now = Clock();
         if (now > deadline.Value)

@@ -135,7 +135,10 @@ internal static class DbCommandExtensions
         parameter.ParameterName = parameterName;
         parameter.DbType = dbType;
 
-        if (size.HasValue) parameter.Size = size.Value;
+        if (size.HasValue)
+        {
+            parameter.Size = size.Value;
+        }
 
         command.Parameters.Add(parameter);
         return parameter;

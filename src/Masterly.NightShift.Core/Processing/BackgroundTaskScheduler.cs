@@ -177,7 +177,10 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
     protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
     {
         // There's no efficient way to dequeue an arbitrary element from concurrent queue.
-        if (taskWasPreviouslyQueued) return false;
+        if (taskWasPreviouslyQueued)
+        {
+            return false;
+        }
 
         // This method can be called from other schedulers that want to get some advice
         // whether or not inline execution of tasks that belongs to the current scheduler.
@@ -185,7 +188,10 @@ public sealed class BackgroundTaskScheduler : TaskScheduler, IDisposable
         // we allow to inline only requests from the current scheduler, i.e. just to save
         // some time, since no queueing will be involved.
 
-        if (!_ourThreadIds.Contains(Environment.CurrentManagedThreadId)) return false;
+        if (!_ourThreadIds.Contains(Environment.CurrentManagedThreadId))
+        {
+            return false;
+        }
 
         return TryExecuteTask(task);
     }

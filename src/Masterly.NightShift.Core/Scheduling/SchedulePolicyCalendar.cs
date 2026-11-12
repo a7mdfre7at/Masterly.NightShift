@@ -84,17 +84,27 @@ internal sealed class SchedulePolicyCalendar
         while (pending.Count > 0)
         {
             string next = pending.Dequeue();
-            if (entries.ContainsKey(next)) continue;
+            if (entries.ContainsKey(next))
+            {
+                continue;
+            }
 
             Entry? entry = Entry.Read(connection, next, timeZoneResolver);
             if (entry == null)
             {
-                if (next == name) return null;
+                if (next == name)
+                {
+                    return null;
+                }
+
                 continue;
             }
 
             entries.Add(next, entry);
-            if (entry.Policy == null) continue;
+            if (entry.Policy == null)
+            {
+                continue;
+            }
 
             foreach (string reference in entry.Policy.Required.Concat(entry.Policy.Excepted))
             {
@@ -173,7 +183,10 @@ internal sealed class SchedulePolicyCalendar
         for (int step = 0; step < MaxSearchSteps && instant <= limit; step++)
         {
             Verdict verdict = Check(Name, instant, [], explain: false);
-            if (verdict.Outcome == Outcome.Allowed) return new SchedulePolicySearchResult(instant, null);
+            if (verdict.Outcome == Outcome.Allowed)
+            {
+                return new SchedulePolicySearchResult(instant, null);
+            }
 
             if (verdict.Outcome == Outcome.Unknown)
             {
@@ -184,11 +197,17 @@ internal sealed class SchedulePolicyCalendar
             foreach (Entry entry in _entries.Values)
             {
                 DateTime? boundary = entry.NextBoundary(instant);
-                if (boundary.HasValue && (!next.HasValue || boundary < next)) next = boundary;
+                if (boundary.HasValue && (!next.HasValue || boundary < next))
+                {
+                    next = boundary;
+                }
             }
 
             // No policy has a rule that changes: nothing is ever allowed
-            if (!next.HasValue) break;
+            if (!next.HasValue)
+            {
+                break;
+            }
 
             instant = next.Value;
         }
@@ -204,7 +223,10 @@ internal sealed class SchedulePolicyCalendar
     internal static bool TryStartProviderWarning(string provider, DateTime now)
     {
         DateTime last = ProviderWarnings.GetOrAdd(provider, DateTime.MinValue);
-        if (last != DateTime.MinValue && now - last < ProviderWarningInterval) return false;
+        if (last != DateTime.MinValue && now - last < ProviderWarningInterval)
+        {
+            return false;
+        }
 
         // Another thread that warned meanwhile wins
         return ProviderWarnings.TryUpdate(provider, now, last);
@@ -215,7 +237,10 @@ internal sealed class SchedulePolicyCalendar
     private Verdict Check(string name, DateTime instant, HashSet<string> visiting, bool explain)
     {
         // A policy that doesn't exist (any more) adds no rule
-        if (!_entries.TryGetValue(name, out Entry? entry)) return Verdict.Allowed;
+        if (!_entries.TryGetValue(name, out Entry? entry))
+        {
+            return Verdict.Allowed;
+        }
 
         if (!visiting.Add(name))
         {
@@ -226,7 +251,10 @@ internal sealed class SchedulePolicyCalendar
         {
             // An entry that failed to read is unknown, and has no references to follow
             Verdict own = entry.CheckOwnRules(instant, explain, this);
-            if (own.Outcome == Outcome.Blocked || entry.Policy is not { } policy) return own;
+            if (own.Outcome == Outcome.Blocked || entry.Policy is not { } policy)
+            {
+                return own;
+            }
 
             Verdict? unknown = own.Outcome == Outcome.Unknown ? own : null;
 
@@ -246,7 +274,10 @@ internal sealed class SchedulePolicyCalendar
 
             foreach (string excepted in policy.Excepted)
             {
-                if (!_entries.ContainsKey(excepted)) continue;
+                if (!_entries.ContainsKey(excepted))
+                {
+                    continue;
+                }
 
                 Verdict exceptedVerdict = Check(excepted, instant, visiting, explain: false);
                 if (exceptedVerdict.Outcome == Outcome.Allowed)
@@ -348,7 +379,10 @@ internal sealed class SchedulePolicyCalendar
         public static Entry? Read(IStorageConnection connection, string name, ITimeZoneResolver timeZoneResolver)
         {
             Dictionary<string, string>? fields = connection.GetAllEntriesFromHash(SchedulePolicies.GetKey(name));
-            if (fields == null || fields.Count == 0) return null;
+            if (fields == null || fields.Count == 0)
+            {
+                return null;
+            }
 
             try
             {
@@ -414,8 +448,15 @@ internal sealed class SchedulePolicyCalendar
             foreach (string providerName in Policy.DateProviders)
             {
                 Verdict provided = calendar.AskProvider(Name, providerName, date, explain);
-                if (provided.Outcome == Outcome.Blocked) return provided;
-                if (provided.Outcome == Outcome.Unknown && result.Outcome == Outcome.Allowed) result = provided;
+                if (provided.Outcome == Outcome.Blocked)
+                {
+                    return provided;
+                }
+
+                if (provided.Outcome == Outcome.Unknown && result.Outcome == Outcome.Allowed)
+                {
+                    result = provided;
+                }
             }
 
             return result;
@@ -424,7 +465,10 @@ internal sealed class SchedulePolicyCalendar
         /// <summary>The first instant after <paramref name="instant"/> at which this policy's rules may change.</summary>
         public DateTime? NextBoundary(DateTime instant)
         {
-            if (TimeZone is not { } timeZone) return null;
+            if (TimeZone is not { } timeZone)
+            {
+                return null;
+            }
 
             DateTime local = TimeZoneInfo.ConvertTimeFromUtc(instant, timeZone);
 
@@ -435,10 +479,16 @@ internal sealed class SchedulePolicyCalendar
                 foreach (TimeSpan time in Boundaries)
                 {
                     DateTime candidate = date + time;
-                    if (candidate <= local) continue;
+                    if (candidate <= local)
+                    {
+                        continue;
+                    }
 
                     DateTime? utc = ToUtcAfter(timeZone, candidate, instant);
-                    if (utc.HasValue) return FirstOffsetChange(timeZone, instant, utc.Value);
+                    if (utc.HasValue)
+                    {
+                        return FirstOffsetChange(timeZone, instant, utc.Value);
+                    }
                 }
             }
 
@@ -450,7 +500,10 @@ internal sealed class SchedulePolicyCalendar
         private static DateTime FirstOffsetChange(TimeZoneInfo timeZone, DateTime after, DateTime boundary)
         {
             TimeSpan offset = timeZone.GetUtcOffset(after);
-            if (timeZone.GetUtcOffset(boundary) == offset) return boundary;
+            if (timeZone.GetUtcOffset(boundary) == offset)
+            {
+                return boundary;
+            }
 
             // The offset at "low" is the one at "after", the one at "high" isn't: the change is in between
             long low = after.Ticks;
@@ -458,8 +511,14 @@ internal sealed class SchedulePolicyCalendar
             while (high - low > 1)
             {
                 long middle = low + ((high - low) / 2);
-                if (timeZone.GetUtcOffset(new DateTime(middle, DateTimeKind.Utc)) == offset) low = middle;
-                else high = middle;
+                if (timeZone.GetUtcOffset(new DateTime(middle, DateTimeKind.Utc)) == offset)
+                {
+                    low = middle;
+                }
+                else
+                {
+                    high = middle;
+                }
             }
 
             return new DateTime(high, DateTimeKind.Utc);
@@ -482,7 +541,10 @@ internal sealed class SchedulePolicyCalendar
                 foreach (TimeSpan offset in timeZone.GetAmbiguousTimeOffsets(unspecified).OrderByDescending(static x => x))
                 {
                     DateTime utc = DateTime.SpecifyKind(unspecified - offset, DateTimeKind.Utc);
-                    if (utc > after) return utc;
+                    if (utc > after)
+                    {
+                        return utc;
+                    }
                 }
 
                 return null;

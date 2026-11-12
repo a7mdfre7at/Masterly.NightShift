@@ -89,7 +89,10 @@ public class BackgroundExecutionFacts
 
         execution.Run((_, _) =>
         {
-            if (++calls == 3) cts.Cancel();
+            if (++calls == 3)
+            {
+                cts.Cancel();
+            }
         }, null);
 
         Assert.Equal(3, calls);

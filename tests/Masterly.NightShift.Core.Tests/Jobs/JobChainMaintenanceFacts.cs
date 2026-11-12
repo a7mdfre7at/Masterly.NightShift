@@ -133,8 +133,15 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     [Fact]
     public void Maintain_IsNotStalled_ByManyOldChainsStillRecorded()
     {
-        for (int i = 0; i < 150; i++) List($"kept-{i:000}", daysAgo: 90, recorded: true);
-        for (int i = 0; i < 30; i++) List($"expired-{i:00}", daysAgo: 60);
+        for (int i = 0; i < 150; i++)
+        {
+            List($"kept-{i:000}", daysAgo: 90, recorded: true);
+        }
+
+        for (int i = 0; i < 30; i++)
+        {
+            List($"expired-{i:00}", daysAgo: 60);
+        }
 
         JobChains.Maintain(_storage.Object, _client.Object, ref _position);
 
@@ -159,7 +166,11 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     [Fact]
     public void Maintain_LooksAtABoundedNumberOfChains_AndGoesOnFromThereTheNextTime()
     {
-        for (int i = 0; i < JobChains.MaxListedPerRun + 200; i++) List($"kept-{i:0000}", daysAgo: 90, recorded: true);
+        for (int i = 0; i < JobChains.MaxListedPerRun + 200; i++)
+        {
+            List($"kept-{i:0000}", daysAgo: 90, recorded: true);
+        }
+
         List("expired", daysAgo: 60);
 
         JobChains.Maintain(_storage.Object, _client.Object, ref _position);
@@ -274,7 +285,11 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
     private List<(double Score, string Value)> Set(string key)
     {
-        if (!_sets.TryGetValue(key, out List<(double Score, string Value)> set)) _sets[key] = set = [];
+        if (!_sets.TryGetValue(key, out List<(double Score, string Value)> set))
+        {
+            _sets[key] = set = [];
+        }
+
         return set;
     }
 
@@ -324,13 +339,24 @@ public sealed class JobChainMaintenanceFacts : IDisposable
                 List<KeyValuePair<string, string>> copy = [.. fields];
                 pending.Add(() =>
                 {
-                    if (!_hashes.TryGetValue(key, out Dictionary<string, string> hash)) _hashes[key] = hash = [];
-                    foreach (KeyValuePair<string, string> field in copy) hash[field.Key] = field.Value;
+                    if (!_hashes.TryGetValue(key, out Dictionary<string, string> hash))
+                    {
+                        _hashes[key] = hash = [];
+                    }
+
+                    foreach (KeyValuePair<string, string> field in copy)
+                    {
+                        hash[field.Key] = field.Value;
+                    }
                 });
             });
         transaction.Setup(x => x.Commit()).Callback(() =>
         {
-            foreach (Action action in pending) action();
+            foreach (Action action in pending)
+            {
+                action();
+            }
+
             pending.Clear();
         });
 

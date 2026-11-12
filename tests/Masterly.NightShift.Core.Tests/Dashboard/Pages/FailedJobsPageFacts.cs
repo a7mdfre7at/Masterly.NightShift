@@ -164,7 +164,11 @@ public class FailedJobsPageFacts
     public void Render_ReadsTheNotes_OfTheFirstHundredRowsOnly()
     {
         Dictionary<string, FailedJobDto> jobs = [];
-        for (int i = 1; i <= 150; i++) jobs.Add(i.ToString(), Failed("InvalidOperationException", "Boom"));
+        for (int i = 1; i <= 150; i++)
+        {
+            jobs.Add(i.ToString(), Failed("InvalidOperationException", "Boom"));
+        }
+
         SetupJobs(jobs);
         _renderer.Request.Query["count"] = "500";
 

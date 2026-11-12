@@ -82,13 +82,22 @@ internal static class JobLoggingScope
         ArgumentNullException.ThrowIfNull(services);
 
         // Options registered as a singleton may be passed to the factory again; one scope per job is enough
-        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is ScopeFilter)) return filterProvider;
+        if (ServerFilterProvider.Adds(filterProvider, static filter => filter is ScopeFilter))
+        {
+            return filterProvider;
+        }
 
         NightShiftJobLoggingOptions? options = services.GetService<NightShiftJobLoggingOptions>();
-        if (options != null && !options.BeginScope) return filterProvider;
+        if (options != null && !options.BeginScope)
+        {
+            return filterProvider;
+        }
 
         ILoggerFactory? loggerFactory = services.GetService<ILoggerFactory>();
-        if (loggerFactory == null) return filterProvider;
+        if (loggerFactory == null)
+        {
+            return filterProvider;
+        }
 
         return new ServerFilterProvider(
             filterProvider ?? JobFilterProviders.Providers,
@@ -141,7 +150,10 @@ internal static class JobLoggingScope
                     : null;
             }
 
-            if (scope == null) return;
+            if (scope == null)
+            {
+                return;
+            }
 
             if (disposeAfterStateChange != null && !disposeAfterStateChange.IsReadOnly)
             {
@@ -184,7 +196,11 @@ internal static class JobLoggingScope
                 StringBuilder text = new();
                 foreach (KeyValuePair<string, object> pair in Values)
                 {
-                    if (text.Length > 0) text.Append(' ');
+                    if (text.Length > 0)
+                    {
+                        text.Append(' ');
+                    }
+
                     text.Append(pair.Key).Append(':').Append(pair.Value);
                 }
 
@@ -225,7 +241,10 @@ internal static class JobLoggingScope
         private T? ReadParameter<T>(string name)
         {
             IReadOnlyDictionary<string, string>? snapshot = _backgroundJob.ParametersSnapshot;
-            if (snapshot == null || !snapshot.TryGetValue(name, out string? value) || value == null) return default;
+            if (snapshot == null || !snapshot.TryGetValue(name, out string? value) || value == null)
+            {
+                return default;
+            }
 
             try
             {

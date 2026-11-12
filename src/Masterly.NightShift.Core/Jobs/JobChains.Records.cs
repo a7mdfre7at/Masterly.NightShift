@@ -21,7 +21,10 @@ public static partial class JobChains
     internal static JobChainInfo? ReadSummary(IStorageConnection connection, string chainId)
     {
         Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetKey(chainId));
-        if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? serializedJobs)) return null;
+        if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? serializedJobs))
+        {
+            return null;
+        }
 
         ChainDefinition dto = SerializationHelper.Deserialize<ChainDefinition>(definition, SerializationOption.Internal)
             ?? throw new FormatException($"The record of chain '{chainId}' is empty.");
@@ -34,7 +37,10 @@ public static partial class JobChains
             for (int i = 0; i < levelDefinition.Steps.Count; i++)
             {
                 string key = Key(level, i);
-                if (!jobs.TryGetValue(key, out string? jobId)) continue;
+                if (!jobs.TryGetValue(key, out string? jobId))
+                {
+                    continue;
+                }
 
                 StepDefinition step = levelDefinition.Steps[i];
                 Job? job = level == 0 ? TryReadJob(step.Job) : null;
@@ -77,11 +83,17 @@ public static partial class JobChains
     /// <summary>When a step reached the Succeeded, Failed or Deleted state it is in, or <c>null</c> when its state doesn't say.</summary>
     private static DateTime? ReadFinishedAt(StateData? state)
     {
-        if (state?.Data == null) return null;
+        if (state?.Data == null)
+        {
+            return null;
+        }
 
         foreach (string field in FinishedAtFields)
         {
-            if (!state.Data.TryGetValue(field, out string? value)) continue;
+            if (!state.Data.TryGetValue(field, out string? value))
+            {
+                continue;
+            }
 
             try
             {
@@ -108,7 +120,10 @@ public static partial class JobChains
             ? storageConnection.GetValueFromHash(key, JobsField)
             : connection.GetAllEntriesFromHash(key)?.GetValueOrDefault(JobsField);
 
-        if (serialized == null) return (false, null);
+        if (serialized == null)
+        {
+            return (false, null);
+        }
 
         Dictionary<string, string>? jobs = SerializationHelper.Deserialize<Dictionary<string, string>>(serialized, SerializationOption.Internal);
         return (true, jobs?.GetValueOrDefault(stepKey));
@@ -139,7 +154,10 @@ public static partial class JobChains
         public static ChainRecord? Read(IStorageConnection connection, string chainId)
         {
             Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetKey(chainId));
-            if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? jobs)) return null;
+            if (hash == null || !hash.TryGetValue(DefinitionField, out string? definition) || !hash.TryGetValue(JobsField, out string? jobs))
+            {
+                return null;
+            }
 
             ChainDefinition dto = SerializationHelper.Deserialize<ChainDefinition>(definition, SerializationOption.Internal)
                 ?? throw new FormatException($"The record of chain '{chainId}' is empty.");
@@ -172,7 +190,10 @@ public static partial class JobChains
             if (expires && Generation > 1 && connection is JobStorageConnection storageConnection)
             {
                 DateTime current = now + storageConnection.GetHashTtl(GetKey(ChainId));
-                if (current > expireAt) expireAt = current;
+                if (current > expireAt)
+                {
+                    expireAt = current;
+                }
             }
 
             using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
@@ -200,7 +221,10 @@ public static partial class JobChains
 
             transaction.Commit();
 
-            if (expiring != null) RememberExpiry(ChainId, expireAt);
+            if (expiring != null)
+            {
+                RememberExpiry(ChainId, expireAt);
+            }
         }
 
         public JobChainResult ToResult() => new(ChainId, Jobs[Key(0, 0)], Jobs);
@@ -213,7 +237,10 @@ public static partial class JobChains
                 for (int i = 0; i < Levels[level].Steps.Count; i++)
                 {
                     string key = Key(level, i);
-                    if (!Jobs.TryGetValue(key, out string? jobId)) continue;
+                    if (!Jobs.TryGetValue(key, out string? jobId))
+                    {
+                        continue;
+                    }
 
                     ChainStep step = Levels[level].Steps[i];
                     StateData? state = connection.GetStateData(jobId);
@@ -260,7 +287,10 @@ public static partial class JobChains
 
         public static ChainCleanup? Parse(string? serialized)
         {
-            if (string.IsNullOrEmpty(serialized)) return null;
+            if (string.IsNullOrEmpty(serialized))
+            {
+                return null;
+            }
 
             ChainCleanup? cleanup = SerializationHelper.Deserialize<ChainCleanup>(serialized, SerializationOption.Internal);
             return cleanup == null || cleanup.IsEmpty ? null : cleanup;
@@ -300,7 +330,10 @@ public static partial class JobChains
 
         public List<ChainLevel> ToLevels()
         {
-            if (Levels.Count == 0 || Levels[0].Steps.Count != 1) throw new FormatException("A chain definition starts with a single step.");
+            if (Levels.Count == 0 || Levels[0].Steps.Count != 1)
+            {
+                throw new FormatException("A chain definition starts with a single step.");
+            }
 
             return [.. Levels.Select(static level => new ChainLevel(
                 level.Parent,

@@ -126,7 +126,10 @@ public class BackgroundJobFactory : IBackgroundJobFactory
                 {
                     for (int j = i - 1; j >= 0; j--)
                     {
-                        if (!entries[j].Finished) FinishWithException(entries[j], failure);
+                        if (!entries[j].Finished)
+                        {
+                            FinishWithException(entries[j], failure);
+                        }
                     }
                 }
             }
@@ -158,7 +161,11 @@ public class BackgroundJobFactory : IBackgroundJobFactory
                     rethrow |= FinishWithException(entry, ex) != null;
                 }
 
-                if (rethrow) throw;
+                if (rethrow)
+                {
+                    throw;
+                }
+
                 pending.Clear();
             }
 

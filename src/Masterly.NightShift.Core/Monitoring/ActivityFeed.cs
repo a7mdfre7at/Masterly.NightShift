@@ -78,9 +78,15 @@ public static class ActivityFeed
     public static IReadOnlyList<ActivityEntry> Read([NotNull] IStorageConnection connection, int count)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
 
-        if (connection is not JobStorageConnection storageConnection) return [];
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return [];
+        }
 
         List<string> items;
         try
@@ -107,7 +113,10 @@ public static class ActivityFeed
                 continue;
             }
 
-            if (entry != null) result.Add(entry);
+            if (entry != null)
+            {
+                result.Add(entry);
+            }
         }
 
         return result;
@@ -165,7 +174,10 @@ public sealed class ActivityFeedFilter : JobFilterAttribute, IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(transaction);
-        if (!ActivityFeed.Enabled) return;
+        if (!ActivityFeed.Enabled)
+        {
+            return;
+        }
 
         ActivityEntry entry = ActivityFeed.Create(context.BackgroundJob, context.NewState, context.OldStateName);
         JobStorage storage = context.Storage;

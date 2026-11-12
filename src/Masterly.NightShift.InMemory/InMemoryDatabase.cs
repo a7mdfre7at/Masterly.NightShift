@@ -87,7 +87,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_sets.TryGetValue(key, out SetEntry? set)) return [];
+            if (!_sets.TryGetValue(key, out SetEntry? set))
+            {
+                return [];
+            }
 
             return [.. set.Ordered
                 .GetViewBetween((fromScore, string.Empty), (toScore, SetEntry.AfterEveryValue))
@@ -111,8 +114,15 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             long total = 0;
             foreach (string key in keys.Distinct(StringComparer.Ordinal))
             {
-                if (_sets.TryGetValue(key, out SetEntry? set)) total += set.Scores.Count;
-                if (total >= limit) return limit;
+                if (_sets.TryGetValue(key, out SetEntry? set))
+                {
+                    total += set.Scores.Count;
+                }
+
+                if (total >= limit)
+                {
+                    return limit;
+                }
             }
 
             return total;
@@ -131,7 +141,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_sets.TryGetValue(key, out SetEntry? set)) return [];
+            if (!_sets.TryGetValue(key, out SetEntry? set))
+            {
+                return [];
+            }
+
             (int skip, int take) = Range(startingFrom, endingAt);
             return [.. set.Ordered.Skip(skip).Take(take).Select(static x => x.Value)];
         }
@@ -209,7 +223,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_lists.TryGetValue(key, out ListEntry? list)) return [];
+            if (!_lists.TryGetValue(key, out ListEntry? list))
+            {
+                return [];
+            }
+
             (int skip, int take) = Range(startingFrom, endingAt);
             return [.. list.Items.Skip(skip).Take(take)];
         }
@@ -240,7 +258,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             Dictionary<string, long> result = new(StringComparer.Ordinal);
             foreach (string key in keys)
             {
-                if (_counters.TryGetValue(key, out CounterEntry? counter)) result[key] = counter.Value;
+                if (_counters.TryGetValue(key, out CounterEntry? counter))
+                {
+                    result[key] = counter.Value;
+                }
             }
 
             return result;
@@ -269,7 +290,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_servers.TryGetValue(serverId, out ServerEntry? server)) return false;
+            if (!_servers.TryGetValue(serverId, out ServerEntry? server))
+            {
+                return false;
+            }
+
             _servers[serverId] = server with { LastHeartbeat = JobClock.UtcNow };
             return true;
         }
@@ -326,7 +351,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
                 foreach (string queue in queues)
                 {
-                    if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries)) continue;
+                    if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries))
+                    {
+                        continue;
+                    }
 
                     foreach (QueueEntry entry in entries.Values)
                     {
@@ -388,7 +416,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries)) return [];
+            if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries))
+            {
+                return [];
+            }
+
             return [.. entries.Values.Where(x => (x.FetchedAt != null) == fetched).Skip(from).Take(count).Select(static x => x.JobId)];
         }
     }
@@ -397,7 +429,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries)) return (0, 0);
+            if (!_queues.TryGetValue(queue, out SortedDictionary<long, QueueEntry>? entries))
+            {
+                return (0, 0);
+            }
+
             long fetched = entries.Values.Count(static x => x.FetchedAt != null);
             return (entries.Count - fetched, fetched);
         }
@@ -417,7 +453,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_jobsByState.TryGetValue(stateName, out SortedSet<long>? ids)) return [];
+            if (!_jobsByState.TryGetValue(stateName, out SortedSet<long>? ids))
+            {
+                return [];
+            }
+
             IEnumerable<long> ordered = descending ? ids.Reverse() : ids;
             return [.. ordered.Skip(from).Take(count).Select(id => _jobs[id].Copy(withHistory: false))];
         }
@@ -453,7 +493,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 ApplyOne(operation);
             }
 
-            if (enqueued) Signal();
+            if (enqueued)
+            {
+                Signal();
+            }
         }
     }
 
@@ -527,7 +570,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     {
         lock (_lock)
         {
-            if (!_leases.TryGetValue(resource, out (string Owner, DateTime ExpireAt) lease) || lease.Owner != owner) return false;
+            if (!_leases.TryGetValue(resource, out (string Owner, DateTime ExpireAt) lease) || lease.Owner != owner)
+            {
+                return false;
+            }
+
             _leases[resource] = (owner, expireAt);
             return true;
         }
@@ -562,7 +609,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                     job.History.Add(add.State);
                     if (add.SetCurrent)
                     {
-                        if (job.Job.StateName != null) Unindex(job.Job.StateName, job.Job.Id);
+                        if (job.Job.StateName != null)
+                        {
+                            Unindex(job.Job.StateName, job.Job.Id);
+                        }
+
                         job.Job.StateName = add.State.Name;
                         job.Job.State = add.State;
                         Index(add.State.Name, job.Job.Id);
@@ -626,7 +677,11 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
             case AddRangeToSetOperation range:
                 SetEntry rangeSet = GetOrAddSet(range.Key);
-                foreach (string value in range.Values) rangeSet.Add(value, 0.0);
+                foreach (string value in range.Values)
+                {
+                    rangeSet.Add(value, 0.0);
+                }
+
                 break;
 
             case RemoveFromSetOperation remove:
@@ -654,7 +709,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                 if (_lists.TryGetValue(removeFromList.Key, out ListEntry? fromList))
                 {
                     fromList.Items.RemoveAll(x => x == removeFromList.Value);
-                    if (fromList.Items.Count == 0) _lists.Remove(removeFromList.Key);
+                    if (fromList.Items.Count == 0)
+                    {
+                        _lists.Remove(removeFromList.Key);
+                    }
                 }
 
                 break;
@@ -665,7 +723,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
                     List<string> kept = [.. trimmed.Items.Where((_, index) => index >= trim.KeepStartingFrom && index <= trim.KeepEndingAt)];
                     trimmed.Items.Clear();
                     trimmed.Items.AddRange(kept);
-                    if (kept.Count == 0) _lists.Remove(trim.Key);
+                    if (kept.Count == 0)
+                    {
+                        _lists.Remove(trim.Key);
+                    }
                 }
 
                 break;
@@ -712,7 +773,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
             hash.Fields[field.Key] = field.Value;
         }
 
-        if (hash.Fields.Count > 0) _hashes[key] = hash;
+        if (hash.Fields.Count > 0)
+        {
+            _hashes[key] = hash;
+        }
     }
 
     private SetEntry GetOrAddSet(string key)
@@ -727,9 +791,20 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     private void RemoveJob(long id)
     {
-        if (!_jobs.Remove(id, out JobEntry? entry)) return;
-        if (entry.Job.StateName != null) Unindex(entry.Job.StateName, id);
-        if (!_queueEntriesByJob.Remove(id, out List<(string Queue, long EntryId)>? queuedAt)) return;
+        if (!_jobs.Remove(id, out JobEntry? entry))
+        {
+            return;
+        }
+
+        if (entry.Job.StateName != null)
+        {
+            Unindex(entry.Job.StateName, id);
+        }
+
+        if (!_queueEntriesByJob.Remove(id, out List<(string Queue, long EntryId)>? queuedAt))
+        {
+            return;
+        }
 
         foreach ((string queue, long entryId) in queuedAt)
         {
@@ -742,13 +817,23 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     private void RemoveQueueEntry(string queue, SortedDictionary<long, QueueEntry> entries, long entryId)
     {
-        if (!entries.Remove(entryId, out QueueEntry? removed)) return;
-        if (entries.Count == 0) _queues.Remove(queue);
+        if (!entries.Remove(entryId, out QueueEntry? removed))
+        {
+            return;
+        }
+
+        if (entries.Count == 0)
+        {
+            _queues.Remove(queue);
+        }
 
         if (_queueEntriesByJob.TryGetValue(removed.JobId, out List<(string Queue, long EntryId)>? queuedAt))
         {
             queuedAt.Remove((queue, entryId));
-            if (queuedAt.Count == 0) _queueEntriesByJob.Remove(removed.JobId);
+            if (queuedAt.Count == 0)
+            {
+                _queueEntriesByJob.Remove(removed.JobId);
+            }
         }
     }
 
@@ -771,7 +856,10 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
     /// <summary>Finds a job a write targets; a write to a job that doesn't exist (any more) does nothing, as on SQL Server.</summary>
     private JobEntry? FindJob(long id, string write)
     {
-        if (_jobs.TryGetValue(id, out JobEntry? job)) return job;
+        if (_jobs.TryGetValue(id, out JobEntry? job))
+        {
+            return job;
+        }
 
         Logger.Debug($"Ignored {write} of job #{id}: the job doesn't exist, or it expired.");
         return null;
@@ -813,12 +901,19 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
     private void SweepIfDue()
     {
-        if (JobClock.UtcNow >= _nextSweep) RemoveExpired();
+        if (JobClock.UtcNow >= _nextSweep)
+        {
+            RemoveExpired();
+        }
     }
 
     private DateTime CapExpiration(DateTime expireAt)
     {
-        if (!options.MaxExpirationTime.HasValue) return expireAt;
+        if (!options.MaxExpirationTime.HasValue)
+        {
+            return expireAt;
+        }
+
         DateTime cap = StorageValues.ExpireAt(JobClock.UtcNow, options.MaxExpirationTime.Value);
         return expireAt < cap ? expireAt : cap;
     }
@@ -866,9 +961,21 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
         public SortedSet<(double Score, string Value)> Ordered { get; } = new(Comparer<(double Score, string Value)>.Create(static (x, y) =>
         {
             int byScore = x.Score.CompareTo(y.Score);
-            if (byScore != 0 || ReferenceEquals(x.Value, y.Value)) return byScore;
-            if (ReferenceEquals(x.Value, AfterEveryValue)) return 1;
-            if (ReferenceEquals(y.Value, AfterEveryValue)) return -1;
+            if (byScore != 0 || ReferenceEquals(x.Value, y.Value))
+            {
+                return byScore;
+            }
+
+            if (ReferenceEquals(x.Value, AfterEveryValue))
+            {
+                return 1;
+            }
+
+            if (ReferenceEquals(y.Value, AfterEveryValue))
+            {
+                return -1;
+            }
+
             return string.CompareOrdinal(x.Value, y.Value);
         }));
 
@@ -876,14 +983,22 @@ internal sealed class InMemoryDatabase(InMemoryStorageOptions options) : ILeaseS
 
         public void Add(string value, double score)
         {
-            if (Scores.TryGetValue(value, out double old)) Ordered.Remove((old, value));
+            if (Scores.TryGetValue(value, out double old))
+            {
+                Ordered.Remove((old, value));
+            }
+
             Scores[value] = score;
             Ordered.Add((score, value));
         }
 
         public bool Remove(string value)
         {
-            if (!Scores.Remove(value, out double old)) return false;
+            if (!Scores.Remove(value, out double old))
+            {
+                return false;
+            }
+
             Ordered.Remove((old, value));
             return true;
         }

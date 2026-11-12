@@ -104,7 +104,10 @@ internal static class DashboardHealth
     public static IReadOnlyList<string> GetStalePausedServers(DrainModeStatus drain, IEnumerable<ServerDto>? servers)
     {
         ArgumentNullException.ThrowIfNull(drain);
-        if (drain.PausedServers.Count == 0) return [];
+        if (drain.PausedServers.Count == 0)
+        {
+            return [];
+        }
 
         HashSet<string> registered = new((servers ?? []).Select(static s => s.Name), StringComparer.OrdinalIgnoreCase);
         return [.. drain.PausedServers.Keys.Where(id => !registered.Contains(id)).OrderBy(static id => id, StringComparer.Ordinal)];
@@ -195,8 +198,16 @@ internal static class DashboardHealth
             else if (drain.PausedQueues.Count > 0 || pausedServers.Count > 0)
             {
                 List<string> parts = [];
-                if (drain.PausedQueues.Count > 0) parts.Add($"queues paused: {string.Join(", ", drain.PausedQueues.Keys.OrderBy(static q => q, StringComparer.Ordinal))}");
-                if (pausedServers.Count > 0) parts.Add($"servers paused: {string.Join(", ", pausedServers)}");
+                if (drain.PausedQueues.Count > 0)
+                {
+                    parts.Add($"queues paused: {string.Join(", ", drain.PausedQueues.Keys.OrderBy(static q => q, StringComparer.Ordinal))}");
+                }
+
+                if (pausedServers.Count > 0)
+                {
+                    parts.Add($"servers paused: {string.Join(", ", pausedServers)}");
+                }
+
                 checks.Add(new HealthCheck("processing", HealthStatus.Degraded, string.Join("; ", parts)));
             }
             else
@@ -267,7 +278,10 @@ internal static class DashboardHealth
             List<string> disabled = [];
             foreach (string id in storageConnection.GetFirstByLowestScoreFromSet(RecurringJobsSetKey, -1, -1, MaxRecurringCandidates) ?? [])
             {
-                if (!string.IsNullOrWhiteSpace(storageConnection.GetValueFromHash($"recurring-job:{id}", "Error"))) disabled.Add(id);
+                if (!string.IsNullOrWhiteSpace(storageConnection.GetValueFromHash($"recurring-job:{id}", "Error")))
+                {
+                    disabled.Add(id);
+                }
             }
 
             long total = statistics?.Recurring ?? storageConnection.GetSetCount(RecurringJobsSetKey);

@@ -219,7 +219,10 @@ public static class StorageConnectionExtensions
     // A damaged value reads as no value here: the list must still show the job, and the scheduler reports it
     private static DateTime? GetWindowValue(Dictionary<string, string> hash, string field)
     {
-        if (!hash.TryGetValue(field, out string? value) || string.IsNullOrWhiteSpace(value)) return null;
+        if (!hash.TryGetValue(field, out string? value) || string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
 
         try
         {

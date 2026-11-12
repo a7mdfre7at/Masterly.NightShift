@@ -131,7 +131,10 @@ public static class SerializationHelper
     [return: NotNullIfNotNull(nameof(value))]
     public static string? Serialize([CanBeNull] object? value, [CanBeNull] Type? type, SerializationOption option)
     {
-        if (value == null) return null;
+        if (value == null)
+        {
+            return null;
+        }
 
         JsonSerializerOptions options = GlobalConfiguration.HasCompatibilityLevel(CompatibilityLevel.Version_170)
             ? GetSerializerOptions(option)
@@ -185,7 +188,11 @@ public static class SerializationHelper
     /// </summary>
     internal static string? SerializeInternal([CanBeNull] object? value)
     {
-        if (value == null) return null;
+        if (value == null)
+        {
+            return null;
+        }
+
         return SerializeWith(value, value.GetType(), SerializationOption.Internal, InternalSerializerOptions.Value);
     }
 
@@ -220,7 +227,10 @@ public static class SerializationHelper
         ArgumentNullException.ThrowIfNull(type);
 
         // An empty value means no value, as it did before
-        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
 
         Exception? exception = null;
 
@@ -255,7 +265,11 @@ public static class SerializationHelper
     /// </summary>
     public static T? Deserialize<T>([CanBeNull] string? value)
     {
-        if (value == null) return default;
+        if (value == null)
+        {
+            return default;
+        }
+
         return Deserialize<T>(value, SerializationOption.Internal);
     }
 
@@ -267,7 +281,11 @@ public static class SerializationHelper
     /// </summary>
     public static T? Deserialize<T>([CanBeNull] string? value, SerializationOption option)
     {
-        if (value == null) return default;
+        if (value == null)
+        {
+            return default;
+        }
+
         object? result = Deserialize(value, typeof(T), option);
         return result == null ? default : (T)result;
     }
@@ -284,7 +302,10 @@ public static class SerializationHelper
     internal static object? DeserializeInput([CanBeNull] string? value, [NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
 
         return GetUserSerializerOptions().DeserializeInput(value, type);
     }
@@ -296,7 +317,10 @@ public static class SerializationHelper
     internal static string? SerializeInput([CanBeNull] object? value, [NotNull] Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
-        if (value == null) return null;
+        if (value == null)
+        {
+            return null;
+        }
 
         return SerializeWith(value, type, SerializationOption.User, GetUserSerializerOptions().InputWriting);
     }
@@ -343,7 +367,10 @@ public static class SerializationHelper
 
         foreach (JsonConverter converter in CreateCompatibilityConverters(typeNames))
         {
-            if (options.ReferenceHandler != null && converter is LegacyTypedArrayConverterFactory) continue;
+            if (options.ReferenceHandler != null && converter is LegacyTypedArrayConverterFactory)
+            {
+                continue;
+            }
 
             bool exists = false;
             foreach (JsonConverter existing in copy.Converters)
@@ -351,7 +378,10 @@ public static class SerializationHelper
                 if (existing.GetType() == converter.GetType()) { exists = true; break; }
             }
 
-            if (!exists) copy.Converters.Add(converter);
+            if (!exists)
+            {
+                copy.Converters.Add(converter);
+            }
         }
 
         return copy;
@@ -425,11 +455,17 @@ public static class SerializationHelper
         }
 
         // Declared as object: the object converter decides, writing "$type" when the options keep type names
-        if (type == typeof(object)) return type;
+        if (type == typeof(object))
+        {
+            return type;
+        }
 
         // Polymorphism configured for the declared type ([JsonPolymorphic], [JsonDerivedType]): System.Text.Json
         // writes its own type discriminator, but only when the value is written as the declared type
-        if (abstractTypeInfo?.PolymorphismOptions != null) return type;
+        if (abstractTypeInfo?.PolymorphismOptions != null)
+        {
+            return type;
+        }
 
         // Like the previous serializer, write every member of the actual object, not only the declared ones
         return value.GetType();
@@ -437,7 +473,10 @@ public static class SerializationHelper
 
     private static object? DeserializeWith(string value, Type type, JsonSerializerOptions options)
     {
-        if (NeedsTypeName(GetAbstractTypeInfo(type, options))) return DeserializeTypeNamed(value, type, options);
+        if (NeedsTypeName(GetAbstractTypeInfo(type, options)))
+        {
+            return DeserializeTypeNamed(value, type, options);
+        }
 
         // A collection the previous serializer stored with its type name, in the value or in its items. With a
         // reference handler, "$id", "$ref" and "$values" are System.Text.Json's own, and it reads them itself
@@ -463,7 +502,11 @@ public static class SerializationHelper
         using JsonDocument document = JsonDocument.Parse(value, documentOptions);
         JsonElement root = document.RootElement;
 
-        if (root.ValueKind == JsonValueKind.Null) return null;
+        if (root.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
         if (!TypeNamedJson.TryGetTypeName(root, out string? typeName))
         {
             throw new JsonException(
@@ -478,7 +521,10 @@ public static class SerializationHelper
     /// </summary>
     private static JsonTypeInfo? GetAbstractTypeInfo(Type type, JsonSerializerOptions options)
     {
-        if (type == null || !(type.IsInterface || type.IsAbstract)) return null;
+        if (type == null || !(type.IsInterface || type.IsAbstract))
+        {
+            return null;
+        }
 
         try
         {
@@ -650,7 +696,10 @@ public static class SerializationHelper
                 }
             }
 
-            if (!replaced) copy.Converters.Add(converter);
+            if (!replaced)
+            {
+                copy.Converters.Add(converter);
+            }
 
             // First, so that it wins over any converter for Type, the user's own included
             copy.Converters.Insert(0, new RefusedTypeInputJsonConverter());

@@ -20,7 +20,10 @@ internal sealed class SqliteDatabase : IDisposable
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();
-        if (File.Exists(Path)) File.Delete(Path);
+        if (File.Exists(Path))
+        {
+            File.Delete(Path);
+        }
     }
 }
 

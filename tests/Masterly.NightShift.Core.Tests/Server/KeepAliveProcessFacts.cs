@@ -276,7 +276,11 @@ public class KeepAliveProcessFacts
         {
             LastRequest = request;
             cancellationToken.ThrowIfCancellationRequested();
-            if (_exception != null) throw _exception;
+            if (_exception != null)
+            {
+                throw _exception;
+            }
+
             return Task.FromResult(new HttpResponseMessage(_statusCode) { ReasonPhrase = _statusCode.ToString() });
         }
     }

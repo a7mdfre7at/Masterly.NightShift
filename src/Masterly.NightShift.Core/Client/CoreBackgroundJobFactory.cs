@@ -80,7 +80,10 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
         ArgumentNullException.ThrowIfNull(contexts);
 
         BackgroundJob?[] result = new BackgroundJob?[contexts.Count];
-        if (result.Length == 0) return result;
+        if (result.Length == 0)
+        {
+            return result;
+        }
 
         Job[] jobs = new Job[result.Length];
         Dictionary<string, string?>[] parameters = new Dictionary<string, string?>[result.Length];
@@ -118,13 +121,19 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                 afterCommit[i] = new PostCommitActions();
 
                 string? jobId = ids[i];
-                if (string.IsNullOrEmpty(jobId)) continue;
+                if (string.IsNullOrEmpty(jobId))
+                {
+                    continue;
+                }
 
                 CreateContext context = contexts[i];
                 BackgroundJob backgroundJob = new(jobId, context.Job, createdAt, parameters[i]!); // A parameter set to null reads back as null
                 result[i] = backgroundJob;
 
-                if (context.InitialState == null) continue;
+                if (context.InitialState == null)
+                {
+                    continue;
+                }
 
                 ApplyStateContext applyContext = new(
                     context.Storage,
@@ -248,7 +257,10 @@ internal sealed class CoreBackgroundJobFactory : IBackgroundJobFactory
                     // when its state is null, and since we shouldn't do anything when it's non-null,
                     // there will be no any race conditions.
                     JobData data = ctx.Context.Connection.GetJobData(ctx.BackgroundJob.Id) ?? throw new InvalidOperationException($"Was unable to initialize a background job '{ctx.BackgroundJob.Id}', because it doesn't exist.");
-                    if (!string.IsNullOrEmpty(data.State)) return;
+                    if (!string.IsNullOrEmpty(data.State))
+                    {
+                        return;
+                    }
                 }
 
                 // Work that waits for the commit, such as an activity feed entry, runs only once it succeeded

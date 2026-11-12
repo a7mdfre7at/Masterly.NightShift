@@ -187,7 +187,10 @@ internal static partial class TypeExtensions
             if (parameterType.IsArray)
             {
                 // Return false if parameterType is array whereas actualType isn't
-                if (!actualType.IsArray) return false;
+                if (!actualType.IsArray)
+                {
+                    return false;
+                }
 
                 Type? parameterElementType = parameterType.GetElementType();
                 Type? actualElementType = actualType.GetElementType();

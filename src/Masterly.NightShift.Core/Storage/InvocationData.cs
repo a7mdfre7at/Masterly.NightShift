@@ -267,7 +267,10 @@ public class InvocationData(string type, string method, string? parameterTypes, 
 
     internal static object[] DeserializeArguments(MethodInfo methodInfo, string[]? arguments)
     {
-        if (arguments == null) return [];
+        if (arguments == null)
+        {
+            return [];
+        }
 
         ParameterInfo[] parameters = methodInfo.GetParameters();
         List<object> result = new(arguments.Length);

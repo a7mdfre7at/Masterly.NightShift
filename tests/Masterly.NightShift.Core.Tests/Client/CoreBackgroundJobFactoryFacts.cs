@@ -453,7 +453,10 @@ public class CoreBackgroundJobFactoryFacts
     private CoreBackgroundJobFactory CreateFactory(int? retries = null)
     {
         CoreBackgroundJobFactory factory = new(_stateMachine.Object);
-        if (retries.HasValue) factory.RetryAttempts = retries.Value;
+        if (retries.HasValue)
+        {
+            factory.RetryAttempts = retries.Value;
+        }
 
         return factory;
     }

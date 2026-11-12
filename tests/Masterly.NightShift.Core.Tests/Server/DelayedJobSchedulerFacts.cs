@@ -42,7 +42,10 @@ public class DelayedJobSchedulerFacts
             .Setup(x => x.ChangeState(It.IsNotNull<StateChangeContext>()))
             .Callback<StateChangeContext>(ctx =>
             {
-                if (ctx.NewState is not ScheduledState) _schedule.Remove(ctx.BackgroundJobId);
+                if (ctx.NewState is not ScheduledState)
+                {
+                    _schedule.Remove(ctx.BackgroundJobId);
+                }
             });
 
         _transaction
@@ -190,7 +193,11 @@ public class DelayedJobSchedulerFacts
     [InlineData(false), InlineData(true)]
     public void Execute_DoesNotCallStateChanger_IfThereAreNoJobsToEnqueue(bool batching)
     {
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
@@ -204,7 +211,11 @@ public class DelayedJobSchedulerFacts
     [InlineData(false), InlineData(true)]
     public void Execute_RemovesAJobIdentifierFromTheSet_WhenStateChangeFails(bool batching)
     {
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         _stateChanger
             .Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns<IState>(null);
@@ -223,7 +234,10 @@ public class DelayedJobSchedulerFacts
     public void Execute_MovesJobToTheFailedState_WithFiltersDisabled_WhenStateChangerThrowsAnException(bool batching)
     {
         // Arrange
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
 
         _schedule.Add(JobId);
         _stateChanger
@@ -256,7 +270,10 @@ public class DelayedJobSchedulerFacts
     public void Execute_AbleToProcessFurtherJobs_WhenStateChangerThrowsAnException_ForPreviousOnes(bool batching)
     {
         // Arrange
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
 
         _schedule.Add(JobId);
         _schedule.Add("AnotherId");
@@ -280,7 +297,11 @@ public class DelayedJobSchedulerFacts
     [InlineData(false), InlineData(true)]
     public void Execute_ActsWithinADistributedLock(bool batching)
     {
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         DelayedJobScheduler scheduler = CreateScheduler();
 
         scheduler.Execute(_context.Object);
@@ -293,7 +314,11 @@ public class DelayedJobSchedulerFacts
     [InlineData(false), InlineData(true)]
     public void Execute_DoesNotThrowDistributedLockTimeoutException(bool batching)
     {
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         _connection
             .Setup(x => x.AcquireDistributedLock("locks:schedulepoller", It.IsAny<TimeSpan>()))
             .Throws(new DistributedLockTimeoutException("locks:schedulepoller"));
@@ -308,7 +333,11 @@ public class DelayedJobSchedulerFacts
     public void Execute_RemovesJobFromSchedule_WhenIdDoesNotExists(bool batching)
     {
         // Arrange
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         _schedule.Add(JobId);
 
         _connection.Setup(x => x.GetJobData(JobId)).Returns<JobData>(null);
@@ -333,7 +362,11 @@ public class DelayedJobSchedulerFacts
     public void Execute_RemovesJobFromSchedule_WhenJobIsNotInScheduledState(bool batching)
     {
         // Arrange
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         _schedule.Add(JobId);
 
         _connection.Setup(x => x.GetJobData(JobId))
@@ -359,7 +392,11 @@ public class DelayedJobSchedulerFacts
     public void Execute_DoesNotRemoveJobFromSchedule_WhenJobIsInTheScheduledState(bool batching)
     {
         // Arrange
-        if (batching) EnableBatching();
+        if (batching)
+        {
+            EnableBatching();
+        }
+
         _schedule.Add(JobId);
 
         _connection.Setup(x => x.GetJobData(JobId))

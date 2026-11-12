@@ -118,7 +118,10 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added)
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
         }
     }
 
@@ -144,7 +147,10 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added)
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
         }
     }
 
@@ -168,7 +174,10 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added)
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
         }
     }
 
@@ -191,7 +200,10 @@ public class GloabalConfigurationExtensionsFacts
         }
         finally
         {
-            foreach (object filter in added) GlobalJobFilters.Filters.Remove(filter);
+            foreach (object filter in added)
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
         }
     }
 
@@ -218,7 +230,11 @@ public class GloabalConfigurationExtensionsFacts
     public void UseActivityFeed_TurnsTheFeedOn_WithTheFilterRegisteredOnce()
     {
         List<object> removed = [.. GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance)];
-        foreach (object filter in removed) GlobalJobFilters.Filters.Remove(filter);
+        foreach (object filter in removed)
+        {
+            GlobalJobFilters.Filters.Remove(filter);
+        }
+
         ActivityFeed.Enabled = false;
 
         try
@@ -234,8 +250,15 @@ public class GloabalConfigurationExtensionsFacts
         {
             ActivityFeed.Enabled = false;
             ActivityFeed.MaxEntries = 1000;
-            foreach (object? filter in GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance).ToList()) GlobalJobFilters.Filters.Remove(filter);
-            foreach (object filter in removed) GlobalJobFilters.Filters.Add(filter);
+            foreach (object? filter in GlobalJobFilters.Filters.Where(x => x.Instance is ActivityFeedFilter).Select(x => x.Instance).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+
+            foreach (object filter in removed)
+            {
+                GlobalJobFilters.Filters.Add(filter);
+            }
         }
     }
 

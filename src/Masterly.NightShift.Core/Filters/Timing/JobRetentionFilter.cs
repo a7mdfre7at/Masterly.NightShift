@@ -31,7 +31,11 @@ public sealed class JobRetentionOptions
         get;
         set
         {
-            if (value.HasValue) FailedJobRetentionFilter.Validate(value.Value, nameof(value));
+            if (value.HasValue)
+            {
+                FailedJobRetentionFilter.Validate(value.Value, nameof(value));
+            }
+
             field = value;
         }
     }

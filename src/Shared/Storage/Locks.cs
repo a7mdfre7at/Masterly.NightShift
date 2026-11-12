@@ -173,13 +173,20 @@ internal sealed class LeaseLock : IDisposable
         // lock disposed when it comes back, and no tick begins one after.
         lock (_syncRoot)
         {
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
             lost = _lost;
             _renewal.Dispose();
         }
 
-        if (lost) return;
+        if (lost)
+        {
+            return;
+        }
 
         try
         {
@@ -197,7 +204,11 @@ internal sealed class LeaseLock : IDisposable
         lock (_syncRoot)
         {
             // A renewal slower than the timer's period isn't joined by a second one: a later tick tries again
-            if (_disposed || _lost || _renewing) return;
+            if (_disposed || _lost || _renewing)
+            {
+                return;
+            }
+
             _renewing = true;
         }
 
@@ -219,7 +230,10 @@ internal sealed class LeaseLock : IDisposable
 
             // Disposed meanwhile: the lease was released, so a renewal that didn't find it says nothing about
             // another owner, and one that failed no longer matters
-            if (_disposed) return;
+            if (_disposed)
+            {
+                return;
+            }
 
             if (failure != null)
             {

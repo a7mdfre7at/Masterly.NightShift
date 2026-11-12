@@ -189,7 +189,10 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
 
         _processingServer.SendStop();
         await _processingServer.WaitForShutdownAsync(CancellationToken.None).ConfigureAwait(false);

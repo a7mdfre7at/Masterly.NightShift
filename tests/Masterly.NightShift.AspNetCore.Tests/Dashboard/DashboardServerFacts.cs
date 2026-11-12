@@ -120,8 +120,15 @@ public class DashboardServerFacts
         HttpResponseMessage response = await app.PostAsync("/nightshift/jobs/actions/delete/1", request =>
         {
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-            if (fetchSite != null) request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", fetchSite);
-            if (origin != null) request.Headers.TryAddWithoutValidation("Origin", origin);
+            if (fetchSite != null)
+            {
+                request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", fetchSite);
+            }
+
+            if (origin != null)
+            {
+                request.Headers.TryAddWithoutValidation("Origin", origin);
+            }
         });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

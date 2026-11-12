@@ -57,7 +57,10 @@ public static class JobStorageExtensions
         {
             ArgumentNullException.ThrowIfNull(storage);
             ArgumentNullException.ThrowIfNull(client);
-            if (timeBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeBudget), "The time budget can't be negative.");
+            if (timeBudget < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeBudget), "The time budget can't be negative.");
+            }
 
             IMonitoringApi monitor = storage.GetMonitoringApi();
 
@@ -126,15 +129,29 @@ public static class JobStorageExtensions
                 cancellationToken.ThrowIfCancellationRequested();
 
                 JobStateInfo? state = ReadJobState(storage, jobId, out bool exists);
-                if (!exists) return null;
-                if (state is { IsCompleted: true }) return state;
+                if (!exists)
+                {
+                    return null;
+                }
+
+                if (state is { IsCompleted: true })
+                {
+                    return state;
+                }
 
                 TimeSpan wait = delay;
                 if (timeout != Timeout.InfiniteTimeSpan)
                 {
                     TimeSpan remaining = timeout - elapsed.Elapsed;
-                    if (remaining <= TimeSpan.Zero) return state;
-                    if (remaining < wait) wait = remaining;
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        return state;
+                    }
+
+                    if (remaining < wait)
+                    {
+                        wait = remaining;
+                    }
                 }
 
                 await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
@@ -195,10 +212,16 @@ public static class JobStorageExtensions
         using IStorageConnection connection = storage.GetReadOnlyConnection();
         JobData? jobData = connection.GetJobData(jobId);
         exists = jobData != null;
-        if (jobData == null) return null;
+        if (jobData == null)
+        {
+            return null;
+        }
 
         StateData? stateData = connection.GetStateData(jobId);
-        if (stateData == null) return null;
+        if (stateData == null)
+        {
+            return null;
+        }
 
         Dictionary<string, string> data = new(StringComparer.OrdinalIgnoreCase);
         if (stateData.Data != null)

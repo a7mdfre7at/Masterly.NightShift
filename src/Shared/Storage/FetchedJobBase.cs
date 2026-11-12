@@ -34,7 +34,11 @@ internal abstract class FetchedJobBase : IFetchedJob
     {
         lock (_syncRoot)
         {
-            if (_done) return;
+            if (_done)
+            {
+                return;
+            }
+
             Remove();
             _done = true;
         }
@@ -44,7 +48,11 @@ internal abstract class FetchedJobBase : IFetchedJob
     {
         lock (_syncRoot)
         {
-            if (_done) return;
+            if (_done)
+            {
+                return;
+            }
+
             ReturnToQueue();
             _done = true;
         }
@@ -56,12 +64,20 @@ internal abstract class FetchedJobBase : IFetchedJob
     /// </summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         _keepAlive?.Dispose();
 
         lock (_syncRoot)
         {
-            if (_done) return;
+            if (_done)
+            {
+                return;
+            }
+
             _done = true;
 
             try
@@ -101,7 +117,11 @@ internal abstract class FetchedJobBase : IFetchedJob
         {
             lock (_syncRoot)
             {
-                if (_done || Volatile.Read(ref _disposed) != 0) return;
+                if (_done || Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+
                 KeepAlive();
             }
         }

@@ -82,13 +82,19 @@ internal sealed class ActivityFeedWriter
         {
             WriteBatch();
 
-            if (!_pending.IsEmpty) continue;
+            if (!_pending.IsEmpty)
+            {
+                continue;
+            }
 
             Volatile.Write(ref _flushing, 0);
 
             // An entry queued after the emptiness check saw _flushing == 1 and didn't start a flush: take it over,
             // unless another flush already did
-            if (_pending.IsEmpty || Interlocked.CompareExchange(ref _flushing, 1, 0) != 0) return;
+            if (_pending.IsEmpty || Interlocked.CompareExchange(ref _flushing, 1, 0) != 0)
+            {
+                return;
+            }
         }
     }
 
@@ -101,7 +107,10 @@ internal sealed class ActivityFeedWriter
             Interlocked.Decrement(ref _pendingCount);
         }
 
-        if (batch.Count == 0) return;
+        if (batch.Count == 0)
+        {
+            return;
+        }
 
         _sinceTrim += batch.Count;
         bool trim = _sinceTrim >= TrimInterval;
@@ -124,7 +133,11 @@ internal sealed class ActivityFeedWriter
                 transaction.Commit();
             }
 
-            if (trim) _sinceTrim = 0;
+            if (trim)
+            {
+                _sinceTrim = 0;
+            }
+
             Volatile.Write(ref _failing, 0);
             Volatile.Write(ref _dropping, 0);
         }

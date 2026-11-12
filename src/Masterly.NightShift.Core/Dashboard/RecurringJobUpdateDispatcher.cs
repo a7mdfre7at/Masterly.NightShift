@@ -85,7 +85,10 @@ internal sealed class RecurringJobUpdateDispatcher : IDashboardDispatcher
     private static async Task<string?> GetQueueAsync(DashboardContext context)
     {
         IList<string> values = await context.Request.GetFormValuesAsync("queue").ConfigureAwait(false);
-        if (values == null || values.Count == 0) return null;
+        if (values == null || values.Count == 0)
+        {
+            return null;
+        }
 
         string value = values[0];
         return string.IsNullOrWhiteSpace(value) ? EnqueuedState.DefaultQueue : value.Trim();

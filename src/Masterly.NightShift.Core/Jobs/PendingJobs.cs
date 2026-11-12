@@ -41,14 +41,20 @@ public static class PendingJobs
 
             foreach (QueueWithTopEnqueuedJobsDto queue in monitoring.Queues())
             {
-                if (queue.Name == null) continue;
+                if (queue.Name == null)
+                {
+                    continue;
+                }
 
                 for (int from = 0; ; from += PageSize)
                 {
                     JobList<EnqueuedJobDto?> page = monitoring.EnqueuedJobs(queue.Name, from, PageSize);
                     jobs.AddRange(page.Where(static x => x.Value is { InEnqueuedState: true })
                         .Select(x => new PendingJob(x.Key, EnqueuedState.StateName, x.Value!.Job, queue.Name, null))); // Filtered above
-                    if (page.Count < PageSize) break;
+                    if (page.Count < PageSize)
+                    {
+                        break;
+                    }
                 }
             }
 
@@ -57,7 +63,10 @@ public static class PendingJobs
                 JobList<ScheduledJobDto?> page = monitoring.ScheduledJobs(from, PageSize);
                 jobs.AddRange(page.Where(static x => x.Value is { InScheduledState: true })
                     .Select(static x => new PendingJob(x.Key, ScheduledState.StateName, x.Value!.Job, null, x.Value.EnqueueAt))); // Filtered above
-                if (page.Count < PageSize) break;
+                if (page.Count < PageSize)
+                {
+                    break;
+                }
             }
 
             if (monitoring is JobStorageMonitor monitor && storage.HasFeature(JobStorageFeatures.Monitoring.AwaitingJobs))
@@ -67,7 +76,10 @@ public static class PendingJobs
                     JobList<AwaitingJobDto?> page = monitor.AwaitingJobs(from, PageSize);
                     jobs.AddRange(page.Where(static x => x.Value is { InAwaitingState: true })
                         .Select(static x => new PendingJob(x.Key, AwaitingState.StateName, x.Value!.Job, null, null))); // Filtered above
-                    if (page.Count < PageSize) break;
+                    if (page.Count < PageSize)
+                    {
+                        break;
+                    }
                 }
             }
 
@@ -92,7 +104,10 @@ public static class PendingJobs
             // Continuations first, so deleting a parent doesn't start them
             foreach (PendingJob job in selected.OrderBy(static x => x.State == AwaitingState.StateName ? 0 : 1))
             {
-                if (client.ChangeState(job.Id, new DeletedState { Reason = reason ?? "Pending job deleted" }, job.State)) deleted++;
+                if (client.ChangeState(job.Id, new DeletedState { Reason = reason ?? "Pending job deleted" }, job.State))
+                {
+                    deleted++;
+                }
             }
 
             return deleted;
@@ -123,7 +138,10 @@ public static class PendingJobs
     /// <summary>Whether a job runs a function: its method is marked with the name, or it runs the delegate of that name.</summary>
     internal static bool IsFunctionJob(Job? job, string functionName)
     {
-        if (job == null) return false;
+        if (job == null)
+        {
+            return false;
+        }
 
         if (job.Method.GetCustomAttribute<JobFunctionAttribute>() is { } attribute)
         {

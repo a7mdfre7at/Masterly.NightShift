@@ -92,15 +92,50 @@ public class NightShiftEndpointRouteBuilderExtensionsFacts
 
     private static object SampleValue(Type type, object current)
     {
-        if (type == typeof(string)) return "changed";
-        if (type == typeof(int)) return (int)current + 7;
-        if (type == typeof(bool)) return !(bool)current;
-        if (type == typeof(TimeSpan)) return ((TimeSpan)current).Add(TimeSpan.FromSeconds(7));
-        if (type == typeof(IEnumerable<IDashboardAuthorizationFilter>)) return new[] { new Mock<IDashboardAuthorizationFilter>().Object };
-        if (type == typeof(IEnumerable<IDashboardAsyncAuthorizationFilter>)) return new[] { new Mock<IDashboardAsyncAuthorizationFilter>().Object };
-        if (type == typeof(Func<DashboardContext, bool>)) return new Func<DashboardContext, bool>(static _ => true);
-        if (type == typeof(Func<DashboardContext, Job, string>)) return new Func<DashboardContext, Job, string>(static (_, _) => "name");
-        if (type == typeof(ITimeZoneResolver)) return new Mock<ITimeZoneResolver>().Object;
+        if (type == typeof(string))
+        {
+            return "changed";
+        }
+
+        if (type == typeof(int))
+        {
+            return (int)current + 7;
+        }
+
+        if (type == typeof(bool))
+        {
+            return !(bool)current;
+        }
+
+        if (type == typeof(TimeSpan))
+        {
+            return ((TimeSpan)current).Add(TimeSpan.FromSeconds(7));
+        }
+
+        if (type == typeof(IEnumerable<IDashboardAuthorizationFilter>))
+        {
+            return new[] { new Mock<IDashboardAuthorizationFilter>().Object };
+        }
+
+        if (type == typeof(IEnumerable<IDashboardAsyncAuthorizationFilter>))
+        {
+            return new[] { new Mock<IDashboardAsyncAuthorizationFilter>().Object };
+        }
+
+        if (type == typeof(Func<DashboardContext, bool>))
+        {
+            return new Func<DashboardContext, bool>(static _ => true);
+        }
+
+        if (type == typeof(Func<DashboardContext, Job, string>))
+        {
+            return new Func<DashboardContext, Job, string>(static (_, _) => "name");
+        }
+
+        if (type == typeof(ITimeZoneResolver))
+        {
+            return new Mock<ITimeZoneResolver>().Object;
+        }
 
         throw new NotSupportedException($"Add a sample value for {type} here, and copy the new property in CopyOptions.");
     }

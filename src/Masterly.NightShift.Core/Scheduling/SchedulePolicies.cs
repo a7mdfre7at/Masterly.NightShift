@@ -43,7 +43,10 @@ public static class SchedulePolicies
 
             foreach (string name in connection.GetAllItemsFromSet(SetKey).Order(StringComparer.Ordinal))
             {
-                if (Read(connection, name) is { } policy) result.Add(policy);
+                if (Read(connection, name) is { } policy)
+                {
+                    result.Add(policy);
+                }
             }
 
             return result;
@@ -120,7 +123,10 @@ public static class SchedulePolicies
             using IStorageConnection connection = storage.GetConnection();
             using (connection.AcquireDistributedLock(LockResource, LockTimeout))
             {
-                if (ReadRevision(connection, normalized) != expectedRevision) return false;
+                if (ReadRevision(connection, normalized) != expectedRevision)
+                {
+                    return false;
+                }
 
                 List<string> users = FindUsers(connection, normalized);
                 if (users.Count > 0)
@@ -213,7 +219,10 @@ public static class SchedulePolicies
     private static long? ReadRevision(IStorageConnection connection, string normalizedName)
     {
         Dictionary<string, string>? fields = connection.GetAllEntriesFromHash(KeyPrefix + normalizedName);
-        if (fields == null || fields.Count == 0) return null;
+        if (fields == null || fields.Count == 0)
+        {
+            return null;
+        }
 
         // A policy that can't be read can still be replaced: its revision is all a write needs
         return fields.TryGetValue(SchedulePolicy.RevisionField, out string? value) &&
@@ -252,7 +261,10 @@ public static class SchedulePolicies
             using (connection.AcquireDistributedLock(LockResource, LockTimeout))
             {
                 long? current = ReadRevision(connection, policy.Name);
-                if (expectedRevision.HasValue && (current ?? 0) != expectedRevision.Value) return null;
+                if (expectedRevision.HasValue && (current ?? 0) != expectedRevision.Value)
+                {
+                    return null;
+                }
 
                 SchedulePolicy? stored = ReadOrNull(connection, policy.Name);
                 if (stored != null && stored.HasSameRules(policy))
@@ -320,10 +332,16 @@ public static class SchedulePolicies
                 throw new ArgumentException($"Schedule policy '{policy.Name}' would form a cycle: {path}.", nameof(policy));
             }
 
-            if (!seen.Add(name)) continue;
+            if (!seen.Add(name))
+            {
+                continue;
+            }
 
             SchedulePolicy? referenced = ReadOrNull(connection, name);
-            if (referenced == null) continue;
+            if (referenced == null)
+            {
+                continue;
+            }
 
             foreach (string next in referenced.Required.Concat(referenced.Excepted))
             {
@@ -339,7 +357,10 @@ public static class SchedulePolicies
 
         foreach (string other in connection.GetAllItemsFromSet(SetKey).Order(StringComparer.Ordinal))
         {
-            if (other == name) continue;
+            if (other == name)
+            {
+                continue;
+            }
 
             SchedulePolicy? policy = ReadOrNull(connection, other);
             if (policy != null && (policy.Required.Contains(name) || policy.Excepted.Contains(name)))
@@ -413,7 +434,10 @@ public static class SchedulePolicies
         using (connection.AcquireDistributedRecurringJobLock(recurringJobId, LockTimeout))
         {
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
-            if (recurringJob?.Cron == null || recurringJob.Paused || (!recurringJob.NextExecution.HasValue && recurringJob.Error == null)) return;
+            if (recurringJob?.Cron == null || recurringJob.Paused || (!recurringJob.NextExecution.HasValue && recurringJob.Error == null))
+            {
+                return;
+            }
 
             recurringJob.PolicyCalendars = calendars;
             recurringJob.RecordScheduleChange(now);

@@ -41,7 +41,10 @@ public static partial class JobChains
     {
         for (int level = from; level < levels.Count; level++)
         {
-            if (!include(level)) continue;
+            if (!include(level))
+            {
+                continue;
+            }
 
             List<string> parents = ParentJobs(levels, jobs, levels[level].Parent);
             for (int i = 0; i < levels[level].Steps.Count; i++)
@@ -75,7 +78,10 @@ public static partial class JobChains
                 for (int attempt = 0; attempt < 2 && !deleted && state != null && HasNotStarted(state); attempt++)
                 {
                     deleted = client.ChangeState(jobId, new DeletedState { Reason = reason }, state);
-                    if (!deleted) state = connection.GetStateData(jobId)?.Name;
+                    if (!deleted)
+                    {
+                        state = connection.GetStateData(jobId)?.Name;
+                    }
                 }
 
                 if (!deleted && state != null && !DeletedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase))
@@ -134,7 +140,10 @@ public static partial class JobChains
 
         foreach (KeyValuePair<string, string> job in record.Jobs.OrderByDescending(static x => ParseKey(x.Key).Level).ThenByDescending(static x => ParseKey(x.Key).Index))
         {
-            if (excludeRoot && job.Key == Key(0, 0)) continue;
+            if (excludeRoot && job.Key == Key(0, 0))
+            {
+                continue;
+            }
 
             string? state = connection.GetStateData(job.Value)?.Name;
             if (state == null || SucceededState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase) ||
@@ -143,9 +152,15 @@ public static partial class JobChains
                 continue;
             }
 
-            if (!canDelete(state)) continue;
+            if (!canDelete(state))
+            {
+                continue;
+            }
 
-            if (client.ChangeState(job.Value, new DeletedState { Reason = reason }, state)) deleted++;
+            if (client.ChangeState(job.Value, new DeletedState { Reason = reason }, state))
+            {
+                deleted++;
+            }
         }
 
         return deleted;

@@ -58,7 +58,10 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
 
         string typeName = job.Type.ToGenericTypeString();
         string key = $"{typeName}.{job.Method.Name}";
-        if (key.Length <= MaxKeyLength) return key;
+        if (key.Length <= MaxKeyLength)
+        {
+            return key;
+        }
 
         string hash = GetShortHash(key);
         string suffix = $"~{hash}.{job.Method.Name}";
@@ -92,13 +95,19 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
     public void OnPerformed(PerformedContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.BackgroundJob.Job == null) return;
+        if (context.BackgroundJob.Job == null)
+        {
+            return;
+        }
 
         // A canceled run (a filter canceled it, a state change aborted it, the server shut down), a run that
         // asked to be retried later, and a run whose method never ran because a concurrency filter gave up
         // waiting for a slot or a lock, are neither a success nor a failure of the method
         JobOutcome outcome = JobOutcomes.Classify(context);
-        if (outcome is not JobOutcome.Succeeded and not JobOutcome.Failed) return;
+        if (outcome is not JobOutcome.Succeeded and not JobOutcome.Failed)
+        {
+            return;
+        }
 
         long durationMs = GetDurationMs(context);
         string key = GetKey(context.BackgroundJob.Job);
@@ -165,7 +174,10 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
         foreach (string key in connection.GetAllItemsFromSet(IndexKey) ?? [])
         {
             JobInsight? insight = Read(storageConnection, key);
-            if (insight != null) result.Add(insight);
+            if (insight != null)
+            {
+                result.Add(insight);
+            }
         }
 
         return [.. result.OrderByDescending(static x => x.LastRunAt)];
@@ -181,7 +193,10 @@ public sealed class JobInsightsAttribute : JobFilterAttribute, IServerFilter
         ArgumentNullException.ThrowIfNull(key);
 
         Dictionary<string, string>? hash = connection.GetAllEntriesFromHash(GetHashKey(key));
-        if (hash == null || hash.Count == 0) return null;
+        if (hash == null || hash.Count == 0)
+        {
+            return null;
+        }
 
         List<string> durationItems;
         long succeeded, failed;
@@ -304,7 +319,11 @@ public sealed class JobInsight
     /// </summary>
     public DateTime? EstimateCompletion(DateTime startedAt)
     {
-        if (Durations.Length < 3 || MedianMs <= 0) return null;
+        if (Durations.Length < 3 || MedianMs <= 0)
+        {
+            return null;
+        }
+
         return startedAt.AddMilliseconds(MedianMs);
     }
 

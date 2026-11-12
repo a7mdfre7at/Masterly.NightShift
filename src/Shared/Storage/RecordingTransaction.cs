@@ -287,7 +287,10 @@ internal abstract class RecordingTransaction : JobStorageTransaction
 
     private static bool TryParseJobId(string jobId, out long id)
     {
-        if (StorageValues.TryParseJobId(jobId, out id)) return true;
+        if (StorageValues.TryParseJobId(jobId, out id))
+        {
+            return true;
+        }
 
         // Ids are numbers, so this one names no job and the write does nothing, as on SQL Server
         Logger.Debug($"Ignored a write to job '{jobId}': this storage's job ids are numbers.");

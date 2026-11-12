@@ -34,8 +34,15 @@ internal static class HeldQueue
     /// </summary>
     public static void RecordFetchedQueue(ElectStateContext context)
     {
-        if (context.CandidateState is not ProcessingState) return;
-        if (context.BackgroundJob.Job == null || context.BackgroundJob.Job.Queue != null) return;
+        if (context.CandidateState is not ProcessingState)
+        {
+            return;
+        }
+
+        if (context.BackgroundJob.Job == null || context.BackgroundJob.Job.Queue != null)
+        {
+            return;
+        }
 
         // A job requeued while it was running (a shutdown, a crash) is fetched again in the Processing state
         if (!EnqueuedState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase)
@@ -47,7 +54,10 @@ internal static class HeldQueue
         lock (FetchedQueues)
         {
             // Several filters on one job record it once
-            if (FetchedQueues.TryGetValue(context.BackgroundJob, out _)) return;
+            if (FetchedQueues.TryGetValue(context.BackgroundJob, out _))
+            {
+                return;
+            }
         }
 
         string queue = GetQueue(context.Storage, context.Connection, context.BackgroundJob) ?? string.Empty;
@@ -67,7 +77,10 @@ internal static class HeldQueue
     /// </summary>
     public static void Remember(ElectStateContext context, string? queue = null)
     {
-        if (context.BackgroundJob.Job?.Queue != null) return;
+        if (context.BackgroundJob.Job?.Queue != null)
+        {
+            return;
+        }
 
         queue ??= GetQueue(context.Storage, context.Connection, context.BackgroundJob);
         Write(context.Connection, context.BackgroundJob, queue);
@@ -78,12 +91,18 @@ internal static class HeldQueue
     /// </summary>
     public static void Remember(PerformContext context)
     {
-        if (context.BackgroundJob.Job?.Queue != null) return;
+        if (context.BackgroundJob.Job?.Queue != null)
+        {
+            return;
+        }
 
         string? queue;
         lock (FetchedQueues)
         {
-            if (!FetchedQueues.TryGetValue(context.BackgroundJob, out queue)) return;
+            if (!FetchedQueues.TryGetValue(context.BackgroundJob, out queue))
+            {
+                return;
+            }
         }
 
         Write(context.Connection, context.BackgroundJob, queue);
@@ -98,17 +117,31 @@ internal static class HeldQueue
     public static void Restore(ElectStateContext context, EnqueuedState enqueuedState)
     {
         // The parameter snapshot (when the storage provides one) spares a read
-        if (context.BackgroundJob.Job?.Queue != null) return;
-        if (!ScheduledState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase)) return;
+        if (context.BackgroundJob.Job?.Queue != null)
+        {
+            return;
+        }
+
+        if (!ScheduledState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         lock (RestoredElections)
         {
-            if (RestoredElections.TryGetValue(context, out _)) return;
+            if (RestoredElections.TryGetValue(context, out _))
+            {
+                return;
+            }
+
             RestoredElections.Add(context, Marker);
         }
 
         string? queue = Read(context);
-        if (string.IsNullOrEmpty(queue)) return;
+        if (string.IsNullOrEmpty(queue))
+        {
+            return;
+        }
 
         if (EnqueuedState.DefaultQueue.Equals(enqueuedState.Queue, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(queue)
@@ -122,10 +155,16 @@ internal static class HeldQueue
 
     private static void Write(IStorageConnection connection, BackgroundJob job, string? queue)
     {
-        if (string.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase)) return;
+        if (string.IsNullOrEmpty(queue) || EnqueuedState.DefaultQueue.Equals(queue, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         // A job held again and again writes the parameter once
-        if (string.Equals(Read(connection, job), queue, StringComparison.Ordinal)) return;
+        if (string.Equals(Read(connection, job), queue, StringComparison.Ordinal))
+        {
+            return;
+        }
 
         connection.SetJobParameter(job.Id, DrainModeFilter.HeldQueueParameter, SerializationHelper.Serialize(queue, SerializationOption.User));
     }
@@ -201,8 +240,15 @@ internal static class HeldQueue
             Logger.DebugException($"Could not read the state of background job '{job.Id}' to find its queue.", ex);
         }
 
-        if (stateQueue == null) return jobQueue;
-        if (jobQueue != null && EnqueuedState.DefaultQueue.Equals(stateQueue, StringComparison.OrdinalIgnoreCase)) return jobQueue;
+        if (stateQueue == null)
+        {
+            return jobQueue;
+        }
+
+        if (jobQueue != null && EnqueuedState.DefaultQueue.Equals(stateQueue, StringComparison.OrdinalIgnoreCase))
+        {
+            return jobQueue;
+        }
 
         return stateQueue;
     }
@@ -211,19 +257,32 @@ internal static class HeldQueue
     // storage implements
     private static string? GetLastEnqueuedQueue(JobStorage? storage, string jobId)
     {
-        if (storage == null) return null;
+        if (storage == null)
+        {
+            return null;
+        }
 
         try
         {
             IList<StateHistoryDto>? history = storage.GetMonitoringApi().JobDetails(jobId)?.History;
-            if (history == null) return null;
+            if (history == null)
+            {
+                return null;
+            }
 
             // Storages list the newest state first; the time decides, and the first one listed wins a tie
             StateHistoryDto? latest = null;
             foreach (StateHistoryDto entry in history)
             {
-                if (entry == null || !EnqueuedState.StateName.Equals(entry.StateName, StringComparison.OrdinalIgnoreCase)) continue;
-                if (latest == null || entry.CreatedAt > latest.CreatedAt) latest = entry;
+                if (entry == null || !EnqueuedState.StateName.Equals(entry.StateName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (latest == null || entry.CreatedAt > latest.CreatedAt)
+                {
+                    latest = entry;
+                }
             }
 
             return GetStateQueue(latest?.Data);

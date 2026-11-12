@@ -22,7 +22,10 @@ public class ServerPauseDispatcherFacts : IDisposable
         _transaction.Setup(x => x.SetRangeInHash(DrainMode.HashKey, It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((_, pairs) =>
             {
-                foreach (KeyValuePair<string, string> pair in pairs) _hash[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    _hash[pair.Key] = pair.Value;
+                }
             });
         DrainMode.InvalidateCache();
     }
@@ -131,7 +134,10 @@ public class ServerPauseDispatcherFacts : IDisposable
     private DashboardContextStub Create(string path, string route, string method = "POST", bool readOnly = false, string reason = null)
     {
         DashboardRequestStub request = new(method, path);
-        if (reason != null) request.Form["reason"] = [reason];
+        if (reason != null)
+        {
+            request.Form["reason"] = [reason];
+        }
 
         return new DashboardContextStub(new DashboardOptions { IsReadOnlyFunc = _ => readOnly }, request, _storage.Object)
         {

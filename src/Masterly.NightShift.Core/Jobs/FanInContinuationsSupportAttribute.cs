@@ -87,7 +87,11 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
     internal static List<string> Parse(string? serialized)
     {
-        if (string.IsNullOrEmpty(serialized)) return [];
+        if (string.IsNullOrEmpty(serialized))
+        {
+            return [];
+        }
+
         return SerializationHelper.Deserialize<List<string>>(serialized) ?? [];
     }
 
@@ -155,13 +159,22 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     {
         // Without a state, the commit failed: nothing to decide, the creation is retried or abandoned
         StateData? childState = connection.GetStateData(childId);
-        if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase)) return;
+        if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         AwaitingJobsState? awaiting = AwaitingJobsState.FromStateData(childState.Data);
-        if (awaiting == null) return;
+        if (awaiting == null)
+        {
+            return;
+        }
 
         Decision decision = Evaluate(awaiting, parentId => GetParentState(connection, parentId));
-        if (decision == Decision.Undecided) return;
+        if (decision == Decision.Undecided)
+        {
+            return;
+        }
 
         ChangeChildState(storage, connection, childId, awaiting, decision);
     }
@@ -184,7 +197,10 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
 
         List<string> children = [.. Parse(serialized).Distinct(StringComparer.Ordinal)];
-        if (children.Count == 0) return;
+        if (children.Count == 0)
+        {
+            return;
+        }
 
         JobStorage storage = context.Storage;
         IStorageConnection connection = context.Connection;
@@ -223,7 +239,10 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
         // When the commit failed, or the job was requeued meanwhile, it isn't finished in storage: every child
         // would be undecided, so don't wait for their states
-        if (!IsFinishedInStorage(connection, parentId, states)) return;
+        if (!IsFinishedInStorage(connection, parentId, states))
+        {
+            return;
+        }
 
         foreach (string childId in children)
         {
@@ -278,13 +297,22 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     private void DecideChild(JobStorage storage, IStorageConnection connection, string parentId, string childId, Dictionary<string, string?> states, Stopwatch round)
     {
         StateData? childState = GetChildState(connection, parentId, childId, round);
-        if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase)) return;
+        if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         AwaitingJobsState? awaiting = AwaitingJobsState.FromStateData(childState.Data);
-        if (awaiting == null) return;
+        if (awaiting == null)
+        {
+            return;
+        }
 
         Decision decision = Evaluate(awaiting, id => GetParentState(connection, id, states), parentId);
-        if (decision == Decision.Undecided) return;
+        if (decision == Decision.Undecided)
+        {
+            return;
+        }
 
         ChangeChildState(storage, connection, childId, awaiting, decision);
     }
@@ -320,7 +348,10 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     private static string? GetParentState(IStorageConnection connection, string parentId)
     {
         StateData? state = connection.GetStateData(parentId);
-        if (state != null) return state.Name;
+        if (state != null)
+        {
+            return state.Name;
+        }
 
         return connection.GetJobData(parentId) == null ? DeletedState.StateName : null;
     }
@@ -339,7 +370,10 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             }
 
             StateData? state = connection.GetStateData(childId);
-            if (state != null) return state;
+            if (state != null)
+            {
+                return state;
+            }
 
             if (JobClock.UtcNow - childData.CreatedAt > ContinuationInvalidTimeout)
             {
@@ -399,11 +433,21 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             foreach (string parentId in FinishedParentFirst(parentIds, finishedParentId))
             {
                 string? stateName = getParentState(parentId);
-                if (stateName == null || !IsFinished(stateName, mode, knownFinalStates)) return Decision.Undecided;
+                if (stateName == null || !IsFinished(stateName, mode, knownFinalStates))
+                {
+                    return Decision.Undecided;
+                }
 
                 bool ok = Satisfies(stateName, mode, options, knownFinalStates);
-                if (anyMode && ok) return Decision.Start;
-                if (!anyMode && !ok) return Decision.Skip;
+                if (anyMode && ok)
+                {
+                    return Decision.Start;
+                }
+
+                if (!anyMode && !ok)
+                {
+                    return Decision.Skip;
+                }
             }
 
             // Every parent finished: all of them satisfy ("all" modes) or none does ("any" modes)
@@ -416,17 +460,33 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         foreach (string parentId in parentIds)
         {
             string? stateName = getParentState(parentId);
-            if (stateName == null || !IsFinished(stateName, mode, knownFinalStates)) continue;
+            if (stateName == null || !IsFinished(stateName, mode, knownFinalStates))
+            {
+                continue;
+            }
 
             finished++;
             bool ok = Satisfies(stateName, mode, options, knownFinalStates);
-            if (ok) satisfied++;
+            if (ok)
+            {
+                satisfied++;
+            }
 
-            if (anyMode && ok) return Decision.Start;
-            if (!anyMode && !ok) return Decision.Skip;
+            if (anyMode && ok)
+            {
+                return Decision.Start;
+            }
+
+            if (!anyMode && !ok)
+            {
+                return Decision.Skip;
+            }
         }
 
-        if (finished < parentIds.Count) return Decision.Undecided;
+        if (finished < parentIds.Count)
+        {
+            return Decision.Undecided;
+        }
 
         return anyMode
             ? (satisfied > 0 ? Decision.Start : Decision.Skip)
@@ -461,11 +521,17 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             found = string.Equals(parentIds[i], finishedParentId, StringComparison.Ordinal);
         }
 
-        if (found) yield return finishedParentId;
+        if (found)
+        {
+            yield return finishedParentId;
+        }
 
         for (int i = parentIds.Count - 1; i >= 0; i--)
         {
-            if (!string.Equals(parentIds[i], finishedParentId, StringComparison.Ordinal)) yield return parentIds[i];
+            if (!string.Equals(parentIds[i], finishedParentId, StringComparison.Ordinal))
+            {
+                yield return parentIds[i];
+            }
         }
     }
 

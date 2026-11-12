@@ -116,7 +116,10 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
             await context.Response.WriteAsync(FormatRows(page)).ConfigureAwait(false);
 
             from += page.Count;
-            if (page.Count < PageSize || from >= MaxRows) break;
+            if (page.Count < PageSize || from >= MaxRows)
+            {
+                break;
+            }
 
             page = Fetch(monitor, queue, from, Math.Min(PageSize, MaxRows - from));
         }
@@ -161,7 +164,10 @@ internal sealed class JobListExportDispatcher(string state) : IDashboardDispatch
 
     internal static string Csv(string? value)
     {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
 
         bool needsQuotes = value.AsSpan().ContainsAny(CsvSpecialCharacters);
         string escaped = value.Replace("\"", "\"\"");

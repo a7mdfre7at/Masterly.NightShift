@@ -33,7 +33,9 @@ public class JobDisplayNameAttribute : Attribute
     public JobDisplayNameAttribute(string displayName)
     {
         if (string.IsNullOrEmpty(displayName))
+        {
             throw new ArgumentException("Display name is empty", nameof(displayName));
+        }
 
         DisplayName = displayName;
     }

@@ -99,7 +99,10 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        if (context.CandidateState is not ProcessingState) return;
+        if (context.CandidateState is not ProcessingState)
+        {
+            return;
+        }
 
         BackgroundJob job = context.BackgroundJob;
         string? chainId = null;
@@ -108,7 +111,11 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         try
         {
-            if (!TryReadStep(job, context.Connection, out chainId, out stepKey)) return;
+            if (!TryReadStep(job, context.Connection, out chainId, out stepKey))
+            {
+                return;
+            }
+
             verdict = Check(context.Storage, context.Connection, job, chainId, stepKey);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -148,21 +155,36 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         // A job being created: its chain is recorded once every step is. And without work after the commit (the
         // transaction is the caller's), the next state change does it.
-        if (context.OldStateName == null || context.AfterCommit == null) return;
+        if (context.OldStateName == null || context.AfterCommit == null)
+        {
+            return;
+        }
 
         // Only with the parameters at hand: this runs at every state change of every job
         IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
-        if (parameters == null || !parameters.TryGetValue(JobChains.ChainIdParameter, out string? serialized)) return;
+        if (parameters == null || !parameters.TryGetValue(JobChains.ChainIdParameter, out string? serialized))
+        {
+            return;
+        }
 
         // A record is written after the jobs it lists are created, and kept for RecordRetention from then at least:
         // the record of a job this young expires late enough already. So a chain that runs at once costs nothing.
         DateTime latestStart = context.NewState is ScheduledState scheduled ? scheduled.EnqueueAt : JobClock.UtcNow;
-        if (latestStart - context.BackgroundJob.CreatedAt <= JobChains.RecordRefreshSlack) return;
+        if (latestStart - context.BackgroundJob.CreatedAt <= JobChains.RecordRefreshSlack)
+        {
+            return;
+        }
 
-        if (!context.Storage.HasFeature(JobStorageFeatures.ExtendedApi)) return;
+        if (!context.Storage.HasFeature(JobStorageFeatures.ExtendedApi))
+        {
+            return;
+        }
 
         string? chainId = TryDeserialize(serialized);
-        if (string.IsNullOrWhiteSpace(chainId) || !JobChains.MayNeedExtending(chainId, latestStart)) return;
+        if (string.IsNullOrWhiteSpace(chainId) || !JobChains.MayNeedExtending(chainId, latestStart))
+        {
+            return;
+        }
 
         // After the commit: the record is shared by the steps of the chain, which change state side by side
         JobStorage storage = context.Storage;
@@ -178,23 +200,38 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey)
     {
         (bool recorded, string? current) = JobChains.ReadStepJob(storage, connection, chainId, stepKey);
-        if (string.Equals(current, job.Id, StringComparison.Ordinal)) return Verdict.Run;
+        if (string.Equals(current, job.Id, StringComparison.Ordinal))
+        {
+            return Verdict.Run;
+        }
 
         TimeSpan age = JobClock.UtcNow - job.CreatedAt;
 
         // A client creates the jobs of a chain, of a retry or of a replacement first and writes the record last, so
         // a job this young may be about to be listed. It isn't waited for here: the job is locked meanwhile, and
         // the client needs that lock to create the steps that continue the job.
-        if (age < CreationGrace) return Verdict.Wait;
+        if (age < CreationGrace)
+        {
+            return Verdict.Wait;
+        }
 
-        if (recorded) return Verdict.NotCurrent;
+        if (recorded)
+        {
+            return Verdict.NotCurrent;
+        }
 
         // Where records never expire, a chain without one was deleted or never recorded
-        if (!storage.HasFeature(JobStorageFeatures.ExtendedApi)) return Verdict.NotRecorded;
+        if (!storage.HasFeature(JobStorageFeatures.ExtendedApi))
+        {
+            return Verdict.NotRecorded;
+        }
 
         // A record outlives the steps it lists by RecordRetention at least: without one, a job that old is a step
         // of a chain whose record expired, and runs as it always did
-        if (age > JobChain.RecordRetention) return Verdict.Run;
+        if (age > JobChain.RecordRetention)
+        {
+            return Verdict.Run;
+        }
 
         // A chain is listed from the moment it is recorded until it is deleted. Listed without a record, it lost
         // the record before its time (a storage that caps expiration times or evicts keys, clocks that disagree):
@@ -216,7 +253,10 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private static void ReleaseOnceHeldIfRecorded(ElectStateContext context, string chainId, string stepKey)
     {
         // Without work after the commit, the hold ends by itself
-        if (context.AfterCommit == null) return;
+        if (context.AfterCommit == null)
+        {
+            return;
+        }
 
         JobStorage storage = context.Storage;
         IStorageConnection connection = context.Connection;
@@ -224,7 +264,10 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         context.AfterCommit.Add(() =>
         {
-            if (!string.Equals(JobChains.ReadStepJob(storage, connection, chainId, stepKey).JobId, jobId, StringComparison.Ordinal)) return;
+            if (!string.Equals(JobChains.ReadStepJob(storage, connection, chainId, stepKey).JobId, jobId, StringComparison.Ordinal))
+            {
+                return;
+            }
 
             StateData? state = connection.GetStateData(jobId);
             if (state == null ||
@@ -250,7 +293,11 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         TimeSpan delay = age < MinHoldDelay ? MinHoldDelay : age > MaxHoldDelay ? MaxHoldDelay : age;
         TimeSpan untilDecided = CreationGrace - age + TimeSpan.FromSeconds(1);
 
-        if (delay > untilDecided) delay = untilDecided > MinHoldDelay ? untilDecided : MinHoldDelay;
+        if (delay > untilDecided)
+        {
+            delay = untilDecided > MinHoldDelay ? untilDecided : MinHoldDelay;
+        }
+
         return delay;
     }
 
@@ -275,13 +322,20 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         if (parameters != null)
         {
-            if (!parameters.TryGetValue(JobChains.ChainIdParameter, out serializedChain)) return false;
+            if (!parameters.TryGetValue(JobChains.ChainIdParameter, out serializedChain))
+            {
+                return false;
+            }
+
             parameters.TryGetValue(JobChains.ChainStepParameter, out serializedStep);
         }
         else
         {
             serializedChain = connection.GetJobParameter(job.Id, JobChains.ChainIdParameter);
-            if (string.IsNullOrEmpty(serializedChain)) return false;
+            if (string.IsNullOrEmpty(serializedChain))
+            {
+                return false;
+            }
 
             serializedStep = connection.GetJobParameter(job.Id, JobChains.ChainStepParameter);
         }
@@ -295,7 +349,10 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     // Parameters of these names that aren't strings were set by something else: not a step of a chain
     private static string? TryDeserialize(string? serialized)
     {
-        if (string.IsNullOrEmpty(serialized)) return null;
+        if (string.IsNullOrEmpty(serialized))
+        {
+            return null;
+        }
 
         try
         {

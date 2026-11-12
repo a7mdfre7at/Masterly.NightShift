@@ -293,7 +293,11 @@ public class ServersPageFacts
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (_exception != null) throw _exception;
+            if (_exception != null)
+            {
+                throw _exception;
+            }
+
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }

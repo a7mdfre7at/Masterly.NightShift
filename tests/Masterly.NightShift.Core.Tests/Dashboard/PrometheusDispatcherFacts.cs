@@ -140,14 +140,21 @@ public class PrometheusDispatcherFacts : IDisposable
                 continue;
             }
 
-            if (line.StartsWith("#", StringComparison.Ordinal)) continue;
+            if (line.StartsWith("#", StringComparison.Ordinal))
+            {
+                continue;
+            }
 
             string family = line.Split('{', ' ')[0];
             Assert.Contains(family, typed);
             if (family != current)
             {
                 Assert.DoesNotContain(family, finished);
-                if (current != null) finished.Add(current);
+                if (current != null)
+                {
+                    finished.Add(current);
+                }
+
                 current = family;
             }
         }

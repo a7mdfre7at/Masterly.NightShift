@@ -90,10 +90,16 @@ public sealed class JobExceptionHandlerFilter([NotNull] IJobExceptionHandler han
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.Exception == null || context.ExceptionHandled) return;
+        if (context.Exception == null || context.ExceptionHandled)
+        {
+            return;
+        }
 
         JobOutcome outcome = JobOutcomes.Classify(context);
-        if (outcome is not (JobOutcome.Failed or JobOutcome.NotRun or JobOutcome.Canceled)) return;
+        if (outcome is not (JobOutcome.Failed or JobOutcome.NotRun or JobOutcome.Canceled))
+        {
+            return;
+        }
 
         JobExceptionContext exceptionContext = new(context, JobOutcomes.Unwrap(context.Exception));
 

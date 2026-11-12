@@ -12,7 +12,11 @@ public class MongoConformanceFacts : StorageConformanceFacts
 
     public override void Dispose()
     {
-        if (_storage.IsValueCreated) MongoTestServer.Drop(_storage.Value);
+        if (_storage.IsValueCreated)
+        {
+            MongoTestServer.Drop(_storage.Value);
+        }
+
         GC.SuppressFinalize(this);
     }
 }

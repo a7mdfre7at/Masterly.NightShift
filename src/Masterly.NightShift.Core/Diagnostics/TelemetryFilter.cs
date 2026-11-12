@@ -259,11 +259,21 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
             context.RunAfterCommit(() => NightShiftTelemetry.JobsRetried.Add(1, Tag("nightshift.job.name", jobName)));
         }
 
-        if (context.NewState is not ProcessingState) return;
-        if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase)) return;
+        if (context.NewState is not ProcessingState)
+        {
+            return;
+        }
+
+        if (!EnqueuedState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         // Reading the Enqueued state queries the storage, so do it only when someone listens
-        if (!NightShiftTelemetry.ActivitySource.HasListeners()) return;
+        if (!NightShiftTelemetry.ActivitySource.HasListeners())
+        {
+            return;
+        }
 
         string? queue = ReadFetchedQueue(context);
         if (queue != null)
@@ -309,7 +319,10 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
         Exception error = Unwrap(exception);
         activity.SetStatus(ActivityStatusCode.Error, error.Message);
 
-        if (!activity.IsAllDataRequested) return;
+        if (!activity.IsAllDataRequested)
+        {
+            return;
+        }
 
         activity.SetTag("error.type", error.GetType().FullName);
 #if NET9_0_OR_GREATER
@@ -372,7 +385,10 @@ internal sealed class TelemetryFilter : JobFilterAttribute, IClientFilter, IServ
     {
         // The same choice EnqueuedState's handler makes when it adds the job to a queue: the state's queue,
         // unless it's the default one and the job has its own
-        if (string.IsNullOrEmpty(stateQueue)) return job?.Queue;
+        if (string.IsNullOrEmpty(stateQueue))
+        {
+            return job?.Queue;
+        }
 
         return job?.Queue == null || !EnqueuedState.DefaultQueue.Equals(stateQueue, StringComparison.OrdinalIgnoreCase)
             ? stateQueue

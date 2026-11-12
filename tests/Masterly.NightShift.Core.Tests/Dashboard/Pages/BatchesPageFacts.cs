@@ -101,7 +101,10 @@ public class BatchesPageFacts
     private void SetupBatch(string id, string description, DateTime? createdAt, long total, long succeeded = 0, long failed = 0, long processing = 0, long deleted = 0)
     {
         Dictionary<string, string> hash = new() { { "Description", description ?? string.Empty } };
-        if (createdAt.HasValue) hash["CreatedAt"] = JobHelper.SerializeDateTime(createdAt.Value);
+        if (createdAt.HasValue)
+        {
+            hash["CreatedAt"] = JobHelper.SerializeDateTime(createdAt.Value);
+        }
 
         _renderer.Connection.Setup(x => x.GetAllEntriesFromHash(BatchJob.GetHashKey(id))).Returns(hash);
         _renderer.Connection.Setup(x => x.GetCounter(BatchJob.GetTotalKey(id))).Returns(total);

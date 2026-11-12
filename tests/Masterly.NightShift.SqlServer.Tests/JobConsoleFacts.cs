@@ -26,8 +26,14 @@ public class JobConsoleFacts
             {
                 try
                 {
-                    if (i % 2 == 0) console.WriteLine($"line {i}");
-                    else console.SetProgress(i, $"step {i}");
+                    if (i % 2 == 0)
+                    {
+                        console.WriteLine($"line {i}");
+                    }
+                    else
+                    {
+                        console.SetProgress(i, $"step {i}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -54,7 +60,10 @@ public class JobConsoleFacts
         Perform(storage, jobId, console =>
         {
             console.Resume("download", () => ran++);
-            for (int i = 0; i < JobConsole.DefaultMaxLines + 10; i++) console.WriteLine($"row {i}");
+            for (int i = 0; i < JobConsole.DefaultMaxLines + 10; i++)
+            {
+                console.WriteLine($"row {i}");
+            }
         });
         Perform(storage, jobId, console => console.Resume("download", () => ran++));
 

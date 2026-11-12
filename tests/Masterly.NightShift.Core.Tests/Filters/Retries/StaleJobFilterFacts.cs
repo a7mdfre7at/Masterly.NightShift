@@ -160,7 +160,10 @@ public sealed class StaleJobFilterFacts : IDisposable
     public void IsLeaseHeldBy_ComparesTheLease_WithTheWorker(string lease, bool expected)
     {
         Dictionary<string, string> parameters = [];
-        if (lease != null) parameters[StaleJobFilter.LeaseParameter] = lease;
+        if (lease != null)
+        {
+            parameters[StaleJobFilter.LeaseParameter] = lease;
+        }
 
         Assert.Equal(expected, StaleJobFilter.IsLeaseHeldBy(parameters, "worker-a"));
         Assert.True(StaleJobFilter.IsLeaseHeldBy(null, "worker-a"));

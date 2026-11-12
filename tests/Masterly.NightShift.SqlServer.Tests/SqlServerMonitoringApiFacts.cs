@@ -1673,9 +1673,17 @@ public class SqlServerMonitoringApiFacts
 
             using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
             {
-                if (state != null) transaction.SetJobState(jobId, state);
+                if (state != null)
+                {
+                    transaction.SetJobState(jobId, state);
+                }
+
                 transactionAction?.Invoke(transaction, jobId, job);
-                if (expireIn != null) transaction.ExpireJob(jobId, expireIn.Value);
+                if (expireIn != null)
+                {
+                    transaction.ExpireJob(jobId, expireIn.Value);
+                }
+
                 transaction.Commit();
             }
 

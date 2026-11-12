@@ -197,7 +197,10 @@ public class PerformContext
         get
         {
             string[]? parents = GetJobParameter<string[]>(ParentIdsParameter, allowStale: true);
-            if (parents is { Length: > 0 }) return parents;
+            if (parents is { Length: > 0 })
+            {
+                return parents;
+            }
 
             return ParentId is { } parentId ? [parentId] : [];
         }

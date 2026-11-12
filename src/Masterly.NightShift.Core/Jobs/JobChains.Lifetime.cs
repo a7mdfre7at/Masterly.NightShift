@@ -47,7 +47,10 @@ public static partial class JobChains
     {
         try
         {
-            if (connection is not JobStorageConnection storageConnection || !storage.HasFeature(JobStorageFeatures.ExtendedApi)) return;
+            if (connection is not JobStorageConnection storageConnection || !storage.HasFeature(JobStorageFeatures.ExtendedApi))
+            {
+                return;
+            }
 
             string key = GetKey(chainId);
             DateTime now = JobClock.UtcNow;
@@ -56,7 +59,10 @@ public static partial class JobChains
             // Negative for a chain that isn't recorded (any more): nothing to extend, and nothing to remember,
             // because its record may still be written
             TimeSpan timeToLive = storageConnection.GetHashTtl(key);
-            if (timeToLive < TimeSpan.Zero) return;
+            if (timeToLive < TimeSpan.Zero)
+            {
+                return;
+            }
 
             DateTime current = now + timeToLive;
             if (desired - current <= RecordRefreshSlack)
@@ -66,7 +72,10 @@ public static partial class JobChains
             }
 
             using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
-            if (transaction is not JobStorageTransaction storageTransaction) return;
+            if (transaction is not JobStorageTransaction storageTransaction)
+            {
+                return;
+            }
 
             storageTransaction.ExpireHash(key, desired - now);
             transaction.Commit();
@@ -81,7 +90,11 @@ public static partial class JobChains
 
     private static void RememberExpiry(string chainId, DateTime expireAt)
     {
-        if (KnownExpiries.Count >= MaxKnownExpiries) KnownExpiries.Clear();
+        if (KnownExpiries.Count >= MaxKnownExpiries)
+        {
+            KnownExpiries.Clear();
+        }
+
         KnownExpiries[chainId] = expireAt;
     }
 

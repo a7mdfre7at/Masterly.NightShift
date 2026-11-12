@@ -180,12 +180,18 @@ internal sealed class JobListCommandDispatcher(Func<DashboardContext, BulkJobRes
     private static List<string> Targets(DashboardContext context)
     {
         List<string> targets = [];
-        if (context.UriMatch == null) return targets;
+        if (context.UriMatch == null)
+        {
+            return targets;
+        }
 
         for (int i = 1; i < context.UriMatch.Groups.Count; i++)
         {
             string value = context.UriMatch.Groups[i].Value;
-            if (!string.IsNullOrEmpty(value)) targets.Add(RouteValues.Decode(value));
+            if (!string.IsNullOrEmpty(value))
+            {
+                targets.Add(RouteValues.Decode(value));
+            }
         }
 
         return targets;

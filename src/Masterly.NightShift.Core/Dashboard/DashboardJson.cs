@@ -29,7 +29,10 @@ internal static class DashboardJson
         };
 
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        if (utcDates) options.Converters.Add(new UtcDateTimeJsonConverter());
+        if (utcDates)
+        {
+            options.Converters.Add(new UtcDateTimeJsonConverter());
+        }
 
         return options;
     }

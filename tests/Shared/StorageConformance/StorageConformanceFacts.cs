@@ -367,7 +367,10 @@ public abstract class StorageConformanceFacts : IDisposable
     {
         Write(x =>
         {
-            foreach (string value in new[] { "1", "x", "2", "x", "3", "4", "5" }) x.InsertToList("list", value);
+            foreach (string value in new[] { "1", "x", "2", "x", "3", "4", "5" })
+            {
+                x.InsertToList("list", value);
+            }
         });
 
         Write(x => x.RemoveFromList("list", "x"));
@@ -686,7 +689,10 @@ public abstract class StorageConformanceFacts : IDisposable
 
         stale.Single(x => x.JobId == requeued).Requeue();
         stale.Single(x => x.JobId == removed).RemoveFromQueue();
-        foreach (IFetchedJob job in stale) job.Dispose();
+        foreach (IFetchedJob job in stale)
+        {
+            job.Dispose();
+        }
 
         Assert.Equal(0, monitoring.EnqueuedCount("stale"));
         Assert.Equal(2, monitoring.FetchedCount("stale"));
@@ -853,7 +859,10 @@ public abstract class StorageConformanceFacts : IDisposable
         Write(x =>
         {
             x.SetJobState(parent, new ScheduledState(TimeSpan.FromHours(1)));
-            foreach (string child in children) x.SetJobState(child, new AwaitingState(parent));
+            foreach (string child in children)
+            {
+                x.SetJobState(child, new AwaitingState(parent));
+            }
         });
 
         JobStorageMonitor monitoring = (JobStorageMonitor)Storage.GetMonitoringApi();
@@ -1079,7 +1088,11 @@ public abstract class StorageConformanceFacts : IDisposable
     /// <summary>Makes <paramref name="storage"/> the test's storage; <c>false</c> when there is none.</summary>
     private bool UseStorage(JobStorage? storage)
     {
-        if (storage == null) return false;
+        if (storage == null)
+        {
+            return false;
+        }
+
         lock (_storageLock)
         {
             _storage = storage;
@@ -1121,7 +1134,11 @@ public abstract class StorageConformanceFacts : IDisposable
         Stopwatch stopwatch = Stopwatch.StartNew();
         while (!condition())
         {
-            if (stopwatch.Elapsed > Timeout) throw new TimeoutException(message);
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException(message);
+            }
+
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }

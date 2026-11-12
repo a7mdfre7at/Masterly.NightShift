@@ -691,7 +691,10 @@ public class WebhookAlertSinkFacts
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        for (int i = 0; i < 500 && !condition(); i++) await Task.Delay(10);
+        for (int i = 0; i < 500 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
     }
 
     [Fact]
@@ -749,10 +752,22 @@ public class WebhookAlertSinkFacts
             LastRequest = request;
             LastBody = request.Content != null ? await request.Content.ReadAsStringAsync() : null;
             Received.TrySetResult(true);
-            if (Gate != null && number <= GatedRequests) await Gate.Task.WaitAsync(cancellationToken);
-            if (_exception != null) throw _exception;
+            if (Gate != null && number <= GatedRequests)
+            {
+                await Gate.Task.WaitAsync(cancellationToken);
+            }
+
+            if (_exception != null)
+            {
+                throw _exception;
+            }
+
             HttpResponseMessage response = new(_statusCode);
-            if (RetryAfter is { } retryAfter) response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(retryAfter);
+            if (RetryAfter is { } retryAfter)
+            {
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(retryAfter);
+            }
+
             return response;
         }
 

@@ -113,7 +113,11 @@ public sealed class RedisStorage : JobStorage, IDisposable
         }
         catch
         {
-            if (ownsConnection) Connection.Dispose();
+            if (ownsConnection)
+            {
+                Connection.Dispose();
+            }
+
             throw;
         }
     }
@@ -163,7 +167,11 @@ public sealed class RedisStorage : JobStorage, IDisposable
             List<RedisKey> doomed = [];
             foreach (RedisKey key in server.Keys(Database.Database, Settings.Prefix + "*", pageSize: 1000))
             {
-                if (!KeptByPurge(key.ToString()[Settings.Prefix.Length..], options)) doomed.Add(key);
+                if (!KeptByPurge(key.ToString()[Settings.Prefix.Length..], options))
+                {
+                    doomed.Add(key);
+                }
+
                 if (doomed.Count == 1000)
                 {
                     removed += Database.KeyDelete([.. doomed]);
@@ -171,7 +179,10 @@ public sealed class RedisStorage : JobStorage, IDisposable
                 }
             }
 
-            if (doomed.Count > 0) removed += Database.KeyDelete([.. doomed]);
+            if (doomed.Count > 0)
+            {
+                removed += Database.KeyDelete([.. doomed]);
+            }
         }
 
         LogProvider.GetLogger(typeof(RedisStorage)).Info($"The Redis job storage was purged: {removed} keys deleted.");
@@ -195,7 +206,10 @@ public sealed class RedisStorage : JobStorage, IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
 
         if (_ownsConnection)
         {
@@ -224,7 +238,11 @@ public sealed class RedisStorage : JobStorage, IDisposable
     private static RedisStorageOptions Validate(RedisStorageOptions? options)
     {
         RedisStorageOptions settings = options?.Copy() ?? new RedisStorageOptions();
-        if (string.IsNullOrEmpty(settings.Prefix)) throw new ArgumentException("The key prefix can't be empty.", nameof(options));
+        if (string.IsNullOrEmpty(settings.Prefix))
+        {
+            throw new ArgumentException("The key prefix can't be empty.", nameof(options));
+        }
+
         if (!settings.AllowPrefixWithoutHashTag && !RedisStorageOptions.HasHashTag(settings.Prefix))
         {
             throw new ArgumentException(
@@ -232,10 +250,26 @@ public sealed class RedisStorage : JobStorage, IDisposable
                 nameof(options));
         }
 
-        if (settings.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (settings.FetchPollInterval <= TimeSpan.Zero) throw new ArgumentException("The fetch poll interval must be positive.", nameof(options));
-        if (settings.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
-        if (settings.DistributedLockLifetime < TimeSpan.FromSeconds(1)) throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        if (settings.InvisibilityTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        }
+
+        if (settings.FetchPollInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The fetch poll interval must be positive.", nameof(options));
+        }
+
+        if (settings.ExpirationCheckInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        }
+
+        if (settings.DistributedLockLifetime < TimeSpan.FromSeconds(1))
+        {
+            throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        }
+
         return settings;
     }
 
@@ -314,7 +348,10 @@ internal static class RedisValues
             values[(string)fields[i]!] = (string)fields[i + 1]!; // Hash fields and values are never null
         }
 
-        if (!values.TryGetValue("InvocationData", out string? payload)) return null;
+        if (!values.TryGetValue("InvocationData", out string? payload))
+        {
+            return null;
+        }
 
         return new StoredJob
         {

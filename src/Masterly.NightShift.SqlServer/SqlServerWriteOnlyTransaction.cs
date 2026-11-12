@@ -523,7 +523,10 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
         string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@expireAt", SqlServerLimits.GetExpireAt(expireIn), DbType.DateTime)
@@ -537,7 +540,10 @@ $@"update J set ExpireAt = @expireAt from [{schemaName}].Job J with (forceseek) 
         string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where Id = @id;");
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@id", longId, DbType.Int64));
@@ -556,7 +562,10 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
             update [{schemaName}].Job set StateId = SCOPE_IDENTITY(), StateName = @name where Id = @jobId;
             """);
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
 
         if (state.Name == ProcessingState.StateName)
         {
@@ -587,7 +596,10 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
             values (@jobId, @name, @reason, @createdAt, @data)
             """);
 
-        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@jobId", longId, DbType.Int64)
@@ -609,7 +621,10 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
         if (persistentQueue.GetType() == typeof(SqlServerJobQueue))
         {
             SqlServerLimits.EnsureQueueNameFits(queue);
-            if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+            if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+            {
+                return;
+            }
 
             string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
@@ -853,7 +868,11 @@ $@"delete H from [{schemaName}].Hash H with (forceseek) where [Key] = @key");
 
         foreach (string item in items)
         {
-            if (item == null) throw new ArgumentException("The items can't contain null.", nameof(items));
+            if (item == null)
+            {
+                throw new ArgumentException("The items can't contain null.", nameof(items));
+            }
+
             SqlServerLimits.EnsureSetValueFits(key, item, nameof(items));
         }
 

@@ -470,8 +470,15 @@ public sealed class RecurringJobSetFacts : IDisposable
             ["Job"] = InvocationData.SerializeJob(Job.FromExpression(() => Run())).SerializePayload(),
         };
 
-        if (declared) hash["Declared"] = "1";
-        if (retired) hash["Retired"] = "1";
+        if (declared)
+        {
+            hash["Declared"] = "1";
+        }
+
+        if (retired)
+        {
+            hash["Retired"] = "1";
+        }
 
         _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{id}")).Returns(hash);
     }

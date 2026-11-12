@@ -27,7 +27,11 @@ public static class BackgroundJobClientFanInExtensions
             FanInMode mode,
             [NotNull, InstantHandle] Expression<Action> methodCall)
         {
-            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            if (!Enum.IsDefined(mode))
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            }
+
             return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
         }
 
@@ -37,7 +41,11 @@ public static class BackgroundJobClientFanInExtensions
             FanInMode mode,
             [NotNull, InstantHandle] Expression<Func<Task>> methodCall)
         {
-            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            if (!Enum.IsDefined(mode))
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            }
+
             return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
         }
 
@@ -47,7 +55,11 @@ public static class BackgroundJobClientFanInExtensions
             FanInMode mode,
             [NotNull, InstantHandle] Expression<Action<T>> methodCall)
         {
-            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            if (!Enum.IsDefined(mode))
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            }
+
             return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
         }
 
@@ -57,7 +69,11 @@ public static class BackgroundJobClientFanInExtensions
             FanInMode mode,
             [NotNull, InstantHandle] Expression<Func<T, Task>> methodCall)
         {
-            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            if (!Enum.IsDefined(mode))
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Not a FanInMode value.");
+            }
+
             return Create(client, parentIds, Job.FromExpression(methodCall), new EnqueuedState(), JobContinuationOptions.OnlyOnSucceededState, mode);
         }
 
@@ -349,7 +365,10 @@ public static class BackgroundJobClientFanInExtensions
         List<string> parents = [];
         foreach (string? parentId in parentIds)
         {
-            if (!string.IsNullOrWhiteSpace(parentId)) parents.Add(parentId);
+            if (!string.IsNullOrWhiteSpace(parentId))
+            {
+                parents.Add(parentId);
+            }
         }
 
         if (parents.Count == 0)

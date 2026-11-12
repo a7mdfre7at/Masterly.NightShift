@@ -261,7 +261,10 @@ public class IdempotentCompletionAttributeFacts
 
     private IState ReadCompletion()
     {
-        if (!_parameters.TryGetValue(IdempotentCompletionAttribute.CompletionParameter, out string? value) || value == null) return null;
+        if (!_parameters.TryGetValue(IdempotentCompletionAttribute.CompletionParameter, out string? value) || value == null)
+        {
+            return null;
+        }
 
         string? serializedState = SerializationHelper.Deserialize<string>(value, SerializationOption.User);
         return SerializationHelper.Deserialize<IState>(serializedState, SerializationOption.TypedInternal);

@@ -391,7 +391,11 @@ public class JobArgumentFacts
 
         public bool Equals(MyClass other)
         {
-            if (other == null) return false;
+            if (other == null)
+            {
+                return false;
+            }
+
             return CreatedAt.Equals(other.CreatedAt);
         }
 

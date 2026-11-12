@@ -71,8 +71,15 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.InitialState is not (EnqueuedState or ScheduledState)) return;
-        if (!context.Parameters.TryGetValue(ScheduleOptions.PolicyParameter, out object? value) || value is not string name) return;
+        if (context.InitialState is not (EnqueuedState or ScheduledState))
+        {
+            return;
+        }
+
+        if (!context.Parameters.TryGetValue(ScheduleOptions.PolicyParameter, out object? value) || value is not string name)
+        {
+            return;
+        }
 
         name = SchedulePolicy.NormalizeName(name, nameof(context));
         SchedulePolicyCalendar calendar = LoadCalendar(context.Storage, context.Connection, name, allowCached: true)
@@ -81,7 +88,10 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         DateTime now = JobClock.UtcNow;
         DateTime runAt = context.InitialState is ScheduledState scheduled ? scheduled.EnqueueAt : now;
         SchedulePolicyDecision decision = calendar.Evaluate(runAt, out SchedulePolicyFailure? failure);
-        if (decision.Allowed) return;
+        if (decision.Allowed)
+        {
+            return;
+        }
 
         if (failure != null)
         {
@@ -125,10 +135,16 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
         ArgumentNullException.ThrowIfNull(context);
 
         // Only the delayed job scheduler's enqueue of a due job; a job enqueued by hand runs
-        if (context.CandidateState is not EnqueuedState { IsDue: true }) return;
+        if (context.CandidateState is not EnqueuedState { IsDue: true })
+        {
+            return;
+        }
 
         string? name = ReadParameter(context, ScheduleOptions.PolicyParameter);
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
 
         // Read afresh: this check exists because the policy may have changed since the job was created
         SchedulePolicyCalendar? calendar = LoadCalendar(context.Storage, context.Connection, name, allowCached: false);
@@ -154,7 +170,10 @@ public sealed class SchedulePolicyFilter : IClientFilter, IElectStateFilter, IAp
             ClearFailedChecks(context);
         }
 
-        if (decision.Allowed) return;
+        if (decision.Allowed)
+        {
+            return;
+        }
 
         // The job exists already, so a policy that rejects it now skips it
         if (ReadWhenBlocked(ReadParameter(context, ScheduleOptions.WhenBlockedParameter)) != WhenBlocked.MoveForward)

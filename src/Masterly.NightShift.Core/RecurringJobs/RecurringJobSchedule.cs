@@ -31,7 +31,10 @@ public static class RecurringJobSchedule
             using IStorageConnection connection = storage.GetReadOnlyConnection();
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
 
-            if (recurringJob?.Cron == null || recurringJob.Paused) return [];
+            if (recurringJob?.Cron == null || recurringJob.Paused)
+            {
+                return [];
+            }
 
             return GetNextOccurrences(recurringJob, GlobalTimeZoneResolver.Current, JobClock.UtcNow, count);
         }
@@ -56,7 +59,11 @@ public static class RecurringJobSchedule
 
         foreach (DateTime occurrence in Cron.GetNextOccurrences(recurringJob.Cron!, timeZone, from, count)) // Checked by the caller
         {
-            if (recurringJob.EndAt.HasValue && occurrence > recurringJob.EndAt.Value) break;
+            if (recurringJob.EndAt.HasValue && occurrence > recurringJob.EndAt.Value)
+            {
+                break;
+            }
+
             result.Add(occurrence);
         }
 

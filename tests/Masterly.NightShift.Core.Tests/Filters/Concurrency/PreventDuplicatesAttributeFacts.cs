@@ -27,8 +27,15 @@ public class PreventDuplicatesAttributeFacts : IDisposable
         _transaction.Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))
             .Callback<string, IEnumerable<KeyValuePair<string, string>>>((key, pairs) =>
             {
-                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash)) _hashes[key] = hash = [];
-                foreach (KeyValuePair<string, string> pair in pairs) hash[pair.Key] = pair.Value;
+                if (!_hashes.TryGetValue(key, out Dictionary<string, string>? hash))
+                {
+                    _hashes[key] = hash = [];
+                }
+
+                foreach (KeyValuePair<string, string> pair in pairs)
+                {
+                    hash[pair.Key] = pair.Value;
+                }
             });
         _transaction.Setup(x => x.RemoveHash(It.IsAny<string>())).Callback<string>(key => _hashes.Remove(key));
 

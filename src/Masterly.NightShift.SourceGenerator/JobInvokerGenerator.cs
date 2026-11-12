@@ -89,7 +89,10 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(all, static (output, source) =>
         {
             (((ImmutableArray<InvokerModel> lambdas, ImmutableArray<InvokerModel> marked), EnvironmentModel? env), bool isDisabled) = source;
-            if (isDisabled || !env.HasNightShift) return;
+            if (isDisabled || !env.HasNightShift)
+            {
+                return;
+            }
 
             try
             {
@@ -237,9 +240,20 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
         }
 
         // Masterly.NightShift rejects async void methods, and we can't call anything that still has open type parameters
-        if (method.ReturnsVoid && method.IsAsync) return null;
-        if (ContainsTypeParameter(method.ContainingType)) return null;
-        if (method.IsGenericMethod && method.TypeArguments.Any(ContainsTypeParameter)) return null;
+        if (method.ReturnsVoid && method.IsAsync)
+        {
+            return null;
+        }
+
+        if (ContainsTypeParameter(method.ContainingType))
+        {
+            return null;
+        }
+
+        if (method.IsGenericMethod && method.TypeArguments.Any(ContainsTypeParameter))
+        {
+            return null;
+        }
 
         IAssemblySymbol within = compilation.Assembly;
 
@@ -285,7 +299,10 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
     private static bool OverridesObjectMember(IMethodSymbol method)
     {
-        if (!method.IsOverride) return false;
+        if (!method.IsOverride)
+        {
+            return false;
+        }
 
         IMethodSymbol current = method;
         while (current.OverriddenMethod != null)
@@ -310,7 +327,11 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             case IArrayTypeSymbol array:
                 return ContainsTypeParameter(array.ElementType);
             case INamedTypeSymbol named:
-                if (named.ContainingType != null && ContainsTypeParameter(named.ContainingType)) return true;
+                if (named.ContainingType != null && ContainsTypeParameter(named.ContainingType))
+                {
+                    return true;
+                }
+
                 return named.TypeArguments.Any(ContainsTypeParameter);
             default:
                 return false;
@@ -333,10 +354,26 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             case IArrayTypeSymbol array:
                 return IsTypeUsable(array.ElementType, compilation, within);
             case INamedTypeSymbol named:
-                if (named.IsAnonymousType || named.IsRefLikeType || named.TypeKind == TypeKind.Error) return false;
-                if (named.IsFileLocal) return false;
-                if (!compilation.IsSymbolAccessibleWithin(named, within)) return false;
-                if (named.ContainingType != null && !IsTypeUsable(named.ContainingType, compilation, within)) return false;
+                if (named.IsAnonymousType || named.IsRefLikeType || named.TypeKind == TypeKind.Error)
+                {
+                    return false;
+                }
+
+                if (named.IsFileLocal)
+                {
+                    return false;
+                }
+
+                if (!compilation.IsSymbolAccessibleWithin(named, within))
+                {
+                    return false;
+                }
+
+                if (named.ContainingType != null && !IsTypeUsable(named.ContainingType, compilation, within))
+                {
+                    return false;
+                }
+
                 return named.TypeArguments.All(argument => IsTypeUsable(argument, compilation, within));
             default:
                 return false;
@@ -356,7 +393,10 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
             }
         }
 
-        if (distinct.Count == 0) return;
+        if (distinct.Count == 0)
+        {
+            return;
+        }
 
         string className = "NightShiftJobInvokers_" + Sanitize(env.AssemblyName);
         StringBuilder sb = new();
@@ -457,7 +497,10 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
         for (int i = 0; i < model.ParameterTypes.Length; i++)
         {
-            if (i > 0) sb.Append(", ");
+            if (i > 0)
+            {
+                sb.Append(", ");
+            }
 
             string type = model.ParameterTypes[i];
 
@@ -503,7 +546,11 @@ public sealed class JobInvokerGenerator : IIncrementalGenerator
 
         for (int i = 0; i < types.Length; i++)
         {
-            if (i > 0) sb.Append(", ");
+            if (i > 0)
+            {
+                sb.Append(", ");
+            }
+
             sb.Append("typeof(").Append(types[i]).Append(')');
         }
 

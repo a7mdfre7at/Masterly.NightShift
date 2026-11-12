@@ -39,7 +39,10 @@ public class DisableConcurrentExecutionAttribute : JobFilterAttribute, IServerFi
 
     public DisableConcurrentExecutionAttribute(int timeoutInSeconds)
     {
-        if (timeoutInSeconds < 0) throw new ArgumentException("Timeout argument value should be greater than or equal to zero.", nameof(timeoutInSeconds));
+        if (timeoutInSeconds < 0)
+        {
+            throw new ArgumentException("Timeout argument value should be greater than or equal to zero.", nameof(timeoutInSeconds));
+        }
 
         TimeoutSec = timeoutInSeconds;
     }

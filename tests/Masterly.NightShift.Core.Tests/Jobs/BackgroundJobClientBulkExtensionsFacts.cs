@@ -352,9 +352,20 @@ public class BackgroundJobClientBulkExtensionsFacts
             int argument = (int)context.Job.Args[0];
             calls.Add($"{_prefix}creating {argument}");
 
-            if (ParameterName != null) context.SetJobParameter(ParameterName, argument);
-            if (argument == CancelArgument) context.Canceled = true;
-            if (argument == ThrowOnCreatingArgument) throw new InvalidOperationException("OnCreating failed");
+            if (ParameterName != null)
+            {
+                context.SetJobParameter(ParameterName, argument);
+            }
+
+            if (argument == CancelArgument)
+            {
+                context.Canceled = true;
+            }
+
+            if (argument == ThrowOnCreatingArgument)
+            {
+                throw new InvalidOperationException("OnCreating failed");
+            }
         }
 
         public void OnCreated(CreatedContext context)

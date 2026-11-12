@@ -663,7 +663,11 @@ public sealed class JobChainStorageFacts : IDisposable
         Stopwatch waited = Stopwatch.StartNew();
         while (!condition())
         {
-            if (waited.Elapsed > Timeout) throw new TimeoutException($"Timed out waiting for {what}.");
+            if (waited.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Timed out waiting for {what}.");
+            }
+
             Thread.Sleep(25);
         }
     }

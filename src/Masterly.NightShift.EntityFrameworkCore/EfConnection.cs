@@ -24,7 +24,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         ArgumentNullException.ThrowIfNull(job);
         ArgumentNullException.ThrowIfNull(parameters);
-        foreach (string name in parameters.Keys) EfLimits.EnsureJobParameterNameFits(name);
+        foreach (string name in parameters.Keys)
+        {
+            EfLimits.EnsureJobParameterNameFits(name);
+        }
 
         StoredJob stored = StoredJob.Create(0, job, parameters, createdAt, StorageValues.ExpireAt(createdAt, expireIn));
         JobRow row = new()
@@ -45,17 +48,26 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Task enqueued = storage.Enqueued;
 
-            if (TryFetch(queues, out bool contended) is { } fetched) return fetched;
+            if (TryFetch(queues, out bool contended) is { } fetched)
+            {
+                return fetched;
+            }
 
             // Entries were there, but other workers claimed every one first: more may be waiting behind them
-            if (contended) continue;
+            if (contended)
+            {
+                continue;
+            }
 
             try
             {
@@ -72,7 +84,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return;
+        }
 
         EfTransaction.Apply(storage, [new SetJobParameterOperation(jobId, name, value)]);
     }
@@ -81,7 +96,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(name);
-        if (!StorageValues.TryParseJobId(id, out long jobId)) return null;
+        if (!StorageValues.TryParseJobId(id, out long jobId))
+        {
+            return null;
+        }
 
         return Read(context => context.Set<JobParameterRow>().Where(x => x.JobId == jobId && x.Name == name).Select(static x => x.Value).FirstOrDefault());
     }
@@ -89,7 +107,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override JobData? GetJobData(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (!StorageValues.TryParseJobId(jobId, out long id)) return null;
+        if (!StorageValues.TryParseJobId(jobId, out long id))
+        {
+            return null;
+        }
 
         return Read(context =>
         {
@@ -101,7 +122,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override StateData? GetStateData(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (!StorageValues.TryParseJobId(jobId, out long id)) return null;
+        if (!StorageValues.TryParseJobId(jobId, out long id))
+        {
+            return null;
+        }
 
         return Read(context =>
         {
@@ -120,7 +144,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         storage.InTransaction(db =>
         {
             ServerRow? row = db.Set<ServerRow>().Find(serverId);
-            if (row == null) db.Add(row = new ServerRow { Id = serverId });
+            if (row == null)
+            {
+                db.Add(row = new ServerRow { Id = serverId });
+            }
+
             row.Data = data;
             row.LastHeartbeat = JobClock.UtcNow;
         });
@@ -145,7 +173,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
 
     public override int RemoveTimedOutServers(TimeSpan timeOut)
     {
-        if (timeOut.Duration() != timeOut) throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        if (timeOut.Duration() != timeOut)
+        {
+            throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
+        }
+
         DateTime cutoff = JobClock.UtcNow - timeOut;
         return Read(context => context.Set<ServerRow>().Where(x => x.LastHeartbeat < cutoff).ExecuteDelete());
     }
@@ -164,8 +196,15 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override List<string> GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore, int count)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (count <= 0) throw new ArgumentException("The value must be a positive number", nameof(count));
-        if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        if (count <= 0)
+        {
+            throw new ArgumentException("The value must be a positive number", nameof(count));
+        }
+
+        if (toScore < fromScore)
+        {
+            throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.", nameof(toScore));
+        }
 
         return Read(context => context.Set<SetRow>()
             .Where(x => x.Key == key && x.Score >= fromScore && x.Score <= toScore)
@@ -202,7 +241,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         ArgumentNullException.ThrowIfNull(key);
         // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
-        if (endingAt < start) return [];
+        if (endingAt < start)
+        {
+            return [];
+        }
 
         return Read(context => context.Set<SetRow>()
             .Where(x => x.Key == key)
@@ -270,7 +312,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         ArgumentNullException.ThrowIfNull(key);
         // Positions count from 0, as on SQL Server: what lies before the first item, or an empty range, reads nothing
         int start = Math.Max(0, startingFrom);
-        if (endingAt < start) return [];
+        if (endingAt < start)
+        {
+            return [];
+        }
 
         return Read(context => context.Set<ListRow>()
             .Where(x => x.Key == key)
@@ -312,7 +357,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             catch (DbUpdateException ex)
             {
                 context.ChangeTracker.Clear();
-                if (context.Set<LockRow>().Any(x => x.Resource == resource)) return false;
+                if (context.Set<LockRow>().Any(x => x.Resource == resource))
+                {
+                    return false;
+                }
 
                 if (attempt == 2)
                 {
@@ -362,14 +410,21 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
                     .OrderBy(static x => x.Id)
                     .Select(static x => new { x.Id, x.JobId })
                     .FirstOrDefault();
-                if (candidate == null) break;
+                if (candidate == null)
+                {
+                    break;
+                }
 
                 string token = Guid.NewGuid().ToString("N");
                 int claimed = context.Set<JobQueueRow>()
                     .Where(x => x.Id == candidate.Id && (x.FetchedAt == null || x.FetchedAt < staleBefore))
                     .ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now).SetProperty(x => x.FetchToken, token));
 
-                if (claimed == 1) return new EfFetchedJob(storage, candidate.Id, candidate.JobId, queue, token);
+                if (claimed == 1)
+                {
+                    return new EfFetchedJob(storage, candidate.Id, candidate.JobId, queue, token);
+                }
+
                 contended = true;
             }
         }
@@ -422,7 +477,10 @@ internal static class EfRows
     public static Dictionary<string, long> ReadCounters(DbContext context, IReadOnlyCollection<string> keys)
     {
         string[] names = [.. keys];
-        if (names.Length == 0) return new Dictionary<string, long>(StringComparer.Ordinal);
+        if (names.Length == 0)
+        {
+            return new Dictionary<string, long>(StringComparer.Ordinal);
+        }
 
         return context.Set<CounterRow>()
             .Where(x => names.Contains(x.Key))
@@ -455,7 +513,10 @@ internal sealed class EfTransaction(EntityFrameworkCoreStorage storage, EfConnec
                 storage.InTransaction(context =>
                 {
                     EfOperationWriter writer = new(context, immediate: true);
-                    foreach (StorageOperation operation in operations) writer.Write(operation);
+                    foreach (StorageOperation operation in operations)
+                    {
+                        writer.Write(operation);
+                    }
                 });
                 return;
             }
@@ -473,12 +534,18 @@ internal sealed class EfTransaction(EntityFrameworkCoreStorage storage, EfConnec
 
     protected override void Apply(IReadOnlyList<StorageOperation> operations)
     {
-        if (operations.Count > 0) Apply(storage, operations);
+        if (operations.Count > 0)
+        {
+            Apply(storage, operations);
+        }
     }
 
     protected override void Committed()
     {
-        if (QueuesWritten().Any()) storage.Signal();
+        if (QueuesWritten().Any())
+        {
+            storage.Signal();
+        }
     }
 }
 
@@ -518,7 +585,11 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
 
     protected override IReadOnlyList<StoredJob> GetJobs(string stateName, int from, int count, bool descending)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         return Read(context =>
         {
             IQueryable<JobRow> jobs = context.Set<JobRow>().AsNoTracking().Where(x => x.StateName == stateName);
@@ -529,7 +600,11 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
 
     protected override IReadOnlyList<StoredJob> GetJobs(IReadOnlyCollection<long> ids)
     {
-        if (ids.Count == 0) return [];
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
         long[] keys = [.. ids];
         return Read(context => context.Set<JobRow>().AsNoTracking().Where(x => keys.Contains(x.Id)).ToList().Select(EfRows.ToJob).ToList());
     }
@@ -539,7 +614,10 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
         return Read(context =>
         {
             JobRow? row = context.Set<JobRow>().AsNoTracking().Include(static x => x.Parameters).FirstOrDefault(x => x.Id == id);
-            if (row == null) return null;
+            if (row == null)
+            {
+                return null;
+            }
 
             StoredJob job = EfRows.ToJob(row);
             job.History = [.. context.Set<StateRow>().AsNoTracking()
@@ -586,7 +664,11 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
 
     private List<long> QueueJobIds(string queue, bool fetched, int from, int count)
     {
-        if (count <= 0) return [];
+        if (count <= 0)
+        {
+            return [];
+        }
+
         return Read(context => context.Set<JobQueueRow>()
             .Where(x => x.Queue == queue && (x.FetchedAt != null) == fetched)
             .OrderBy(static x => x.Id)
@@ -635,7 +717,10 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
         while (!cancellationToken.IsCancellationRequested)
         {
             List<long> ids = [.. db.Set<JobRow>().Where(x => x.ExpireAt < now).OrderBy(static x => x.Id).Select(static x => x.Id).Take(BatchSize)];
-            if (ids.Count == 0) break;
+            if (ids.Count == 0)
+            {
+                break;
+            }
 
             db.Set<JobQueueRow>().Where(x => ids.Contains(x.JobId)).ExecuteDelete();
             db.Set<StateRow>().Where(x => ids.Contains(x.JobId)).ExecuteDelete();
@@ -705,7 +790,10 @@ internal sealed class EfCountersAggregator(EntityFrameworkCoreStorage storage) :
         {
             List<CounterRow> increments = [.. context.Set<CounterRow>().AsNoTracking().OrderBy(static x => x.Id).Take(BatchSize)];
             merged = increments.Count;
-            if (merged == 0) return;
+            if (merged == 0)
+            {
+                return;
+            }
 
             long[] ids = [.. increments.Select(static x => x.Id)];
             if (context.Set<CounterRow>().Where(x => ids.Contains(x.Id)).ExecuteDelete() != ids.Length)
@@ -723,10 +811,17 @@ internal sealed class EfCountersAggregator(EntityFrameworkCoreStorage storage) :
             foreach (IGrouping<string, CounterRow> counter in increments.GroupBy(static x => x.Key, StringComparer.Ordinal))
             {
                 AggregatedCounterRow? row = existing.GetValueOrDefault(counter.Key) ?? context.Set<AggregatedCounterRow>().Find(counter.Key);
-                if (row == null) context.Add(row = new AggregatedCounterRow { Key = counter.Key });
+                if (row == null)
+                {
+                    context.Add(row = new AggregatedCounterRow { Key = counter.Key });
+                }
+
                 row.Value += counter.Sum(static x => x.Value);
                 DateTime? expireAt = counter.Max(static x => x.ExpireAt);
-                if (expireAt.HasValue && (row.ExpireAt == null || row.ExpireAt < expireAt)) row.ExpireAt = expireAt;
+                if (expireAt.HasValue && (row.ExpireAt == null || row.ExpireAt < expireAt))
+                {
+                    row.ExpireAt = expireAt;
+                }
             }
         });
 

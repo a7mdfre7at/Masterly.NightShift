@@ -120,7 +120,10 @@ public class SqlServerStorage : JobStorage
     /// </summary>
     internal static string ResolveConnectionString(string connectionString)
     {
-        if (connectionString.Contains('=')) return connectionString;
+        if (connectionString.Contains('='))
+        {
+            return connectionString;
+        }
 
         throw new ArgumentException(
             $"'{connectionString}' is not a connection string: it has no 'key=value' pairs. If it is the name of a connection string, read the connection string first, for example with IConfiguration.GetConnectionString(\"{connectionString}\"), and pass it.",
@@ -318,8 +321,15 @@ public class SqlServerStorage : JobStorage
             total += storage.PurgeTable(connection, "Set", ctx.KeepRecurringJobs ? "[Key] <> N'recurring-jobs'" : null);
 
             List<string> hashConditions = [];
-            if (ctx.KeepRecurringJobs) hashConditions.Add("[Key] not like N'recurring-job:%'");
-            if (ctx.KeepDrainMode) hashConditions.Add("[Key] <> @drainModeKey");
+            if (ctx.KeepRecurringJobs)
+            {
+                hashConditions.Add("[Key] not like N'recurring-job:%'");
+            }
+
+            if (ctx.KeepDrainMode)
+            {
+                hashConditions.Add("[Key] <> @drainModeKey");
+            }
 
             total += storage.PurgeTable(connection, "Hash", hashConditions.Count > 0 ? string.Join(" and ", hashConditions) : null);
 
@@ -390,7 +400,10 @@ public class SqlServerStorage : JobStorage
                 }
             }
 
-            if (builder.Length != 0) builder.Append('@');
+            if (builder.Length != 0)
+            {
+                builder.Append('@');
+            }
 
             foreach (string? alias in new[] { "Database", "Initial Catalog" })
             {
@@ -808,15 +821,24 @@ public class SqlServerStorage : JobStorage
     {
         bool installDue = _schemaInstallRetryPending;
         bool detectionDue = _schemaVersionRetryPending && !_schemaVersionDetected;
-        if (!installDue && !detectionDue) return;
+        if (!installDue && !detectionDue)
+        {
+            return;
+        }
 
         long now = JobClock.UtcNow.Ticks;
         installDue = installDue && now >= Interlocked.Read(ref _nextSchemaInstallRetryTicks);
         detectionDue = detectionDue && now >= Interlocked.Read(ref _nextSchemaVersionRetryTicks);
-        if (!installDue && !detectionDue) return;
+        if (!installDue && !detectionDue)
+        {
+            return;
+        }
 
         // A thread that finds another one trying doesn't wait for it: it goes on with the defaults
-        if (!Monitor.TryEnter(_schemaVersionRetryLock)) return;
+        if (!Monitor.TryEnter(_schemaVersionRetryLock))
+        {
+            return;
+        }
 
         try
         {
@@ -875,7 +897,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_ActiveConnections",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
@@ -897,7 +922,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_TotalConnections",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
@@ -919,7 +947,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_SQLServer_ActiveTransactions",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
@@ -941,7 +972,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_SQLServer_DataFilesSize",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
@@ -962,7 +996,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_SQLServer_LogFilesSize",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection) =>
             {
@@ -983,7 +1020,10 @@ public class SqlServerStorage : JobStorage
         "Metrics_SQLServer_SchemaVersion",
         static page =>
         {
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (storage, connection) =>
             {
@@ -1022,7 +1062,10 @@ public class SqlServerStorage : JobStorage
             ArgumentNullException.ThrowIfNull(objectName);
             ArgumentNullException.ThrowIfNull(counterName);
 
-            if (page.Storage is not SqlServerStorage sqlStorage) return new Metric("???");
+            if (page.Storage is not SqlServerStorage sqlStorage)
+            {
+                return new Metric("???");
+            }
 
             return sqlStorage.UseConnection(null, static (_, connection, ctx) =>
             {

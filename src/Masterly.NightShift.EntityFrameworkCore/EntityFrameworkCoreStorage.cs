@@ -106,11 +106,30 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     private EntityFrameworkCoreStorage(Func<DbContext> contextFactory, EntityFrameworkCoreStorageOptions options, bool dedicated)
     {
         ArgumentNullException.ThrowIfNull(contextFactory);
-        if (options.QueuePollInterval <= TimeSpan.Zero) throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
-        if (options.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (options.JobExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
-        if (options.CountersAggregateInterval <= TimeSpan.Zero) throw new ArgumentException("The counters aggregate interval must be positive.", nameof(options));
-        if (options.DistributedLockLifetime < TimeSpan.FromSeconds(1)) throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        if (options.QueuePollInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
+        }
+
+        if (options.InvisibilityTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        }
+
+        if (options.JobExpirationCheckInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        }
+
+        if (options.CountersAggregateInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The counters aggregate interval must be positive.", nameof(options));
+        }
+
+        if (options.DistributedLockLifetime < TimeSpan.FromSeconds(1))
+        {
+            throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        }
 
         _contextFactory = contextFactory;
         Options = options;
@@ -170,11 +189,22 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         removed += options.KeepAuditLog ? context.Set<ListRow>().Where(static x => x.Key != AuditLog.ListKey).ExecuteDelete() : context.Set<ListRow>().ExecuteDelete();
 
         IQueryable<HashRow> hashes = context.Set<HashRow>();
-        if (options.KeepRecurringJobs) hashes = hashes.Where(static x => !x.Key.StartsWith("recurring-job:"));
-        if (options.KeepDrainMode) hashes = hashes.Where(static x => x.Key != DrainMode.HashKey);
+        if (options.KeepRecurringJobs)
+        {
+            hashes = hashes.Where(static x => !x.Key.StartsWith("recurring-job:"));
+        }
+
+        if (options.KeepDrainMode)
+        {
+            hashes = hashes.Where(static x => x.Key != DrainMode.HashKey);
+        }
+
         removed += hashes.ExecuteDelete();
 
-        if (!options.KeepServers) removed += context.Set<ServerRow>().ExecuteDelete();
+        if (!options.KeepServers)
+        {
+            removed += context.Set<ServerRow>().ExecuteDelete();
+        }
 
         LogProvider.GetLogger(typeof(EntityFrameworkCoreStorage)).Info($"The Entity Framework Core job storage was purged: {removed} rows deleted.");
     }

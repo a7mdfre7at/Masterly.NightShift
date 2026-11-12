@@ -52,7 +52,10 @@ internal sealed class PostCommitActions
         // the caller retry it, nor hide the original error
         foreach (KeyValuePair<Action, bool> action in _actions)
         {
-            if (onlyRegardless && !action.Value) continue;
+            if (onlyRegardless && !action.Value)
+            {
+                continue;
+            }
 
             try
             {

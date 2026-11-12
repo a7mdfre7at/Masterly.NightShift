@@ -20,8 +20,15 @@ internal static class JobInterceptorPipeline
         IJobInterceptor[] declared = AttributeCache.GetOrAdd((job.Type, job.Method), static key => GetDeclaredInterceptors(key.Type, key.Method));
         IReadOnlyList<IJobInterceptor> global = GlobalJobInterceptors.Interceptors;
 
-        if (global.Count == 0) return declared;
-        if (declared.Length == 0) return global;
+        if (global.Count == 0)
+        {
+            return declared;
+        }
+
+        if (declared.Length == 0)
+        {
+            return global;
+        }
 
         IJobInterceptor[] combined = new IJobInterceptor[global.Count + declared.Length];
 

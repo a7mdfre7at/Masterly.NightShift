@@ -110,7 +110,10 @@ local.MapPost("/events/clear", () => PlaygroundLog.Instance.Clear());
 local.MapPost("/try/{id}", async (string id, IServiceProvider services) =>
 {
     Experiment? experiment = Experiments.All.FirstOrDefault(x => x.Id == id);
-    if (experiment?.Run == null) return Results.NotFound();
+    if (experiment?.Run == null)
+    {
+        return Results.NotFound();
+    }
 
     try
     {
@@ -151,9 +154,16 @@ static string? GetListeningUrl(string? urls)
 {
     string? url = urls?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .FirstOrDefault(static x => x.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
-    if (url == null) return null;
+    if (url == null)
+    {
+        return null;
+    }
 
     UriBuilder builder = new(url.Replace("://*", "://localhost", StringComparison.Ordinal).Replace("://+", "://localhost", StringComparison.Ordinal));
-    if (builder.Host is "0.0.0.0" or "[::]") builder.Host = "localhost";
+    if (builder.Host is "0.0.0.0" or "[::]")
+    {
+        builder.Host = "localhost";
+    }
+
     return builder.Uri.GetLeftPart(UriPartial.Authority);
 }

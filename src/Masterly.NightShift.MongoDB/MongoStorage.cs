@@ -80,11 +80,30 @@ public sealed class MongoStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(database);
         options ??= new MongoStorageOptions();
-        if (string.IsNullOrEmpty(options.CollectionPrefix)) throw new ArgumentException("The collection prefix can't be empty.", nameof(options));
-        if (options.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (options.QueuePollInterval <= TimeSpan.Zero) throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
-        if (options.CountersAggregateInterval <= TimeSpan.Zero) throw new ArgumentException("The counters aggregate interval must be positive.", nameof(options));
-        if (options.DistributedLockLifetime < TimeSpan.FromSeconds(1)) throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        if (string.IsNullOrEmpty(options.CollectionPrefix))
+        {
+            throw new ArgumentException("The collection prefix can't be empty.", nameof(options));
+        }
+
+        if (options.InvisibilityTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        }
+
+        if (options.QueuePollInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
+        }
+
+        if (options.CountersAggregateInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentException("The counters aggregate interval must be positive.", nameof(options));
+        }
+
+        if (options.DistributedLockLifetime < TimeSpan.FromSeconds(1))
+        {
+            throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        }
 
         Database = database;
         Options = options;
@@ -138,8 +157,16 @@ public sealed class MongoStorage : JobStorage
         removed += Collections.Lists.DeleteMany(options.KeepAuditLog ? filter.Ne("Key", AuditLog.ListKey) : filter.Empty).DeletedCount;
 
         List<FilterDefinition<BsonDocument>> hashes = [];
-        if (options.KeepRecurringJobs) hashes.Add(filter.Not(filter.Regex("Key", new BsonRegularExpression("^recurring-job:"))));
-        if (options.KeepDrainMode) hashes.Add(filter.Ne("Key", DrainMode.HashKey));
+        if (options.KeepRecurringJobs)
+        {
+            hashes.Add(filter.Not(filter.Regex("Key", new BsonRegularExpression("^recurring-job:"))));
+        }
+
+        if (options.KeepDrainMode)
+        {
+            hashes.Add(filter.Ne("Key", DrainMode.HashKey));
+        }
+
         removed += Collections.Hashes.DeleteMany(hashes.Count > 0 ? filter.And(hashes) : filter.Empty).DeletedCount;
 
         if (!options.KeepServers)

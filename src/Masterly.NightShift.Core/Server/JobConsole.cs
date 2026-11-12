@@ -140,7 +140,11 @@ public sealed class JobConsole : IJobConsole
     /// <inheritdoc />
     public void SetProgress(double percent, string? message = null)
     {
-        if (double.IsNaN(percent)) percent = 0;
+        if (double.IsNaN(percent))
+        {
+            percent = 0;
+        }
+
         percent = Math.Max(0, Math.Min(100, Math.Round(percent, 1)));
         message = Truncate(message);
 
@@ -152,7 +156,10 @@ public sealed class JobConsole : IJobConsole
                 return;
             }
 
-            if (!IsRunning()) return;
+            if (!IsRunning())
+            {
+                return;
+            }
 
             JobProgress progress = new() { Percent = percent, Message = message, Timestamp = Now() };
             string value = SerializationHelper.Serialize(progress, SerializationOption.Internal);
@@ -182,7 +189,10 @@ public sealed class JobConsole : IJobConsole
 
         lock (_syncRoot)
         {
-            if (!IsRunning()) return;
+            if (!IsRunning())
+            {
+                return;
+            }
 
             try
             {
@@ -212,7 +222,10 @@ public sealed class JobConsole : IJobConsole
                 Append(new JobConsoleEntry { Checkpoint = checkpoint }, isNew);
             }
 
-            if (isNew) checkpoints.Add(checkpoint);
+            if (isNew)
+            {
+                checkpoints.Add(checkpoint);
+            }
         }
     }
 
@@ -290,13 +303,19 @@ public sealed class JobConsole : IJobConsole
     /// </summary>
     private List<string> LoadCheckpoints()
     {
-        if (_checkpoints != null) return _checkpoints;
+        if (_checkpoints != null)
+        {
+            return _checkpoints;
+        }
 
         List<string> loaded = [];
 
         foreach (JobConsoleEntry? entry in UseConnection(ReadCheckpointEntries))
         {
-            if (!loaded.Contains(entry.Checkpoint!, StringComparer.Ordinal)) loaded.Add(entry.Checkpoint!);
+            if (!loaded.Contains(entry.Checkpoint!, StringComparer.Ordinal))
+            {
+                loaded.Add(entry.Checkpoint!);
+            }
         }
 
         _checkpoints = loaded;
@@ -305,7 +324,10 @@ public sealed class JobConsole : IJobConsole
 
     private List<JobConsoleEntry> ReadCheckpointEntries(IStorageConnection connection)
     {
-        if (connection is not JobStorageConnection storageConnection) return [];
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return [];
+        }
 
         string jobId = _context.BackgroundJob.Id;
         List<JobConsoleEntry> recorded = ReadList(storageConnection, GetCheckpointsKey(jobId));
@@ -322,7 +344,10 @@ public sealed class JobConsole : IJobConsole
             .DistinctBy(static x => x.Checkpoint, StringComparer.Ordinal)];
 
         // An expiring console list belongs to a run that finished, and the job was requeued since: start over
-        if (legacy.Count == 0 || IsExpiring(storageConnection, consoleKey)) return [];
+        if (legacy.Count == 0 || IsExpiring(storageConnection, consoleKey))
+        {
+            return [];
+        }
 
         // Copied to the checkpoints list together with the first checkpoint this run records
         _legacyCheckpoints = legacy;
@@ -362,7 +387,10 @@ public sealed class JobConsole : IJobConsole
             try
             {
                 JobConsoleEntry? entry = SerializationHelper.Deserialize<JobConsoleEntry>(item, SerializationOption.Internal);
-                if (entry != null) entries.Add(entry);
+                if (entry != null)
+                {
+                    entries.Add(entry);
+                }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -419,7 +447,10 @@ public sealed class JobConsole : IJobConsole
             transaction.Commit();
         });
 
-        if (newCheckpoint) _legacyCheckpoints = null;
+        if (newCheckpoint)
+        {
+            _legacyCheckpoints = null;
+        }
     }
 
     /// <summary>
@@ -431,7 +462,10 @@ public sealed class JobConsole : IJobConsole
         _droppedWrites++;
 
         DateTime now = Clock();
-        if (_nextDroppedWriteWarning.HasValue && now < _nextDroppedWriteWarning.Value) return;
+        if (_nextDroppedWriteWarning.HasValue && now < _nextDroppedWriteWarning.Value)
+        {
+            return;
+        }
 
         _nextDroppedWriteWarning = now + DroppedWriteWarningInterval;
         int dropped = _droppedWrites;
@@ -487,7 +521,11 @@ public sealed class JobConsole : IJobConsole
 
     private static string? Truncate(string? value)
     {
-        if (value == null || MaxMessageLength <= 0 || value.Length <= MaxMessageLength) return value;
+        if (value == null || MaxMessageLength <= 0 || value.Length <= MaxMessageLength)
+        {
+            return value;
+        }
+
         return value[..MaxMessageLength];
     }
 }

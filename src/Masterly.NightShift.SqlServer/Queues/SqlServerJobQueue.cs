@@ -50,7 +50,10 @@ internal sealed class SqlServerJobQueue : IPersistentJobQueue
     public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         if (_options.SlidingInvisibilityTimeout.HasValue)
         {
@@ -63,7 +66,10 @@ internal sealed class SqlServerJobQueue : IPersistentJobQueue
     public void Enqueue(DbConnection connection, DbTransaction transaction, string queue, string jobId)
     {
         SqlServerLimits.EnsureQueueNameFits(queue);
-        if (!SqlServerConnection.TryParseJobId(jobId, out long longId)) return;
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
 
         string query = _storage.GetQueryFromTemplate(static schemaName =>
 $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
@@ -80,7 +86,10 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
     private SqlServerTimeoutJob? DequeueUsingSlidingInvisibilityTimeout(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);
-        if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        if (queues.Length == 0)
+        {
+            throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -88,7 +97,10 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         // return if any. In this case we don't need any additional logic like
         // semaphores or waiting.
         SqlServerTimeoutJob? fetchedJob = FetchJob(queues);
-        if (fetchedJob != null) return fetchedJob;
+        if (fetchedJob != null)
+        {
+            return fetchedJob;
+        }
 
         // Then we determine whether we should use the long polling feature,
         // where only a single worker acquires a semaphore for each queue set
@@ -131,7 +143,10 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
                 // the determined delay between attempts, until shutdown
                 // request is received.
                 fetchedJob = FetchJob(queues);
-                if (fetchedJob != null) return fetchedJob;
+                if (fetchedJob != null)
+                {
+                    return fetchedJob;
+                }
 
                 WaitHandle.WaitAny(waitArray, pollingDelayMs);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -305,7 +320,11 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
                 // Check connection isn't broken first, so rolling back doesn't throw InvalidOperationException
                 // https://github.com/HangfireIO/Hangfire/issues/1494
                 // https://github.com/dotnet/efcore/issues/12864
-                if (transaction?.Connection != null) transaction.Rollback();
+                if (transaction?.Connection != null)
+                {
+                    transaction.Rollback();
+                }
+
                 throw;
             }
             finally

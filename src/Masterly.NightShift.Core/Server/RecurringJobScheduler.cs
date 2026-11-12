@@ -247,7 +247,10 @@ public class RecurringJobScheduler : IBackgroundProcess
                     {
                         foreach (string recurringJobId in recurringJobIds)
                         {
-                            if (context.IsStopping) break;
+                            if (context.IsStopping)
+                            {
+                                break;
+                            }
 
                             TryEnqueueBackgroundJob(context, connection, recurringJobId, now, calendars);
                             jobsProcessed++;
@@ -265,12 +268,18 @@ public class RecurringJobScheduler : IBackgroundProcess
 
                 for (int i = 0; i < BatchSize; i++)
                 {
-                    if (context.IsStopping) break;
+                    if (context.IsStopping)
+                    {
+                        break;
+                    }
 
                     long timestamp = JobHelper.ToTimestamp(now);
 
                     string? recurringJobId = connection.GetFirstByLowestScoreFromSet("recurring-jobs", 0, timestamp);
-                    if (recurringJobId == null) break;
+                    if (recurringJobId == null)
+                    {
+                        break;
+                    }
 
                     TryEnqueueBackgroundJob(context, connection, recurringJobId, now, calendars);
                     jobsProcessed++;

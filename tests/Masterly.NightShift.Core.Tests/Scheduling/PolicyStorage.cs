@@ -51,7 +51,11 @@ internal sealed class PolicyStorage
 
     private void AddToSet(string key, string value)
     {
-        if (!Sets.TryGetValue(key, out SortedSet<string> set)) Sets[key] = set = new SortedSet<string>(StringComparer.Ordinal);
+        if (!Sets.TryGetValue(key, out SortedSet<string> set))
+        {
+            Sets[key] = set = new SortedSet<string>(StringComparer.Ordinal);
+        }
+
         set.Add(value);
     }
 
@@ -66,8 +70,15 @@ internal sealed class PolicyStorage
                 List<KeyValuePair<string, string>> copy = [.. fields];
                 pending.Add(() =>
                 {
-                    if (!Hashes.TryGetValue(key, out Dictionary<string, string> hash)) Hashes[key] = hash = [];
-                    foreach (KeyValuePair<string, string> field in copy) hash[field.Key] = field.Value;
+                    if (!Hashes.TryGetValue(key, out Dictionary<string, string> hash))
+                    {
+                        Hashes[key] = hash = [];
+                    }
+
+                    foreach (KeyValuePair<string, string> field in copy)
+                    {
+                        hash[field.Key] = field.Value;
+                    }
                 });
             });
         transaction.Setup(x => x.RemoveHash(It.IsAny<string>()))
@@ -79,11 +90,18 @@ internal sealed class PolicyStorage
         transaction.Setup(x => x.RemoveFromSet(It.IsAny<string>(), It.IsAny<string>()))
             .Callback((string key, string value) => pending.Add(() =>
             {
-                if (Sets.TryGetValue(key, out SortedSet<string> set)) set.Remove(value);
+                if (Sets.TryGetValue(key, out SortedSet<string> set))
+                {
+                    set.Remove(value);
+                }
             }));
         transaction.Setup(x => x.Commit()).Callback(() =>
         {
-            foreach (Action action in pending) action();
+            foreach (Action action in pending)
+            {
+                action();
+            }
+
             pending.Clear();
             Commits++;
         });

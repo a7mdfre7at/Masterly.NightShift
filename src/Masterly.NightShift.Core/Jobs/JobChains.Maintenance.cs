@@ -26,10 +26,16 @@ public static partial class JobChains
     /// <returns>False when another server is doing it, or the storage has neither expiring hashes nor ranges of sets.</returns>
     internal static bool Maintain(JobStorage storage, IBackgroundJobClient client, ref double listPosition)
     {
-        if (!storage.HasFeature(JobStorageFeatures.ExtendedApi)) return false;
+        if (!storage.HasFeature(JobStorageFeatures.ExtendedApi))
+        {
+            return false;
+        }
 
         using IStorageConnection connection = storage.GetConnection();
-        if (connection is not JobStorageConnection storageConnection) return false;
+        if (connection is not JobStorageConnection storageConnection)
+        {
+            return false;
+        }
 
         IDisposable maintenanceLock;
         try
@@ -82,7 +88,10 @@ public static partial class JobChains
 
         while (examined < MaxListedPerRun)
         {
-            if (from > oldest) return (0, unlisted);
+            if (from > oldest)
+            {
+                return (0, unlisted);
+            }
 
             List<string> page = pageSize > 1
                 ? connection.GetFirstByLowestScoreFromSet(SetKey, from, oldest, pageSize)
@@ -122,7 +131,10 @@ public static partial class JobChains
             }
 
             // Every chain old enough was looked at: the next run starts over
-            if (page.Count < pageSize) return (0, unlisted);
+            if (page.Count < pageSize)
+            {
+                return (0, unlisted);
+            }
 
             // The chains kept at the score the next page starts from come back with it. When a page brought
             // nothing else, they fill it: the walk steps to the next second (scores are whole seconds).
@@ -248,7 +260,10 @@ public static partial class JobChains
         {
             try
             {
-                if (!TryDeleteReplaced(client, connection, jobId, cleanup.Reason, ref deleted)) remaining.Add(jobId);
+                if (!TryDeleteReplaced(client, connection, jobId, cleanup.Reason, ref deleted))
+                {
+                    remaining.Add(jobId);
+                }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
@@ -281,7 +296,10 @@ public static partial class JobChains
         for (int attempt = 0; attempt < 2; attempt++)
         {
             string? state = connection.GetStateData(jobId)?.Name;
-            if (state == null || !HasNotStarted(state)) return true;
+            if (state == null || !HasNotStarted(state))
+            {
+                return true;
+            }
 
             if (client.ChangeState(jobId, new DeletedState { Reason = reason }, state))
             {

@@ -190,7 +190,10 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     // catching up on the runs missed before it
     private static bool IsSameCron([CanBeNull] string? stored, [NotNull] string cronExpression)
     {
-        if (stored == null) return false;
+        if (stored == null)
+        {
+            return false;
+        }
 
         try
         {
@@ -206,9 +209,15 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     // as "W. Europe Standard Time" and "Europe/Berlin", isn't a schedule change either
     private bool IsSameTimeZone([CanBeNull] string? storedId, [NotNull] TimeZoneInfo timeZone)
     {
-        if (storedId == null) return false;
+        if (storedId == null)
+        {
+            return false;
+        }
 
-        if (string.Equals(ToIanaId(storedId), ToIanaId(timeZone.Id), StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(ToIanaId(storedId), ToIanaId(timeZone.Id), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
 
         try
         {
@@ -308,7 +317,10 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             DateTime now = _nowFactory();
 
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
-            if (recurringJob == null) return null;
+            if (recurringJob == null)
+            {
+                return null;
+            }
 
             BackgroundJob? backgroundJob;
 
@@ -467,7 +479,10 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
     // sends the recurring job's queue ("default") with every change, doesn't move such a job.
     private void UpdateJobQueue(RecurringJobEntity recurringJob, string queue)
     {
-        if (recurringJob.Job == null) return;
+        if (recurringJob.Job == null)
+        {
+            return;
+        }
 
         try
         {
@@ -475,8 +490,15 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             string? current = GetExplicitQueue(invocationData.Queue);
             string? target = GetExplicitQueue(queue);
 
-            if (string.Equals(current, target, StringComparison.Ordinal)) return;
-            if (target == null && !string.Equals(current, GetExplicitQueue(recurringJob.Queue), StringComparison.Ordinal)) return;
+            if (string.Equals(current, target, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (target == null && !string.Equals(current, GetExplicitQueue(recurringJob.Queue), StringComparison.Ordinal))
+            {
+                return;
+            }
 
             recurringJob.Job = new InvocationData(
                 invocationData.Type,
@@ -508,7 +530,10 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
         {
             DateTime now = _nowFactory();
             RecurringJobEntity? recurringJob = connection.GetRecurringJob(recurringJobId);
-            if (recurringJob == null) return false;
+            if (recurringJob == null)
+            {
+                return false;
+            }
 
             update(recurringJob, now);
 

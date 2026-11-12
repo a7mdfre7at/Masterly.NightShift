@@ -24,7 +24,10 @@ internal static class ConnectionPools
 
         try
         {
-            if (connection is not SqlConnection sqlConnection) return false;
+            if (connection is not SqlConnection sqlConnection)
+            {
+                return false;
+            }
 
             SqlConnection.ClearPool(sqlConnection);
             return true;

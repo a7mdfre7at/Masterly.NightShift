@@ -57,7 +57,10 @@ public sealed class StaleJobFilter : JobFilterAttribute, IElectStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.CandidateState is not ProcessingState processing) return;
+        if (context.CandidateState is not ProcessingState processing)
+        {
+            return;
+        }
 
         bool restart = ProcessingState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase);
 

@@ -163,8 +163,15 @@ public static class JobInvokerRegistry
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        if (!ScannedAssemblies.TryAdd(assembly, true)) return;
-        if (assembly.IsDynamic) return;
+        if (!ScannedAssemblies.TryAdd(assembly, true))
+        {
+            return;
+        }
+
+        if (assembly.IsDynamic)
+        {
+            return;
+        }
 
         try
         {
@@ -239,7 +246,10 @@ public static class JobInvokerRegistry
 
     private static void EnsureAssembliesScanned()
     {
-        if (Volatile.Read(ref _assemblyScanInitialized) != 0) return;
+        if (Volatile.Read(ref _assemblyScanInitialized) != 0)
+        {
+            return;
+        }
 
         if (Interlocked.CompareExchange(ref _assemblyScanInitialized, 1, 0) == 0)
         {
@@ -305,11 +315,17 @@ public static class JobInvokerRegistry
 
         private static bool SequenceEqual(IReadOnlyList<Type> left, IReadOnlyList<Type> right)
         {
-            if (left.Count != right.Count) return false;
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
 
             for (int i = 0; i < left.Count; i++)
             {
-                if (left[i] != right[i]) return false;
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
             }
 
             return true;

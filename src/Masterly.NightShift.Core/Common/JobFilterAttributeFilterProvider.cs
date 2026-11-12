@@ -44,7 +44,10 @@ public class JobFilterAttributeFilterProvider(bool cacheAttributeInstances) : IJ
 
     public virtual IEnumerable<JobFilter> GetFilters(Job? job)
     {
-        if (job == null) return [];
+        if (job == null)
+        {
+            return [];
+        }
 
         IEnumerable<JobFilterAttribute> typeAttributes = GetTypeAttributes(job);
         IEnumerable<JobFilterAttribute> methodAttributes = GetMethodAttributes(job);

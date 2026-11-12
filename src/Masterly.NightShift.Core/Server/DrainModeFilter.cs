@@ -42,10 +42,16 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
             return;
         }
 
-        if (context.CandidateState is not ProcessingState processingState) return;
+        if (context.CandidateState is not ProcessingState processingState)
+        {
+            return;
+        }
 
         string? reason = GetHoldReason(context, processingState, out string? queue);
-        if (reason == null) return;
+        if (reason == null)
+        {
+            return;
+        }
 
         HeldQueue.Remember(context, queue);
         context.CandidateState = new ScheduledState(DrainMode.HoldInterval) { Reason = reason };
@@ -56,7 +62,10 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
         queue = null;
         DrainModeStatus status = DrainMode.GetStatus(context.Storage, context.Connection);
 
-        if (status.Active) return HeldReason;
+        if (status.Active)
+        {
+            return HeldReason;
+        }
 
         string serverId = processingState.ServerId;
         if (status.PausedServers.Count > 0 && serverId != null && status.PausedServers.ContainsKey(serverId))
@@ -64,11 +73,17 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
             return string.Format(CultureInfo.InvariantCulture, ServerHeldReasonFormat, serverId);
         }
 
-        if (status.PausedQueues.Count == 0) return null;
+        if (status.PausedQueues.Count == 0)
+        {
+            return null;
+        }
 
         // Only when some queue is paused: find the queue the job was fetched from
         queue = HeldQueue.GetQueue(context.Storage, context.Connection, context.BackgroundJob);
-        if (queue == null || !status.PausedQueues.ContainsKey(queue)) return null;
+        if (queue == null || !status.PausedQueues.ContainsKey(queue))
+        {
+            return null;
+        }
 
         return string.Format(CultureInfo.InvariantCulture, QueueHeldReasonFormat, queue);
     }
