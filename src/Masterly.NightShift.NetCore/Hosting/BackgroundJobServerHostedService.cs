@@ -35,8 +35,16 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     private readonly IBackgroundJobPerformer? _performer;
     private readonly IBackgroundJobStateChanger? _stateChanger;
 
+    // Guards the server and the flags below: the host, the application lifetime's callbacks and
+    // IBackgroundJobServerControl may start and stop it from different threads
     private readonly NightShiftLock _startLock = new();
     private IBackgroundProcessingServer? _processingServer;
+
+    // Set when IBackgroundJobServerControl stopped the server, so the ApplicationStarted callback doesn't start it again
+    private bool _stoppedByControl;
+
+    // Set when the host stops or disposes the service, so a late ApplicationStarted callback starts nothing
+    private bool _hostStopped;
 
     /// <summary>
     /// Initializes the service, which starts the server at once.
@@ -133,11 +141,11 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         if (_hostApplicationLifetime != null)
         {
             // https://github.com/HangfireIO/Hangfire/issues/2117
-            _hostApplicationLifetime.ApplicationStarted.Register(InitializeProcessingServer);
+            _hostApplicationLifetime.ApplicationStarted.Register(StartForHost);
         }
         else
         {
-            InitializeProcessingServer();
+            StartForHost();
         }
 
         return Task.CompletedTask;
@@ -149,7 +157,13 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     /// <param name="cancellationToken">Stops waiting.</param>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        IBackgroundProcessingServer? server = _processingServer;
+        IBackgroundProcessingServer? server;
+        lock (_startLock)
+        {
+            _hostStopped = true;
+            server = _processingServer;
+        }
+
         if (server == null) return;
 
         try
@@ -195,8 +209,15 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     /// </summary>
     public void Dispose()
     {
-        _processingServer?.Dispose();
-        _processingServer = null;
+        IBackgroundProcessingServer? server;
+        lock (_startLock)
+        {
+            _hostStopped = true;
+            server = _processingServer;
+            Volatile.Write(ref _processingServer, null);
+        }
+
+        server?.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -208,6 +229,7 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
     {
         lock (_startLock)
         {
+            _stoppedByControl = false;
             if (_processingServer == null) InitializeProcessingServer();
         }
     }
@@ -218,8 +240,10 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         IBackgroundProcessingServer? server;
         lock (_startLock)
         {
+            // Also before the application started: the ApplicationStarted callback then leaves it stopped
+            _stoppedByControl = true;
             server = _processingServer;
-            _processingServer = null;
+            Volatile.Write(ref _processingServer, null);
         }
 
         if (server == null) return;
@@ -235,19 +259,32 @@ public class BackgroundJobServerHostedService : IHostedLifecycleService, IDispos
         }
     }
 
+    // Starts the server for the host, unless it runs already (IBackgroundJobServerControl started it before the
+    // application did), the control stopped it, or the host is stopping
+    private void StartForHost()
+    {
+        lock (_startLock)
+        {
+            if (_processingServer == null && !_stoppedByControl && !_hostStopped) InitializeProcessingServer();
+        }
+    }
+
+    // Called under _startLock
     private void InitializeProcessingServer()
     {
-        _processingServer = _factory != null && _performer != null && _stateChanger != null
+        IBackgroundProcessingServer server = _factory != null && _performer != null && _stateChanger != null
             ? new BackgroundJobServer(_options, _storage, _additionalProcesses, null, null, _factory, _performer,
                 _stateChanger)
             : new BackgroundJobServer(_options, _storage, _additionalProcesses);
+
+        Volatile.Write(ref _processingServer, server);
     }
 
     private void SendStopSignal()
     {
         try
         {
-            _processingServer?.SendStop();
+            Volatile.Read(ref _processingServer)?.SendStop();
         }
         catch (ObjectDisposedException)
         {

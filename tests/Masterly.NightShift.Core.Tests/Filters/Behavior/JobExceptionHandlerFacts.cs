@@ -189,6 +189,43 @@ public class JobExceptionHandlerFacts
         }
     }
 
+    [Fact, GlobalLock(Reason = "Changes the global filters")]
+    public void UseJobExceptionHandler_AddsTheSameHandlerOnce()
+    {
+        RecordingHandler other = new();
+
+        try
+        {
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(_handler);
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(_handler);
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(other);
+
+            Assert.Single(GlobalJobFilters.Filters, x => x.Instance is JobExceptionHandlerFilter { Handler: var handler } && handler == _handler);
+            Assert.Single(GlobalJobFilters.Filters, x => x.Instance is JobExceptionHandlerFilter { Handler: var handler } && handler == other);
+        }
+        finally
+        {
+            RemoveHandlerFilters();
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global filters")]
+    public void UseJobExceptionHandler_WithTheSameDelegates_AddsThemOnce()
+    {
+        try
+        {
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(IgnoreException, IgnoreException);
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(IgnoreException, IgnoreException);
+            GlobalConfiguration.Configuration.UseJobExceptionHandler(IgnoreException);
+
+            Assert.Equal(2, GlobalJobFilters.Filters.Count(static x => x.Instance is JobExceptionHandlerFilter));
+        }
+        finally
+        {
+            RemoveHandlerFilters();
+        }
+    }
+
     [Fact]
     public void UseJobExceptionHandler_WithDelegates_AllowsNoCancellationHandler()
     {
@@ -209,6 +246,18 @@ public class JobExceptionHandlerFacts
     }
 
     private JobExceptionHandlerFilter Filter() => new(_handler);
+
+    private static void IgnoreException(JobExceptionContext context)
+    {
+    }
+
+    private static void RemoveHandlerFilters()
+    {
+        foreach (JobFilter filter in GlobalJobFilters.Filters.Where(static x => x.Instance is JobExceptionHandlerFilter).ToList())
+        {
+            GlobalJobFilters.Filters.Remove(filter.Instance);
+        }
+    }
 
     private static JobPerformanceException Wrap(Exception exception) => new("An exception occurred during performance of the job.", exception);
 

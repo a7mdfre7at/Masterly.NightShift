@@ -107,6 +107,18 @@ public class BackgroundJobServerFacts
         _storageConnection.Verify(x => x.RemoveServer(serverId), Times.Once);
     }
 
+    [Fact, StaticLock]
+    public void Ctor_AddsTheJobMonitorProcess_EvenWithoutMonitors_SoMonitorsRegisteredLaterAreChecked()
+    {
+        JobMonitors.Clear();
+
+        using BackgroundJobServer server = new(_serverOptions, _jobStorage.Object, []);
+
+        Assert.Contains(server.Processes, static x => x.ToString() == nameof(JobMonitorProcess));
+        server.SendStop();
+        Assert.True(server.WaitForShutdown(WaitTimeout));
+    }
+
     [Fact]
     public void Ctor_WithCustomServices_RunsTheAdditionalProcesses()
     {

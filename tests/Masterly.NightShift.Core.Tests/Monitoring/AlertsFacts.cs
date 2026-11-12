@@ -491,14 +491,14 @@ public class WebhookAlertSinkFacts
     }
 
     [Fact]
-    public async Task Dispose_WaitsForARequestInFlight_ThenReturns()
+    public async Task DisposeAsync_WaitsForARequestInFlight_ThenReturns()
     {
         StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
         WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", MaxConcurrentRequests = 2 }, new HttpClient(handler));
 
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        Task disposing = Task.Run(sink.Dispose, TestContext.Current.CancellationToken);
+        Task disposing = sink.DisposeAsync().AsTask();
 
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(disposing.IsCompleted);
@@ -506,12 +506,12 @@ public class WebhookAlertSinkFacts
         handler.Gate.SetResult(true);
         await disposing.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
-        // The request finished before Dispose returned, and was counted as sent
+        // The request finished before DisposeAsync returned, and was counted as sent
         Assert.Equal(1, sink.Sent);
     }
 
     [Fact]
-    public async Task Dispose_StopsWaiting_AfterTheRequestTimeout()
+    public async Task DisposeAsync_StopsWaiting_AfterTheRequestTimeout()
     {
         StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
         WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMilliseconds(300) }, new HttpClient(handler));
@@ -519,9 +519,176 @@ public class WebhookAlertSinkFacts
         sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
         await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
-        await Task.Run(sink.Dispose, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await sink.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, sink.Sent);
+    }
+
+    [Fact]
+    public async Task Dispose_CancelsARequestInFlight_AtOnce_InsteadOfWaitingForIt()
+    {
+        StubHandler handler = new(HttpStatusCode.OK) { Gate = new TaskCompletionSource<bool>() };
+        WebhookAlertSink sink = new(new WebhookAlertOptions { Url = "http://x", Timeout = TimeSpan.FromMinutes(1) }, new HttpClient(handler));
+
+        sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
+        await handler.Received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        sink.Dispose();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Dispose took {stopwatch.Elapsed}");
+        Assert.Equal(0, sink.Sent);
+        Assert.Equal(1, sink.Failed);
+        Assert.Equal("The sink was disposed", Assert.Single(sink.Deliveries).Error);
+    }
+
+    [Fact]
+    public async Task Dispose_GivesUpAnAlertWaitingForARetry()
+    {
+        StubHandler handler = new(HttpStatusCode.InternalServerError);
+        WebhookAlertOptions options = new() { Url = "http://x" };
+        options.RetryDelays.Clear();
+        options.RetryDelays.Add(TimeSpan.FromMinutes(10));
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+
+        sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
+        await WaitUntilAsync(() => sink.PendingRetries == 1);
+
+        sink.Dispose();
+        await WaitUntilAsync(() => sink.PendingRetries == 0);
+
+        Assert.Equal(0, sink.PendingRetries);
+        Assert.Equal(1, handler.Requests);
+    }
+
+    [Theory]
+    [InlineData("not a url")]
+    [InlineData("/relative/path")]
+    [InlineData("ftp://hooks.local/x")]
+    [InlineData("file:///c:/hooks")]
+    public void Ctor_RefusesAUrlThatIsNotAnAbsoluteHttpUrl(string url)
+    {
+        ArgumentException exception = Assert.Throws<ArgumentException>("options", () => new WebhookAlertSink(new WebhookAlertOptions { Url = url }));
+
+        Assert.DoesNotContain(url, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ctor_RefusesANegativeRetryDelay()
+    {
+        WebhookAlertOptions options = new() { Url = "http://x" };
+        options.RetryDelays.Add(TimeSpan.FromSeconds(-1));
+
+        Assert.Throws<ArgumentOutOfRangeException>("options", () => new WebhookAlertSink(options));
+    }
+
+    [Fact]
+    public void OwnClient_DoesNotFollowRedirects_SoTheHeadersStayWithTheConfiguredHost()
+    {
+        using SocketsHttpHandler handler = WebhookAlertSink.CreateHandler();
+
+        Assert.False(handler.AllowAutoRedirect);
+    }
+
+    [Fact]
+    public async Task SendAsync_UsesTheOptionsAsTheyWereWhenTheSinkWasCreated()
+    {
+        StubHandler handler = new(HttpStatusCode.OK);
+        WebhookAlertOptions options = new() { Url = "http://hooks.local/a" };
+        options.Headers["Authorization"] = "Bearer first";
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+
+        options.Url = "http://elsewhere.local/b";
+        options.Headers["Authorization"] = "Bearer second";
+        options.Headers["X-Extra"] = "1";
+        options.Timeout = TimeSpan.FromMilliseconds(1);
+        await sink.SendAsync(new Alert(AlertKind.JobFailed, "t", "m"));
+
+        Assert.Equal(new Uri("http://hooks.local/a"), handler.LastRequest.RequestUri);
+        Assert.Equal("Bearer first", handler.LastRequest.Headers.GetValues("Authorization").Single());
+        Assert.False(handler.LastRequest.Headers.Contains("X-Extra"));
+        Assert.Equal(1, sink.Sent);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, 1)]
+    [InlineData(HttpStatusCode.Unauthorized, 1)]
+    [InlineData(HttpStatusCode.NotFound, 1)]
+    [InlineData(HttpStatusCode.Found, 1)]
+    [InlineData(HttpStatusCode.RequestTimeout, 2)]
+    [InlineData(HttpStatusCode.TooManyRequests, 2)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, 2)]
+    public async Task Publish_RetriesOnlyTransientFailures(HttpStatusCode statusCode, int expectedRequests)
+    {
+        StubHandler handler = new(statusCode);
+        WebhookAlertOptions options = new() { Url = "http://x" };
+        options.RetryDelays.Clear();
+        options.RetryDelays.Add(TimeSpan.FromMilliseconds(10));
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+
+        sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
+        await WaitUntilAsync(() => sink.Deliveries.Count == expectedRequests);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedRequests, handler.Requests);
+        Assert.Equal(0, sink.PendingRetries);
+    }
+
+    [Fact]
+    public async Task Publish_DoesNotRetry_WhenTooManyAlertsWaitForARetry()
+    {
+        StubHandler handler = new(HttpStatusCode.InternalServerError);
+        WebhookAlertOptions options = new() { Url = "http://x", MaxConcurrentRequests = 1 };
+        options.RetryDelays.Clear();
+        options.RetryDelays.Add(TimeSpan.FromMinutes(10));
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+
+        sink.Publish(new Alert(AlertKind.JobFailed, "first", "m"));
+        await WaitUntilAsync(() => sink.PendingRetries == 1);
+        sink.Publish(new Alert(AlertKind.JobFailed, "second", "m"));
+        await WaitUntilAsync(() => sink.Dropped == 1);
+
+        Assert.Equal(1, sink.Dropped);
+        Assert.Equal(2, handler.Requests);
+        Assert.Equal(1, sink.PendingRetries);
+        sink.Dispose();
+    }
+
+    [Theory]
+    [InlineData(60, null, 60)]
+    [InlineData(60, 5, 60)]
+    [InlineData(60, 120, 120)]
+    [InlineData(60, 3600, 600)]
+    public void GetRetryDelay_WaitsAtLeastAsLongAsRetryAfterAsks_UpToTenMinutes(int configuredSeconds, int? retryAfterSeconds, int expectedSeconds)
+    {
+        TimeSpan delay = WebhookAlertSink.GetRetryDelay(
+            TimeSpan.FromSeconds(configuredSeconds),
+            retryAfterSeconds.HasValue ? TimeSpan.FromSeconds(retryAfterSeconds.Value) : null);
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), delay);
+    }
+
+    [Fact]
+    public async Task Publish_WaitsForRetryAfter_BeforeTheRetry()
+    {
+        StubHandler handler = new(HttpStatusCode.TooManyRequests) { RetryAfter = TimeSpan.FromSeconds(1) };
+        WebhookAlertOptions options = new() { Url = "http://x" };
+        options.RetryDelays.Clear();
+        options.RetryDelays.Add(TimeSpan.FromMilliseconds(10));
+        WebhookAlertSink sink = new(options, new HttpClient(handler));
+
+        sink.Publish(new Alert(AlertKind.JobFailed, "t", "m"));
+        await WaitUntilAsync(() => handler.Requests == 1);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.Requests);
+        await WaitUntilAsync(() => handler.Requests == 2);
+        Assert.Equal(2, handler.Requests);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (int i = 0; i < 500 && !condition(); i++) await Task.Delay(10);
     }
 
     [Fact]
@@ -568,6 +735,7 @@ public class WebhookAlertSinkFacts
         public TaskCompletionSource<bool> Received { get; } = new TaskCompletionSource<bool>();
         public TaskCompletionSource<bool> Gate { get; set; }
         public int GatedRequests { get; set; } = int.MaxValue;
+        public TimeSpan? RetryAfter { get; set; }
         public int Requests => _requests;
         public bool Disposed { get; private set; }
         private int _requests;
@@ -580,7 +748,9 @@ public class WebhookAlertSinkFacts
             Received.TrySetResult(true);
             if (Gate != null && number <= GatedRequests) await Gate.Task.WaitAsync(cancellationToken);
             if (_exception != null) throw _exception;
-            return new HttpResponseMessage(_statusCode);
+            HttpResponseMessage response = new(_statusCode);
+            if (RetryAfter is { } retryAfter) response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(retryAfter);
+            return response;
         }
 
         protected override void Dispose(bool disposing)

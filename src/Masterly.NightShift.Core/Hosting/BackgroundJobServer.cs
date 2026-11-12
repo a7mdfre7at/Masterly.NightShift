@@ -33,6 +33,9 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
     private readonly BackgroundJobServerOptions _options;
     private readonly BackgroundProcessingServer _processingServer;
 
+    /// <summary>The processes the server runs, for tests.</summary>
+    internal IReadOnlyList<IBackgroundProcessDispatcherBuilder> Processes { get; }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="BackgroundJobServer"/> class
     /// with default options and <see cref="JobStorage.Current"/> storage.
@@ -119,6 +122,7 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             .. GetRequiredProcesses(filterProvider, activator, factory, performer, stateChanger),
             .. additionalProcesses.Select(static x => x.UseBackgroundPool(1)),
         ];
+        Processes = processes;
 
         Dictionary<string, object> properties = new()
         {
@@ -242,11 +246,9 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             processes.Add(new DeploymentFencingProcess(deploymentId).UseBackgroundPool(1));
         }
 
-        // Checks the job monitors, one server at a time across the cluster
-        if (JobMonitors.Any)
-        {
-            processes.Add(new JobMonitorProcess().UseBackgroundPool(1));
-        }
+        // Checks the job monitors, one server at a time across the cluster. Always added, because monitors can be
+        // registered after the server starts; it does nothing while there are none
+        processes.Add(new JobMonitorProcess().UseBackgroundPool(1));
 
         if (!_options.IsLightweightServer)
         {

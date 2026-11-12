@@ -40,7 +40,7 @@ public sealed class Alert(AlertKind kind, [NotNull] string title, [NotNull] stri
     public string Id { get; } = Guid.NewGuid().ToString("N");
 
     /// <summary>The monitor that raised it, if any.</summary>
-    public string? Monitor { get; set; }
+    public string? Monitor { get; init; }
 
     /// <summary>A one-line title.</summary>
     public string Title { get; } = title ?? throw new ArgumentNullException(nameof(title));
@@ -49,19 +49,19 @@ public sealed class Alert(AlertKind kind, [NotNull] string title, [NotNull] stri
     public string Message { get; } = message ?? throw new ArgumentNullException(nameof(message));
 
     /// <summary>When it happened, UTC.</summary>
-    public DateTime OccurredAt { get; set; } = JobClock.UtcNow;
+    public DateTime OccurredAt { get; init; } = JobClock.UtcNow;
 
     /// <summary>The job it is about, if any.</summary>
-    public string? JobId { get; set; }
+    public string? JobId { get; init; }
 
     /// <summary><c>Type.Method</c> of the job, if known.</summary>
-    public string? Method { get; set; }
+    public string? Method { get; init; }
 
     /// <summary>The resource (circuit) it is about, if any.</summary>
-    public string? Resource { get; set; }
+    public string? Resource { get; init; }
 
     /// <summary>The server that reported it, if known.</summary>
-    public string? ServerId { get; set; }
+    public string? ServerId { get; init; }
 }
 
 /// <summary>Receives alerts. Implementations must not throw and should return quickly.</summary>

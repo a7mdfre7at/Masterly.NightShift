@@ -59,6 +59,24 @@ public class AlertRuleFacts
         }
     }
 
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Allows_HoldsBackOnlyTheSameMonitorsAlert_DuringTheCooldown()
+    {
+        try
+        {
+            JobClock.TimeProvider = new FixedClock(new DateTime(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc));
+            AlertRule rule = new AlertRule().WithCooldown(TimeSpan.FromMinutes(10));
+
+            Assert.True(rule.Allows(new Alert(AlertKind.MonitorIncident, "t", "m") { Method = "A.B", Monitor = "late" }));
+            Assert.True(rule.Allows(new Alert(AlertKind.MonitorIncident, "t", "m") { Method = "A.B", Monitor = "failing" }));
+            Assert.False(rule.Allows(new Alert(AlertKind.MonitorIncident, "t", "m") { Method = "A.B", Monitor = "late" }));
+        }
+        finally
+        {
+            JobClock.TimeProvider = TimeProvider.System;
+        }
+    }
+
     [Fact]
     public void Builder_RefusesBadArguments()
     {

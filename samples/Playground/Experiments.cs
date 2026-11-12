@@ -506,9 +506,9 @@ public static class Experiments
 
         // ------------------------------------------------------------------ 10. Monitoring
         new("monitors", "10. Monitoring", "Job monitors",
-            $"Three monitors watch jobs: slow-report (a run longer than 10 s), flaky-sync (2 final failures within an hour) and daily-close (must succeed by {DailyCloseDeadline.Value:hh\\:mm} UTC, three minutes after the app started).",
+            $"Three monitors watch jobs: slow-report (a run longer than 10 s), flaky-sync (2 final failures within an hour) and daily-close (must succeed by {DailyCloseDeadline.Value:hh\\:mm} {DailyCloseDeadline.TimeZone.Id}, a few minutes after the app started).",
             $"This runs a 15 s SlowReport and two FlakySync failures. The event log shows a MonitorIncident for flaky-sync at once, one for slow-report after 10 to 15 s, then MonitorRecovered when the report ends (flaky-sync stays in trouble: it never succeeds). {D("/about", "About")} lists the monitors and their state. If you didn't run DailyClose before its deadline, it needs attention too: run it with the next step and watch it recover.",
-            "config.UseJobMonitor(new LongRunningMonitor(\"slow-report\", \"MonitoredJobs.SlowReport\", TimeSpan.FromSeconds(10)))\n      .UseJobMonitor(new RepeatedFailuresMonitor(\"flaky-sync\", \"MonitoredJobs.FlakySync\", failures: 2, window: TimeSpan.FromHours(1)))\n      .UseJobMonitor(new DailyDeadlineMonitor(\"daily-close\", \"MonitoredJobs.DailyClose\", by, TimeZoneInfo.Utc));",
+            "config.UseJobMonitor(new LongRunningMonitor(\"slow-report\", \"MonitoredJobs.SlowReport\", TimeSpan.FromSeconds(10)))\n      .UseJobMonitor(new RepeatedFailuresMonitor(\"flaky-sync\", \"MonitoredJobs.FlakySync\", failures: 2, window: TimeSpan.FromHours(1)))\n      .UseJobMonitor(new DailyDeadlineMonitor(\"daily-close\", \"MonitoredJobs.DailyClose\", by, timeZone));",
             static c =>
             {
                 c.Jobs.Enqueue<MonitoredJobs>(x => x.SlowReport());

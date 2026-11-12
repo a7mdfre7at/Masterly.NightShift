@@ -165,6 +165,178 @@ public sealed class JobMonitorsFacts : IDisposable
     }
 
     [Fact]
+    public void RepeatedFailures_StaysOpen_WhileTheFailuresGoOn_UntilASuccess()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+
+        // A failure every 30 minutes: the first and the last of the row soon lie more than an hour apart
+        for (int i = 0; i < 6; i++)
+        {
+            DateTime failedAt = Morning.AddMinutes(30 * i);
+            JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, failedAt);
+            JobMonitors.Check(_storage.Object, _storage.Connection.Object, failedAt.AddMinutes(1));
+        }
+
+        Assert.Equal(AlertKind.MonitorIncident, Assert.Single(_sink.Alerts).Kind);
+        Assert.Equal(JobMonitorState.NeedsAttention, JobMonitors.GetStatus(_storage.Object).Single().State);
+
+        // Hours without a job: still no success, so still open
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(8));
+        Assert.Single(_sink.Alerts);
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddHours(9));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(9).AddMinutes(1));
+
+        Assert.Equal([AlertKind.MonitorIncident, AlertKind.MonitorRecovered], _sink.Alerts.Select(static x => x.Kind));
+        Assert.Equal(string.Empty, _storage.Hashes["monitor:failing"]["RecentFailures"]);
+    }
+
+    [Fact]
+    public void RepeatedFailures_JudgesTheLastFailuresInARow_SoTheWindowSlides()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+
+        // Two failures long ago, then three within the hour
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddHours(-10));
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddHours(-5));
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(20));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddMinutes(21));
+        Assert.Empty(_sink.Alerts);
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(40));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddMinutes(41));
+
+        Assert.Equal(AlertKind.MonitorIncident, Assert.Single(_sink.Alerts).Kind);
+    }
+
+    [Fact]
+    public void RecordOutcome_KeepsAtMostTwentyFailureTimes()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+
+        for (int i = 0; i < 25; i++)
+        {
+            JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning.AddMinutes(i));
+        }
+
+        string[] times = _storage.Hashes["monitor:failing"]["RecentFailures"].Split(',');
+        Assert.Equal(20, times.Length);
+        Assert.Equal(JobHelper.SerializeDateTime(Morning.AddMinutes(24)), times[^1]);
+        Assert.Equal("25", _storage.Hashes["monitor:failing"]["ConsecutiveFailures"]);
+    }
+
+    [Fact]
+    public void RecordOutcome_RecordsASuccessWithoutALock_AndAtMostEveryFewSeconds_WhileNothingFails()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddSeconds(1));
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddSeconds(2));
+
+        Assert.Empty(_storage.Locks);
+        Assert.Equal(1, _storage.Commits);
+        Assert.Equal(JobHelper.SerializeDateTime(Morning), _storage.Hashes["monitor:failing"]["LastSuccessAt"]);
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddSeconds(10));
+
+        Assert.Equal(2, _storage.Commits);
+        Assert.Equal(JobHelper.SerializeDateTime(Morning.AddSeconds(10)), _storage.Hashes["monitor:failing"]["LastSuccessAt"]);
+    }
+
+    [Fact]
+    public void RecordOutcome_TakesTheLock_ForFailures_AndForASuccessAfterThem()
+    {
+        JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(1)));
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: false, Morning);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, Morning.AddSeconds(1));
+
+        Assert.Equal(["lock:monitor:failing", "lock:monitor:failing"], _storage.Locks);
+        Assert.Equal("0", _storage.Hashes["monitor:failing"]["ConsecutiveFailures"]);
+        Assert.Equal(JobHelper.SerializeDateTime(Morning.AddSeconds(1)), _storage.Hashes["monitor:failing"]["LastSuccessAt"]);
+    }
+
+    [Fact]
+    public void RecordOutcome_WritesTheFirstSuccessOfANewDay_ForADailyDeadline()
+    {
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)));
+        DateTime beforeMidnight = Morning.Date.AddDays(1).AddSeconds(-1);
+
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeMidnight);
+        JobMonitors.RecordOutcome(_storage.Object, "Reports.Build", succeeded: true, beforeMidnight.AddSeconds(2));
+
+        Assert.Equal(JobHelper.SerializeDateTime(beforeMidnight.AddSeconds(2)), _storage.Hashes["monitor:daily"]["LastSuccessAt"]);
+    }
+
+    [Fact]
+    public void DailyDeadline_ThatFallsInADaylightSavingGap_IsDueAtTheFirstValidTime()
+    {
+        TimeZoneInfo berlin = TimeZoneInfo.FindSystemTimeZoneById(SchedulePolicyFacts.BerlinTimeZoneId);
+        DailyDeadlineMonitor monitor = new("daily", "Reports.Build", new TimeSpan(2, 30, 0), berlin);
+
+        // On 2026-03-29 Berlin's clocks jump from 02:00 to 03:00 (01:00 UTC), so 02:30 doesn't exist that day
+        DateTime gapEnd = new(2026, 3, 29, 1, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(JobMonitorState.Waiting, monitor.Evaluate(Data(), gapEnd.AddMinutes(-1), _storage.Object).State);
+        Assert.Equal(JobMonitorState.NeedsAttention, monitor.Evaluate(Data(), gapEnd.AddMinutes(1), _storage.Object).State);
+    }
+
+    [Fact]
+    public void Check_GoesOnWithTheOtherMonitors_WhenOneCannotBeRead()
+    {
+        JobMonitors.Add(new DailyDeadlineMonitor("broken", "Reports.Build", TimeSpan.FromHours(7)));
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)));
+        _storage.Connection.Setup(x => x.GetAllEntriesFromHash("monitor:broken")).Throws(new InvalidOperationException("corrupt"));
+
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(2));
+
+        Assert.Equal("daily", Assert.Single(_sink.Alerts).Monitor);
+        IReadOnlyList<JobMonitorStatus> statuses = JobMonitors.GetStatus(_storage.Object);
+        Assert.Equal(JobMonitorState.Unknown, statuses.Single(static x => x.Name == "broken").State);
+        Assert.Equal(JobMonitorState.NeedsAttention, statuses.Single(static x => x.Name == "daily").State);
+    }
+
+    [Fact]
+    public void Check_ReadsAHashWithCorruptValues()
+    {
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)));
+        _storage.Hashes["monitor:daily"] = new Dictionary<string, string>
+        {
+            ["State"] = "Bogus",
+            ["CheckedAt"] = "not a date",
+            ["LastSuccessAt"] = "99999999999999999999",
+            ["RecentFailures"] = "x,,y",
+        };
+
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(2));
+
+        Assert.Equal(AlertKind.MonitorIncident, Assert.Single(_sink.Alerts).Kind);
+        Assert.Equal(JobMonitorState.NeedsAttention, JobMonitors.GetStatus(_storage.Object).Single().State);
+    }
+
+    [Fact]
+    public void Check_KeepsAnOpenIncident_WhileTheMonitorIsPaused_AndRaisesNoNewOne_WhenItResumes()
+    {
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(2));
+        string incidentSince = _storage.Hashes["monitor:daily"]["IncidentSince"];
+
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)) { Paused = true });
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(3));
+
+        Assert.Equal(JobMonitorState.Paused, JobMonitors.GetStatus(_storage.Object).Single().State);
+        Assert.Equal("NeedsAttention", _storage.Hashes["monitor:daily"]["State"]);
+
+        JobMonitors.Add(new DailyDeadlineMonitor("daily", "Reports.Build", TimeSpan.FromHours(7)));
+        JobMonitors.Check(_storage.Object, _storage.Connection.Object, Morning.AddHours(4));
+
+        Assert.Equal(AlertKind.MonitorIncident, Assert.Single(_sink.Alerts).Kind);
+        Assert.Equal(incidentSince, _storage.Hashes["monitor:daily"]["IncidentSince"]);
+    }
+
+    [Fact]
     public void Filter_RecordsTheOutcomeOfAMonitoredMethod_AfterTheCommit()
     {
         JobMonitors.Add(new RepeatedFailuresMonitor("failing", "Reports.Build", 3, TimeSpan.FromHours(2)));

@@ -10,9 +10,11 @@ namespace Masterly.NightShift;
 /// collection.
 /// </summary>
 /// <remarks>
-/// <para>The handler is called on the worker thread, after the job ran and before its state changes, so keep it
-/// short. It is called for every failed attempt, including the ones <see cref="AutomaticRetryAttribute"/> retries,
-/// so it can be called several times for one job.</para>
+/// <para>The handler is called synchronously on the worker thread, after the job ran and before its state changes:
+/// the worker takes no other job and the job's state doesn't change until it returns, so it must be fast. Hand slow
+/// work, such as a request to an error tracker, to a queue or a client that sends in the background. It is called
+/// for every failed attempt, including the ones <see cref="AutomaticRetryAttribute"/> retries, so it can be called
+/// several times for one job.</para>
 /// <para>An exception the handler throws is logged and ignored: it never changes what happens to the job.</para>
 /// </remarks>
 public interface IJobExceptionHandler
@@ -65,6 +67,10 @@ public sealed class JobExceptionContext
 /// The server filter that calls an <see cref="IJobExceptionHandler"/>. <c>UseJobExceptionHandler</c> adds one to
 /// <see cref="GlobalJobFilters.Filters"/>; add one to a filter collection yourself to limit it to some jobs.
 /// </summary>
+/// <remarks>
+/// It calls the handler synchronously on the worker thread, in <see cref="OnPerformed"/>, so a slow handler holds
+/// the worker and delays the job's next state; see <see cref="IJobExceptionHandler"/>.
+/// </remarks>
 /// <param name="handler">The handler.</param>
 public sealed class JobExceptionHandlerFilter([NotNull] IJobExceptionHandler handler) : IServerFilter
 {
@@ -114,7 +120,13 @@ public sealed class JobExceptionHandlerFilter([NotNull] IJobExceptionHandler han
 /// <summary>The handler <c>UseJobExceptionHandler</c> builds from delegates.</summary>
 internal sealed class DelegateJobExceptionHandler(Action<JobExceptionContext> onException, Action<JobExceptionContext>? onCanceled) : IJobExceptionHandler
 {
-    public void OnJobException(JobExceptionContext context) => onException(context);
+    private readonly Action<JobExceptionContext> _onException = onException;
+    private readonly Action<JobExceptionContext>? _onCanceled = onCanceled;
 
-    public void OnJobCanceled(JobExceptionContext context) => onCanceled?.Invoke(context);
+    public void OnJobException(JobExceptionContext context) => _onException(context);
+
+    public void OnJobCanceled(JobExceptionContext context) => _onCanceled?.Invoke(context);
+
+    /// <summary>Whether both handlers call the same delegates, so registering the second adds nothing.</summary>
+    public bool HasSameDelegates(DelegateJobExceptionHandler other) => _onException.Equals(other._onException) && Equals(_onCanceled, other._onCanceled);
 }
