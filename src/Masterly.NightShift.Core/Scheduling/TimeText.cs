@@ -28,10 +28,20 @@ public static partial class TimeText
 
     private static readonly FrozenDictionary<string, DayOfWeek> Days = new Dictionary<string, DayOfWeek>(StringComparer.OrdinalIgnoreCase)
     {
-        ["sunday"] = DayOfWeek.Sunday, ["sun"] = DayOfWeek.Sunday, ["monday"] = DayOfWeek.Monday, ["mon"] = DayOfWeek.Monday,
-        ["tuesday"] = DayOfWeek.Tuesday, ["tue"] = DayOfWeek.Tuesday, ["wednesday"] = DayOfWeek.Wednesday, ["wed"] = DayOfWeek.Wednesday,
-        ["thursday"] = DayOfWeek.Thursday, ["thu"] = DayOfWeek.Thursday, ["friday"] = DayOfWeek.Friday, ["fri"] = DayOfWeek.Friday,
-        ["saturday"] = DayOfWeek.Saturday, ["sat"] = DayOfWeek.Saturday,
+        ["sunday"] = DayOfWeek.Sunday,
+        ["sun"] = DayOfWeek.Sunday,
+        ["monday"] = DayOfWeek.Monday,
+        ["mon"] = DayOfWeek.Monday,
+        ["tuesday"] = DayOfWeek.Tuesday,
+        ["tue"] = DayOfWeek.Tuesday,
+        ["wednesday"] = DayOfWeek.Wednesday,
+        ["wed"] = DayOfWeek.Wednesday,
+        ["thursday"] = DayOfWeek.Thursday,
+        ["thu"] = DayOfWeek.Thursday,
+        ["friday"] = DayOfWeek.Friday,
+        ["fri"] = DayOfWeek.Friday,
+        ["saturday"] = DayOfWeek.Saturday,
+        ["sat"] = DayOfWeek.Saturday,
     }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     // "in 99999999 days" is refused rather than overflowing: relative phrases reach at most ten years ahead
