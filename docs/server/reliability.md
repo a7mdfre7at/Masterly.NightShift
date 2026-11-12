@@ -49,12 +49,25 @@ GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3");    // or yo
 GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3", 42); // with a deployment order
 ```
 
-1. Every server created after the call checks the deployment every 15 seconds (`DeploymentFencing.CheckInterval`).
+1. Every server created after the call checks the deployment every 15 seconds (`DeploymentFencing.CheckInterval`), and leaves a sign of life for its deployment at each check.
 2. The first server of a deployment the cluster hasn't seen claims it: it becomes the current deployment.
 3. A server of any other deployment pauses itself, as [drain mode](drain-mode.md) pauses a server, with the reason `Fenced: deployment '...' was replaced by '...'`. Jobs it picks up are held and taken by the current servers; its running jobs finish.
-4. A deployment seen before (an old version restarted by its orchestrator, a rollback) takes over only once no server of the current deployment has checked in for 30 seconds (`DeploymentFencing.TakeOverAfter`), so a crash-looping old server doesn't fence the new ones. To roll back on purpose, deploy with a new id.
+4. A deployment seen before (an old version restarted by its orchestrator, a rollback) takes over only once the current deployment has been silent for 30 seconds (`DeploymentFencing.TakeOverAfter`): no server of it has checked in for that long. So a crash-looping old server doesn't fence the new ones. To roll back on purpose, deploy with a new id.
 
 A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The default id is the entry assembly's informational version, so make sure it changes with every release.
+
+### When a deployment is silent
+
+Whether the current deployment is alive doesn't depend on the clocks of the servers. Each check writes a value that differs from the one before to the deployment's `Seen:{id}` field, and every server measures with its own monotonic clock how long the value of the current deployment has stayed the same. Once that is longer than `TakeOverAfter`, the deployment is silent. So the clocks of the servers needn't agree, and a clock that runs ahead, or is set back, changes nothing.
+
+A server that has just started hasn't watched anything yet, so it takes the current deployment to be alive until it has seen its value unchanged for `TakeOverAfter`. A deployment seen before, or one with a lower [deployment order](#deployment-order), therefore waits that long after its first server starts before it takes over, also from a deployment whose servers are long gone. A deployment never seen, or one with a higher order, takes over at once.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `DeploymentFencing.CheckInterval` | 15 seconds | How often a server checks. Each server publishes its interval with its check |
+| `DeploymentFencing.TakeOverAfter` | 30 seconds | How long the current deployment must be silent before a deployment seen before, or one with a lower order, takes over |
+
+Both are static properties and must be greater than zero: zero or a negative value throws `ArgumentOutOfRangeException`. A deployment is silent only after it missed at least two checks. So a `TakeOverAfter` shorter than twice `CheckInterval` isn't refused, but counts as twice `CheckInterval`, and each server logs one warning that says so. A deployment whose servers check less often than this server is given at least twice the interval it published.
 
 ### Deployment order
 
@@ -67,17 +80,21 @@ GlobalConfiguration.Configuration.UseDeploymentFencing(buildId, runNumber);
 
 The order is your pipeline's run number, the deploy time as a Unix timestamp, or any other number, zero or more, that grows with each deploy; a negative one throws `ArgumentOutOfRangeException`. A `null` id still means the entry assembly's version. A rollback is a new deploy, so give it a higher number than the deployment it replaces, and a new id.
 
+A deployment id has one order: the highest any of its servers was started with. It applies to every server of that id and is never lowered, so start every server of a deployment with the same order, and use a new id to deploy with a lower one. A server started with another order than the one its id already has, or without one, logs one warning that names the order that applies.
+
 | This deployment and the current one | What happens |
 |---|---|
 | Both have an order, and this one's is higher | This deployment takes over at once, seen before or not, also while servers of the current one are running |
-| Both have an order, and this one's is lower | This deployment is fenced while servers of the current one are running, seen before or not. It takes over only once they have been silent for `TakeOverAfter` |
+| Both have an order, and this one's is lower | This deployment is fenced while servers of the current one are running, seen before or not. It takes over only once they have been [silent](#when-a-deployment-is-silent) for `TakeOverAfter` |
 | The orders are equal, or one of the two has none | The rules above: a deployment never seen takes over at once, one seen before after `TakeOverAfter` of silence |
 
-A server fenced because its order is lower is paused with the reason `Fenced: deployment '2026.11.2' (order 41) is older than '2026.11.3' (order 42)`, and logs one warning, not one at every check, that says so and how to make it the current deployment: deploy it with a higher order. `UseDeploymentFencing` without an order clears an order set by an earlier call.
+A server fenced because its order is lower is paused with the reason `Fenced: deployment '2026.11.2' (order 41) is older than '2026.11.3' (order 42)`, and logs one warning, not one at every check, that says so and how to make it the current deployment: deploy it with a higher order. `UseDeploymentFencing` without an order clears the order an earlier call gave this process; an order its id already has in the storage still applies.
 
-`DeploymentFencing.DeploymentId` and `DeploymentFencing.DeploymentOrder` are this process's deployment and its order (`null` without one), and `DeploymentFencing.GetCurrentDeploymentOrder(storage)` reads the order of the current deployment, `null` when it has none. The dashboard's [About page](../dashboard/pages.md#about) shows this process's deployment with its order and, when another deployment is the current one, that one with its order.
+`DeploymentFencing.DeploymentId` and `DeploymentFencing.DeploymentOrder` are this process's deployment and the order this process was given (`null` without one), which isn't the order that applies when another server of the same id was started with a higher one. `DeploymentFencing.GetCurrentDeploymentOrder(storage)` reads the order of the current deployment, `null` when it has none. The dashboard's [About page](../dashboard/pages.md#about) shows this process's deployment with the order it was given and, when another deployment is the current one, that one with its order.
 
-The state is kept in the storage hash `nightshift:deployment`: the field `Current` names the current deployment, `Seen:{id}` holds the last check of each deployment and `Order:{id}` its order. Checks hold the lock `lock:nightshift:deployment`.
+The state is kept in the storage hash `nightshift:deployment`: the field `Current` names the current deployment, `Seen:{id}` holds the sign of life of each deployment and `Order:{id}` its order. A `Seen` value changes at every check: it holds the date of the check, the number of checks of the deployment so far and the check interval. Only the change counts; the date is a hint, by the clock of the server that wrote it. Checks hold the lock `lock:nightshift:deployment`.
+
+So the hash doesn't grow with every release, a check removes the fields of a deployment that isn't the current one, shows no sign of life and, by that date, was last seen more than seven days ago. Such a deployment counts as never seen when it comes back: without orders that decide, it takes over at once.
 
 ## Starting and stopping servers from code
 

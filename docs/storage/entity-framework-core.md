@@ -92,7 +92,7 @@ Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `
 - **After-commit work runs when the job is staged.** Alerts, activity feed entries and other work filters do once a job's creation is committed run when the job is staged, not when the context is saved, and run even if the context is never saved.
 - **Saving wakes workers.** A `SaveChanges` that saves staged queue entries wakes this process's waiting workers at once; other processes see the jobs at their next poll. Saves without queue entries wake nobody.
 - **SQLite has one writer at a time.** The job's id is reserved through a separate connection, which would wait while your context's transaction holds the write lock, so staging a job while that transaction is open throws `InvalidOperationException` at once. Stage jobs before `BeginTransaction`, let `SaveChanges` open its own transaction, or enqueue through the storage once your transaction committed.
-- **No server clock.** EF Core has no portable way to read the database's time, so servers use their own clocks.
+- **No server clock.** EF Core has no portable way to read the database's time, so servers use their own clocks. Keep the clocks of the processes that share a storage synchronized: a [chain](../jobs/chains.md#when-a-step-runs) that is being created or changed is protected by a 2-minute lease, which the client writes and the servers compare with their own clocks.
 
 ## See also
 
