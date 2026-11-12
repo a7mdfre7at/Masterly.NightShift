@@ -94,8 +94,10 @@ public class ReliabilityFacts
         TimeSpan checkInterval = DeploymentFencing.CheckInterval;
         TimeSpan takeOverAfter = DeploymentFencing.TakeOverAfter;
         TimeSpan holdInterval = DrainMode.HoldInterval;
-        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(500);
-        DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(2);
+        // A second between checks: a server whose checks are more than one and a half intervals apart starts
+        // watching afresh, so a shorter interval would make the test depend on how busy the machine is
+        DeploymentFencing.CheckInterval = TimeSpan.FromSeconds(1);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(3);
         DrainMode.HoldInterval = TimeSpan.FromSeconds(1);
 
         BackgroundJobServer? newer = null;
@@ -118,7 +120,7 @@ public class ReliabilityFacts
             Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forNewer, Timeout, TestContext.Current.CancellationToken)).Name);
 
             // Longer than TakeOverAfter and several checks: the older deployment never takes over while the newer lives
-            await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(6), TestContext.Current.CancellationToken);
             Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(storage));
             Assert.Equal(2, DeploymentFencing.GetCurrentDeploymentOrder(storage));
             using (IStorageConnection connection = storage.GetConnection())
@@ -130,7 +132,7 @@ public class ReliabilityFacts
             newer.Dispose();
             newer = null;
 
-            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forOlder, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forOlder, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken)).Name);
             Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(storage));
         }
         finally
