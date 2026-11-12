@@ -173,6 +173,21 @@ internal sealed class RecurringJobEntity
     /// </summary>
     public SchedulePolicyFailure? PolicyFailure { get; private set; }
 
+    /// <summary>
+    /// Whether the stored job waits because its policy couldn't be evaluated: its <see cref="Error"/> says so, and
+    /// <see cref="NextExecution"/> is when the scheduler looks at it again, counting the occurrences missed
+    /// meanwhile from the last execution. Computing the next occurrence from now instead would put them off
+    /// until the next occurrence still to come.
+    /// </summary>
+    public bool WaitsForPolicy
+    {
+        get => Policy != null && NextExecution.HasValue && Error != null &&
+               Error.StartsWith(GetPolicyFailureErrorStart(Policy), StringComparison.Ordinal);
+    }
+
+    // How the Error of a job that waits for its policy starts: WaitsForPolicy tells it from other errors by it
+    private static string GetPolicyFailureErrorStart(string? policy) => $"Schedule policy '{policy}' can't be evaluated";
+
     // A blocked occurrence makes the search jump to the next instant the policy allows; this bounds the jumps for
     // a schedule whose occurrences keep missing the allowed times
     private const int MaxBlockedJumps = 1000;
@@ -463,7 +478,7 @@ internal sealed class RecurringJobEntity
         // The occurrences before the failing instant were evaluated and are blocked
         DateTime? candidate = failure.Instant > now ? cron.GetNextOccurrence(failure.Instant, timeZone, inclusive: true) : null;
         NextExecution = candidate ?? now.Add(PolicyRetryDelay);
-        Error = $"Schedule policy '{Policy}' can't be evaluated, so the job waits and tries again: {failure.Reason}.";
+        Error = $"{GetPolicyFailureErrorStart(Policy)}, so the job waits and tries again: {failure.Reason}.";
     }
 
     /// <summary>The occurrences of the next runs after <paramref name="from"/>, with the policy applied.</summary>
