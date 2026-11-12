@@ -34,10 +34,7 @@ internal partial class ChainsPage
 
     internal static NonEscapedString StatusLabel(JobChainInfo chain)
     {
-        if (!chain.IsSettled) return new NonEscapedString($"<span class=\"label label-info text-uppercase\">{System.Net.WebUtility.HtmlEncode(Resources.Strings.ChainsPage_Status_Running)}</span>");
-
-        return chain.FailedCount > 0
-            ? new NonEscapedString($"<span class=\"label label-danger text-uppercase\">{System.Net.WebUtility.HtmlEncode(Resources.Strings.ChainsPage_Status_Failed)}</span>")
-            : new NonEscapedString($"<span class=\"label label-success text-uppercase\">{System.Net.WebUtility.HtmlEncode(Resources.Strings.ChainsPage_Status_Done)}</span>");
+        ChainFlowStatus status = ChainFlowchart.StatusOf(chain);
+        return new NonEscapedString($"<span class=\"label {ChainFlowchart.StatusCss(status)} text-uppercase\">{System.Net.WebUtility.HtmlEncode(ChainFlowchart.StatusText(status))}</span>");
     }
 }

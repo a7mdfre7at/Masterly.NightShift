@@ -26,6 +26,7 @@
         }
         else
         {
+            ChainFlowchart chart = ChainFlowchart.Build(Storage, chain, StorageUtcNow ?? ApplicationUtcNow);
             <section class="hf-card">
                 <div class="hf-batch-head">
                     <div>
@@ -33,63 +34,65 @@
                         <code class="hf-batch-id">@chain.ChainId</code>
                         <span class="text-muted">&middot; @Strings.Common_Created @Html.RelativeTime(chain.CreatedAt) &middot; @String.Format(Strings.ChainDetailsPage_Generation, chain.Generation)</span>
                     </div>
-                    @if (!IsReadOnly && !chain.IsSettled)
-                    {
-                        <div class="hf-batch-actions">
+                    <div class="hf-batch-actions">
+                        <span class="hf-flow-facts">
+                            <span class="hf-flow-pill"><span class="glyphicon glyphicon-trash"></span> @String.Format(Strings.ChainFlow_Deletion, chain.DeleteBehavior)</span>
+                            <span class="text-muted">@String.Format(Strings.ChainFlow_Summary, chain.Steps.Count, chart.GroupCount)</span>
+                        </span>
+                        @if (!IsReadOnly && !chain.IsSettled)
+                        {
                             <button class="btn btn-sm btn-default" data-ajax="@Url.To("/chains/delete/" + chain.ChainId)" data-loading-text="@Strings.Common_Deleting" data-confirm="@Strings.ChainDetailsPage_DeleteConfirm">
                                 <span class="glyphicon glyphicon-remove"></span> @Strings.Common_Delete
                             </button>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
             </section>
 
-            @* Diagram: each level a column, each step linked to the steps it waits for *@
-            JobLineage diagram = JobLineage.FromChain(chain);
-            if (diagram.Nodes.Count > 0)
-            {
-                <section class="hf-card hf-lineage" aria-labelledby="chain-diagram">
-                    <div class="hf-card-header">
-                        <h3 id="chain-diagram"><span class="glyphicon glyphicon-random"></span> @Strings.ChainDetailsPage_Diagram <small class="text-muted">@Strings.ChainDetailsPage_Diagram_Hint</small></h3>
-                        @if (diagram.Truncated)
-                        {
-                            <span class="text-muted">@String.Format(Strings.ChainDetailsPage_Diagram_Truncated, JobLineage.MaxChainNodes)</span>
-                        }
+            @* The flowchart: one row per level, groups in boxes, each step a card *@
+            <section class="hf-card hf-flow js-flow" aria-labelledby="chain-flow">
+                <div class="hf-card-header hf-flow-header">
+                    <h3 id="chain-flow"><span class="glyphicon glyphicon-random"></span> @Strings.ChainDetailsPage_Diagram</h3>
+                    <div class="hf-flow-toolbar" role="toolbar">
+                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="out" title="@Strings.ChainFlow_ZoomOut" aria-label="@Strings.ChainFlow_ZoomOut"><span class="glyphicon glyphicon-zoom-out"></span></button>
+                        <span class="hf-flow-zoom-level js-flow-level">100%</span>
+                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="in" title="@Strings.ChainFlow_ZoomIn" aria-label="@Strings.ChainFlow_ZoomIn"><span class="glyphicon glyphicon-zoom-in"></span></button>
+                        <button type="button" class="btn btn-xs btn-default js-flow-zoom" data-zoom="fit" title="@Strings.ChainFlow_Fit" aria-label="@Strings.ChainFlow_Fit"><span class="glyphicon glyphicon-resize-horizontal"></span></button>
+                        <button type="button" class="btn btn-xs btn-default js-flow-fullscreen" title="@Strings.ChainFlow_Fullscreen" aria-label="@Strings.ChainFlow_Fullscreen" aria-pressed="false"><span class="glyphicon glyphicon-fullscreen"></span></button>
                     </div>
-                    <div class="hf-lineage-scroll">
-                        @JobLineageRenderer.Render(this, diagram, Strings.ChainDetailsPage_Diagram)
-                    </div>
-                </section>
-            }
+                </div>
+                @ChainFlowchartRenderer.Render(this, chart)
+            </section>
 
-            foreach (IGrouping<int, JobChainStepInfo> level in chain.Steps.GroupBy(static x => x.Level))
+            if (chart.Hidden.Count > 0)
             {
-                <h4 id="level-@level.Key">@String.Format(Strings.ChainDetailsPage_Level, level.Key + 1)</h4>
+                <p class="text-muted">@String.Format(Strings.ChainFlow_Truncated, ChainFlowchart.MaxSteps)</p>
                 <div class="table-responsive">
-                    <table class="table table-condensed" aria-describedby="level-@level.Key">
+                    <table class="table table-condensed">
                         <tbody>
-                            @foreach (JobChainStepInfo step in level)
+                            @foreach (JobChainStepInfo step in chart.Hidden)
                             {
-                                bool retryable = chain.IsSettled && (FailedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase) || DeletedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase));
                                 <tr class="hover">
                                     <td class="min-width"><code>@step.Key</code></td>
                                     <td class="min-width">@Html.JobIdLink(step.JobId)</td>
                                     <td class="min-width">@(step.State != null ? Html.StateLabel(step.State) : new NonEscapedString("<em>" + Html.HtmlEncode(Strings.Common_JobExpired) + "</em>"))</td>
-                                    <td class="word-break">@(step.Job != null ? Html.JobName(step.Job) : String.Empty)</td>
-                                    <td class="align-right">
-                                        @if (!IsReadOnly && retryable)
-                                        {
-                                            <button class="btn btn-xs btn-primary" data-ajax="@Url.To("/chains/retry/" + Uri.EscapeDataString(step.JobId))" data-loading-text="@Strings.ChainDetailsPage_Retrying">
-                                                <span class="glyphicon glyphicon-repeat"></span> @Strings.ChainDetailsPage_RetryFromHere
-                                            </button>
-                                        }
-                                    </td>
+                                    <td class="word-break">@ChainFlowchartRenderer.StepName(this, step) <span class="text-muted">@ChainFlowchartRenderer.FormatArguments(step.Job)</span></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
             }
+
+            @* Every step's console, merged in time order *@
+            <details class="hf-card hf-chain-logs"@(new NonEscapedString(chart.Logs.Count > 0 ? " open" : String.Empty))>
+                <summary class="hf-card-header"><h3><span class="glyphicon glyphicon-console"></span> @Strings.ChainLogs_Title</h3></summary>
+                @if (chart.LogLineCount > chart.Logs.Count)
+                {
+                    <p class="text-muted hf-chain-logs-note">@String.Format(Strings.ChainLogs_Truncated, ChainFlowchart.MaxLogLines)</p>
+                }
+                <div class="job-console hf-chain-logs-console">@ChainFlowchartRenderer.RenderLogs(this, chart)</div>
+            </details>
         }
     </div>
 </div>

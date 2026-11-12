@@ -1814,22 +1814,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>ved start</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>en feilet</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>en feilet eller ble avbrutt</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>alle fullført</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diagram</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>hvert steg venter på nivået før</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Startbetingelse</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Bare de første {0} stegene tegnes.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>Første steg</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>Ved suksess</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>Ved feil</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>Ved ethvert utfall</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>Ved sletting</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>Ved start</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>Alle vellykket</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>En vellykket</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>En feilet</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>En feilet eller ble avbrutt</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>Alle fullført</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Betingelse oppfylt</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>Venter</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>Ikke kjørt</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>Fremdrift</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Parallell gruppe</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Utfall</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>Alle jobbene i gruppen er ferdige</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>{0} av {1} jobber gjenstår</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} vellykket · {1} feilet</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>Jobber: {0} · Grupper: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Sletting: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Zoom inn</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Zoom ut</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Tilpass bredden</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Fullskjerm</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Bare de første {0} stegene tegnes; de andre er listet nedenfor.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Nye forsøk: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Kjedelogger</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>Ingen steg har skrevet til konsollen sin.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Bare de siste {0} linjene vises.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>Venter</value>
   </data>
 </root>

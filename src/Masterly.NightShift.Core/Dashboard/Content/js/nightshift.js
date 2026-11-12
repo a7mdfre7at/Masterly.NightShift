@@ -848,6 +848,7 @@
             this.liveTable = new NightShift.LiveTable(this, config);
             this.activityFeed = new NightShift.ActivityFeed(config);
             this.catalogRunner = document.getElementById('catalogRunner') ? new NightShift.CatalogRunner(document.getElementById('catalogRunner')) : null;
+            this.chainFlows = $('.js-flow').map(function () { return new NightShift.ChainFlow(this); }).get();
             this.operations = new NightShift.Operations();
             this.watchlist = new NightShift.Watchlist(config);
             this.shortcuts = new NightShift.Shortcuts(config);
@@ -2361,6 +2362,78 @@
         };
 
         return Shortcuts;
+    })();
+
+    // The chain flowchart: zoom in steps, fit to the width, full screen
+    NightShift.ChainFlow = (function () {
+        var zoomSteps = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2];
+
+        function ChainFlow(element) {
+            this._element = element;
+            this._viewport = element.querySelector('.js-flow-viewport');
+            this._sizer = element.querySelector('.js-flow-sizer');
+            this._stage = element.querySelector('.js-flow-stage');
+            this._level = element.querySelector('.js-flow-level');
+            this._width = parseInt(this._stage.getAttribute('data-width'), 10) || 0;
+            this._height = parseInt(this._stage.getAttribute('data-height'), 10) || 0;
+            this._zoom = 1;
+
+            var self = this;
+            $(element).on('click', '.js-flow-zoom', function () {
+                var mode = $(this).data('zoom');
+                if (mode === 'fit') {
+                    self.fit();
+                } else {
+                    self.step(mode === 'in' ? 1 : -1);
+                }
+            });
+            $(element).on('click', '.js-flow-fullscreen', function () {
+                self.toggleFullscreen();
+            });
+            $(document).on('keydown', function (e) {
+                if (e.key === 'Escape' && $(element).hasClass('hf-flow-fullscreen')) self.toggleFullscreen();
+            });
+
+            this.fit();
+        }
+
+        ChainFlow.prototype.fit = function () {
+            var available = this._viewport.clientWidth - 2;
+            this.zoom(this._width > 0 && available > 0 ? Math.min(1, available / this._width) : 1);
+        };
+
+        ChainFlow.prototype.step = function (direction) {
+            var next = this._zoom;
+            var i;
+            if (direction > 0) {
+                for (i = 0; i < zoomSteps.length; i++) {
+                    if (zoomSteps[i] > this._zoom + 0.001) { next = zoomSteps[i]; break; }
+                }
+            } else {
+                for (i = zoomSteps.length - 1; i >= 0; i--) {
+                    if (zoomSteps[i] < this._zoom - 0.001) { next = zoomSteps[i]; break; }
+                }
+            }
+
+            this.zoom(next);
+        };
+
+        ChainFlow.prototype.zoom = function (value) {
+            this._zoom = Math.max(0.1, Math.min(2, value));
+            this._stage.style.transform = 'scale(' + this._zoom + ')';
+            this._sizer.style.width = Math.round(this._width * this._zoom) + 'px';
+            this._sizer.style.height = Math.round(this._height * this._zoom) + 'px';
+            if (this._level) this._level.textContent = Math.round(this._zoom * 100) + '%';
+        };
+
+        ChainFlow.prototype.toggleFullscreen = function () {
+            var on = !$(this._element).hasClass('hf-flow-fullscreen');
+            $(this._element).toggleClass('hf-flow-fullscreen', on);
+            $(this._element).find('.js-flow-fullscreen').attr('aria-pressed', on ? 'true' : 'false');
+            this.fit();
+        };
+
+        return ChainFlow;
     })();
 })(window.NightShift = window.NightShift || {});
 

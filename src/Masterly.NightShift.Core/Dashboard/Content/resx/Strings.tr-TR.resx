@@ -1786,22 +1786,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>başlayınca</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>biri başarısız</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>biri başarısız veya iptal</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>hepsi bitti</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diyagram</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>her adım önceki seviyeyi bekler</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Başlama koşulu</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Yalnızca ilk {0} adım çizilir.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>İlk adım</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>Başarılı olursa</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>Başarısız olursa</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>Her sonuçta</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>Silinince</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>Başlayınca</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>Hepsi başarılı</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>Biri başarılı</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>Biri başarısız</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>Biri başarısız veya iptal</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>Hepsi bitti</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Koşul sağlandı</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>Bekliyor</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>Çalışmadı</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>İlerleme</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Paralel grup</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Sonuçlar</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>Gruptaki tüm işler bitti</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>{1} işten {0} tanesi kaldı</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} başarılı · {1} başarısız</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>İş: {0} · Grup: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Silme: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Yakınlaştır</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Uzaklaştır</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Genişliğe sığdır</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Tam ekran</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Yalnızca ilk {0} adım çizilir; diğerleri aşağıda listelenir.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Yeniden denemeler: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Zincir günlükleri</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>Hiçbir adım konsoluna yazmadı.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Yalnızca son {0} satır gösterilir.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>Bekliyor</value>
   </data>
 </root>

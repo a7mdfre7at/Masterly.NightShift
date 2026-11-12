@@ -5314,33 +5314,9 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("Lineage_OnceStarted", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to any failed.
-        /// </summary>
-        public static string Lineage_AnyFailed {
-            get {
-                return ResourceManager.GetString("Lineage_AnyFailed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to any failed or canceled.
-        /// </summary>
-        public static string Lineage_AnyFailedOrCanceled {
-            get {
-                return ResourceManager.GetString("Lineage_AnyFailedOrCanceled", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to all finished.
-        /// </summary>
-        public static string Lineage_AllFinished {
-            get {
-                return ResourceManager.GetString("Lineage_AllFinished", resourceCulture);
-            }
-        }
+
+
+
         
         /// <summary>
         ///   Looks up a localized string similar to Diagram.
@@ -5350,22 +5326,304 @@ namespace Masterly.NightShift.Dashboard.Resources {
                 return ResourceManager.GetString("ChainDetailsPage_Diagram", resourceCulture);
             }
         }
+
+
         
         /// <summary>
-        ///   Looks up a localized string similar to each step waits for the level before it.
+        ///   Looks up a localized string similar to Start condition.
         /// </summary>
-        public static string ChainDetailsPage_Diagram_Hint {
+        public static string ChainFlow_StartCondition {
             get {
-                return ResourceManager.GetString("ChainDetailsPage_Diagram_Hint", resourceCulture);
+                return ResourceManager.GetString("ChainFlow_StartCondition", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Only the first {0} steps are drawn..
+        ///   Looks up a localized string similar to First step.
         /// </summary>
-        public static string ChainDetailsPage_Diagram_Truncated {
+        public static string ChainFlow_FirstStep {
             get {
-                return ResourceManager.GetString("ChainDetailsPage_Diagram_Truncated", resourceCulture);
+                return ResourceManager.GetString("ChainFlow_FirstStep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to On success.
+        /// </summary>
+        public static string ChainFlow_OnSuccess {
+            get {
+                return ResourceManager.GetString("ChainFlow_OnSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to On failure.
+        /// </summary>
+        public static string ChainFlow_OnFailure {
+            get {
+                return ResourceManager.GetString("ChainFlow_OnFailure", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to On any outcome.
+        /// </summary>
+        public static string ChainFlow_OnAnyOutcome {
+            get {
+                return ResourceManager.GetString("ChainFlow_OnAnyOutcome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to On deletion.
+        /// </summary>
+        public static string ChainFlow_OnDeletion {
+            get {
+                return ResourceManager.GetString("ChainFlow_OnDeletion", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Once started.
+        /// </summary>
+        public static string ChainFlow_OnceStarted {
+            get {
+                return ResourceManager.GetString("ChainFlow_OnceStarted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All succeeded.
+        /// </summary>
+        public static string ChainFlow_AllSucceeded {
+            get {
+                return ResourceManager.GetString("ChainFlow_AllSucceeded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Any succeeded.
+        /// </summary>
+        public static string ChainFlow_AnySucceeded {
+            get {
+                return ResourceManager.GetString("ChainFlow_AnySucceeded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Any failed.
+        /// </summary>
+        public static string ChainFlow_AnyFailed {
+            get {
+                return ResourceManager.GetString("ChainFlow_AnyFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Any failed or canceled.
+        /// </summary>
+        public static string ChainFlow_AnyFailedOrCanceled {
+            get {
+                return ResourceManager.GetString("ChainFlow_AnyFailedOrCanceled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All finished.
+        /// </summary>
+        public static string ChainFlow_AllFinished {
+            get {
+                return ResourceManager.GetString("ChainFlow_AllFinished", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Condition met.
+        /// </summary>
+        public static string ChainFlow_ConditionMet {
+            get {
+                return ResourceManager.GetString("ChainFlow_ConditionMet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting.
+        /// </summary>
+        public static string ChainFlow_Waiting {
+            get {
+                return ResourceManager.GetString("ChainFlow_Waiting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Not run.
+        /// </summary>
+        public static string ChainFlow_NotRun {
+            get {
+                return ResourceManager.GetString("ChainFlow_NotRun", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Progress.
+        /// </summary>
+        public static string ChainFlow_Progress {
+            get {
+                return ResourceManager.GetString("ChainFlow_Progress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Parallel group.
+        /// </summary>
+        public static string ChainFlow_Group {
+            get {
+                return ResourceManager.GetString("ChainFlow_Group", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Outcomes.
+        /// </summary>
+        public static string ChainFlow_Outcomes {
+            get {
+                return ResourceManager.GetString("ChainFlow_Outcomes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All group jobs settled.
+        /// </summary>
+        public static string ChainFlow_GroupSettled {
+            get {
+                return ResourceManager.GetString("ChainFlow_GroupSettled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} jobs still to finish.
+        /// </summary>
+        public static string ChainFlow_GroupPending {
+            get {
+                return ResourceManager.GetString("ChainFlow_GroupPending", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} succeeded · {1} failed.
+        /// </summary>
+        public static string ChainFlow_Counts {
+            get {
+                return ResourceManager.GetString("ChainFlow_Counts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Jobs: {0} · Groups: {1}.
+        /// </summary>
+        public static string ChainFlow_Summary {
+            get {
+                return ResourceManager.GetString("ChainFlow_Summary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Deletion: {0}.
+        /// </summary>
+        public static string ChainFlow_Deletion {
+            get {
+                return ResourceManager.GetString("ChainFlow_Deletion", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zoom in.
+        /// </summary>
+        public static string ChainFlow_ZoomIn {
+            get {
+                return ResourceManager.GetString("ChainFlow_ZoomIn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zoom out.
+        /// </summary>
+        public static string ChainFlow_ZoomOut {
+            get {
+                return ResourceManager.GetString("ChainFlow_ZoomOut", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fit to width.
+        /// </summary>
+        public static string ChainFlow_Fit {
+            get {
+                return ResourceManager.GetString("ChainFlow_Fit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Full screen.
+        /// </summary>
+        public static string ChainFlow_Fullscreen {
+            get {
+                return ResourceManager.GetString("ChainFlow_Fullscreen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Only the first {0} steps are drawn; the others are listed below..
+        /// </summary>
+        public static string ChainFlow_Truncated {
+            get {
+                return ResourceManager.GetString("ChainFlow_Truncated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retries: {0}.
+        /// </summary>
+        public static string ChainFlow_Retries {
+            get {
+                return ResourceManager.GetString("ChainFlow_Retries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Chain logs.
+        /// </summary>
+        public static string ChainLogs_Title {
+            get {
+                return ResourceManager.GetString("ChainLogs_Title", resourceCulture);
+            }
+        }
+
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No step has written to its console..
+        /// </summary>
+        public static string ChainLogs_Empty {
+            get {
+                return ResourceManager.GetString("ChainLogs_Empty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Only the last {0} lines are shown..
+        /// </summary>
+        public static string ChainLogs_Truncated {
+            get {
+                return ResourceManager.GetString("ChainLogs_Truncated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting.
+        /// </summary>
+        public static string ChainsPage_Status_Waiting {
+            get {
+                return ResourceManager.GetString("ChainsPage_Status_Waiting", resourceCulture);
             }
         }
     }

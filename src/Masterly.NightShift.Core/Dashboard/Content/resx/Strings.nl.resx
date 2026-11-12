@@ -1775,22 +1775,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>bij start</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>een mislukt</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>een mislukt of geannuleerd</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>alle afgerond</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diagram</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>elke stap wacht op het niveau ervoor</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Startvoorwaarde</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Alleen de eerste {0} stappen worden getekend.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>Eerste stap</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>Bij succes</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>Bij fout</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>Bij elke uitkomst</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>Bij verwijdering</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>Bij start</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>Alle geslaagd</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>Een geslaagd</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>Een mislukt</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>Een mislukt of geannuleerd</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>Alle afgerond</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Voorwaarde vervuld</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>Wacht</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>Niet uitgevoerd</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>Voortgang</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Parallelle groep</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Uitkomsten</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>Alle taken van de groep zijn afgerond</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>Nog {0} van {1} taken</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} geslaagd · {1} mislukt</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>Taken: {0} · Groepen: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Verwijderen: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Inzoomen</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Uitzoomen</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Aanpassen aan breedte</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Volledig scherm</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Alleen de eerste {0} stappen worden getekend; de andere staan hieronder.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Nieuwe pogingen: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Ketenlogboek</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>Geen stap heeft naar zijn console geschreven.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Alleen de laatste {0} regels worden getoond.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>Wacht</value>
   </data>
 </root>

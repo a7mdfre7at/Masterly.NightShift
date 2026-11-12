@@ -1880,22 +1880,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>once started</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>any failed</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>any failed or canceled</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>all finished</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diagram</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>each step waits for the level before it</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Start condition</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Only the first {0} steps are drawn.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>First step</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>On success</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>On failure</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>On any outcome</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>On deletion</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>Once started</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>All succeeded</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>Any succeeded</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>Any failed</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>Any failed or canceled</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>All finished</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Condition met</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>Waiting</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>Not run</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>Progress</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Parallel group</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Outcomes</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>All group jobs settled</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>{0} of {1} jobs still to finish</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} succeeded · {1} failed</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>Jobs: {0} · Groups: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Deletion: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Zoom in</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Zoom out</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Fit to width</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Full screen</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Only the first {0} steps are drawn; the others are listed below.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Retries: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Chain logs</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>No step has written to its console.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Only the last {0} lines are shown.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>Waiting</value>
   </data>
 </root>

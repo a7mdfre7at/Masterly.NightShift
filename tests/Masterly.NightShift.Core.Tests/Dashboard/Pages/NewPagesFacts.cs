@@ -1,3 +1,4 @@
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Dashboard.Pages;
 
@@ -79,26 +80,66 @@ public class NewPagesFacts
 
         Assert.Contains("/chains/c1", list, StringComparison.Ordinal);
         Assert.Contains("Finished with failures", list, StringComparison.Ordinal);
-        Assert.Contains("Level 1", details, StringComparison.Ordinal);
-        Assert.Contains("Level 2", details, StringComparison.Ordinal);
+        Assert.Contains("href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
+        Assert.Contains("href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
         Assert.Contains("/chains/retry/job-2", details, StringComparison.Ordinal);
         Assert.DoesNotContain("/chains/retry/job-1", details, StringComparison.Ordinal);
         Assert.DoesNotContain("/chains/delete/", details, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ChainDetails_DrawsTheDiagram_WithALinkToEachStepsJob()
+    public void ChainDetails_DrawsTheFlowchart_WithItsToolbar_TheChainsFacts_AndItsLogs()
+    {
+        SetUpChain();
+        _renderer.Connection.Setup(x => x.GetAllItemsFromList(JobConsole.GetConsoleKey("job-1"))).Returns(["{\"t\":1,\"s\":1,\"l\":1,\"m\":\"Charged the card\"}"]);
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.Contains("class=\"hf-card hf-flow js-flow\"", details, StringComparison.Ordinal);
+        Assert.Contains("js-flow-stage", details, StringComparison.Ordinal);
+        Assert.Contains("data-zoom=\"in\"", details, StringComparison.Ordinal);
+        Assert.Contains("data-zoom=\"fit\"", details, StringComparison.Ordinal);
+        Assert.Contains("js-flow-fullscreen", details, StringComparison.Ordinal);
+        Assert.Contains("Deletion: Cascade", details, StringComparison.Ordinal);
+        Assert.Contains("Jobs: 2 &#183; Groups: 0", details, StringComparison.Ordinal);
+        Assert.Contains("Chain logs", details, StringComparison.Ordinal);
+        Assert.Contains("Charged the card", details, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"hf-card hf-chain-logs\" open", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChainDetails_KeepsTheLogsClosed_WhenNoStepWrote()
     {
         SetUpChain();
 
         string details = _renderer.Render(new ChainDetailsPage("c1"));
 
-        Assert.Contains("<svg class=\"hf-lineage-svg\"", details, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Diagram\"", details, StringComparison.Ordinal);
-        Assert.Contains("<a href=\"/jobs/details/job-1\"", details, StringComparison.Ordinal);
-        Assert.Contains("<a href=\"/jobs/details/job-2\"", details, StringComparison.Ordinal);
-        Assert.Contains("after success", details, StringComparison.Ordinal);
-        Assert.DoesNotContain("Only the first", details, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"hf-card hf-chain-logs\">", details, StringComparison.Ordinal);
+        Assert.Contains("No step has written to its console.", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Chains_SaysAChainIsWaiting_UntilAStepStarts()
+    {
+        SetUpChain();
+        _renderer.Connection.Setup(x => x.GetStateData("job-1")).Returns(new StateData { Name = "Scheduled" });
+        _renderer.Connection.Setup(x => x.GetStateData("job-2")).Returns(new StateData { Name = "Awaiting" });
+
+        string list = _renderer.Render(new ChainsPage());
+
+        Assert.Contains("label-default text-uppercase\">Waiting<", list, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ChainDetails_HidesTheDeleteAndRetryButtons_ForReadOnlyUsers()
+    {
+        SetUpChain();
+        _renderer.Options = new DashboardOptions { IsReadOnlyFunc = static _ => true };
+
+        string details = _renderer.Render(new ChainDetailsPage("c1"));
+
+        Assert.DoesNotContain("/chains/retry/", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("/chains/delete/", details, StringComparison.Ordinal);
     }
 
     [Fact]

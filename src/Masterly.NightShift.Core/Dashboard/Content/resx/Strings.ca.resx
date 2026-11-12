@@ -1753,22 +1753,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>en començar</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>alguna ha fallat</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>alguna ha fallat o s’ha cancel·lat</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>totes acabades</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diagrama</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>cada pas espera el nivell anterior</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Condició d’inici</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Només es dibuixen els primers {0} passos.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>Primer pas</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>En cas d’èxit</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>En cas d’error</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>Amb qualsevol resultat</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>En eliminar-se</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>En començar</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>Totes amb èxit</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>Alguna amb èxit</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>Alguna ha fallat</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>Alguna ha fallat o s’ha cancel·lat</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>Totes acabades</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Condició complerta</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>En espera</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>No executat</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>Progrés</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Grup en paral·lel</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Resultats</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>Totes les tasques del grup han acabat</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>Falten {0} de {1} tasques</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} amb èxit · {1} fallides</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>Tasques: {0} · Grups: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Eliminació: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Amplia</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Redueix</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Ajusta a l’amplada</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Pantalla completa</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Només es dibuixen els primers {0} passos; els altres es llisten a sota.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Reintents: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Registres de la cadena</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>Cap pas ha escrit a la seva consola.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Només es mostren les últimes {0} línies.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>En espera</value>
   </data>
 </root>

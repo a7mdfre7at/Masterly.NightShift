@@ -2325,6 +2325,349 @@ body.hf-app hr {
     font-weight: 400;
 }
 
+/* Chain flowchart: levels top to bottom, groups in boxes, a card per step
+   ------------------------------------------------------------------ */
+
+.hf-flow {
+    margin-bottom: 20px;
+}
+
+.hf-flow-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.hf-flow-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hf-flow-zoom-level {
+    min-width: 3.5em;
+    text-align: center;
+    font-family: var(--hf-mono);
+    font-size: 12px;
+    color: var(--hf-text-2);
+}
+
+.hf-flow-facts {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-right: 6px;
+}
+
+.hf-flow-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--hf-border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--hf-text-2);
+}
+
+.hf-flow-viewport {
+    overflow: auto;
+    max-height: 78vh;
+    background-color: var(--hf-bg);
+    background-image: radial-gradient(var(--hf-border) 1px, transparent 1px);
+    background-size: 18px 18px;
+    border-top: 1px solid var(--hf-border);
+}
+
+.hf-flow-sizer {
+    position: relative;
+    margin: 0 auto;
+}
+
+.hf-flow-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+
+.hf-flow-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    overflow: visible;
+}
+
+.hf-flow-edge {
+    fill: none;
+    stroke: var(--hf-border-strong);
+    stroke-width: 1.5;
+}
+
+.hf-flow-edge-taken {
+    stroke: var(--hf-primary);
+}
+
+.hf-flow-edge-alert {
+    stroke: var(--hf-danger);
+}
+
+.hf-flow-edge-skipped {
+    stroke-dasharray: 4 4;
+    opacity: .6;
+}
+
+.hf-flow-box {
+    position: absolute;
+    z-index: 0;
+    border: 1px solid var(--hf-border-strong);
+    border-radius: var(--hf-radius-lg);
+    background: var(--hf-surface);
+}
+
+.hf-flow-box-outcomes {
+    border-style: dashed;
+    background: transparent;
+}
+
+.hf-flow-box-head,
+.hf-flow-box-foot {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--hf-muted);
+}
+
+.hf-flow-box-head {
+    top: 0;
+    height: 44px;
+}
+
+.hf-flow-box-title {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--hf-text-2);
+}
+
+.hf-flow-box-foot {
+    bottom: 0;
+    height: 34px;
+    border-top: 1px solid var(--hf-border);
+    left: 0;
+    right: 0;
+    padding: 0 14px;
+}
+
+.hf-flow-card {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px 8px 14px;
+    border: 1px solid var(--hf-border);
+    border-left: 3px solid var(--hf-state, var(--hf-muted));
+    border-radius: var(--hf-radius);
+    background: var(--hf-surface-2);
+    box-shadow: var(--hf-shadow-sm);
+    font-size: 12px;
+    color: var(--hf-text);
+    overflow: hidden;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.hf-flow-card:hover {
+    border-color: var(--hf-primary);
+    border-left-color: var(--hf-state, var(--hf-muted));
+    box-shadow: var(--hf-shadow);
+}
+
+.hf-flow-active {
+    box-shadow: 0 0 0 2px var(--hf-primary-soft), var(--hf-shadow-sm);
+}
+
+.hf-flow-dim {
+    opacity: .55;
+}
+
+.hf-flow-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.hf-flow-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    color: var(--hf-text);
+}
+
+.hf-flow-name:hover,
+.hf-flow-name:focus {
+    color: var(--hf-primary);
+}
+
+.hf-flow-state {
+    flex: none;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--hf-state, var(--hf-muted));
+}
+
+.hf-flow-args {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--hf-mono);
+    font-size: 11px;
+    color: var(--hf-text-2);
+}
+
+.hf-flow-cond {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.hf-flow-caption {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--hf-muted);
+}
+
+.hf-flow-cond-value {
+    font-weight: 600;
+    color: var(--hf-text-2);
+}
+
+.hf-flow-chip {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--hf-neutral-soft);
+    color: var(--hf-text-2);
+}
+
+.hf-flow-chip-met {
+    background: var(--hf-success-soft);
+    color: var(--hf-success);
+}
+
+.hf-flow-chip-skipped {
+    background: var(--hf-warning-soft);
+    color: var(--hf-warning);
+}
+
+.hf-flow-progress-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--hf-muted);
+}
+
+.hf-flow-progress-label span:first-child {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.hf-flow-bar {
+    height: 4px;
+    margin-top: 3px;
+    border-radius: 2px;
+    background: var(--hf-neutral-soft);
+    overflow: hidden;
+}
+
+.hf-flow-bar > div {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--hf-state, var(--hf-primary));
+}
+
+.hf-flow-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: auto;
+    font-size: 11px;
+    color: var(--hf-muted);
+}
+
+.hf-flow-meta {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.hf-flow-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.hf-flow-retries {
+    color: var(--hf-warning);
+}
+
+.hf-flow.hf-flow-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    border-radius: 0;
+}
+
+.hf-flow.hf-flow-fullscreen .hf-flow-viewport {
+    flex: 1;
+    max-height: none;
+}
+
+.hf-chain-logs > summary {
+    justify-content: flex-start;
+    cursor: pointer;
+    list-style: revert;
+}
+
+.hf-chain-logs-note {
+    margin: 8px 16px 0;
+}
+
+.hf-chain-logs-console {
+    max-height: 360px;
+    margin: 12px 16px 16px;
+}
+
+.hf-chain-log-step {
+    margin-right: 6px;
+    font-family: var(--hf-mono);
+    color: var(--hf-primary);
+}
+
 /* Tags
    ------------------------------------------------------------------ */
 

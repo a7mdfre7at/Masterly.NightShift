@@ -1763,22 +1763,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>开始后</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>任一失败</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>任一失败或取消</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>全部完成</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>图表</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>每个步骤都等待上一层</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>开始条件</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>只绘制前 {0} 个步骤。</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>第一步</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>成功时</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>失败时</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>任何结果</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>删除时</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>开始后</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>全部成功</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>任一成功</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>任一失败</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>任一失败或取消</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>全部完成</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>条件已满足</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>等待中</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>未执行</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>进度</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>并行组</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>结果</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>组中的作业都已完成</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>还有 {0}/{1} 个作业未完成</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} 成功 · {1} 失败</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>作业：{0} · 组：{1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>删除：{0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>放大</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>缩小</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>适应宽度</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>全屏</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>只绘制前 {0} 个步骤；其他步骤列在下方。</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>重试次数：{0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>链日志</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>没有步骤写入其控制台。</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>只显示最后 {0} 行。</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>等待中</value>
   </data>
 </root>

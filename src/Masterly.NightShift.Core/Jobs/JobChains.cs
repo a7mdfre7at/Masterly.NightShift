@@ -13,11 +13,14 @@ namespace Masterly.NightShift;
 /// <param name="Job">The step's method call, as the chain defines it.</param>
 public sealed record JobChainStepInfo(string Key, string JobId, string? State, int Level, int ParentLevel, Job? Job = null)
 {
-    /// <summary>How the step waits for its level's parent, for the dashboard's diagram.</summary>
+    /// <summary>How the step waits for its level's parent, for the dashboard's flowchart.</summary>
     internal ChainLink Link { get; init; }
 
     /// <summary>The continuation options of a <c>Then</c> or branch step.</summary>
     internal JobContinuationOptions Options { get; init; }
+
+    /// <summary>The kind of the step's level: the first step, a <c>Then</c>, a group of branches or of joins.</summary>
+    internal ChainLevelKind LevelKind { get; init; }
 }
 
 /// <summary>A stored chain, as <c>GetChain</c> reads it.</summary>
@@ -512,7 +515,7 @@ public static class JobChains
                     if (!Jobs.TryGetValue(key, out string? jobId)) continue;
 
                     ChainStep step = Levels[level].Steps[i];
-                    steps.Add(new JobChainStepInfo(key, jobId, connection.GetStateData(jobId)?.Name, level, Levels[level].Parent, step.Job) { Link = step.Link, Options = step.Options });
+                    steps.Add(new JobChainStepInfo(key, jobId, connection.GetStateData(jobId)?.Name, level, Levels[level].Parent, step.Job) { Link = step.Link, Options = step.Options, LevelKind = Levels[level].Kind });
                 }
             }
 

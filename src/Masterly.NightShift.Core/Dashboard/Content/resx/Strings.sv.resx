@@ -1816,22 +1816,106 @@
   <data name="Lineage_OnceStarted" xml:space="preserve">
     <value>vid start</value>
   </data>
-  <data name="Lineage_AnyFailed" xml:space="preserve">
-    <value>något misslyckades</value>
-  </data>
-  <data name="Lineage_AnyFailedOrCanceled" xml:space="preserve">
-    <value>något misslyckades eller avbröts</value>
-  </data>
-  <data name="Lineage_AllFinished" xml:space="preserve">
-    <value>alla avslutade</value>
-  </data>
   <data name="ChainDetailsPage_Diagram" xml:space="preserve">
     <value>Diagram</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Hint" xml:space="preserve">
-    <value>varje steg väntar på nivån före</value>
+  <data name="ChainFlow_StartCondition" xml:space="preserve">
+    <value>Startvillkor</value>
   </data>
-  <data name="ChainDetailsPage_Diagram_Truncated" xml:space="preserve">
-    <value>Endast de första {0} stegen ritas.</value>
+  <data name="ChainFlow_FirstStep" xml:space="preserve">
+    <value>Första steget</value>
+  </data>
+  <data name="ChainFlow_OnSuccess" xml:space="preserve">
+    <value>Vid lyckat</value>
+  </data>
+  <data name="ChainFlow_OnFailure" xml:space="preserve">
+    <value>Vid fel</value>
+  </data>
+  <data name="ChainFlow_OnAnyOutcome" xml:space="preserve">
+    <value>Vid alla utfall</value>
+  </data>
+  <data name="ChainFlow_OnDeletion" xml:space="preserve">
+    <value>Vid borttagning</value>
+  </data>
+  <data name="ChainFlow_OnceStarted" xml:space="preserve">
+    <value>Vid start</value>
+  </data>
+  <data name="ChainFlow_AllSucceeded" xml:space="preserve">
+    <value>Alla lyckades</value>
+  </data>
+  <data name="ChainFlow_AnySucceeded" xml:space="preserve">
+    <value>Något lyckades</value>
+  </data>
+  <data name="ChainFlow_AnyFailed" xml:space="preserve">
+    <value>Något misslyckades</value>
+  </data>
+  <data name="ChainFlow_AnyFailedOrCanceled" xml:space="preserve">
+    <value>Något misslyckades eller avbröts</value>
+  </data>
+  <data name="ChainFlow_AllFinished" xml:space="preserve">
+    <value>Alla avslutade</value>
+  </data>
+  <data name="ChainFlow_ConditionMet" xml:space="preserve">
+    <value>Villkoret uppfyllt</value>
+  </data>
+  <data name="ChainFlow_Waiting" xml:space="preserve">
+    <value>Väntar</value>
+  </data>
+  <data name="ChainFlow_NotRun" xml:space="preserve">
+    <value>Kördes inte</value>
+  </data>
+  <data name="ChainFlow_Progress" xml:space="preserve">
+    <value>Förlopp</value>
+  </data>
+  <data name="ChainFlow_Group" xml:space="preserve">
+    <value>Parallell grupp</value>
+  </data>
+  <data name="ChainFlow_Outcomes" xml:space="preserve">
+    <value>Utfall</value>
+  </data>
+  <data name="ChainFlow_GroupSettled" xml:space="preserve">
+    <value>Alla jobb i gruppen är klara</value>
+  </data>
+  <data name="ChainFlow_GroupPending" xml:space="preserve">
+    <value>{0} av {1} jobb återstår</value>
+  </data>
+  <data name="ChainFlow_Counts" xml:space="preserve">
+    <value>{0} lyckades · {1} misslyckades</value>
+  </data>
+  <data name="ChainFlow_Summary" xml:space="preserve">
+    <value>Jobb: {0} · Grupper: {1}</value>
+  </data>
+  <data name="ChainFlow_Deletion" xml:space="preserve">
+    <value>Borttagning: {0}</value>
+  </data>
+  <data name="ChainFlow_ZoomIn" xml:space="preserve">
+    <value>Zooma in</value>
+  </data>
+  <data name="ChainFlow_ZoomOut" xml:space="preserve">
+    <value>Zooma ut</value>
+  </data>
+  <data name="ChainFlow_Fit" xml:space="preserve">
+    <value>Anpassa till bredd</value>
+  </data>
+  <data name="ChainFlow_Fullscreen" xml:space="preserve">
+    <value>Helskärm</value>
+  </data>
+  <data name="ChainFlow_Truncated" xml:space="preserve">
+    <value>Endast de första {0} stegen ritas; de övriga listas nedan.</value>
+  </data>
+  <data name="ChainFlow_Retries" xml:space="preserve">
+    <value>Nya försök: {0}</value>
+  </data>
+  <data name="ChainLogs_Title" xml:space="preserve">
+    <value>Kedjeloggar</value>
+  </data>
+  <data name="ChainLogs_Empty" xml:space="preserve">
+    <value>Inget steg har skrivit till sin konsol.</value>
+  </data>
+  <data name="ChainLogs_Truncated" xml:space="preserve">
+    <value>Endast de sista {0} raderna visas.</value>
+  </data>
+  <data name="ChainsPage_Status_Waiting" xml:space="preserve">
+    <value>Väntar</value>
   </data>
 </root>

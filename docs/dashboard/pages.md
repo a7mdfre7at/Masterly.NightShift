@@ -147,7 +147,16 @@ Every batch with a progress bar and its succeeded, failed and pending counts. Op
 
 ### Chains
 
-Every [job chain](../jobs/chains.md), newest first, with its first step, the number of steps, when it was created and its status: **Running**, **Done** or **Finished with failures**. Open a chain (`/chains/{id}`) to see a diagram of it: one column per level, each step a card in its state's color that links to its job, and arrows to the steps that wait for it, labelled with what they wait for (**after success**, **after failure**, **all of**, **any failed** and so on). The first 100 steps are drawn. Below the diagram, the steps are listed level by level with their job and state, and the header shows the generation (how many times the chain was retried). Actions:
+Every [job chain](../jobs/chains.md), newest first, with its first step, the number of steps, when it was created and its status: **Waiting** (no step has started yet), **Running**, **Done** or **Finished with failures**.
+
+Open a chain (`/chains/{id}`) to see it as a flowchart, top to bottom. The header shows its status, its generation (how many times it was retried), its delete behavior and how many jobs and groups it has. In the flowchart:
+
+- **Each step is a card** in its state's color: the method and its arguments (the values the server supplies, such as `IJobConsole` and cancellation tokens, are left out), the state, the **start condition** (*On success*, *On failure*, *All succeeded*, *Any failed* and so on) with whether it was met, the progress the job reported, and the job number, when it started, how long it ran and how many times it was retried. The method links to the job's page. A step that won't run (its condition wasn't met, or it waits after a step that failed for good) is dimmed and marked **Not run**.
+- **Parallel branches** (`ThenMany`) sit in a **Parallel group** box with the group's status, how many of its jobs are still to finish, and how many succeeded and failed. The steps after a group that react to its outcome (`ThenAfterAll`, `ThenAfterAnyFailed`...) sit in an **Outcomes** box.
+- **Links** are drawn in the accent color where a condition was met, in the failure color where a step ran because something failed, and dashed to a step that won't run.
+- **Zoom** out, in, or to fit the width, and switch to **full screen** (Esc leaves it). The flowchart fits the page's width when it opens.
+
+The first 200 steps are drawn, whole levels at a time; the others are listed below the flowchart. **Chain logs**, under it, merges the console lines of every step in time order (the newest 500), each linked to its step; it opens by itself when a step wrote something. Actions:
 
 - **Retry from here** on a failed or deleted step, once the chain has settled (nothing is running or waiting to run): the step runs again with everything after it, and the steps before it aren't re-run. It calls `RetryChainFrom`.
 - **Delete** while the chain is still running: deletes the steps that haven't finished, following the chain's delete behavior (`Restrict` refuses while a step is processing).
