@@ -13,7 +13,7 @@ namespace Masterly.NightShift.EntityFrameworkCore;
 public static class NightShiftDbContextExtensions
 #pragma warning restore CA1708
 {
-    private static readonly ConditionalWeakTable<DbContext, EntityFrameworkCoreStorage> Subscribed = [];
+    private static readonly ConditionalWeakTable<DbContext, StagingSubscription> Subscribed = [];
 
     /// <param name="context">The application's context, whose model includes <c>ApplyNightShiftModel</c>.</param>
     extension([NotNull] DbContext context)
@@ -24,23 +24,56 @@ public static class NightShiftDbContextExtensions
         /// wait for the context's <c>SaveChanges</c> (or its transaction) and commit or roll back with it.
         /// Client filters run when the job is staged, as they do when it is created.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The id is reserved on a connection of its own, outside the context's transaction, and the reservation
+        /// lasts at least a day (30 days for jobs created by the client), so a context may be saved long after the
+        /// job is staged. SQLite has one writer at a time: while the context's transaction is open, the
+        /// reservation would wait for it until the busy timeout, so staging a job then throws at once. Stage it
+        /// before <c>BeginTransaction</c>, or enqueue it through the storage once the transaction committed.
+        /// </para>
+        /// <para>
+        /// Work that runs once a job's creation is committed (alerts, activity feed entries and other
+        /// after-commit work of filters) runs when the job is staged, not when the context is saved, and runs
+        /// even if the context is never saved. A <c>SaveChanges</c> that saves staged queue entries wakes this
+        /// process's waiting workers at once; other processes see the jobs at their next poll.
+        /// </para>
+        /// </remarks>
         /// <param name="storage">The storage, whose tables are in the context's model.</param>
         /// <returns>A client to create jobs with, through any of its extension methods.</returns>
         /// <exception cref="ArgumentNullException">An argument is <c>null</c>.</exception>
-        /// <exception cref="InvalidOperationException">The context's model doesn't include the storage's tables.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// The context's model doesn't include the storage's tables; or, when a job is staged, the context is on
+        /// SQLite and its transaction is open.
+        /// </exception>
         public IBackgroundJobClient NightShift([NotNull] EntityFrameworkCoreStorage storage)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(storage);
             EntityFrameworkCoreStorage.EnsureModel(context);
 
-            // Saving the context wakes this process's workers, as enqueuing through the storage does
+            // Saving staged queue entries wakes this process's workers, as enqueuing through the storage does
             if (!Subscribed.TryGetValue(context, out _))
             {
-                Subscribed.AddOrUpdate(context, storage);
+                Subscribed.AddOrUpdate(context, new StagingSubscription(storage));
+                context.SavingChanges += static (sender, _) =>
+                {
+                    if (sender is DbContext saving && Subscribed.TryGetValue(saving, out StagingSubscription? subscription))
+                    {
+                        subscription.QueuesSaving = saving.ChangeTracker.Entries<JobQueueRow>().Any(static x => x.State == EntityState.Added);
+                    }
+                };
                 context.SavedChanges += static (sender, _) =>
                 {
-                    if (sender is DbContext saved && Subscribed.TryGetValue(saved, out EntityFrameworkCoreStorage? owner)) owner.Signal();
+                    if (sender is DbContext saved && Subscribed.TryGetValue(saved, out StagingSubscription? subscription) && subscription.QueuesSaving)
+                    {
+                        subscription.QueuesSaving = false;
+                        subscription.Storage.Signal();
+                    }
+                };
+                context.SaveChangesFailed += static (sender, _) =>
+                {
+                    if (sender is DbContext failed && Subscribed.TryGetValue(failed, out StagingSubscription? subscription)) subscription.QueuesSaving = false;
                 };
             }
 
@@ -62,6 +95,14 @@ public static class NightShiftDbContextExtensions
     }
 }
 
+/// <summary>The storage a context stages jobs for, and whether the save in progress writes queue entries.</summary>
+internal sealed class StagingSubscription(EntityFrameworkCoreStorage storage)
+{
+    public EntityFrameworkCoreStorage Storage { get; } = storage;
+
+    public bool QueuesSaving { get; set; }
+}
+
 /// <summary>The storage, with writes staged in an application's context.</summary>
 internal sealed class StagingStorage(EntityFrameworkCoreStorage storage, DbContext context) : JobStorage
 {
@@ -77,6 +118,14 @@ internal sealed class StagingStorage(EntityFrameworkCoreStorage storage, DbConte
 /// <summary>A connection that reads and locks through the storage, and stages its transactions in the context.</summary>
 internal sealed class StagingConnection(EfConnection connection, DbContext context) : JobStorageConnection
 {
+    /// <summary>
+    /// The shortest time a reserved id lives unsaved. The reservation is committed at once, outside the context,
+    /// and the expiration manager deletes it once it expires: a context saved after that would fail.
+    /// </summary>
+    internal static readonly TimeSpan MinimumReservation = TimeSpan.FromDays(1);
+
+    private const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
+
     public override void Dispose()
     {
         connection.Dispose();
@@ -89,7 +138,15 @@ internal sealed class StagingConnection(EfConnection connection, DbContext conte
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
     {
-        return connection.CreateExpiredJob(job, parameters, createdAt, expireIn);
+        // The reservation writes on another connection: SQLite would make it wait for the context's own write
+        // lock until the busy timeout, then fail
+        if (context.Database.CurrentTransaction != null && context.Database.ProviderName == SqliteProvider)
+        {
+            throw new InvalidOperationException(
+                "A job can't be staged on SQLite while the context's transaction is open: SQLite has one writer at a time, and the job's id is reserved outside that transaction. Stage the job before BeginTransaction, or enqueue it through the storage once the transaction committed.");
+        }
+
+        return connection.CreateExpiredJob(job, parameters, createdAt, expireIn < MinimumReservation ? MinimumReservation : expireIn);
     }
 
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
@@ -157,6 +214,7 @@ internal sealed class StagingTransaction(EfConnection connection, DbContext cont
 
     protected override void Apply(IReadOnlyList<StorageOperation> operations)
     {
+        EfLimits.EnsureFits(operations);
         EfOperationWriter writer = new(context, immediate: false);
         foreach (StorageOperation operation in operations) writer.Write(operation);
     }

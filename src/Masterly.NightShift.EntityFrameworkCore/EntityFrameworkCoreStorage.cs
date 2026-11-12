@@ -3,6 +3,7 @@ using Masterly.NightShift.Storage.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using NotNullWhenAttribute = System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
 
 namespace Masterly.NightShift.EntityFrameworkCore;
 
@@ -17,8 +18,10 @@ public sealed class EntityFrameworkCoreStorageOptions
     public string? Schema { get; set; } = NightShiftModelBuilderExtensions.DefaultSchema;
 
     /// <summary>
-    /// Whether a dedicated context creates its database and tables when they are missing. Tables that exist are
-    /// never changed. <c>true</c> by default; an application's own context creates them with its migrations.
+    /// Whether a dedicated context creates its database and tables when they are missing, and checks the schema
+    /// version of tables that exist; they are never changed. Several processes may start at once: one creates the
+    /// tables and the others use them. <c>true</c> by default; an application's own context creates them with its
+    /// migrations.
     /// </summary>
     public bool PrepareSchemaIfNecessary { get; set; } = true;
 
@@ -54,16 +57,34 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// <c>ApplyNightShiftModel</c>. With the application's context, jobs can be staged with
 /// <c>context.NightShift(storage)</c> and commit or roll back with its <c>SaveChanges</c>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Keys, hash fields, set values and queue names are compared by the database, with the collation of their
+/// columns: SQLite and PostgreSQL compare them as written, while the default collations of SQL Server and MySQL
+/// ignore case, so <c>Key</c> and <c>key</c> are one key there. Keys of at most 100 characters, hash fields of
+/// 100, set values of 256, job parameter names of 40, state names of 20 and queue names of 50 fit the columns;
+/// longer ones are refused with an <see cref="ArgumentException"/> before anything is written, on every provider.
+/// </para>
+/// <para>
+/// A dedicated context records the version of the tables it creates, and refuses tables of another version.
+/// With an application's context, the application's migrations create and upgrade the tables.
+/// </para>
+/// </remarks>
 public sealed class EntityFrameworkCoreStorage : JobStorage
 {
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(EfFetchedJob));
     private readonly Func<DbContext> _contextFactory;
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    /// <summary>A storage with a context of its own, configured for a provider: <c>o => o.UseSqlServer(connectionString)</c>.</summary>
+    /// <summary>
+    /// A storage with a context of its own, configured for a provider: <c>o => o.UseSqlServer(connectionString)</c>.
+    /// Unless <see cref="EntityFrameworkCoreStorageOptions.PrepareSchemaIfNecessary"/> is off, it connects to the
+    /// database at once, creates what is missing and checks the version of the tables.
+    /// </summary>
     /// <param name="configure">Configures the provider of the context.</param>
     /// <param name="options">The options, or <c>null</c> for the defaults.</param>
     /// <exception cref="ArgumentNullException"><paramref name="configure"/> is <c>null</c>.</exception>
+    /// <exception cref="InvalidOperationException">The tables are of another schema version.</exception>
     public EntityFrameworkCoreStorage([NotNull] Action<DbContextOptionsBuilder> configure, [CanBeNull] EntityFrameworkCoreStorageOptions? options = null)
         : this(CreateDedicatedFactory(configure, options ??= new EntityFrameworkCoreStorageOptions()), options, dedicated: true)
     {
@@ -211,25 +232,105 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         }
     }
 
+    /// <summary>
+    /// Creates what is missing, tolerating another process that creates it at the same time, then checks the
+    /// version of the tables. Providers report a missing table, a refused login and an unreachable server with
+    /// exceptions of their own, so a failed probe is only taken as missing tables when creating them works, or
+    /// when someone else's creation explains the failure; otherwise the creation's error is what surfaces.
+    /// </summary>
     private void PrepareSchema()
     {
         using DbContext context = CreateContext();
         IRelationalDatabaseCreator creator = context.GetService<IRelationalDatabaseCreator>();
+        ILog logger = LogProvider.GetLogger(typeof(EntityFrameworkCoreStorage));
 
         if (!creator.Exists())
         {
-            creator.Create();
+            try
+            {
+                creator.Create();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && creator.Exists())
+            {
+                logger.DebugException("Another process created the database first.", ex);
+            }
         }
 
+        if (!TablesExist(context, out Exception? probeError))
+        {
+            logger.InfoException("The Masterly.NightShift tables weren't found (the exception tells why); creating them.", probeError);
+
+            try
+            {
+                creator.CreateTables();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && TablesExist(context, out _))
+            {
+                logger.InfoException("Another process created the Masterly.NightShift tables first.", ex);
+            }
+        }
+
+        EnsureSchemaVersion(context, logger);
+    }
+
+    private static bool TablesExist(DbContext context, [NotNullWhen(false)] out Exception? error)
+    {
         try
         {
             _ = context.Set<JobRow>().Any();
+            error = null;
+            return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // The tables don't exist yet: create them, and only them
-            LogProvider.GetLogger(typeof(EntityFrameworkCoreStorage)).Info("Creating the Masterly.NightShift tables...");
-            creator.CreateTables();
+            context.ChangeTracker.Clear();
+            error = ex;
+            return false;
+        }
+    }
+
+    /// <summary>Records the version of tables just created, and refuses tables of another version.</summary>
+    private static void EnsureSchemaVersion(DbContext context, ILog logger)
+    {
+        List<int> versions = ReadSchemaVersions(context);
+
+        if (versions.Count == 0)
+        {
+            try
+            {
+                context.Add(new SchemaVersionRow { Version = SchemaVersionRow.Current });
+                context.SaveChanges();
+                return;
+            }
+            catch (DbUpdateException ex)
+            {
+                // Another process that created the tables at the same time recorded the version first
+                logger.DebugException("Another process recorded the schema version first.", ex);
+                context.ChangeTracker.Clear();
+                versions = ReadSchemaVersions(context);
+            }
+        }
+
+        if (versions is not [SchemaVersionRow.Current])
+        {
+            string found = string.Join(", ", versions);
+            throw new InvalidOperationException(versions.Count > 0 && versions.Max() > SchemaVersionRow.Current
+                ? $"The Masterly.NightShift tables are at schema version {found}, written by a newer version of Masterly.NightShift.EntityFrameworkCore than this one (schema version {SchemaVersionRow.Current}). Upgrade every process that uses them."
+                : $"The Masterly.NightShift tables are at schema version {found}, but this version of Masterly.NightShift.EntityFrameworkCore uses schema version {SchemaVersionRow.Current} and can't upgrade them. Use a new schema or database.");
+        }
+    }
+
+    private static List<int> ReadSchemaVersions(DbContext context)
+    {
+        try
+        {
+            return [.. context.Set<SchemaVersionRow>().AsNoTracking().Select(static x => x.Version)];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            throw new InvalidOperationException(
+                "Couldn't read the schema version of the Masterly.NightShift tables. Tables created by a build of Masterly.NightShift.EntityFrameworkCore that didn't record it can't be used: use a new schema or database.",
+                ex);
         }
     }
 

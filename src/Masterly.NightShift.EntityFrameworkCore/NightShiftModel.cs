@@ -145,6 +145,12 @@ internal sealed class LockRow
 /// <c>OnModelCreating</c> of an application's context, so its migrations create the tables and
 /// <see cref="EntityFrameworkCoreStorage"/> can use the context.
 /// </summary>
+/// <remarks>
+/// The application owns these tables and their upgrades: when a new version of the package changes the model (its
+/// changelog says so), add a migration (<c>dotnet ef migrations add</c>) and apply it before the new version
+/// runs, as for a change to the application's own entities. A dedicated context instead records the version of
+/// its tables and refuses tables of another version.
+/// </remarks>
 #pragma warning disable CA1708 // False positive: the analyzer compares the types the compiler generates for extension blocks
 public static class NightShiftModelBuilderExtensions
 #pragma warning restore CA1708
@@ -167,8 +173,8 @@ public static class NightShiftModelBuilderExtensions
             {
                 job.ToTable("Job", schema).HasKey(static x => x.Id);
                 job.Property(static x => x.InvocationData).IsRequired();
-                job.Property(static x => x.StateName).HasMaxLength(20);
-                job.Property(static x => x.StateReason).HasMaxLength(100);
+                job.Property(static x => x.StateName).HasMaxLength(EfLimits.StateNameLength);
+                job.Property(static x => x.StateReason).HasMaxLength(EfLimits.StateReasonLength);
                 job.HasIndex(static x => new { x.StateName, x.Id });
                 job.HasIndex(static x => x.ExpireAt);
                 job.HasMany(static x => x.History).WithOne().HasForeignKey(static x => x.JobId).OnDelete(DeleteBehavior.Cascade);
@@ -181,8 +187,8 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<StateRow>(state =>
             {
                 state.ToTable("State", schema).HasKey(static x => x.Id);
-                state.Property(static x => x.Name).HasMaxLength(20).IsRequired();
-                state.Property(static x => x.Reason).HasMaxLength(100);
+                state.Property(static x => x.Name).HasMaxLength(EfLimits.StateNameLength).IsRequired();
+                state.Property(static x => x.Reason).HasMaxLength(EfLimits.StateReasonLength);
                 state.HasIndex(static x => new { x.JobId, x.Id });
                 Utc(state.Property(static x => x.CreatedAt));
             });
@@ -190,13 +196,13 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<JobParameterRow>(parameter =>
             {
                 parameter.ToTable("JobParameter", schema).HasKey(static x => new { x.JobId, x.Name });
-                parameter.Property(static x => x.Name).HasMaxLength(40);
+                parameter.Property(static x => x.Name).HasMaxLength(EfLimits.JobParameterNameLength);
             });
 
             modelBuilder.Entity<JobQueueRow>(queue =>
             {
                 queue.ToTable("JobQueue", schema).HasKey(static x => x.Id);
-                queue.Property(static x => x.Queue).HasMaxLength(50).IsRequired();
+                queue.Property(static x => x.Queue).HasMaxLength(EfLimits.QueueNameLength).IsRequired();
                 queue.Property(static x => x.FetchToken).HasMaxLength(32);
                 queue.HasIndex(static x => new { x.Queue, x.FetchedAt, x.Id });
                 queue.HasIndex(static x => x.JobId);
@@ -206,8 +212,8 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<SetRow>(set =>
             {
                 set.ToTable("Set", schema).HasKey(static x => new { x.Key, x.Value });
-                set.Property(static x => x.Key).HasMaxLength(100);
-                set.Property(static x => x.Value).HasMaxLength(256);
+                set.Property(static x => x.Key).HasMaxLength(EfLimits.KeyLength);
+                set.Property(static x => x.Value).HasMaxLength(EfLimits.SetValueLength);
                 set.HasIndex(static x => new { x.Key, x.Score, x.Value });
                 set.HasIndex(static x => x.ExpireAt);
                 Utc(set.Property(static x => x.ExpireAt));
@@ -216,7 +222,7 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<ListRow>(list =>
             {
                 list.ToTable("List", schema).HasKey(static x => x.Id);
-                list.Property(static x => x.Key).HasMaxLength(100).IsRequired();
+                list.Property(static x => x.Key).HasMaxLength(EfLimits.KeyLength).IsRequired();
                 list.Property(static x => x.Value).IsRequired();
                 list.HasIndex(static x => new { x.Key, x.Id });
                 list.HasIndex(static x => x.ExpireAt);
@@ -226,8 +232,8 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<HashRow>(hash =>
             {
                 hash.ToTable("Hash", schema).HasKey(static x => new { x.Key, x.Field });
-                hash.Property(static x => x.Key).HasMaxLength(100);
-                hash.Property(static x => x.Field).HasMaxLength(100);
+                hash.Property(static x => x.Key).HasMaxLength(EfLimits.KeyLength);
+                hash.Property(static x => x.Field).HasMaxLength(EfLimits.HashFieldLength);
                 hash.HasIndex(static x => x.ExpireAt);
                 Utc(hash.Property(static x => x.ExpireAt));
             });
@@ -235,7 +241,7 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<CounterRow>(counter =>
             {
                 counter.ToTable("Counter", schema).HasKey(static x => x.Id);
-                counter.Property(static x => x.Key).HasMaxLength(100).IsRequired();
+                counter.Property(static x => x.Key).HasMaxLength(EfLimits.KeyLength).IsRequired();
                 counter.HasIndex(static x => x.Key);
                 Utc(counter.Property(static x => x.ExpireAt));
             });
@@ -243,7 +249,7 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<AggregatedCounterRow>(counter =>
             {
                 counter.ToTable("AggregatedCounter", schema).HasKey(static x => x.Key);
-                counter.Property(static x => x.Key).HasMaxLength(100);
+                counter.Property(static x => x.Key).HasMaxLength(EfLimits.KeyLength);
                 counter.HasIndex(static x => x.ExpireAt);
                 Utc(counter.Property(static x => x.ExpireAt));
             });
@@ -251,7 +257,7 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<ServerRow>(server =>
             {
                 server.ToTable("Server", schema).HasKey(static x => x.Id);
-                server.Property(static x => x.Id).HasMaxLength(200);
+                server.Property(static x => x.Id).HasMaxLength(EfLimits.ServerIdLength);
                 server.Property(static x => x.Data).IsRequired();
                 Utc(server.Property(static x => x.LastHeartbeat));
             });
@@ -259,7 +265,7 @@ public static class NightShiftModelBuilderExtensions
             modelBuilder.Entity<LockRow>(row =>
             {
                 row.ToTable("Lock", schema).HasKey(static x => x.Resource);
-                row.Property(static x => x.Resource).HasMaxLength(255);
+                row.Property(static x => x.Resource).HasMaxLength(EfLimits.LockResourceLength);
                 row.Property(static x => x.Owner).HasMaxLength(32).IsRequired();
                 Utc(row.Property(static x => x.ExpireAt));
             });
@@ -280,6 +286,18 @@ public static class NightShiftModelBuilderExtensions
     }
 }
 
+/// <summary>The version of the tables a dedicated context created, in a table of one row.</summary>
+internal sealed class SchemaVersionRow
+{
+    /// <summary>
+    /// The version of the tables of a dedicated context. Raise it with every change to the model, and teach
+    /// <c>EntityFrameworkCoreStorage.PrepareSchema</c> to upgrade the version before it.
+    /// </summary>
+    public const int Current = 1;
+
+    public int Version { get; set; }
+}
+
 /// <summary>The context the storage uses when it has a database of its own.</summary>
 internal sealed class NightShiftDbContext(DbContextOptions options, string? schema) : DbContext(options)
 {
@@ -288,6 +306,13 @@ internal sealed class NightShiftDbContext(DbContextOptions options, string? sche
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyNightShiftModel(Schema);
+
+        // Only the dedicated context records its version: an application's migrations track its own context
+        modelBuilder.Entity<SchemaVersionRow>(version =>
+        {
+            version.ToTable("SchemaVersion", Schema).HasKey(static x => x.Version);
+            version.Property(static x => x.Version).ValueGeneratedNever();
+        });
     }
 }
 
