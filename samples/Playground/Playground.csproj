@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Masterly.NightShift.AspNetCore\Masterly.NightShift.AspNetCore.csproj" />
+    <!-- In memory: nothing to install, and every restart starts clean -->
+    <ProjectReference Include="..\..\src\Masterly.NightShift.InMemory\Masterly.NightShift.InMemory.csproj" />
+  </ItemGroup>
+
+</Project>
