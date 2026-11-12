@@ -101,10 +101,10 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>). For an unknown provider without the option
 /// (logged once as information), or a statement that fails the check (logged once as a warning), the storage
 /// doesn't advertise the feature and the process tells the time with its own clock, for as long as the storage
-/// object lives. While the database can't be reached at all, nothing is decided: <see cref="HasFeature"/> throws
-/// the provider's exception for <c>Connection.GetUtcDateTime</c>, and the next call checks again. Once the
-/// database's clock is in use, a read of it that fails throws like any other read; the storage never goes back
-/// to the process's clock.
+/// object lives. While the database can't be asked (it is out of reach, or the statement never got to it),
+/// nothing is decided: <see cref="HasFeature"/> throws the failure for <c>Connection.GetUtcDateTime</c>, and the
+/// next call checks again. Once the database's clock is in use, a read of it that fails throws like any other
+/// read; the storage never goes back to the process's clock.
 /// </para>
 /// <para>
 /// Fetched jobs' invisibility, the expiry of distributed locks and of rows, and the times written into states
@@ -220,8 +220,8 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     /// <remarks>
     /// <c>Connection.GetUtcDateTime</c> is supported when the database's clock is read (see the remarks of
     /// <see cref="EntityFrameworkCoreStorage"/>). The first call that asks for it runs one statement against the
-    /// database to find out, and throws the provider's exception when the database can't be reached; later calls
-    /// answer from memory.
+    /// database to find out, and throws when the database can't be asked (the provider's exception when it is
+    /// out of reach); later calls answer from memory.
     /// </remarks>
     public override bool HasFeature(string featureId)
     {

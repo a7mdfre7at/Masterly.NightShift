@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Masterly.NightShift.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -19,8 +20,9 @@ namespace Masterly.NightShift.EntityFrameworkCore;
 /// a time within <see cref="Tolerance"/> of this process's clock: one that answers local time instead of UTC is
 /// off by an hour or more nearly everywhere. What the check finds holds for as long as the storage lives, so a
 /// process never changes clocks while it runs: once the database's clock is in use, a read that fails throws,
-/// as any other read of the storage does. Only a database that can't be reached at all leaves the question open:
-/// the failure surfaces, and the next call checks again.
+/// as any other read of the storage does. Only a check the database didn't answer leaves the question open (the
+/// database can't be reached, or the statement never got to it): the failure surfaces, and the next call checks
+/// again.
 /// </remarks>
 internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<DbContext, string?>? providerNameOf = null)
 {
@@ -43,7 +45,7 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
     /// <summary>
     /// Whether the database's clock is read. The first call asks the database; later calls answer from memory.
     /// </summary>
-    /// <exception cref="Exception">The database couldn't be reached to find out, with the provider's exception.</exception>
+    /// <exception cref="Exception">The database couldn't be asked: it is out of reach, or the statement never got to it.</exception>
     public bool IsRead() => Find().Sql != null;
 
     /// <summary>The database's time where it is read, this process's otherwise.</summary>
@@ -140,7 +142,7 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
             return first;
         }
 
-        found.Log?.Invoke();
+        found.Log();
         return found;
     }
 
@@ -165,9 +167,10 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
         {
             value = ExecuteScalar(context, sql);
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException && CanConnect())
+        catch (Exception ex) when (IsFromTheDatabase(ex) && CanConnect())
         {
-            // The database answers, but not to this statement
+            // The database refused the statement, and can be reached: the statement is at fault. Any other
+            // failure says nothing about the statement, and surfaces.
             return new Finding(null, () => Logger.WarnException(
                 $"The Entity Framework Core job storage couldn't read the database's clock with \"{sql}\" (provider '{provider}'). {consequence}", ex));
         }
@@ -187,6 +190,20 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
         }
 
         return new Finding(sql, () => Logger.Debug($"The Entity Framework Core job storage reads the database's clock with \"{sql}\" (provider '{provider}')."));
+    }
+
+    /// <summary>Whether a failure is an error of the database or its driver, alone or behind the execution strategy's.</summary>
+    private static bool IsFromTheDatabase(Exception? exception)
+    {
+        for (; exception != null; exception = exception.InnerException)
+        {
+            if (exception is DbException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -239,5 +256,5 @@ internal sealed class EfDatabaseClock(EntityFrameworkCoreStorage storage, Func<D
     internal sealed record Statement(string Sql, bool Verified);
 
     /// <summary>What the check found: the statement to read the clock with, or none, and what to log about it.</summary>
-    private sealed record Finding(string? Sql, Action? Log);
+    private sealed record Finding(string? Sql, Action Log);
 }

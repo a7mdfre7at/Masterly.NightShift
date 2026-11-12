@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
+using System.Transactions;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Masterly.NightShift.EntityFrameworkCore.Tests;
@@ -216,6 +218,29 @@ public sealed class EfDatabaseClockFacts : IDisposable
         factory.ConnectionString = _database.ConnectionString;
         Assert.True(storage.HasFeature(Feature));
         AssertReadsTheMachinesTime(storage);
+        Assert.Empty(logs.AboutTheClock());
+    }
+
+    [Fact]
+    public void FailureThatIsNotTheDatabases_AtTheFirstUse_Surfaces_AndTheClockIsCheckedAgain()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        _database.CreateStorage();
+
+        // Contexts that refuse to open a connection inside a transaction scope, which SQLite can't enlist in
+        EntityFrameworkCoreStorage storage = new(() => new ClockContext(
+            new DbContextOptionsBuilder<ClockContext>()
+                .UseSqlite(_database.ConnectionString)
+                .ConfigureWarnings(static w => w.Throw(RelationalEventId.AmbientTransactionWarning))
+                .Options,
+            null));
+
+        using (TransactionScope scope = new())
+        {
+            Assert.Throws<InvalidOperationException>(() => storage.HasFeature(Feature));
+        }
+
+        Assert.True(storage.HasFeature(Feature));
         Assert.Empty(logs.AboutTheClock());
     }
 
