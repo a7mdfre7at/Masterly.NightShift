@@ -26,6 +26,14 @@ public sealed class InMemoryStorageOptions
     /// to bound the memory a busy process uses. <c>null</c> (the default) keeps the expirations as set.
     /// </summary>
     public TimeSpan? MaxExpirationTime { get; set; }
+
+    /// <summary>How long a distributed lock outlives a holder that stopped renewing it. One minute; tests shorten it.</summary>
+    internal TimeSpan DistributedLockLifetime { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>Whether workers keep their fetched jobs invisible while they run. Tests turn it off to let a fetch go stale.</summary>
+    internal bool KeepFetchedJobsAlive { get; set; } = true;
+
+    internal InMemoryStorageOptions Copy() => (InMemoryStorageOptions)MemberwiseClone();
 }
 
 /// <summary>
@@ -47,19 +55,25 @@ public sealed class InMemoryStorage : JobStorage
     /// <param name="options">The options.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is <c>null</c>.</exception>
     /// <exception cref="ArgumentException">An interval in <paramref name="options"/> isn't positive.</exception>
+    /// <remarks>The storage keeps a copy of <paramref name="options"/>: changing them afterwards changes nothing.</remarks>
     public InMemoryStorage([NotNull] InMemoryStorageOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (options.QueuePollInterval <= TimeSpan.Zero) throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
-        if (options.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (options.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        Settings = options.Copy();
+        if (Settings.QueuePollInterval <= TimeSpan.Zero) throw new ArgumentException("The queue poll interval must be positive.", nameof(options));
+        if (Settings.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        if (Settings.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        if (Settings.MaxExpirationTime <= TimeSpan.Zero) throw new ArgumentException("The max expiration time must be positive when set.", nameof(options));
+        if (Settings.DistributedLockLifetime <= TimeSpan.Zero) throw new ArgumentException("The lock lifetime must be positive.", nameof(options));
 
-        Options = options;
-        Database = new InMemoryDatabase(options);
+        Database = new InMemoryDatabase(Settings);
     }
 
-    /// <summary>The options the storage was created with.</summary>
-    public InMemoryStorageOptions Options { get; }
+    /// <summary>A copy of the options the storage was created with; changing it changes nothing.</summary>
+    public InMemoryStorageOptions Options => Settings.Copy();
+
+    /// <summary>The options the storage uses, copied when it was created.</summary>
+    internal InMemoryStorageOptions Settings { get; }
 
     /// <summary>Reads see every committed write: everything is behind one lock.</summary>
     public override bool LinearizableReads => true;
@@ -92,10 +106,10 @@ public sealed class InMemoryStorage : JobStorage
     {
         ArgumentNullException.ThrowIfNull(logger);
         logger.Info("Using the following options for the in-memory job storage:");
-        logger.Info($"    Queue poll interval: {Options.QueuePollInterval}.");
-        logger.Info($"    Invisibility timeout: {Options.InvisibilityTimeout}.");
-        logger.Info($"    Expiration check interval: {Options.ExpirationCheckInterval}.");
-        logger.Info($"    Max expiration time: {Options.MaxExpirationTime?.ToString() ?? "none"}.");
+        logger.Info($"    Queue poll interval: {Settings.QueuePollInterval}.");
+        logger.Info($"    Invisibility timeout: {Settings.InvisibilityTimeout}.");
+        logger.Info($"    Expiration check interval: {Settings.ExpirationCheckInterval}.");
+        logger.Info($"    Max expiration time: {Settings.MaxExpirationTime?.ToString() ?? "none"}.");
     }
 
     /// <inheritdoc />
@@ -104,8 +118,6 @@ public sealed class InMemoryStorage : JobStorage
 
 internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageConnection
 {
-    private static readonly TimeSpan LockLifetime = TimeSpan.FromMinutes(1);
-
     private readonly InMemoryDatabase _database = storage.Database;
     private readonly ReentrantLocks _locks = new();
 
@@ -114,7 +126,7 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
     public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return _locks.Acquire(resource, () => LeaseLock.Acquire(_database, resource, timeout, LockLifetime));
+        return _locks.Acquire(resource, () => LeaseLock.Acquire(_database, resource, timeout, storage.Settings.DistributedLockLifetime));
     }
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
@@ -130,7 +142,7 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
         if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
         (long entryId, long jobId, string queue, string token) = _database.Fetch(queues, cancellationToken);
-        return new InMemoryFetchedJob(_database, entryId, jobId, queue, token, storage.Options.InvisibilityTimeout);
+        return new InMemoryFetchedJob(_database, entryId, jobId, queue, token, storage.Settings);
     }
 
     public override void SetJobParameter(string id, string name, string? value)
@@ -305,20 +317,24 @@ internal sealed class InMemoryTransaction(InMemoryDatabase database, InMemoryCon
     protected override void Apply(IReadOnlyList<StorageOperation> operations) => database.Apply(operations);
 
     protected override IDisposable AcquireLock(string resource, TimeSpan timeout) => connection.AcquireDistributedLock(resource, timeout);
+
+    protected override bool IsOwnFetchedJob(FetchedJobBase fetchedJob) => fetchedJob is InMemoryFetchedJob ours && ours.Database == database;
 }
 
-internal sealed class InMemoryFetchedJob(InMemoryDatabase database, long entryId, long jobId, string queue, string token, TimeSpan invisibilityTimeout)
-    : FetchedJobBase(StorageValues.FormatJobId(jobId), queue, invisibilityTimeout / 5)
+internal sealed class InMemoryFetchedJob(InMemoryDatabase database, long entryId, long jobId, string queue, string token, InMemoryStorageOptions options)
+    : FetchedJobBase(StorageValues.FormatJobId(jobId), queue, options.KeepFetchedJobsAlive ? options.InvisibilityTimeout / 5 : null)
 {
+    public InMemoryDatabase Database { get; } = database;
+
     public long EntryId { get; } = entryId;
 
     public string Token { get; } = token;
 
-    protected override void Remove() => database.UpdateFetched(Queue, EntryId, Token, FetchedAction.Remove);
+    protected override void Remove() => Database.UpdateFetched(Queue, EntryId, Token, FetchedAction.Remove);
 
-    protected override void ReturnToQueue() => database.UpdateFetched(Queue, EntryId, Token, FetchedAction.Requeue);
+    protected override void ReturnToQueue() => Database.UpdateFetched(Queue, EntryId, Token, FetchedAction.Requeue);
 
-    protected override void KeepAlive() => database.UpdateFetched(Queue, EntryId, Token, FetchedAction.KeepAlive);
+    protected override void KeepAlive() => Database.UpdateFetched(Queue, EntryId, Token, FetchedAction.KeepAlive);
 }
 
 internal sealed class InMemoryMonitoringApi(InMemoryDatabase database) : SharedMonitoringApi

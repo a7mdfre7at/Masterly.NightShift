@@ -1,3 +1,4 @@
+using Masterly.NightShift.Logging;
 using Masterly.NightShift.States;
 
 namespace Masterly.NightShift.Storage.Shared;
@@ -55,6 +56,8 @@ internal sealed record ExpireKeyOperation(KeyKind Kind, string Key, DateTime? Ex
 /// </summary>
 internal abstract class RecordingTransaction : JobStorageTransaction
 {
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(RecordingTransaction));
+
     private readonly List<StorageOperation> _operations = [];
     private readonly List<IDisposable> _locks = [];
     private bool _committed;
@@ -62,7 +65,7 @@ internal abstract class RecordingTransaction : JobStorageTransaction
     public override void ExpireJob(string jobId, TimeSpan expireIn)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (StorageValues.TryParseJobId(jobId, out long id))
+        if (TryParseJobId(jobId, out long id))
         {
             _operations.Add(new ExpireJobOperation(id, StorageValues.ExpireAt(JobClock.UtcNow, expireIn)));
         }
@@ -71,7 +74,7 @@ internal abstract class RecordingTransaction : JobStorageTransaction
     public override void PersistJob(string jobId)
     {
         ArgumentNullException.ThrowIfNull(jobId);
-        if (StorageValues.TryParseJobId(jobId, out long id))
+        if (TryParseJobId(jobId, out long id))
         {
             _operations.Add(new ExpireJobOperation(id, null));
         }
@@ -85,7 +88,7 @@ internal abstract class RecordingTransaction : JobStorageTransaction
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(jobId);
-        if (StorageValues.TryParseJobId(jobId, out long id))
+        if (TryParseJobId(jobId, out long id))
         {
             _operations.Add(new AddToQueueOperation(queue, id));
         }
@@ -94,7 +97,7 @@ internal abstract class RecordingTransaction : JobStorageTransaction
     public override void RemoveFromQueue(IFetchedJob fetchedJob)
     {
         ArgumentNullException.ThrowIfNull(fetchedJob);
-        if (fetchedJob is not FetchedJobBase ours)
+        if (fetchedJob is not FetchedJobBase ours || !IsOwnFetchedJob(ours))
         {
             throw new NotSupportedException($"Only the jobs this storage fetched can be removed in a transaction, not a {fetchedJob.GetType().Name}.");
         }
@@ -106,7 +109,7 @@ internal abstract class RecordingTransaction : JobStorageTransaction
     {
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(name);
-        if (StorageValues.TryParseJobId(jobId, out long id))
+        if (TryParseJobId(jobId, out long id))
         {
             _operations.Add(new SetJobParameterOperation(id, name, value));
         }
@@ -215,7 +218,17 @@ internal abstract class RecordingTransaction : JobStorageTransaction
             throw new InvalidOperationException("The transaction is already committed.");
         }
 
-        Apply(_operations);
+        try
+        {
+            Apply(_operations);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The caller decides what the failure means; this only tells what was being written
+            Logger.DebugException($"Couldn't commit a transaction of {_operations.Count} operations in {GetType().Name}.", ex);
+            throw;
+        }
+
         _committed = true;
 
         foreach (StorageOperation operation in _operations)
@@ -231,9 +244,17 @@ internal abstract class RecordingTransaction : JobStorageTransaction
 
     public override void Dispose()
     {
+        // Every lock is released even when another fails to: a lease left behind runs out by itself
         for (int i = _locks.Count - 1; i >= 0; i--)
         {
-            _locks[i].Dispose();
+            try
+            {
+                _locks[i].Dispose();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Logger.WarnException("Couldn't release a lock taken in a transaction.", ex);
+            }
         }
 
         _locks.Clear();
@@ -242,6 +263,13 @@ internal abstract class RecordingTransaction : JobStorageTransaction
 
     /// <summary>Writes every operation, all or none.</summary>
     protected abstract void Apply(IReadOnlyList<StorageOperation> operations);
+
+    /// <summary>
+    /// Whether <paramref name="fetchedJob"/> was fetched by this storage, so <see cref="Apply"/> can act on it.
+    /// <see cref="RemoveFromQueue"/> refuses the others before anything is recorded, so a commit never fails
+    /// half way on a job another storage fetched.
+    /// </summary>
+    protected virtual bool IsOwnFetchedJob(FetchedJobBase fetchedJob) => true;
 
     /// <summary>Takes a lock held until the transaction is disposed.</summary>
     protected abstract IDisposable AcquireLock(string resource, TimeSpan timeout);
@@ -257,11 +285,20 @@ internal abstract class RecordingTransaction : JobStorageTransaction
         return _operations.OfType<AddToQueueOperation>().Select(static x => x.Queue).Distinct(StringComparer.Ordinal);
     }
 
+    private static bool TryParseJobId(string jobId, out long id)
+    {
+        if (StorageValues.TryParseJobId(jobId, out id)) return true;
+
+        // Ids are numbers, so this one names no job and the write does nothing, as on SQL Server
+        Logger.Debug($"Ignored a write to job '{jobId}': this storage's job ids are numbers.");
+        return false;
+    }
+
     private void AddState(string jobId, IState state, bool setCurrent)
     {
         ArgumentNullException.ThrowIfNull(jobId);
         ArgumentNullException.ThrowIfNull(state);
-        if (StorageValues.TryParseJobId(jobId, out long id))
+        if (TryParseJobId(jobId, out long id))
         {
             _operations.Add(new AddJobStateOperation(id, StoredState.From(state), setCurrent));
         }

@@ -122,10 +122,12 @@ internal static class StorageValues
 
     public static string FormatJobId(long id) => id.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>The time something expires, clamped so a long period doesn't overflow.</summary>
+    /// <summary>The time something expires, clamped so a long period, or a long negative one, doesn't overflow.</summary>
     public static DateTime ExpireAt(DateTime from, TimeSpan expireIn)
     {
-        return expireIn >= DateTime.MaxValue - from ? DateTime.MaxValue : from.Add(expireIn);
+        if (expireIn >= DateTime.MaxValue - from) return DateTime.SpecifyKind(DateTime.MaxValue, from.Kind);
+        if (expireIn <= DateTime.MinValue - from) return DateTime.SpecifyKind(DateTime.MinValue, from.Kind);
+        return from.Add(expireIn);
     }
 
     /// <summary>The time left before <paramref name="expireAt"/>, or -1 second when it doesn't expire, as SQL Server answers.</summary>

@@ -16,7 +16,7 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return _locks.Acquire(resource, () => LeaseLock.Acquire(this, resource, timeout, storage.Options.DistributedLockLifetime));
+        return _locks.Acquire(resource, () => LeaseLock.Acquire(this, resource, timeout, storage.Settings.DistributedLockLifetime));
     }
 
     public override string? CreateExpiredJob(Job job, IDictionary<string, string?> parameters, DateTime createdAt, TimeSpan expireIn)
@@ -34,7 +34,6 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
             RedisValues.Ticks(createdAt),
             RedisValues.Ticks(expireAt),
             RedisValues.TimeToLive(expireAt),
-            RedisValues.UnixMilliseconds(expireAt),
             stored.Parameters.Count,
         ];
 
@@ -56,26 +55,20 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         {
             cancellationToken.ThrowIfCancellationRequested();
             Task enqueued = storage.Enqueued;
-            DateTime now = JobClock.UtcNow;
             string token = Guid.NewGuid().ToString("N");
 
-            RedisValue[] arguments = [RedisValues.UnixMilliseconds(now), RedisValues.UnixMilliseconds(now - storage.Options.InvisibilityTimeout), token, .. queues.Select(static x => (RedisValue)x)];
+            // The script reads the time from the server, so clients with skewed clocks agree on what is stale
+            RedisValue[] arguments = [(long)storage.Settings.InvisibilityTimeout.TotalMilliseconds, token, .. queues.Select(static x => (RedisValue)x)];
             RedisResult result = storage.Evaluate(RedisScripts.Fetch, arguments);
 
             if (!result.IsNull)
             {
                 RedisResult[] taken = (RedisResult[])result!; // A table of entry and queue
-                return new RedisFetchedJob(storage, (string)taken[0]!, (string)taken[1]!, token);
+                return new RedisFetchedJob(storage, (string)taken[0]!, (string)taken[1]!, token); // Entries and queue names are never null
             }
 
-            try
-            {
-                enqueued.Wait((int)storage.Options.FetchPollInterval.TotalMilliseconds, cancellationToken);
-            }
-            catch (AggregateException)
-            {
-                // The task only ever completes successfully; nothing to report
-            }
+            // The task only ever completes successfully, so this returns or throws OperationCanceledException
+            enqueued.Wait((int)storage.Settings.FetchPollInterval.TotalMilliseconds, cancellationToken);
         }
     }
 
@@ -123,10 +116,7 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         ArgumentNullException.ThrowIfNull(serverId);
         ArgumentNullException.ThrowIfNull(context);
 
-        ITransaction transaction = Database.CreateTransaction();
-        _ = transaction.HashSetAsync(storage.Key("servers"), serverId, StorageValues.SerializeServer(context));
-        _ = transaction.SortedSetAddAsync(storage.Key("servers:heartbeat"), serverId, RedisValues.UnixMilliseconds(JobClock.UtcNow));
-        transaction.Execute();
+        storage.Evaluate(RedisScripts.AnnounceServer, serverId, StorageValues.SerializeServer(context));
     }
 
     public override void RemoveServer(string serverId)
@@ -143,26 +133,19 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     {
         ArgumentNullException.ThrowIfNull(serverId);
 
-        if (!Database.HashExists(storage.Key("servers"), serverId))
+        // One script checks and beats, so a server removed in between isn't brought back half
+        if ((long)storage.Evaluate(RedisScripts.Heartbeat, serverId) == 0)
         {
             throw new BackgroundServerGoneException();
         }
-
-        Database.SortedSetAdd(storage.Key("servers:heartbeat"), serverId, RedisValues.UnixMilliseconds(JobClock.UtcNow));
     }
 
     public override int RemoveTimedOutServers(TimeSpan timeOut)
     {
         if (timeOut.Duration() != timeOut) throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
 
-        RedisValue[] timedOut = Database.SortedSetRangeByScore(storage.Key("servers:heartbeat"), double.NegativeInfinity, RedisValues.UnixMilliseconds(JobClock.UtcNow - timeOut), Exclude.Stop);
-        if (timedOut.Length == 0) return 0;
-
-        ITransaction transaction = Database.CreateTransaction();
-        _ = transaction.HashDeleteAsync(storage.Key("servers"), timedOut);
-        _ = transaction.SortedSetRemoveAsync(storage.Key("servers:heartbeat"), timedOut);
-        transaction.Execute();
-        return timedOut.Length;
+        long timeOutMilliseconds = (long)Math.Min(timeOut.TotalMilliseconds, long.MaxValue / 2);
+        return (int)(long)storage.Evaluate(RedisScripts.RemoveTimedOutServers, timeOutMilliseconds);
     }
 
     public override HashSet<string> GetAllItemsFromSet(string key)
@@ -216,8 +199,8 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
-        return [.. Database.SortedSetRangeByRank(SetKey(key), Math.Max(0, startingFrom), endingAt).Select(static x => x.ToString())];
+        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop)) return [];
+        return [.. Database.SortedSetRangeByRank(SetKey(key), start, stop).Select(static x => x.ToString())];
     }
 
     public override TimeSpan GetSetTtl(string key)
@@ -276,8 +259,8 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
     public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
     {
         ArgumentNullException.ThrowIfNull(key);
-        if (endingAt < startingFrom) return [];
-        return [.. Database.ListRange(ListKey(key), Math.Max(0, startingFrom), endingAt).Select(static x => x.ToString())];
+        if (!RedisValues.TryGetRange(startingFrom, endingAt, out long start, out long stop)) return [];
+        return [.. Database.ListRange(ListKey(key), start, stop).Select(static x => x.ToString())];
     }
 
     public override TimeSpan GetListTtl(string key)
@@ -317,7 +300,7 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         {
             Database.ScriptEvaluate(RedisScripts.ReleaseLock, [LockKey(resource)], [owner]);
         }
-        catch (RedisException ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // The lease runs out by itself; another owner takes the lock once it does
             LogProvider.GetLogger(typeof(RedisConnection)).WarnException($"Couldn't release the lock on '{resource}'.", ex);
@@ -358,10 +341,10 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
             switch (operation)
             {
                 case ExpireJobOperation expire when expire.ExpireAt.HasValue:
-                    arguments.AddRange(["expire-job", expire.JobId, RedisValues.TimeToLive(expire.ExpireAt.Value), RedisValues.Ticks(expire.ExpireAt.Value), RedisValues.UnixMilliseconds(expire.ExpireAt.Value)]);
+                    arguments.AddRange(["expire-job", expire.JobId, RedisValues.TimeToLive(expire.ExpireAt.Value), RedisValues.Ticks(expire.ExpireAt.Value)]);
                     break;
                 case ExpireJobOperation persist:
-                    arguments.AddRange(["expire-job", persist.JobId, string.Empty, string.Empty, string.Empty]);
+                    arguments.AddRange(["expire-job", persist.JobId, string.Empty, string.Empty]);
                     break;
                 case AddJobStateOperation state:
                     arguments.AddRange(["state", state.JobId, state.SetCurrent ? "1" : "0", RedisValues.SerializeState(state.State), state.State.Name]);
@@ -370,7 +353,7 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
                     arguments.AddRange(["queue", queue.Queue, queue.JobId]);
                     break;
                 case RemoveFromQueueOperation removal:
-                    RedisFetchedJob fetched = (RedisFetchedJob)removal.FetchedJob; // This storage only fetches its own jobs
+                    RedisFetchedJob fetched = (RedisFetchedJob)removal.FetchedJob; // IsOwnFetchedJob refused the others
                     arguments.AddRange(["dequeue", fetched.Queue, fetched.Entry, fetched.Token]);
                     break;
                 case SetJobParameterOperation parameter:
@@ -399,7 +382,11 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
                     arguments.AddRange(["lrem", removeFromList.Key, removeFromList.Value]);
                     break;
                 case TrimListOperation trim:
-                    arguments.AddRange(["ltrim", trim.Key, trim.KeepStartingFrom, trim.KeepEndingAt]);
+                    // Positions count from the newest item as on SQL Server, where negative ones keep nothing; Redis
+                    // would count them from the end, so the range is clamped first, and an empty one empties the list
+                    arguments.AddRange(RedisValues.TryGetRange(trim.KeepStartingFrom, trim.KeepEndingAt, out long start, out long stop)
+                        ? ["ltrim", trim.Key, start, stop]
+                        : ["ltrim", trim.Key, 1, 0]);
                     break;
                 case SetRangeInHashOperation hash:
                     arguments.AddRange(["hset", hash.Key, hash.Fields.Count]);
@@ -424,6 +411,8 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
         if (arguments.Count > 0) storage.Evaluate(RedisScripts.Apply, [.. arguments]);
     }
 
+    protected override bool IsOwnFetchedJob(FetchedJobBase fetchedJob) => fetchedJob is RedisFetchedJob ours && ours.Storage == storage;
+
     private static string KindName(KeyKind kind) => kind switch
     {
         KeyKind.Set => "set",
@@ -433,8 +422,10 @@ internal sealed class RedisTransaction(RedisStorage storage, RedisConnection con
 }
 
 internal sealed class RedisFetchedJob(RedisStorage storage, string entry, string queue, string token)
-    : FetchedJobBase(StorageValues.FormatJobId(RedisValues.JobIdOfEntry(entry)), queue, storage.Options.InvisibilityTimeout / 5)
+    : FetchedJobBase(StorageValues.FormatJobId(RedisValues.JobIdOfEntry(entry)), queue, storage.Settings.KeepFetchedJobsAlive ? storage.Settings.InvisibilityTimeout / 5 : null)
 {
+    public RedisStorage Storage { get; } = storage;
+
     public string Entry { get; } = entry;
 
     public string Token { get; } = token;
@@ -447,7 +438,7 @@ internal sealed class RedisFetchedJob(RedisStorage storage, string entry, string
 
     private void Act(string action)
     {
-        storage.Evaluate(RedisScripts.Fetched, action, Queue, Entry, Token, RedisValues.UnixMilliseconds(JobClock.UtcNow));
+        Storage.Evaluate(RedisScripts.Fetched, action, Queue, Entry, Token);
     }
 }
 
@@ -572,16 +563,16 @@ internal sealed class RedisExpirationManager(RedisStorage storage) : IBackground
             long removed;
             do
             {
-                removed = (long)storage.Evaluate(RedisScripts.RemoveExpiredJobs, RedisValues.UnixMilliseconds(JobClock.UtcNow), BatchSize);
+                removed = (long)storage.Evaluate(RedisScripts.RemoveExpiredJobs, BatchSize);
             }
             while (removed == BatchSize && !context.IsStopping);
         }
-        catch (RedisException ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             Logger.ErrorException("Couldn't remove expired jobs from the Redis storage.", ex);
         }
 
-        context.Wait(storage.Options.ExpirationCheckInterval);
+        context.Wait(storage.Settings.ExpirationCheckInterval);
     }
 
     public override string ToString() => "Redis expiration manager";

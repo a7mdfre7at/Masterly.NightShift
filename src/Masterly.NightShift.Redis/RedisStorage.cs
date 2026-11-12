@@ -8,11 +8,17 @@ namespace Masterly.NightShift.Redis;
 public sealed class RedisStorageOptions
 {
     /// <summary>
-    /// The prefix of every key. Keep the braces: they make it a hash tag, so all keys land in one hash slot and
-    /// a transaction runs as one script on one node of a cluster. Change it to keep several applications apart
-    /// in one database. <c>{nightshift}:</c> by default.
+    /// The prefix of every key. It must hold a hash tag, a non-empty name in braces: it puts all keys in one hash
+    /// slot, so a transaction runs as one script on one node of a cluster. Change it to keep several applications
+    /// apart in one database. <c>{nightshift}:</c> by default.
     /// </summary>
     public string Prefix { get; set; } = "{nightshift}:";
+
+    /// <summary>
+    /// Allows a <see cref="Prefix"/> without a hash tag. Only a standalone server (or Sentinel) works with one:
+    /// on a cluster, the keys of a transaction would land in different slots. <c>false</c> by default.
+    /// </summary>
+    public bool AllowPrefixWithoutHashTag { get; set; }
 
     /// <summary>The database number, or -1 (the default) for the connection's default database.</summary>
     public int Database { get; set; } = -1;
@@ -37,6 +43,19 @@ public sealed class RedisStorageOptions
     /// of this time. Thirty seconds by default.
     /// </summary>
     public TimeSpan DistributedLockLifetime { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Whether workers keep their fetched jobs invisible while they run. Tests turn it off to let a fetch go stale.</summary>
+    internal bool KeepFetchedJobsAlive { get; set; } = true;
+
+    internal RedisStorageOptions Copy() => (RedisStorageOptions)MemberwiseClone();
+
+    /// <summary>Whether <paramref name="prefix"/> holds a hash tag: a non-empty name between the first '{' and the next '}'.</summary>
+    internal static bool HasHashTag(string prefix)
+    {
+        int open = prefix.IndexOf('{', StringComparison.Ordinal);
+        int close = open < 0 ? -1 : prefix.IndexOf('}', open + 1);
+        return close > open + 1;
+    }
 }
 
 /// <summary>
@@ -48,53 +67,69 @@ public sealed class RedisStorage : JobStorage, IDisposable
 {
     private readonly Dictionary<string, bool> _features = StorageRules.Features(typeof(RedisFetchedJob));
     private readonly bool _ownsConnection;
+    private readonly RedisChannel _channel;
+    private readonly Action<RedisChannel, RedisValue> _onEnqueued;
     private TaskCompletionSource _enqueued = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _disposed;
 
     /// <summary>A storage on a new connection, from a StackExchange.Redis configuration string such as <c>localhost:6379</c>.</summary>
     /// <param name="configuration">The configuration string.</param>
-    /// <param name="options">The options, or <c>null</c> for the defaults.</param>
+    /// <param name="options">The options, or <c>null</c> for the defaults. The storage keeps a copy.</param>
     /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="options"/> are invalid; nothing was connected.</exception>
     public RedisStorage([NotNull] string configuration, [CanBeNull] RedisStorageOptions? options = null)
-        : this(ConnectionMultiplexer.Connect(configuration ?? throw new ArgumentNullException(nameof(configuration))), options, ownsConnection: true)
+        : this(Validate(options), configuration ?? throw new ArgumentNullException(nameof(configuration)))
     {
     }
 
     /// <summary>A storage on a connection the application owns; disposing the storage leaves it open.</summary>
     /// <param name="connection">The connection.</param>
-    /// <param name="options">The options, or <c>null</c> for the defaults.</param>
+    /// <param name="options">The options, or <c>null</c> for the defaults. The storage keeps a copy.</param>
     /// <exception cref="ArgumentNullException"><paramref name="connection"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="options"/> are invalid.</exception>
     public RedisStorage([NotNull] IConnectionMultiplexer connection, [CanBeNull] RedisStorageOptions? options = null)
-        : this(connection, options, ownsConnection: false)
+        : this(connection ?? throw new ArgumentNullException(nameof(connection)), Validate(options), ownsConnection: false)
     {
     }
 
-    private RedisStorage(IConnectionMultiplexer connection, RedisStorageOptions? options, bool ownsConnection)
+    // The options are validated before connecting, so invalid ones never leave a connection open
+    private RedisStorage(RedisStorageOptions settings, string configuration)
+        : this(ConnectionMultiplexer.Connect(configuration), settings, ownsConnection: true)
     {
-        ArgumentNullException.ThrowIfNull(connection);
-        options ??= new RedisStorageOptions();
-        if (string.IsNullOrEmpty(options.Prefix)) throw new ArgumentException("The key prefix can't be empty.", nameof(options));
-        if (options.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
-        if (options.FetchPollInterval <= TimeSpan.Zero) throw new ArgumentException("The fetch poll interval must be positive.", nameof(options));
-        if (options.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
-        if (options.DistributedLockLifetime < TimeSpan.FromSeconds(1)) throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+    }
 
+    private RedisStorage(IConnectionMultiplexer connection, RedisStorageOptions settings, bool ownsConnection)
+    {
         Connection = connection;
-        Options = options;
-        Prefix = new RedisKey(options.Prefix);
+        Settings = settings;
+        Prefix = new RedisKey(settings.Prefix);
         _ownsConnection = ownsConnection;
+        _channel = RedisChannel.Literal(settings.Prefix + "enqueued");
+        _onEnqueued = (_, _) => Signal();
 
-        Connection.GetSubscriber().Subscribe(RedisChannel.Literal(options.Prefix + "enqueued"), (_, _) => Signal());
+        try
+        {
+            Connection.GetSubscriber().Subscribe(_channel, _onEnqueued);
+        }
+        catch
+        {
+            if (ownsConnection) Connection.Dispose();
+            throw;
+        }
     }
 
-    /// <summary>The options the storage was created with.</summary>
-    public RedisStorageOptions Options { get; }
+    /// <summary>A copy of the options the storage was created with; changing it changes nothing.</summary>
+    public RedisStorageOptions Options => Settings.Copy();
 
     /// <summary>The connection the storage uses.</summary>
     public IConnectionMultiplexer Connection { get; }
 
+    /// <summary>The options the storage uses, copied when it was created.</summary>
+    internal RedisStorageOptions Settings { get; }
+
     internal RedisKey Prefix { get; }
 
-    internal IDatabase Database => Connection.GetDatabase(Options.Database);
+    internal IDatabase Database => Connection.GetDatabase(Settings.Database);
 
     internal Task Enqueued => Volatile.Read(ref _enqueued).Task;
 
@@ -126,9 +161,9 @@ public sealed class RedisStorage : JobStorage, IDisposable
         foreach (IServer server in Connection.GetServers().Where(static x => !x.IsReplica && x.IsConnected))
         {
             List<RedisKey> doomed = [];
-            foreach (RedisKey key in server.Keys(Database.Database, Options.Prefix + "*", pageSize: 1000))
+            foreach (RedisKey key in server.Keys(Database.Database, Settings.Prefix + "*", pageSize: 1000))
             {
-                if (!KeptByPurge(key.ToString()[Options.Prefix.Length..], options)) doomed.Add(key);
+                if (!KeptByPurge(key.ToString()[Settings.Prefix.Length..], options)) doomed.Add(key);
                 if (doomed.Count == 1000)
                 {
                     removed += Database.KeyDelete([.. doomed]);
@@ -147,29 +182,62 @@ public sealed class RedisStorage : JobStorage, IDisposable
     {
         ArgumentNullException.ThrowIfNull(logger);
         logger.Info("Using the following options for the Redis job storage:");
-        logger.Info($"    Prefix: '{Options.Prefix}', database: {Options.Database}.");
-        logger.Info($"    Invisibility timeout: {Options.InvisibilityTimeout}.");
-        logger.Info($"    Fetch poll interval: {Options.FetchPollInterval}.");
-        logger.Info($"    Expiration check interval: {Options.ExpirationCheckInterval}.");
-        logger.Info($"    Distributed lock lifetime: {Options.DistributedLockLifetime}.");
+        logger.Info($"    Prefix: '{Settings.Prefix}', database: {Settings.Database}.");
+        logger.Info($"    Invisibility timeout: {Settings.InvisibilityTimeout}.");
+        logger.Info($"    Fetch poll interval: {Settings.FetchPollInterval}.");
+        logger.Info($"    Expiration check interval: {Settings.ExpirationCheckInterval}.");
+        logger.Info($"    Distributed lock lifetime: {Settings.DistributedLockLifetime}.");
     }
 
-    /// <summary>Stops listening for enqueued jobs, and closes the connection if the storage opened it.</summary>
+    /// <summary>
+    /// Stops listening for enqueued jobs, and closes the connection if the storage opened it. Other storages on
+    /// the same connection, even with the same prefix, keep listening.
+    /// </summary>
     public void Dispose()
     {
-        Connection.GetSubscriber().Unsubscribe(RedisChannel.Literal(Options.Prefix + "enqueued"));
-        if (_ownsConnection) Connection.Dispose();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        if (_ownsConnection)
+        {
+            Connection.Dispose();
+            return;
+        }
+
+        Connection.GetSubscriber().Unsubscribe(_channel, _onEnqueued);
     }
 
     /// <inheritdoc />
-    public override string ToString() => $"Redis storage ({Options.Prefix})";
+    public override string ToString() => $"Redis storage ({Settings.Prefix})";
 
+    /// <summary>
+    /// Runs a script. StackExchange.Redis sends a script's text once (SCRIPT LOAD) and its SHA1 afterwards
+    /// (EVALSHA), loading it again if the server lost it, so a script isn't sent with every call.
+    /// </summary>
     internal RedisResult Evaluate(string script, params RedisValue[] arguments)
     {
         return Database.ScriptEvaluate(script, [Prefix], arguments);
     }
 
     internal RedisKey Key(string name) => Prefix.Append(name);
+
+    /// <summary>A validated copy of the options, so the storage never sees later changes to them.</summary>
+    private static RedisStorageOptions Validate(RedisStorageOptions? options)
+    {
+        RedisStorageOptions settings = options?.Copy() ?? new RedisStorageOptions();
+        if (string.IsNullOrEmpty(settings.Prefix)) throw new ArgumentException("The key prefix can't be empty.", nameof(options));
+        if (!settings.AllowPrefixWithoutHashTag && !RedisStorageOptions.HasHashTag(settings.Prefix))
+        {
+            throw new ArgumentException(
+                $"The key prefix '{settings.Prefix}' has no hash tag, such as '{{nightshift}}:': on a cluster, a transaction's keys would land in different slots. Set AllowPrefixWithoutHashTag to use it on a standalone server.",
+                nameof(options));
+        }
+
+        if (settings.InvisibilityTimeout <= TimeSpan.Zero) throw new ArgumentException("The invisibility timeout must be positive.", nameof(options));
+        if (settings.FetchPollInterval <= TimeSpan.Zero) throw new ArgumentException("The fetch poll interval must be positive.", nameof(options));
+        if (settings.ExpirationCheckInterval <= TimeSpan.Zero) throw new ArgumentException("The expiration check interval must be positive.", nameof(options));
+        if (settings.DistributedLockLifetime < TimeSpan.FromSeconds(1)) throw new ArgumentException("The lock lifetime must be at least a second.", nameof(options));
+        return settings;
+    }
 
     private void Signal()
     {
@@ -197,13 +265,23 @@ internal static class RedisValues
 
     public static DateTime FromTicks(string value) => new(long.Parse(value, CultureInfo.InvariantCulture), DateTimeKind.Utc);
 
-    public static long UnixMilliseconds(DateTime value) => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
-
     /// <summary>The milliseconds left before <paramref name="expireAt"/>, at least one.</summary>
     public static long TimeToLive(DateTime expireAt)
     {
         double left = (expireAt - JobClock.UtcNow).TotalMilliseconds;
         return left >= long.MaxValue ? long.MaxValue : Math.Max(1, (long)left);
+    }
+
+    /// <summary>
+    /// The Redis range (LRANGE, ZRANGE, LTRIM) of positions numbered as SQL Server numbers them: from 0, so a
+    /// negative position comes before the first item instead of counting from the end. <c>false</c> when the range
+    /// holds no position from 0 on, such as one that ends before it starts.
+    /// </summary>
+    public static bool TryGetRange(int startingFrom, int endingAt, out long start, out long stop)
+    {
+        start = Math.Max(0, startingFrom);
+        stop = endingAt;
+        return stop >= start;
     }
 
     public static string? Encode(string? value) => value ?? Null;
