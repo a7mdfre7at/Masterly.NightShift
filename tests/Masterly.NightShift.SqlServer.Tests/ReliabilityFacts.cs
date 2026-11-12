@@ -87,6 +87,75 @@ public class ReliabilityFacts
         }
     }
 
+    [Fact, CleanDatabase]
+    public async Task DeploymentOrder_KeepsTheOlderDeploymentFenced_UntilTheNewerOneIsGone()
+    {
+        SqlServerStorage storage = CreateStorage();
+        TimeSpan checkInterval = DeploymentFencing.CheckInterval;
+        TimeSpan takeOverAfter = DeploymentFencing.TakeOverAfter;
+        TimeSpan holdInterval = DrainMode.HoldInterval;
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(500);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromSeconds(2);
+        DrainMode.HoldInterval = TimeSpan.FromSeconds(1);
+
+        BackgroundJobServer? newer = null;
+
+        try
+        {
+            // A server reads its deployment when it is created, so one process can host both deployments
+            GlobalConfiguration.Configuration.UseDeploymentFencing("v2", 2);
+            newer = new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["newer"] }, storage);
+            await WaitUntilAsync(() => DeploymentFencing.GetCurrentDeployment(storage) == "v2");
+
+            GlobalConfiguration.Configuration.UseDeploymentFencing("v1", 1);
+            BackgroundJobServerOptions olderOptions = new() { WorkerCount = 1, Queues = ["older"], SchedulePollingInterval = TimeSpan.FromMilliseconds(200) };
+            using BackgroundJobServer older = new(olderOptions, storage);
+
+            BackgroundJobClient client = new(storage);
+            string forOlder = client.Enqueue("older", () => Receive("older"));
+            string forNewer = client.Enqueue("newer", () => Receive("newer"));
+
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forNewer, Timeout, TestContext.Current.CancellationToken)).Name);
+
+            // Longer than TakeOverAfter and several checks: the older deployment never takes over while the newer lives
+            await Task.Delay(TimeSpan.FromSeconds(4), TestContext.Current.CancellationToken);
+            Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(storage));
+            Assert.Equal(2, DeploymentFencing.GetCurrentDeploymentOrder(storage));
+            using (IStorageConnection connection = storage.GetConnection())
+            {
+                Assert.Contains(connection.GetStateData(forOlder).Name, new[] { EnqueuedState.StateName, ScheduledState.StateName });
+            }
+
+            // The newer deployment goes away: once it has been silent long enough, the older one takes over and works
+            newer.Dispose();
+            newer = null;
+
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(forOlder, Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.Equal("v1", DeploymentFencing.GetCurrentDeployment(storage));
+        }
+        finally
+        {
+            newer?.Dispose();
+            DeploymentFencing.CheckInterval = checkInterval;
+            DeploymentFencing.TakeOverAfter = takeOverAfter;
+            DrainMode.HoldInterval = holdInterval;
+
+            // There is no public way to turn fencing off again: later tests' servers must not run it
+            typeof(DeploymentFencing).GetProperty(nameof(DeploymentFencing.DeploymentId))!.GetSetMethod(nonPublic: true)!.Invoke(null, [null]);
+            typeof(DeploymentFencing).GetProperty(nameof(DeploymentFencing.DeploymentOrder))!.GetSetMethod(nonPublic: true)!.Invoke(null, [null]);
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        DateTime deadline = DateTime.UtcNow + Timeout;
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The condition wasn't met in time.");
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
+
     public static void Receive(string text)
     {
         _received = text;
