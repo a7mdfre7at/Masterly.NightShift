@@ -32,6 +32,10 @@ public enum TerminateJobOutcome
 /// exception still goes through <see cref="AutomaticRetryAttribute"/> as usual.</para>
 /// <para>A skipped or canceled job doesn't count as a failure for <see cref="CircuitBreakerAttribute"/> or the
 /// insights, and telemetry reports it as <c>skipped</c> or <c>canceled</c>.</para>
+/// <para>The exception is also found wrapped in other exceptions, for example in the
+/// <see cref="AggregateException"/> of a <see cref="Task"/> the job waited for.</para>
+/// <para><see cref="Outcome"/> is used in the process that runs the job, while its state changes; it isn't stored
+/// with the exception, so a failed state read back from the storage, or the exception serialized, doesn't have it.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -57,6 +61,15 @@ public class TerminateJobException : Exception
     {
     }
 
+    /// <summary>Ends the job as <see cref="TerminateJobOutcome.Skipped"/>, keeping the exception that led to it.</summary>
+    /// <param name="reason">Why the job ends, shown on the dashboard.</param>
+    /// <param name="innerException">The exception that led to the decision, or <c>null</c>.</param>
+    /// <exception cref="ArgumentException"><paramref name="reason"/> is <c>null</c>, empty or white space.</exception>
+    public TerminateJobException([NotNull] string reason, [CanBeNull] Exception? innerException)
+        : this(reason, TerminateJobOutcome.Skipped, innerException)
+    {
+    }
+
     /// <summary>Ends the job with the given outcome.</summary>
     /// <param name="reason">Why the job ends, shown on the dashboard.</param>
     /// <param name="outcome">How the job ends.</param>
@@ -76,12 +89,15 @@ public class TerminateJobException : Exception
     public TerminateJobException([NotNull] string reason, TerminateJobOutcome outcome, [CanBeNull] Exception? innerException)
         : base(ValidateReason(reason), innerException)
     {
-        if (!Enum.IsDefined(outcome)) throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown outcome.");
+        if (!Enum.IsDefined(outcome))
+        {
+            throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Unknown outcome.");
+        }
 
         Outcome = outcome;
     }
 
-    /// <summary>Gets how the job ends.</summary>
+    /// <summary>Gets how the job ends. Known only in the process that threw the exception, see the remarks.</summary>
     public TerminateJobOutcome Outcome { get; }
 
     /// <summary>Gets whether the job is deleted (skipped or canceled) rather than failed.</summary>

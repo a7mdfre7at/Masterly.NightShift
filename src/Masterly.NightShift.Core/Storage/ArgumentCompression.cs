@@ -8,6 +8,10 @@ namespace Masterly.NightShift;
 /// <see cref="MinLength"/> characters are stored as <c>gz:</c> followed by their GZip-compressed UTF-8 bytes in base64.
 /// Compressed arguments are always read back, whether compression is on or not.
 /// </summary>
+/// <remarks>
+/// Servers of earlier versions can't read compressed arguments, so they are written only at the newest data
+/// compatibility level (<see cref="RequiredLevel"/>): a lower level says older servers still share the storage.
+/// </remarks>
 internal static class ArgumentCompression
 {
     /// <summary>The marker of compressed arguments; plain ones are a JSON array, which starts with <c>[</c>.</summary>
@@ -20,10 +24,22 @@ internal static class ArgumentCompression
         set => field = value is < 1 ? throw new ArgumentOutOfRangeException(nameof(value), value, "The length must be at least 1.") : value;
     }
 
-    /// <summary>Compresses serialized arguments when compression is on and they are long enough.</summary>
+    /// <summary>The data compatibility level from which arguments are compressed.</summary>
+    public const CompatibilityLevel RequiredLevel = CompatibilityLevel.Version_180;
+
+    /// <summary>
+    /// Compresses serialized arguments when compression is on, the data compatibility level is at least
+    /// <see cref="RequiredLevel"/>, and they are long enough.
+    /// </summary>
     public static string Compress(string arguments)
     {
-        if (MinLength is not { } minLength || arguments.Length < minLength || arguments.StartsWith(Prefix, StringComparison.Ordinal)) return arguments;
+        if (MinLength is not { } minLength ||
+            arguments.Length < minLength ||
+            !GlobalConfiguration.HasCompatibilityLevel(RequiredLevel) ||
+            arguments.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return arguments;
+        }
 
         using MemoryStream output = new();
         using (GZipStream gzip = new(output, CompressionLevel.Fastest, leaveOpen: true))

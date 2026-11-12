@@ -1,3 +1,4 @@
+using Masterly.NightShift.Diagnostics;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 
@@ -32,8 +33,7 @@ public sealed class TerminateJobFilter : JobFilterAttribute, IElectStateFilter
     }
 
     /// <summary>
-    /// Finds the <see cref="TerminateJobException"/> a failed state carries, directly or wrapped in a
-    /// <see cref="JobPerformanceException"/>.
+    /// Finds the <see cref="TerminateJobException"/> a failed state carries, directly or wrapped in other exceptions.
     /// </summary>
     /// <param name="state">The state.</param>
     /// <returns>The exception, or <c>null</c> when the state isn't failed or failed for another reason.</returns>
@@ -44,19 +44,24 @@ public sealed class TerminateJobFilter : JobFilterAttribute, IElectStateFilter
     }
 
     /// <summary>
-    /// Finds a <see cref="TerminateJobException"/>, directly or wrapped in a <see cref="JobPerformanceException"/>.
+    /// Finds a <see cref="TerminateJobException"/>, directly or wrapped in other exceptions: a
+    /// <see cref="JobPerformanceException"/>, the <see cref="AggregateException"/> of a task the job waited for (with
+    /// that one exception only), or an exception of the job's own that keeps it as its inner exception.
     /// </summary>
     /// <param name="exception">The exception.</param>
     /// <returns>The exception, or <c>null</c>.</returns>
     [CanBeNull]
     public static TerminateJobException? Find([CanBeNull] Exception? exception)
     {
-        return exception switch
+        foreach (Exception inner in JobOutcomes.InnerChain(exception))
         {
-            TerminateJobException terminate => terminate,
-            JobPerformanceException { InnerException: TerminateJobException terminate } => terminate,
-            _ => null,
-        };
+            if (inner is TerminateJobException terminate)
+            {
+                return terminate;
+            }
+        }
+
+        return null;
     }
 
     /// <inheritdoc />
@@ -65,7 +70,10 @@ public sealed class TerminateJobFilter : JobFilterAttribute, IElectStateFilter
         ArgumentNullException.ThrowIfNull(context);
 
         TerminateJobException? terminate = Find(context.CandidateState);
-        if (terminate == null || !terminate.DeletesJob) return;
+        if (terminate == null || !terminate.DeletesJob)
+        {
+            return;
+        }
 
         string prefix = terminate.Outcome == TerminateJobOutcome.Canceled ? CanceledReasonPrefix : SkippedReasonPrefix;
 

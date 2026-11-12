@@ -14,7 +14,9 @@
 // License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
 
 using System.Diagnostics;
+using System.Globalization;
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift;
 
@@ -106,7 +108,44 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
-        // TODO: Remove this method and IApplyStateFilter interface in 2.0.0.
+        ArgumentNullException.ThrowIfNull(context);
+
+        // A continuation or fan-in continuation leaves the Awaiting state: it becomes due now, or at the time its
+        // next state schedules it for. Its lateness counts from there, not from its creation, which would add the
+        // time its parents waited and ran. A deleted continuation never runs.
+        if (!AwaitingState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase) ||
+            context.NewState is DeletedState)
+        {
+            return;
+        }
+
+        DateTime dueAt = context.NewState is ScheduledState scheduled ? scheduled.EnqueueAt : JobClock.UtcNow;
+        RecordDueAt(context, transaction, dueAt);
+    }
+
+    private void RecordDueAt(ApplyStateContext context, IWriteOnlyTransaction transaction, DateTime dueAt)
+    {
+        string jobId = context.BackgroundJob.Id;
+        string value = JobHelper.ToMillisecondTimestamp(dueAt).ToString(CultureInfo.InvariantCulture);
+
+        if (transaction is JobStorageTransaction storageTransaction &&
+            context.Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter))
+        {
+            storageTransaction.SetJobParameter(jobId, PerformContext.DueAtParameter, value);
+            return;
+        }
+
+        // Before the commit, so a worker never fetches the job without it. Should the transaction fail, the value
+        // stays on a job still Awaiting, and the next move out of Awaiting writes it again.
+        try
+        {
+            context.Connection.SetJobParameter(jobId, PerformContext.DueAtParameter, value);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // Only bookkeeping: without it the continuation's lateness counts from its creation
+            _logger.WarnException($"Could not record when continuation '{jobId}' became due.", ex);
+        }
     }
 
     internal static List<Continuation> DeserializeContinuations(string? serialized)
@@ -203,6 +242,13 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         // The following lines are executed inside a distributed job lock,
         // so it is safe to get continuation list here.
         List<Continuation> continuations = GetContinuations(context, null);
+
+        // Most jobs have none: nothing else to read or allocate
+        if (continuations.Count == 0)
+        {
+            return;
+        }
+
         Dictionary<string, IState> nextStates = [];
 
         // Getting continuation data for all continuations – state they are waiting 
@@ -407,7 +453,11 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
         if (string.IsNullOrEmpty(jobId) && context.BackgroundJob.ParametersSnapshot != null)
         {
-            context.BackgroundJob.ParametersSnapshot.TryGetValue("Continuations", out serialized);
+            // A snapshot without the parameter means the job has no continuations: no storage read
+            if (!context.BackgroundJob.ParametersSnapshot.TryGetValue("Continuations", out serialized))
+            {
+                return [];
+            }
         }
         else
         {

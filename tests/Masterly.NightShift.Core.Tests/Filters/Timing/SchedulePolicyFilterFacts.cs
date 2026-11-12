@@ -215,10 +215,108 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
 
         ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
         Assert.Equal(NextMonday, state.EnqueueAt);
-        context.ApplyContext.Connection.Verify(x => x.SetJobParameter(
-            "JobId",
-            PerformContext.ScheduledForParameter,
-            JobHelper.ToMillisecondTimestamp(NextMonday).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+        // Not during the election: a later filter may still elect another state
+        context.ApplyContext.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+
+        _filter.OnStateApplied(Applying(state, afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", PerformContext.ScheduledForParameter, Millis(NextMonday)));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateApplied_WritesTheScheduledTime_OnlyOnceTheStateChangeIsCommitted()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.MoveForward);
+        _filter.OnStateElection(context.Object);
+        PostCommitActions afterCommit = new();
+
+        _filter.OnStateApplied(Applying(context.Object.CandidateState, afterCommit), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), PerformContext.ScheduledForParameter, It.IsAny<string>()), Times.Never);
+
+        afterCommit.Run();
+
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", PerformContext.ScheduledForParameter, Millis(NextMonday)));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateApplied_WritesTheScheduledTime_InTheTransaction_WhenTheStorageCan()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        _storage.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.MoveForward);
+        _filter.OnStateElection(context.Object);
+        Mock<JobStorageTransaction> transaction = new();
+
+        _filter.OnStateApplied(Applying(context.Object.CandidateState, new PostCommitActions()), transaction.Object);
+
+        transaction.Verify(x => x.SetJobParameter("JobId", PerformContext.ScheduledForParameter, Millis(NextMonday)));
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateApplied_WritesNothing_WhenALaterFilterElectedAnotherState()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.MoveForward);
+        _filter.OnStateElection(context.Object);
+
+        // Another filter (a retry, a hold) replaced the candidate with a Scheduled state of its own
+        _filter.OnStateApplied(Applying(new ScheduledState(Saturday.AddHours(1)), afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnCreating_ReadsAPolicyOnce_ForJobsCreatedInQuickSuccession()
+    {
+        _filter.OnCreating(Creating(new ScheduledState(Saturday), "weekdays", WhenBlocked.Reject));
+        int reads = ReadsOfPolicy("weekdays");
+
+        _filter.OnCreating(Creating(new ScheduledState(Saturday), "weekdays", WhenBlocked.Reject));
+        _filter.OnStateElection(Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip).Object);
+
+        Assert.True(reads > 0);
+        Assert.Equal(reads, ReadsOfPolicy("weekdays"));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock and the cache duration")]
+    public void OnCreating_ReadsAPolicyAgain_OnceTheCachedOneIsOld()
+    {
+        TimeSpan previous = SchedulePolicyFilter.CalendarCacheDuration;
+        SchedulePolicyFilter.CalendarCacheDuration = TimeSpan.Zero;
+
+        try
+        {
+            CreatingContext first = Creating(new ScheduledState(Saturday), "weekdays", WhenBlocked.Reject);
+            _filter.OnCreating(first);
+
+            // The policy changed: weekends are allowed now
+            _storage.Add(new SchedulePolicy("weekdays").AllowWeekdays(DayOfWeek.Saturday, DayOfWeek.Sunday), revision: 2);
+            CreatingContext second = Creating(new ScheduledState(Saturday), "weekdays", WhenBlocked.Reject);
+            _filter.OnCreating(second);
+
+            Assert.True(first.Canceled);
+            Assert.False(second.Canceled);
+        }
+        finally
+        {
+            SchedulePolicyFilter.CalendarCacheDuration = previous;
+        }
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnCreating_DoesNotRememberAMissingPolicy()
+    {
+        Assert.Throws<InvalidOperationException>(() => _filter.OnCreating(Creating(new ScheduledState(Saturday), "later", WhenBlocked.Reject)));
+
+        _storage.Add(new SchedulePolicy("later").AllowWeekdays(DayOfWeek.Saturday));
+        CreatingContext context = Creating(new ScheduledState(Saturday), "later", WhenBlocked.Reject);
+        _filter.OnCreating(context);
+
+        Assert.False(context.Canceled);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
@@ -281,6 +379,31 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
         context.ApplyContext.NewStateObject = candidate;
         context.ApplyContext.BackgroundJob.ParametersSnapshot = snapshot;
         return context;
+    }
+
+    private ApplyStateContext Applying(IState state, PostCommitActions afterCommit)
+    {
+        return new ApplyStateContext(
+            _storage.Object,
+            _storage.Connection.Object,
+            new Mock<IWriteOnlyTransaction>().Object,
+            new BackgroundJobMock().Object,
+            state,
+            ScheduledState.StateName)
+        {
+            AfterCommit = afterCommit,
+        };
+    }
+
+    private int ReadsOfPolicy(string name)
+    {
+        string key = SchedulePolicies.GetKey(name);
+        return _storage.Connection.Invocations.Count(x => x.Method.Name == nameof(IStorageConnection.GetAllEntriesFromHash) && (string)x.Arguments[0] == key);
+    }
+
+    private static string Millis(DateTime value)
+    {
+        return JobHelper.ToMillisecondTimestamp(value).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]

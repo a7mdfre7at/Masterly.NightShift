@@ -491,6 +491,97 @@ public sealed class TelemetryFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnPerforming_RecordsTheLateness_WithoutTheRecurringJob()
+    {
+        // One series per recurring job would grow without bound
+        ListenToMetrics();
+        _performContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            ["Time"] = JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(-1)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["RecurringJobId"] = "\"nightly-report\"",
+        };
+
+        new TelemetryFilter().OnPerforming(_performContext.GetPerformingContext());
+
+        (string Instrument, double Value, Dictionary<string, object> Tags) lateness = Assert.Single(_measurements, x => x.Instrument == "nightshift.job.lateness");
+        Assert.False(lateness.Tags.ContainsKey("nightshift.recurring_job.id"));
+    }
+
+    [Fact]
+    public void OnPerforming_PutsTheRecurringJob_OnTheProcessSpan()
+    {
+        ListenToActivities();
+        _performContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            ["RecurringJobId"] = "\"nightly-report\"",
+        };
+
+        TelemetryFilter filter = new();
+
+        filter.OnPerforming(_performContext.GetPerformingContext());
+        filter.OnPerformed(_performContext.GetPerformedContext());
+
+        Assert.Equal("nightly-report", Assert.Single(_activities).GetTagItem("nightshift.recurring_job.id"));
+    }
+
+    [Theory]
+    [InlineData("RetryCount", "1")]
+    [InlineData("StaleRestarts", "1")]
+    public void OnPerforming_RecordsNoLateness_ForARetryOrARestart(string parameter, string value)
+    {
+        // The first run recorded it already: a later run would count the earlier attempts again
+        ListenToMetrics();
+        _performContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(DateTime.UtcNow.AddMinutes(-2)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [parameter] = value,
+        };
+
+        new TelemetryFilter().OnPerforming(_performContext.GetPerformingContext());
+
+        Assert.DoesNotContain(_measurements, x => x.Instrument == "nightshift.job.lateness");
+    }
+
+    [Fact]
+    public void OnStateApplied_CountsARetry_OnlyOnceTheStateChangeIsCommitted()
+    {
+        ListenToMetrics();
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = ProcessingState.StateName,
+            NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)) { Reason = "Retry attempt 1 of 10: boom" },
+        };
+        PostCommitActions afterCommit = new();
+        context.Object.AfterCommit = afterCommit;
+
+        new TelemetryFilter().OnStateApplied(context.Object, null);
+
+        Assert.DoesNotContain(_measurements, x => x.Instrument == "nightshift.job.retried");
+
+        afterCommit.Run();
+
+        Assert.Single(_measurements, x => x.Instrument == "nightshift.job.retried");
+    }
+
+    [Fact]
+    public void OnStateApplied_DoesNotCountARetry_WhoseStateChangeFailed()
+    {
+        ListenToMetrics();
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = ProcessingState.StateName,
+            NewStateObject = new ScheduledState(TimeSpan.FromMinutes(1)) { Reason = "Retry attempt 1 of 10: boom" },
+        };
+        PostCommitActions afterCommit = new();
+        context.Object.AfterCommit = afterCommit;
+
+        new TelemetryFilter().OnStateApplied(context.Object, null);
+        afterCommit.RunAfterFailure();
+
+        Assert.DoesNotContain(_measurements, x => x.Instrument == "nightshift.job.retried");
+    }
+
+    [Fact]
     public void OnPerforming_RecordsNoLateness_ForAFireAndForgetJob()
     {
         ListenToMetrics();

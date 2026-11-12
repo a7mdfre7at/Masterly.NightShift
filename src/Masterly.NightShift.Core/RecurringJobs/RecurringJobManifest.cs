@@ -447,7 +447,8 @@ public static class RecurringJobManifest
                 Type = invocationData.Type,
                 Method = invocationData.Method,
                 ParameterTypes = invocationData.ParameterTypes,
-                Arguments = maskRedacted && dto.Job == null ? null : invocationData.Arguments,
+                // Plain JSON in the manifest, whether the stored arguments are compressed or not
+                Arguments = maskRedacted && dto.Job == null ? null : ArgumentCompression.Decompress(invocationData.Arguments),
             },
         };
     }

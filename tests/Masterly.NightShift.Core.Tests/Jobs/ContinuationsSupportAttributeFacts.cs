@@ -1,3 +1,5 @@
+using System.Globalization;
+using Masterly.NightShift.Server;
 using static Masterly.NightShift.ContinuationsSupportAttribute;
 
 namespace Masterly.NightShift.Core.Tests;
@@ -267,6 +269,117 @@ public class ContinuationsSupportAttributeFacts
         // Assert
         _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
         Assert.Equal("Succeeded", _context.Object.CandidateState.Name);
+    }
+
+    [Fact]
+    public void OnStateApplied_RecordsWhenAContinuationBecameDue_WhenItLeavesTheAwaitingState()
+    {
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = AwaitingState.StateName,
+            NewStateObject = new EnqueuedState(),
+        };
+        long before = JobHelper.ToMillisecondTimestamp(DateTime.UtcNow);
+
+        CreateFilter().OnStateApplied(context.Object, context.Transaction.Object);
+
+        context.Connection.Verify(x => x.SetJobParameter(
+            "JobId",
+            PerformContext.DueAtParameter,
+            It.Is<string>(value => long.Parse(value, CultureInfo.InvariantCulture) >= before)));
+    }
+
+    [Fact]
+    public void OnStateApplied_RecordsTheScheduledTime_OfAContinuationThatLeavesAwaitingForTheScheduledState()
+    {
+        DateTime enqueueAt = DateTime.UtcNow.AddHours(1);
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = AwaitingState.StateName,
+            NewStateObject = new ScheduledState(enqueueAt),
+        };
+
+        CreateFilter().OnStateApplied(context.Object, context.Transaction.Object);
+
+        context.Connection.Verify(x => x.SetJobParameter(
+            "JobId",
+            PerformContext.DueAtParameter,
+            JobHelper.ToMillisecondTimestamp(enqueueAt).ToString(CultureInfo.InvariantCulture)));
+    }
+
+    [Fact]
+    public void OnStateApplied_RecordsWhenAContinuationBecameDue_InTheTransaction_WhenTheStorageCan()
+    {
+        Mock<JobStorageTransaction> transaction = new();
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = AwaitingState.StateName,
+            NewStateObject = new EnqueuedState(),
+        };
+        context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+
+        CreateFilter().OnStateApplied(context.Object, transaction.Object);
+
+        transaction.Verify(x => x.SetJobParameter("JobId", PerformContext.DueAtParameter, It.IsNotNull<string>()));
+        context.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateApplied_DoesNotFailTheStateChange_WhenTheDueTimeCannotBeRecorded()
+    {
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = AwaitingState.StateName,
+            NewStateObject = new EnqueuedState(),
+        };
+        context.Connection
+            .Setup(x => x.SetJobParameter("JobId", PerformContext.DueAtParameter, It.IsAny<string>()))
+            .Throws(new InvalidOperationException("storage is down"));
+
+        CreateFilter().OnStateApplied(context.Object, context.Transaction.Object);
+    }
+
+    [Theory]
+    [InlineData("Enqueued", "Processing")]
+    [InlineData(null, "Enqueued")]
+    [InlineData("Awaiting", "Deleted")]
+    public void OnStateApplied_RecordsNothing_ForOtherStateChanges(string oldState, string newState)
+    {
+        ApplyStateContextMock context = new()
+        {
+            OldStateName = oldState,
+            NewStateObject = newState switch
+            {
+                "Processing" => new ProcessingState("server", "worker"),
+                "Deleted" => new DeletedState(),
+                _ => new EnqueuedState(),
+            },
+        };
+
+        CreateFilter().OnStateApplied(context.Object, context.Transaction.Object);
+
+        context.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("Processing")]
+    [InlineData("Failed")]
+    [InlineData("Succeeded")]
+    public void OnStateElection_ReadsNothingElse_WhenTheLoadedParametersHaveNoContinuations(string candidate)
+    {
+        _context.ApplyContext.BackgroundJob = new BackgroundJobMock { Id = _parentId, ParametersSnapshot = new Dictionary<string, string>() };
+        _context.ApplyContext.NewStateObject = candidate switch
+        {
+            "Processing" => new ProcessingState("server", "worker"),
+            "Failed" => new FailedState(new InvalidOperationException()),
+            _ => new SucceededState(null, 0, 0),
+        };
+
+        CreateFilter().OnStateElection(_context.Object);
+
+        _context.ApplyContext.Connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        _context.ApplyContext.Connection.Verify(x => x.GetJobData(It.IsAny<string>()), Times.Never);
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Never);
     }
 
     [Fact]

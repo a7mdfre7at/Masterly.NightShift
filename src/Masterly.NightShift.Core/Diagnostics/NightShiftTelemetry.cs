@@ -51,12 +51,12 @@ public static class NightShiftTelemetry
     internal static readonly Counter<long> JobsStaleRestarted = Meter.CreateCounter<long>(
         "nightshift.job.stale_restarts",
         unit: "{job}",
-        description: "Number of background jobs picked up again after their server stopped while they ran.");
+        description: "Number of background jobs picked up again after their server stopped while they ran, by outcome: restarted, or failed past the restart limit.");
 
     internal static readonly Histogram<double> JobLateness = Meter.CreateHistogram<double>(
         "nightshift.job.lateness",
         unit: "s",
-        description: "How late delayed and recurring background jobs started after the moment they were scheduled for.");
+        description: "How late the first run of delayed and recurring background jobs started after the moment they were scheduled for.");
 
     internal static readonly UpDownCounter<long> ActiveJobs = Meter.CreateUpDownCounter<long>(
         "nightshift.job.active",

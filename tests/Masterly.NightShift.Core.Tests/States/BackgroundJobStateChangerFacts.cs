@@ -751,6 +751,35 @@ public class BackgroundJobStateChangerFacts
         Assert.NotNull(result);
     }
 
+    [Fact]
+    public void ChangeState_IgnoresTheLease_WhenTheStorageLoadsNoParametersWithTheJob()
+    {
+        // The lease is checked from the loaded parameters only, never with an extra read
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = OldStateName, Job = _job, ParametersSnapshot = null });
+        _context.LeaseHolder = "worker-a";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.NotNull(result);
+        _connection.Verify(x => x.GetJobParameter(JobId, StaleJobFilter.LeaseParameter), Times.Never);
+    }
+
+    [Fact]
+    public void ChangeState_AppliesTheChange_WhenTheLeaseCannotBeRead()
+    {
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData
+        {
+            State = OldStateName,
+            Job = _job,
+            ParametersSnapshot = new Dictionary<string, string> { [StaleJobFilter.LeaseParameter] = "{broken" },
+        });
+        _context.LeaseHolder = "worker-a";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.NotNull(result);
+    }
+
     private BackgroundJobStateChanger CreateStateChanger()
     {
         return new BackgroundJobStateChanger(_filterProvider.Object, _stateMachine.Object);

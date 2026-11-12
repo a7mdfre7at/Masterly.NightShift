@@ -48,12 +48,25 @@ public sealed class ScheduleOptions
         set => field = value == null ? null : SchedulePolicy.NormalizeName(value, nameof(value));
     }
 
-    /// <summary>Gets or sets what happens when <see cref="Policy"/> blocks the job's start time. Moves it forward by default.</summary>
+    /// <summary>
+    /// Gets or sets what happens when <see cref="Policy"/> blocks the job's start time. Moves it forward by default.
+    /// Setting it without <see cref="Policy"/> is a mistake: creating the job then throws an
+    /// <see cref="ArgumentException"/>.
+    /// </summary>
     public WhenBlocked WhenBlocked
     {
         get;
-        set => field = Enum.IsDefined(value) ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a WhenBlocked value.");
+        set
+        {
+            field = Enum.IsDefined(value)
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a WhenBlocked value.");
+            _whenBlockedSet = true;
+        }
     }
+
+    // Whether WhenBlocked was set, so it isn't silently ignored without a Policy
+    private bool _whenBlockedSet;
 
     /// <summary>
     /// Gets or sets how late the job may start, at least one second, or <c>null</c>: a job that starts later than
@@ -85,8 +98,15 @@ public sealed class ScheduleOptions
     }
 
     /// <summary>The job parameters the options stand for.</summary>
+    /// <exception cref="ArgumentException"><see cref="WhenBlocked"/> is set without <see cref="Policy"/>.</exception>
     internal Dictionary<string, object> ToParameters()
     {
+        if (_whenBlockedSet && Policy == null)
+        {
+            throw new ArgumentException(
+                "ScheduleOptions.WhenBlocked has no effect without a Policy: set Policy too, or leave WhenBlocked unset.");
+        }
+
         Dictionary<string, object> parameters = new(StringComparer.Ordinal);
 
         if (Policy != null)

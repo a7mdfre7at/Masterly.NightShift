@@ -168,6 +168,24 @@ public class WorkerFacts
     }
 
     [Fact]
+    public void Execute_ChecksTheLease_WithTheWorkerIdOfTheProcessingState()
+    {
+        List<StateChangeContext> contexts = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Callback<StateChangeContext>(contexts.Add)
+            .Returns<StateChangeContext>(ctx => ctx.NewState);
+        Worker worker = CreateWorker();
+
+        worker.Execute(_context.Object);
+
+        ProcessingState processing = Assert.IsType<ProcessingState>(contexts[0].NewState);
+        StateChangeContext final = Assert.Single(contexts, ctx => ctx.NewState is SucceededState);
+        Assert.False(string.IsNullOrEmpty(processing.WorkerId));
+        Assert.Equal(processing.WorkerId, final.LeaseHolder);
+        Assert.Null(contexts[0].LeaseHolder);
+    }
+
+    [Fact]
     public void Execute_ProcessesOnlyJobs_InEnqueued_Scheduled_AndProcessingStates()
     {
         Worker worker = CreateWorker();

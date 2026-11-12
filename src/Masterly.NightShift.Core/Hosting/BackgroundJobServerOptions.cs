@@ -289,7 +289,9 @@ public class BackgroundJobServerOptions
     /// <summary>
     /// Gets or sets the number of workers that serve the <c>long-running</c> queue (<see cref="LongRunningAttribute"/>),
     /// in addition to <see cref="WorkerCount"/>, so long jobs never take every worker from the short ones. 0 (the
-    /// default) adds none: the queue is then served only when it is in <see cref="Queues"/>.
+    /// default) adds none: the queue is then served only when it is in <see cref="Queues"/>, and without a server that
+    /// serves it, in this process or another, <c>[LongRunning]</c> jobs wait in the queue (the first one logs a warning
+    /// when this process runs servers but none serves the queue).
     /// </summary>
     public int LongRunningWorkerCount
     {
