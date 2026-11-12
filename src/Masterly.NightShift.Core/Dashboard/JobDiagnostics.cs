@@ -48,7 +48,7 @@ internal static partial class JobDiagnostics
     /// <summary>How many lines about single parents are shown, missing and failed ones first.</summary>
     internal const int MaxParentLines = 10;
 
-    [GeneratedRegex(@"^Retry attempt (\d+) of (\d+)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^" + AutomaticRetryAttribute.RetryAttemptReasonPrefix + @" (\d+) of (\d+)", RegexOptions.CultureInvariant)]
     private static partial Regex RetryReasonRegex();
 
     public static IReadOnlyList<JobDiagnostic> Diagnose(RazorPage page, string jobId, JobDetailsDto details)
@@ -218,7 +218,7 @@ internal static partial class JobDiagnostics
                 else if (state == ScheduledState.StateName && parent.State != null)
                 {
                     StateData? parentState = connection.GetStateData(id);
-                    bool retrying = parentState?.Reason != null && parentState.Reason.StartsWith("Retry attempt", StringComparison.OrdinalIgnoreCase);
+                    bool retrying = parentState?.Reason != null && parentState.Reason.StartsWith(AutomaticRetryAttribute.RetryAttemptReasonPrefix, StringComparison.OrdinalIgnoreCase);
                     others.Add(new JobDiagnostic(retrying ? "parent-retrying" : "parent-waiting", JobDiagnosticSeverity.Info, Format(page, retrying ? Strings.Diagnostics_ParentRetrying : Strings.Diagnostics_ParentWaiting, link, label)));
                 }
                 else
