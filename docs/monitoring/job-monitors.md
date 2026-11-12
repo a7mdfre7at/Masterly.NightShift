@@ -22,7 +22,7 @@ A monitor watches the jobs of one method, written `Type.Method` with the type's 
 |---|---|---|
 | `DailyDeadlineMonitor(name, method, by, timeZone, grace)` | No job of the method has succeeded today (in `timeZone`, UTC by default) by `by` plus `grace` (0 to 12 hours) | A job succeeded today. Before the deadline it is `Waiting` |
 | `LongRunningMonitor(name, method, threshold)` | A job of the method has been processing longer than `threshold` (5 seconds to 7 days). The time it waited in its queue doesn't count | No job runs that long |
-| `RepeatedFailuresMonitor(name, method, failures, window)` | The last `failures` (2 to 20) jobs of the method failed for good in a row, the first and the last of them at most `window` (1 hour to 7 days) apart. The window slides: each new failure in a row is judged with the ones just before it | A job of the method succeeded. Failures that keep coming, however far apart, don't end an open incident |
+| `RepeatedFailuresMonitor(name, method, failures, window)` | The last `failures` (2 to 20) jobs of the method failed for good in a row, the first and the last of them at most `window` (1 hour to 7 days) apart. The window slides: each new failure in a row is judged with the ones just before it | A job of the method succeeded, even when new failures followed before the next check (fewer than `failures` of them). Failures that keep coming, however far apart, don't end an open incident |
 
 `Paused = true` (an `init` property) keeps a monitor registered but silent: it isn't checked, shows `Paused` and raises nothing. Its stored state stays as it was, so an incident open when it was paused is still open, without a new alert, when the monitor is registered again without `Paused`.
 

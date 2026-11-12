@@ -79,7 +79,7 @@ These are extension methods on `JobStorage`:
 | `ReplaceChain(chainId, chain)` | Replaces a chain that hasn't started |
 | `DeleteChain(chainId)` | Deletes the steps that haven't finished, and the record (see below) |
 
-A chain is **settled** when it has nothing left to do by itself: every step succeeded, was deleted (skipped steps included), failed for good or expired, or waits after a step that failed for good, directly or behind other steps that wait, which only a requeue or a retry moves on.
+A chain is **settled** when it has nothing left to do by itself: every step succeeded, was deleted (skipped steps included), failed for good or expired, or waits after a step that failed for good or whose job expired, directly or behind other steps that wait, which only a requeue or a retry moves on.
 
 ### Run again from a step
 

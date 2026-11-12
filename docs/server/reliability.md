@@ -68,7 +68,7 @@ With `StartMode = ServerStartMode.Manual`, a server added with `AddNightShiftSer
 
 | Member | What it does |
 |---|---|
-| `StartAsync()` | Starts the servers that aren't running. A server stopped before starts again with a new server id |
+| `StartAsync()` | Starts the servers that aren't running. A server stopped before starts again with a new server id. Throws `InvalidOperationException` once the host has stopped a server |
 | `StopAsync(cancellationToken)` | Stops the running servers and waits for them to shut down, with their stop and shutdown timeouts |
 | `IsRunning` | Whether at least one server runs |
 
