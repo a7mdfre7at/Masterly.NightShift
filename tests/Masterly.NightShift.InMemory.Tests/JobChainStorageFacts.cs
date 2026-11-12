@@ -230,7 +230,7 @@ public sealed class JobChainStorageFacts : IDisposable
         {
             if (context.Job.Type == typeof(JobChainStorageFacts) && context.BackgroundJob != null)
             {
-                Created.Add(((string)context.Job.Args[0]!, context.BackgroundJob.Id));
+                Created.Add(((string)context.Job.Args[0], context.BackgroundJob.Id));
             }
         }
     }

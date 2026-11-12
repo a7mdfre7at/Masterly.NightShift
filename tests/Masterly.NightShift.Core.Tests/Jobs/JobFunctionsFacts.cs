@@ -101,14 +101,66 @@ public sealed class JobFunctionsFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the global functions")]
-    public void Register_ReplacesAFunction_AndRemoveRemovesIt()
+    public void Register_RefusesAnotherFunctionOfTheSameName_UntilItIsRemoved()
     {
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => JobFunctions.Register(new FixedFunction("maintenance.ping")));
+        Assert.Contains("Maintenance.Ping", exception.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(JobFunctions.Add<Other>);
+
+        Assert.True(JobFunctions.Remove("Maintenance.Ping"));
         JobFunctions.Register(new FixedFunction("maintenance.ping"));
 
         Assert.IsType<FixedFunction>(JobFunctions.Find("maintenance.ping"));
         Assert.True(JobFunctions.Remove("Maintenance.Ping"));
         Assert.False(JobFunctions.Remove("maintenance.ping"));
         Assert.Throws<ArgumentNullException>("function", () => JobFunctions.Register(null));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global functions")]
+    public void Register_KeepsTheSameMethod_AndReplacesAFunctionOfTheSameClass()
+    {
+        JobFunction cleanup = JobFunctions.Find("maintenance.cleanup")!;
+
+        Assert.Equal(["maintenance.cleanup", "maintenance.ping", "maintenance.rename", "maintenance.report"], JobFunctions.Add<Maintenance>().Order(StringComparer.Ordinal));
+        JobFunctions.Register(new FixedFunction("fixed"));
+        JobFunction second = new FixedFunction("fixed");
+        JobFunctions.Register(second);
+
+        Assert.Equal(cleanup.Name, JobFunctions.Find("maintenance.cleanup")!.Name);
+        Assert.Same(second, JobFunctions.Find("fixed"));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global functions")]
+    public void AddAssembly_RegistersTheTypesItCanLoad()
+    {
+        JobFunctions.Clear();
+
+        Assert.Equal(["maintenance.cleanup", "maintenance.ping", "maintenance.rename", "maintenance.report"], JobFunctions.AddAssembly(new PartlyLoadableAssembly()).Order(StringComparer.Ordinal));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the global functions")]
+    public void CreateJob_WithAnObjectParameter_KeepsAValueTheJobCanStore()
+    {
+        JobFunctions.Add<Storing>();
+
+        Job job = JobFunctions.Find("storing.put")!.CreateJob(new { Key = "a", Value = new { Size = 3 } }, null);
+
+        string payload = InvocationData.SerializeJob(job).SerializePayload()!;
+        Assert.Contains("Size", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsFunctionJob_MatchesMarkedMethods_AndDelegatesByName()
+    {
+        Job method = Job.FromExpression<Maintenance>(x => x.Ping());
+        Job other = Job.FromExpression<Maintenance>(x => x.NotAFunction());
+        Job function = Job.FromExpression<DelegateJobFunctionRunner>(x => x.RunAsync("Cache.Warm", null, CancellationToken.None));
+
+        Assert.True(PendingJobs.IsFunctionJob(method, "maintenance.ping"));
+        Assert.False(PendingJobs.IsFunctionJob(other, "maintenance.ping"));
+        Assert.True(PendingJobs.IsFunctionJob(function, "cache.warm"));
+        Assert.False(PendingJobs.IsFunctionJob(function, "cache.clear"));
+        Assert.False(PendingJobs.IsFunctionJob(null, "cache.warm"));
     }
 
     [Fact, GlobalLock(Reason = "Changes the global functions")]
@@ -236,6 +288,32 @@ public sealed class JobFunctionsFacts : IDisposable
         public void Second()
         {
         }
+    }
+
+    public sealed class Other
+    {
+        [JobFunction("maintenance.ping")]
+        public void Ping()
+        {
+        }
+    }
+
+    public sealed class Storing
+    {
+        [JobFunction("storing.put")]
+        public void Put(string key, object value)
+        {
+            _ = key;
+            _ = value;
+        }
+    }
+
+    /// <summary>An assembly one of whose types can't be loaded, as when a dependency is missing.</summary>
+    private sealed class PartlyLoadableAssembly : System.Reflection.Assembly
+    {
+        public override Type[] GetTypes() => throw new System.Reflection.ReflectionTypeLoadException([typeof(Maintenance), null], [new FileNotFoundException("Missing.dll")]);
+
+        public override System.Reflection.AssemblyName GetName() => new("PartlyLoadable");
     }
 
     private sealed class FixedFunction(string name) : JobFunction(name)

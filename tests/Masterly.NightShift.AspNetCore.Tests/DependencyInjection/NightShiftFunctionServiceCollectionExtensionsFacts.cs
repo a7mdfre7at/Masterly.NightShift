@@ -67,6 +67,29 @@ public class NightShiftFunctionServiceCollectionExtensionsFacts
     }
 
     [Fact]
+    public void AddNightShiftFunction_KeepsTheSameDelegate_AndRefusesAnotherOneUnderItsName()
+    {
+        try
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                new ServiceCollection().AddNightShiftFunction("di-tests.same", static (_, _) => Task.CompletedTask);
+            }
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => new ServiceCollection().AddNightShiftFunction("di-tests.same", static (_, _) => Task.FromResult(1)));
+            Assert.Contains("di-tests.same", exception.Message, StringComparison.Ordinal);
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddNightShiftFunction<Order>("di-tests.same", static (_, _, _) => Task.CompletedTask));
+            JobFunctions.Add<SearchIndex>();
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddNightShiftFunction("di-tests.reindex", static (_, _) => Task.CompletedTask));
+        }
+        finally
+        {
+            JobFunctions.Remove("di-tests.same");
+        }
+    }
+
+    [Fact]
     public void AddNightShiftFunctions_RegistersTheMarkedMethods_AndTheirClassesAsScoped()
     {
         IServiceCollection services = new ServiceCollection().AddNightShiftFunctions(typeof(NightShiftFunctionServiceCollectionExtensionsFacts).Assembly);

@@ -17,10 +17,12 @@ public static class NightShiftFunctionServiceCollectionExtensions
         /// <summary>
         /// Registers a delegate as a job function without a payload. The delegate runs in the job's own scope, with
         /// its services and its cancellation token. Register it in every application that creates or runs its jobs.
+        /// Registering the same delegate again (another container built by the same code) changes nothing.
         /// </summary>
         /// <param name="name">The function's name.</param>
         /// <param name="handler">The work.</param>
         /// <returns>The service collection.</returns>
+        /// <exception cref="InvalidOperationException">Another function is registered under this name.</exception>
         public IServiceCollection AddNightShiftFunction(
             [NotNull] string name,
             [NotNull] Func<IServiceProvider, CancellationToken, Task> handler)
@@ -28,18 +30,20 @@ public static class NightShiftFunctionServiceCollectionExtensions
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(handler);
 
-            JobFunctions.Register(new DelegateJobFunction(name, null, (provider, _, token) => handler(provider, token)));
+            Register(new DelegateJobFunction(name, null, handler.Method, (provider, _, token) => handler(provider, token)));
             return services;
         }
 
         /// <summary>
         /// Registers a delegate as a job function with a payload of <typeparamref name="TPayload"/>, checked when a job is
-        /// created and given to the delegate when it runs, in the job's own scope.
+        /// created and given to the delegate when it runs, in the job's own scope. Registering the same delegate again
+        /// changes nothing.
         /// </summary>
         /// <typeparam name="TPayload">The payload's type.</typeparam>
         /// <param name="name">The function's name.</param>
         /// <param name="handler">The work.</param>
         /// <returns>The service collection.</returns>
+        /// <exception cref="InvalidOperationException">Another function is registered under this name.</exception>
         public IServiceCollection AddNightShiftFunction<TPayload>(
             [NotNull] string name,
             [NotNull] Func<IServiceProvider, TPayload, CancellationToken, Task> handler)
@@ -47,7 +51,7 @@ public static class NightShiftFunctionServiceCollectionExtensions
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(handler);
 
-            JobFunctions.Register(new DelegateJobFunction(name, typeof(TPayload), (provider, payload, token) => handler(provider, (TPayload)payload!, token))); // Checked by the function
+            Register(new DelegateJobFunction(name, typeof(TPayload), handler.Method, (provider, payload, token) => handler(provider, (TPayload)payload!, token))); // Checked by the function
             return services;
         }
 
@@ -66,8 +70,9 @@ public static class NightShiftFunctionServiceCollectionExtensions
             {
                 JobFunctions.AddAssembly(assembly);
 
-                // The classes whose instance methods are functions are created by the container
-                foreach (Type type in assembly.GetTypes().Where(static x => x is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false }))
+                // The classes whose instance methods are functions are created by the container; AddAssembly left out
+                // the types that can't be loaded
+                foreach (Type type in GetLoadableTypes(assembly).Where(static x => x is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false }))
                 {
                     if (type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(static x => x.IsDefined(typeof(JobFunctionAttribute), inherit: false)))
                     {
@@ -79,12 +84,39 @@ public static class NightShiftFunctionServiceCollectionExtensions
             return services;
         }
     }
+
+    // The same delegate (the same code) under the same name is registered once; another one is refused
+    private static void Register(DelegateJobFunction function)
+    {
+        if (JobFunctions.Find(function.Name) is DelegateJobFunction registered &&
+            (registered.Source != function.Source || registered.PayloadType != function.PayloadType))
+        {
+            throw new InvalidOperationException($"Job function '{function.Name}' is registered already, for another delegate. Use another name, or remove it first with JobFunctions.Remove.");
+        }
+
+        JobFunctions.Register(function);
+    }
+
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.OfType<Type>();
+        }
+    }
 }
 
 /// <summary>A delegate registered as a job function; its jobs run <see cref="DelegateJobFunctionRunner"/>.</summary>
-internal sealed class DelegateJobFunction(string name, Type? payloadType, Func<IServiceProvider, object?, CancellationToken, Task> handler) : JobFunction(name)
+internal sealed class DelegateJobFunction(string name, Type? payloadType, MethodInfo source, Func<IServiceProvider, object?, CancellationToken, Task> handler) : JobFunction(name)
 {
     public Func<IServiceProvider, object?, CancellationToken, Task> Handler { get; } = handler;
+
+    /// <summary>The method of the delegate registered, the same for every registration made by the same code.</summary>
+    public MethodInfo Source { get; } = source;
 
     public override Type? PayloadType { get; } = payloadType;
 
