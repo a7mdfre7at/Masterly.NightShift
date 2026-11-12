@@ -22,6 +22,7 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     public void Dispose()
     {
         JobClock.TimeProvider = TimeProvider.System;
+        ScheduleDateProviders.Clear();
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
@@ -140,12 +141,14 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
-    public void OnCreating_ThrowsAnException_WhenThePolicyAllowsNothing()
+    public void OnCreating_ThrowsAnException_WhenAWholeSearchFindsNoAllowedTime()
     {
-        _storage.Add(new SchedulePolicy("never").ExcludeDatesFrom("nowhere"));
+        AddPolicyThatAllowsNothing();
         CreatingContext context = Creating(new ScheduledState(Saturday), "never", WhenBlocked.MoveForward);
 
-        Assert.Throws<InvalidOperationException>(() => _filter.OnCreating(context));
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _filter.OnCreating(context));
+
+        Assert.Contains("'never' allows no time in the ten years", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]
@@ -347,7 +350,7 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     public void OnStateElection_ChecksAgainTomorrow_WhenThePolicyAllowsNothing()
     {
         JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
-        _storage.Add(new SchedulePolicy("never").ExcludeDatesFrom("nowhere"));
+        AddPolicyThatAllowsNothing();
         ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "never", WhenBlocked.MoveForward);
 
         _filter.OnStateElection(context.Object);
@@ -390,11 +393,12 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
             parameters));
     }
 
-    private ElectStateContextMock Electing(IState candidate, string policy, WhenBlocked? whenBlocked)
+    private ElectStateContextMock Electing(IState candidate, string policy, WhenBlocked? whenBlocked, int? failedChecks = null)
     {
         Dictionary<string, string> snapshot = [];
         if (policy != null) snapshot[ScheduleOptions.PolicyParameter] = SerializationHelper.Serialize(policy);
         if (whenBlocked.HasValue) snapshot[ScheduleOptions.WhenBlockedParameter] = SerializationHelper.Serialize(whenBlocked.Value.ToString());
+        if (failedChecks.HasValue) snapshot[SchedulePolicyFilter.CheckAttemptsParameter] = SerializationHelper.Serialize(failedChecks.Value);
 
         ElectStateContextMock context = new();
         context.ApplyContext.Storage = _storage.Storage;
@@ -438,5 +442,330 @@ public sealed class SchedulePolicyFilterFacts : IDisposable
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData(WhenBlocked.MoveForward)]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.Reject)]
+    public void OnCreating_MakesAJobThatWouldRunNowWait_WhenThePolicyCanNotBeEvaluated(WhenBlocked whenBlocked)
+    {
+        AddPolicyWithAMissingProvider();
+        CreatingContext context = Creating(new EnqueuedState(), "holidays", whenBlocked);
+
+        _filter.OnCreating(context);
+
+        Assert.False(context.Canceled);
+        ScheduledState state = Assert.IsType<ScheduledState>(context.InitialState);
+        Assert.Equal(Now.AddMinutes(1), state.EnqueueAt);
+        Assert.Equal(
+            "Waiting for policy, next check in 1 min: policy 'holidays': date provider 'nowhere' isn't registere…",
+            state.Reason);
+        Assert.Equal(1, context.Parameters[SchedulePolicyFilter.CheckAttemptsParameter]);
+
+        // The job was meant to run now, not when its policy is checked next
+        Assert.Equal(JobHelper.ToMillisecondTimestamp(Now), context.Parameters[PerformContext.ScheduledForParameter]);
+    }
+
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData(WhenBlocked.MoveForward)]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.Reject)]
+    public void OnCreating_LeavesADelayedJobAtItsTime_WhenThePolicyCanNotBeEvaluated(WhenBlocked whenBlocked)
+    {
+        AddPolicyWithAMissingProvider();
+        ScheduledState state = new(Now.AddHours(3));
+        CreatingContext context = Creating(state, "holidays", whenBlocked);
+
+        _filter.OnCreating(context);
+
+        Assert.False(context.Canceled);
+        Assert.Same(state, context.InitialState);
+        Assert.Equal(Now.AddHours(3), state.EnqueueAt);
+        Assert.False(context.Parameters.ContainsKey(SchedulePolicyFilter.CheckAttemptsParameter));
+        Assert.False(context.Parameters.ContainsKey(PerformContext.ScheduledForParameter));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnCreating_KeepsTheQueueOfAnEnqueuedJob_ThatWaitsForItsPolicy()
+    {
+        AddPolicyWithAMissingProvider();
+        CreatingContext context = Creating(new EnqueuedState("critical"), "holidays", WhenBlocked.Reject);
+
+        _filter.OnCreating(context);
+
+        Assert.IsType<ScheduledState>(context.InitialState);
+        Assert.Equal("critical", context.Parameters[DrainModeFilter.HeldQueueParameter]);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock and the date providers")]
+    public void OnCreating_MakesTheJobWait_WhenADateProviderThrows()
+    {
+        ScheduleDateProviders.Set("flaky", new FlakyProvider { Down = true });
+        _storage.Add(new SchedulePolicy("flaky-days").ExcludeDatesFrom("flaky"));
+        CreatingContext context = Creating(new EnqueuedState(), "flaky-days", WhenBlocked.Skip);
+
+        _filter.OnCreating(context);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.InitialState);
+        Assert.Equal(Now.AddMinutes(1), state.EnqueueAt);
+        Assert.StartsWith("Waiting for policy, next check in 1 min: policy 'flaky-days': date provider 'flaky' failed", state.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.Reject)]
+    public void OnCreating_StillSkipsOrRejects_WhenARuleBlocksTheTime_WhateverTheFailingProvider(WhenBlocked whenBlocked)
+    {
+        _storage.Add(WeekdaysWithAMissingProvider());
+        CreatingContext context = Creating(new ScheduledState(Saturday), "weekday-holidays", whenBlocked);
+
+        _filter.OnCreating(context);
+
+        Assert.Equal(whenBlocked == WhenBlocked.Reject, context.Canceled);
+        Assert.Equal(whenBlocked == WhenBlocked.Skip, context.InitialState is DeletedState);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnCreating_MovesABlockedJob_ToTheFirstInstantThePolicyCanNotEvaluate_InsteadOfThrowing()
+    {
+        _storage.Add(WeekdaysWithAMissingProvider());
+        CreatingContext context = Creating(new ScheduledState(Saturday), "weekday-holidays", WhenBlocked.MoveForward);
+
+        _filter.OnCreating(context);
+
+        // Saturday and Sunday are blocked; whether Monday is a holiday is asked again when the job is due
+        ScheduledState state = Assert.IsType<ScheduledState>(context.InitialState);
+        Assert.Equal(NextMonday, state.EnqueueAt);
+        Assert.Equal("Moved by policy: policy 'weekday-holidays': Saturday isn't an allowed day", state.Reason);
+    }
+
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData(WhenBlocked.MoveForward)]
+    [InlineData(WhenBlocked.Skip)]
+    [InlineData(WhenBlocked.Reject)]
+    public void OnStateElection_MakesADueJobWait_WhenThePolicyCanNotBeEvaluated_AndNeverSkipsIt(WhenBlocked whenBlocked)
+    {
+        AddPolicyWithAMissingProvider();
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", whenBlocked);
+
+        _filter.OnStateElection(context.Object);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(Now.AddMinutes(1), state.EnqueueAt);
+        Assert.Equal(
+            "Waiting for policy, next check in 1 min: policy 'holidays': date provider 'nowhere' isn't registere…",
+            state.Reason);
+
+        // Not during the election: a later filter may still elect another state
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData(0, 1)]
+    [InlineData(1, 5)]
+    [InlineData(2, 15)]
+    [InlineData(3, 60)]
+    [InlineData(4, 60)]
+    [InlineData(500, 60)]
+    public void OnStateElection_WaitsLongerAfterEachFailedCheck_AndCountsThem(int failedChecks, int minutes)
+    {
+        AddPolicyWithAMissingProvider();
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", WhenBlocked.Skip, failedChecks);
+
+        _filter.OnStateElection(context.Object);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(Now.AddMinutes(minutes), state.EnqueueAt);
+        Assert.StartsWith($"Waiting for policy, next check in {minutes} min: policy 'holidays'", state.Reason, StringComparison.Ordinal);
+
+        _filter.OnStateApplied(Applying(state, afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        // The only parameter written: the retry count and the time the job was meant to run stay as they are
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, (failedChecks + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)), Times.Once);
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateApplied_CountsTheFailedCheck_InTheTransaction_WhenTheStorageCan()
+    {
+        AddPolicyWithAMissingProvider();
+        _storage.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", WhenBlocked.MoveForward, failedChecks: 2);
+        _filter.OnStateElection(context.Object);
+        Mock<JobStorageTransaction> transaction = new();
+
+        _filter.OnStateApplied(Applying(context.Object.CandidateState, new PostCommitActions()), transaction.Object);
+
+        transaction.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, "3"));
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateApplied_CountsNothing_WhenALaterFilterElectedAnotherState()
+    {
+        AddPolicyWithAMissingProvider();
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", WhenBlocked.MoveForward);
+        _filter.OnStateElection(context.Object);
+
+        _filter.OnStateApplied(Applying(new ScheduledState(Now.AddHours(1)), afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock and the date providers")]
+    public void OnStateElection_LetsTheJobRun_AndClearsTheCount_OnceThePolicyCanBeEvaluated()
+    {
+        FlakyProvider provider = new() { Down = true };
+        ScheduleDateProviders.Set("flaky", provider);
+        _storage.Add(new SchedulePolicy("flaky-days").ExcludeDatesFrom("flaky"));
+
+        ElectStateContextMock first = Electing(new EnqueuedState { IsDue = true }, "flaky-days", WhenBlocked.Skip);
+        _filter.OnStateElection(first.Object);
+        ElectStateContextMock second = Electing(new EnqueuedState { IsDue = true }, "flaky-days", WhenBlocked.Skip, failedChecks: 1);
+        _filter.OnStateElection(second.Object);
+
+        provider.Down = false;
+        ElectStateContextMock third = Electing(new EnqueuedState { IsDue = true }, "flaky-days", WhenBlocked.Skip, failedChecks: 2);
+        _filter.OnStateElection(third.Object);
+
+        Assert.Equal(Now.AddMinutes(1), Assert.IsType<ScheduledState>(first.Object.CandidateState).EnqueueAt);
+        Assert.Equal(Now.AddMinutes(5), Assert.IsType<ScheduledState>(second.Object.CandidateState).EnqueueAt);
+        Assert.IsType<EnqueuedState>(third.Object.CandidateState);
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, null), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_ClearsTheCount_WhenThePolicyEvaluatesAndBlocks_AndStillMovesTheJob()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.MoveForward, failedChecks: 3);
+
+        _filter.OnStateElection(context.Object);
+
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(NextMonday, state.EnqueueAt);
+        Assert.Equal("Moved by policy: policy 'weekdays': Saturday isn't an allowed day", state.Reason);
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, null), Times.Once);
+
+        _filter.OnStateApplied(Applying(state, afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", PerformContext.ScheduledForParameter, Millis(NextMonday)));
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_StillSkipsABlockedDueJob_ThatWaitedForItsPolicyBefore()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip, failedChecks: 2);
+
+        _filter.OnStateElection(context.Object);
+
+        DeletedState state = Assert.IsType<DeletedState>(context.Object.CandidateState);
+        Assert.Equal("Skipped: policy 'weekdays': Saturday isn't an allowed day", state.Reason);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_WritesNothing_ForAJobThatNeverWaitedForItsPolicy()
+    {
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip);
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+        _storage.Connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_LetsTheJobRun_WhenTheCountCanNotBeCleared()
+    {
+        _storage.Connection.Setup(x => x.SetJobParameter("JobId", SchedulePolicyFilter.CheckAttemptsParameter, null))
+            .Throws(new InvalidOperationException("storage down"));
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekdays", WhenBlocked.Skip, failedChecks: 2);
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_StartsTheCountAgain_WhenItCanNotBeRead()
+    {
+        AddPolicyWithAMissingProvider();
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "holidays", WhenBlocked.Skip);
+        Dictionary<string, string> snapshot = new(context.ApplyContext.BackgroundJob.ParametersSnapshot)
+        {
+            [SchedulePolicyFilter.CheckAttemptsParameter] = "not a number",
+        };
+        context.ApplyContext.BackgroundJob.ParametersSnapshot = snapshot;
+
+        _filter.OnStateElection(context.Object);
+
+        Assert.Equal(Now.AddMinutes(1), Assert.IsType<ScheduledState>(context.Object.CandidateState).EnqueueAt);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void OnStateElection_MovesABlockedDueJob_ToTheFirstInstantThePolicyCanNotEvaluate()
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(Saturday));
+        _storage.Add(WeekdaysWithAMissingProvider());
+        ElectStateContextMock context = Electing(new EnqueuedState { IsDue = true }, "weekday-holidays", WhenBlocked.MoveForward);
+
+        _filter.OnStateElection(context.Object);
+
+        // Not "no time in the next ten years": the search stopped at an instant it couldn't evaluate
+        ScheduledState state = Assert.IsType<ScheduledState>(context.Object.CandidateState);
+        Assert.Equal(NextMonday, state.EnqueueAt);
+        Assert.Equal("Moved by policy: policy 'weekday-holidays': Saturday isn't an allowed day", state.Reason);
+
+        _filter.OnStateApplied(Applying(state, afterCommit: null), new Mock<IWriteOnlyTransaction>().Object);
+
+        _storage.Connection.Verify(x => x.SetJobParameter("JobId", PerformContext.ScheduledForParameter, Millis(NextMonday)));
+    }
+
+    [Theory]
+    [InlineData(-1, 1)]
+    [InlineData(0, 1)]
+    [InlineData(1, 5)]
+    [InlineData(2, 15)]
+    [InlineData(3, 60)]
+    [InlineData(int.MaxValue, 60)]
+    public void GetCheckDelay_Grows_ThenStaysAtAnHour(int failedChecks, int minutes)
+    {
+        Assert.Equal(TimeSpan.FromMinutes(minutes), SchedulePolicyFilter.GetCheckDelay(failedChecks));
+    }
+
+    [Fact]
+    public void CheckAttemptsParameter_FitsTheLengthOfAJobParameterName()
+    {
+        Assert.True(SchedulePolicyFilter.CheckAttemptsParameter.Length <= 40);
+    }
+
+    // No instant can be evaluated: the date provider isn't registered in this process
+    private void AddPolicyWithAMissingProvider()
+    {
+        _storage.Add(new SchedulePolicy("holidays").ExcludeDatesFrom("nowhere"));
+    }
+
+    // Weekends are blocked by a rule; a weekday can't be evaluated, as its date provider isn't registered
+    private static SchedulePolicy WeekdaysWithAMissingProvider()
+    {
+        return new SchedulePolicy("weekday-holidays")
+            .AllowWeekdays(DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday)
+            .ExcludeDatesFrom("nowhere");
+    }
+
+    // Every instant is evaluated, and blocked: the policy blocks the times a policy without rules allows
+    private void AddPolicyThatAllowsNothing()
+    {
+        _storage.Add(new SchedulePolicy("always"));
+        _storage.Add(new SchedulePolicy("never").ExceptWhen("always"));
+    }
+
+    private sealed class FlakyProvider : IScheduleDateProvider
+    {
+        public bool Down { get; set; }
+
+        public bool Contains(DateOnly day) => Down ? throw new InvalidOperationException("database down") : false;
     }
 }

@@ -161,8 +161,9 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
             recurringJob.SkipAfter = options.SkipAfter;
             recurringJob.RetryAttempt = 0;
 
-            // A paused job stays paused when the application re-registers it on start-up
-            if ((scheduleChanged || recurringJob.Error != null) && !recurringJob.Paused)
+            // A paused job stays paused when the application re-registers it on start-up. A job that waits for a
+            // policy that couldn't be evaluated keeps its pending occurrence when its schedule is the same
+            if ((scheduleChanged || HasErrorToRecoverFrom(recurringJob)) && !recurringJob.Paused)
             {
                 recurringJob.ScheduleNext(TimeZoneResolver, now.AddSeconds(-1));
             }
@@ -174,6 +175,15 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
                 transaction.Commit();
             }
         }
+    }
+
+    // An error is recovered from by computing the next occurrence from now. Not the error of a job that waits
+    // for its policy: it is on the schedule already, to be looked at again soon, and its next occurrence computed
+    // from now would put off the occurrences it missed until the next one still to come, a month away for a
+    // monthly job
+    private static bool HasErrorToRecoverFrom(RecurringJobEntity recurringJob)
+    {
+        return recurringJob.Error != null && !recurringJob.WaitsForPolicy;
     }
 
     // A rewrite that keeps the meaning ("0 0 * * *" and "@daily") isn't a schedule change, so Strict keeps
@@ -442,7 +452,7 @@ public class RecurringJobManager : IRecurringJobManager, IRecurringJobManagerV2,
                 recurringJob.RecordScheduleChange(now);
             }
 
-            if (scheduleChanged || recurringJob.Error != null)
+            if (scheduleChanged || HasErrorToRecoverFrom(recurringJob))
             {
                 recurringJob.RetryAttempt = 0;
                 recurringJob.ScheduleNext(TimeZoneResolver, now.AddSeconds(-1));

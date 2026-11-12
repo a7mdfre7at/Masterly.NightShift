@@ -1070,4 +1070,158 @@ public class RecurringJobManagerFacts
         _transaction.Verify(x => x.AddToSet("recurring-jobs", _id, JobHelper.ToTimestamp(_now.AddHours(22))));
         _transaction.Verify(x => x.Commit());
     }
+
+    [Fact]
+    public void AddOrUpdate_KeepsThePendingOccurrence_OfAnUnchangedJob_ThatWaitsForItsPolicy()
+    {
+        // The occurrences since 15:20 wait for the policy, and the scheduler is about to look at the job again
+        StoreJobThatWaitsForItsPolicy();
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, "* * * * *", new RecurringJobOptions { Policy = "holidays" });
+
+        _transaction.Verify(
+            x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()),
+            Times.Never);
+        _transaction.Verify(x => x.Commit(), Times.Never);
+    }
+
+    [Fact]
+    public void AddOrUpdate_KeepsThePendingOccurrence_WhenOnlyTheQueueOrTheMisfireHandlingChanges()
+    {
+        StoreJobThatWaitsForItsPolicy();
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, "* * * * *", new RecurringJobOptions
+        {
+            Policy = "holidays",
+            QueueName = "critical",
+            MisfireHandling = MisfireHandlingMode.Strict,
+        });
+
+        // The scheduler applies the new misfire handling to the occurrences missed, from the last execution
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            dict["Queue"] == "critical" &&
+            dict["Misfire"] == "1" &&
+            !dict.ContainsKey("NextExecution") &&
+            !dict.ContainsKey("Error"))));
+        _transaction.Verify(x => x.Commit());
+    }
+
+    [Theory]
+    [InlineData("*/5 * * * *", "holidays")]
+    [InlineData("* * * * *", "other")]
+    [InlineData("* * * * *", null)]
+    public void AddOrUpdate_ReschedulesAJobThatWaitsForItsPolicy_WhenItsScheduleChanges(string cronExpression, string policy)
+    {
+        StoreJobThatWaitsForItsPolicy();
+        _connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:other")).Returns(new SchedulePolicy("other").ToFields());
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, cronExpression, new RecurringJobOptions { Policy = policy });
+
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now &&
+            dict["Error"] == string.Empty)));
+        _transaction.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void AddOrUpdate_ReschedulesAJobThatWaitsForItsPolicy_WhenItsTimeZoneChanges()
+    {
+        StoreJobThatWaitsForItsPolicy();
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, "* * * * *", new RecurringJobOptions
+        {
+            Policy = "holidays",
+            TimeZone = TimeZoneInfo.FindSystemTimeZoneById(PlatformHelper.IsRunningOnWindows() ? "Hawaiian Standard Time" : "Pacific/Honolulu"),
+        });
+
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            dict.ContainsKey("TimeZoneId") &&
+            JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now &&
+            dict["Error"] == string.Empty)));
+        _transaction.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void AddOrUpdate_StillRecoversFromAnotherError_OfAJobThatFollowsAPolicy()
+    {
+        Dictionary<string, string> stored = StoreJobThatWaitsForItsPolicy();
+        stored["Error"] = "Some error that's gone";
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, "* * * * *", new RecurringJobOptions { Policy = "holidays" });
+
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now &&
+            dict["Error"] == string.Empty)));
+        _transaction.Verify(x => x.Commit());
+    }
+
+    [Fact]
+    public void AddOrUpdate_StillRecoversFromAPolicyError_OfAJobThatLeftTheSchedule()
+    {
+        // Without a next execution the scheduler never looks at the job again, so registering it schedules it
+        Dictionary<string, string> stored = StoreJobThatWaitsForItsPolicy();
+        stored["NextExecution"] = string.Empty;
+        RecurringJobManager manager = CreateManager();
+
+        manager.AddOrUpdate(_id, _job, "* * * * *", new RecurringJobOptions { Policy = "holidays" });
+
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now &&
+            dict["Error"] == string.Empty)));
+    }
+
+    [Fact]
+    public void UpdateSchedule_KeepsThePendingOccurrence_OfAJobThatWaitsForItsPolicy_WhenItsScheduleIsTheSame()
+    {
+        StoreJobThatWaitsForItsPolicy();
+        RecurringJobManager manager = CreateManager();
+
+        bool updated = manager.UpdateSchedule(_id, "* * * * *", TimeZoneInfo.Utc);
+
+        Assert.True(updated);
+        _transaction.Verify(
+            x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void UpdateSchedule_ReschedulesAJobThatWaitsForItsPolicy_WhenItsScheduleChanges()
+    {
+        StoreJobThatWaitsForItsPolicy();
+        RecurringJobManager manager = CreateManager();
+
+        manager.UpdateSchedule(_id, "*/5 * * * *");
+
+        _transaction.Verify(x => x.SetRangeInHash($"recurring-job:{_id}", It.Is<Dictionary<string, string>>(dict =>
+            JobHelper.DeserializeDateTime(dict["NextExecution"]) == _now &&
+            dict["Error"] == string.Empty)));
+    }
+
+    // As the scheduler left it at 15:28:45, when the policy couldn't be evaluated: the last run was at 15:20, and
+    // the job is looked at again at 15:29:45, so it is due. The policy can be evaluated by now, and allows every time
+    private Dictionary<string, string> StoreJobThatWaitsForItsPolicy()
+    {
+        Dictionary<string, string> stored = new()
+        {
+            { "Queue", "default" },
+            { "Cron", "* * * * *" },
+            { "Job", InvocationData.SerializeJob(_job).SerializePayload() },
+            { "TimeZoneId", "UTC" },
+            { "CreatedAt", JobHelper.SerializeDateTime(_now.AddDays(-1)) },
+            { "V", "2" },
+            { "Policy", "holidays" },
+            { "LastExecution", JobHelper.SerializeDateTime(_now.AddMinutes(-10)) },
+            { "NextExecution", JobHelper.SerializeDateTime(_now.AddSeconds(-15)) },
+            { "Error", "Schedule policy 'holidays' can't be evaluated, so the job waits and tries again: policy 'holidays': date provider 'public-holidays' failed: database down." },
+        };
+
+        _connection.Setup(x => x.GetAllEntriesFromHash($"recurring-job:{_id}")).Returns(stored);
+        _connection.Setup(x => x.GetAllEntriesFromHash("schedule-policy:holidays")).Returns(new SchedulePolicy("holidays").ToFields());
+        return stored;
+    }
 }

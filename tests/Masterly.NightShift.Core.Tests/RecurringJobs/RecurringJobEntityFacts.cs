@@ -495,4 +495,63 @@ public class RecurringJobEntityFacts
 
         public bool Contains(DateOnly day) => Fails ? throw new InvalidOperationException("database down") : false;
     }
+
+    [Fact, StaticLock]
+    public void WaitsForPolicy_IsTrue_ForTheJobAPolicyFailureLeftOnTheSchedule_AlsoOnceItIsReadBack()
+    {
+        ScheduleDateProviders.Clear();
+        RecurringJobEntity entity = CreatePolicyEntity(new SchedulePolicy("holidays").ExcludeDatesFrom("not-registered"));
+
+        entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(1), TimeSpan.Zero);
+        entity.IsChanged(_nowInstant, out IReadOnlyDictionary<string, string> changedFields);
+        foreach (KeyValuePair<string, string> field in changedFields) _recurringJob[field.Key] = field.Value;
+        RecurringJobEntity stored = new(RecurringJobId, _recurringJob);
+
+        Assert.True(entity.WaitsForPolicy);
+        Assert.True(stored.WaitsForPolicy);
+    }
+
+    [Fact]
+    public void WaitsForPolicy_IsFalse_ForAJobWithoutAnError_OrWithAnotherError()
+    {
+        RecurringJobEntity allowed = CreatePolicyEntity(new SchedulePolicy("office"));
+        allowed.ScheduleNext(UtcResolver(), _nowInstant);
+
+        RecurringJobEntity failed = CreatePolicyEntity(new SchedulePolicy("office"));
+        failed.ScheduleRetry(_nowInstant.AddMinutes(1), "The job couldn't be created");
+
+        Assert.False(allowed.WaitsForPolicy);
+        Assert.False(failed.WaitsForPolicy);
+    }
+
+    [Fact]
+    public void WaitsForPolicy_IsFalse_ForAJobWhosePolicyAllowsNothing_AsItLeftTheSchedule()
+    {
+        RecurringJobEntity entity = CreatePolicyEntity(
+            new SchedulePolicy("never").AllowWeekdays(DayOfWeek.Monday).ExceptWhen("mondays"),
+            new SchedulePolicy("mondays").AllowWeekdays(DayOfWeek.Monday));
+
+        entity.ScheduleNext(UtcResolver(), _nowInstant, _nowInstant.AddHours(3), TimeSpan.Zero);
+
+        Assert.NotNull(entity.Error);
+        Assert.False(entity.WaitsForPolicy);
+    }
+
+    [Fact]
+    public void WaitsForPolicy_IsFalse_WhenTheErrorIsAboutAnotherPolicy_OrTheJobFollowsNone()
+    {
+        _recurringJob["Error"] = "Schedule policy 'holidays' can't be evaluated, so the job waits and tries again: policy 'holidays' can't be read: bad.";
+        _recurringJob["NextExecution"] = JobHelper.SerializeDateTime(_nowInstant);
+        RecurringJobEntity withoutPolicy = CreateEntity();
+
+        _recurringJob["Policy"] = "office";
+        RecurringJobEntity otherPolicy = CreateEntity();
+
+        _recurringJob["Policy"] = "holidays";
+        RecurringJobEntity samePolicy = CreateEntity();
+
+        Assert.False(withoutPolicy.WaitsForPolicy);
+        Assert.False(otherPolicy.WaitsForPolicy);
+        Assert.True(samePolicy.WaitsForPolicy);
+    }
 }

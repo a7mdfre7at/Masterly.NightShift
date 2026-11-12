@@ -126,8 +126,22 @@ internal sealed class SchedulePolicyCalendar
     /// </summary>
     public SchedulePolicyDecision Evaluate(DateTime instantUtc)
     {
+        return Evaluate(instantUtc, out _);
+    }
+
+    /// <summary>
+    /// Whether the policy allows a job to start at this instant, and why not. An instant the policy can't evaluate
+    /// isn't allowed either, but it isn't blocked: <paramref name="failure"/> then says why it couldn't tell, and is
+    /// <c>null</c> for an instant the policy allows or blocks.
+    /// </summary>
+    public SchedulePolicyDecision Evaluate(DateTime instantUtc, out SchedulePolicyFailure? failure)
+    {
         DateTime instant = DateTime.SpecifyKind(instantUtc, DateTimeKind.Utc);
         Verdict verdict = Check(Name, instant, [], explain: true);
+
+        failure = verdict.Outcome == Outcome.Unknown
+            ? new SchedulePolicyFailure(instant, verdict.Reason!) // Unknown always has a reason
+            : null;
         return new SchedulePolicyDecision(Name, instant, verdict.Outcome == Outcome.Allowed, verdict.Reason);
     }
 
@@ -184,7 +198,8 @@ internal sealed class SchedulePolicyCalendar
 
     /// <summary>
     /// Whether a warning about the failing date provider <paramref name="provider"/> is due at <paramref name="now"/>:
-    /// once per <see cref="ProviderWarningInterval"/> for each provider name.
+    /// once per <see cref="ProviderWarningInterval"/> for each provider name. Also limits the warnings about a
+    /// policy that can't be evaluated, under the key <c>policy:{name}</c>, which no provider can be named.
     /// </summary>
     internal static bool TryStartProviderWarning(string provider, DateTime now)
     {
