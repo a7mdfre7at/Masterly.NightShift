@@ -450,6 +450,36 @@ public static class GlobalConfigurationExtensions
             DeploymentFencing.DeploymentId = deploymentId == null
                 ? DeploymentFencing.GetDefaultDeploymentId()
                 : DeploymentFencing.NormalizeDeploymentId(deploymentId, nameof(deploymentId));
+            DeploymentFencing.DeploymentOrder = null;
+            return configuration;
+        }
+
+        /// <summary>
+        /// Turns on <see cref="DeploymentFencing"/> with an order that tells deployments apart: a deployment with a
+        /// higher order than the current one takes over at once, and one with a lower order (a stray instance of an
+        /// old image, an old build deployed by accident) never fences the servers of the current deployment while
+        /// they are running.
+        /// </summary>
+        /// <param name="deploymentId">
+        /// The deployment, up to 64 characters, different for every release; <c>null</c> for the entry assembly's
+        /// informational version (or version).
+        /// </param>
+        /// <param name="deploymentOrder">
+        /// Your pipeline's run number or the deploy time (as a Unix timestamp, for example): any number, zero or
+        /// more, that grows with each deploy. A rollback is a new deploy with a higher number. The order only
+        /// decides between two deployments that both have one.
+        /// </param>
+        /// <returns>The same configuration, for chaining.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="deploymentOrder"/> is negative.</exception>
+        public IGlobalConfiguration UseDeploymentFencing([CanBeNull] string? deploymentId, long deploymentOrder)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentOutOfRangeException.ThrowIfNegative(deploymentOrder);
+
+            DeploymentFencing.DeploymentId = deploymentId == null
+                ? DeploymentFencing.GetDefaultDeploymentId()
+                : DeploymentFencing.NormalizeDeploymentId(deploymentId, nameof(deploymentId));
+            DeploymentFencing.DeploymentOrder = deploymentOrder;
             return configuration;
         }
 

@@ -17,7 +17,7 @@ internal partial class AboutPage
             ?? string.Empty;
 
         string none = Resources.Strings.AboutPage_None;
-        string? current = ReadCurrentDeployment();
+        (string? current, long? currentOrder) = ReadCurrentDeployment();
 
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -28,23 +28,37 @@ internal partial class AboutPage
             ["UseStaleRestartLimit"] = StaleJobFilter.MaxRestarts?.ToString(CultureInfo.CurrentCulture) ?? none,
             ["UseArgumentCompression"] = ArgumentCompression.MinLength?.ToString(CultureInfo.CurrentCulture) ?? none,
             ["UseDeploymentFencing"] = DeploymentFencing.DeploymentId is { } deployment
-                ? current != null && current != deployment ? $"{deployment} ({current})" : deployment
+                ? DescribeDeployment(deployment, DeploymentFencing.DeploymentOrder, current, currentOrder)
                 : none,
             ["UseScheduleDateProvider"] = ScheduleDateProviders.Names.Count > 0 ? string.Join(", ", ScheduleDateProviders.Names) : none,
             ["JobMonitors.CheckInterval"] = JobMonitors.CheckInterval.ToString(),
         };
     }
 
-    private string? ReadCurrentDeployment()
+    /// <summary>
+    /// This process's deployment, with its order when it has one, followed by the current deployment in brackets
+    /// when it is another one: <c>2026.11.2 (order 41) (2026.11.3, order 42)</c>.
+    /// </summary>
+    internal static string DescribeDeployment(string deployment, long? order, string? current, long? currentOrder)
+    {
+        string own = DeploymentFencing.Describe(deployment, order);
+        if (current == null || current == deployment) return own;
+
+        return currentOrder.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"{own} ({current}, order {currentOrder.Value})")
+            : $"{own} ({current})";
+    }
+
+    private (string? Id, long? Order) ReadCurrentDeployment()
     {
         try
         {
-            return DeploymentFencing.DeploymentId != null ? DeploymentFencing.GetCurrentDeployment(Storage) : null;
+            return DeploymentFencing.DeploymentId != null ? DeploymentFencing.ReadCurrent(Storage) : (null, null);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             Logger.DebugException("The current deployment couldn't be read.", ex);
-            return null;
+            return (null, null);
         }
     }
 
