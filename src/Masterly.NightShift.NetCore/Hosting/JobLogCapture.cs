@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using Masterly.NightShift.Common;
 using Masterly.NightShift.Server;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,10 +13,14 @@ public sealed class NightShiftJobLogOptions
     /// <summary>The lowest level captured. <see cref="LogLevel.Information"/> by default.</summary>
     public LogLevel MinimumLevel { get; set; } = LogLevel.Information;
 
+    /// <summary>Categories left out, by prefix: Entity Framework's SQL commands by default.</summary>
+    public ICollection<string> ExcludedCategories { get; } = ["Microsoft.EntityFrameworkCore.Database"];
+
     /// <summary>
-    /// Categories left out, by prefix: Entity Framework's SQL commands and Masterly.NightShift's own lines by default.
+    /// Whether the lines Masterly.NightShift logs itself are left out: those of its own types and loggers, not
+    /// those of an application whose namespace starts with <c>Masterly.NightShift</c>. On by default.
     /// </summary>
-    public ICollection<string> ExcludedCategories { get; } = ["Microsoft.EntityFrameworkCore.Database", "Masterly.NightShift"];
+    public bool ExcludeNightShiftCategories { get; set; } = true;
 
     /// <summary>The most lines a job's run captures, 1 to 10,000; one line at the end says how many were left out. 200 by default.</summary>
     public int MaxLinesPerJob
@@ -117,6 +122,19 @@ internal static class JobLogCapture
             CurrentState.Value = null;
             if (state == null) return;
 
+            try
+            {
+                WriteOutcome(context, state);
+            }
+            finally
+            {
+                // Tasks the job started and didn't wait for still see the state: what they log now is left out
+                state.Complete();
+            }
+        }
+
+        private void WriteOutcome(PerformedContext context, CaptureState state)
+        {
             if (Options.LifecycleLines)
             {
                 string duration = context.Items.TryGetValue(StartedItem, out object? started) && started is long startedAt
@@ -147,13 +165,27 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
 
     private int _lines;
     private int _dropped;
+    private volatile bool _completed;
 
     public NightShiftJobLogOptions Options { get; } = options;
+
+    /// <summary>Ends the capture: lines written later, from tasks the job didn't wait for, are left out.</summary>
+    public void Complete() => _completed = true;
 
     public void Write(JobConsoleLevel level, string category, string message)
     {
         // A line the console's own storage writes log doesn't come back here
-        if (_writing) return;
+        if (_writing || _completed) return;
+
+        if (Volatile.Read(ref _lines) >= Options.MaxLinesPerJob)
+        {
+            Interlocked.Increment(ref _dropped);
+            return;
+        }
+
+        // A line the redaction leaves out doesn't count against the limit
+        string? text = Prepare($"[{ShortCategory(category)}] {message}");
+        if (text == null) return;
 
         if (Interlocked.Increment(ref _lines) > Options.MaxLinesPerJob)
         {
@@ -161,14 +193,23 @@ internal sealed class CaptureState(PerformContext context, NightShiftJobLogOptio
             return;
         }
 
-        string? text = Prepare($"[{ShortCategory(category)}] {message}");
+        WriteToConsole(level, text);
+    }
+
+    /// <summary>Writes a line about the run itself, redacted and cut like the others but not counted.</summary>
+    public void WriteLifecycle(JobConsoleLevel level, string message)
+    {
+        if (_completed) return;
+
+        // An exception's message can hold what the redaction is there to hide
+        string? text = Prepare($"[nightshift] {message}");
         if (text != null) WriteToConsole(level, text);
     }
 
-    public void WriteLifecycle(JobConsoleLevel level, string message) => WriteToConsole(level, $"[nightshift] {message}");
-
     public void WriteDropped()
     {
+        if (_completed) return;
+
         int dropped = Volatile.Read(ref _dropped);
         if (dropped > 0) WriteToConsole(JobConsoleLevel.Warning, $"[nightshift] {dropped} more log lines were left out (MaxLinesPerJob is {Options.MaxLinesPerJob}).");
     }
@@ -225,7 +266,8 @@ internal sealed class JobConsoleLoggerProvider(NightShiftJobLogOptions options) 
 
     private sealed class JobConsoleLogger(string category, NightShiftJobLogOptions options) : ILogger
     {
-        private readonly bool _excluded = options.ExcludedCategories.Any(x => category.StartsWith(x, StringComparison.Ordinal));
+        private readonly bool _excluded = (options.ExcludeNightShiftCategories && NightShiftCategories.Contains(category))
+            || options.ExcludedCategories.Any(x => category.StartsWith(x, StringComparison.Ordinal));
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -255,5 +297,49 @@ internal sealed class JobConsoleLoggerProvider(NightShiftJobLogOptions options) 
                 _ => JobConsoleLevel.Info,
             };
         }
+    }
+}
+
+/// <summary>Tells the log categories of Masterly.NightShift itself from those of an application.</summary>
+internal static class NightShiftCategories
+{
+    private const string Prefix = "Masterly.NightShift.";
+
+    // The library's assemblies: an application's own assembly may start with the same name
+    private static readonly HashSet<string> AssemblyNames = new(StringComparer.Ordinal)
+    {
+        "Masterly.NightShift.Core",
+        "Masterly.NightShift.NetCore",
+        "Masterly.NightShift.AspNetCore",
+        "Masterly.NightShift.SqlServer",
+        "Masterly.NightShift.Redis",
+        "Masterly.NightShift.MongoDB",
+        "Masterly.NightShift.InMemory",
+        "Masterly.NightShift.EntityFrameworkCore",
+    };
+
+    // The loggers the library names itself rather than after a type
+    private static readonly HashSet<string> LoggerNames = new(StringComparer.Ordinal) { JobLoggingScope.LoggerName };
+
+    /// <summary>
+    /// Whether the category is one the library logs under: a logger it names itself, or the full name of one of its
+    /// types, as LibLog and <c>ILogger&lt;T&gt;</c> name loggers. Checked once per category, when its logger is created.
+    /// </summary>
+    public static bool Contains(string category)
+    {
+        if (!category.StartsWith(Prefix, StringComparison.Ordinal)) return false;
+        if (LoggerNames.Contains(category)) return true;
+
+        // The full name of a constructed generic type ends with its arguments
+        int arguments = category.IndexOfAny(['[', '<']);
+        string typeName = arguments >= 0 ? category[..arguments] : category;
+
+        // A type's logger is created by its code, so its assembly is loaded already
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (AssemblyNames.Contains(assembly.GetName().Name ?? string.Empty) && assembly.GetType(typeName, throwOnError: false) != null) return true;
+        }
+
+        return false;
     }
 }

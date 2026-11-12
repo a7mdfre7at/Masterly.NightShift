@@ -86,7 +86,88 @@ public class JobLogCaptureFacts
 
         Assert.Throws<ArgumentOutOfRangeException>("value", () => options.MaxLinesPerJob = 0);
         Assert.Throws<ArgumentOutOfRangeException>("value", () => options.MaxMessageLength = 50);
-        Assert.Contains("Masterly.NightShift", options.ExcludedCategories);
+        Assert.DoesNotContain("Masterly.NightShift", options.ExcludedCategories);
+        Assert.True(options.ExcludeNightShiftCategories);
+    }
+
+    [Fact]
+    public void AddNightShiftJobLogs_RedactsAndCutsTheLifecycleLines_LikeTheOthers()
+    {
+        using ServiceProvider provider = BuildProvider(static o =>
+        {
+            o.MaxMessageLength = 100;
+            o.Redact = static line => line.Replace("s3cret", "***", StringComparison.Ordinal);
+        });
+        (IServerFilter capture, PerformContext context) = StartCapture(provider);
+
+        capture.OnPerformed(new PerformedContext(context, null, false, new InvalidOperationException("Login failed with s3cret " + new string('x', 200) + "END")));
+
+        string failed = _console[^1];
+        Assert.Contains("[nightshift] Failed", failed, StringComparison.Ordinal);
+        Assert.Contains("***", failed, StringComparison.Ordinal);
+        Assert.DoesNotContain("s3cret", failed, StringComparison.Ordinal);
+        Assert.DoesNotContain("END", failed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddNightShiftJobLogs_LeavesOutWhatATaskTheJobDidNotWaitForLogsAfterTheRun()
+    {
+        using ServiceProvider provider = BuildProvider(static o => o.LifecycleLines = false);
+        ILogger orders = provider.GetRequiredService<ILoggerFactory>().CreateLogger("MyApp.Orders");
+        (IServerFilter capture, PerformContext context) = StartCapture(provider);
+        TaskCompletionSource runEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Started during the run, so it sees the run's capture
+        Task detached = Task.Run(async () =>
+        {
+            await runEnded.Task;
+            orders.LogInformation("Too late");
+        }, TestContext.Current.CancellationToken);
+        capture.OnPerformed(new PerformedContext(context, null, false, null));
+        runEnded.SetResult();
+        await detached;
+
+        Assert.Empty(_console);
+    }
+
+    [Fact]
+    public void AddNightShiftJobLogs_CountsOnlyTheLinesItKeeps()
+    {
+        using ServiceProvider provider = BuildProvider(static o =>
+        {
+            o.LifecycleLines = false;
+            o.MaxLinesPerJob = 1;
+            o.Redact = static line => line.Contains("password", StringComparison.Ordinal) ? throw new InvalidOperationException("Hide it") : line;
+        });
+        ILogger orders = provider.GetRequiredService<ILoggerFactory>().CreateLogger("MyApp.Orders");
+        (IServerFilter capture, PerformContext context) = StartCapture(provider);
+
+        orders.LogInformation("The password is hunter2");
+        orders.LogInformation("Charged");
+        capture.OnPerformed(new PerformedContext(context, null, false, null));
+
+        string line = Assert.Single(_console);
+        Assert.Contains("[Orders] Charged", line, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Masterly.NightShiftDemo.Orders", true)]
+    [InlineData("Masterly.NightShift.Billing.Invoices", true)]
+    [InlineData("Masterly.NightShift.AspNetCore.Tests.JobLogCaptureFacts", true)]
+    [InlineData("MyApp.Orders", true)]
+    [InlineData("Masterly.NightShift.Server.Worker", false)]
+    [InlineData("Masterly.NightShift.JobMonitors", false)]
+    [InlineData("Masterly.NightShift.Jobs", false)]
+    [InlineData("Masterly.NightShift.BackgroundJobServerHostedService", false)]
+    public void AddNightShiftJobLogs_LeavesOutOnlyTheLibrarysOwnCategories(string category, bool captured)
+    {
+        using ServiceProvider provider = BuildProvider(static o => o.LifecycleLines = false);
+        (IServerFilter capture, PerformContext context) = StartCapture(provider);
+
+        provider.GetRequiredService<ILoggerFactory>().CreateLogger(category).LogInformation("Hello");
+        capture.OnPerformed(new PerformedContext(context, null, false, null));
+
+        Assert.Equal(captured ? 1 : 0, _console.Count);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Should be public to be a job")]

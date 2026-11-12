@@ -96,6 +96,54 @@ public class BackgroundJobServerHostedServiceFacts
     }
 
     [Fact]
+    public async Task Control_StartingTheServerBeforeTheApplicationStarted_StartsOnlyOneServer()
+    {
+        using ServiceProvider provider = BuildProviderWithLifetime();
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+
+        await control.StartAsync(TestContext.Current.CancellationToken);
+        _lifetime.RaiseStarted();
+
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Once);
+        await control.StopAsync(TestContext.Current.CancellationToken);
+        Assert.False(control.IsRunning);
+    }
+
+    [Fact]
+    public async Task Control_StoppingTheServerBeforeTheApplicationStarted_KeepsItStopped()
+    {
+        using ServiceProvider provider = BuildProviderWithLifetime();
+        BackgroundJobServerHostedService hosted = provider.GetServices<IHostedService>().OfType<BackgroundJobServerHostedService>().Single();
+        IBackgroundJobServerControl control = provider.GetRequiredService<IBackgroundJobServerControl>();
+        await hosted.StartAsync(CancellationToken.None);
+
+        await control.StopAsync(TestContext.Current.CancellationToken);
+        _lifetime.RaiseStarted();
+
+        Assert.False(control.IsRunning);
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
+
+        // The control can still start it
+        await control.StartAsync(TestContext.Current.CancellationToken);
+        Assert.True(control.IsRunning);
+        await control.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StopAsync_BeforeTheApplicationStarted_KeepsTheServerFromStartingLater()
+    {
+        using BackgroundJobServerHostedService service = new(_storage.Object, _options, [], _lifetime);
+        await service.StartAsync(CancellationToken.None);
+
+        await service.StopAsync(CancellationToken.None);
+        _lifetime.RaiseStarted();
+
+        _storage.Verify(x => x.WriteOptionsToLog(It.IsAny<ILog>()), Times.Never);
+    }
+
+    [Fact]
     public async Task StopAsync_ReturnsAtOnce_WhenTheApplicationNeverStarted()
     {
         using BackgroundJobServerHostedService service = new(
@@ -165,6 +213,17 @@ public class BackgroundJobServerHostedServiceFacts
         await service.StoppingAsync(CancellationToken.None);
 
         Assert.True(stopped.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+    }
+
+    private ServiceProvider BuildProviderWithLifetime()
+    {
+        return new ServiceCollection()
+            .AddSingleton(_storage.Object)
+            .AddSingleton(_options)
+            .AddSingleton<IHostApplicationLifetime>(_lifetime)
+            .AddNightShift(_ => { })
+            .AddNightShiftServer()
+            .BuildServiceProvider();
     }
 
     [Fact]
