@@ -25,7 +25,10 @@ namespace Masterly.NightShift;
 /// (<see cref="SchedulePolicyFilter"/>) is skipped all the same, but its reason says so and names the policy,
 /// <c>Skipped: started 3 h late: waited for policy 'business-hours', which couldn't be evaluated</c>, and a warning
 /// is logged: the job is dropped because of the policy, not because of the job. The reason has at most 99
-/// characters, the shortest a storage keeps; a long policy name is shortened in it, and whole in the warning.</para>
+/// characters, the shortest a storage keeps; a long policy name is shortened in it, and whole in the warning. The
+/// same goes for an occurrence of a recurring job that was due while the recurring job waited for its policy
+/// (<see cref="RecurringJobOptions.Policy"/>): the scheduler gives it the <see cref="WaitedForPolicyParameter"/>
+/// job parameter.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -88,6 +91,18 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
     /// </summary>
     public const string WindowParameter = "SkipAfter";
 
+    /// <summary>
+    /// The <c>WaitedForPolicy</c> job parameter: the name of the schedule policy a recurring job waited for, because
+    /// it couldn't be evaluated, when this occurrence was due. The recurring job scheduler sets it on the
+    /// occurrences it creates once the policy can be evaluated again, and only on those, so that an occurrence
+    /// skipped as late says why it is late.
+    /// </summary>
+    /// <remarks>
+    /// Not the <c>Policy</c> job parameter, which would make <see cref="SchedulePolicyFilter"/> apply the policy to
+    /// the retries of the run: a recurring job follows its policy when its occurrences are scheduled.
+    /// </remarks>
+    public const string WaitedForPolicyParameter = "WaitedForPolicy";
+
     /// <inheritdoc />
     public void OnPerforming(PerformingContext context)
     {
@@ -146,19 +161,22 @@ public sealed class SkipIfLateAttribute : JobFilterAttribute, IServerFilter
         return new TerminateJobException(FormatLateAfterPolicy(lateness, policy), TerminateJobOutcome.Skipped);
     }
 
-    // The policy the job waited for while it couldn't be evaluated, or null. SchedulePolicyFilter keeps its count of
-    // failed checks on such a job, at zero once the policy let the job run, and removes it when the policy moves the
-    // job to a new time, from which its lateness then counts. Read only for a job that is skipped
+    // The policy the job waited for while it couldn't be evaluated, or null. An occurrence of a recurring job has
+    // its name from the scheduler, when the recurring job waited. On a job with a policy of its own,
+    // SchedulePolicyFilter keeps its count of failed checks, at zero once the policy let the job run, and removes
+    // it when the policy moves the job to a new time, from which its lateness then counts. Read only for a job
+    // that is skipped
     private static string? FindPolicyWaitedFor(PerformContext context)
     {
         try
         {
-            if (!context.GetJobParameter<int?>(SchedulePolicyFilter.CheckAttemptsParameter, allowStale: true).HasValue)
+            string? policy = context.GetJobParameter<string>(WaitedForPolicyParameter, allowStale: true);
+            if (string.IsNullOrWhiteSpace(policy) &&
+                context.GetJobParameter<int?>(SchedulePolicyFilter.CheckAttemptsParameter, allowStale: true).HasValue)
             {
-                return null;
+                policy = context.GetJobParameter<string>(ScheduleOptions.PolicyParameter, allowStale: true);
             }
 
-            string? policy = context.GetJobParameter<string>(ScheduleOptions.PolicyParameter, allowStale: true);
             return string.IsNullOrWhiteSpace(policy) ? null : policy.Trim();
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())

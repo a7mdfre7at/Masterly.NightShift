@@ -185,6 +185,20 @@ internal sealed class RecurringJobEntity
                Error.StartsWith(GetPolicyFailureErrorStart(Policy), StringComparison.Ordinal);
     }
 
+    // The moment of the last ScheduleNext when the stored job was waiting for its policy then, see GetPolicyWaitedFor
+    private DateTime? _waitedForPolicyUntil;
+
+    /// <summary>
+    /// The policy an occurrence returned by the last call to
+    /// <see cref="ScheduleNext(ITimeZoneResolver, DateTime, DateTime, TimeSpan)"/> waited for, or <c>null</c>: the
+    /// job's policy, when the stored job waited because the policy couldn't be evaluated and the occurrence was
+    /// due before that call. The run created for it may start too late for that reason alone.
+    /// </summary>
+    public string? GetPolicyWaitedFor(DateTime execution)
+    {
+        return _waitedForPolicyUntil is { } until && execution < until ? Policy : null;
+    }
+
     // How the Error of a job that waits for its policy starts: WaitsForPolicy tells it from other errors by it
     private static string GetPolicyFailureErrorStart(string? policy) => $"Schedule policy '{policy}' can't be evaluated";
 
@@ -355,6 +369,9 @@ internal sealed class RecurringJobEntity
         ArgumentNullException.ThrowIfNull(timeZoneResolver);
 
         List<DateTime> result = [];
+
+        // Read before the error of the stored job is replaced below
+        _waitedForPolicyUntil = WaitsForPolicy ? now : null;
         PolicyFailure = null;
 
         if (Paused)

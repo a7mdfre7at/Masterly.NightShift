@@ -340,6 +340,52 @@ public class SkipIfLateAttributeFacts
         Assert.Equal("started 20 min late: waited for policy 'business-hours', which couldn't be evaluated", exception.Message);
     }
 
+    [Fact, GlobalLock(Reason = "Uses the log provider")]
+    public void LateStartFilter_NamesThePolicy_TheRecurringJobOfALateOccurrenceWaitedFor()
+    {
+        // The recurring job waited, not this job: the scheduler gave the occurrence the name of the policy
+        RecordingLogProvider recording = new();
+        _context.BackgroundJob.CreatedAt = DateTime.UtcNow;
+        _parameters[PerformContext.RecurringTimeParameter] = JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(-20)).ToString(CultureInfo.InvariantCulture);
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+        _parameters[SkipIfLateAttribute.WaitedForPolicyParameter] = SerializationHelper.Serialize("business-hours");
+
+        TerminateJobException exception;
+        using (recording.Use())
+        {
+            exception = Assert.Throws<TerminateJobException>(() => new LateStartFilter().OnPerforming(_context.GetPerformingContext()));
+        }
+
+        Assert.Equal("Skipped: started 20 min late: waited for policy 'business-hours', which couldn't be evaluated", ElectedReason(exception));
+        RecordingLogProvider.LogEntry warning = Assert.Single(recording.Entries, static x => x.Level == LogLevel.Warn);
+        Assert.StartsWith(
+            "Background job 'JobId' is skipped: it started 20 min late, more than the 5 min allowed, after it waited for schedule policy 'business-hours', which couldn't be evaluated.",
+            warning.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("\"   \"")]
+    public void LateStartFilter_GivesThePlainReason_ForALateOccurrenceWithoutThePolicyItWaitedFor(string waitedFor)
+    {
+        _context.BackgroundJob.CreatedAt = DateTime.UtcNow;
+        _parameters[PerformContext.RecurringTimeParameter] = JobHelper.ToTimestamp(DateTime.UtcNow.AddMinutes(-20)).ToString(CultureInfo.InvariantCulture);
+        _parameters[SkipIfLateAttribute.WindowParameter] = "300";
+        _parameters[SkipIfLateAttribute.WaitedForPolicyParameter] = waitedFor;
+
+        TerminateJobException exception = Assert.Throws<TerminateJobException>(() => new LateStartFilter().OnPerforming(_context.GetPerformingContext()));
+
+        Assert.Equal("started 20 min late, more than the 5 min allowed", exception.Message);
+    }
+
+    [Fact]
+    public void WaitedForPolicyParameter_FitsTheLengthOfAJobParameterName()
+    {
+        Assert.True(SkipIfLateAttribute.WaitedForPolicyParameter.Length <= 40);
+    }
+
     [Theory]
     [InlineData(false, null)]
     [InlineData(true, null)]
