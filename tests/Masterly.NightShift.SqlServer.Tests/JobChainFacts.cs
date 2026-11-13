@@ -86,6 +86,9 @@ public class JobChainFacts
 
         Assert.Equal(["b", "done"], Log.Order(StringComparer.Ordinal));
         Assert.Equal(2, storage.GetChain(chain.ChainId)?.Generation);
+
+        // What the step said about the retry while it was held went when it was let run
+        await WaitUntilAsync(() => Parameter(storage, chain.Steps["1.0"], "ChainRetry") == null, "The note of the retry stayed on the step.");
     }
 
     [Fact, CleanDatabase]
@@ -479,52 +482,200 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
-    public async Task RetryChainFrom_ThatStopsBeforeItIsRecorded_RunsTheStepAgain_WithTheStepsThatFollowedItBefore()
+    public async Task RetryChainFrom_ThatStopsBeforeItIsRecorded_PutsItsStepBackAsItWas_AndRunsNothing_WithTheRealScheduler()
     {
         SqlServerStorage storage = CreateStorage();
         Log.Clear();
         BackgroundJobClient client = new(storage);
         // The second step doesn't retry by itself, so the failure given to it below is final
         JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
-        Assert.True(client.ChangeState(chain!.Steps["0.0"], new SucceededState(null, 0, 0), null));
-        Assert.True(client.ChangeState(chain.Steps["1.0"], new FailedState(new InvalidOperationException("failed")), null));
+        string step = chain!.Steps["1.0"];
+        Assert.True(client.ChangeState(chain.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(step, new FailedState(new InvalidOperationException("failed")), null));
+        StateData failed;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            failed = connection.GetStateData(step);
+        }
+
+        // The step failed by hand left its place in the queue behind: a server finds nothing to run there, and
+        // clears it, before the retry begins
+        using (CreateServer(storage))
+        {
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+        }
+
         ChainHooks hooks = new() { CrashOnCreating = "d" };
         GlobalJobFilters.Filters.Add(hooks);
 
         try
         {
             // The process stops after it created the first of the new steps: nothing is rolled back
-            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(chain.Steps["1.0"]));
+            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(step));
 
+            // The step is held for a little longer than the lease of the retry, and says what the retry started from
             using (IStorageConnection connection = storage.GetConnection())
             {
-                StateData held = connection.GetStateData(chain.Steps["1.0"]);
+                StateData held = connection.GetStateData(step);
                 Assert.Equal(ScheduledState.StateName, held.Name);
-                Assert.InRange(JobHelper.DeserializeDateTime(held.Data["EnqueueAt"]) - DateTime.UtcNow, TimeSpan.FromMinutes(3), TimeSpan.FromMinutes(5));
+                Assert.Equal("Chain retried from this step", held.Reason);
+                Assert.InRange(JobHelper.DeserializeDateTime(held.Data["EnqueueAt"]) - DateTime.UtcNow, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2.5));
+                Assert.Contains("\"generation\":1", connection.GetJobParameter(step, "ChainRetry"), StringComparison.Ordinal);
             }
 
             Assert.Equal(chain.Steps.Values, storage.GetChain(chain.ChainId).Steps.Select(static x => x.JobId));
 
-            // As if the lease of the process that stopped had lapsed, and the hold of the step had ended
+            // As if the lease of the process that stopped had lapsed, and the hold of the step were about to end:
+            // its time is brought forward, and the server's scheduler and a worker do the rest
             LapseLease(storage, chain.ChainId);
-            Assert.True(client.ChangeState(chain.Steps["1.0"], new EnqueuedState(), ScheduledState.StateName));
+            Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromSeconds(1)) { Reason = "Chain retried from this step" }, ScheduledState.StateName));
+            Assert.NotNull(Parameter(storage, step, "ChainRetry"));
 
             using (CreateServer(storage))
             {
-                await WaitUntilSettledAsync(storage, chain.ChainId);
+                // Back in the state it was in, with its data: the retry never happened
+                StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == FailedState.StateName);
+                Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
+                Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+
+                // What the retry had created is deleted, and the note of the retry goes
                 string created = hooks.Created.Single(static x => x.Name == "c").Id;
                 Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(created, Timeout, TestContext.Current.CancellationToken)).Name);
+                await WaitUntilAsync(() => Parameter(storage, step, "ChainRetry") == null, "The note of the retry stayed on the step.");
+                await Task.Delay(1500, TestContext.Current.CancellationToken);
             }
 
-            // The step ran again, once, and the steps the record still lists after it followed
+            // Nothing ran, and the chain is as it was: the same steps, the ones after the failure still waiting
+            Assert.Empty(Log);
+            JobChainInfo info = storage.GetChain(chain.ChainId);
+            Assert.Equal(1, info.Generation);
+            Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+            Assert.True(info.IsSettled);
+            Assert.Equal(AwaitingState.StateName, StateName(storage, chain.Steps["2.0"]));
+            Assert.Equal(AwaitingState.StateName, StateName(storage, chain.Steps["3.0"]));
+            Assert.Equal(
+                [FailedState.StateName, ScheduledState.StateName, ScheduledState.StateName, EnqueuedState.StateName, FailedState.StateName],
+                storage.GetMonitoringApi().JobDetails(step).History.Reverse().Select(static x => x.StateName).TakeLast(5));
+
+            // The step is still what a requeue by hand runs, with the steps that followed it before
+            Assert.True(client.ChangeState(step, new EnqueuedState(), FailedState.StateName));
+            using (CreateServer(storage))
+            {
+                await WaitUntilSettledAsync(storage, chain.ChainId);
+            }
+
             Assert.Equal(["b", "c", "d"], Log);
-            using IStorageConnection reader = storage.GetConnection();
-            Assert.All(chain.Steps.Values, id => Assert.Equal(SucceededState.StateName, reader.GetStateData(id).Name));
         }
         finally
         {
             GlobalJobFilters.Filters.Remove(hooks);
         }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RetryChainFrom_WhoseClientStalledUntilAServerPutItsStepBack_Fails_AndLeavesTheChainAsItWas()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+        Assert.True(client.ChangeState(chain.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(step, new FailedState(new InvalidOperationException("failed")), null));
+
+        using BackgroundJobServer server = CreateServer(storage);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+
+        ChainHooks hooks = new()
+        {
+            PauseOnCreating = "d",
+            WhilePaused = () =>
+            {
+                // The client stalls: its lease lapses and the hold of the step ends, so a server takes the retry
+                // for abandoned and puts the step back
+                LapseLease(storage, chain.ChainId);
+                Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromSeconds(1)) { Reason = "Chain retried from this step" }, ScheduledState.StateName));
+                WaitForState(storage, step, FailedState.StateName);
+            },
+        };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // It wakes up, and finds that the step is no longer held for it
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => storage.RetryChainFrom(step));
+
+            Assert.Contains("wasn't retried", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("as it was", exception.Message, StringComparison.Ordinal);
+            JobChainInfo info = storage.GetChain(chain.ChainId);
+            Assert.Equal(1, info.Generation);
+            Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+            Assert.Equal(FailedState.StateName, StateName(storage, step));
+            Assert.All(hooks.Created, created => Assert.Equal(DeletedState.StateName, StateName(storage, created.Id)));
+            Assert.DoesNotContain("changing", HashField(storage, JobChains.GetKey(chain.ChainId), "Jobs"), StringComparison.Ordinal);
+            await WaitUntilAsync(() => Parameter(storage, step, "ChainRetry") == null, "The note of the retry stayed on the step.");
+            Assert.Empty(Log);
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public void RetryChainFrom_ThatFails_PutsItsStepBack_AndTakesItsNoteOff()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+        Assert.True(client.ChangeState(chain.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(step, new FailedState(new InvalidOperationException("failed")), null));
+        ChainHooks hooks = new() { PauseOnCreating = "c", WhilePaused = static () => throw new InvalidOperationException("The step can't be created.") };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            Assert.ThrowsAny<Exception>(() => storage.RetryChainFrom(step));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+
+        Assert.Equal(FailedState.StateName, StateName(storage, step));
+        Assert.Null(Parameter(storage, step, "ChainRetry"));
+        Assert.Equal(1, storage.GetChain(chain.ChainId).Generation);
+        Assert.DoesNotContain("changing", HashField(storage, JobChains.GetKey(chain.ChainId), "Jobs"), StringComparison.Ordinal);
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Step_RequeuedByHand_Runs_ThoughARetryThatStoppedBeforeItHeldTheStep_LeftItsNoteOnTheJob()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => RecordWithoutRetries("a")).Then(() => Record("b")).Enqueue(client);
+        Assert.True(client.ChangeState(chain!.RootId, new FailedState(new InvalidOperationException("failed")), null));
+
+        // SQL Server can't write a job parameter with a state: a retry notes what it starts from first, and one
+        // whose process stops right there leaves the note on a step it never held
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            connection.SetJobParameter(chain.RootId, "ChainRetry", "{\"id\":\"0123\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
+        }
+
+        // Somebody requeues the failed step: it must run, not be put back as the step of an abandoned retry
+        Assert.True(client.ChangeState(chain.RootId, new EnqueuedState(), FailedState.StateName));
+        Assert.Null(Parameter(storage, chain.RootId, "ChainRetry"));
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(["a", "b"], Log);
     }
 
     [Fact, CleanDatabase]

@@ -73,6 +73,10 @@ public sealed class JobChainStorageFacts : IDisposable
     [AutomaticRetry(Attempts = 0)]
     public static void Once(string name) => Ran.Enqueue(name);
 
+    /// <summary>A step that says it ran, and is tried again three times when it fails.</summary>
+    [AutomaticRetry(Attempts = 3)]
+    public static void Thrice(string name) => Ran.Enqueue(name);
+
     [Fact]
     public void Chain_ThatIsRecorded_RunsToTheEnd_AndNoStepIsHeld()
     {
@@ -591,35 +595,296 @@ public sealed class JobChainStorageFacts : IDisposable
     [Theory]
     [InlineData("before the first new job")]
     [InlineData("between two new jobs")]
-    public void RetryChainFrom_ThatStopsBeforeItIsRecorded_RunsTheStepAgain_WithTheStepsThatFollowedItBefore(string stage)
+    public void RetryChainFrom_ThatStopsBeforeItIsRecorded_PutsItsStepBackAsItWas_AndRunsNothing(string stage)
     {
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Then(() => Once("d")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
         Succeed(chain.Steps["0.0"]);
-        Fail(chain.Steps["1.0"]);
+        Fail(step);
+        StateData failed = StateData(step)!;
+        long failures = FailedToday();
         _filter.Created.Clear();
         _filter.CrashOn = stage == "before the first new job" ? "c" : "d";
 
-        // The process stops: nothing is rolled back, the step is out of its Failed state
-        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
+        // The step failed by hand left its place in the queue behind: the server finds nothing to run there, and
+        // clears it, before the retry begins
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
+
+        // The process stops: nothing is rolled back, the step is out of its Failed state, and says what the retry
+        // started from
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
         _filter.CrashOn = null;
 
-        Assert.Equal(ScheduledState.StateName, StateOf(chain.Steps["1.0"]));
+        Assert.Equal(ScheduledState.StateName, StateOf(step));
+        Assert.Contains("\"generation\":1", Parameter(step, "ChainRetry"), StringComparison.Ordinal);
         Assert.Equal(chain.Steps.Values, _storage.GetChain(chain.ChainId)!.Steps.Select(static x => x.JobId));
-
-        using BackgroundJobServer server = CreateServer();
 
         // While the lease of the process that stopped lasts, and the step's hold, nothing runs
         Thread.Sleep(500);
         Assert.Empty(Ran);
 
-        // Then the step runs again, once, and the steps the record still lists after it follow: nothing is lost,
-        // and the jobs the retry had created never run
-        MoveClock(TimeSpan.FromMinutes(6));
-        WaitUntilSettled(chain.ChainId);
+        // Then the step goes back to the state it was in: the retry never happened
+        MoveClock(TimeSpan.FromMinutes(3));
+        WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+
+        StateData restored = StateData(step)!;
+        Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
+        Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.Null(Parameter(step, "ChainRetry"));
+        Assert.Equal(failures, FailedToday());
+
+        // Its history tells what happened, and not that it ran
+        Assert.Equal(
+            [FailedState.StateName, ScheduledState.StateName, EnqueuedState.StateName, FailedState.StateName],
+            History(step).Reverse().Select(static x => x.StateName).TakeLast(4));
+
+        // The chain is as it was: the same steps, the ones after the failure still waiting, and settled
+        JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+        Assert.Equal(1, info.Generation);
+        Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+        Assert.True(info.IsSettled);
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.Equal(AwaitingState.StateName, StateOf(chain.Steps["3.0"]));
+
+        // What the retry had created is deleted, and nothing runs, now or later
         WaitUntil(() => _filter.Created.All(x => StateOf(x.Id) == DeletedState.StateName), "the jobs the retry created to be deleted");
+        MoveClock(TimeSpan.FromMinutes(30));
+        Thread.Sleep(700);
+        Assert.Empty(Ran);
+        Assert.Equal(FailedState.StateName, StateOf(step));
+
+        // And the chain can be retried again, completely this time
+        _storage.RetryChainFrom(step);
+        WaitUntil(() => Ran.Count == 3, "the retried steps to run");
 
         Assert.Equal(["b", "c", "d"], Ran);
-        Assert.All(chain.Steps.Values, id => Assert.Equal(SucceededState.StateName, StateOf(id)));
+        Assert.Null(Parameter(step, "ChainRetry"));
+    }
+
+    [Fact]
+    public void RetryChainFrom_WhoseClientStalledUntilAServerPutItsStepBack_Fails_AndLeavesTheChainAsItWas()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Then(() => Once("d")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+        Succeed(chain.Steps["0.0"]);
+        Fail(step);
+        _filter.Created.Clear();
+
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(300);
+        _filter.PauseOn = "d";
+        _filter.WhilePaused = () =>
+        {
+            // The client stalls for longer than its lease and the hold of the step last: a server takes the retry
+            // for abandoned and puts the step back
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+        };
+
+        // The client wakes up: it finds that the step is no longer held for it, and takes the retry back
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(step));
+
+        Assert.Contains("wasn't retried", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("as it was", exception.Message, StringComparison.Ordinal);
+        JobChainInfo info = _storage.GetChain(chain.ChainId)!;
+        Assert.Equal(1, info.Generation);
+        Assert.Equal(chain.Steps.Values, info.Steps.Select(static x => x.JobId));
+        Assert.Equal(FailedState.StateName, StateOf(step));
+        Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", ReasonOf(step));
+        Assert.All(_filter.Created, created => Assert.Equal(DeletedState.StateName, StateOf(created.Id)));
+        Assert.DoesNotContain("changing", RecordField(chain.ChainId, "Jobs"), StringComparison.Ordinal);
+        Assert.Null(Parameter(step, "ChainRetry"));
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatTakesLongerThanItsStepIsHeld_Succeeds_WhileItsClientStillSaysItIsAtIt()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Then(() => Once("d")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+        Succeed(chain.Steps["0.0"]);
+        Fail(step);
+
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(300);
+        _filter.PauseOn = "d";
+        _filter.WhilePaused = () =>
+        {
+            // The client says again that it is at it, as it does between two steps of a long retry; then more
+            // time passes than the step is held for. The step comes up, and waits: the retry isn't abandoned.
+            RenewLease(chain.ChainId, TimeSpan.FromMinutes(5));
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => ReasonOf(step) == $"Waiting for chain {chain.ChainId} to be recorded", "the step to wait for the retry");
+        };
+
+        JobChainResult retried = _storage.RetryChainFrom(step);
+        WaitUntil(() => Ran.Count == 3, "the retried steps to run");
+
+        Assert.Equal(["b", "c", "d"], Ran);
+        Assert.Equal(2, _storage.GetChain(chain.ChainId)?.Generation);
+        Assert.Equal(step, retried.Steps["1.0"]);
+        Assert.Null(Parameter(step, "ChainRetry"));
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatIsAbandoned_DoesNotRunTheStepsItCreatedForAFailure_WhenItsStepGoesBackToFailed()
+    {
+        // The retried step is put back to Failed: a new step that waits for a failure would start for it
+        JobChainResult chain = JobChain.StartWith(() => Once("a"))
+            .Then(() => Once("b"))
+            .ThenAfterAnyFailed(() => Once("alert"))
+            .Then(() => Once("end"), JobContinuationOptions.OnAnyFinishedState)
+            .Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+        Succeed(chain.Steps["0.0"]);
+        Fail(step);
+        Succeed(chain.Steps["2.0"]);
+        Succeed(chain.Steps["3.0"]);
+        _filter.Created.Clear();
+        _filter.CrashOn = "end";
+
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+        string alert = _filter.Created.Single(static x => x.Name == "alert").Id;
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromMinutes(3));
+
+        WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+        WaitUntil(() => StateOf(alert) == DeletedState.StateName, "the step the retry created to be deleted");
+        Thread.Sleep(500);
+
+        Assert.Empty(Ran);
+        Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["2.0"]));
+        Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["3.0"]));
+    }
+
+    [Fact]
+    public void RetryChainFrom_ASucceededStep_ThatIsAbandoned_PutsItBackAsSucceeded_WithoutCountingOrStartingAnythingAgain()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        Assert.Equal(["a", "b", "c"], Ran);
+        StateData succeeded = StateData(step)!;
+        long counted = Counter("stats:succeeded");
+        int states = History(chain.Steps["2.0"]).Count;
+        Assert.NotNull(ExpiresAt(step));
+        _filter.CrashOn = "c";
+
+        // Held for a retry that stops before it created anything: the job is kept while it is held
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+        Assert.Equal(ScheduledState.StateName, StateOf(step));
+        Assert.Null(ExpiresAt(step));
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromMinutes(3));
+        WaitUntil(() => StateOf(step) == SucceededState.StateName, "the step to be put back");
+        Thread.Sleep(500);
+
+        // Succeeded as it was, with its result and its time: it expires again, isn't counted a second time, and
+        // the step after it, which it started the first time, isn't started again
+        StateData restored = StateData(step)!;
+        Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
+        Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.NotNull(ExpiresAt(step));
+        Assert.Equal(counted, Counter("stats:succeeded"));
+        Assert.Equal(states, History(chain.Steps["2.0"]).Count);
+        Assert.Equal(["a", "b", "c"], Ran);
+        Assert.Null(Parameter(step, "ChainRetry"));
+    }
+
+    [Fact]
+    public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
+    {
+        CountingSink sink = new();
+        AlertsFilter alerts = new();
+        GlobalJobFilters.Filters.Add(alerts);
+        Alerts.AddSink(sink);
+        ActivityFeed.Enabled = true;
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Thrice("b")).Then(() => Once("c")).Enqueue(_client)!;
+            string step = chain.Steps["1.0"];
+            Succeed(chain.Steps["0.0"]);
+
+            // The step fails for good: its attempts are used up
+            SetParameter(step, "RetryCount", "3");
+            Fail(step);
+            Assert.Equal(FailedState.StateName, StateOf(step));
+            Assert.Equal(1, sink.Failures);
+
+            // Were its failure taken for a new one later, it would be retried: attempts are left again
+            SetParameter(step, "RetryCount", "0");
+            _filter.CrashOn = "c";
+            Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+            _filter.CrashOn = null;
+
+            using BackgroundJobServer server = CreateServer();
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => ReasonOf(step) == $"The retry of chain {chain.ChainId} was abandoned", "the step to be put back");
+            WaitUntil(() => Feed().Any(x => x.JobId == step && x.State == EnqueuedState.StateName), "the feed to tell that the hold of the step ended");
+            Thread.Sleep(500);
+
+            // Failed as it was: no retry of its own, no alert, and the feed doesn't say that it failed again
+            Assert.Equal(FailedState.StateName, StateOf(step));
+            Assert.Equal("0", Parameter(step, "RetryCount"));
+            Assert.Equal(1, sink.Failures);
+            Assert.Single(Feed(), x => x.JobId == step && x.State == FailedState.StateName);
+            Assert.Empty(Ran);
+        }
+        finally
+        {
+            ActivityFeed.Enabled = false;
+            Alerts.Clear();
+            GlobalJobFilters.Filters.Remove(alerts);
+        }
+    }
+
+    [Fact]
+    public void Step_RequeuedByHand_Runs_ThoughARetryThatStoppedBeforeItHeldTheStep_LeftItsNoteOnTheJob()
+    {
+        // What a retry leaves on a storage that can't write a job parameter with a state, when its process stops
+        // between the two: the note of what it started from, on a step it never held
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
+        Fail(chain.RootId);
+        SetParameter(chain.RootId, "ChainRetry", "{\"id\":\"0123\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
+
+        // Somebody requeues the failed step: it must run, not be put back as the step of an abandoned retry
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), FailedState.StateName));
+        Assert.Null(Parameter(chain.RootId, "ChainRetry"));
+
+        using BackgroundJobServer server = CreateServer();
+        WaitUntilSettled(chain.ChainId);
+
+        Assert.Equal(["a", "b"], Ran);
+    }
+
+    [Fact]
+    public void Step_HeldForARetry_ThatSomebodyDeletesAndRequeues_RunsAsAnyRequeuedStep()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
+        Fail(chain.RootId);
+        _filter.CrashOn = "b";
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(chain.RootId));
+        _filter.CrashOn = null;
+
+        // The held step is deleted by hand, and requeued later: that is no longer the retry's business
+        Assert.True(_client.ChangeState(chain.RootId, new DeletedState(), ScheduledState.StateName));
+        Assert.Null(Parameter(chain.RootId, "ChainRetry"));
+        MoveClock(TimeSpan.FromMinutes(3));
+        Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), DeletedState.StateName));
+
+        using BackgroundJobServer server = CreateServer();
+        WaitUntil(() => Ran.Contains("a"), "the requeued step to run");
     }
 
     [Fact]
@@ -694,7 +959,7 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
-    public void RetryChainFrom_HoldsItsStepForMinutes_NotForAnHour()
+    public void RetryChainFrom_HoldsItsStep_ALittleLongerThanItsClientCountsAsBeingAtIt()
     {
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
         Fail(chain.RootId);
@@ -702,7 +967,8 @@ public sealed class JobChainStorageFacts : IDisposable
 
         Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(chain.RootId));
 
-        Assert.InRange(ScheduledFor(chain.RootId) - DateTime.UtcNow, TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(5));
+        // Two minutes, and a few seconds: when the hold ends, a client that stopped no longer counts as at it
+        Assert.InRange(ScheduledFor(chain.RootId) - DateTime.UtcNow, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2.5));
     }
 
     [Fact]
@@ -942,6 +1208,7 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(FailedState.StateName, StateOf(chain.Steps["1.0"]));
         Assert.Equal(failed, FailedToday());
         Assert.Equal(1, failed);
+        Assert.Null(Parameter(chain.Steps["1.0"], "ChainRetry"));
     }
 
     [Fact]
@@ -1362,6 +1629,43 @@ public sealed class JobChainStorageFacts : IDisposable
         return connection.GetStateData(jobId);
     }
 
+    private void SetParameter(string jobId, string name, string value)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        connection.SetJobParameter(jobId, name, value);
+    }
+
+    private DateTime? ExpiresAt(string jobId) => _storage.GetMonitoringApi().JobDetails(jobId)?.ExpireAt;
+
+    private IReadOnlyList<ActivityEntry> Feed()
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ActivityFeed.Read(connection, 500);
+    }
+
+    private long Counter(string key)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection).GetCounter(key);
+    }
+
+    // What a client does between two steps of a long change: it says again that it is at it, for a while more
+    private void RenewLease(string chainId, TimeSpan lasts)
+    {
+        string jobs = RecordField(chainId, "Jobs")!;
+        int start = jobs.IndexOf("\"changing\":\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The chain's record carries no lease.");
+        int valueStart = start + "\"changing\":\"".Length;
+        int separator = jobs.IndexOf('/', valueStart);
+        int valueEnd = jobs.IndexOf('"', valueStart);
+        string renewed = string.Concat(jobs.AsSpan(0, separator + 1), JobHelper.SerializeDateTime(JobClock.UtcNow + lasts), jobs.AsSpan(valueEnd));
+
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(JobChains.GetKey(chainId), new Dictionary<string, string> { ["Jobs"] = renewed });
+        transaction.Commit();
+    }
+
     private DateTime ScheduledFor(string jobId) => JobHelper.DeserializeDateTime(StateData(jobId)!.Data["EnqueueAt"]);
 
     // Moves the clock on from where it is
@@ -1479,6 +1783,22 @@ public sealed class JobChainStorageFacts : IDisposable
             }
 
             Thread.Sleep(25);
+        }
+    }
+
+    /// <summary>Counts the alerts about failed jobs.</summary>
+    private sealed class CountingSink : IAlertSink
+    {
+        private int _failures;
+
+        public int Failures => Volatile.Read(ref _failures);
+
+        public void Publish(Alert alert)
+        {
+            if (alert.Kind == AlertKind.JobFailed)
+            {
+                Interlocked.Increment(ref _failures);
+            }
         }
     }
 
