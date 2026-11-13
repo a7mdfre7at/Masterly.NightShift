@@ -63,6 +63,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
             .Returns((string jobId, string name) => _parameters.GetValueOrDefault((jobId, name)));
         _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Callback((string jobId, string name, string value) => _parameters[(jobId, name)] = value);
+        _connection.Setup(x => x.GetJobData(It.IsAny<string>()))
+            .Returns((string jobId) => _states.TryGetValue(jobId, out StateData state) ? new JobData { State = state.Name } : null);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(CreateTransaction);
 
         _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()))
@@ -324,18 +326,19 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
         Maintain();
 
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("alert", "FanInOutcomes")]);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = SucceededState.StateName }, _hashes["fan-in:done"]);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = SucceededState.StateName }, _hashes["fan-in:alert"]);
         Assert.Equal(AwaitingState.StateName, _states["done"].Name);
-        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+
+        // Under the lock of the step that finished, once for each step that waits for it
+        _connection.Verify(x => x.AcquireDistributedLock("job:b:state-lock", It.IsAny<TimeSpan>()), Times.Exactly(2));
 
         // The next look finds it written: one read for each waiting step, and no write
         Set(DueSet).Clear();
         Set(DueSet).Add((1, "c"));
         Maintain();
 
-        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
-        _connection.Verify(x => x.SetJobParameter("done", "FanInOutcomes", It.IsAny<string>()), Times.Once);
+        _connection.Verify(x => x.AcquireDistributedLock("job:b:state-lock", It.IsAny<TimeSpan>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -344,11 +347,11 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         // The branch failed for good, was requeued and succeeded, by a process that stopped before it wrote so
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states["c"] = State(ProcessingState.StateName);
-        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Failed\"}";
+        _hashes["fan-in:done"] = new Dictionary<string, string> { ["b"] = FailedState.StateName };
 
         Maintain();
 
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+        Assert.Equal(SucceededState.StateName, _hashes["fan-in:done"]["b"]);
     }
 
     [Fact]
@@ -356,12 +359,12 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     {
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states["c"] = State(ProcessingState.StateName);
-        _busyLocks.Add("job:done:state-lock");
-        _connection.Setup(x => x.GetJobParameter("alert", "FanInOutcomes")).Throws(new InvalidOperationException("Storage is down"));
+        _busyLocks.Add("job:b:state-lock");
+        _connection.Setup(x => x.GetAllEntriesFromHash("fan-in:alert")).Throws(new InvalidOperationException("Storage is down"));
 
         Assert.True(Maintain().Ran);
 
-        Assert.False(_parameters.ContainsKey(("done", "FanInOutcomes")));
+        Assert.False(_hashes.ContainsKey("fan-in:done"));
         Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)));
     }
 
@@ -372,8 +375,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         // second stopped before it started the steps after the group
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states.Remove("b");
-        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
-        _parameters[("alert", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+        _hashes["fan-in:done"] = new Dictionary<string, string> { ["b"] = SucceededState.StateName };
+        _hashes["fan-in:alert"] = new Dictionary<string, string> { ["b"] = SucceededState.StateName };
 
         Maintain();
 
@@ -1740,6 +1743,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
                 Set(key).RemoveAll(x => x.Value == value);
                 Set(key).Add((score, value));
             }));
+        transaction.Setup(x => x.RemoveHash(It.IsAny<string>()))
+            .Callback((string key) => pending.Add(() => _hashes.Remove(key)));
         transaction.Setup(x => x.ExpireHash(It.IsAny<string>(), It.IsAny<TimeSpan>()))
             .Callback((string key, TimeSpan expireIn) => pending.Add(() => _timesToLive[key] = expireIn));
         transaction.Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))

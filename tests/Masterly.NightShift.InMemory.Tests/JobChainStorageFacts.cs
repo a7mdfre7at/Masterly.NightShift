@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Storage.Monitoring;
 
@@ -2119,7 +2120,7 @@ public sealed class JobChainStorageFacts : IDisposable
         Succeed(b);
         Fail(c);
         Assert.Equal(AwaitingState.StateName, StateOf(done));
-        Assert.Equal($"{{\"{b}\":\"Succeeded\",\"{c}\":\"Failed\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.Equal(new Dictionary<string, string> { [b] = SucceededState.StateName, [c] = FailedState.StateName }, Outcomes(done));
 
         // Days later the job that succeeded has expired; the failed one is kept
         MoveClock(TimeSpan.FromDays(3));
@@ -2132,6 +2133,32 @@ public sealed class JobChainStorageFacts : IDisposable
         Succeed(c);
 
         Assert.Equal(EnqueuedState.StateName, StateOf(done));
+
+        // What the branches wrote went with the wait
+        Assert.Empty(Outcomes(done));
+    }
+
+    [Fact]
+    public void FanIn_KeepsNothingOfWhatItsParentsFinishedAs_OnceItStoppedWaiting_WhenMoreParentsFinishLater()
+    {
+        string first = _client.Create(() => Step("first"), new EnqueuedState())!;
+        string second = _client.Create(() => Step("second"), new EnqueuedState())!;
+        string third = _client.Create(() => Step("third"), new EnqueuedState())!;
+        string any = _client.ContinueJobWithAny([first, second, third], () => Step("any"))!;
+        string all = _client.ContinueJobWithAll([first, second, third], () => Step("all"))!;
+
+        // The first success starts one and leaves the other waiting; then the others finish
+        Succeed(first);
+        Assert.Equal(EnqueuedState.StateName, StateOf(any));
+        Assert.Equal(new Dictionary<string, string> { [first] = SucceededState.StateName }, Outcomes(all));
+
+        Assert.True(_client.ChangeState(second, new DeletedState(), null));
+        Succeed(third);
+
+        // Nothing is left behind, for the one decided first nor for the one skipped last
+        Assert.Equal(DeletedState.StateName, StateOf(all));
+        Assert.Empty(Outcomes(any));
+        Assert.Empty(Outcomes(all));
     }
 
     [Fact]
@@ -2159,6 +2186,49 @@ public sealed class JobChainStorageFacts : IDisposable
         // Nothing failed and nothing was canceled
         Assert.Equal(EnqueuedState.StateName, StateOf(chain.Steps["2.0"]));
         Assert.Equal(DeletedState.StateName, StateOf(chain.Steps["2.1"]));
+    }
+
+    [Fact]
+    public void FanIn_OverManyParents_KeepsWhatEachFinishedAs_AtACostThatDoesNotGrowWithTheirNumber()
+    {
+        const int Count = 5000;
+
+        // A job that waits for all of them (a batch's continuation), once without and once with what each parent
+        // finished as kept for it: keeping it costs the same for each parent, however many there are
+        // (KeepsOutcomes is internal to Core, which this project only sees from outside)
+        PropertyInfo keepsOutcomes = typeof(FanInContinuationsSupportAttribute).GetProperty("KeepsOutcomes", BindingFlags.Static | BindingFlags.NonPublic)!;
+        TimeSpan without;
+        keepsOutcomes.SetValue(null, false);
+        try
+        {
+            without = FinishParents(Count, withChild: true, out _);
+        }
+        finally
+        {
+            keepsOutcomes.SetValue(null, true);
+        }
+
+        TimeSpan with = FinishParents(Count, withChild: true, out string? child);
+
+        Assert.Equal(EnqueuedState.StateName, StateOf(child!));
+        Assert.True(
+            with < (without * 2) + TimeSpan.FromSeconds(2),
+            $"{Count} parents: {with.TotalSeconds:0.0} s keeping what each finished as, {without.TotalSeconds:0.0} s without.");
+    }
+
+    private TimeSpan FinishParents(int count, bool withChild, out string? child)
+    {
+        List<string> parents = [];
+        for (int i = 0; i < count; i++)
+        {
+            parents.Add(_client.Create(() => Step("p"), new EnqueuedState())!);
+        }
+
+        child = withChild ? _client.ContinueJobWithAll(parents, () => Step("all")) : null;
+
+        Stopwatch watch = Stopwatch.StartNew();
+        Parallel.ForEach(parents, new ParallelOptions { MaxDegreeOfParallelism = 8 }, Succeed);
+        return watch.Elapsed;
     }
 
     [Fact]
@@ -2235,7 +2305,7 @@ public sealed class JobChainStorageFacts : IDisposable
 
         Succeed(chain.RootId);
         Fail(b);
-        Assert.Equal($"{{\"{b}\":\"Failed\"}}", Parameter(always, "FanInOutcomes"));
+        Assert.Equal(new Dictionary<string, string> { [b] = FailedState.StateName }, Outcomes(always));
 
         // The failed branch is requeued: it counts as not finished while it runs again, whatever it wrote
         Assert.True(_client.ChangeState(b, new EnqueuedState(), FailedState.StateName));
@@ -2263,10 +2333,10 @@ public sealed class JobChainStorageFacts : IDisposable
         Succeed(chain.RootId);
         Assert.True(_client.ChangeState(c, new ScheduledState(TimeSpan.FromDays(2)), EnqueuedState.StateName));
         Fail(b);
-        Assert.Equal($"{{\"{b}\":\"Failed\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.Equal(new Dictionary<string, string> { [b] = FailedState.StateName }, Outcomes(done));
         Assert.True(_client.ChangeState(b, new EnqueuedState(), FailedState.StateName));
         Succeed(b);
-        Assert.Equal($"{{\"{b}\":\"Succeeded\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.Equal(new Dictionary<string, string> { [b] = SucceededState.StateName }, Outcomes(done));
 
         MoveClock(TimeSpan.FromDays(2));
         _storage.Database.RemoveExpired();
@@ -2299,16 +2369,16 @@ public sealed class JobChainStorageFacts : IDisposable
             transaction.Commit();
         }
 
-        Assert.Null(Parameter(done, "FanInOutcomes"));
+        Assert.Empty(Outcomes(done));
 
         // A server looks at the chain a few minutes later, while the job of that branch still exists
         MoveClock(TimeSpan.FromMinutes(6));
         using (CreateServer())
         {
-            WaitUntil(() => Parameter(done, "FanInOutcomes") != null, "what the first branch finished as to be written on the step after the group");
+            WaitUntil(() => Outcomes(done).Count > 0, "what the first branch finished as to be written on the step after the group");
         }
 
-        Assert.Equal($"{{\"{b}\":\"Succeeded\"}}", Parameter(done, "FanInOutcomes"));
+        Assert.Equal(new Dictionary<string, string> { [b] = SucceededState.StateName }, Outcomes(done));
         Assert.Equal(AwaitingState.StateName, StateOf(done));
 
         MoveClock(TimeSpan.FromDays(2));
@@ -2502,6 +2572,14 @@ public sealed class JobChainStorageFacts : IDisposable
     {
         using IStorageConnection connection = _storage.GetConnection();
         return connection.GetJobData(jobId)?.Job;
+    }
+
+    // What the steps a waiting step waits for finished as, as they wrote it for it, in the hash its parameter names
+    private Dictionary<string, string> Outcomes(string jobId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        string? key = connection.GetJobParameter(jobId, FanInContinuationsSupportAttribute.OutcomesParameterName);
+        return key == null ? [] : connection.GetAllEntriesFromHash(key) ?? [];
     }
 
     private string? Parameter(string jobId, string name)

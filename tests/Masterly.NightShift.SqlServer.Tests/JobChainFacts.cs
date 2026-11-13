@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Monitoring;
@@ -269,6 +270,50 @@ public class JobChainFacts
         }
 
         Assert.Empty(SetItems(storage, "chains:joins"));
+    }
+
+    [Fact, CleanDatabase]
+    public void FanIn_OverManyParents_KeepsWhatEachFinishedAs_AtACostThatDoesNotGrowWithTheirNumber()
+    {
+        const int Count = 3000;
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        // A job that waits for all of them (a batch's continuation), once without and once with what each parent
+        // finished as kept for it (KeepsOutcomes is internal to Core, which this project only sees from outside)
+        PropertyInfo keepsOutcomes = typeof(FanInContinuationsSupportAttribute).GetProperty("KeepsOutcomes", BindingFlags.Static | BindingFlags.NonPublic)!;
+        TimeSpan without;
+        keepsOutcomes.SetValue(null, false);
+        try
+        {
+            without = FinishParents(client, Count, out _);
+        }
+        finally
+        {
+            keepsOutcomes.SetValue(null, true);
+        }
+
+        TimeSpan with = FinishParents(client, Count, out string child);
+
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, child));
+        Assert.True(
+            with < (without * 2) + TimeSpan.FromSeconds(3),
+            $"{Count} parents: {with.TotalSeconds:0.0} s keeping what each finished as, {without.TotalSeconds:0.0} s without.");
+    }
+
+    private static TimeSpan FinishParents(BackgroundJobClient client, int count, out string child)
+    {
+        List<string> parents = [];
+        for (int i = 0; i < count; i++)
+        {
+            parents.Add(client.Create(() => Record("p"), new EnqueuedState())!);
+        }
+
+        child = client.ContinueJobWithAll(parents, () => Record("all"))!;
+
+        Stopwatch watch = Stopwatch.StartNew();
+        Parallel.ForEach(parents, new ParallelOptions { MaxDegreeOfParallelism = 8 }, parent => client.ChangeState(parent, new SucceededState(null, 0, 0), null));
+        return watch.Elapsed;
     }
 
     [Fact, CleanDatabase]

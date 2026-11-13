@@ -764,12 +764,12 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Writes on the steps that wait for several steps what the ones that finished finished as, where that isn't
-    /// written: the process that finished such a step writes it once the step is committed, and may have stopped
-    /// before, or failed to. A waiting step is decided from it once the jobs of the steps it waits for are gone
-    /// (<see cref="FanInContinuationsSupportAttribute.OutcomesParameterName"/>), so it has to be written while
-    /// they exist. One read for a waiting step with a finished step before it, and a write when something is
-    /// missing. Best effort: the next look tries again.
+    /// Writes for the steps that wait for several steps what the ones that finished finished as, where that isn't
+    /// written: a step writes it with its own state change for the steps registered then, but not for a step
+    /// stored after it finished, nor where its state was stored without the filters. A waiting step is decided from
+    /// it once the jobs of the steps it waits for are gone (<see cref="FanInContinuationsSupportAttribute.GetOutcomesKey"/>),
+    /// so it has to be written while they exist. One read for a waiting step with a finished step before it, and
+    /// a write for each one missing. Best effort: the next look tries again.
     /// </summary>
     private static void KeepOutcomes(IStorageConnection connection, JobChainInfo info)
     {
