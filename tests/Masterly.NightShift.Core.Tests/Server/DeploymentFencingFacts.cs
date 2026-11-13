@@ -1032,6 +1032,120 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_Closes_AsSoonAsACheckFindsTheServerFenced_AlsoWhenItsPauseCanNotBeWritten()
+    {
+        DeploymentFencingProcess old = new("v1");
+        Assert.False(Check(old, "old-server", 0));
+        Check(new DeploymentFencingProcess("v2"), "new-server", 5);
+
+        // The old server's next check writes its Seen field, then the write of its pause fails
+        bool failPause = true;
+        _storage.Connection.Setup(x => x.GetAllEntriesFromHash(DrainMode.HashKey)).Returns((string key) =>
+            failPause
+                ? throw new InvalidOperationException("transient storage error")
+                : _storage.Hashes.TryGetValue(key, out Dictionary<string, string> hash) ? new Dictionary<string, string>(hash) : null);
+
+        Assert.Throws<InvalidOperationException>(() => Check(old, "old-server", 10));
+        failPause = false;
+
+        // v2 is the current deployment and v1 is seen and alive: the old server is fenced, so its workers wait,
+        // although nothing has paused it
+        Assert.Equal("v2", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+        Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+        Assert.ThrowsAny<OperationCanceledException>(() => old.Gate.WaitToFetch(Context("old-server", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and changes the check interval")]
+    public void Gate_Closes_WhenNoCheckHasSucceededForTheTimeAnotherDeploymentWaitsToTakeOver()
+    {
+        DeploymentFencing.CheckInterval = TimeSpan.FromMilliseconds(50);
+        DeploymentFencing.TakeOverAfter = TimeSpan.FromMilliseconds(100);
+        DeploymentFencingProcess current = new("v1");
+
+        Assert.False(Check(current, "server-1", 0));
+        bool openAfterTheCheck = current.Gate.WaitToFetch(Context("server-1", Stopping));
+
+        // Every check fails from now on: after 100 milliseconds the server can't tell whether it is still current
+        Thread.Sleep(TimeSpan.FromMilliseconds(300));
+        Assert.ThrowsAny<OperationCanceledException>(() => current.Gate.WaitToFetch(Context("server-1", Stopping)));
+
+        Assert.False(Check(current, "server-1", 0.05));
+        bool openAgain = current.Gate.WaitToFetch(Context("server-1", Stopping));
+
+        Assert.True(openAfterTheCheck);
+        Assert.True(openAgain);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public async Task Check_RunsOneAtATime_OnOneProcess_AlsoWhenARunOfAServerIdGivenUpIsStillInside()
+    {
+        // A server restarted by its heartbeat runs the same process under its new id while the thread of the old
+        // id may still be inside a check: their reads and writes of what the process watched must not overlap
+        DeploymentFencingProcess process = new("v1");
+        Check(process, "server-1", 0);
+        int inside = 0;
+        int mostInside = 0;
+        int entered = 0;
+        using ManualResetEventSlim release = new();
+        _storage.Connection.Setup(x => x.GetAllEntriesFromHash(DeploymentFencing.HashKey)).Returns((string key) =>
+        {
+            int now = Interlocked.Increment(ref inside);
+            InterlockedMax(ref mostInside, now);
+            if (Interlocked.Increment(ref entered) == 1)
+            {
+                release.Wait(TimeSpan.FromSeconds(30));
+            }
+
+            Interlocked.Decrement(ref inside);
+            return new Dictionary<string, string>(_storage.Hashes[key]);
+        });
+
+        Task first = Task.Run(() => Check(process, "server-1", 15), TestContext.Current.CancellationToken);
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref entered) == 1, TimeSpan.FromSeconds(30)));
+        Task second = Task.Run(() => Check(process, "server-2", 16), TestContext.Current.CancellationToken);
+
+        // A second check that doesn't wait for the first one reads the hash at once
+        bool secondInsideMeanwhile = SpinWait.SpinUntil(() => Volatile.Read(ref entered) == 2, TimeSpan.FromSeconds(1));
+        release.Set();
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+        Assert.False(secondInsideMeanwhile);
+        Assert.Equal(1, mostInside);
+        Assert.True(process.Gate.IsDecided("server-2"));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public async Task Execute_OfARunWhoseServerIdWasGivenUp_NeitherPausesThatIdNorDecidesTheGate()
+    {
+        // v2 is current: a check of v1 finds its server fenced
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 0);
+        DeploymentFencingProcess process = new("v1", 1);
+        using CancellationTokenSource restart = new();
+        using ManualResetEventSlim release = new();
+        using ManualResetEventSlim entered = new();
+        _storage.Connection.Setup(x => x.GetAllEntriesFromHash(DeploymentFencing.HashKey)).Returns((string key) =>
+        {
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(30));
+            return new Dictionary<string, string>(_storage.Hashes[key]);
+        });
+
+        Task run = Task.Run(() => process.Execute(Context("old-id", restart.Token)), TestContext.Current.CancellationToken);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+
+        // The heartbeat restarts the server while the check is inside: the old id is given up, and the new id has
+        // been decided meanwhile
+        restart.Cancel();
+        process.Gate.Decide("new-id", fenced: false);
+        release.Set();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+
+        Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-id"));
+        Assert.True(process.Gate.IsDecided("new-id"));
+        Assert.True(process.Gate.WaitToFetch(Context("new-id", Stopping)));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
     public void Gate_ClosesAgain_WhenANewerDeploymentFencesTheServerLater()
     {
         DeploymentFencingProcess current = new("v1");
@@ -1195,6 +1309,21 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     private Dictionary<string, string> Hash => _storage.Hashes[DeploymentFencing.HashKey];
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int current = Volatile.Read(ref target);
+        while (value > current)
+        {
+            int seen = Interlocked.CompareExchange(ref target, value, current);
+            if (seen == current)
+            {
+                return;
+            }
+
+            current = seen;
+        }
+    }
 
     // The stopping token of a server that is stopping: a wait for it ends at once
     private static CancellationToken Stopping => new(canceled: true);

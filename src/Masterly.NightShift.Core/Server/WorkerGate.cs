@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Masterly.NightShift.Logging;
 
 namespace Masterly.NightShift.Server;
@@ -14,7 +15,10 @@ namespace Masterly.NightShift.Server;
 /// <remarks>
 /// <para>The decision of the deployment check is kept for one server id. A server that gets a new id (its heartbeat
 /// found it removed, or failed for the server timeout) is undecided again, although its processes are the same
-/// objects: the pause of a fenced server is on the old id.</para>
+/// objects: the pause of a fenced server is on the old id. A check closes the gate as soon as it finds the server
+/// fenced, before it writes anything. A decision that the server may work holds for
+/// <see cref="DeploymentFencing.TakeOverAfter"/> (at least two check intervals): when no check has gone all the
+/// way for that long, another deployment may have taken over meanwhile, so the gate closes until a check does.</para>
 /// <para>A pause set by hand is read through the cache of <see cref="DrainMode"/>, so it costs no storage read for
 /// each fetch: the storage is asked when the cached answer is older than <see cref="DrainMode.CacheDuration"/>, as
 /// <see cref="DrainModeFilter"/> does for each job anyway. A worker that waits inside a fetch when its server is
@@ -63,16 +67,14 @@ internal sealed class WorkerGate
         set;
     } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Records what a deployment check that went all the way decided for the server it ran on.</summary>
+    /// <summary>
+    /// Records what a deployment check decided for the server it ran on: that it is fenced, as soon as the check
+    /// knows it, or, once the check went all the way, that it may work.
+    /// </summary>
     public void Decide(string serverId, bool fenced)
     {
-        Decision? previous = Volatile.Read(ref _decision);
-        if (previous != null && previous.Fenced == fenced && previous.ServerId == serverId)
-        {
-            return;
-        }
-
-        Volatile.Write(ref _decision, new Decision(serverId, fenced));
+        // Written again by every check, which also renews how long a decision that the server may work holds
+        Volatile.Write(ref _decision, new Decision(serverId, fenced, Stopwatch.GetTimestamp()));
         Interlocked.Exchange(ref _changed, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
     }
 
@@ -92,7 +94,7 @@ internal sealed class WorkerGate
     {
         // Read before the state: a change made after it ends the wait at once
         Task changed = Volatile.Read(ref _changed).Task;
-        string? reason = GetReasonToWait(context);
+        Reason? reason = GetReasonToWait(context);
 
         if (reason == null)
         {
@@ -105,17 +107,24 @@ internal sealed class WorkerGate
             return true;
         }
 
-        string logged = $"{context.ServerId}: {reason}";
+        string logged = $"{context.ServerId}: {reason.Text}";
         if (Interlocked.Exchange(ref _waitLogged, logged) != logged)
         {
-            Logger.Debug(reason);
+            if (reason.Warn)
+            {
+                Logger.Warn(reason.Text);
+            }
+            else
+            {
+                Logger.Debug(reason.Text);
+            }
         }
 
         changed.Wait(ClosedCheckInterval, context.StoppingToken);
         return false;
     }
 
-    private string? GetReasonToWait(BackgroundProcessContext context)
+    private Reason? GetReasonToWait(BackgroundProcessContext context)
     {
         string serverId = context.ServerId;
 
@@ -124,17 +133,26 @@ internal sealed class WorkerGate
             Decision? decision = Volatile.Read(ref _decision);
             if (decision == null || decision.ServerId != serverId)
             {
-                return $"Server '{serverId}' takes no jobs until its first deployment check has decided whether deployment '{_deploymentId}' is fenced.";
+                return new Reason($"Server '{serverId}' takes no jobs until its first deployment check has decided whether deployment '{_deploymentId}' is fenced.");
             }
 
             if (decision.Fenced)
             {
-                return $"Server '{serverId}' of deployment '{_deploymentId}' is fenced: it takes no jobs until its deployment is the current one.";
+                return new Reason($"Server '{serverId}' of deployment '{_deploymentId}' is fenced: it takes no jobs until its deployment is the current one.");
+            }
+
+            TimeSpan since = Stopwatch.GetElapsedTime(decision.At);
+            TimeSpan holds = DeploymentFencing.EffectiveTakeOverAfter;
+            if (since > holds)
+            {
+                return new Reason(
+                    $"Server '{serverId}' takes no jobs: no deployment check of deployment '{_deploymentId}' has succeeded for {since}, longer than the {holds} after which another deployment may take over, so it can't tell whether it is still the current one. It takes jobs again once a check succeeds.",
+                    Warn: true);
             }
         }
 
         return IsPaused(context)
-            ? $"Server '{serverId}' is paused: it takes no jobs until it is resumed."
+            ? new Reason($"Server '{serverId}' is paused: it takes no jobs until it is resumed.")
             : null;
     }
 
@@ -160,7 +178,10 @@ internal sealed class WorkerGate
         }
     }
 
-    private sealed record Decision(string ServerId, bool Fenced);
+    // At: when it was decided, as a Stopwatch timestamp
+    private sealed record Decision(string ServerId, bool Fenced, long At);
+
+    private sealed record Reason(string Text, bool Warn = false);
 }
 
 /// <summary>

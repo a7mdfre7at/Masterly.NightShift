@@ -84,7 +84,8 @@ public class SkipIfLateAttributeFacts
         // 45 seconds after it was due, 31 of them in the hold of a fenced server: the servers that may work could
         // have run it in time
         ScheduledAgo(TimeSpan.FromSeconds(45));
-        _parameters[DrainModeFilter.ServerHoldParameter] = "\"31000\"";
+        _parameters[DrainModeFilter.ServerHoldParameter] = SerializationHelper.Serialize(
+            $"{Millis(DateTime.UtcNow.AddSeconds(-40))}-{Millis(DateTime.UtcNow.AddSeconds(-9))}");
 
         new SkipIfLateAttribute(20).OnPerforming(_context.GetPerformingContext());
 

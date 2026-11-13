@@ -4,24 +4,31 @@ using Masterly.NightShift.Logging;
 namespace Masterly.NightShift.Server;
 
 /// <summary>
-/// Keeps how long a job was held because the server that fetched it was paused on its own or fenced
+/// Keeps when a job was held because the server that fetched it was paused on its own or fenced
 /// (<see cref="DrainModeFilter"/>), in the <see cref="DrainModeFilter.ServerHoldParameter"/> job parameter, so that
 /// this time doesn't count as lateness (<see cref="PerformContext.Lateness"/>). The job wasn't late: a server that
 /// shouldn't have had it sat on it, while the servers that may work could have run it at once. The time a job is
 /// held by the cluster-wide switch or by a paused queue is not kept: nothing could have run it then, so it is late.
 /// </summary>
 /// <remarks>
-/// <para>The parameter holds the milliseconds the job was held so far, and, while a hold lasts, a <c>|</c> and the
-/// Unix time in milliseconds at which it began: <c>31250</c>, or <c>31250|1763000000000</c>. The hold ends when the
-/// job is enqueued again, which adds its length to the total. A hold whose end wasn't written counts up to the
-/// moment the job starts.</para>
+/// <para>The parameter lists the holds, oldest first, separated by <c>;</c>: each is the Unix time in milliseconds at
+/// which it began, a <c>-</c>, and the time it ended, which is missing while the hold lasts:
+/// <c>1763000000000-1763000031250;1763000090000-</c>. A hold ends when the job leaves the Scheduled state it was
+/// held in, whatever state follows: enqueued again, moved by its schedule policy, deleted. Only the part of a hold
+/// that falls between the moment the job was meant to run and the moment it starts is left out of its lateness, so
+/// a job moved to a later time after the hold isn't counted less late for it. A hold whose end wasn't written counts
+/// up to the moment the job starts. The last <see cref="MaxHolds"/> holds are kept: an older one counts as lateness.</para>
 /// <para>It is bookkeeping: an error is logged and never fails the state change. It reads only the parameters the
 /// storage loaded with the job (<see cref="BackgroundJob.ParametersSnapshot"/>), so it costs no round trip; on a
 /// storage that doesn't load them, a hold counts as lateness, as it did before.</para>
 /// </remarks>
 internal static class ServerHold
 {
-    private const char Separator = '|';
+    /// <summary>How many holds the parameter keeps.</summary>
+    internal const int MaxHolds = 16;
+
+    private const char HoldSeparator = ';';
+    private const char EndSeparator = '-';
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(ServerHold));
 
@@ -30,7 +37,7 @@ internal static class ServerHold
     /// </summary>
     public static void Begin(ElectStateContext context)
     {
-        // Without the parameters loaded with the job the total can't be read, and nothing would read it later
+        // Without the parameters loaded with the job the holds can't be read, and nothing would read them later
         if (context.BackgroundJob.ParametersSnapshot == null)
         {
             return;
@@ -39,10 +46,21 @@ internal static class ServerHold
         try
         {
             long now = JobHelper.ToMillisecondTimestamp(JobClock.UtcNow);
-            (long total, long? since) = Read(context.BackgroundJob);
+            List<Hold> holds = Read(context.BackgroundJob);
 
             // A hold whose end wasn't written ends where this one begins
-            Write(context, total + Length(since, now), now);
+            if (holds.Count > 0 && holds[^1].End == null)
+            {
+                holds[^1] = holds[^1] with { End = Math.Max(holds[^1].Start, now) };
+            }
+
+            holds.Add(new Hold(now, null));
+            if (holds.Count > MaxHolds)
+            {
+                holds.RemoveRange(0, holds.Count - MaxHolds);
+            }
+
+            Write(context, holds);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -51,8 +69,8 @@ internal static class ServerHold
     }
 
     /// <summary>
-    /// Ends the hold of a job that is enqueued again, during the election of the Enqueued state that follows the
-    /// Scheduled one. Does nothing for a job that isn't held by a paused server.
+    /// Ends the hold of a job that leaves the Scheduled state a paused server held it in, during the election of the
+    /// state that follows, whatever it is. Does nothing for a job that isn't held by a paused server.
     /// </summary>
     public static void End(ElectStateContext context)
     {
@@ -63,11 +81,15 @@ internal static class ServerHold
 
         try
         {
-            (long total, long? since) = Read(context.BackgroundJob);
-            if (since.HasValue)
+            List<Hold> holds = Read(context.BackgroundJob);
+            if (holds.Count == 0 || holds[^1].End != null)
             {
-                Write(context, total + Length(since, JobHelper.ToMillisecondTimestamp(JobClock.UtcNow)), null);
+                return;
             }
+
+            long now = JobHelper.ToMillisecondTimestamp(JobClock.UtcNow);
+            holds[^1] = holds[^1] with { End = Math.Max(holds[^1].Start, now) };
+            Write(context, holds);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -76,14 +98,28 @@ internal static class ServerHold
     }
 
     /// <summary>
-    /// How long paused servers held the job before <paramref name="startedAt"/>, by the parameters loaded with the job.
+    /// How long paused servers held the job between <paramref name="from"/> and <paramref name="until"/>, by the
+    /// parameters loaded with the job: the part of the job's lateness that isn't its own.
     /// </summary>
-    public static TimeSpan GetHeldTime(BackgroundJob job, DateTime startedAt)
+    public static TimeSpan GetHeldTime(BackgroundJob job, DateTime from, DateTime until)
     {
         try
         {
-            (long total, long? since) = Read(job);
-            return TimeSpan.FromMilliseconds(total + Length(since, JobHelper.ToMillisecondTimestamp(startedAt)));
+            long start = JobHelper.ToMillisecondTimestamp(from);
+            long end = JobHelper.ToMillisecondTimestamp(until);
+            long held = 0;
+
+            // Holds don't overlap, as each one ends before the next begins
+            foreach (Hold hold in Read(job))
+            {
+                long overlap = Math.Min(hold.End ?? end, end) - Math.Max(hold.Start, start);
+                if (overlap > 0)
+                {
+                    held += overlap;
+                }
+            }
+
+            return TimeSpan.FromMilliseconds(held);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -92,41 +128,50 @@ internal static class ServerHold
         }
     }
 
-    private static long Length(long? since, long until)
+    // The holds that can be read; anything else in the value (written by an earlier build, damaged) is left out
+    private static List<Hold> Read(BackgroundJob job)
     {
-        return since.HasValue && until > since.Value ? until - since.Value : 0;
-    }
-
-    private static (long Total, long? Since) Read(BackgroundJob job)
-    {
+        List<Hold> holds = [];
         if (job.ParametersSnapshot == null ||
             !job.ParametersSnapshot.TryGetValue(DrainModeFilter.ServerHoldParameter, out string? serialized))
         {
-            return (0, null);
+            return holds;
         }
 
         string? value = SerializationHelper.Deserialize<string>(serialized, SerializationOption.User);
         if (string.IsNullOrEmpty(value))
         {
-            return (0, null);
+            return holds;
         }
 
-        int separator = value.IndexOf(Separator, StringComparison.Ordinal);
-        string totalText = separator < 0 ? value : value[..separator];
+        foreach (string part in value.Split(HoldSeparator))
+        {
+            int separator = part.IndexOf(EndSeparator, StringComparison.Ordinal);
+            if (separator <= 0 ||
+                !long.TryParse(part.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out long start))
+            {
+                continue;
+            }
 
-        long total = long.TryParse(totalText, NumberStyles.None, CultureInfo.InvariantCulture, out long parsedTotal) ? parsedTotal : 0;
-        long? since = separator >= 0 && long.TryParse(value[(separator + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out long parsedSince)
-            ? parsedSince
-            : null;
+            string endText = part[(separator + 1)..];
+            if (endText.Length == 0)
+            {
+                holds.Add(new Hold(start, null));
+            }
+            else if (long.TryParse(endText, NumberStyles.None, CultureInfo.InvariantCulture, out long end) && end >= start)
+            {
+                holds.Add(new Hold(start, end));
+            }
+        }
 
-        return (total, since);
+        return holds;
     }
 
-    private static void Write(ElectStateContext context, long total, long? since)
+    private static void Write(ElectStateContext context, List<Hold> holds)
     {
-        string value = since.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"{total}{Separator}{since.Value}")
-            : total.ToString(CultureInfo.InvariantCulture);
+        string value = string.Join(HoldSeparator, holds.Select(static hold => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{hold.Start}{EndSeparator}{hold.End}")));
         string serialized = SerializationHelper.Serialize(value, SerializationOption.User);
 
         // In the state change's transaction when the storage can, so a state change that fails writes nothing
@@ -140,4 +185,7 @@ internal static class ServerHold
             context.Connection.SetJobParameter(context.BackgroundJob.Id, DrainModeFilter.ServerHoldParameter, serialized);
         }
     }
+
+    // Unix times in milliseconds; End is null while the hold lasts
+    private readonly record struct Hold(long Start, long? End);
 }

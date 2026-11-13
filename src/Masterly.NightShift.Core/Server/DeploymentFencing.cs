@@ -292,6 +292,9 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // The server id the warning that the server takes no jobs because its first check failed was logged for
     private string? _warnedOfFirstCheck;
 
+    // Held by each check, see Check
+    private readonly NightShiftLock _checkLock = new();
+
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
     private (TimeSpan TakeOverAfter, TimeSpan CheckInterval)? _warnedTimes;
@@ -323,7 +326,7 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
         try
         {
             using IStorageConnection connection = context.Storage.GetConnection();
-            Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started));
+            Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started), context.StoppingToken);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -353,7 +356,21 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     /// <param name="serverId">The server to pause or resume.</param>
     /// <param name="now">The time of this server's clock, written as a hint only: nothing is decided by it but when a deployment long gone is forgotten.</param>
     /// <param name="uptime">A reading of this server's monotonic clock, which says how long a deployment has been silent.</param>
-    internal bool Check(IStorageConnection connection, string serverId, DateTime now, TimeSpan uptime)
+    /// <param name="givenUp">
+    /// Canceled once the server has given up <paramref name="serverId"/>: when it stops, or when its heartbeat
+    /// restarts it with a new id. A check of an id given up neither pauses that id nor tells the workers anything.
+    /// </param>
+    internal bool Check(IStorageConnection connection, string serverId, DateTime now, TimeSpan uptime, CancellationToken givenUp = default)
+    {
+        // One check at a time. A server restarted by its heartbeat runs this process under its new id while the
+        // thread of the old id may still be inside a check: what the process watched isn't safe to share
+        lock (_checkLock)
+        {
+            return CheckOnce(connection, serverId, now, uptime, givenUp);
+        }
+    }
+
+    private bool CheckOnce(IStorageConnection connection, string serverId, DateTime now, TimeSpan uptime, CancellationToken givenUp)
     {
         WarnOnceAboutTheTakeOverTime();
 
@@ -393,6 +410,13 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             // A deployment with a higher order, or without orders one never seen, is newer and claims at once; one
             // with a lower order, or seen before, only once the current is silent
             fenced = currentAlive && (older || (!newer && seen));
+
+            // The workers stop fetching as soon as the server is known to be fenced: a write below that fails,
+            // its pause included, must not leave them taking jobs
+            if (fenced && !givenUp.IsCancellationRequested)
+            {
+                Gate.Decide(serverId, fenced: true);
+            }
 
             // Each check writes a value the deployment's field didn't hold: its sign of life
             Dictionary<string, string> changes = new(StringComparer.Ordinal)
@@ -435,16 +459,23 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
             Write(connection, hash, changes, FindForgotten(hash, current, now, uptime), uptime);
         }
 
+        // Only a check that went all the way counts: one that failed leaves the gap open
+        _lastCheck = uptime;
+
+        // The server gave this id up meanwhile: its pause would only stay behind, and its decision would close the
+        // gate of the id the server has now
+        if (givenUp.IsCancellationRequested)
+        {
+            return fenced;
+        }
+
         bool fencedByNewer = fenced && older;
         WarnOnceWhenFencedByNewer(fencedByNewer, order, current, currentOrder);
         UpdatePause(connection, serverId, fenced, order, current, fencedByNewer ? currentOrder : null);
         WarnWhenGapsKeepItFenced(fenced, gap, current, uptime);
 
-        // Only a check that went all the way counts: one that failed leaves the gap open
-        _lastCheck = uptime;
-
-        // A fenced server is paused by now: its workers stop fetching, and a job one of them was already waiting
-        // for is handed back
+        // A fenced server is paused by now. One that isn't may work, once this check went all the way, and for as
+        // long as another deployment would wait for it to fall silent
         Gate.Decide(serverId, fenced);
         return fenced;
     }
