@@ -470,6 +470,20 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_GivesARecordThatDoesNotExpire_ATimeToLive_OnceNothingOfItsChainIsLeftToRun()
+    {
+        // A record written without a time to live would stay for good, listed or not
+        Line("c", TimeSpan.FromDays(2), ("a", Finished(SucceededState.StateName, TimeSpan.FromDays(2))));
+
+        Maintain();
+
+        Assert.InRange(_timesToLive[JobChains.GetKey("c")], TimeSpan.FromDays(29.9), TimeSpan.FromDays(30));
+        Assert.InRange(Assert.Single(Set(ExpirySet)).Score, After(TimeSpan.FromDays(30)), After(TimeSpan.FromDays(30) + TimeSpan.FromMinutes(2)));
+        Assert.Empty(Set(DueSet));
+        Assert.Contains("c", Listed());
+    }
+
+    [Fact]
     public void Maintain_LooksAgainAtAChainLeftToExpire_WhenAStepOfItRunsAgain()
     {
         // Somebody requeued a step after the chain had finished, and it failed for good: the record is kept

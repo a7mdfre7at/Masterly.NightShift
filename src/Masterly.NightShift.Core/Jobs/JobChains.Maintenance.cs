@@ -60,6 +60,9 @@ public static partial class JobChains
     // How long after its record expires a chain left to expire is looked at, and leaves the list
     private static readonly TimeSpan ExpiryLookDelay = TimeSpan.FromMinutes(1);
 
+    // What a storage answers for the time to live of a hash that doesn't expire
+    private static readonly TimeSpan NoTimeToLive = TimeSpan.FromSeconds(-1);
+
     /// <summary>What a maintenance run did.</summary>
     /// <param name="Ran">False when another server is doing it.</param>
     /// <param name="MoreToDo">Whether the run stopped at one of its limits with work left: the next run needn't wait.</param>
@@ -465,8 +468,17 @@ public static partial class JobChains
                 return ChainPlacement.Leave;
             }
 
-            // A record the storage still holds after its time is as good as gone
             TimeSpan timeToLive = expiring.GetHashTtl(GetKey(chainId));
+
+            // A record that doesn't expire (a storage answers so with -1 second) would stay for good: it is given
+            // the time a record is kept, and the chain leaves the list after that
+            if (timeToLive == NoTimeToLive)
+            {
+                DateTime? expireAt = ExtendRecord(storage, connection, chainId, now, recorded: true);
+                return new ChainPlacement(ExpirySetKey, expireAt.HasValue ? expireAt.Value + ExpiryLookDelay : now + MaxWatchInterval);
+            }
+
+            // A record the storage still holds after its time is as good as gone
             return timeToLive > TimeSpan.Zero
                 ? new ChainPlacement(ExpirySetKey, now + timeToLive + ExpiryLookDelay)
                 : ChainPlacement.Unlist;

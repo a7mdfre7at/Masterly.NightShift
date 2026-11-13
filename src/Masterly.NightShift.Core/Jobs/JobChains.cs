@@ -17,7 +17,9 @@ public static partial class JobChains
 
     /// <summary>
     /// The job parameter that marks a step of a chain that was recorded: set when the record that lists the step
-    /// is written. A step without it belongs to a chain whose creation, retry or replacement never finished.
+    /// is written. A step without it belongs to a chain whose creation, retry or replacement never finished. Its
+    /// value is the time that record is kept at least, in seconds (<see cref="JobChain.RecordRetention"/> in the
+    /// process that wrote it); <c>true</c> on a step marked by an earlier build.
     /// </summary>
     public const string ChainRecordedParameter = "ChainRecorded";
 
