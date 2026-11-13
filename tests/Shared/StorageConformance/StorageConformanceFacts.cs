@@ -14,6 +14,9 @@ namespace Masterly.NightShift.Storage.Conformance;
 /// </summary>
 public abstract class StorageConformanceFacts : IDisposable
 {
+    private const string ChainsDueSet = "chains:due";
+    private const string ChainsExpiringSet = "chains:expiring";
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private readonly object _storageLock = new();
     private JobStorage? _storage;
@@ -1037,6 +1040,98 @@ public abstract class StorageConformanceFacts : IDisposable
         Assert.Equal(1, ConformanceJobs.Runs(key + ":3b"));
     }
 
+    [Fact]
+    public async Task Server_KeepsTheRecordOfAChainWithAFailedStep_AndUnlistsAChainThatFinished_OnceItsRecordExpired()
+    {
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+
+        JobChainResult failed = JobChain.StartWith(() => ConformanceJobs.Fail("Broken on purpose"))
+            .Then(() => ConformanceJobs.Record(key + ":never"))
+            .Enqueue(client)!;
+        JobChainResult finished = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(client)!;
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(() => Storage.GetChain(failed.ChainId) is { IsSettled: true, FailedCount: 1 }, "The first chain didn't fail.");
+            await WaitUntilAsync(() => Storage.GetChain(finished.ChainId) is { IsSettled: true }, "The second chain didn't finish.");
+        }
+
+        // As when nobody touched them for weeks: their records expire in two hours, and both are due for a look
+        Write(x =>
+        {
+            ((JobStorageTransaction)x).ExpireHash(JobChains.GetKey(failed.ChainId), TimeSpan.FromHours(2));
+            ((JobStorageTransaction)x).ExpireHash(JobChains.GetKey(finished.ChainId), TimeSpan.FromHours(2));
+            x.AddToSet(ChainsDueSet, failed.ChainId, 0);
+            x.AddToSet(ChainsDueSet, finished.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(
+                () => ExtendedConnection(x => x.GetHashTtl(JobChains.GetKey(failed.ChainId))) > TimeSpan.FromDays(29),
+                "The record of the chain with a failed step wasn't kept longer.");
+            await WaitUntilAsync(
+                () => Connection(x => x.GetAllItemsFromSet(ChainsExpiringSet)).Contains(finished.ChainId),
+                "The chain that finished wasn't left to expire.");
+        }
+
+        // The failed chain is looked at again, later; the other one isn't, and its record isn't kept longer
+        Assert.Contains(failed.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsDueSet)));
+        Assert.DoesNotContain(finished.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsDueSet)));
+        Assert.DoesNotContain(
+            failed.ChainId,
+            ExtendedConnection(x => x.GetFirstByLowestScoreFromSet(ChainsDueSet, 0, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(5)), 1000)));
+        Assert.InRange(ExtendedConnection(x => x.GetHashTtl(JobChains.GetKey(finished.ChainId))), TimeSpan.FromHours(1), TimeSpan.FromHours(2));
+
+        // The record of the chain that finished expires, and the time has come for it to leave the list
+        Write(x =>
+        {
+            x.RemoveHash(JobChains.GetKey(finished.ChainId));
+            x.AddToSet(ChainsExpiringSet, finished.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(
+                () => !Connection(x => x.GetAllItemsFromSet(JobChains.SetKey)).Contains(finished.ChainId),
+                "The chain whose record expired didn't leave the list.");
+        }
+
+        Assert.DoesNotContain(finished.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsExpiringSet)));
+        Assert.Contains(failed.ChainId, Connection(x => x.GetAllItemsFromSet(JobChains.SetKey)));
+        Assert.Equal(1, Storage.GetChain(failed.ChainId)?.FailedCount);
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":never"));
+    }
+
+    [Fact]
+    public async Task Server_StartsAStepOfAChain_ThatWasNeverToldToStart()
+    {
+        string key = NewKey();
+
+        JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(new BackgroundJobClient(Storage))!;
+
+        // What a process leaves that stops between the commit of a step's state and the start of the step after
+        // it: the first step succeeded ten minutes ago, the second still waits, and the chain is due for a look
+        Write(x =>
+        {
+            x.SetJobState(chain.RootId, new SucceededLongAgo());
+            x.AddToSet(ChainsDueSet, chain.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitForStateAsync(chain.Steps["1.0"], SucceededState.StateName);
+        }
+
+        Assert.Equal(1, ConformanceJobs.Runs(key + ":2"));
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":1"));
+    }
+
     // Helpers
 
     protected string CreateJob(string argument, DateTime? createdAt = null)
@@ -1144,6 +1239,28 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     private static string NewKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>The state of a job that succeeded ten minutes ago, as the storage keeps it.</summary>
+    private sealed class SucceededLongAgo : IState
+    {
+        public string Name => SucceededState.StateName;
+
+        public string? Reason => null;
+
+        public bool IsFinal => true;
+
+        public bool IgnoreJobLoadException => false;
+
+        public Dictionary<string, string> SerializeData()
+        {
+            return new Dictionary<string, string>
+            {
+                ["SucceededAt"] = JobHelper.SerializeDateTime(JobClock.UtcNow.AddMinutes(-10)),
+                ["PerformanceDuration"] = "0",
+                ["Latency"] = "0",
+            };
+        }
+    }
 }
 
 /// <summary>Jobs the conformance tests run.</summary>
