@@ -208,6 +208,9 @@ internal sealed class StagingConnection(EfConnection connection, DbContext conte
     public override TimeSpan GetListTtl(string key) => connection.GetListTtl(key);
 
     public override long GetCounter(string key) => connection.GetCounter(key);
+
+    // On a context of the storage, as the other reads: the application's transaction is neither needed nor waited for
+    public override DateTime GetUtcDateTime() => connection.GetUtcDateTime();
 }
 
 /// <summary>A transaction whose writes become tracked changes of the context, saved by the application.</summary>

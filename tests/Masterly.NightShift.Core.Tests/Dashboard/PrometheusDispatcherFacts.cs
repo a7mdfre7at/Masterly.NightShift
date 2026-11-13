@@ -26,6 +26,38 @@ public class PrometheusDispatcherFacts : IDisposable
     public void Dispose()
     {
         DrainMode.InvalidateCache();
+        PrometheusDispatcher.Clock = static () => JobClock.UtcNow;
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatch_ComparesHeartbeatsWithTheStoragesClock_WhenThisProcesssClockIsAhead()
+    {
+        // Heartbeats are written with the storage's clock; this process's is ten minutes ahead of it
+        _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        _connection.Setup(x => x.GetUtcDateTime()).Returns(static () => DateTime.UtcNow);
+        PrometheusDispatcher.Clock = static () => DateTime.UtcNow.AddMinutes(10);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new PrometheusDispatcher().Dispatch(context);
+
+        Assert.Contains("nightshift_servers 1\n", context.Response.Text);
+        Assert.Contains("nightshift_health_status 0\n", context.Response.Text);
+        _connection.Verify(x => x.GetUtcDateTime(), Times.Once);
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatch_NoticesAStoppedServerOnTime_WhenThisProcesssClockIsBehind()
+    {
+        // Silent for five minutes by the storage's clock; by this process's, its heartbeat lies in the future
+        _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        _connection.Setup(x => x.GetUtcDateTime()).Returns(static () => DateTime.UtcNow.AddMinutes(5));
+        PrometheusDispatcher.Clock = static () => DateTime.UtcNow.AddMinutes(-5);
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new PrometheusDispatcher().Dispatch(context);
+
+        Assert.Contains("nightshift_servers 0\n", context.Response.Text);
+        Assert.Contains("nightshift_health_status 2\n", context.Response.Text);
     }
 
     [Fact, StaticLock]

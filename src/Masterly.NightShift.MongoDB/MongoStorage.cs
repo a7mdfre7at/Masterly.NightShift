@@ -40,10 +40,11 @@ public sealed class MongoStorageOptions
 /// their indexes are created when the storage starts, and TTL indexes remove what expires.
 /// </summary>
 /// <remarks>
-/// Fetched jobs and distributed locks time out by the server's clock, so processes whose clocks differ agree on
-/// when a job's worker or a lock's holder is gone. List items are ordered by their ObjectId, which the driver
-/// makes from the second they are inserted, a value per process and a counter: items that different processes
-/// insert within the same second are ordered by process, not by the moment they were inserted.
+/// Fetched jobs, distributed locks and server heartbeats are stamped and timed out with the server's clock, so
+/// processes whose clocks differ agree on when a job's worker, a lock's holder or a server is gone. List items
+/// are ordered by their ObjectId, which the driver makes from the second they are inserted, a value per process
+/// and a counter: items that different processes insert within the same second are ordered by process, not by
+/// the moment they were inserted.
 /// </remarks>
 public sealed class MongoStorage : JobStorage
 {

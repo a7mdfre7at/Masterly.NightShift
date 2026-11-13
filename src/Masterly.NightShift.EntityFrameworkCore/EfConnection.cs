@@ -141,6 +141,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         EfLimits.EnsureServerIdFits(serverId);
 
         string data = StorageValues.SerializeServer(context);
+
+        // Heartbeats are written and timed out with the database's clock where the storage reads it, as on SQL
+        // Server: everything that tells a live server from a stopped one compares them with that clock. Read
+        // before the transaction, on a context of its own.
+        DateTime now = storage.Clock.UtcNow();
         storage.InTransaction(db =>
         {
             ServerRow? row = db.Set<ServerRow>().Find(serverId);
@@ -150,7 +155,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             }
 
             row.Data = data;
-            row.LastHeartbeat = JobClock.UtcNow;
+            row.LastHeartbeat = now;
         });
     }
 
@@ -163,7 +168,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override void Heartbeat(string serverId)
     {
         ArgumentNullException.ThrowIfNull(serverId);
-        DateTime now = JobClock.UtcNow;
+        DateTime now = storage.Clock.UtcNow();
 
         if (Read(context => context.Set<ServerRow>().Where(x => x.Id == serverId).ExecuteUpdate(s => s.SetProperty(x => x.LastHeartbeat, now))) == 0)
         {
@@ -178,7 +183,9 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
         }
 
-        DateTime cutoff = JobClock.UtcNow - timeOut;
+        // By the clock the heartbeats are written with, so a watchdog on a server whose clock runs ahead doesn't
+        // take the other servers for dead
+        DateTime cutoff = storage.Clock.UtcNow() - timeOut;
         return Read(context => context.Set<ServerRow>().Where(x => x.LastHeartbeat < cutoff).ExecuteDelete());
     }
 
@@ -337,6 +344,12 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         ArgumentNullException.ThrowIfNull(key);
         return Read(context => EfRows.ReadCounters(context, [key])).GetValueOrDefault(key);
     }
+
+    /// <summary>
+    /// The database's time: read with a statement where the storage has one (the feature tells), this process's
+    /// clock on SQLite, whose clock it is. Not supported on a provider without a statement.
+    /// </summary>
+    public override DateTime GetUtcDateTime() => storage.Clock.TellsTheDatabasesTime ? storage.Clock.UtcNow() : base.GetUtcDateTime();
 
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {

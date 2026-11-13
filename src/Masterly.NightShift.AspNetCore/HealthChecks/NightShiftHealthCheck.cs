@@ -1,5 +1,6 @@
 using System.Globalization;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Storage;
 using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -24,18 +25,23 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return Task.FromResult(Check(context.Registration.FailureStatus, JobClock.UtcNow));
+        return Task.FromResult(Check(context.Registration.FailureStatus));
     }
 
-    private HealthCheckResult Check(HealthStatus failureStatus, DateTime utcNow)
+    private HealthCheckResult Check(HealthStatus failureStatus)
     {
         JobStorage storage;
         IList<ServerDto> servers;
+        DateTime utcNow;
 
         try
         {
             storage = _storage();
             servers = storage.GetMonitoringApi().Servers() ?? [];
+
+            // Heartbeats are written with the storage's clock where it has one: read once, after the servers,
+            // so no heartbeat is newer than the time it is compared with
+            utcNow = GetUtcNow(storage);
         }
         catch (Exception ex) when (IsCatchable(ex))
         {
@@ -57,6 +63,25 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
         return _options.Scope == NightShiftHealthCheckScope.Process
             ? CheckProcess(storage, servers, oldest, failureStatus)
             : CheckCluster(servers, oldest, failureStatus);
+    }
+
+    /// <summary>
+    /// The time heartbeats are compared with: the storage's where it has a clock of its own, read once on a
+    /// read-only connection, because the storage writes heartbeats with that clock; this process's otherwise,
+    /// without asking the storage. The dashboard's <c>/health</c> and <c>/metrics</c> do the same.
+    /// </summary>
+    private static DateTime GetUtcNow(JobStorage storage)
+    {
+        if (storage.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime))
+        {
+            using IStorageConnection connection = storage.GetReadOnlyConnection();
+            if (connection is JobStorageConnection storageConnection)
+            {
+                return storageConnection.GetUtcDateTime();
+            }
+        }
+
+        return JobClock.UtcNow;
     }
 
     private static bool IsCatchable(Exception exception)

@@ -46,10 +46,10 @@ internal static class SqlServerDatabase
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, database);
     }
 
-    public static EntityFrameworkCoreStorage CreateStorage()
+    public static EntityFrameworkCoreStorage CreateStorage(EntityFrameworkCoreStorageOptions? options = null)
     {
         string connectionString = ConnectionString("Storage");
-        EntityFrameworkCoreStorage storage = new(o => o.UseSqlServer(connectionString));
+        EntityFrameworkCoreStorage storage = new(o => o.UseSqlServer(connectionString), options);
 
         // Starts empty: every row of every table, locks included
         storage.Purge(new StoragePurgeOptions { KeepAuditLog = false, KeepDrainMode = false, KeepRecurringJobs = false, KeepServers = false });

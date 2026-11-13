@@ -546,4 +546,70 @@ public class DashboardHealthFacts : IDisposable
         Assert.Equal(503, unhealthy.Response.StatusCode);
         Assert.Equal("unhealthy", JsonNode.Parse(unhealthy.Response.Text)["status"].GetValue<string>());
     }
+
+    [Fact, StaticLock]
+    public async Task Dispatcher_ComparesHeartbeatsWithTheStoragesClock_WhenThisProcesssClockIsAhead()
+    {
+        // The storage's clock reads _now, and heartbeats are written with it; this process's is ten minutes ahead
+        UseStorageClock(_now);
+        HealthDispatcher.Clock = () => _now.AddMinutes(10);
+        AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new HealthDispatcher().Dispatch(context);
+
+        Assert.Equal(200, context.Response.StatusCode);
+        JsonNode? json = JsonNode.Parse(context.Response.Text);
+        Assert.Equal("healthy", json["status"].GetValue<string>());
+        Assert.Equal(1, json["servers"].GetValue<int>());
+        Assert.Equal(JobHelper.ToTimestamp(_now), json["checkedAt"].GetValue<long>());
+        _connection.Verify(x => x.GetUtcDateTime(), Times.Once);
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatcher_NoticesAStoppedServerOnTime_WhenThisProcesssClockIsBehind()
+    {
+        // Silent for five minutes by the storage's clock; by this process's, its heartbeat lies in the future
+        UseStorageClock(_now);
+        HealthDispatcher.Clock = () => _now.AddMinutes(-10);
+        AddServer("web-1", TimeSpan.FromMinutes(5), "default");
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new HealthDispatcher().Dispatch(context);
+
+        Assert.Equal(503, context.Response.StatusCode);
+        Assert.Equal(0, JsonNode.Parse(context.Response.Text)["servers"].GetValue<int>());
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatcher_UsesThisProcesssClock_AndNeverReadsTheStorages_WhenTheStorageHasNone()
+    {
+        AddServer("web-1", TimeSpan.FromSeconds(5), "default");
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new HealthDispatcher().Dispatch(context);
+
+        Assert.Equal(200, context.Response.StatusCode);
+        _connection.Verify(x => x.GetUtcDateTime(), Times.Never);
+    }
+
+    [Fact, StaticLock]
+    public async Task Dispatcher_Answers503_NotAnError_WhenTheStoragesClockCanNotBeRead()
+    {
+        _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        _connection.Setup(x => x.GetUtcDateTime()).Throws(new InvalidOperationException("Login failed for user 'sa' on db-prod-01"));
+        _monitor.Setup(x => x.GetStatistics()).Throws(new InvalidOperationException("Login failed for user 'sa' on db-prod-01"));
+        DashboardContextStub context = new(new DashboardOptions(), new DashboardRequestStub(), _storage.Object);
+
+        await new HealthDispatcher().Dispatch(context);
+
+        Assert.Equal(503, context.Response.StatusCode);
+        Assert.DoesNotContain("db-prod-01", context.Response.Text, StringComparison.Ordinal);
+    }
+
+    private void UseStorageClock(DateTime utcNow)
+    {
+        _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        _connection.Setup(x => x.GetUtcDateTime()).Returns(utcNow);
+    }
 }

@@ -1,5 +1,7 @@
 using System.Globalization;
+using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Conformance;
+using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -12,10 +14,97 @@ public sealed class MongoStorageFacts : IDisposable
 
     public void Dispose()
     {
+        JobClock.TimeProvider = TimeProvider.System;
         if (_storage != null)
         {
             MongoTestServer.Drop(_storage);
         }
+    }
+
+    [Fact]
+    public void Heartbeats_AreWrittenWithTheServersClock_WhateverThisProcesssClockSays()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(10));
+        using IStorageConnection connection = _storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        DateTime announced = Heartbeat(_storage);
+        connection.Heartbeat("server");
+        DateTime beaten = Heartbeat(_storage);
+
+        DateTime serverNow = ((JobStorageConnection)connection).GetUtcDateTime();
+        Assert.InRange(announced, serverNow.AddSeconds(-30), serverNow);
+        Assert.InRange(beaten, announced, serverNow);
+    }
+
+    [Fact]
+    public void RemoveTimedOutServers_KeepsALiveServer_WhenThisProcesssClockIsAhead()
+    {
+        // The watchdog of a server whose clock is ten minutes ahead of the others'
+        _storage = MongoTestServer.CreateStorage();
+        using IStorageConnection connection = _storage.GetConnection();
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(10));
+
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromMinutes(1)));
+        Assert.Single(_storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void RemoveTimedOutServers_RemovesAStoppedServerOnTime_WhenThisProcesssClockIsBehind()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        using IStorageConnection connection = _storage.GetConnection();
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+
+        // Silent for five minutes by the server's clock; this process's clock is ten minutes behind it
+        DateTime serverNow = ((JobStorageConnection)connection).GetUtcDateTime();
+        _storage.Collections.Servers.UpdateOne(
+            Builders<BsonDocument>.Filter.Eq("_id", "server"),
+            Builders<BsonDocument>.Update.Set("LastHeartbeat", serverNow.AddMinutes(-5)),
+            cancellationToken: TestContext.Current.CancellationToken);
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(-10));
+
+        Assert.Equal(0, connection.RemoveTimedOutServers(TimeSpan.FromMinutes(10)));
+        Assert.Equal(1, connection.RemoveTimedOutServers(TimeSpan.FromMinutes(1)));
+        Assert.Empty(_storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void Heartbeat_OfAServerThatWasRemoved_ThrowsAnException_AndDoesNotBringItBack()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        using IStorageConnection connection = _storage.GetConnection();
+
+        Assert.Throws<BackgroundServerGoneException>(() => connection.Heartbeat("gone"));
+        Assert.Empty(_storage.GetMonitoringApi().Servers());
+    }
+
+    [Fact]
+    public void AnnounceServer_Again_ReplacesItsData_AndKeepsOneServer()
+    {
+        _storage = MongoTestServer.CreateStorage();
+        using IStorageConnection connection = _storage.GetConnection();
+
+        connection.AnnounceServer("server", new ServerContext { Queues = ["default"], WorkerCount = 1 });
+        connection.AnnounceServer("server", new ServerContext { Queues = ["critical", "$default"], WorkerCount = 7 });
+
+        ServerDto server = Assert.Single(_storage.GetMonitoringApi().Servers());
+        Assert.Equal(7, server.WorkersCount);
+        Assert.Equal(["critical", "$default"], server.Queues);
+    }
+
+    private static DateTime Heartbeat(MongoStorage storage)
+    {
+        ServerDto server = Assert.Single(storage.GetMonitoringApi().Servers());
+        return Assert.NotNull(server.Heartbeat);
+    }
+
+    /// <summary>The system clock, moved by a fixed time.</summary>
+    private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
     }
 
     [Fact]
