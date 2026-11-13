@@ -351,31 +351,50 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     /// </summary>
     public override DateTime GetUtcDateTime() => storage.Clock.TellsTheDatabasesTime ? storage.Clock.UtcNow() : base.GetUtcDateTime();
 
+    // A lease is stamped and judged with one clock, the database's where the storage reads it (the process's on
+    // SQLite, whose clock that is): a holder whose clock is behind keeps its lease against a taker whose clock is
+    // ahead. The time is read first and written next, so a lease lasts the lock lifetime less the time between the
+    // two, and is taken over no earlier than that lifetime after its holder read the clock. The clock is read
+    // for every take and renewal, and never kept: after a failover it is the new server's. The time the lease is
+    // asked to last until is told by the caller's clock, and isn't used: every lock of this storage is taken for
+    // the lifetime of the options.
     bool ILeaseStore.TryTake(string resource, string owner, DateTime expireAt)
     {
-        DateTime now = JobClock.UtcNow;
+        DateTime now = storage.Clock.UtcNow();
+        DateTime until = StorageValues.ExpireAt(now, storage.Options.DistributedLockLifetime);
         using DbContext context = storage.CreateContext();
-        context.Set<LockRow>().Where(x => x.Resource == resource && x.ExpireAt < now).ExecuteDelete();
+        bool lapsedRemoved = false;
 
-        // Providers report a duplicate key with exceptions of their own: the lease is held when its row is there
-        // after the insert failed. A row released in between is taken again once; other failures surface.
+        // The lease is inserted first, so a free lock costs no more statements than before the clock was read. An
+        // insert that fails says the row is there, or something else: providers report a duplicate key with
+        // exceptions of their own. A lease that ran out is removed, once, and the lock taken; one that is there is
+        // held; a row released in between is taken again; other failures surface.
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                context.Add(new LockRow { Resource = resource, Owner = owner, ExpireAt = expireAt });
+                context.Add(new LockRow { Resource = resource, Owner = owner, ExpireAt = until });
                 context.SaveChanges();
                 return true;
             }
             catch (DbUpdateException ex)
             {
                 context.ChangeTracker.Clear();
+                if (!lapsedRemoved)
+                {
+                    lapsedRemoved = true;
+                    if (context.Set<LockRow>().Where(x => x.Resource == resource && x.ExpireAt < now).ExecuteDelete() > 0)
+                    {
+                        continue;
+                    }
+                }
+
                 if (context.Set<LockRow>().Any(x => x.Resource == resource))
                 {
                     return false;
                 }
 
-                if (attempt == 2)
+                if (attempt >= 3)
                 {
                     LogProvider.GetLogger(typeof(EfConnection)).ErrorException($"Couldn't take the lock on '{resource}'.", ex);
                     throw;
@@ -386,7 +405,8 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
 
     bool ILeaseStore.TryRenew(string resource, string owner, DateTime expireAt)
     {
-        return Read(context => context.Set<LockRow>().Where(x => x.Resource == resource && x.Owner == owner).ExecuteUpdate(s => s.SetProperty(x => x.ExpireAt, expireAt))) > 0;
+        DateTime until = StorageValues.ExpireAt(storage.Clock.UtcNow(), storage.Options.DistributedLockLifetime);
+        return Read(context => context.Set<LockRow>().Where(x => x.Resource == resource && x.Owner == owner).ExecuteUpdate(s => s.SetProperty(x => x.ExpireAt, until))) > 0;
     }
 
     void ILeaseStore.Release(string resource, string owner)
@@ -408,7 +428,10 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     /// </summary>
     private EfFetchedJob? TryFetch(string[] queues, out bool contended)
     {
-        DateTime now = JobClock.UtcNow;
+        // By the database's clock where the storage reads it, so workers whose clocks differ agree on which job
+        // is being worked on; from a reading a second old at most, because every waiting worker comes here at
+        // every poll, and the timeout is counted in minutes
+        DateTime now = storage.Clock.ApproximateUtcNow();
         DateTime staleBefore = now - storage.Options.InvisibilityTimeout;
         using DbContext context = storage.CreateContext();
         contended = false;
@@ -584,7 +607,7 @@ internal sealed class EfFetchedJob(EntityFrameworkCoreStorage storage, long entr
 
     protected override void KeepAlive()
     {
-        DateTime now = JobClock.UtcNow;
+        DateTime now = storage.Clock.ApproximateUtcNow();
         using DbContext context = storage.CreateContext();
         Owned(context).ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now));
     }
