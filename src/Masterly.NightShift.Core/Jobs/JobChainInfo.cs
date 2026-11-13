@@ -26,6 +26,12 @@ public sealed record JobChainStepInfo(string Key, string JobId, string? State, i
 
     /// <summary>When a step in the Scheduled state is due, or <c>null</c> for another state, or when its state doesn't say.</summary>
     internal DateTime? DueAt { get; init; }
+
+    /// <summary>
+    /// For a step that waits for several steps, one of whose jobs is gone: what the steps it waits for finished
+    /// as, by job, as they wrote it on this step's job (<see cref="FanInContinuationsSupportAttribute.OutcomesParameterName"/>).
+    /// </summary>
+    internal IReadOnlyDictionary<string, string>? Outcomes { get; init; }
 }
 
 /// <summary>A stored chain, as <c>GetChain</c> reads it.</summary>
@@ -298,7 +304,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
             return Waiting.Undecided;
         }
 
-        DateTime? decidedAt = parents.Max(static x => x.FinishedAt);
+        // A step whose job is gone finished long ago: it decides only through what it wrote on this step
+        DateTime? decidedAt = parents.Max(static x => x.State == null ? DateTime.MinValue : x.FinishedAt);
         return decidedAt == null || JobClock.UtcNow - decidedAt.Value < JobChains.DecisionWindow ? Waiting.AboutToBeTold : Waiting.NeverTold;
     }
 

@@ -17,6 +17,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private readonly Dictionary<string, TimeSpan> _timesToLive = [];
     private readonly Dictionary<string, List<(double Score, string Value)>> _sets = [];
     private readonly Dictionary<string, StateData> _states = [];
+    private readonly Dictionary<(string JobId, string Name), string> _parameters = [];
     private readonly HashSet<string> _busyLocks = [];
     private readonly TimeSpan _interval = JobChainMaintenanceProcess.Interval;
     private readonly TimeSpan _busyInterval = JobChainMaintenanceProcess.BusyInterval;
@@ -56,6 +57,10 @@ public sealed class JobChainMaintenanceFacts : IDisposable
             .Returns((string key) => _timesToLive.TryGetValue(key, out TimeSpan timeToLive) ? timeToLive : TimeSpan.FromSeconds(-1));
         _connection.Setup(x => x.GetStateData(It.IsAny<string>()))
             .Returns((string jobId) => _states.GetValueOrDefault(jobId));
+        _connection.Setup(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string jobId, string name) => _parameters.GetValueOrDefault((jobId, name)));
+        _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Callback((string jobId, string name, string value) => _parameters[(jobId, name)] = value);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(CreateTransaction);
 
         _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()))
@@ -245,6 +250,89 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         _client.Verify(x => x.ChangeState("b", It.IsAny<EnqueuedState>(), AwaitingState.StateName), Times.Once);
         _client.Verify(x => x.ChangeState("c", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
         Assert.InRange(Assert.Single(Set(DueSet)).Score, After(TimeSpan.FromMinutes(9)), After(TimeSpan.FromMinutes(16)));
+    }
+
+    // What the steps before a waiting step finished as, kept on it for when their jobs are gone
+
+    [Fact]
+    public void Maintain_WritesOnAWaitingStep_WhatTheStepsBeforeItFinishedAs_WhenTheProcessThatFinishedThemDidNot()
+    {
+        // One branch succeeded twenty minutes ago, by a process that stopped before it wrote that on the steps
+        // that wait for the group; the other branch still runs
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+
+        Maintain();
+
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("alert", "FanInOutcomes")]);
+        Assert.Equal(AwaitingState.StateName, _states["done"].Name);
+        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+
+        // The next look finds it written: one read for each waiting step, and no write
+        Set(DueSet).Clear();
+        Set(DueSet).Add((1, "c"));
+        Maintain();
+
+        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("done", "FanInOutcomes", It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public void Maintain_WritesAgain_WhatAStepFinishedAs_WhenItFinishedAnotherWaySince()
+    {
+        // The branch failed for good, was requeued and succeeded, by a process that stopped before it wrote so
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Failed\"}";
+
+        Maintain();
+
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+    }
+
+    [Fact]
+    public void Maintain_GoesOn_WhenWhatAStepFinishedAsCanNotBeWritten()
+    {
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+        _busyLocks.Add("job:done:state-lock");
+        _connection.Setup(x => x.GetJobParameter("alert", "FanInOutcomes")).Throws(new InvalidOperationException("Storage is down"));
+
+        Assert.True(Maintain().Ran);
+
+        Assert.False(_parameters.ContainsKey(("done", "FanInOutcomes")));
+        Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)));
+    }
+
+    [Fact]
+    public void Maintain_StartsAStepThatWasNeverTold_FromWhatTheStepsBeforeItWroteOnIt_OnceTheirJobsAreGone()
+    {
+        // Both branches succeeded; the job of the first has expired since, and the process that finished the
+        // second stopped before it started the steps after the group
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states.Remove("b");
+        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+        _parameters[("alert", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+
+        Maintain();
+
+        Assert.Equal(EnqueuedState.StateName, _states["done"].Name);
+        Assert.Equal(DeletedState.StateName, _states["alert"].Name);
+    }
+
+    [Fact]
+    public void Maintain_LeavesAStepWaiting_BehindAStepWhoseJobIsGone_AndThatWroteNothingOnIt()
+    {
+        // Nobody knows what the first branch finished as: the step after the group isn't decided from a guess
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states.Remove("b");
+
+        Maintain();
+
+        Assert.Equal(AwaitingState.StateName, _states["done"].Name);
+        Assert.Equal(AwaitingState.StateName, _states["alert"].Name);
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

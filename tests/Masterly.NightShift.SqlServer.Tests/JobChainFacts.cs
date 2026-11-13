@@ -174,6 +174,57 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public void Join_Starts_WhenABranchIsRequeuedAndSucceeds_AfterTheJobOfTheOtherBranchExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        JobChainResult chain = JobChain.StartWith(() => Record("a"))
+            .ThenMany(branches => branches.Branch(() => Record("b")).Branch(() => FailOnce("c")))
+            .ThenAfterAll(() => Record("done"))
+            .ThenAfterAnyFailedOrCanceled(() => Record("alert"))
+            .Enqueue(client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+
+        // One branch succeeds, the other fails for good; then the job that succeeded expires
+        Assert.True(client.ChangeState(chain.RootId, new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(b, new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(c, new FailedState(new InvalidOperationException("failed")), null));
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, chain.Steps["2.1"]));
+        Assert.True(client.ChangeState(chain.Steps["2.1"], new SucceededState(null, 0, 0), null));
+
+        Expire(b);
+        Assert.Null(StateName(storage, b));
+
+        // The failed branch is requeued, and succeeds: every branch succeeded
+        Assert.True(client.ChangeState(c, new EnqueuedState(), FailedState.StateName));
+        Assert.True(client.ChangeState(c, new SucceededState(null, 0, 0), null));
+
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, chain.Steps["2.0"]));
+    }
+
+    [Fact, CleanDatabase]
+    public void FanIn_IsDecidedByWhatAParentFinishedAs_OnceItsJobExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        string first = client.Create(() => Record("first"), new EnqueuedState())!;
+        string second = client.Create(() => Record("second"), new ScheduledState(TimeSpan.FromDays(1)))!;
+        string all = client.ContinueJobWithAll([first, second], () => Record("all"))!;
+        string anyFailedOrCanceled = client.ContinueJobWithJoin([first, second], FanInMode.AnyFailedOrCanceled, () => Record("alert"))!;
+
+        Assert.True(client.ChangeState(first, new SucceededState(null, 0, 0), null));
+        Expire(first);
+
+        Assert.True(client.ChangeState(second, new SucceededState(null, 0, 0), null));
+
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, all));
+        Assert.Equal(DeletedState.StateName, StateName(storage, anyFailedOrCanceled));
+    }
+
+    [Fact, CleanDatabase]
     public async Task ProcessingContinuation_StartsWhileTheParentRuns()
     {
         SqlServerStorage storage = CreateStorage();
@@ -1452,6 +1503,13 @@ public class JobChainFacts
         transaction.RemoveHash(JobChains.GetKey(chainId));
         transaction.RemoveFromSet(JobChains.SetKey, chainId);
         transaction.Commit();
+    }
+
+    /// <summary>Removes a job, its state and its parameters, as the expiration manager does once it expired.</summary>
+    private static void Expire(string jobId)
+    {
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        sql.Execute($"delete from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
     }
 
     /// <summary>Makes jobs as old as if they had been created that many days earlier.</summary>

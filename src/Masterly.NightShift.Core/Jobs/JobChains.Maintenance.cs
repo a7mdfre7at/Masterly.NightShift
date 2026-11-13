@@ -76,6 +76,10 @@ public static partial class JobChains
     // The set in which an earlier build listed the chains with a step that waits for several steps
     private const string LegacyWatchSetKey = "chains:joins";
 
+    // How long a look waits for the lock of a waiting step to write on it what the steps before it finished as;
+    // the next look tries again
+    private static readonly TimeSpan OutcomeLockTimeout = TimeSpan.FromSeconds(1);
+
     // The longest a chain is left alone between two looks while something of it runs: a step that was never told
     // to start is started within this time, and the chain doesn't look settled for longer
     private static readonly TimeSpan MaxWatchInterval = TimeSpan.FromMinutes(15);
@@ -575,6 +579,7 @@ public static partial class JobChains
 
         int redriven = RedriveLostDecisions(client, connection, info);
         looks.Started += redriven;
+        KeepOutcomes(connection, info);
 
         if (!info.HasLiveSteps())
         {
@@ -629,6 +634,64 @@ public static partial class JobChains
         {
             ListedAt = lapsed && info.CreatedAt > DateTime.MinValue ? info.CreatedAt : null,
         };
+    }
+
+    /// <summary>
+    /// Writes on the steps that wait for several steps what the ones that finished finished as, where that isn't
+    /// written: the process that finished such a step writes it once the step is committed, and may have stopped
+    /// before, or failed to. A waiting step is decided from it once the jobs of the steps it waits for are gone
+    /// (<see cref="FanInContinuationsSupportAttribute.OutcomesParameterName"/>), so it has to be written while
+    /// they exist. One read for a waiting step with a finished step before it, and a write when something is
+    /// missing. Best effort: the next look tries again.
+    /// </summary>
+    private static void KeepOutcomes(IStorageConnection connection, JobChainInfo info)
+    {
+        HashSet<string> finalStates = ContinuationsSupportAttribute.KnownFinalStates;
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        foreach (JobChainStepInfo step in info.Steps)
+        {
+            if (!IsAwaiting(step.State))
+            {
+                continue;
+            }
+
+            levels ??= info.Steps.ToLookup(static x => x.Level);
+            List<JobChainStepInfo> parents = [.. levels[step.ParentLevel]];
+            if (parents.Count < 2)
+            {
+                continue;
+            }
+
+            try
+            {
+                Dictionary<string, string>? written = null;
+                List<string>? missing = null;
+
+                foreach (JobChainStepInfo parent in parents)
+                {
+                    if (parent.State == null || !FanInContinuationsSupportAttribute.IsOutcome(parent.State, finalStates))
+                    {
+                        continue;
+                    }
+
+                    written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, step.JobId);
+                    if (!written.TryGetValue(parent.JobId, out string? outcome) || !string.Equals(outcome, parent.State, StringComparison.Ordinal))
+                    {
+                        (missing ??= []).Add(parent.JobId);
+                    }
+                }
+
+                if (missing != null)
+                {
+                    FanInContinuationsSupportAttribute.RecordOutcomes(connection, step.JobId, missing, finalStates, OutcomeLockTimeout);
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.DebugException($"What the steps before step '{step.Key}' of chain '{info.ChainId}' finished as couldn't be written on its background job '{step.JobId}'; the next look tries again.", ex);
+            }
+        }
     }
 
     /// <summary>
@@ -773,11 +836,17 @@ public static partial class JobChains
 
         if (AwaitingJobsState.FromStateData(state.Data) is { } group)
         {
+            // A step whose job is gone counts as what it wrote on this one when it finished, and as not finished
+            // when it wrote nothing: this decides only from what is known
+            Dictionary<string, string>? written = null;
             decision = FanInContinuationsSupportAttribute.Evaluate(
                 group.Mode,
                 group.Options,
                 group.ParentIds,
-                parentId => FanInContinuationsSupportAttribute.GetParentState(connection, parentId),
+                parentId => FanInContinuationsSupportAttribute.GetKnownParentState(
+                    connection,
+                    parentId,
+                    () => written ??= FanInContinuationsSupportAttribute.ReadOutcomes(connection, jobId)),
                 finalStates);
             nextState = group.NextState;
         }
