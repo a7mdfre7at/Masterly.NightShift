@@ -257,10 +257,10 @@ public class Worker : IBackgroundProcess
         out BackgroundJob? backgroundJob,
         out bool stopped)
     {
-        ProcessingState processingState = new(context.ServerId, workerId) { QueueEntry = queueEntry };
         JobLookAgain lookAgain = new();
         long began = 0;
         TimeSpan waited = TimeSpan.Zero;
+        bool asked = false;
         bool keeping = false;
         stopped = false;
 
@@ -271,25 +271,41 @@ public class Worker : IBackgroundProcess
                 // While it keeps the job, the pool counts the time, the looks included: offered while the budget
                 // lasts and the job hasn't been kept too long
                 bool offered = waited < _waits.MaxPerJob && _waits.CanWait;
+                IState? appliedState;
 
-                IState? appliedState = TryChangeState(
-                    context,
-                    connection,
-                    jobId,
-                    processingState,
-                    null,
-                    EligibleWorkerStates,
-                    null,
-                    out backgroundJob,
-                    initializeToken,
-                    context.StoppingToken,
-                    lookAgain: offered ? lookAgain : null,
-                    queueEntry: queueEntry);
+                try
+                {
+                    // A state of its own for each look: it says when the job started, which is when the look
+                    // that applies it is made, not when the worker took the job
+                    appliedState = TryChangeState(
+                        context,
+                        connection,
+                        jobId,
+                        new ProcessingState(context.ServerId, workerId) { QueueEntry = queueEntry },
+                        null,
+                        EligibleWorkerStates,
+                        null,
+                        out backgroundJob,
+                        initializeToken,
+                        context.StoppingToken,
+                        lookAgain: offered ? lookAgain : null,
+                        queueEntry: queueEntry);
+                }
+                catch (OperationCanceledException) when (asked && context.StoppingToken.IsCancellationRequested)
+                {
+                    // The server stops while a look at a job this worker keeps is tried again: as a stop during
+                    // a pause, nothing was stored about the job, and it goes back to its queue as it was
+                    backgroundJob = null;
+                    stopped = true;
+                    return null;
+                }
 
                 if (appliedState != null || !offered || !lookAgain.Requested)
                 {
                     return appliedState;
                 }
+
+                asked = true;
 
                 if (!keeping)
                 {

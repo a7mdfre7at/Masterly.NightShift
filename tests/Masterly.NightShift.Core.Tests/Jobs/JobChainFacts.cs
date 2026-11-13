@@ -1175,6 +1175,31 @@ public class JobChainFacts : IDisposable
     }
 
     [Fact]
+    public void RetryChainFrom_Refuses_AStepWhoseMethodCanNotBeLoadedHere_BeforeAnythingIsWritten()
+    {
+        // A host without the step's assembly (an app with only the dashboard) can't hold the step: its state
+        // change would fail it instead, so the retry is refused first, clearly
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")), ["root", "next", "last"]);
+        _storage.Connection.Setup(x => x.GetJobParameter("next", JobChains.ChainIdParameter)).Returns("\"c\"");
+        _storage.Connection.Setup(x => x.GetStateData("root")).Returns(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("next")).Returns(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("last")).Returns(new StateData { Name = AwaitingState.StateName, Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetJobData("next")).Returns(new JobData
+        {
+            State = FailedState.StateName,
+            LoadException = new JobLoadException("The type wasn't found.", new TypeLoadException("Gone")),
+        });
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => JobChains.Retry(_storage.Object, _client.Object, "next"));
+
+        Assert.Contains("can't be loaded", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        _client.Verify(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>()), Times.Never);
+        Assert.DoesNotContain("changing", _storage.Hashes[JobChains.GetKey("c")]["Jobs"], StringComparison.Ordinal);
+        _storage.Connection.Verify(x => x.SetJobParameter("next", JobChains.ChainRetryParameter, It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public void RetryChainFrom_ThatFails_LeavesItsStep_AndItsNote_ToAnotherRetryThatHoldsItNow()
     {
         // On a storage whose chain lock is a lease, a client frozen for longer than the lease loses it: a server

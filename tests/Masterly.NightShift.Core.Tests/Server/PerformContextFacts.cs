@@ -244,27 +244,54 @@ public class PerformContextFacts
     }
 
     [Theory, GlobalLock(Reason = "Changes the clock")]
-    [InlineData("\"30000\"", 15)]
-    [InlineData("\"10000|1795165220000\"", 10)]
-    [InlineData("\"0|1795165195000\"", 0)]
-    [InlineData("\"90000\"", 0)]
-    [InlineData("\"soon\"", 45)]
-    [InlineData("not json", 45)]
+    [InlineData("1795165205000-1795165235000", 15)]
+    [InlineData("1795165205000-1795165215000;1795165220000-", 10)]
+    [InlineData("1795165195000-", 0)]
+    [InlineData("1795165140000-1795165170000", 45)]
+    [InlineData("1795165190000-1795165210000", 35)]
+    [InlineData("1795165240000-1795165290000", 40)]
+    [InlineData("1795165205000-1795165235000;1795165140000-1795165170000;nonsense;-5;7-3", 15)]
+    [InlineData("31000", 45)]
+    [InlineData("5000|1795165220000", 45)]
+    [InlineData("soon", 45)]
     [InlineData(null, 45)]
-    public void Lateness_LeavesOutTheTimeAPausedServerHeldTheJob(string hold, int secondsLate)
+    public void Lateness_LeavesOutTheTimeAPausedServerHeldTheJob_AfterTheMomentTheJobWasMeantToRun(string holds, int secondsLate)
     {
-        // Created at 09:00:00 (1795165200000 in Unix milliseconds) and started at 09:00:45. Held for 30 seconds;
-        // for 10 and, in a hold that began at 09:00:20 and whose end wasn't written, 25 more; since before it was
-        // created; for longer than it exists; and by values that can't be read
+        // Created at 09:00:00 (1795165200000 in Unix milliseconds) and started at 09:00:45. Held from 09:00:05 to
+        // 09:00:35; from 09:00:05 to 09:00:15, and from 09:00:20 in a hold whose end wasn't written; since before it
+        // was created; only before it was created, which isn't lateness to begin with; across its creation; past
+        // the moment it started; among values that can't be read; and in values that can't be read at all
         DateTime createdAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
         _backgroundJob.CreatedAt = createdAt;
-        _backgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = hold };
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [DrainModeFilter.ServerHoldParameter] = holds == null ? null : SerializationHelper.Serialize(holds),
+        };
 
         PerformContext context = WithClock(createdAt.AddSeconds(45), CreateContext);
 
         Assert.Equal(1795165200000, JobHelper.ToMillisecondTimestamp(createdAt));
         Assert.Equal(TimeSpan.FromSeconds(secondsLate), context.Lateness);
         _connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), DrainModeFilter.ServerHoldParameter), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Lateness_LeavesOutNoHold_ThatEndedBeforeTheJobWasMovedToItsNewTime()
+    {
+        // Held from 17:59:45 to 18:00:16, then moved by its schedule policy to 09:00 the next day, and started at 14:00
+        DateTime movedTo = new(2026, 11, 21, 9, 0, 0, DateTimeKind.Utc);
+        DateTime heldFrom = new(2026, 11, 20, 17, 59, 45, DateTimeKind.Utc);
+        _backgroundJob.CreatedAt = heldFrom;
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [PerformContext.ScheduledForParameter] = JobHelper.ToMillisecondTimestamp(movedTo).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [DrainModeFilter.ServerHoldParameter] = SerializationHelper.Serialize(
+                $"{JobHelper.ToMillisecondTimestamp(heldFrom)}-{JobHelper.ToMillisecondTimestamp(heldFrom.AddSeconds(31))}"),
+        };
+
+        PerformContext context = WithClock(movedTo.AddHours(5), CreateContext);
+
+        Assert.Equal(TimeSpan.FromHours(5), context.Lateness);
     }
 
     [Fact, GlobalLock(Reason = "Changes the clock")]

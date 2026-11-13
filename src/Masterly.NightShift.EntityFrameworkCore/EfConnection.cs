@@ -5,11 +5,22 @@ using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Masterly.NightShift.EntityFrameworkCore;
 
-internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStorageConnection, ILeaseStore
+/// <summary>
+/// A connection of the storage. Its reads and writes run on contexts of the storage's own, outside any ambient
+/// transaction; or, for a staged client inside an application's open transaction (<paramref name="within"/>), on
+/// contexts that share the application's connection and transaction, so they see the rows the application staged
+/// and saved there, and never wait for them. Locks never run within the application's transaction.
+/// </summary>
+internal sealed class EfConnection(EntityFrameworkCoreStorage storage, Func<DbContext>? within = null) : JobStorageConnection, ILeaseStore
 {
+    private const string SqlServerProvider = "Microsoft.EntityFrameworkCore.SqlServer";
+
     private readonly ReentrantLocks _locks = new();
 
     public override IWriteOnlyTransaction CreateWriteTransaction() => new EfTransaction(storage, this);
@@ -17,6 +28,11 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(resource);
+        if (within != null)
+        {
+            throw new InvalidOperationException("Locks are taken outside the application's transaction, on a connection of the storage.");
+        }
+
         string stored = EfLimits.LockResource(resource);
         return _locks.Acquire(stored, () => LeaseLock.Acquire(this, stored, timeout, storage.Options.DistributedLockLifetime));
     }
@@ -98,7 +114,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             return;
         }
 
-        EfTransaction.Apply(storage, [new SetJobParameterOperation(jobId, name, value)]);
+        Write([new SetJobParameterOperation(jobId, name, value)]);
     }
 
     public override string? GetJobParameter(string id, string name)
@@ -282,7 +298,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(keyValuePairs);
-        EfTransaction.Apply(storage, [new SetRangeInHashOperation(key, [.. keyValuePairs])]);
+        Write([new SetRangeInHashOperation(key, [.. keyValuePairs])]);
     }
 
     public override Dictionary<string, string>? GetAllEntriesFromHash(string key)
@@ -452,7 +468,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             // When another worker claimed the entry first, tries the next one
             for (int attempt = 0; attempt < 5; attempt++)
             {
-                var candidate = context.Set<JobQueueRow>()
+                var candidate = QueueEntries(context)
                     .Where(x => x.Queue == queue && (x.FetchedAt == null || x.FetchedAt < staleBefore))
                     .OrderBy(static x => x.Id)
                     .Select(static x => new { x.Id, x.JobId })
@@ -485,8 +501,56 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         return StorageValues.TimeToLive(Read(context => context.Set<TRow>().Where(predicate).Min(expireAt)));
     }
 
+    /// <summary>
+    /// The queue entries a fetch looks at. On SQL Server, entries that another transaction holds are skipped
+    /// (<c>readpast</c>), as the SQL Server storage does: a job staged in an application's transaction that is still
+    /// open, or an entry being claimed, would otherwise make every worker wait for that transaction where reads
+    /// take locks (<c>READ_COMMITTED_SNAPSHOT</c> off). The other databases read without waiting for writers:
+    /// PostgreSQL, MySQL's InnoDB and Oracle read the last committed version, and SQLite has no row locks.
+    /// </summary>
+    private IQueryable<JobQueueRow> QueueEntries(DbContext context)
+    {
+        if (storage.ProviderName != SqlServerProvider)
+        {
+            return context.Set<JobQueueRow>();
+        }
+
+        IEntityType entity = context.Model.FindEntityType(typeof(JobQueueRow))!; // In every context's model: CreateContext checks it
+        string table = context.GetService<ISqlGenerationHelper>().DelimitIdentifier(entity.GetTableName()!, entity.GetSchema()); // Mapped to a table
+#pragma warning disable EF1002 // The table's name, from the model and quoted by the provider, can't be a parameter
+        return context.Set<JobQueueRow>().FromSqlRaw($"select * from {table} with (readpast)");
+#pragma warning restore EF1002
+    }
+
+    /// <summary>Writes at once: in a transaction of the storage's own, or in the application's (see <see cref="EfConnection"/>).</summary>
+    private void Write(IReadOnlyList<StorageOperation> operations)
+    {
+        if (within == null)
+        {
+            EfTransaction.Apply(storage, operations);
+            return;
+        }
+
+        // In the application's transaction, which a failure leaves to the application: not tried again
+        EfLimits.EnsureFits(operations);
+        using DbContext context = within();
+        EfOperationWriter writer = new(context, immediate: true);
+        foreach (StorageOperation operation in operations)
+        {
+            writer.Write(operation);
+        }
+
+        context.SaveChanges();
+    }
+
     private T Read<T>(Func<DbContext, T> read)
     {
+        if (within != null)
+        {
+            using DbContext shared = within();
+            return read(shared);
+        }
+
         using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         return read(context);

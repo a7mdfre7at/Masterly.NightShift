@@ -884,6 +884,119 @@ public class WorkerFacts
     }
 
     [Fact]
+    public void Execute_StartsTheJob_WhenTheLookThatAppliesTheProcessingStateIsMade_NotWhenTheWorkerTookIt()
+    {
+        // The worker keeps the job for two looks first: the time it kept it isn't time the job ran
+        List<ProcessingState> states = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                if (ctx.NewState is not ProcessingState processing)
+                {
+                    return ctx.NewState;
+                }
+
+                states.Add(processing);
+                if (states.Count <= 2)
+                {
+                    ctx.LookAgain.Request(TimeSpan.FromMilliseconds(200));
+                    return null;
+                }
+
+                return ctx.NewState;
+            });
+        DateTime before = DateTime.UtcNow;
+
+        CreateWorker().Execute(_context.Object);
+
+        // A state of its own at each look, so the one applied says when the job really started
+        Assert.Equal(3, states.Distinct().Count());
+        Assert.InRange(states[^1].StartedAt, before.AddMilliseconds(350), DateTime.UtcNow);
+        Assert.All(states, state => Assert.Equal(states[0].WorkerId, state.WorkerId));
+    }
+
+    [Fact]
+    public void Execute_PutsTheJobBack_WithoutThrowing_WhenTheServerStopsWhileALookIsTriedAgain()
+    {
+        // The worker keeps the job; at its next look the storage fails, and the server stops while the state
+        // change waits before it tries again. That is a stop while the worker keeps the job, as during a pause.
+        int looks = 0;
+        int requeues = 0;
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                if (++looks == 1)
+                {
+                    ctx.LookAgain.Request(TimeSpan.FromMilliseconds(1));
+                    return null;
+                }
+
+                _context.StoppingTokenSource.Cancel();
+                throw new InvalidOperationException("The storage is down.");
+            });
+        _fetchedJob.Setup(x => x.Requeue()).Callback(() =>
+        {
+            if (++requeues < 3)
+            {
+                throw new InvalidOperationException("The storage is still down.");
+            }
+        });
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.Equal(3, requeues);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+        _fetchedJob.Verify(x => x.Dispose(), Times.Once);
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_StillRequeuesOnceAndThrows_WhenTheServerStopsWhileTheFirstLookIsTriedAgain()
+    {
+        // Not kept yet: the path of before, which BackgroundExecution expects when the server stops
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                _context.StoppingTokenSource.Cancel();
+                throw new InvalidOperationException("The storage is down.");
+            });
+
+        Assert.ThrowsAny<OperationCanceledException>(() => CreateWorker().Execute(_context.Object));
+
+        _fetchedJob.Verify(x => x.Requeue(), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_StillRequeuesOnceAndThrows_WhenTheServerStopsWhileTheJobRuns()
+    {
+        // A run that the server's stop cancels takes its existing path, also after the worker kept the job
+        int looks = 0;
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                if (ctx.NewState is ProcessingState && ++looks == 1)
+                {
+                    ctx.LookAgain.Request(TimeSpan.FromMilliseconds(1));
+                    return null;
+                }
+
+                return ctx.NewState;
+            });
+        _performer.Setup(x => x.Perform(It.IsAny<PerformContext>())).Callback(() =>
+        {
+            _context.StoppingTokenSource.Cancel();
+            _context.StoppedTokenSource.Cancel();
+            _context.ShutdownTokenSource.Cancel();
+            throw new OperationCanceledException(_context.ShutdownTokenSource.Token);
+        });
+
+        Assert.ThrowsAny<OperationCanceledException>(() => CreateWorker().Execute(_context.Object));
+
+        _fetchedJob.Verify(x => x.Requeue(), Times.Once);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+    }
+
+    [Fact]
     public void Execute_CountsItselfAsLookingForAJob_OnlyWhileItFetchesOne()
     {
         // While it looks for a job, the waits of the other workers of its pool cost the pool nothing

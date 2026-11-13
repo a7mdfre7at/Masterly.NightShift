@@ -542,7 +542,11 @@ public static partial class JobChains
         {
             string? current = ReadHeld(connection, jobId, marker, out bool held);
 
-            if (held && ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
+            // A step with a queue of its own whose hold ended is in that queue already, though still Scheduled:
+            // the delayed job scheduler moves such a job without changing its state. It waits there as an
+            // Enqueued step does
+            if (held && ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase) &&
+                !IsInItsQueueAlready(client, connection, jobId))
             {
                 if (client.ChangeState(jobId, state, ScheduledState.StateName))
                 {
@@ -554,7 +558,8 @@ public static partial class JobChains
                 current = ReadHeld(connection, jobId, marker, out held);
             }
 
-            if (held && EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
+            if (held && (EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase) ||
+                         ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase)))
             {
                 Logger.Info($"The hold of background job '{jobId}' of chain '{chainId}' ended while the retry was at it: the job waits in its queue, and the worker that takes it moves it back to {state.Name} instead of running it.");
                 return;
