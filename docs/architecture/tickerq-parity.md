@@ -142,7 +142,7 @@ The four storages share an internal layer compiled into each package (`src/Share
 
 | TickerQ | Status | NightShift |
 |---|---|---|
-| Conformance suite | Port | `tests/Shared/StorageConformance/StorageConformanceFacts.cs`: 46 tests (primitives, queues, locks, monitoring, purge, end to end with a server), compiled into each storage's test project. SQL Server passes it except two features it doesn't have (parameters in transactions, timelines before aggregation). |
+| Conformance suite | Port | `tests/Shared/StorageConformance/StorageConformanceFacts.cs`: 58 tests (primitives, job parameters in transactions, queues, locks, monitoring, purge, end to end with a server), compiled into each storage's test project. SQL Server passes it except the tests for what it doesn't have: timelines read before aggregation, locks that are leases and fetched jobs left without keep-alive. A chain's `ChainRecorded` marks are written in the record's transaction on SQL Server too, since it sets job parameters in a transaction. |
 | In-memory store | Port | `Masterly.NightShift.InMemory`: one lock, copies on read, wake-ups on enqueue, `MaxExpirationTime`. |
 | EF Core store and transactional scheduling (`StageAsync`) | Port | `Masterly.NightShift.EntityFrameworkCore`: a context of its own or the application's (`ApplyNightShiftModel`); `context.NightShift()` stages jobs that commit or roll back with `SaveChanges`. EF Core 8 on `net8.0`, 10 on `net10.0`. |
 | Redis store | Port | `Masterly.NightShift.Redis`: one Lua script per transaction, pub/sub wake-ups, keys in one hash slot. |

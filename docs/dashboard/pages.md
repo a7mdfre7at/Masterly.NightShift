@@ -75,7 +75,7 @@ The sidebar shows counters next to Jobs, Retries, Recurring Jobs, Servers and ea
 - **Sidebar**: navigation with counters, the **Watching** list (jobs you watch, see the job page below; kept in the browser, one list per dashboard path), the theme switcher (system, light, dark) and the "Back to site" link (`DashboardOptions.AppPath`).
 - **Top bar**: a live indicator, a **Refresh** button and **Search** (`Ctrl+K`). Search finds a job by its exact id, recurring jobs whose id contains the text, and tags containing it; start with `tag:` to search tags only.
 - **Banners**: when processing is paused (drain mode) a banner says so, with the reason, the time it started and a **Resume** button. Paused queues and paused servers get their own banner. A pause left behind by a server that has stopped is not in the banner; see Servers below.
-- **Footer**: version, the storage description (unless `DisplayStorageConnectionString` is `false`), the storage's clock, your app's clock (with a warning when they differ by more than 30 seconds), and how long the page took to render.
+- **Footer**: version, the storage description (unless `DisplayStorageConnectionString` is `false`), the storage's clock where the storage has one (SQL Server, Redis, MongoDB, the in-memory storage, and Entity Framework Core on [a database it reads the clock of](../storage/entity-framework-core.md#the-databases-clock)), your app's clock (with a warning when they differ by more than 30 seconds), and how long the page took to render.
 
 Keyboard shortcuts (press `?` to see them on lists):
 

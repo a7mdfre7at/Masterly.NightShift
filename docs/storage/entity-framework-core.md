@@ -55,7 +55,7 @@ public async Task PlaceOrderAsync(ShopContext db, Order order)
 
 ## How it works
 
-Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `State` (history), `JobParameter`, `JobQueue`, `Set`, `List`, `Hash`, `Counter`, `AggregatedCounter`, `Server` and `Lock`. Every query goes through LINQ, `ExecuteUpdate` and `ExecuteDelete`, with no provider-specific SQL.
+Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `State` (history), `JobParameter`, `JobQueue`, `Set`, `List`, `Hash`, `Counter`, `AggregatedCounter`, `Server` and `Lock`. Every query goes through LINQ, `ExecuteUpdate` and `ExecuteDelete`, with no provider-specific SQL, except the one statement that reads [the database's clock](#the-databases-clock).
 
 - **Transactions** run in a database transaction. When two transactions add the same set item or hash field at once, the one that loses starts again and updates the row the other added.
 - **Fetching** reads the oldest visible entry of a queue, then claims it with an update that only succeeds if nobody claimed it first.
@@ -64,6 +64,25 @@ Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `
 - **Staging.** `context.NightShift()` reserves the job's id at once, in a row committed on a connection of its own, outside your transaction, so client filters see the real id. The reservation lasts at least a day, so the context may be saved long after the job is staged. The job's state, queue entry and every other write of its creation become tracked changes of your context. Saved, they commit with your data; discarded or rolled back, the reserved row has no state and is deleted when it expires.
 - **Lengths are checked before writing.** Keys and hash fields of at most 100 characters, set values of 256, job parameter names of 40, state names of 20 and queue names of 50 fit the columns, the limits of the SQL Server storage. A longer one is refused with `ArgumentException` before anything is written, on every provider (SQLite would otherwise store it whole, and the other databases refuse it deep in `SaveChanges`). State reasons longer than 100 characters are cut.
 - **Comparisons follow the database's collation.** Keys, hash fields, set values and queue names are compared by the database: SQLite and PostgreSQL compare them as written, while the default collations of SQL Server and MySQL ignore case, so `Key` and `key` are one key there.
+
+### The database's clock
+
+On SQL Server, PostgreSQL (Npgsql), MySQL and MariaDB (Pomelo and Oracle's MySQL provider) and Oracle, the storage reads the database's clock and reports `JobStorageFeatures.Connection.GetUtcDateTime`. The delayed and recurring job schedulers, the dashboard, the [health endpoints and the health check](../monitoring/health-checks.md) and the lease of a [chain](../jobs/chains.md#when-a-step-runs) that is being created or changed use that clock, and server heartbeats are written and timed out with it. For these, the clocks of the clients and servers that share the storage needn't agree.
+
+| Provider | Statement |
+|---|---|
+| `Microsoft.EntityFrameworkCore.SqlServer` | `select sysutcdatetime()` |
+| `Npgsql.EntityFrameworkCore.PostgreSQL` | `select clock_timestamp() at time zone 'utc'` |
+| `Pomelo.EntityFrameworkCore.MySql`, `MySql.EntityFrameworkCore` | `select date_format(utc_timestamp(6), '%Y-%m-%d %H:%i:%s.%f')` |
+| `Oracle.EntityFrameworkCore` | `select sys_extract_utc(systimestamp) from dual` |
+
+- **SQLite keeps the process's clock.** SQLite runs inside the process and reads the machine's clock, so its clock is the process's own. The storage runs no statement there and doesn't report the feature.
+- **Any other provider needs `DatabaseClockSql`.** Without it the storage logs one line at the information level when it is created, doesn't report the feature, and each process uses its own clock. Set the option to the SQL that returns the database's current UTC time as a single value: a date and time, or text such as `2026-01-31 12:00:00.000`. The option also replaces the statement of a provider in the table, and with it set on SQLite, SQLite is asked too.
+- **The statement is checked the first time the clock is read.** Whether the feature is reported comes from the provider and the option alone; the database isn't asked for it. A statement that fails on a database that can be reached, or that answers something other than a date and time, is logged once as a warning, and the process uses its own clock for as long as the storage object lives. Every statement but SQL Server's built-in one must also answer within 30 minutes of the process's clock, which tells a statement that returns local time from one that returns UTC. That covers the PostgreSQL, MySQL, MariaDB and Oracle statements and any statement from `DatabaseClockSql`: this repository's tests run only the SQL Server statement and the SQLite path against a real database, so the others are checked at first use instead. While the database can't be reached, the read fails like any other read and the next one checks again. Once a statement has passed, a read that fails throws; the storage doesn't go back to the process's clock.
+- **`UseTimeProvider` doesn't drive the schedulers on these databases,** as on the SQL Server storage: they ask the database for the time. On SQLite it does, as with the in-memory storage.
+- **Cost.** Each read is one more statement, on a context of the storage: one for each scheduler pass, heartbeat, watchdog check, dashboard page, poll of the live jobs, `/health` or `/metrics` request and health check run, and each time a chain's lease is taken, renewed or checked.
+
+What still uses process clocks is listed under [Things to know](#things-to-know).
 
 ## Options / API
 
@@ -76,6 +95,7 @@ Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `
 | `JobExpirationCheckInterval` | 30 minutes | How often expired rows are deleted. |
 | `CountersAggregateInterval` | 5 minutes | How often counter increments are merged. |
 | `DistributedLockLifetime` | 30 seconds | How long a lock outlives a process that died holding it. |
+| `DatabaseClockSql` | `null` | The SQL that returns the database's current UTC time as a single value, for a provider the storage knows no statement for, or to replace a built-in one. `null` uses the provider's statement; an empty or whitespace value throws `ArgumentException`. See [The database's clock](#the-databases-clock). |
 
 | API | What it does |
 |---|---|
@@ -92,7 +112,8 @@ Tables (in `Schema`, `nightshift` by default): `Job` (with its current state), `
 - **After-commit work runs when the job is staged.** Alerts, activity feed entries and other work filters do once a job's creation is committed run when the job is staged, not when the context is saved, and run even if the context is never saved.
 - **Saving wakes workers.** A `SaveChanges` that saves staged queue entries wakes this process's waiting workers at once; other processes see the jobs at their next poll. Saves without queue entries wake nobody.
 - **SQLite has one writer at a time.** The job's id is reserved through a separate connection, which would wait while your context's transaction holds the write lock, so staging a job while that transaction is open throws `InvalidOperationException` at once. Stage jobs before `BeginTransaction`, let `SaveChanges` open its own transaction, or enqueue through the storage once your transaction committed.
-- **No server clock.** EF Core has no portable way to read the database's time, so servers use their own clocks. Keep the clocks of the processes that share a storage synchronized, to well within 2 minutes: a [chain](../jobs/chains.md#when-a-step-runs) that is being created or changed is protected by a 2-minute lease, which the client writes and renews with its own clock and the servers compare with theirs. With a client clock that far behind a server's, the server takes the lease for lapsed: a worker that takes the first step of a chain that is still being created deletes it, so `Enqueue` or `Schedule` throws `InvalidOperationException`, and steps can start while a chain is retried or replaced. With a client clock ahead, the steps wait that much longer after a client that stopped; more than an hour ahead, the lease is taken for damaged and doesn't count.
+- **Some times still come from process clocks.** On every provider, lock leases, the invisibility of fetched jobs, when jobs and other rows expire, the times written into states and the times jobs are scheduled for use the clock of the process that writes or compares them. Keep the clocks of the processes that share a storage synchronized (NTP): processes whose clocks differ by more than `DistributedLockLifetime` (30 seconds) can take each other's locks.
+- **Without the database's clock, the processes' clocks must agree to well within 2 minutes.** That is the case on a provider without a statement and after a statement failed its check (see [The database's clock](#the-databases-clock)). The schedulers and heartbeats then use process clocks too, and so does the 2-minute lease that protects a [chain](../jobs/chains.md#when-a-step-runs) that is being created or changed: the client writes and renews it with its own clock and the servers compare it with theirs. With a client clock that far behind a server's, the server takes the lease for lapsed: a worker that takes the first step of a chain that is still being created deletes it, so `Enqueue` or `Schedule` throws `InvalidOperationException`, and steps can start while a chain is retried or replaced. With a client clock ahead, the steps wait that much longer after a client that stopped; more than an hour ahead, the lease is taken for damaged and doesn't count.
 
 ## See also
 

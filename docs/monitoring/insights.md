@@ -273,7 +273,7 @@ Get the key of a job with `JobInsightsAttribute.GetKey(job)`.
 
 ## Prometheus endpoint
 
-The dashboard serves `GET {dashboard path}/metrics` in the Prometheus text format (`text/plain; version=0.0.4`). It is built from storage queries, so it shows the whole cluster, not one process. The text is kept for 5 seconds per storage: several scrapers, or a scraper and a health probe, cost the storage no more than one. Each metric family is written as one group after its `# HELP` and `# TYPE` lines, as strict parsers require, and no two families share a name, also for OpenMetrics parsers, which name a counter's family without its `_total` suffix. The series:
+The dashboard serves `GET {dashboard path}/metrics` in the Prometheus text format (`text/plain; version=0.0.4`). It is built from storage queries, so it shows the whole cluster, not one process. The text is kept for 5 seconds per storage: several scrapers, or a scraper and a health probe, cost the storage no more than one, apart from one read of the storage's clock per request, where the storage [has one](health-checks.md#which-clock). Each metric family is written as one group after its `# HELP` and `# TYPE` lines, as strict parsers require, and no two families share a name, also for OpenMetrics parsers, which name a counter's family without its `_total` suffix. The series:
 
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
