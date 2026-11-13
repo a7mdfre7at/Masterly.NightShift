@@ -505,8 +505,13 @@ public static partial class JobChains
             return ChainPlacement.Leave;
         }
 
+        // A chain whose record had no time left may have left the list of chains: it is put back, where its
+        // record says it was
         DateTime soonest = now + DecisionWindow;
-        return new ChainPlacement(DueSetKey, next.Value < soonest ? soonest : next.Value) { ListedAt = lapsed ? info.CreatedAt : null };
+        return new ChainPlacement(DueSetKey, next.Value < soonest ? soonest : next.Value)
+        {
+            ListedAt = lapsed && info.CreatedAt > DateTime.MinValue ? info.CreatedAt : null,
+        };
     }
 
     /// <summary>
