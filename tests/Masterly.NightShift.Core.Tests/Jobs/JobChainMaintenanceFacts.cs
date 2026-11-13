@@ -843,6 +843,40 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_UnlistsAChainLeftToExpire_WhoseRecordExpired_WhenALookWasAskedForBeforeItsTurn()
+    {
+        // The chain finished long ago and was left to expire; its record expired a moment ago, and a step of it
+        // was requeued just then, which asked for a look before the chain's turn to leave the list came
+        Line("c", TimeSpan.FromDays(31), ("a", Finished(SucceededState.StateName, TimeSpan.FromDays(31))));
+        Set(DueSet).Clear();
+        Set(ExpirySet).Add((After(TimeSpan.FromSeconds(30)), "c"));
+        Set(SoonSet).Add((1, "c|asked"));
+        _hashes.Remove(JobChains.GetKey("c"));
+
+        Maintain();
+
+        // Gone, as at its turn: not taken for a chain whose record the storage lost, and kept another retention
+        Assert.Empty(Listed());
+        Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Set(DueSet));
+        Assert.Empty(Set(SoonSet));
+    }
+
+    [Fact]
+    public void Maintain_TriesAgainSoon_AStepNeverToldToStart_WhoseStartFailed_HoweverLongTheChainStoodStill()
+    {
+        // Both branches succeeded three days ago, and no server ran since; starting or skipping the steps after
+        // them fails, for a storage that is briefly unavailable
+        WatchedChain("c", TimeSpan.FromDays(3), SucceededState.StateName, SucceededState.StateName);
+        _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), AwaitingState.StateName))
+            .Throws(new InvalidOperationException("Storage is down"));
+
+        Maintain();
+
+        Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)), "The chain is looked at again only after as long as it stood still.");
+    }
+
+    [Fact]
     public void Maintain_LooksAgainAtAChainLeftToExpire_WhenAStepOfItRunsAgain()
     {
         // Somebody requeued a step after the chain had finished, and it failed for good: the record is kept
@@ -1104,7 +1138,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Maintain();
 
         Assert.True(_indexed);
-        Assert.Empty(Listed().Where(chainId => !Set(DueSet).Concat(Set(ExpirySet)).Any(x => x.Value == chainId)));
+        Assert.DoesNotContain(Listed(), chainId => !Set(DueSet).Concat(Set(ExpirySet)).Any(x => x.Value == chainId));
     }
 
     [Fact]

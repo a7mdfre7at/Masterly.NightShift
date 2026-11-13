@@ -420,6 +420,14 @@ public static partial class JobChains
         }
     }
 
+    // Whether the chain is among the chains left to expire. Read only for a chain without record.
+    private static bool IsLeftToExpire(JobStorage storage, IStorageConnection connection, string chainId)
+    {
+        return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetSetContains)
+            ? storageConnection.GetSetContains(ExpirySetKey, chainId)
+            : connection.GetAllItemsFromSet(ExpirySetKey).Contains(chainId);
+    }
+
     private static string? ReadField(JobStorage storage, IStorageConnection connection, string chainId, string field)
     {
         return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.ExtendedApi)
@@ -659,7 +667,9 @@ public static partial class JobChains
 
         if (info == null)
         {
-            if (expiring == null || leftToExpire || !IsListed(storage, connection, chainId))
+            // Left to expire, its record expired: a look asked for (a step that left the state it had finished in)
+            // finds it gone as the chain's own look would, a moment later
+            if (expiring == null || leftToExpire || !IsListed(storage, connection, chainId) || IsLeftToExpire(storage, connection, chainId))
             {
                 return ChainPlacement.Unlist;
             }
@@ -669,7 +679,7 @@ public static partial class JobChains
             return new ChainPlacement(ExpirySetKey, now + JobChain.RecordRetention);
         }
 
-        int redriven = RedriveLostDecisions(client, connection, info);
+        int redriven = RedriveLostDecisions(client, connection, info, out int failed);
         looks.Started += redriven;
         KeepOutcomes(connection, info);
 
@@ -698,7 +708,9 @@ public static partial class JobChains
                 : ChainPlacement.Unlist;
         }
 
-        DateTime? next = info.HasWaitingSteps() ? now + WatchInterval(info, now, redriven > 0) : null;
+        // A step that couldn't be started (the storage failed) is tried again within minutes, not after as long
+        // as the chain stood still
+        DateTime? next = info.HasWaitingSteps() ? now + WatchInterval(info, now, redriven > 0 || failed > 0) : null;
         bool lapsed = false;
 
         if (expiring != null)
@@ -869,7 +881,14 @@ public static partial class JobChains
     /// <returns>The number of steps started or skipped.</returns>
     internal static int RedriveLostDecisions(IBackgroundJobClient client, IStorageConnection connection, JobChainInfo info)
     {
+        return RedriveLostDecisions(client, connection, info, out _);
+    }
+
+    /// <summary>The same; <paramref name="failed"/> receives the number of steps that couldn't be decided because something threw.</summary>
+    private static int RedriveLostDecisions(IBackgroundJobClient client, IStorageConnection connection, JobChainInfo info, out int failed)
+    {
         int redriven = 0;
+        failed = 0;
 
         foreach (JobChainStepInfo step in info.NeverToldSteps())
         {
@@ -883,7 +902,8 @@ public static partial class JobChains
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
             {
-                Logger.WarnException($"Step '{step.Key}' of chain '{info.ChainId}', background job '{step.JobId}', was never told to start and couldn't be started now; it is tried again later.", ex);
+                failed++;
+                Logger.WarnException($"Step '{step.Key}' of chain '{info.ChainId}', background job '{step.JobId}', was never told to start and couldn't be started now; it is tried again within {MaxWatchInterval.TotalMinutes:0} minutes.", ex);
             }
         }
 
