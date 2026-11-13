@@ -193,7 +193,7 @@ public static partial class JobChains
                 ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept while a step of it is left to run or failed for good, and for {JobChain.RecordRetention.TotalDays:0.#} days after.");
 
             // What a change before this one left to do comes first: a step it still holds isn't settled
-            record = FinishPendingCleanup(client, connection, record);
+            record = FinishPendingCleanup(storage, client, connection, record);
 
             string stepKey = record.Jobs.FirstOrDefault(x => x.Value == stepJobId).Key
                 ?? throw new InvalidOperationException($"Background job '{stepJobId}' isn't a current step of chain '{chainId}'; a retry replaced it.");
@@ -282,6 +282,7 @@ public static partial class JobChains
                         .. DeepestFirst(record.Jobs.Where(x => ParseKey(x.Key).Level != level && retried.Contains(ParseKey(x.Key).Level))),
                     ],
                     Release = held,
+                    ReleaseRetry = marker?.Id,
                 };
 
                 updated = record with { Jobs = jobs, Generation = record.Generation + 1, Cleanup = cleanup };
@@ -311,7 +312,7 @@ public static partial class JobChains
                 if (locked.Elapsed > SafeLockTime)
                 {
                     refused = FirstRefused(connection, chainId, created);
-                    putBack = WasPutBack(connection, chainId, held);
+                    putBack = WasPutBack(connection, chainId, held, marker);
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
@@ -439,7 +440,7 @@ public static partial class JobChains
             ChainRecord record = ChainRecord.Read(connection, chainId)
                 ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded.");
 
-            record = FinishPendingCleanup(client, connection, record);
+            record = FinishPendingCleanup(storage, client, connection, record);
 
             string rootId = record.Jobs[Key(0, 0)];
             StateData? root = connection.GetStateData(rootId);

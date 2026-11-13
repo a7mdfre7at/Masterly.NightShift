@@ -18,6 +18,14 @@ public static partial class JobChains
     /// </summary>
     internal const string RetryAbandonedReasonFormat = "The retry of chain {0} was abandoned";
 
+    /// <summary>
+    /// The entry, in the data of the state a server puts a step back into because its retry was abandoned, with
+    /// the identifier of that retry (<see cref="RetryMarker.Id"/>): what tells, as long as the step is in that
+    /// state, which retry it was put back for. A retry that was recorded after all releases its step from there,
+    /// and no other retry does.
+    /// </summary>
+    internal const string AbandonedRetryDataKey = "AbandonedRetry";
+
     // How much longer than the lease of the retry lasts its step is held: when the hold ends, a client that
     // stopped at the start of the retry no longer counts as being at it, so the step is put back at once
     private const int HoldMarginSeconds = 15;
@@ -130,7 +138,16 @@ public static partial class JobChains
     {
         StateData state = marker.ToStateData();
         state.Reason = RetryAbandonedReason(chainId);
+        state.Data[AbandonedRetryDataKey] = marker.Id;
         return Restore(state, marker.ExpireAt);
+    }
+
+    /// <summary>Whether a state is the one a server put a step back into for the retry <paramref name="retryId"/>.</summary>
+    internal static bool IsPutBackFor(StateData? state, string retryId)
+    {
+        return state?.Data != null &&
+               state.Data.TryGetValue(AbandonedRetryDataKey, out string? putBackFor) &&
+               string.Equals(putBackFor, retryId, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -444,9 +461,10 @@ public static partial class JobChains
 
     /// <summary>
     /// Whether a server took the retry for abandoned and dealt with its step: put it back into the state it was
-    /// in, or deleted the job created again for it, which the record didn't list. Read under the job's lock.
+    /// in, for this retry (<paramref name="marker"/>), or deleted the job created again for it, which the record
+    /// didn't list. Read under the job's lock.
     /// </summary>
-    private static bool WasPutBack(IStorageConnection connection, string chainId, string heldId)
+    private static bool WasPutBack(IStorageConnection connection, string chainId, string heldId, RetryMarker? marker)
     {
         StateData? state;
         using (connection.AcquireDistributedJobLock(heldId, CommitLockTimeout))
@@ -454,7 +472,7 @@ public static partial class JobChains
             state = connection.GetStateData(heldId);
         }
 
-        return IsRefused(chainId, state) || string.Equals(state?.Reason, RetryAbandonedReason(chainId), StringComparison.Ordinal);
+        return IsRefused(chainId, state) || (marker != null && IsPutBackFor(state, marker.Id));
     }
 
     /// <summary>

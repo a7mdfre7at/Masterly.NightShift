@@ -1093,8 +1093,13 @@ public class JobChainFacts : IDisposable
 
                 // Held until the record is written; what a server made of it meanwhile shows from then on
                 recorded |= _storage.Hashes[JobChains.GetKey("c")].GetValueOrDefault("Generation") == "2";
+                // A server that put the step back says for which retry
+                Dictionary<string, string> data = stateAfter == FailedState.StateName
+                    ? new Dictionary<string, string> { ["AbandonedRetry"] = JobChains.RetryMarker.Parse(_heldWith["next"])!.Id }
+                    : [];
+
                 return recorded
-                    ? new StateData { Name = stateAfter, Reason = reasonAfter, Data = new Dictionary<string, string>() }
+                    ? new StateData { Name = stateAfter, Reason = reasonAfter, Data = data }
                     : new StateData { Name = ScheduledState.StateName, Reason = "Chain retried from this step", Data = new Dictionary<string, string>() };
             });
 

@@ -377,6 +377,14 @@ public static partial class JobChains
         [JsonPropertyName("release")]
         public string? Release { get; set; }
 
+        /// <summary>
+        /// The identifier of the retry that holds <see cref="Release"/> (<see cref="RetryMarker.Id"/>): the step is
+        /// enqueued only while it is held for that retry, or was put back for it. <c>null</c> for a step created
+        /// again for the retry, which carries no note.
+        /// </summary>
+        [JsonPropertyName("releaseRetry")]
+        public string? ReleaseRetry { get; set; }
+
         [JsonIgnore]
         public bool IsEmpty => Delete.Count == 0 && Release == null;
 

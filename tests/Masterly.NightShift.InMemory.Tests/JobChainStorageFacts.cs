@@ -631,7 +631,8 @@ public sealed class JobChainStorageFacts : IDisposable
 
         StateData restored = StateData(step)!;
         Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-        Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
         Assert.Null(Parameter(step, "ChainRetry"));
         Assert.Equal(failures, FailedToday());
 
@@ -868,7 +869,8 @@ public sealed class JobChainStorageFacts : IDisposable
         // the step after it, which it started the first time, isn't started again
         StateData restored = StateData(step)!;
         Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-        Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+        Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
         Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
         Assert.Equal(counted, Counter("stats:succeeded"));
         Assert.Equal(states, History(chain.Steps["2.0"]).Count);
@@ -989,6 +991,47 @@ public sealed class JobChainStorageFacts : IDisposable
         Assert.Equal(step, retried.Steps["0.0"]);
         Assert.Equal(2, _storage.GetChain(chain.ChainId)?.Generation);
         Assert.DoesNotContain(History(step), static x => x.StateName == DeletedState.StateName || x.Reason?.StartsWith("Moved by policy", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatIsAbandoned_IsNotRunLater_ForTheReleaseAnEarlierRetryLeftToDo()
+    {
+        JobChainResult chain;
+        string step;
+
+        // Its chain maintenance runs now, and again in five minutes
+        using (CreateServer())
+        {
+            chain = JobChain.StartWith(() => Run("a")).Then(() => Broken("b")).Then(() => Run("c")).Enqueue(_client)!;
+            step = chain.Steps["1.0"];
+            WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to fail");
+
+            // A retry that is recorded, and whose client stops before it released the step
+            _deletions.CrashWithReason = "Replaced by a retry of the chain";
+            Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+            _deletions.CrashWithReason = null;
+            Assert.Equal(2, _storage.GetChain(chain.ChainId)!.Generation);
+
+            // The hold ends: the step runs for that retry, and fails again
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => Ran.Count(static x => x == "b") == 2 && StateOf(step) == FailedState.StateName, "the step to run and fail again");
+
+            // A second retry, which stops before it is recorded: a server puts the step back
+            _filter.CrashOn = "c";
+            Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+            _filter.CrashOn = null;
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => ReasonOf(step) == $"The retry of chain {chain.ChainId} was abandoned", "the step to be put back");
+            Assert.Equal(FailedState.StateName, StateOf(step));
+            Assert.Equal(2, _storage.GetChain(chain.ChainId)!.Generation);
+        }
+
+        // The chain maintenance comes round (here: of a server that starts)
+        using BackgroundJobServer second = CreateServer();
+        Thread.Sleep(2000);
+
+        // The second retry never happened: the step doesn't run for it
+        Assert.Equal((2, FailedState.StateName), (Ran.Count(static x => x == "b"), StateOf(step)));
     }
 
     [Fact]

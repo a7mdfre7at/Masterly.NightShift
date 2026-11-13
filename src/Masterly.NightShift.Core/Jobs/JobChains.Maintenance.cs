@@ -919,7 +919,7 @@ public static partial class JobChains
         {
             try
             {
-                ReleaseHeld(client, connection, chainId, release, heldJustNow);
+                ReleaseHeld(client, connection, release, cleanup.ReleaseRetry, heldJustNow);
                 release = null;
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -928,7 +928,9 @@ public static partial class JobChains
             }
         }
 
-        return remaining.Count == 0 && release == null ? null : new ChainCleanup { Reason = cleanup.Reason, Delete = remaining, Release = release };
+        return remaining.Count == 0 && release == null
+            ? null
+            : new ChainCleanup { Reason = cleanup.Reason, Delete = remaining, Release = release, ReleaseRetry = release == null ? null : cleanup.ReleaseRetry };
     }
 
     // A replaced job is deleted from a state where it hasn't started; one that finished, expired or runs is left
@@ -955,23 +957,17 @@ public static partial class JobChains
 
     // The step a retry held is enqueued, unless it left the hold already (the delayed job scheduler enqueued it).
     // The retry is recorded, so it counts: also for a step that a server put back into its state because it took
-    // the retry for abandoned, while the client, frozen, was recording it and stopped before it looked again.
-    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string jobId, bool heldJustNow)
+    // the retry for abandoned, while the client, frozen, was recording it and stopped before it looked again. Only
+    // for the retry that asked for it (retryId): a step that ran since, or that another retry held or put back,
+    // is left alone.
+    private static void ReleaseHeld(IBackgroundJobClient client, IStorageConnection connection, string jobId, string? retryId, bool heldJustNow)
     {
         string from = ScheduledState.StateName;
 
         if (!heldJustNow)
         {
             StateData? state = connection.GetStateData(jobId);
-            if (state == null)
-            {
-                return;
-            }
-
-            bool held = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal);
-
-            if (!held && !string.Equals(state.Reason, RetryAbandonedReason(chainId), StringComparison.Ordinal))
+            if (state == null || !IsHeldOrPutBackFor(connection, jobId, state, retryId))
             {
                 return;
             }
@@ -980,5 +976,25 @@ public static partial class JobChains
         }
 
         client.ChangeState(jobId, new EnqueuedState { Reason = ChainRetriedReason }, from);
+    }
+
+    // Whether a step is still held for the retry that asked for its release, or was put back for it. A step
+    // created again for the retry carries no note: its job exists for that retry only, so its hold says it.
+    private static bool IsHeldOrPutBackFor(IStorageConnection connection, string jobId, StateData state, string? retryId)
+    {
+        bool scheduled = ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase);
+
+        if (retryId == null)
+        {
+            return scheduled && string.Equals(state.Reason, ChainRetriedReason, StringComparison.Ordinal);
+        }
+
+        if (IsPutBackFor(state, retryId))
+        {
+            return true;
+        }
+
+        return scheduled &&
+               string.Equals(RetryMarker.Parse(connection.GetJobParameter(jobId, ChainRetryParameter))?.Id, retryId, StringComparison.Ordinal);
     }
 }

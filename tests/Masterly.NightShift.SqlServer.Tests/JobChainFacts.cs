@@ -538,7 +538,8 @@ public class JobChainFacts
                 // Back in the state it was in, with its data: the retry never happened
                 StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == FailedState.StateName);
                 Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-                Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+                Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+                Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
 
                 // What the retry had created is deleted, and the note of the retry goes
                 string created = hooks.Created.Single(static x => x.Name == "c").Id;
@@ -819,7 +820,8 @@ public class JobChainFacts
         {
             StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == SucceededState.StateName);
             Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-            Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+            Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+            Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
             await Task.Delay(1000, TestContext.Current.CancellationToken);
         }
 

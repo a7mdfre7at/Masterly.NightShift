@@ -168,14 +168,16 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Does what an earlier retry or replacement of the chain left to do, before the chain changes again. What
-    /// still can't be done stays in the record returned, for the next record written to carry it over.
+    /// Does what an earlier retry or replacement of the chain left to do, before the chain changes again, and
+    /// stores what is left, so a change that is then abandoned doesn't leave it to do a second time (a release of
+    /// a step that has run since). What still can't be done stays in the record returned, for the next record
+    /// written to carry it over.
     /// </summary>
-    private static ChainRecord FinishPendingCleanup(IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
+    private static ChainRecord FinishPendingCleanup(JobStorage storage, IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
     {
         return record.Cleanup == null
             ? record
-            : record with { Cleanup = RunCleanup(client, connection, record.ChainId, record.Cleanup, heldJustNow: false, out _) };
+            : record with { Cleanup = CompleteCleanup(storage, client, connection, record.ChainId, record.Cleanup, heldJustNow: false, out _) };
     }
 
     /// <summary>The jobs of the steps, the deepest steps first: deleted in that order, none starts the ones after it.</summary>
