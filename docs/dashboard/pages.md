@@ -246,7 +246,7 @@ Open any job id to see `/jobs/details/{jobId}`:
 - **Parameters**, **Continuations** and **Fan-in continuations**.
 - Sections added by your own [job details renderers](customization.md#adding-a-section-to-the-job-page).
 - **Time in each state**: a bar showing how long the job spent in each state.
-- **State**: the full history, newest first, with each state's reason and data. **Requeue** and **Delete** are shown once the job has more than one state. A state whose data this dashboard can't read (a continuation's next state of a type it doesn't have, for example) is shown as raw data or by its type name instead of breaking the page.
+- **State**: the full history, newest first, with each state's reason and data. **Requeue** and **Delete** are shown once the job has more than one state; **Requeue** isn't shown for a job that is `Enqueued`, which waits in its queue already. **Requeue** moves the job from the state it is in when the request arrives, so two clicks requeue it once. A state whose data this dashboard can't read (a continuation's next state of a type it doesn't have, for example) is shown as raw data or by its type name instead of breaking the page.
 
 ### Endpoints for tools
 
