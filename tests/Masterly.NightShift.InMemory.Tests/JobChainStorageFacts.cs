@@ -1226,6 +1226,63 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void RetryChainFrom_ThatFailsAfterTheHoldOfAStepWithAQueueOfItsOwnEnded_LeavesItInItsQueue_ToTheWorkerThatTakesIt()
+    {
+        // The first step has a queue of its own: when its hold ends, the scheduler moves it into that queue and
+        // leaves it in the Scheduled state. No worker serves that queue meanwhile.
+        JobChainResult chain = JobChain.StartWith(() => SlowOnce("a")).Then(() => Once("b"))
+            .Enqueue(_client, new ScheduleOptions { Queue = "critical" })!;
+        string step = chain.Steps["0.0"];
+        Fail(step);
+
+        // The step failed by hand left its place in the queue behind: a worker finds nothing to run there, and clears it
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["critical"] }, _storage))
+        {
+            WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 0, "the queue to be cleared");
+        }
+
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["elsewhere"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
+        {
+            // The first retry takes longer than the hold of its step (its client still says it is at it), then fails
+            _filter.ThrowOn = "b";
+            _filter.BeforeThrowing = () =>
+            {
+                RenewLease(chain.ChainId, TimeSpan.FromMinutes(5));
+                MoveClock(TimeSpan.FromMinutes(3));
+                WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 1, "the hold to end in the queue");
+            };
+
+            Assert.ThrowsAny<Exception>(() => _storage.RetryChainFrom(step));
+            _filter.ThrowOn = null;
+            _filter.BeforeThrowing = null;
+        }
+
+        // Moved from there, the step would leave its place in the queue behind: it is left to the worker that
+        // takes it, as a step whose hold ended in the Enqueued state is
+        Assert.Equal((ScheduledState.StateName, 1L), (StateOf(step), _storage.GetMonitoringApi().EnqueuedCount("critical")));
+        Assert.NotNull(Parameter(step, "ChainRetry"));
+
+        // A worker of the queue takes it, and puts it back: the retry was never recorded
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["critical"] }, _storage))
+        {
+            WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+            WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("critical") == 0, "the step to leave its queue");
+        }
+
+        Assert.Empty(Ran);
+
+        // The next retry is recorded, and the step runs once
+        using (new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 2, Queues = ["critical", "default"], SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage))
+        {
+            _storage.RetryChainFrom(step);
+            WaitUntil(() => Ran.Contains("b"), "the retried chain to run");
+            Thread.Sleep(1500);
+        }
+
+        Assert.Equal(["a", "b"], Ran);
+    }
+
+    [Fact]
     public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
     {
         CountingSink sink = new();

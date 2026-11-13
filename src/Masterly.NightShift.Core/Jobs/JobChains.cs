@@ -238,6 +238,15 @@ public static partial class JobChains
                 throw new InvalidOperationException($"Chain '{chainId}' hasn't finished: its step '{stepKey}' is in the {stepState.Name} state.");
             }
 
+            // The hold is a state change of the step's job, which this process must be able to load: otherwise the
+            // state changer would fail the job instead of holding it
+            if (stepState != null && connection.GetJobData(stepJobId) is { LoadException: { } loadException })
+            {
+                throw new InvalidOperationException(
+                    $"Chain '{chainId}' can't be retried from here: the method of its step '{stepKey}' (background job '{stepJobId}') can't be loaded in this process. Retry it from a process that has it, a server of the chain, say.",
+                    loadException);
+            }
+
             Job? stepJob = stepState == null ? record.Definition.ReadJob(level, index, chainId) : null;
 
             // What the step says about this retry while it is held: the generation the retry starts from, and the
