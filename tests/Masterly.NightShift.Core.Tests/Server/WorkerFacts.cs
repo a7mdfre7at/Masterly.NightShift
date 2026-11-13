@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Server;
 using Moq.Sequences;
 
@@ -523,6 +524,99 @@ public class WorkerFacts
 
         _stateChanger.Verify(x => x.ChangeState(It.Is<StateChangeContext>(ctx =>
             ctx.NewState is DeletedState && ctx.ExpectedStates.ElementAt(0) == ProcessingState.StateName)));
+    }
+
+    [Fact]
+    public void Execute_OffersToGiveTheJobBack_OnlyWhenItMovesItToProcessing()
+    {
+        List<(string State, bool Offered)> offers = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                offers.Add((ctx.NewState.Name, ctx.GiveBack != null));
+                return ctx.NewState;
+            });
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.Equal([(ProcessingState.StateName, true), (SucceededState.StateName, false)], offers);
+    }
+
+    [Fact]
+    public void Execute_PutsTheJobBackInItsQueue_AndDoesNothingElse_WhenAFilterGivesItBack()
+    {
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(static ctx =>
+            {
+                ctx.GiveBack.Request(TimeSpan.FromMilliseconds(1));
+                return null;
+            });
+
+        CreateWorker().Execute(_context.Object);
+
+        // One state change, which stored nothing: the job isn't run, failed, retried or acknowledged
+        _stateChanger.Verify(x => x.ChangeState(It.IsAny<StateChangeContext>()), Times.Once);
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
+        _fetchedJob.Verify(x => x.Requeue(), Times.Once);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_KeepsTheJobForThePause_BeforeItPutsItBack()
+    {
+        Stopwatch asked = new();
+        TimeSpan waited = TimeSpan.Zero;
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                ctx.GiveBack.Request(TimeSpan.FromMilliseconds(200));
+                asked.Start();
+                return null;
+            });
+        _fetchedJob.Setup(x => x.Requeue()).Callback(() => waited = asked.Elapsed);
+
+        CreateWorker().Execute(_context.Object);
+
+        // No other worker can fetch the job meanwhile, so none spins on it
+        Assert.InRange(waited, TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Execute_PutsTheJobBackAtOnce_WhenTheServerStops()
+    {
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(ctx =>
+            {
+                ctx.GiveBack.Request(TimeSpan.FromMinutes(5));
+                _context.StoppingTokenSource.Cancel();
+                return null;
+            });
+        Stopwatch started = Stopwatch.StartNew();
+
+        CreateWorker().Execute(_context.Object);
+
+        Assert.InRange(started.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        _fetchedJob.Verify(x => x.Requeue(), Times.Once);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_DoesNotThrow_WhenTheJobItGivesBackCanNotBePutBack()
+    {
+        // The storage puts it back by itself: when the fetched job is disposed, or once it is invisible for too long
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Returns<StateChangeContext>(static ctx =>
+            {
+                ctx.GiveBack.Request(TimeSpan.Zero);
+                return null;
+            });
+        _fetchedJob.Setup(x => x.Requeue()).Throws<InvalidOperationException>();
+
+        CreateWorker().Execute(_context.Object);
+
+        _fetchedJob.Verify(x => x.Dispose(), Times.Once);
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Never);
     }
 
     private Worker CreateWorker(int maxStateChangeAttempts = 10)

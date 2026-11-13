@@ -23,6 +23,9 @@ public sealed record JobChainStepInfo(string Key, string JobId, string? State, i
 
     /// <summary>When the step reached the Succeeded, Failed or Deleted state it is in, or <c>null</c> when that isn't known.</summary>
     internal DateTime? FinishedAt { get; init; }
+
+    /// <summary>When a step in the Scheduled state is due, or <c>null</c> for another state, or when its state doesn't say.</summary>
+    internal DateTime? DueAt { get; init; }
 }
 
 /// <summary>A stored chain, as <c>GetChain</c> reads it.</summary>
@@ -39,7 +42,8 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     /// through steps that wait too, which only a requeue or <c>RetryChainFrom</c> moves on. A waiting step that the
     /// steps it waits for already decide (it starts, or is skipped) is about to be told, so the chain isn't settled
     /// until it was; a step still not told five minutes after they finished never will be by them, and counts as
-    /// settled, so a chain is never unsettled for good. A server starts such a step later (the chain maintenance).
+    /// settled, so a chain is never unsettled for good. A server starts such a step later (the chain maintenance
+    /// looks at every chain that has steps waiting), and the chain then runs again.
     /// </summary>
     public bool IsSettled
     {
@@ -115,28 +119,122 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     }
 
     /// <summary>
-    /// Whether a step still waits for a group of several steps: such a step is started after the last of them is
-    /// committed, by a process that may stop first.
+    /// Whether a step still waits for the steps before it. Such a step is started by the process that finishes the
+    /// last of them, which may stop first: a server looks at the chain again for as long as one waits.
     /// </summary>
-    internal bool HasWaitingJoins()
+    internal bool HasWaitingSteps()
     {
-        ILookup<int, JobChainStepInfo>? levels = null;
-
         foreach (JobChainStepInfo step in Steps)
         {
-            if (!IsAwaiting(step.State))
-            {
-                continue;
-            }
-
-            levels ??= Steps.ToLookup(static x => x.Level);
-            if (levels[step.ParentLevel].Skip(1).Any())
+            if (IsAwaiting(step.State))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Whether the job of a step still exists in a state other than Succeeded or Deleted: a step that failed for
+    /// good and is kept, or one that waits, is scheduled, enqueued or processing. The chain's record is kept for as
+    /// long as there is one, so the chain can be read and run again from that step.
+    /// </summary>
+    internal bool HasLiveSteps()
+    {
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (step.State != null &&
+                !SucceededState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase) &&
+                !DeletedState.StateName.Equals(step.State, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether something of the chain runs at <paramref name="now"/> or is about to: a step is enqueued or
+    /// processing, a scheduled step is due, or a waiting step is about to be told to start. A chain that isn't
+    /// moving stays as it is until a scheduled step comes due (<see cref="NextDueAt"/>) or somebody moves one of
+    /// its steps.
+    /// </summary>
+    internal bool IsMoving(DateTime now)
+    {
+        ILookup<int, JobChainStepInfo>? levels = null;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (JobChains.IsSettledState(step.State))
+            {
+                continue;
+            }
+
+            if (IsAwaiting(step.State))
+            {
+                levels ??= Steps.ToLookup(static x => x.Level);
+                if (Classify(step, levels) == Waiting.AboutToBeTold)
+                {
+                    return true;
+                }
+            }
+            else if (!IsScheduled(step.State) || step.DueAt == null || step.DueAt.Value <= now)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>When the first of the steps scheduled for later than <paramref name="now"/> is due, or <c>null</c> when none is.</summary>
+    internal DateTime? NextDueAt(DateTime now)
+    {
+        DateTime? next = null;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (IsScheduled(step.State) && step.DueAt is { } dueAt && dueAt > now && (next == null || dueAt < next.Value))
+            {
+                next = dueAt;
+            }
+        }
+
+        return next;
+    }
+
+    /// <summary>When the last of the scheduled steps is due, or <c>null</c> when no step is scheduled.</summary>
+    internal DateTime? LastDueAt()
+    {
+        DateTime? last = null;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (IsScheduled(step.State) && step.DueAt is { } dueAt && (last == null || dueAt > last.Value))
+            {
+                last = dueAt;
+            }
+        }
+
+        return last;
+    }
+
+    /// <summary>When a step of the chain last finished, as far as the states of the steps say, or when the chain was created.</summary>
+    internal DateTime LastMovedAt()
+    {
+        DateTime last = CreatedAt;
+
+        foreach (JobChainStepInfo step in Steps)
+        {
+            if (step.FinishedAt is { } finishedAt && finishedAt > last)
+            {
+                last = finishedAt;
+            }
+        }
+
+        return last;
     }
 
     /// <summary>The number of steps that failed for good.</summary>
@@ -214,4 +312,6 @@ public sealed record JobChainInfo(string ChainId, int Generation, DateTime Creat
     private static bool IsFailed(string? state) => FailedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsAwaiting(string? state) => AwaitingState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsScheduled(string? state) => ScheduledState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase);
 }

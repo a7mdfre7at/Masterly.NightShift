@@ -17,7 +17,9 @@ public static partial class JobChains
 
     /// <summary>
     /// The job parameter that marks a step of a chain that was recorded: set when the record that lists the step
-    /// is written. A step without it belongs to a chain whose creation, retry or replacement never finished.
+    /// is written. A step without it belongs to a chain whose creation, retry or replacement never finished. Its
+    /// value is the time that record is kept at least, in seconds (<see cref="JobChain.RecordRetention"/> in the
+    /// process that wrote it); <c>true</c> on a step marked by an earlier build.
     /// </summary>
     public const string ChainRecordedParameter = "ChainRecorded";
 
@@ -38,10 +40,13 @@ public static partial class JobChains
     // while its state changes.
     private static readonly TimeSpan CommitLockTimeout = TimeSpan.FromMinutes(1);
 
-    // How long the write of a record may take, from the moment the job it is decided under is locked, before the
-    // lock is taken again to read that job afterwards: a lock a storage keeps by a lease doesn't outlive a holder
-    // that was frozen for longer than the lease, and the shortest of them lasts thirty seconds
-    private static readonly TimeSpan SafeLockTime = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long the write of a record may take, from the moment the job it is decided under is locked, before the
+    /// lock is taken again to read that job afterwards: a lock a storage keeps by a lease doesn't outlive a holder
+    /// that was frozen for longer than the lease, and the shortest of them lasts thirty seconds. Replaceable for
+    /// tests.
+    /// </summary>
+    internal static TimeSpan SafeLockTime { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// How long after the steps it waits for finished a waiting step whose condition they meet counts as about to
@@ -83,9 +88,10 @@ public static partial class JobChains
         /// nothing changes: the jobs created are deleted and the step goes back to its state. Once the retry is
         /// recorded it has succeeded: replaced jobs that can't be deleted right away are deleted later (they can't
         /// run meanwhile), and that is logged, not thrown. Should the process stop before the retry is recorded,
-        /// the step runs again a few minutes later with the steps that followed it before, and the jobs the retry
-        /// had created never run. A waiting step of the chain that was to start long ago and never was told is
-        /// started first, and the retry refused: the chain then finishes by itself.
+        /// the retry never happened: a server puts the step back into the state it was in, a little over two
+        /// minutes later, without running it, and the jobs the retry had created never run. A waiting step of the
+        /// chain that was to start long ago and never was told is started first, and the retry refused: the chain
+        /// then finishes by itself.
         /// </summary>
         /// <param name="stepJobId">The current job of the step to run again.</param>
         /// <returns>The chain's jobs after the retry.</returns>
@@ -93,7 +99,7 @@ public static partial class JobChains
         /// The job isn't a current step of a recorded chain, a step of the chain hasn't finished yet, the step changed
         /// meanwhile, a job the new steps wait for expired, a step that must be created again names a method that
         /// can't be loaded any more, or this process stalled for so long that a server took the retry for abandoned
-        /// and deleted one of its jobs. In each case nothing of the retry is left to run.
+        /// and put its step back or deleted one of its jobs. In each case nothing of the retry is left to run.
         /// </exception>
         [NotNull]
         public JobChainResult RetryChainFrom([NotNull] string stepJobId)
@@ -184,7 +190,7 @@ public static partial class JobChains
         using (connection.AcquireDistributedLock(GetLockResource(chainId), LockTimeout))
         {
             ChainRecord record = ChainRecord.Read(connection, chainId)
-                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept for {JobChain.RecordRetention.TotalDays} days after its last step.");
+                ?? throw new InvalidOperationException($"Chain '{chainId}' isn't recorded any more: its record is kept while a step of it is left to run or failed for good, and for {JobChain.RecordRetention.TotalDays:0.#} days after.");
 
             // What a change before this one left to do comes first: a step it still holds isn't settled
             record = FinishPendingCleanup(client, connection, record);
@@ -227,6 +233,11 @@ public static partial class JobChains
             StateData? stepState = connection.GetStateData(stepJobId);
             Job? stepJob = stepState == null ? record.Definition.ReadJob(level, index, chainId) : null;
 
+            // What the step says about this retry while it is held: the generation the retry starts from, and the
+            // state to put the step back into should the retry never be recorded
+            DateTime? stepExpiry = stepState == null ? null : ReadExpiry(storage, stepJobId);
+            RetryMarker? marker = stepState == null ? null : RetryMarker.For(record.Generation, stepState, stepExpiry);
+
             // From here no step of the chain starts until the retry is recorded or given up. Should this process
             // stop before, the lease lapses and the record still lists the old steps: nothing is lost.
             ChainLease lease = ChainLease.Take(storage, connection, record);
@@ -235,15 +246,16 @@ public static partial class JobChains
             ChainCleanup? cleanup = null;
             string? heldId = null;
             string? refused = null;
+            bool putBack = false;
             bool recorded = false;
 
             try
             {
                 // The step leaves its state first: the new steps wait for it, and a new step that reacts to a
-                // failure doesn't start from the old one. The hold is short: the lease protects it, and should this
-                // process stop, the step runs again when it ends, with the old steps after it, which are still
-                // the ones the record lists.
-                string held = heldId = Hold(client, chainId, stepKey, stepJobId, stepState, stepJob);
+                // failure doesn't start from the old one. The hold lasts a little longer than the lease: should
+                // this process stop, a server puts the step back into its state when the hold ends, and nothing
+                // runs; the record still lists the old steps after it.
+                string held = heldId = Hold(storage, client, connection, chainId, stepKey, stepJobId, stepState, stepJob, marker);
                 Dictionary<string, string> jobs = new(record.Jobs, StringComparer.Ordinal) { [stepKey] = held };
 
                 CreateLevels(
@@ -256,7 +268,7 @@ public static partial class JobChains
                     retried.Contains,
                     created,
                     lease,
-                    () => EnsureRetryCanGoOn(connection, chainId, held, created));
+                    () => EnsureRetryCanGoOn(connection, chainId, held, marker, created));
 
                 // The old steps after it wait for it too: the record stops listing them, so they can't run
                 // beside the new ones, and they are deleted, the deepest first. Written with the record, so a
@@ -280,7 +292,7 @@ public static partial class JobChains
                 using (connection.AcquireDistributedJobLock(held, CommitLockTimeout))
                 {
                     locked = Stopwatch.StartNew();
-                    EnsureStillHeld(connection, chainId, held);
+                    EnsureStillHeld(connection, chainId, held, marker);
 
                     // A lease that lapsed is renewed, and what a server may have done meanwhile is looked at
                     if (lease.HasLapsed())
@@ -293,12 +305,13 @@ public static partial class JobChains
                     recorded = true;
                 }
 
-                // A process frozen while it wrote the record may have lost its lock and its lease: the step may
-                // have left its hold and finished meanwhile, and a server deleted the new steps after it, which
-                // the record didn't list yet. The retry is taken back then.
+                // A process frozen while it wrote the record may have lost its lock and its lease: a server may
+                // have taken the retry for abandoned meanwhile, put the step back into the state it was in, and
+                // deleted the new steps after it, which the record didn't list yet. The retry is taken back then.
                 if (locked.Elapsed > SafeLockTime)
                 {
                     refused = FirstRefused(connection, chainId, created);
+                    putBack = WasPutBack(connection, chainId, held);
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType() && !recorded)
@@ -306,14 +319,7 @@ public static partial class JobChains
                 bool nothingLeft = DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
                 if (heldId != null)
                 {
-                    if (stepState != null)
-                    {
-                        Release(client, stepJobId, Restore(stepState), chainId);
-                    }
-                    else
-                    {
-                        nothingLeft &= DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
-                    }
+                    nothingLeft &= TakeBackHeld(client, connection, chainId, heldId, stepState, stepExpiry);
                 }
 
                 lease.GiveUp(nothingLeft);
@@ -326,17 +332,24 @@ public static partial class JobChains
                 Logger.WarnException($"Chain '{chainId}' was retried, but its new steps couldn't be read again afterwards.", ex);
             }
 
-            if (refused != null)
+            if (refused != null || putBack)
             {
-                // The record goes back first, so the new steps aren't listed while they are deleted
+                // The record goes back first, so the new steps aren't listed while they are deleted. The step
+                // goes back into its state, unless a server did that already.
                 lease.GiveUp(nothingLeft: false);
                 DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
+                TakeBackHeld(client, connection, chainId, heldId!, stepState, stepExpiry); // Set before the record is written
+
                 throw new InvalidOperationException(
-                    $"Chain '{chainId}' wasn't retried: this process was frozen while it recorded the retry, and background job '{heldId}' left its hold and ran again meanwhile, alone; the new step '{refused}', which the record didn't list yet, was deleted for it. The steps after it are as they were before the retry; retry the chain again once that run has finished.");
+                    $"Chain '{chainId}' wasn't retried: this process was frozen while it recorded the retry, for so long that a server took the retry for abandoned" +
+                    (putBack ? $" and put background job '{heldId}' back into the state it was in" : string.Empty) +
+                    (refused != null ? $"{(putBack ? ", and" : " and")} deleted the new step '{refused}', which the record didn't list yet" : string.Empty) +
+                    ". The retry was taken back, so the chain is as it was; retry it again.");
             }
 
-            // The retry is recorded: nothing fails it from here on. Should the step not be released, it runs when
-            // its hold ends, or when a server's chain maintenance releases it.
+            // The retry is recorded: nothing fails it from here on. Should the step not be released, a worker
+            // takes it when its hold ends and runs it, because the record says the retry happened; or a server's
+            // chain maintenance releases it before.
             CompleteCleanup(storage, client, connection, chainId, cleanup!, heldJustNow: true, out int replaced); // Set before the record is written
 
             Logger.Info($"Chain '{chainId}' retried from step '{stepKey}' (generation {updated.Generation}): {created.Count} steps created after it, {replaced} waiting steps deleted.");
@@ -344,43 +357,65 @@ public static partial class JobChains
         }
     }
 
-    private static void EnsureStillHeld(IStorageConnection connection, string chainId, string heldId)
+    // Under the step's lock. The step is no longer held when a server took the retry for abandoned (this process
+    // didn't say for LeaseTime that it was at it) and put the step back, or when somebody changed the job.
+    private static void EnsureStillHeld(IStorageConnection connection, string chainId, string heldId, RetryMarker? marker)
     {
-        if (!ScheduledState.StateName.Equals(connection.GetStateData(heldId)?.Name, StringComparison.OrdinalIgnoreCase))
+        if (!IsStillHeld(connection, heldId, marker))
         {
             throw new InvalidOperationException(
-                $"Chain '{chainId}' wasn't retried: the retry took longer than its step was held ({HoldTime.TotalMinutes:0} minutes), so background job '{heldId}' left the hold by itself. The chain is as it was; retry it again once it has finished.");
+                $"Chain '{chainId}' wasn't retried: background job '{heldId}' is no longer held for the retry. The retry didn't confirm for {LeaseTime.TotalSeconds:0} seconds that it was still at it (a step took that long to create, or the process was paused), so a server took it for abandoned and put the step back into the state it was in; or the job was changed meanwhile. The chain is as it was; retry it again.");
         }
     }
 
     // After the lease lapsed while the retry created its steps: the step is still held, and no server deleted a
     // step created so far for not being listed
-    private static void EnsureRetryCanGoOn(IStorageConnection connection, string chainId, string heldId, List<string> created)
+    private static void EnsureRetryCanGoOn(IStorageConnection connection, string chainId, string heldId, RetryMarker? marker, List<string> created)
     {
         using (connection.AcquireDistributedJobLock(heldId, CommitLockTimeout))
         {
-            EnsureStillHeld(connection, chainId, heldId);
+            EnsureStillHeld(connection, chainId, heldId, marker);
         }
 
         EnsureNoneRefused(connection, chainId, created, "retried");
     }
 
     // Holds the step to retry, or creates it again, held, when its job expired; returns the held job
-    private static string Hold(IBackgroundJobClientV2 client, string chainId, string stepKey, string stepJobId, StateData? stepState, Job? stepJob)
+    private static string Hold(
+        JobStorage storage,
+        IBackgroundJobClientV2 client,
+        IStorageConnection connection,
+        string chainId,
+        string stepKey,
+        string stepJobId,
+        StateData? stepState,
+        Job? stepJob,
+        RetryMarker? marker)
     {
         if (stepState != null)
         {
-            if (!client.ChangeState(stepJobId, Hold(ChainRetriedReason), stepState.Name))
-            {
-                throw new InvalidOperationException($"Background job '{stepJobId}' of chain '{chainId}' changed meanwhile; try again.");
-            }
-
+            Hold(storage, client, connection, chainId, stepJobId, stepState, marker!); // Built by the caller for a step whose job exists
             return stepJobId;
         }
 
+        // No marker: the record doesn't list this job until the retry is recorded, so a server deletes it, as any
+        // job the record doesn't list, should the retry be abandoned
         string recreated = Create(client, stepJob!, Hold(ChainRetriedReason), chainId, stepKey, null); // Loaded by the caller when the step's job expired
         Logger.Warn($"Step '{stepKey}' of chain '{chainId}' was created again as background job '{recreated}' to retry it: its job '{stepJobId}' expired.");
         return recreated;
+    }
+
+    // Undoes the hold of a retry that isn't recorded: the step goes back into the state it was in, and a job that
+    // was created again for it is deleted. Returns whether nothing of the retry is left in that job.
+    private static bool TakeBackHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string heldId, StateData? stepState, DateTime? stepExpiry)
+    {
+        if (stepState == null)
+        {
+            return DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
+        }
+
+        PutBack(client, connection, heldId, stepState, stepExpiry, chainId);
+        return true;
     }
 
     internal static JobChainResult Replace(JobStorage storage, IBackgroundJobClientV2 client, string chainId, JobChain chain)
@@ -529,7 +564,8 @@ public static partial class JobChains
             {
                 transaction.RemoveHash(GetKey(chainId));
                 transaction.RemoveFromSet(SetKey, chainId);
-                transaction.RemoveFromSet(WatchSetKey, chainId);
+                transaction.RemoveFromSet(DueSetKey, chainId);
+                transaction.RemoveFromSet(ExpirySetKey, chainId);
                 if (record.Cleanup != null)
                 {
                     transaction.RemoveFromSet(CleanupSetKey, chainId);

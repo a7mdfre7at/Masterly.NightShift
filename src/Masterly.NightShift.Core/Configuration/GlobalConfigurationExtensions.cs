@@ -381,6 +381,33 @@ public static class GlobalConfigurationExtensions
         }
 
         /// <summary>
+        /// Sets how long the record of a <see cref="JobChain"/> is kept once none of its steps is left to run or to
+        /// run again (<see cref="JobChain.RecordRetention"/>, 30 days by default), on storages that expire hashes.
+        /// While a step failed for good and its job is kept, or a step still waits, the record is kept whatever
+        /// this says. Processes may be set differently: a record is written with the time of the client that
+        /// creates the chain and kept longer with the time of the servers, never shorter; each step carries the
+        /// time its record was written with, so no server takes a record for expired sooner than that.
+        /// </summary>
+        /// <param name="retention">The time, from <see cref="JobChain.MinRecordRetention"/> to <see cref="ExpireAfterAttribute.MaxDays"/> days.</param>
+        /// <returns>The same configuration, for chaining.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="retention"/> is shorter than a day, or too long.</exception>
+        public IGlobalConfiguration UseChainRetention(TimeSpan retention)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            if (retention < JobChain.MinRecordRetention || retention > TimeSpan.FromDays(ExpireAfterAttribute.MaxDays))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(retention),
+                    retention,
+                    $"The record of a chain is kept for {JobChain.MinRecordRetention.TotalDays:0} day at least and {ExpireAfterAttribute.MaxDays} days at most.");
+            }
+
+            JobChain.RecordRetention = retention;
+            return configuration;
+        }
+
+        /// <summary>
         /// Sets how long finished jobs are kept, per state: <c>UseJobRetention(o => { o.Succeeded = TimeSpan.FromHours(6); o.Deleted = TimeSpan.FromDays(7); })</c>.
         /// A per-method <see cref="ExpireAfterAttribute"/> wins. Calling it again replaces the retention, the failed one
         /// an earlier call set included (one set with <c>UseFailedJobRetention</c> stays unless this call sets another).

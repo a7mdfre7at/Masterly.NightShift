@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Monitoring;
 
@@ -14,6 +15,10 @@ namespace Masterly.NightShift.Storage.Conformance;
 /// </summary>
 public abstract class StorageConformanceFacts : IDisposable
 {
+    private const string ChainsDueSet = "chains:due";
+    private const string ChainsExpiringSet = "chains:expiring";
+    private const string ChainsSoonSet = "chains:soon";
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private readonly object _storageLock = new();
     private JobStorage? _storage;
@@ -755,6 +760,48 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void Requeue_MakesTheJobFetchableAgainAtOnce_InItsQueue_AndLeavesTheJobAsItWas()
+    {
+        // What a worker does with a job it gives back without having changed it (the first step of a chain that
+        // is still being created): as often as it takes, the job comes back, where it was, and nothing about it
+        // says that it was ever taken
+        string id = Enqueue("critical");
+        Connection(x => x.SetJobParameter(id, "Note", "\"kept\""));
+        IMonitoringApi monitoring = Storage.GetMonitoringApi();
+        int history = monitoring.JobDetails(id).History.Count;
+
+        using IStorageConnection connection = Storage.GetConnection();
+        for (int round = 0; round < 3; round++)
+        {
+            Stopwatch waited = Stopwatch.StartNew();
+            using CancellationTokenSource cancellation = new(Timeout);
+            using IFetchedJob fetched = connection.FetchNextJob(["critical"], cancellation.Token);
+
+            Assert.Equal(id, fetched.JobId);
+            Assert.InRange(waited.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+            fetched.Requeue();
+
+            Assert.Equal(1, monitoring.EnqueuedCount("critical"));
+            Assert.Equal(0, monitoring.FetchedCount("critical"));
+        }
+
+        Assert.Null(TryFetch(["default"]));
+
+        StateData? state = connection.GetStateData(id);
+        Assert.Equal(EnqueuedState.StateName, state?.Name);
+        Assert.Equal("critical", state?.Data["Queue"]);
+        Assert.Equal(history, monitoring.JobDetails(id).History.Count);
+        Assert.Equal("\"kept\"", connection.GetJobParameter(id, "Note"));
+        Assert.Null(connection.GetJobParameter(id, "RetryCount"));
+        Assert.Null(connection.GetJobParameter(id, "StaleRestarts"));
+        Assert.Null(connection.GetJobParameter(id, "Lease"));
+
+        using IFetchedJob last = connection.FetchNextJob(["critical"], CancellationToken.None);
+        Assert.Equal(id, last.JobId);
+        last.RemoveFromQueue();
+    }
+
+    [Fact]
     public void FetchNextJob_WaitsForAJob_UntilCanceled()
     {
         using IStorageConnection connection = Storage.GetConnection();
@@ -1201,6 +1248,167 @@ public abstract class StorageConformanceFacts : IDisposable
         Assert.Equal(1, ConformanceJobs.Runs(key + ":3b"));
     }
 
+    [Fact]
+    public async Task Server_StartsAChain_WithoutEverHoldingItsFirstStep_ThoughAWorkerTakesItWhileTheChainIsCreated()
+    {
+        string key = NewKey();
+        SlowCreation slow = new(key + ":3", TimeSpan.FromMilliseconds(500));
+        GlobalJobFilters.Filters.Add(slow);
+
+        try
+        {
+            using BackgroundJobServer server = CreateServer(workers: 2);
+
+            // The workers are idle: one of them fetches the first step while the client still creates the third
+            JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+                .Then(() => ConformanceJobs.Record(key + ":2"))
+                .Then(() => ConformanceJobs.Record(key + ":3"))
+                .Enqueue(new BackgroundJobClient(Storage))!;
+
+            await WaitUntilAsync(() => Storage.GetChain(chain.ChainId) is { IsSettled: true }, $"Chain {chain.ChainId} didn't settle.");
+
+            // It went back to its queue each time, with nothing written: its history is that of any job
+            IMonitoringApi monitoring = Storage.GetMonitoringApi();
+            Assert.Equal(
+                [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+                monitoring.JobDetails(chain.RootId).History.Reverse().Select(static x => x.StateName));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "StaleRestarts")));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "RetryCount")));
+            Assert.Null(Connection(x => x.GetJobParameter(chain.RootId, "HeldQueue")));
+            Assert.Equal(1, ConformanceJobs.Runs(key + ":1"));
+            Assert.Equal(1, ConformanceJobs.Runs(key + ":3"));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(slow);
+        }
+    }
+
+    [Fact]
+    public async Task Server_KeepsTheRecordOfAChainWithAFailedStep_AndUnlistsAChainThatFinished_OnceItsRecordExpired()
+    {
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+
+        JobChainResult failed = JobChain.StartWith(() => ConformanceJobs.Fail("Broken on purpose"))
+            .Then(() => ConformanceJobs.Record(key + ":never"))
+            .Enqueue(client)!;
+        JobChainResult finished = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(client)!;
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(() => Storage.GetChain(failed.ChainId) is { IsSettled: true, FailedCount: 1 }, "The first chain didn't fail.");
+            await WaitUntilAsync(() => Storage.GetChain(finished.ChainId) is { IsSettled: true }, "The second chain didn't finish.");
+        }
+
+        // As when nobody touched them for weeks: their records expire in two hours, and both are due for a look
+        Write(x =>
+        {
+            ((JobStorageTransaction)x).ExpireHash(JobChains.GetKey(failed.ChainId), TimeSpan.FromHours(2));
+            ((JobStorageTransaction)x).ExpireHash(JobChains.GetKey(finished.ChainId), TimeSpan.FromHours(2));
+            x.AddToSet(ChainsDueSet, failed.ChainId, 0);
+            x.AddToSet(ChainsDueSet, finished.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(
+                () => ExtendedConnection(x => x.GetHashTtl(JobChains.GetKey(failed.ChainId))) > TimeSpan.FromDays(29),
+                "The record of the chain with a failed step wasn't kept longer.");
+            await WaitUntilAsync(
+                () => Connection(x => x.GetAllItemsFromSet(ChainsExpiringSet)).Contains(finished.ChainId),
+                "The chain that finished wasn't left to expire.");
+        }
+
+        // The failed chain is looked at again, later; the other one isn't, and its record isn't kept longer
+        Assert.Contains(failed.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsDueSet)));
+        Assert.DoesNotContain(finished.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsDueSet)));
+        Assert.DoesNotContain(
+            failed.ChainId,
+            ExtendedConnection(x => x.GetFirstByLowestScoreFromSet(ChainsDueSet, 0, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(5)), 1000)));
+        Assert.InRange(ExtendedConnection(x => x.GetHashTtl(JobChains.GetKey(finished.ChainId))), TimeSpan.FromHours(1), TimeSpan.FromHours(2));
+
+        // The record of the chain that finished expires, and the time has come for it to leave the list
+        Write(x =>
+        {
+            x.RemoveHash(JobChains.GetKey(finished.ChainId));
+            x.AddToSet(ChainsExpiringSet, finished.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(
+                () => !Connection(x => x.GetAllItemsFromSet(JobChains.SetKey)).Contains(finished.ChainId),
+                "The chain whose record expired didn't leave the list.");
+        }
+
+        Assert.DoesNotContain(finished.ChainId, Connection(x => x.GetAllItemsFromSet(ChainsExpiringSet)));
+        Assert.Contains(failed.ChainId, Connection(x => x.GetAllItemsFromSet(JobChains.SetKey)));
+        Assert.Equal(1, Storage.GetChain(failed.ChainId)?.FailedCount);
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":never"));
+    }
+
+    [Fact]
+    public async Task Server_StartsAStepOfAChain_ThatWasNeverToldToStart()
+    {
+        string key = NewKey();
+
+        JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(new BackgroundJobClient(Storage))!;
+
+        // What a process leaves that stops between the commit of a step's state and the start of the step after
+        // it: the first step succeeded ten minutes ago, the second still waits, and the chain is due for a look
+        Write(x =>
+        {
+            x.SetJobState(chain.RootId, new SucceededLongAgo());
+            x.AddToSet(ChainsDueSet, chain.ChainId, 0);
+        });
+
+        using (CreateServer())
+        {
+            await WaitForStateAsync(chain.Steps["1.0"], SucceededState.StateName);
+        }
+
+        Assert.Equal(1, ConformanceJobs.Runs(key + ":2"));
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":1"));
+    }
+
+    [Fact]
+    public async Task Server_DoesTheLooksThatWereAskedFor_HoweverFarOffTheChainsOwnLookIs_AndForgetsWhatAsked()
+    {
+        string key = NewKey();
+
+        JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(new BackgroundJobClient(Storage))!;
+
+        // The first step succeeded ten minutes ago and the second was never told to start. The chain's own look
+        // is far off; two looks were asked for (a step of it left the state it had finished in), one of them due.
+        Write(x =>
+        {
+            x.SetJobState(chain.RootId, new SucceededLongAgo());
+            x.AddToSet(ChainsDueSet, chain.ChainId, JobHelper.ToTimestamp(JobClock.UtcNow.AddDays(10)));
+            x.AddToSet(ChainsSoonSet, chain.ChainId + "|due", 0);
+            x.AddToSet(ChainsSoonSet, chain.ChainId + "|later", JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(4)));
+        });
+
+        using (CreateServer())
+        {
+            await WaitForStateAsync(chain.Steps["1.0"], SucceededState.StateName);
+            await WaitUntilAsync(
+                () => !Connection(x => x.GetAllItemsFromSet(ChainsSoonSet)).Contains(chain.ChainId + "|due"),
+                "The look that was asked for wasn't forgotten once it was done.");
+        }
+
+        // The one that isn't due stays; the chain has its own place again, not ten days off
+        Assert.Equal([chain.ChainId + "|later"], Connection(x => x.GetAllItemsFromSet(ChainsSoonSet)));
+        Assert.Equal(1, ConformanceJobs.Runs(key + ":2"));
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":1"));
+    }
+
     // Helpers
 
     protected string CreateJob(string argument, DateTime? createdAt = null)
@@ -1308,6 +1516,44 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     private static string NewKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>Makes the creation of the job with a given argument take a while.</summary>
+    private sealed class SlowCreation(string argument, TimeSpan delay) : IClientFilter
+    {
+        public void OnCreating(CreatingContext context)
+        {
+            if (context.Job.Type == typeof(ConformanceJobs) && context.Job.Args.Count > 0 && argument.Equals(context.Job.Args[0] as string, StringComparison.Ordinal))
+            {
+                Thread.Sleep(delay);
+            }
+        }
+
+        public void OnCreated(CreatedContext context)
+        {
+        }
+    }
+
+    /// <summary>The state of a job that succeeded ten minutes ago, as the storage keeps it.</summary>
+    private sealed class SucceededLongAgo : IState
+    {
+        public string Name => SucceededState.StateName;
+
+        public string? Reason => null;
+
+        public bool IsFinal => true;
+
+        public bool IgnoreJobLoadException => false;
+
+        public Dictionary<string, string> SerializeData()
+        {
+            return new Dictionary<string, string>
+            {
+                ["SucceededAt"] = JobHelper.SerializeDateTime(JobClock.UtcNow.AddMinutes(-10)),
+                ["PerformanceDuration"] = "0",
+                ["Latency"] = "0",
+            };
+        }
+    }
 }
 
 /// <summary>Jobs the conformance tests run.</summary>

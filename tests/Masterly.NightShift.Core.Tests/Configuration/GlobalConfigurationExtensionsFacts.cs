@@ -338,6 +338,46 @@ public class GloabalConfigurationExtensionsFacts
         Assert.Throws<ArgumentException>("name", () => configuration.UseScheduleDateProvider("not valid", provider));
     }
 
+    [Fact]
+    public void UseChainRetention_SetsHowLongTheRecordOfAChainIsKept()
+    {
+        TimeSpan retention = JobChain.RecordRetention;
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+
+        try
+        {
+            Assert.Equal(TimeSpan.FromDays(30), retention);
+
+            IGlobalConfiguration result = configuration.UseChainRetention(TimeSpan.FromDays(90));
+
+            Assert.Same(configuration, result);
+            Assert.Equal(TimeSpan.FromDays(90), JobChain.RecordRetention);
+
+            configuration.UseChainRetention(JobChain.MinRecordRetention);
+            Assert.Equal(TimeSpan.FromDays(1), JobChain.RecordRetention);
+        }
+        finally
+        {
+            JobChain.RecordRetention = retention;
+        }
+    }
+
+    [Fact]
+    public void UseChainRetention_ThrowsAnException_ForATimeShorterThanADay_OrTooLong_AndKeepsTheOneSet()
+    {
+        TimeSpan retention = JobChain.RecordRetention;
+        IGlobalConfiguration configuration = new Mock<IGlobalConfiguration>().Object;
+
+        Assert.Throws<ArgumentNullException>("configuration", () => GlobalConfigurationExtensions.UseChainRetention(null, TimeSpan.FromDays(7)));
+        Assert.Throws<ArgumentOutOfRangeException>("retention", () => configuration.UseChainRetention(TimeSpan.FromHours(23)));
+        Assert.Throws<ArgumentOutOfRangeException>("retention", () => configuration.UseChainRetention(TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>("retention", () => configuration.UseChainRetention(TimeSpan.FromDays(-30)));
+        Assert.Throws<ArgumentOutOfRangeException>("retention", () => configuration.UseChainRetention(TimeSpan.FromDays(ExpireAfterAttribute.MaxDays + 1)));
+        Assert.Throws<ArgumentOutOfRangeException>("retention", () => configuration.UseChainRetention(TimeSpan.MaxValue));
+
+        Assert.Equal(retention, JobChain.RecordRetention);
+    }
+
     public class CustomClass
     {
         public string StringProperty { get; set; }

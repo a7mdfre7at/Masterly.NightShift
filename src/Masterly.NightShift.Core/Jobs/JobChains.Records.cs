@@ -11,7 +11,6 @@ public static partial class JobChains
     private const string CreatedAtField = "CreatedAt";
     private const string DeleteBehaviorField = "DeleteBehavior";
     private const string CleanupField = "Cleanup";
-    private const string RecordedValue = "true";
 
     // The state data that says when a step finished
     private static readonly string[] FinishedAtFields = ["FailedAt", "SucceededAt", "DeletedAt"];
@@ -76,6 +75,52 @@ public static partial class JobChains
 
         // A finished state that doesn't say when: long ago, for the same reason
         return state.Name != null && IsSettledState(state.Name) ? DateTime.MinValue : null;
+    }
+
+    /// <summary>When a step in the Scheduled state is due, or <c>null</c> for another state or a time nobody can read.</summary>
+    private static DateTime? ReadDueAt(StateData? state)
+    {
+        if (state?.Data == null ||
+            !ScheduledState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase) ||
+            !state.Data.TryGetValue("EnqueueAt", out string? enqueueAt))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JobHelper.DeserializeNullableDateTime(enqueueAt);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The value of the mark a recorded step carries (<see cref="ChainRecordedParameter"/>): the time, in seconds,
+    /// the record that lists it is kept at least, as the process that writes the record is set.
+    /// </summary>
+    internal static string RecordedMark(TimeSpan retention)
+    {
+        return ((long)retention.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// How long the record that listed a marked step was kept at least: what the mark says, or what this process
+    /// is set to for a mark that doesn't say (one written by an earlier build). <c>null</c> for a step without mark.
+    /// </summary>
+    internal static TimeSpan? MarkedRetention(string? mark)
+    {
+        if (string.IsNullOrEmpty(mark))
+        {
+            return null;
+        }
+
+        return long.TryParse(mark, NumberStyles.None, CultureInfo.InvariantCulture, out long seconds) &&
+               seconds > 0 && seconds <= TimeSpan.FromDays(ExpireAfterAttribute.MaxDays).TotalSeconds
+            ? TimeSpan.FromSeconds(seconds)
+            : JobChain.RecordRetention;
     }
 
     /// <summary>
@@ -163,8 +208,10 @@ public static partial class JobChains
         /// changed the chain, and lists the chain: the point from which the chain, or its change, exists. The
         /// record is kept for <see cref="JobChain.RecordRetention"/> after
         /// <paramref name="latestStart"/>, the latest moment a step is known to start, or after now; each state
-        /// change of a step keeps it longer (<see cref="ExtendRecord"/>). The jobs in <paramref name="recorded"/>,
-        /// the ones this write lists for the first time, are marked as steps of a recorded chain
+        /// change of a step keeps it longer (<see cref="ExtendRecord"/>), and so does a server for as long as a step
+        /// is left to run or failed for good. The chain is given its first look by a server in the same write
+        /// (<see cref="DueSetKey"/>). The jobs in <paramref name="recorded"/>, the ones this write lists for the
+        /// first time, are marked as steps of a recorded chain, with the time the record is kept
         /// (<see cref="ChainRecordedParameter"/>).
         /// </summary>
         public void Write(JobStorage storage, IStorageConnection connection, DateTime? latestStart, IReadOnlyCollection<string> recorded)
@@ -187,11 +234,22 @@ public static partial class JobChains
             WriteFields(transaction);
             transaction.AddToSet(SetKey, ChainId, JobHelper.ToTimestamp(CreatedAt));
 
-            // A step that waits for several steps is started once the last of them is committed, which a process
-            // that stops then never does: a server looks at the chain again later (RedriveWatched)
-            if (Definition.HasJoins)
+            // A server looks at the chain again. Soon, when steps wait for others: a waiting step is started by
+            // the process that finishes the last step it waits for, which may stop first. Otherwise only before
+            // the record expires, to keep it when the step failed for good.
+            if (Definition.HasSeveralSteps)
             {
-                transaction.AddToSet(WatchSetKey, ChainId, JobHelper.ToTimestamp(now + DecisionWindow));
+                transaction.AddToSet(DueSetKey, ChainId, JobHelper.ToTimestamp(now + DecisionWindow));
+            }
+            else if (expires)
+            {
+                transaction.AddToSet(DueSetKey, ChainId, JobHelper.ToTimestamp(expireAt - KeepAhead()));
+            }
+
+            // A chain retried or replaced after everything of it had finished was left to expire
+            if (Generation > 1)
+            {
+                transaction.RemoveFromSet(ExpirySetKey, ChainId);
             }
 
             if (Cleanup != null)
@@ -201,11 +259,12 @@ public static partial class JobChains
 
             // With the record where the storage can, so no job is marked of a chain that isn't recorded
             JobStorageTransaction? marking = storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter) ? transaction as JobStorageTransaction : null;
+            string mark = RecordedMark(JobChain.RecordRetention);
             if (marking != null)
             {
                 foreach (string jobId in recorded)
                 {
-                    marking.SetJobParameter(jobId, ChainRecordedParameter, RecordedValue);
+                    marking.SetJobParameter(jobId, ChainRecordedParameter, mark);
                 }
             }
 
@@ -222,7 +281,7 @@ public static partial class JobChains
 
             if (marking == null)
             {
-                MarkRecorded(connection, recorded);
+                MarkRecorded(connection, recorded, mark);
             }
         }
 
@@ -245,13 +304,13 @@ public static partial class JobChains
 
         // After the record, on a storage that can't write a job parameter in a transaction: a job this misses
         // (the process stops here) is deleted rather than run once its record expired, never the other way round
-        private void MarkRecorded(IStorageConnection connection, IReadOnlyCollection<string> recorded)
+        private void MarkRecorded(IStorageConnection connection, IReadOnlyCollection<string> recorded, string mark)
         {
             try
             {
                 foreach (string jobId in recorded)
                 {
-                    connection.SetJobParameter(jobId, ChainRecordedParameter, RecordedValue);
+                    connection.SetJobParameter(jobId, ChainRecordedParameter, mark);
                 }
             }
             catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -290,6 +349,7 @@ public static partial class JobChains
                         Options = step.Options,
                         LevelKind = levelDefinition.Kind,
                         FinishedAt = ReadFinishedAt(state),
+                        DueAt = ReadDueAt(state),
                     });
                 }
             }
@@ -368,9 +428,9 @@ public static partial class JobChains
             };
         }
 
-        /// <summary>Whether a step waits for a group of several steps.</summary>
+        /// <summary>Whether the chain has steps after the first one: steps that wait for others.</summary>
         [JsonIgnore]
-        public bool HasJoins => Levels.Exists(level => level.Parent >= 0 && level.Parent < Levels.Count && Levels[level.Parent].Steps.Count > 1);
+        public bool HasSeveralSteps => Levels.Count > 1;
 
         public List<ChainLevel> ToLevels()
         {
