@@ -770,59 +770,6 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
-    public void RetryChainFrom_ThatFails_LeavesItsStep_ToAnotherRetryThatHoldsItNow()
-    {
-        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Then(() => Once("d")).Enqueue(_client)!;
-        string step = chain.Steps["1.0"];
-        Succeed(chain.Steps["0.0"]);
-        Fail(step);
-        string? second = null;
-        bool paused = false;
-
-        _filter.PauseOn = "d";
-        _filter.WhilePaused = () =>
-        {
-            if (paused)
-            {
-                return;
-            }
-
-            paused = true;
-
-            // The client stalls: a server takes the retry for abandoned and puts the step back
-            using (CreateServer())
-            {
-                MoveClock(TimeSpan.FromMinutes(3));
-                WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
-            }
-
-            // It stalls for longer than its lock on the chain lasts, on a storage that keeps a lock by a lease.
-            // Another client retries the chain, holds the step, and stops before it recorded anything.
-            MoveClock(TimeSpan.FromDays(2));
-            _filter.CrashOn = "c";
-            Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
-            _filter.CrashOn = null;
-            second = Parameter(step, "ChainRetry");
-            Assert.NotNull(second);
-            Assert.Equal(ScheduledState.StateName, StateOf(step));
-        };
-
-        // The first client wakes up: the step is held, but not for it
-        Assert.Throws<InvalidOperationException>(() => _storage.RetryChainFrom(step));
-
-        // It leaves the step, and the note on it, to the retry that holds it now
-        Assert.Equal(ScheduledState.StateName, StateOf(step));
-        Assert.Equal("Chain retried from this step", ReasonOf(step));
-        Assert.Equal(second, Parameter(step, "ChainRetry"));
-
-        // So a server still puts the step back for that retry, which was abandoned too
-        using BackgroundJobServer server = CreateServer();
-        MoveClock(TimeSpan.FromMinutes(3));
-        WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back for the second retry");
-        Assert.Empty(Ran);
-    }
-
-    [Fact]
     public void RetryChainFrom_ThatTakesLongerThanItsStepIsHeld_Succeeds_WhileItsClientStillSaysItIsAtIt()
     {
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Then(() => Once("d")).Enqueue(_client)!;
