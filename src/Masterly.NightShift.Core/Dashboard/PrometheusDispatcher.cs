@@ -10,20 +10,21 @@ namespace Masterly.NightShift.Dashboard;
 /// alert rules see what the home page shows. Job counts by state, queue lengths, servers, recurring jobs
 /// (late ones separately), the paused flag, the health status, and the per-method and per-queue statistics
 /// from Insights when they are recorded. The text is reused for <see cref="DashboardHealth.CacheDuration"/>
-/// per storage, so several scrapers cost no more storage queries than one. Subject to the dashboard's
-/// authorization filters like every route.
+/// per storage, so several scrapers cost no more storage queries than one, but a read of the storage's clock
+/// each, where the storage has one. Subject to the dashboard's authorization filters like every route.
 /// </summary>
 internal sealed class PrometheusDispatcher : IDashboardDispatcher
 {
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(PrometheusDispatcher));
     private static readonly StorageCache<string> Texts = new(DashboardHealth.CacheDuration);
 
-    /// <summary>Replaceable for tests.</summary>
+    /// <summary>This process's clock, for a storage without a clock of its own. Replaceable for tests.</summary>
     internal static Func<DateTime> Clock { get; set; } = static () => JobClock.UtcNow;
 
     public Task Dispatch(DashboardContext context)
     {
-        string text = RenderCached(context.Storage, context.Options, Clock());
+        // The storage's time where it has a clock, as for /health: heartbeats are written with it
+        string text = RenderCached(context.Storage, context.Options, HealthDispatcher.Now(context.Storage, Clock));
 
         context.Response.StatusCode = 200;
         context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";

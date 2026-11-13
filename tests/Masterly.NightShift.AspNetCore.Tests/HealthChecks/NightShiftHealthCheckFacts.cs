@@ -9,12 +9,20 @@ public class NightShiftHealthCheckFacts
 {
     private readonly Mock<JobStorage> _storage = new();
     private readonly Mock<IMonitoringApi> _monitor = new();
+    private readonly Mock<JobStorageConnection> _connection = new();
     private readonly List<ServerDto> _servers = [];
 
     public NightShiftHealthCheckFacts()
     {
         _storage.Setup(x => x.GetMonitoringApi()).Returns(_monitor.Object);
         _monitor.Setup(x => x.Servers()).Returns(_servers);
+    }
+
+    private void UseStorageClock(DateTime utcNow)
+    {
+        _storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetUtcDateTime)).Returns(true);
+        _storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
+        _connection.Setup(x => x.GetUtcDateTime()).Returns(utcNow);
     }
 
     private void AddServer(string name, TimeSpan heartbeatAge)
@@ -56,6 +64,61 @@ public class NightShiftHealthCheckFacts
 
         Assert.Equal(HealthStatus.Unhealthy, entry.Status);
         Assert.Equal("No NightShift server sent a heartbeat recently.", entry.Description);
+    }
+
+    [Fact]
+    public async Task Cluster_ComparesHeartbeatsWithTheStoragesClock_WhenThisProcesssClockIsAhead()
+    {
+        // Heartbeats are written with the storage's clock, which is ten minutes behind this process's
+        UseStorageClock(DateTime.UtcNow.AddMinutes(-10));
+        AddServer("web-1:1:a", TimeSpan.FromMinutes(10).Add(TimeSpan.FromSeconds(10)));
+
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
+
+        Assert.Equal(HealthStatus.Healthy, entry.Status);
+        Assert.Equal(1, entry.Data["alive"]);
+        _connection.Verify(x => x.GetUtcDateTime(), Times.Once);
+    }
+
+    [Fact]
+    public async Task Cluster_NoticesAStoppedServerOnTime_WhenThisProcesssClockIsBehind()
+    {
+        // Silent for five minutes by the storage's clock; by this process's, it sent a heartbeat this instant
+        UseStorageClock(DateTime.UtcNow.AddMinutes(5));
+        AddServer("web-1:1:a", TimeSpan.Zero);
+
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
+
+        Assert.Equal(HealthStatus.Unhealthy, entry.Status);
+        Assert.Equal("No NightShift server sent a heartbeat recently.", entry.Description);
+    }
+
+    [Fact]
+    public async Task Check_UsesThisProcesssClock_AndNeverReadsTheStorages_WhenTheStorageHasNone()
+    {
+        _storage.Setup(x => x.GetReadOnlyConnection()).Returns(_connection.Object);
+        AddServer("web-1:1:a", TimeSpan.FromSeconds(10));
+
+        HealthReportEntry entry = await CheckAsync(builder => builder.AddNightShift());
+
+        Assert.Equal(HealthStatus.Healthy, entry.Status);
+        _connection.Verify(x => x.GetUtcDateTime(), Times.Never);
+    }
+
+    [Fact]
+    public async Task Check_HidesTheError_WhenTheStoragesClockCanNotBeRead()
+    {
+        UseStorageClock(DateTime.UtcNow);
+        _connection.Setup(x => x.GetUtcDateTime()).Throws(new InvalidOperationException("Login failed for user 'sa' on db-prod-01"));
+        AddServer("web-1:1:a", TimeSpan.FromSeconds(10));
+
+        HealthReportEntry cluster = await CheckAsync(builder => builder.AddNightShift());
+        HealthReportEntry process = await CheckAsync(builder => builder.AddNightShift(options => options.Scope = NightShiftHealthCheckScope.Process));
+
+        Assert.Equal(HealthStatus.Unhealthy, cluster.Status);
+        Assert.Equal("The NightShift storage did not answer.", cluster.Description);
+        Assert.Null(cluster.Exception);
+        Assert.Equal(HealthStatus.Degraded, process.Status);
     }
 
     [Fact]

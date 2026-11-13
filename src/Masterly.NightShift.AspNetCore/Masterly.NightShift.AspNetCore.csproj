@@ -13,6 +13,11 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The clock heartbeats are compared with, shared with the dashboard's /health and /metrics; internal to each assembly -->
+    <Compile Include="..\Masterly.NightShift.Core\Dashboard\StorageClock.cs" Link="HealthChecks\StorageClock.cs" />
+  </ItemGroup>
   <!-- Global usings, next to the implicit ones of the SDK -->
   <ItemGroup>
     <Using Include="Masterly.NightShift.Annotations" />

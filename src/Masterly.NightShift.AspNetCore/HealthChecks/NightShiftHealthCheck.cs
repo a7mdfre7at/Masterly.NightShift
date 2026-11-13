@@ -1,5 +1,6 @@
 using System.Globalization;
 using Masterly.NightShift.Common;
+using Masterly.NightShift.Storage;
 using Masterly.NightShift.Storage.Monitoring;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -24,18 +25,23 @@ internal sealed partial class NightShiftHealthCheck(NightShiftHealthCheckOptions
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return Task.FromResult(Check(context.Registration.FailureStatus, JobClock.UtcNow));
+        return Task.FromResult(Check(context.Registration.FailureStatus));
     }
 
-    private HealthCheckResult Check(HealthStatus failureStatus, DateTime utcNow)
+    private HealthCheckResult Check(HealthStatus failureStatus)
     {
         JobStorage storage;
         IList<ServerDto> servers;
+        DateTime utcNow;
 
         try
         {
             storage = _storage();
             servers = storage.GetMonitoringApi().Servers() ?? [];
+
+            // Heartbeats are written with the storage's clock where it has one: read once, after the servers,
+            // so no heartbeat is newer than the time it is compared with
+            utcNow = StorageClock.UtcNow(storage, static () => JobClock.UtcNow);
         }
         catch (Exception ex) when (IsCatchable(ex))
         {
