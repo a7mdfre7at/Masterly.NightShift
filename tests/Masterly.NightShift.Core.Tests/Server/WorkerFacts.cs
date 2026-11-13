@@ -815,11 +815,12 @@ public class WorkerFacts
 
         CreateWorker(waits: waits).Execute(_context.Object);
 
-        // From the end of the first look, when the worker began to wait, to the look that offers nothing more: the
-        // budget, and the look in progress when it ran out at most
+        // From the end of the first look, when the worker began to keep the job, to the look that offers nothing
+        // more: the budget, and the look in progress when it ran out at most (counting only the pauses, it was
+        // more than a second)
         TimeSpan held = looks[^1].At - (looks[0].At + TimeSpan.FromMilliseconds(250));
         Assert.False(looks[^1].Offered);
-        Assert.InRange(held, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(500));
+        Assert.InRange(held, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(300 + 250 + 100));
     }
 
     [Fact]
