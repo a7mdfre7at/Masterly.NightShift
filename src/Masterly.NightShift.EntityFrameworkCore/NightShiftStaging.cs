@@ -355,6 +355,9 @@ internal sealed class StagingConnection(EntityFrameworkCoreStorage storage, EfCo
         throw new NotSupportedException("Staged clients create jobs; servers fetch them through the storage.");
     }
 
+    // The staging storage reports the storage's features
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob) => _connection.GetQueueEntryId(fetchedJob);
+
     public override void SetJobParameter(string id, string name, string? value) => ForJob(id).SetJobParameter(id, name, value);
 
     public override string? GetJobParameter(string id, string name) => ForJob(id).GetJobParameter(id, name);
