@@ -79,6 +79,19 @@ public class SkipIfLateAttributeFacts
     }
 
     [Fact]
+    public void OnPerforming_LetsAJobRun_ThatIsLateOnlyBecauseAPausedServerHeldIt()
+    {
+        // 45 seconds after it was due, 31 of them in the hold of a fenced server: the servers that may work could
+        // have run it in time
+        ScheduledAgo(TimeSpan.FromSeconds(45));
+        _parameters[DrainModeFilter.ServerHoldParameter] = "\"31000\"";
+
+        new SkipIfLateAttribute(20).OnPerforming(_context.GetPerformingContext());
+
+        _context.Connection.Verify(x => x.SetJobParameter("JobId", SkipIfLateAttribute.CheckedParameter, "true"));
+    }
+
+    [Fact]
     public void OnPerforming_DoesNotCheckAgain_OnceChecked()
     {
         // A retry, or a job requeued by hand after it was skipped, runs however late it is

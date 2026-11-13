@@ -200,6 +200,7 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
             using (IStorageConnection connection = _storage.GetConnection())
             {
                 connection.RemoveServer(context.ServerId);
+                TakeBackPause(connection, context.ServerId);
             }
 
             stopwatch.Stop();
@@ -210,6 +211,25 @@ internal sealed class BackgroundServerProcess : IBackgroundServerProcess
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             _logger.WarnException($"{GetServerTemplate(context.ServerId)} there was an exception, server may not be removed", ex);
+        }
+    }
+
+    // The id is given up here, for good: a server that starts again, also one restarted by its heartbeat, has a new
+    // one. A pause of the old id, set by hand or by deployment fencing, would only stay behind, and keep the
+    // dashboard and the health check reporting a paused server. A server that dies without getting here leaves
+    // its pause to DrainMode.ClearStaleServerPauses
+    private void TakeBackPause(IStorageConnection connection, string serverId)
+    {
+        try
+        {
+            if (DrainMode.Read(connection).PausedServers.ContainsKey(serverId))
+            {
+                DrainMode.ResumeServer(connection, serverId);
+            }
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.DebugException($"{GetServerTemplate(serverId)} could not take back its pause, which stays until the stale pauses are cleared.", ex);
         }
     }
 
