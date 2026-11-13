@@ -103,7 +103,7 @@ Every transition goes through `IBackgroundJobStateChanger`, implemented by `Back
 | `ServerHeartbeatProcess` | Reports the server as alive |
 | `ServerWatchdog` | Removes servers that stopped sending heartbeats |
 | `ServerJobCancellationWatcher` | Cancels the tokens of running jobs that were aborted, for example deleted from the dashboard |
-| `JobChainMaintenanceProcess` | Every 5 minutes, one server at a time: unlists chains whose record expired, finishes interrupted retries and replacements of chains, and starts the steps that wait for several steps and were never told to start |
+| `JobChainMaintenanceProcess` | Every 5 minutes, one server at a time: finishes interrupted retries and replacements of chains, and looks at the chains that are due (`chains:soon`, `chains:expiring`, `chains:due`): starts the waiting steps that were never told to start, keeps the record while a step is left to run or failed for good, and unlists chains whose record expired |
 | Storage processes | Whatever `JobStorage.GetServerRequiredProcesses()`/`GetStorageWideProcesses()` return; for SQL Server, expiration, counter aggregation and its heartbeat |
 
 A lightweight server (`BackgroundJobServerOptions.IsLightweightServer`) runs only the workers and the processes every server needs (heartbeat, watchdog, cancellation watcher, chain maintenance, the storage's required processes and any additional processes): no schedulers and no storage-wide processes.

@@ -147,7 +147,7 @@ Every batch with a progress bar and its succeeded, failed and pending counts. Op
 
 ### Chains
 
-Every [job chain](../jobs/chains.md), newest first (on a storage that can't read ranges of a set, up to 100 of them), with its first step, the number of steps, when it was created and its status: **Waiting** (no step has started yet), **Running**, **Done** or **Finished with failures**.
+Every [job chain](../jobs/chains.md), newest first (on a storage that can't read ranges of a set, up to 100 of them), with its first step, the number of steps, when it was created and its status. A chain stays in the list while a step of it is left to run or failed for good, and for the [chain retention](../jobs/chains.md#things-to-know) after that. The statuses: **Waiting** (no step has started yet), **Running**, **Done** or **Finished with failures**.
 
 Open a chain (`/chains/{id}`) to see it as a flowchart, top to bottom. The header shows its status, its generation (how many times it was retried), its delete behavior and how many jobs and groups it has. In the flowchart:
 
@@ -163,7 +163,7 @@ The first 200 steps are drawn, whole levels at a time; the others are listed bel
 
 A step whose method was renamed or removed since the chain was created shows its step key (`1.0`) in place of the method, without arguments; **Retry from here** is refused, with the reason shown, when the retry would have to create such a step again.
 
-A chain step's job page links to its chain next to the job's tags. Its history can show a short `Scheduled` state with the reason `Waiting for chain ... to be recorded`, when a worker took the step while its chain was being created, retried or replaced; a first step held this way while its chain was created is then `Enqueued` with the reason `The chain is recorded`. A job that its chain's record doesn't list is deleted with a reason that says so: see [When a step runs](../jobs/chains.md#when-a-step-runs).
+A chain step's job page links to its chain next to the job's tags. Its history can show a short `Scheduled` state with the reason `Waiting for chain ... to be recorded`, when a worker took the step while its chain was being retried or replaced, or while its creation took more than 5 seconds; a first step held this way while its chain was created is then `Enqueued` with the reason `The chain is recorded`. A first step taken during a creation that takes milliseconds, as most do, shows nothing of it. A step held by a retry that was abandoned shows `Scheduled`, `Enqueued` and the state it was in before, with the reason `The retry of chain ... was abandoned`. A job that its chain's record doesn't list is deleted with a reason that says so: see [When a step runs](../jobs/chains.md#when-a-step-runs).
 
 ### Retries
 
