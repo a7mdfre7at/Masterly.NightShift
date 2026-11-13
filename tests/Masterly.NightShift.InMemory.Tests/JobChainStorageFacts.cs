@@ -1090,6 +1090,91 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void RetryChainFrom_ThatFails_PutsAStepWithItsOwnRetentionBack_ToExpireWhenItWasTo()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Kept("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        // Two days later, a retry that can't create its new step: the step goes back to Succeeded
+        DateTime expiresAt = ExpiresAt(step)!.Value;
+        MoveClock(TimeSpan.FromDays(2));
+        _filter.ThrowOn = "c";
+
+        Assert.ThrowsAny<Exception>(() => _storage.RetryChainFrom(step));
+
+        // As it was: not kept for a whole week from now
+        Assert.Equal(SucceededState.StateName, StateOf(step));
+        Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatIsAbandoned_PutsAStepWithItsOwnRetentionBack_ToExpireWhenItWasTo()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Kept("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        DateTime expiresAt = ExpiresAt(step)!.Value;
+        MoveClock(TimeSpan.FromDays(2));
+        _filter.CrashOn = "c";
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromMinutes(3));
+        WaitUntil(() => StateOf(step) == SucceededState.StateName, "the step to be put back");
+
+        Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
+    }
+
+    /// <summary>A step that says it ran, and is kept for a week once it failed for good or finished.</summary>
+    [ExpireAfter(7, IncludeFailed = true)]
+    [AutomaticRetry(Attempts = 0)]
+    public static void KeptFailed(string name) => Ran.Enqueue(name);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RetryChainFrom_ThatFailsOrIsAbandoned_PutsAFailedStepThatExpiresWithTheMethod_Back_ToExpireWhenItWasTo(bool abandoned)
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => KeptFailed("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+        Succeed(chain.Steps["0.0"]);
+        Fail(step);
+        DateTime expiresAt = ExpiresAt(step)!.Value;
+
+        // Two days later, a retry that fails, or stops before it is recorded
+        MoveClock(TimeSpan.FromDays(2));
+        if (abandoned)
+        {
+            _filter.CrashOn = "c";
+            Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+            _filter.CrashOn = null;
+
+            using BackgroundJobServer server = CreateServer();
+            MoveClock(TimeSpan.FromMinutes(3));
+            WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
+        }
+        else
+        {
+            _filter.ThrowOn = "c";
+            Assert.ThrowsAny<Exception>(() => _storage.RetryChainFrom(step));
+        }
+
+        Assert.Equal(FailedState.StateName, StateOf(step));
+        Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
+    }
+
+    [Fact]
     public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
     {
         CountingSink sink = new();
