@@ -17,9 +17,11 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private readonly Dictionary<string, TimeSpan> _timesToLive = [];
     private readonly Dictionary<string, List<(double Score, string Value)>> _sets = [];
     private readonly Dictionary<string, StateData> _states = [];
+    private readonly Dictionary<(string JobId, string Name), string> _parameters = [];
     private readonly HashSet<string> _busyLocks = [];
     private readonly TimeSpan _interval = JobChainMaintenanceProcess.Interval;
     private readonly TimeSpan _busyInterval = JobChainMaintenanceProcess.BusyInterval;
+    private readonly TimeSpan _indexCheckInterval = JobChainMaintenanceProcess.IndexCheckInterval;
     private readonly TimeSpan _retention = JobChain.RecordRetention;
 
     // Whether the process knows that every listed chain has its place among the chains to look at
@@ -56,6 +58,10 @@ public sealed class JobChainMaintenanceFacts : IDisposable
             .Returns((string key) => _timesToLive.TryGetValue(key, out TimeSpan timeToLive) ? timeToLive : TimeSpan.FromSeconds(-1));
         _connection.Setup(x => x.GetStateData(It.IsAny<string>()))
             .Returns((string jobId) => _states.GetValueOrDefault(jobId));
+        _connection.Setup(x => x.GetJobParameter(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string jobId, string name) => _parameters.GetValueOrDefault((jobId, name)));
+        _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Callback((string jobId, string name, string value) => _parameters[(jobId, name)] = value);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(CreateTransaction);
 
         _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()))
@@ -70,6 +76,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     {
         JobClock.TimeProvider = TimeProvider.System;
         JobChainMaintenanceProcess.Interval = _interval;
+        JobChainMaintenanceProcess.IndexCheckInterval = _indexCheckInterval;
         JobChainMaintenanceProcess.BusyInterval = _busyInterval;
         JobChain.RecordRetention = _retention;
     }
@@ -245,6 +252,89 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         _client.Verify(x => x.ChangeState("b", It.IsAny<EnqueuedState>(), AwaitingState.StateName), Times.Once);
         _client.Verify(x => x.ChangeState("c", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
         Assert.InRange(Assert.Single(Set(DueSet)).Score, After(TimeSpan.FromMinutes(9)), After(TimeSpan.FromMinutes(16)));
+    }
+
+    // What the steps before a waiting step finished as, kept on it for when their jobs are gone
+
+    [Fact]
+    public void Maintain_WritesOnAWaitingStep_WhatTheStepsBeforeItFinishedAs_WhenTheProcessThatFinishedThemDidNot()
+    {
+        // One branch succeeded twenty minutes ago, by a process that stopped before it wrote that on the steps
+        // that wait for the group; the other branch still runs
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+
+        Maintain();
+
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("alert", "FanInOutcomes")]);
+        Assert.Equal(AwaitingState.StateName, _states["done"].Name);
+        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+
+        // The next look finds it written: one read for each waiting step, and no write
+        Set(DueSet).Clear();
+        Set(DueSet).Add((1, "c"));
+        Maintain();
+
+        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("done", "FanInOutcomes", It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public void Maintain_WritesAgain_WhatAStepFinishedAs_WhenItFinishedAnotherWaySince()
+    {
+        // The branch failed for good, was requeued and succeeded, by a process that stopped before it wrote so
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Failed\"}";
+
+        Maintain();
+
+        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+    }
+
+    [Fact]
+    public void Maintain_GoesOn_WhenWhatAStepFinishedAsCanNotBeWritten()
+    {
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states["c"] = State(ProcessingState.StateName);
+        _busyLocks.Add("job:done:state-lock");
+        _connection.Setup(x => x.GetJobParameter("alert", "FanInOutcomes")).Throws(new InvalidOperationException("Storage is down"));
+
+        Assert.True(Maintain().Ran);
+
+        Assert.False(_parameters.ContainsKey(("done", "FanInOutcomes")));
+        Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)));
+    }
+
+    [Fact]
+    public void Maintain_StartsAStepThatWasNeverTold_FromWhatTheStepsBeforeItWroteOnIt_OnceTheirJobsAreGone()
+    {
+        // Both branches succeeded; the job of the first has expired since, and the process that finished the
+        // second stopped before it started the steps after the group
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states.Remove("b");
+        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+        _parameters[("alert", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+
+        Maintain();
+
+        Assert.Equal(EnqueuedState.StateName, _states["done"].Name);
+        Assert.Equal(DeletedState.StateName, _states["alert"].Name);
+    }
+
+    [Fact]
+    public void Maintain_LeavesAStepWaiting_BehindAStepWhoseJobIsGone_AndThatWroteNothingOnIt()
+    {
+        // Nobody knows what the first branch finished as: the step after the group isn't decided from a guess
+        WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
+        _states.Remove("b");
+
+        Maintain();
+
+        Assert.Equal(AwaitingState.StateName, _states["done"].Name);
+        Assert.Equal(AwaitingState.StateName, _states["alert"].Name);
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -549,6 +639,95 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_LeavesAChainToExpire_WhoseWaitingStepsWaitBehindAStepWhoseJobIsGone()
+    {
+        // The first step failed for good and its job expired (UseFailedJobRetention): nothing can start the
+        // steps after it, which wait for as long as a waiting job is kept
+        Line("c", TimeSpan.FromDays(8), ("a", null), ("b", Awaiting("a")), ("d", Awaiting("b")));
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(22);
+
+        Maintain();
+
+        Assert.Empty(Set(DueSet));
+        double expiresAt = Assert.Single(Set(ExpirySet)).Score;
+        Assert.InRange(expiresAt, After(TimeSpan.FromDays(22)), After(TimeSpan.FromDays(22.01)));
+        Assert.Equal(TimeSpan.FromDays(22), _timesToLive[JobChains.GetKey("c")]);
+    }
+
+    [Fact]
+    public void Maintain_KeepsTheRecord_OfAChainWithAStepThatWaitsBehindAStepWhoseJobIsGone_WhileAnotherStepOfItIsLeftToRun()
+    {
+        // Two branches: the job of one is gone, and the step after it waits for good; the other still runs
+        JobChain chain = JobChain.StartWith(() => JobChainFacts.Step("a"))
+            .ThenMany(branches => branches.Branch(() => JobChainFacts.Step("b")).Branch(() => JobChainFacts.Step("c")));
+        _hashes[JobChains.GetKey("c")] = new Dictionary<string, string>
+        {
+            ["Definition"] = JobChains.ToDefinition(chain),
+            ["Jobs"] = "{\"0.0\":\"a\",\"1.0\":\"b\",\"1.1\":\"c\"}",
+            ["CreatedAt"] = JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-8)),
+        };
+        Set(JobChains.SetKey).Add((1, "c"));
+        Set(DueSet).Add((1, "c"));
+        _states["b"] = Awaiting("a");
+        _states["c"] = State(ProcessingState.StateName);
+        _timesToLive[JobChains.GetKey("c")] = TimeSpan.FromDays(22);
+
+        Maintain();
+
+        Assert.Empty(Set(ExpirySet));
+        Assert.Single(Set(DueSet));
+        Assert.True(_timesToLive[JobChains.GetKey("c")] > TimeSpan.FromDays(29));
+    }
+
+    [Fact]
+    public void StrandedSteps_AreTheWaitingStepsThatNothingCanStartAnyMore()
+    {
+        JobChainInfo info = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "a", null, 0, -1),
+            new JobChainStepInfo("1.0", "b", AwaitingState.StateName, 1, 0) { Link = ChainLink.Then, Options = JobContinuationOptions.OnlyOnSucceededState },
+            new JobChainStepInfo("1.1", "c", SucceededState.StateName, 1, 0),
+            new JobChainStepInfo("2.0", "d", AwaitingState.StateName, 2, 1) { Link = ChainLink.AfterAll },
+            new JobChainStepInfo("2.1", "e", AwaitingState.StateName, 2, 1) { Link = ChainLink.AfterAll },
+        ]);
+
+        // b waits for a step whose job is gone; the joins after b and c wait for a step that waits for good, and
+        // for one whose job exists, so only somebody who moves c could still decide them
+        Assert.Equal(["1.0"], info.StrandedSteps());
+        Assert.True(info.HasLiveSteps());
+
+        JobChainInfo gone = info with { Steps = [.. info.Steps.Select(static x => x.Key == "1.1" ? x with { State = null } : x)] };
+        Assert.Equal(["1.0", "2.0", "2.1"], gone.StrandedSteps().Order(StringComparer.Ordinal));
+        Assert.False(gone.HasLiveSteps());
+    }
+
+    [Fact]
+    public void StrandedSteps_LeaveOut_AStepThatWhatTheStepsBeforeItWroteOnItDecides()
+    {
+        JobChainInfo info = new("c", 1, DateTime.UtcNow, ChainDeleteBehavior.Cascade,
+        [
+            new JobChainStepInfo("0.0", "a", SucceededState.StateName, 0, -1),
+            new JobChainStepInfo("1.0", "b", null, 1, 0),
+            new JobChainStepInfo("1.1", "c", null, 1, 0),
+            new JobChainStepInfo("2.0", "done", AwaitingState.StateName, 2, 1)
+            {
+                Link = ChainLink.AfterAll,
+                Outcomes = new Dictionary<string, string> { ["b"] = SucceededState.StateName, ["c"] = SucceededState.StateName },
+            },
+            new JobChainStepInfo("2.1", "alert", AwaitingState.StateName, 2, 1)
+            {
+                Link = ChainLink.AfterAnyFailed,
+                Outcomes = new Dictionary<string, string> { ["b"] = SucceededState.StateName },
+            },
+        ]);
+
+        // done is decided (a server starts it); alert isn't: what c finished as isn't known
+        Assert.Equal(["2.1"], info.StrandedSteps());
+        Assert.True(info.HasLiveSteps());
+        Assert.Equal(["2.0"], info.NeverToldSteps().Select(static x => x.Key));
+    }
+
+    [Fact]
     public void Maintain_KeepsTheRecord_ForTheTimeThisProcessIsSetTo()
     {
         JobChain.RecordRetention = TimeSpan.FromDays(4);
@@ -661,6 +840,40 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.Empty(Listed());
         Assert.Empty(Set(ExpirySet));
         Assert.Empty(Set(DueSet));
+    }
+
+    [Fact]
+    public void Maintain_UnlistsAChainLeftToExpire_WhoseRecordExpired_WhenALookWasAskedForBeforeItsTurn()
+    {
+        // The chain finished long ago and was left to expire; its record expired a moment ago, and a step of it
+        // was requeued just then, which asked for a look before the chain's turn to leave the list came
+        Line("c", TimeSpan.FromDays(31), ("a", Finished(SucceededState.StateName, TimeSpan.FromDays(31))));
+        Set(DueSet).Clear();
+        Set(ExpirySet).Add((After(TimeSpan.FromSeconds(30)), "c"));
+        Set(SoonSet).Add((1, "c|asked"));
+        _hashes.Remove(JobChains.GetKey("c"));
+
+        Maintain();
+
+        // Gone, as at its turn: not taken for a chain whose record the storage lost, and kept another retention
+        Assert.Empty(Listed());
+        Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Set(DueSet));
+        Assert.Empty(Set(SoonSet));
+    }
+
+    [Fact]
+    public void Maintain_TriesAgainSoon_AStepNeverToldToStart_WhoseStartFailed_HoweverLongTheChainStoodStill()
+    {
+        // Both branches succeeded three days ago, and no server ran since; starting or skipping the steps after
+        // them fails, for a storage that is briefly unavailable
+        WatchedChain("c", TimeSpan.FromDays(3), SucceededState.StateName, SucceededState.StateName);
+        _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), AwaitingState.StateName))
+            .Throws(new InvalidOperationException("Storage is down"));
+
+        Maintain();
+
+        Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)), "The chain is looked at again only after as long as it stood still.");
     }
 
     [Fact]
@@ -863,6 +1076,102 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.True(_indexed);
         _connection.Verify(x => x.GetRangeFromSet(JobChains.SetKey, It.IsAny<int>(), It.IsAny<int>()), Times.Once);
         _connection.Verify(x => x.GetSetCount(JobChains.SetKey), Times.Once);
+    }
+
+    [Fact]
+    public void Maintain_GivesAPlace_ToAChainAProcessOfAnEarlierBuildWatches_AfterTheListWasGoneThrough_AndGoesThroughItAgain()
+    {
+        // The list was gone through; then a process of the earlier build, still running, listed two chains: it
+        // watches the one with a step after a group, in a set of its own, and gives neither a place
+        _hashes[IndexHash] = new Dictionary<string, string> { ["Listed"] = "done" };
+        Line("watched", TimeSpan.FromMinutes(30), ("a", Finished(SucceededState.StateName, TimeSpan.FromMinutes(20))), ("b", Awaiting("a")));
+        Line("unwatched", TimeSpan.FromMinutes(30), ("c", Finished(FailedState.StateName, TimeSpan.FromMinutes(20))), ("d", Awaiting("c")));
+        Set(DueSet).Clear();
+        Set("chains:joins").Add((After(TimeSpan.FromMinutes(5)), "watched"));
+
+        JobChains.MaintenanceRun run = Maintain();
+
+        // Both were looked at in the same run: the step never told was started, and each chain has its place
+        Assert.False(run.MoreToDo);
+        Assert.True(_indexed);
+        Assert.Empty(Set("chains:joins"));
+        Assert.Equal("done", _hashes[IndexHash]["Listed"]);
+        Assert.Equal(EnqueuedState.StateName, _states["b"].Name);
+        Assert.Equal(["unwatched", "watched"], Set(DueSet).Select(static x => x.Value).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Maintain_LeavesTheListAlone_WhenTheChainsAProcessOfAnEarlierBuildWatchesHaveTheirPlace()
+    {
+        _hashes[IndexHash] = new Dictionary<string, string> { ["Listed"] = "done" };
+        Line("watched", TimeSpan.FromMinutes(30), ("a", State(EnqueuedState.StateName)), ("b", Awaiting("a")));
+        double place = After(TimeSpan.FromMinutes(10));
+        Set(DueSet)[0] = (place, "watched");
+        Set("chains:joins").Add((1, "watched"));
+
+        Maintain();
+
+        Assert.Empty(Set("chains:joins"));
+        Assert.Equal(place, Assert.Single(Set(DueSet)).Score);
+        Assert.Equal("done", _hashes[IndexHash]["Listed"]);
+        _connection.Verify(x => x.GetSetCount(It.IsAny<string>()), Times.Never);
+        _connection.Verify(x => x.GetRangeFromSet(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public void Maintain_GoesOnThroughTheListOfAnEarlierBuild_WithoutSkippingAChain_WhenOneIsListedBelowWhereItStopped()
+    {
+        _indexed = false;
+        for (int i = 0; i < JobChains.MaxIndexedPerRun + 20; i++)
+        {
+            Set(JobChains.SetKey).Add((1000 + i, $"old-{i:0000}"));
+        }
+
+        Maintain();
+        Assert.Equal("20", _hashes[IndexHash]["Listed"]);
+
+        // Meanwhile a chain is listed again where its record says it was created, below where the run stopped:
+        // the chains above it move up by one
+        Set(JobChains.SetKey).Add((1, "relisted"));
+        Set(DueSet).Add((After(TimeSpan.FromDays(1)), "relisted"));
+
+        Maintain();
+
+        Assert.True(_indexed);
+        Assert.DoesNotContain(Listed(), chainId => !Set(DueSet).Concat(Set(ExpirySet)).Any(x => x.Value == chainId));
+    }
+
+    [Fact]
+    public void StateChange_OfAStepAnEarlierBuildRecorded_AsksForALookAtItsChain_AndHasTheListGoneThroughAgain_WhenTheChainHasNoPlace()
+    {
+        _hashes[IndexHash] = new Dictionary<string, string> { ["Listed"] = "done" };
+        Line("old", TimeSpan.FromMinutes(30), ("old-a", State(EnqueuedState.StateName)), ("old-b", Awaiting("old-a")));
+        Set(DueSet).Clear();
+
+        ChangesState("old-a", "old", "true", State(ProcessingState.StateName));
+
+        Assert.Single(Set(SoonSet), static x => x.Value.StartsWith("old|", StringComparison.Ordinal));
+        Assert.Equal("again", _hashes[IndexHash]["Listed"]);
+
+        // Once a chain for a process
+        ChangesState("old-a", "old", "true", State(SucceededState.StateName));
+        Assert.Single(Set(SoonSet));
+    }
+
+    [Fact]
+    public void StateChange_OfAStepAnEarlierBuildRecorded_AsksForNothing_WhenItsChainHasAPlace_AndAStepThisBuildRecordedReadsNothing()
+    {
+        _hashes[IndexHash] = new Dictionary<string, string> { ["Listed"] = "done" };
+        Line("placed", TimeSpan.FromMinutes(30), ("p-a", State(EnqueuedState.StateName)), ("p-b", Awaiting("p-a")));
+        Line("recorded", TimeSpan.FromMinutes(30), ("r-a", State(EnqueuedState.StateName)), ("r-b", Awaiting("r-a")));
+        Set(DueSet).RemoveAll(static x => x.Value == "recorded");
+
+        ChangesState("p-a", "placed", "true", State(ProcessingState.StateName));
+        ChangesState("r-a", "recorded", "2592000", State(ProcessingState.StateName));
+
+        Assert.Empty(Set(SoonSet));
+        Assert.Equal("done", _hashes[IndexHash]["Listed"]);
+        _connection.Verify(x => x.GetSetContains(It.IsAny<string>(), "recorded"), Times.Never);
     }
 
     [Fact]
@@ -1105,6 +1414,57 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         process.Execute(context.Object);
 
         _connection.Verify(x => x.GetValueFromHash(IndexHash, "Listed"), Times.Once);
+    }
+
+    [Fact]
+    public void Process_ReadsAgainNowAndThen_WhetherTheListWasGoneThrough()
+    {
+        JobChainMaintenanceProcess.Interval = TimeSpan.FromMilliseconds(1);
+        JobChainMaintenanceProcess.IndexCheckInterval = TimeSpan.Zero;
+        BackgroundProcessContextMock context = new() { Storage = _storage };
+        JobChainMaintenanceProcess process = new(new Mock<IBackgroundJobFactory>().Object, new Mock<IBackgroundJobStateChanger>().Object);
+
+        process.Execute(context.Object);
+        Assert.Equal("done", _hashes[IndexHash]["Listed"]);
+
+        // Another process found a chain of an earlier build without a place
+        _hashes[IndexHash]["Listed"] = "again";
+        Line("old", TimeSpan.FromDays(3), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(3))), ("b", Awaiting("a")));
+        Set(DueSet).Clear();
+        process.Execute(context.Object);
+
+        Assert.Equal("done", _hashes[IndexHash]["Listed"]);
+        Assert.Contains(Set(DueSet), static x => x.Value == "old");
+    }
+
+    // What the filter does after the commit of a state change of a step whose mark is given
+    private void ChangesState(string jobId, string chainId, string mark, StateData newState)
+    {
+        Mock<IState> state = new();
+        state.Setup(x => x.Name).Returns(newState.Name);
+
+        ApplyStateContextMock mock = new()
+        {
+            Storage = _storage,
+            Connection = _connection.As<IStorageConnection>(),
+            NewStateObject = state.Object,
+            OldStateName = _states[jobId].Name,
+        };
+        mock.BackgroundJob.Id = jobId;
+        mock.BackgroundJob.CreatedAt = DateTime.UtcNow;
+        mock.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>
+        {
+            [JobChains.ChainIdParameter] = $"\"{chainId}\"",
+            [JobChains.ChainStepParameter] = "\"0.0\"",
+            [JobChains.ChainRecordedParameter] = mark,
+        };
+
+        ApplyStateContext context = mock.Object;
+        context.AfterCommit = new PostCommitActions();
+
+        new JobChainStepFilter().OnStateApplied(context, context.Transaction);
+        _states[jobId] = newState;
+        context.AfterCommit.Run();
     }
 
     // What a state change does that takes a step of a chain out of the state it had finished in, once it is

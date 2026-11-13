@@ -174,6 +174,123 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public void Join_Starts_WhenABranchIsRequeuedAndSucceeds_AfterTheJobOfTheOtherBranchExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        JobChainResult chain = JobChain.StartWith(() => Record("a"))
+            .ThenMany(branches => branches.Branch(() => Record("b")).Branch(() => FailOnce("c")))
+            .ThenAfterAll(() => Record("done"))
+            .ThenAfterAnyFailedOrCanceled(() => Record("alert"))
+            .Enqueue(client)!;
+        string b = chain.Steps["1.0"];
+        string c = chain.Steps["1.1"];
+
+        // One branch succeeds, the other fails for good; then the job that succeeded expires
+        Assert.True(client.ChangeState(chain.RootId, new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(b, new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(c, new FailedState(new InvalidOperationException("failed")), null));
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, chain.Steps["2.1"]));
+        Assert.True(client.ChangeState(chain.Steps["2.1"], new SucceededState(null, 0, 0), null));
+
+        Expire(b);
+        Assert.Null(StateName(storage, b));
+
+        // The failed branch is requeued, and succeeds: every branch succeeded
+        Assert.True(client.ChangeState(c, new EnqueuedState(), FailedState.StateName));
+        Assert.True(client.ChangeState(c, new SucceededState(null, 0, 0), null));
+
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, chain.Steps["2.0"]));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Server_LeavesAChainToExpire_WhoseStepsWaitBehindAFailedStepWhoseJobExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        JobChainResult chain = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(client)!;
+        Assert.True(client.ChangeState(chain.RootId, new FailedState(new InvalidOperationException("failed")), null));
+
+        // The failed job expired (UseFailedJobRetention); the record expires in three days, and a look is due
+        Expire(chain.RootId);
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            ((JobStorageTransaction)transaction).ExpireHash(JobChains.GetKey(chain.ChainId), TimeSpan.FromDays(3));
+            transaction.AddToSet(DueSet, chain.ChainId, 0);
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => SetItems(storage, ExpirySet).Contains(chain.ChainId), "The chain that nothing can move on any more wasn't left to expire.");
+        }
+
+        Assert.DoesNotContain(chain.ChainId, SetItems(storage, DueSet));
+        Assert.InRange(RecordTimeToLive(storage, chain.ChainId), TimeSpan.FromDays(2.9), TimeSpan.FromDays(3));
+        Assert.Equal(AwaitingState.StateName, StateName(storage, chain.Steps["1.0"]));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Server_GivesAPlace_ToTheChainsAProcessOfAnEarlierBuildListed_AfterTheListWasGoneThrough()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through.");
+        }
+
+        // Recorded by a process of the earlier build: no place, and the one with a group watched in a set of its own
+        JobChainResult line = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client)!;
+        JobChainResult joined = JobChain.StartWith(() => Record("x"))
+            .ThenMany(branches => branches.Branch(() => Record("y")).Branch(() => Record("z")))
+            .ThenAfterAll(() => Record("done"))
+            .Enqueue(client)!;
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet(DueSet, line.ChainId);
+            transaction.RemoveFromSet(DueSet, joined.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, 0);
+            transaction.Commit();
+        }
+
+        // The server runs their steps too: a chain that finished first is left to expire, which is its place then
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => HasPlace(storage, line.ChainId), "The chain nobody watched wasn't given a place.");
+            await WaitUntilAsync(() => HasPlace(storage, joined.ChainId), "The watched chain wasn't given a place.");
+            await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through again.");
+        }
+
+        Assert.Empty(SetItems(storage, "chains:joins"));
+    }
+
+    [Fact, CleanDatabase]
+    public void FanIn_IsDecidedByWhatAParentFinishedAs_OnceItsJobExpired()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        string first = client.Create(() => Record("first"), new EnqueuedState())!;
+        string second = client.Create(() => Record("second"), new ScheduledState(TimeSpan.FromDays(1)))!;
+        string all = client.ContinueJobWithAll([first, second], () => Record("all"))!;
+        string anyFailedOrCanceled = client.ContinueJobWithJoin([first, second], FanInMode.AnyFailedOrCanceled, () => Record("alert"))!;
+
+        Assert.True(client.ChangeState(first, new SucceededState(null, 0, 0), null));
+        Expire(first);
+
+        Assert.True(client.ChangeState(second, new SucceededState(null, 0, 0), null));
+
+        Assert.Equal(EnqueuedState.StateName, StateName(storage, all));
+        Assert.Equal(DeletedState.StateName, StateName(storage, anyFailedOrCanceled));
+    }
+
+    [Fact, CleanDatabase]
     public async Task ProcessingContinuation_StartsWhileTheParentRuns()
     {
         SqlServerStorage storage = CreateStorage();
@@ -1452,6 +1569,19 @@ public class JobChainFacts
         transaction.RemoveHash(JobChains.GetKey(chainId));
         transaction.RemoveFromSet(JobChains.SetKey, chainId);
         transaction.Commit();
+    }
+
+    /// <summary>Whether a chain has its place among the chains to look at, or among the ones left to expire.</summary>
+    private static bool HasPlace(SqlServerStorage storage, string chainId)
+    {
+        return SetItems(storage, DueSet).Contains(chainId) || SetItems(storage, ExpirySet).Contains(chainId);
+    }
+
+    /// <summary>Removes a job, its state and its parameters, as the expiration manager does once it expired.</summary>
+    private static void Expire(string jobId)
+    {
+        using DbConnection sql = ConnectionUtils.CreateConnection();
+        sql.Execute($"delete from [{Constants.DefaultSchema}].Job where Id = @id", new { id = long.Parse(jobId) });
     }
 
     /// <summary>Makes jobs as old as if they had been created that many days earlier.</summary>
