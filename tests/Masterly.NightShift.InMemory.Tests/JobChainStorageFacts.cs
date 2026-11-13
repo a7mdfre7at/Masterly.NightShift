@@ -1035,6 +1035,61 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void DeleteChain_LeavesASucceededStepThatAnAbandonedRetryHolds_Succeeded()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        Ran.Clear();
+
+        // A retry from the step that succeeded stops before it is recorded: the step is held
+        _filter.CrashOn = "c";
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+        Assert.Equal(ScheduledState.StateName, StateOf(step));
+
+        // The chain is deleted: the step had finished, and keeps its outcome
+        _storage.DeleteChain(chain.ChainId);
+
+        Assert.Equal(SucceededState.StateName, StateOf(step));
+        Assert.Null(Parameter(step, "ChainRetry"));
+        Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["0.0"]));
+        Assert.Equal(SucceededState.StateName, StateOf(chain.Steps["2.0"]));
+
+        // And nothing of it runs when the hold would have ended
+        using BackgroundJobServer server = CreateServer();
+        MoveClock(TimeSpan.FromMinutes(3));
+        Thread.Sleep(1000);
+        Assert.Equal(SucceededState.StateName, StateOf(step));
+        Assert.Empty(Ran);
+    }
+
+    [Fact]
+    public void ReplaceChain_RefusesAChainThatRanAndFailed_AlsoWhileAnAbandonedRetryHoldsItsFirstStep()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
+        string step = chain.Steps["0.0"];
+        Fail(step);
+
+        // The chain started (and failed): it can't be replaced
+        Assert.Throws<InvalidOperationException>(() => _storage.ReplaceChain(chain.ChainId, JobChain.StartWith(() => Run("x")).Then(() => Run("y"))));
+
+        // A retry that stops before it is recorded holds the first step
+        _filter.CrashOn = "b";
+        Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
+        _filter.CrashOn = null;
+        Assert.Equal(ScheduledState.StateName, StateOf(step));
+
+        // The retry never happened: the chain is as it was, and still can't be replaced
+        Assert.Throws<InvalidOperationException>(() => _storage.ReplaceChain(chain.ChainId, JobChain.StartWith(() => Run("x")).Then(() => Run("y"))));
+    }
+
+    [Fact]
     public void Step_PutBackAfterAnAbandonedRetry_IsNotToldAboutAsIfItHadFailedAgain()
     {
         CountingSink sink = new();

@@ -444,7 +444,11 @@ public static partial class JobChains
 
             string rootId = record.Jobs[Key(0, 0)];
             StateData? root = connection.GetStateData(rootId);
-            if (root == null || !HasNotStarted(root.Name) || IsAwaiting(root.Name) ||
+
+            // A first step that a retry which was never recorded holds is in the state it was in before: it ran
+            string? rootState = AbandonedHold(connection, record, rootId, root?.Name)?.State ?? root?.Name;
+
+            if (rootState == null || !HasNotStarted(rootState) || IsAwaiting(rootState) ||
                 record.Jobs.Where(x => x.Key != Key(0, 0)).Any(x => !IsAwaiting(connection.GetStateData(x.Value)?.Name)))
             {
                 throw new InvalidOperationException($"Chain '{chainId}' has started, so it can't be replaced.");
@@ -452,10 +456,11 @@ public static partial class JobChains
 
             // A first step scheduled only until an earlier change of the chain is over (JobChainStepFilter) is an
             // enqueued one
-            bool scheduled = ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase) &&
+            bool scheduled = root != null &&
+                             ScheduledState.StateName.Equals(root.Name, StringComparison.OrdinalIgnoreCase) &&
                              !string.Equals(root.Reason, JobChainStepFilter.WaitingReason(chainId), StringComparison.Ordinal);
 
-            IState rootState = scheduled && root.Data.TryGetValue("EnqueueAt", out string? enqueueAt)
+            IState newRootState = scheduled && root!.Data.TryGetValue("EnqueueAt", out string? enqueueAt) // Scheduled only with a state
                 ? new ScheduledState(JobHelper.DeserializeDateTime(enqueueAt))
                 : new EnqueuedState();
 
@@ -478,7 +483,7 @@ public static partial class JobChains
             };
 
             // Whatever fails gives the lease up: the old chain is kept as it was
-            JobChainResult result = CreateJobs(chain, client, connection, lease, rootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt, cleanup, rootId)
+            JobChainResult result = CreateJobs(chain, client, connection, lease, newRootState, rootParameters, rootQueue, chainId, record.Generation + 1, record.CreatedAt, cleanup, rootId)
                 ?? throw new InvalidOperationException($"The first step of the new chain '{chainId}' wasn't created: a client filter canceled it.");
 
             // The new chain is recorded: nothing fails the replacement from here on
@@ -553,6 +558,10 @@ public static partial class JobChains
                 throw new InvalidOperationException(
                     $"Chain '{chainId}' can't be deleted yet: {left.Delete.Count} jobs that an earlier retry or replacement left to delete couldn't be deleted. {deleted} jobs were deleted; the chain is kept, delete it again.");
             }
+
+            // A step that a retry which was never recorded holds goes back into the state it was in, so a step that
+            // had finished keeps its outcome; once the record is gone, a server would delete it for not being listed
+            PutBackAbandonedHolds(client, connection, record);
 
             // A Restrict chain never loses a processing step, even one that starts meanwhile. A second pass deletes
             // the steps that moved on between their read and their deletion (a waiting step its parent enqueued).

@@ -134,12 +134,61 @@ public static partial class JobChains
     /// The state a step held for an abandoned retry goes back to: the one it was in, with its data, and a reason
     /// that says why it is there again.
     /// </summary>
-    internal static IState RestoreAbandoned(RetryMarker marker, string chainId)
+    internal static IState RestoreAbandoned(RetryMarker marker, string chainId, bool onlyWhileHeld = false)
     {
         StateData state = marker.ToStateData();
         state.Reason = RetryAbandonedReason(chainId);
         state.Data[AbandonedRetryDataKey] = marker.Id;
-        return Restore(state, marker.ExpireAt);
+        return Restore(state, marker.ExpireAt, onlyWhileHeld ? marker.Id : null);
+    }
+
+    /// <summary>
+    /// The note of the retry that holds a step, when that retry was never recorded: the step is on its way from
+    /// the hold to a worker, and its note has the generation of the chain's record. Read by a change of the chain
+    /// under the chain's lock, which a retry that is still at it holds: so the retry was abandoned, and the step
+    /// is, in truth, in the state the note names. <c>null</c> for any other step.
+    /// </summary>
+    private static RetryMarker? AbandonedHold(IStorageConnection connection, ChainRecord record, string jobId, string? state)
+    {
+        if (!ScheduledState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase) &&
+            !EnqueuedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        RetryMarker? marker = RetryMarker.Parse(connection.GetJobParameter(jobId, ChainRetryParameter));
+        return marker != null && marker.Generation == record.Generation ? marker : null;
+    }
+
+    /// <summary>
+    /// Puts the steps that an abandoned retry still holds in the Scheduled state back into the state they were in,
+    /// as a server does when their hold ends: for a change of the chain that is about to remove the record, after
+    /// which a server would take them for steps of a deleted chain. A step whose hold ended already waits in its
+    /// queue, and is left to the change. Under the chain's lock.
+    /// </summary>
+    private static void PutBackAbandonedHolds(IBackgroundJobClient client, IStorageConnection connection, ChainRecord record)
+    {
+        foreach (string jobId in record.Jobs.Values)
+        {
+            try
+            {
+                string? state = connection.GetStateData(jobId)?.Name;
+                if (!ScheduledState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase) ||
+                    AbandonedHold(connection, record, jobId, state) is not { } marker)
+                {
+                    continue;
+                }
+
+                if (client.ChangeState(jobId, RestoreAbandoned(marker, record.ChainId, onlyWhileHeld: true), ScheduledState.StateName))
+                {
+                    ForgetRetryMarker(connection, jobId, marker.Id);
+                }
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException($"Background job '{jobId}' of chain '{record.ChainId}', held for a retry that was abandoned, couldn't be put back into the state it was in.", ex);
+            }
+        }
     }
 
     /// <summary>Whether a state is the one a server put a step back into for the retry <paramref name="retryId"/>.</summary>
