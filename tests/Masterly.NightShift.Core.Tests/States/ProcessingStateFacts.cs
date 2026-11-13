@@ -36,6 +36,18 @@ public class ProcessingStateFacts
         Assert.Equal(JobHelper.SerializeDateTime(state.StartedAt), data["StartedAt"]);
         Assert.Equal(ServerId, data["ServerId"]);
         Assert.Equal(WorkerId.ToString(), data["WorkerId"]);
+        Assert.False(data.ContainsKey(ProcessingState.QueueEntryKey));
+    }
+
+    [Fact]
+    public void SerializeData_NamesTheQueueEntry_WhenTheWorkerKnowsIt()
+    {
+        ProcessingState state = new(ServerId, WorkerId) { QueueEntry = "entry-42" };
+
+        Assert.Equal("entry-42", state.SerializeData()[ProcessingState.QueueEntryKey]);
+
+        // Not part of the state's JSON: it is state data only
+        Assert.DoesNotContain("entry-42", SerializationHelper.Serialize<IState>(state, SerializationOption.TypedInternal), StringComparison.Ordinal);
     }
 
     [Fact]

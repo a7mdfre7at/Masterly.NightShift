@@ -41,6 +41,12 @@ public static class JobStorageFeatures
         public static readonly string LimitedGetSetCount = "Connection.GetSetCount.Limited";
 
         public static readonly string BatchedGetFirstByLowest = "Connection.BatchedGetFirstByLowestScoreFromSet";
+
+        /// <summary>
+        /// The connection implements <see cref="JobStorageConnection.GetQueueEntryId"/>: it tells which queue entry
+        /// a fetched job came from. Workers use it to run a job once when it has several entries.
+        /// </summary>
+        public static readonly string GetQueueEntryId = "Connection.GetQueueEntryId";
     }
 
     /// <summary>

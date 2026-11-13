@@ -96,6 +96,12 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     return null;
                 }
 
+                // The job has another entry in a queue, and a worker that took that one runs it
+                if (IsRunFromAnotherQueueEntry(context, jobData))
+                {
+                    return null;
+                }
+
                 IState stateToApply = context.NewState;
 
                 try
@@ -214,6 +220,28 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
         // it, for example) doesn't wait for it.
         afterCommit?.Run();
         return appliedState;
+    }
+
+    /// <summary>
+    /// Whether a worker took the job from one of its queue entries while the job is Processing under another. A
+    /// job gets an entry each time it is enqueued, and keeps an entry that is still in its queue when it leaves
+    /// the Enqueued state by hand, so one requeued later has two. The run of the other entry is in progress, or
+    /// its worker died and the storage hands that entry out again: either way that entry runs the job, and this
+    /// one is dropped. The same entry fetched again (put back by its worker, or after the invisibility timeout) is
+    /// a restart, as is any fetch where an entry isn't known: a storage without the feature, a custom queue, a
+    /// Processing state written before workers recorded their entry.
+    /// </summary>
+    private static bool IsRunFromAnotherQueueEntry(StateChangeContext context, JobData jobData)
+    {
+        if (context.QueueEntry == null || !ProcessingState.StateName.Equals(jobData.State, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Read only here: a job is rarely Processing when a worker takes it
+        string? running = null;
+        context.Connection.GetStateData(context.BackgroundJobId)?.Data?.TryGetValue(ProcessingState.QueueEntryKey, out running);
+        return !string.IsNullOrEmpty(running) && !string.Equals(running, context.QueueEntry, StringComparison.Ordinal);
     }
 
     private static string DescribeLoadFailure(JobLoadException exception)

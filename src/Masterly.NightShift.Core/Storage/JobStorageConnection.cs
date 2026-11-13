@@ -159,4 +159,22 @@ public abstract class JobStorageConnection : IStorageConnection
     {
         throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetUtcDateTime);
     }
+
+    // Queues
+
+    /// <summary>
+    /// The identifier of the queue entry <paramref name="fetchedJob"/> was taken from: the same each time that
+    /// entry is fetched again (put back by its worker, or handed out again after the invisibility timeout), and
+    /// different for every other entry of the job, in any queue. A job can have several entries: one is added each
+    /// time it is enqueued, and an entry stays in its queue when the job leaves the Enqueued state by hand. A
+    /// worker that finds the job Processing under another entry leaves it to that run and removes its own entry.
+    /// Advertised by <see cref="JobStorageFeatures.Connection.GetQueueEntryId"/>.
+    /// </summary>
+    /// <param name="fetchedJob">A job fetched with <see cref="FetchNextJob"/> on this storage.</param>
+    /// <returns>The identifier, or <c>null</c> for a fetched job whose entry the connection can't tell (one of a
+    /// custom queue, for example): the worker then runs the job as it would without this feature.</returns>
+    public virtual string? GetQueueEntryId([NotNull] IFetchedJob fetchedJob)
+    {
+        throw JobStorageFeatures.GetNotSupportedException(JobStorageFeatures.Connection.GetQueueEntryId);
+    }
 }

@@ -59,6 +59,9 @@ internal sealed class SqlServerTransactionJob : IFetchedJob
     public string JobId { get; }
     public string Queue { get; }
 
+    /// <summary>The id of the [JobQueue] row the transaction deleted, when the fetch read it.</summary>
+    internal long? Id { get; init; }
+
     public void RemoveFromQueue()
     {
         lock (_lockObject)

@@ -152,6 +152,14 @@ public class StateChangeContext
     internal string? LeaseHolder { get; init; }
 
     /// <summary>
+    /// The queue entry a worker fetched the job from, for the state change that moves the job to Processing (and
+    /// the Failed state of last resort that replaces it), when the storage tells it
+    /// (<see cref="JobStorageConnection.GetQueueEntryId"/>). The change is refused when the job is Processing
+    /// under another entry: another worker runs it.
+    /// </summary>
+    internal string? QueueEntry { get; init; }
+
+    /// <summary>
     /// Set by a worker for the state change that moves a fetched job to Processing: lets an election filter have
     /// the worker look at the job again in a moment instead, with nothing stored (see <see cref="JobLookAgain"/>).
     /// <c>null</c> for every other state change, and when the worker doesn't offer it. Not honoured with a

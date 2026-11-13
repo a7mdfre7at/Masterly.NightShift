@@ -53,6 +53,23 @@ internal sealed class SqlServerConnection : JobStorageConnection
         return AcquireLock($"{Storage.SchemaName}:{resource}", timeout);
     }
 
+    /// <inheritdoc />
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob)
+    {
+        ArgumentNullException.ThrowIfNull(fetchedJob);
+
+        // The row of [JobQueue]: it keeps its id when its FetchedAt is cleared, and when the transaction that
+        // deleted it rolls back. The fetched jobs of a custom queue aren't known.
+        long? id = fetchedJob switch
+        {
+            SqlServerTimeoutJob timeoutJob => timeoutJob.Id,
+            SqlServerTransactionJob transactionJob => transactionJob.Id,
+            _ => null,
+        };
+
+        return id?.ToString(CultureInfo.InvariantCulture);
+    }
+
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         if (queues == null || queues.Length == 0)

@@ -137,13 +137,14 @@ public class Worker : IBackgroundProcess
         try
         {
             BackgroundJob? backgroundJob = null;
+            string? queueEntry = GetQueueEntry(context.Storage, connection, fetchedJob);
 
             using (CancellationTokenSource timeoutCts = new(_jobInitializationWaitTimeout))
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 context.StoppingToken,
                 timeoutCts.Token))
             {
-                IState? appliedState = StartProcessing(context, connection, fetchedJob.JobId, workerId, linkedCts.Token, out backgroundJob, out bool stopped);
+                IState? appliedState = StartProcessing(context, connection, fetchedJob.JobId, workerId, queueEntry, linkedCts.Token, out backgroundJob, out bool stopped);
 
                 // The server stops while this worker waited to look at the job again: nothing was stored about
                 // the job, so it goes back to its queue as it was, for the next server
@@ -251,11 +252,12 @@ public class Worker : IBackgroundProcess
         IStorageConnection connection,
         string jobId,
         string workerId,
+        string? queueEntry,
         CancellationToken initializeToken,
         out BackgroundJob? backgroundJob,
         out bool stopped)
     {
-        ProcessingState processingState = new(context.ServerId, workerId);
+        ProcessingState processingState = new(context.ServerId, workerId) { QueueEntry = queueEntry };
         JobLookAgain lookAgain = new();
         long began = 0;
         TimeSpan waited = TimeSpan.Zero;
@@ -281,7 +283,8 @@ public class Worker : IBackgroundProcess
                     out backgroundJob,
                     initializeToken,
                     context.StoppingToken,
-                    lookAgain: offered ? lookAgain : null);
+                    lookAgain: offered ? lookAgain : null,
+                    queueEntry: queueEntry);
 
                 if (appliedState != null || !offered || !lookAgain.Requested)
                 {
@@ -390,6 +393,17 @@ public class Worker : IBackgroundProcess
         }
     }
 
+    /// <summary>
+    /// The queue entry the job was fetched from, where the storage tells it: so the job runs once when it has
+    /// several entries (see <see cref="JobStorageConnection.GetQueueEntryId"/>).
+    /// </summary>
+    private static string? GetQueueEntry(JobStorage storage, IStorageConnection connection, IFetchedJob fetchedJob)
+    {
+        return connection is JobStorageConnection storageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetQueueEntryId)
+            ? storageConnection.GetQueueEntryId(fetchedJob)
+            : null;
+    }
+
     /// <summary>The id of the worker running in <paramref name="context"/>, the same string on every call.</summary>
     private static string GetWorkerId(BackgroundProcessContext context)
     {
@@ -426,7 +440,8 @@ public class Worker : IBackgroundProcess
         CancellationToken initializeToken,
         CancellationToken abortToken,
         string? leaseHolder = null,
-        JobLookAgain? lookAgain = null)
+        JobLookAgain? lookAgain = null,
+        string? queueEntry = null)
     {
         Exception? exception = null;
 
@@ -455,6 +470,7 @@ public class Worker : IBackgroundProcess
                 {
                     LeaseHolder = leaseHolder,
                     LookAgain = lookAgain,
+                    QueueEntry = queueEntry,
                 };
 
                 IState? resultingState = _stateChanger.ChangeState(stateChangeContext);
@@ -496,6 +512,7 @@ public class Worker : IBackgroundProcess
             context.ServerId)
         {
             LeaseHolder = leaseHolder,
+            QueueEntry = queueEntry,
         };
 
         IState? failedResult = _stateChanger.ChangeState(failedStateContext);
