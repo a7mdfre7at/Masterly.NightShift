@@ -12,6 +12,18 @@ namespace Masterly.NightShift.SqlServer.Tests;
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public class JobChainFirstStepFacts
 {
+    /// <summary>
+    /// The longest a job of another queue may wait, from the worst case of the workers' waits: the pool keeps
+    /// first steps for 2 seconds in any 10 (WorkerWaits.DefaultBudget), and then finishes the look in progress,
+    /// holds the step it was looking at, and runs the steps of the chains' queue that the fetch takes first
+    /// (SQL Server fetches the queues in their order, and the clients keep adding to the first). Each of those
+    /// is a few state changes, which take hundreds of milliseconds each on a LocalDB that other test runs load:
+    /// 6 seconds are allowed for them. Before the workers had a budget, the job never ran while chains were
+    /// being created (not in 14 seconds); holding the steps instead of waiting, it runs within a fraction of a
+    /// second.
+    /// </summary>
+    private static readonly TimeSpan MaxWait = TimeSpan.FromSeconds(2) + TimeSpan.FromSeconds(6);
+
     private static readonly ConcurrentDictionary<string, int> Runs = new();
 
     public static void Mark(string name) => Runs.AddOrUpdate(name, 1, static (_, count) => count + 1);
@@ -43,7 +55,7 @@ public class JobChainFirstStepFacts
         TimeSpan[] waits = await WaitsOfJobs(holdAsBefore, workers, creationMs, slidingInvisibilityTimeout, TimeSpan.FromSeconds(0.5));
 
         // The workers of a pool wait for two seconds in ten at most, all together
-        Assert.InRange(waits.Single(), TimeSpan.Zero, TimeSpan.FromSeconds(4));
+        Assert.InRange(waits.Single(), TimeSpan.Zero, MaxWait);
     }
 
     [Fact, CleanDatabase]
@@ -52,7 +64,7 @@ public class JobChainFirstStepFacts
         // Not only the first time: also when the workers may wait again, after ten seconds, and in between
         TimeSpan[] waits = await WaitsOfJobs(false, 1, 100, true, TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(11.5), TimeSpan.FromSeconds(13));
 
-        Assert.All(waits, static waited => Assert.InRange(waited, TimeSpan.Zero, TimeSpan.FromSeconds(4)));
+        Assert.All(waits, static waited => Assert.InRange(waited, TimeSpan.Zero, MaxWait));
     }
 
     // How long jobs enqueued to another queue at the given times wait to run, while as many clients as the server
