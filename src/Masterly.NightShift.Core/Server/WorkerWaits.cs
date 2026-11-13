@@ -49,6 +49,7 @@ internal sealed class WorkerWaits
 
     private readonly NightShiftLock _lock = new();
     private readonly Func<long> _timestamp;
+    private readonly Action<TimeSpan, CancellationToken> _sleep;
     private readonly long _budget;
     private readonly long _slotLength;
     private readonly long[] _spent = new long[Slots + 1];
@@ -70,7 +71,18 @@ internal sealed class WorkerWaits
     /// <param name="maxPerJob">See <see cref="MaxPerJob"/>.</param>
     /// <param name="timestamp">The clock, in the units of <see cref="Stopwatch.GetTimestamp"/>. Replaceable for tests.</param>
     internal WorkerWaits(TimeSpan budget, TimeSpan window, TimeSpan maxPerJob, Func<long> timestamp)
+        : this(budget, window, maxPerJob, timestamp, static (pause, token) => token.Wait(pause))
     {
+    }
+
+    /// <param name="budget">See <see cref="Budget"/>.</param>
+    /// <param name="window">See <see cref="Window"/>.</param>
+    /// <param name="maxPerJob">See <see cref="MaxPerJob"/>.</param>
+    /// <param name="timestamp">The clock, in the units of <see cref="Stopwatch.GetTimestamp"/>. Replaceable for tests.</param>
+    /// <param name="sleep">How a worker pauses, ending at once when the token is canceled. Replaceable for tests.</param>
+    internal WorkerWaits(TimeSpan budget, TimeSpan window, TimeSpan maxPerJob, Func<long> timestamp, Action<TimeSpan, CancellationToken> sleep)
+    {
+        _sleep = sleep;
         Budget = budget;
         Window = window;
         MaxPerJob = maxPerJob;
@@ -89,6 +101,15 @@ internal sealed class WorkerWaits
 
     /// <summary>How long a worker waits for one job at most, all its looks together.</summary>
     public TimeSpan MaxPerJob { get; }
+
+    /// <summary>The time now, by the clock of the pool (the machine's), to tell how long a job was kept.</summary>
+    public long Timestamp() => _timestamp();
+
+    /// <summary>The time since <paramref name="timestamp"/>, by the clock of the pool.</summary>
+    public TimeSpan ElapsedSince(long timestamp) => FromTimestamp(_timestamp() - timestamp);
+
+    /// <summary>A pause of a worker that keeps a job, ended at once by <paramref name="stopping"/>.</summary>
+    public void Sleep(TimeSpan pause, CancellationToken stopping) => _sleep(pause, stopping);
 
     /// <summary>Whether a worker of the pool may keep a job now: the pool hasn't used up its budget.</summary>
     public bool CanWait

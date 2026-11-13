@@ -311,7 +311,7 @@ public class Worker : IBackgroundProcess
                 {
                     // Refused when the budget ran out since: the next look comes without the offer
                     keeping = _waits.Enter();
-                    began = Stopwatch.GetTimestamp();
+                    began = _waits.Timestamp();
                 }
 
                 // Told how long by the pool: not at all when its budget was used up meanwhile
@@ -319,7 +319,7 @@ public class Worker : IBackgroundProcess
                 if (pause > TimeSpan.Zero)
                 {
                     // Ends at once when the server stops
-                    context.StoppingToken.Wait(pause);
+                    _waits.Sleep(pause, context.StoppingToken);
                 }
 
                 if (context.StoppingToken.IsCancellationRequested)
@@ -328,8 +328,8 @@ public class Worker : IBackgroundProcess
                     return null;
                 }
 
-                // By the clock of the machine: the application's clock may stand still
-                waited = keeping ? Stopwatch.GetElapsedTime(began) : _waits.MaxPerJob;
+                // By the clock of the machine (the pool's): the application's clock may stand still
+                waited = keeping ? _waits.ElapsedSince(began) : _waits.MaxPerJob;
             }
         }
         finally
