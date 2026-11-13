@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
-using System.Transactions;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 using Masterly.NightShift.Storage.Monitoring;
@@ -429,17 +428,14 @@ public sealed class EfDatabaseClockFacts : IDisposable
         using RecordingLogs logs = RecordingLogs.Use();
         _database.CreateStorage();
 
-        // Contexts that refuse to open a connection inside a transaction scope, which SQLite can't enlist in
+        // A failure before the statement reaches the database, as an interceptor or the application may cause
+        Fails before = new(SqliteNow, times: EfDatabaseClock.FailuresBeforeGivingUp * 2, static () => new InvalidOperationException("Not the database's."));
         EntityFrameworkCoreStorage storage = new(
-            () => new ClockContext(
-                new DbContextOptionsBuilder<ClockContext>()
-                    .UseSqlite(_database.ConnectionString)
-                    .ConfigureWarnings(static w => w.Throw(RelationalEventId.AmbientTransactionWarning))
-                    .Options,
-                null),
+            () => new ClockContext(new DbContextOptionsBuilder<ClockContext>().UseSqlite(_database.ConnectionString).AddInterceptors(before).Options, null),
             new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        storage.Clock.GiveUpAfter = TimeSpan.Zero;
 
-        using (TransactionScope scope = new())
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp * 2; i++)
         {
             Assert.Throws<InvalidOperationException>(() => ReadClock(storage));
         }

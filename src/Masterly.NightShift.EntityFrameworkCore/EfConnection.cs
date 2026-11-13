@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Linq.Expressions;
+using System.Transactions;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Storage.Monitoring;
 using Masterly.NightShift.Storage.Shared;
@@ -39,6 +40,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
             Parameters = [.. stored.Parameters.Select(static x => new JobParameterRow { Name = x.Key, Value = x.Value })],
         };
 
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         context.Add(row);
         context.SaveChanges();
@@ -362,6 +364,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
     {
         DateTime now = storage.Clock.UtcNow();
         DateTime until = StorageValues.ExpireAt(now, storage.Options.DistributedLockLifetime);
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         bool lapsedRemoved = false;
 
@@ -433,6 +436,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
         // every poll, and the timeout is counted in minutes
         DateTime now = storage.Clock.ApproximateUtcNow();
         DateTime staleBefore = now - storage.Options.InvisibilityTimeout;
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         contended = false;
 
@@ -476,6 +480,7 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage) : JobStor
 
     private T Read<T>(Func<DbContext, T> read)
     {
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         return read(context);
     }
@@ -594,12 +599,14 @@ internal sealed class EfFetchedJob(EntityFrameworkCoreStorage storage, long entr
 
     protected override void Remove()
     {
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         Owned(context).ExecuteDelete();
     }
 
     protected override void ReturnToQueue()
     {
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         Owned(context).ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, (DateTime?)null).SetProperty(x => x.FetchToken, (string?)null));
         storage.Signal();
@@ -608,6 +615,7 @@ internal sealed class EfFetchedJob(EntityFrameworkCoreStorage storage, long entr
     protected override void KeepAlive()
     {
         DateTime now = storage.Clock.ApproximateUtcNow();
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         Owned(context).ExecuteUpdate(s => s.SetProperty(x => x.FetchedAt, now));
     }
@@ -716,6 +724,7 @@ internal sealed class EfMonitoringApi(EntityFrameworkCoreStorage storage) : Shar
 
     private T Read<T>(Func<DbContext, T> read)
     {
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext context = storage.CreateContext();
         return read(context);
     }
@@ -748,6 +757,7 @@ internal sealed class EfExpirationManager(EntityFrameworkCoreStorage storage) : 
     internal void RemoveExpired(CancellationToken cancellationToken)
     {
         DateTime now = JobClock.UtcNow;
+        using TransactionScope? suppressed = EntityFrameworkCoreStorage.SuppressAmbientTransaction();
         using DbContext db = storage.CreateContext();
 
         while (!cancellationToken.IsCancellationRequested)

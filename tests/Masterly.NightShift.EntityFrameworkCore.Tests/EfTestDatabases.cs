@@ -28,22 +28,34 @@ internal sealed class SqliteDatabase : IDisposable
 }
 
 /// <summary>
-/// The SQL Server database the tests use, from <c>NightShift_SqlServer_ConnectionStringTemplate</c> (a connection
-/// string with a <c>{0}</c> database placeholder), as the SQL Server storage's tests do. Tests are skipped when
-/// it isn't set.
+/// The SQL Server databases the tests use, from <c>NightShift_SqlServer_ConnectionStringTemplate</c> (a
+/// connection string with a <c>{0}</c> database placeholder), as the SQL Server storage's tests do. Tests are
+/// skipped when it isn't set. <c>NightShift_SqlServer_DatabaseName</c>, which names the database of the SQL Server
+/// storage's tests, is the start of the names of these, so test runs given different names never share a
+/// database.
 /// </summary>
 internal static class SqlServerDatabase
 {
-    /// <summary>The connection string of a test database, one per target framework.</summary>
+    private const string DefaultPrefix = "Masterly.NightShift.EntityFrameworkCore.Tests";
+
+    /// <summary>The connection string of a test database, one per name and target framework.</summary>
     public static string ConnectionString(string name)
     {
         string? template = Environment.GetEnvironmentVariable("NightShift_SqlServer_ConnectionStringTemplate");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(template), "Set NightShift_SqlServer_ConnectionStringTemplate to run the SQL Server tests.");
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, DatabaseName(name));
+    }
 
-        // The schema version is part of the name: the storage refuses tables of another version, so a test database
-        // left by an earlier build would fail every test instead of starting afresh
-        string database = $"Masterly.NightShift.EntityFrameworkCore.Tests.{name}.v{SchemaVersionRow.Current}.{(Environment.Version.Major >= 10 ? "net10_0" : "net8_0")}";
-        return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, database);
+    /// <summary>
+    /// The name of a test database. The schema version is part of it: the storage refuses tables of another
+    /// version, so a test database left by an earlier build would fail every test instead of starting afresh.
+    /// The target framework is too, because the two run at once.
+    /// </summary>
+    public static string DatabaseName(string name)
+    {
+        string? configured = Environment.GetEnvironmentVariable("NightShift_SqlServer_DatabaseName");
+        string prefix = string.IsNullOrWhiteSpace(configured) ? DefaultPrefix : $"{configured}.EntityFrameworkCore";
+        return $"{prefix}.{name}.v{SchemaVersionRow.Current}.{(Environment.Version.Major >= 10 ? "net10_0" : "net8_0")}";
     }
 
     public static EntityFrameworkCoreStorage CreateStorage(EntityFrameworkCoreStorageOptions? options = null)
