@@ -161,14 +161,15 @@ public class StateMachineFacts
     {
         // What a worker offers for the job it fetched
         _context.GiveBack = new JobGiveBack();
-        Mock<IState> anotherState = new();
 
         Mock<IElectStateFilter> first = CreateFilter<IElectStateFilter>();
         first.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
-            .Callback<ElectStateContext>(context => context.CandidateState = anotherState.Object);
+            .Callback<ElectStateContext>(static context =>
+            {
+                Assert.True(context.CanGiveBack);
+                Assert.True(context.TryGiveBack(TimeSpan.FromMilliseconds(20)));
+            });
         Mock<IElectStateFilter> second = CreateFilter<IElectStateFilter>();
-        second.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
-            .Callback<ElectStateContext>(static context => Assert.True(context.TryGiveBack(TimeSpan.FromMilliseconds(20))));
         Mock<IElectStateFilter> third = CreateFilter<IElectStateFilter>();
         Mock<IApplyStateFilter> apply = CreateFilter<IApplyStateFilter>();
 
@@ -176,6 +177,7 @@ public class StateMachineFacts
 
         // The filters after it don't run, and neither the states traversed nor a new state are written
         first.Verify(x => x.OnStateElection(It.IsAny<ElectStateContext>()), Times.Once);
+        second.Verify(x => x.OnStateElection(It.IsAny<ElectStateContext>()), Times.Never);
         third.Verify(x => x.OnStateElection(It.IsAny<ElectStateContext>()), Times.Never);
         apply.Verify(x => x.OnStateUnapplied(It.IsAny<ApplyStateContext>(), It.IsAny<IWriteOnlyTransaction>()), Times.Never);
         apply.Verify(x => x.OnStateApplied(It.IsAny<ApplyStateContext>(), It.IsAny<IWriteOnlyTransaction>()), Times.Never);
@@ -183,6 +185,32 @@ public class StateMachineFacts
         Assert.Empty(_transaction.Invocations);
         Assert.True(_context.GiveBack.Requested);
         Assert.Equal(TimeSpan.FromMilliseconds(20), _context.GiveBack.Pause);
+    }
+
+    [Fact]
+    public void ApplyState_OffersToGiveTheJobBack_ToTheFirstElectionFilterOnly()
+    {
+        // Once a filter has seen the job about to change state, the job isn't given back any more: nothing tells
+        // that filter that the state change didn't happen
+        _context.GiveBack = new JobGiveBack();
+        bool? offered = null;
+        bool? given = null;
+
+        Mock<IElectStateFilter> first = CreateFilter<IElectStateFilter>();
+        Mock<IElectStateFilter> second = CreateFilter<IElectStateFilter>();
+        second.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
+            .Callback<ElectStateContext>(context =>
+            {
+                offered = context.CanGiveBack;
+                given = context.TryGiveBack(TimeSpan.FromMilliseconds(20));
+            });
+
+        CreateStateMachine().ApplyState(_context.Object);
+
+        Assert.False(offered);
+        Assert.False(given);
+        Assert.False(_context.GiveBack.Requested);
+        _innerMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()), Times.Once);
     }
 
     [Fact]

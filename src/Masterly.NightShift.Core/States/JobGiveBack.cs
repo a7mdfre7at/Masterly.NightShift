@@ -7,8 +7,9 @@ namespace Masterly.NightShift.States;
 /// The state change then stores nothing at all (no state, no history entry, no job parameter, nothing a later
 /// filter would have written), releases the job's lock and returns <c>null</c>; the worker waits for
 /// <see cref="Pause"/> with the job still invisible to the other workers, and puts it back in its queue with
-/// <see cref="IFetchedJob.Requeue"/>. Only a worker offers it: every other state change has none, and a filter
-/// that asks is told no.
+/// <see cref="IFetchedJob.Requeue"/>. Only a worker offers it, and only to the first election filter (by default
+/// <see cref="JobChainStepFilter"/>): every other state change has none, no filter has seen the job when it is
+/// given back, and a filter that asks otherwise is told no.
 /// </summary>
 internal sealed class JobGiveBack
 {

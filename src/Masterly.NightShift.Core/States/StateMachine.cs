@@ -70,6 +70,9 @@ public class StateMachine : IStateMachine
             {
                 return electContext.CandidateState;
             }
+
+            // Only the first filter can: afterwards another filter has seen the job about to change state
+            electContext.WithdrawGiveBack();
         }
 
         foreach (IState state in electContext.TraversedStates)

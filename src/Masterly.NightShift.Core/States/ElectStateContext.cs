@@ -110,9 +110,25 @@ public class ElectStateContext
     [CanBeNull]
     internal PostCommitActions? AfterCommit { get; }
 
-    /// <summary>The <see cref="ApplyStateContext.GiveBack"/> of the state change being elected.</summary>
+    /// <summary>
+    /// The <see cref="ApplyStateContext.GiveBack"/> of the state change being elected, while it is on offer: to
+    /// the first election filter only (see <see cref="WithdrawGiveBack"/>).
+    /// </summary>
     [CanBeNull]
-    internal JobGiveBack? GiveBack { get; }
+    internal JobGiveBack? GiveBack { get; private set; }
+
+    /// <summary>
+    /// Ends the offer to give the job back, once the first election filter has run without taking it: a job is
+    /// given back only before any other filter saw it about to change state, so no filter is ever left with
+    /// something it did for a state change that then didn't happen.
+    /// </summary>
+    internal void WithdrawGiveBack()
+    {
+        if (GiveBack is { Requested: false })
+        {
+            GiveBack = null;
+        }
+    }
 
     /// <summary>
     /// Whether the job can be put back in its queue instead of changing state: a worker fetched it and is about to
