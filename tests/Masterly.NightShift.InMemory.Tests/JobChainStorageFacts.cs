@@ -18,6 +18,7 @@ public sealed class JobChainStorageFacts : IDisposable
     private const string CleanupSet = "chains:cleanup";
     private const string DueSet = "chains:due";
     private const string ExpirySet = "chains:expiring";
+    private const string SoonSet = "chains:soon";
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentQueue<string> Ran = new();
@@ -1484,16 +1485,59 @@ public sealed class JobChainStorageFacts : IDisposable
             WaitUntil(() => !IsDueWithin(chain.ChainId, TimeSpan.FromDays(9)), "the chain to be looked at");
         }
 
-        // The failed step is requeued, and succeeds, by a process that stops before it starts the next step
+        // The failed step is requeued, and succeeds, by a process that stops before it starts the next step. The
+        // requeue asks for a look in five minutes, and leaves the chain's own place where it is.
         Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), FailedState.StateName));
-        Assert.True(IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(5)));
-        Assert.False(IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(4)));
+        Assert.True(IsAskedForWithin(chain.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.False(IsAskedForWithin(chain.ChainId, TimeSpan.FromMinutes(4)));
+        Assert.False(IsDueWithin(chain.ChainId, TimeSpan.FromDays(9)));
         SucceedWithoutTellingTheNextStep(chain.RootId, null);
 
         MoveClock(TimeSpan.FromMinutes(6));
         using (CreateServer())
         {
             WaitUntil(() => StateOf(chain.Steps["1.0"]) != AwaitingState.StateName, "the step that was never told to start to be started");
+            WaitUntil(() => SetItems(SoonSet).Count == 0, "what asked for the look to be forgotten");
+        }
+    }
+
+    [Fact]
+    public void Server_DoesNotLoseTheLookAskedFor_WhenAStepIsRequeued_WhileItsChainIsLookedAt()
+    {
+        // Ten days ago a branch failed for good, by a process that stopped before it started the step for a
+        // failure: the chain stood still since
+        JobChainResult chain = JobChain.StartWith(() => Step("a"))
+            .ThenMany(branches => branches.Branch(() => Step("b")).Branch(() => Step("c")))
+            .ThenAfterAll(() => Step("done"))
+            .ThenAfterAnyFailed(() => Step("alert"))
+            .Enqueue(_client)!;
+        string failed = chain.Steps["1.1"];
+        Succeed(chain.RootId);
+        Succeed(chain.Steps["1.0"]);
+        FailWithoutTellingTheNextSteps(failed);
+        MoveClock(TimeSpan.FromDays(10));
+
+        // A server looks at the chain and starts that step; while it does, after it read the chain, somebody
+        // requeues the branch that failed
+        DuringTheStartOf during = new("alert", () => Assert.True(_client.ChangeState(failed, new EnqueuedState(), FailedState.StateName)));
+        GlobalJobFilters.Filters.Add(during);
+
+        try
+        {
+            using BackgroundJobServer server = CreateServer();
+            WaitUntil(() => during.Done, "the chain to be looked at");
+            WaitUntil(() => !IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(1)), "the look to give the chain its next place");
+
+            // The look wrote the chain's next place from what it had read before the requeue. The look that the
+            // requeue asked for isn't lost to it: the chain is looked at again five minutes after the requeue,
+            // wherever that is written.
+            Assert.True(
+                IsAskedForWithin(chain.ChainId, TimeSpan.FromMinutes(5)) || IsDueWithin(chain.ChainId, TimeSpan.FromMinutes(5)),
+                "The look that the requeue asked for was lost to the look in progress.");
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(during);
         }
     }
 
@@ -1588,6 +1632,24 @@ public sealed class JobChainStorageFacts : IDisposable
         using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
         transaction.SetJobState(jobId, new SucceededState(result, 0, 0));
         transaction.Commit();
+    }
+
+    // What a process does that stops between the commit of a step's failure and the start of the steps after it
+    private void FailWithoutTellingTheNextSteps(string jobId)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetJobState(jobId, new FailedState(new InvalidOperationException("failed")));
+        transaction.Commit();
+    }
+
+    // Whether a step of the chain asked for a look by a server within a time from now
+    private bool IsAskedForWithin(string chainId, TimeSpan time)
+    {
+        using IStorageConnection connection = _storage.GetConnection();
+        return ((JobStorageConnection)connection)
+            .GetFirstByLowestScoreFromSet(SoonSet, 0, JobHelper.ToTimestamp(JobClock.UtcNow + time), 1000)
+            .Exists(entry => entry.StartsWith(chainId + "|", StringComparison.Ordinal));
     }
 
     // Whether a server is to look at a chain within a time from now
@@ -1806,6 +1868,25 @@ public sealed class JobChainStorageFacts : IDisposable
     private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
+    }
+
+    /// <summary>Does something, once, while the job with a given argument is started from the Awaiting state.</summary>
+    private sealed class DuringTheStartOf(string argument, Action action) : IElectStateFilter
+    {
+        private int _done;
+
+        public bool Done => Volatile.Read(ref _done) == 2;
+
+        public void OnStateElection(ElectStateContext context)
+        {
+            if (context.CandidateState is EnqueuedState && context.CurrentState == AwaitingState.StateName &&
+                context.BackgroundJob.Job?.Type == typeof(JobChainStorageFacts) && (string?)context.BackgroundJob.Job.Args[0] == argument &&
+                Interlocked.CompareExchange(ref _done, 1, 0) == 0)
+            {
+                action();
+                Volatile.Write(ref _done, 2);
+            }
+        }
     }
 
     /// <summary>Makes the start of the job with a given argument, from the Awaiting state, fail.</summary>

@@ -19,6 +19,7 @@ public class JobChainFacts
 {
     private const string DueSet = "chains:due";
     private const string ExpirySet = "chains:expiring";
+    private const string SoonSet = "chains:soon";
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentQueue<string> Log = new();
@@ -1015,30 +1016,49 @@ public class JobChainFacts
             transaction.Commit();
         }
 
-        // Somebody requeues the failed step, and the step of the chain that had finished
+        // Somebody requeues the failed step, and the step of the chain that had finished: each asks for a look in
+        // five minutes, in an entry of its own, and leaves the place of its chain where it is
         Assert.True(client.ChangeState(failed.RootId, new EnqueuedState(), FailedState.StateName));
         Assert.True(client.ChangeState(finished.RootId, new EnqueuedState(), SucceededState.StateName));
 
-        Assert.True(IsDueWithin(storage, failed.ChainId, TimeSpan.FromMinutes(5)));
-        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromMinutes(4)));
-        Assert.True(IsDueWithin(storage, finished.ChainId, TimeSpan.FromMinutes(5)));
-        Assert.Empty(SetItems(storage, ExpirySet));
+        Assert.True(IsAskedForWithin(storage, failed.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.False(IsAskedForWithin(storage, failed.ChainId, TimeSpan.FromMinutes(4)));
+        Assert.True(IsAskedForWithin(storage, finished.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromDays(9)));
+        Assert.Equal([finished.ChainId], SetItems(storage, ExpirySet));
+        Assert.Equal(2, SetItems(storage, SoonSet).Count);
 
-        // A state change of a step that runs writes nothing there
+        // A state change of a step that runs asks for nothing
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, failed.ChainId);
+            await WaitUntilSettledAsync(storage, finished.ChainId);
+        }
+
+        Assert.Equal(SucceededState.StateName, StateName(storage, failed.Steps["1.0"]));
+        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromDays(9)));
+        Assert.Equal(2, SetItems(storage, SoonSet).Count);
+
+        // As if the five minutes had passed: a server does the looks that were asked for, gives each chain its
+        // place again (both have finished: they are left to expire), and forgets what asked
         using (IStorageConnection connection = storage.GetConnection())
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            transaction.AddToSet(DueSet, failed.ChainId, JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(10)));
+            foreach (string entry in SetItems(storage, SoonSet))
+            {
+                transaction.AddToSet(SoonSet, entry, 0);
+            }
+
             transaction.Commit();
         }
 
         using (CreateServer(storage))
         {
-            await WaitUntilSettledAsync(storage, failed.ChainId);
+            await WaitUntilAsync(() => SetItems(storage, SoonSet).Count == 0, "The looks that were asked for weren't done.");
         }
 
-        Assert.Equal(SucceededState.StateName, StateName(storage, failed.Steps["1.0"]));
-        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromDays(9)));
+        Assert.Equal(new[] { failed.ChainId, finished.ChainId }.Order(StringComparer.Ordinal), SetItems(storage, ExpirySet).Order(StringComparer.Ordinal));
+        Assert.Empty(SetItems(storage, DueSet));
     }
 
     [Fact, CleanDatabase]
@@ -1441,6 +1461,15 @@ public class JobChainFacts
     {
         using IStorageConnection connection = storage.GetConnection();
         return connection.GetStateData(jobId)?.Name;
+    }
+
+    /// <summary>Whether a step of the chain asked for a look by a server within a time from now.</summary>
+    private static bool IsAskedForWithin(SqlServerStorage storage, string chainId, TimeSpan time)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return ((JobStorageConnection)connection)
+            .GetFirstByLowestScoreFromSet(SoonSet, 0, JobHelper.ToTimestamp(DateTime.UtcNow + time), 1000)
+            .Exists(entry => entry.StartsWith(chainId + "|", StringComparison.Ordinal));
     }
 
     /// <summary>Whether a server is to look at a chain within a time from now.</summary>

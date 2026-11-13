@@ -17,6 +17,7 @@ public abstract class StorageConformanceFacts : IDisposable
 {
     private const string ChainsDueSet = "chains:due";
     private const string ChainsExpiringSet = "chains:expiring";
+    private const string ChainsSoonSet = "chains:soon";
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private readonly object _storageLock = new();
@@ -1207,6 +1208,39 @@ public abstract class StorageConformanceFacts : IDisposable
             await WaitForStateAsync(chain.Steps["1.0"], SucceededState.StateName);
         }
 
+        Assert.Equal(1, ConformanceJobs.Runs(key + ":2"));
+        Assert.Equal(0, ConformanceJobs.Runs(key + ":1"));
+    }
+
+    [Fact]
+    public async Task Server_DoesTheLooksThatWereAskedFor_HoweverFarOffTheChainsOwnLookIs_AndForgetsWhatAsked()
+    {
+        string key = NewKey();
+
+        JobChainResult chain = JobChain.StartWith(() => ConformanceJobs.Record(key + ":1"))
+            .Then(() => ConformanceJobs.Record(key + ":2"))
+            .Enqueue(new BackgroundJobClient(Storage))!;
+
+        // The first step succeeded ten minutes ago and the second was never told to start. The chain's own look
+        // is far off; two looks were asked for (a step of it left the state it had finished in), one of them due.
+        Write(x =>
+        {
+            x.SetJobState(chain.RootId, new SucceededLongAgo());
+            x.AddToSet(ChainsDueSet, chain.ChainId, JobHelper.ToTimestamp(JobClock.UtcNow.AddDays(10)));
+            x.AddToSet(ChainsSoonSet, chain.ChainId + "|due", 0);
+            x.AddToSet(ChainsSoonSet, chain.ChainId + "|later", JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(4)));
+        });
+
+        using (CreateServer())
+        {
+            await WaitForStateAsync(chain.Steps["1.0"], SucceededState.StateName);
+            await WaitUntilAsync(
+                () => !Connection(x => x.GetAllItemsFromSet(ChainsSoonSet)).Contains(chain.ChainId + "|due"),
+                "The look that was asked for wasn't forgotten once it was done.");
+        }
+
+        // The one that isn't due stays; the chain has its own place again, not ten days off
+        Assert.Equal([chain.ChainId + "|later"], Connection(x => x.GetAllItemsFromSet(ChainsSoonSet)));
         Assert.Equal(1, ConformanceJobs.Runs(key + ":2"));
         Assert.Equal(0, ConformanceJobs.Runs(key + ":1"));
     }
