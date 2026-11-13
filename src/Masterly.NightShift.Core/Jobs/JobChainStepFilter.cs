@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 
@@ -130,6 +131,12 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private static readonly TimeSpan MinUnreadableDelay = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MaxUnreadableDelay = TimeSpan.FromMinutes(15);
 
+    // The jobs a retry is holding in the state change in progress: the election saw the state that holds them,
+    // whatever state a later filter made of it (a schedule policy that moves it on), so the filter doesn't take
+    // the note off that the same state change writes
+    private static readonly ConditionalWeakTable<BackgroundJob, object> HeldNow = [];
+    private static readonly object HeldMarker = new();
+
     // How many times in a row this process couldn't read the chain of a job: the job waits longer each time
     private static readonly ConcurrentDictionary<string, int> Unreadable = new(StringComparer.Ordinal);
 
@@ -152,6 +159,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         // the same write, where the storage can
         if (context.CandidateState is JobChains.RetryHold retryHold)
         {
+            HeldNow.AddOrUpdate(context.BackgroundJob, HeldMarker);
             JobChains.MarkHeld(context, retryHold);
             return;
         }
@@ -369,7 +377,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
         // The state that holds the step wrote the note, also over an older one
-        if (context.NewState is JobChains.RetryHold)
+        if (context.NewState is JobChains.RetryHold || HeldNow.TryGetValue(context.BackgroundJob, out _))
         {
             return;
         }

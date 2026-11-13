@@ -1252,6 +1252,25 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
+    public void OnStateApplied_LeavesTheNoteWrittenWithTheHold_WhenALaterFilterMadeAnotherStateOfTheHold()
+    {
+        // A step with a schedule policy: the policy moves the hold on, so the state applied isn't the one the
+        // retry asked for. The job already carried an older note; the new one must stay.
+        JobChains.RetryHold hold = new(DateTime.UtcNow.AddMinutes(2), Note(generation: 4));
+        ApplyStateContextMock mock = WithTheNoteOfARetry(FailedState.StateName, ScheduledState.StateName, transactional: true, hold);
+        ElectStateContext election = new(mock.Object);
+
+        _filter.OnStateElection(election);
+        election.CandidateState = new ScheduledState(DateTime.UtcNow.AddDays(1)) { Reason = "Moved by policy" };
+        ApplyStateContext applied = new(mock.Object.Transaction, election);
+        _filter.OnStateApplied(applied, applied.Transaction);
+
+        _expiring.Verify(x => x.SetJobParameter(JobId, "ChainRetry", hold.Marker), Times.Once);
+        _expiring.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", null), Times.Never);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public void OnStateApplied_DoesNotThrow_WhenTheNoteOfARetryCanNotBeTakenOff()
     {
         ApplyStateContextMock mock = WithTheNoteOfARetry(FailedState.StateName, EnqueuedState.StateName, transactional: false);
