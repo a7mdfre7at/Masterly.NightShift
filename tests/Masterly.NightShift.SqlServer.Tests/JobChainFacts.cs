@@ -234,6 +234,42 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task Server_GivesAPlace_ToTheChainsAProcessOfAnEarlierBuildListed_AfterTheListWasGoneThrough()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through.");
+        }
+
+        // Recorded by a process of the earlier build: no place, and the one with a group watched in a set of its own
+        JobChainResult line = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client)!;
+        JobChainResult joined = JobChain.StartWith(() => Record("x"))
+            .ThenMany(branches => branches.Branch(() => Record("y")).Branch(() => Record("z")))
+            .ThenAfterAll(() => Record("done"))
+            .Enqueue(client)!;
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet(DueSet, line.ChainId);
+            transaction.RemoveFromSet(DueSet, joined.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, 0);
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => SetItems(storage, DueSet).Contains(line.ChainId), "The chain nobody watched wasn't given a place.");
+            await WaitUntilAsync(() => SetItems(storage, DueSet).Contains(joined.ChainId), "The watched chain wasn't given a place.");
+            await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through again.");
+        }
+
+        Assert.Empty(SetItems(storage, "chains:joins"));
+    }
+
+    [Fact, CleanDatabase]
     public void FanIn_IsDecidedByWhatAParentFinishedAs_OnceItsJobExpired()
     {
         SqlServerStorage storage = CreateStorage();

@@ -1918,6 +1918,62 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Server_LooksAfterTheChainsAProcessOfAnEarlierBuildListed_AfterTheListWasGoneThrough()
+    {
+        // A server of this build starts first, in a rolling upgrade: the list of chains is gone through
+        using (CreateServer())
+        {
+            WaitUntil(() => HashField("chains:index", "Listed") == "done", "the chains listed to be gone through");
+        }
+
+        // A process of the earlier build, still running, records two chains as it did: listed, their steps marked
+        // "true", no place among the chains to look at, and the one with a step after a group in a set of its
+        // own. Its own servers run their steps: one chain fails, the other finishes.
+        JobChainResult failed = JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Enqueue(_client)!;
+        JobChainResult joined = JobChain.StartWith(() => Step("x"))
+            .ThenMany(branches => branches.Branch(() => Step("y")).Branch(() => Step("z")))
+            .ThenAfterAll(() => Step("done"))
+            .Enqueue(_client)!;
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet(DueSet, failed.ChainId);
+            transaction.RemoveFromSet(DueSet, joined.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, JobHelper.ToTimestamp(JobClock.UtcNow.AddMinutes(5)));
+            transaction.Commit();
+        }
+
+        foreach (string jobId in failed.Steps.Values.Concat(joined.Steps.Values))
+        {
+            SetParameter(jobId, JobChains.ChainRecordedParameter, "true");
+        }
+
+        FailWithoutTellingTheNextSteps(failed.RootId);
+        foreach (string jobId in joined.Steps.Values)
+        {
+            SucceedWithoutTellingTheNextStep(jobId, null);
+        }
+
+        // Servers of this build run every few days for two months
+        for (int i = 0; i < 12; i++)
+        {
+            MoveClock(TimeSpan.FromDays(5));
+            using (CreateServer())
+            {
+                Thread.Sleep(300);
+            }
+        }
+
+        _storage.Database.RemoveExpired();
+
+        // The chain that finished left the list once its record expired; the one with a failed step is kept
+        Assert.DoesNotContain(joined.ChainId, SetItems(JobChains.SetKey));
+        Assert.Equal(1, _storage.GetChain(failed.ChainId)?.FailedCount);
+        Assert.Empty(SetItems("chains:joins"));
+        Assert.Equal("done", HashField("chains:index", "Listed"));
+    }
+
+    [Fact]
     public void DeleteChain_DeletesEveryStep_AndTheRecord()
     {
         JobChainResult chain = JobChain.StartWith(() => Step("a"))

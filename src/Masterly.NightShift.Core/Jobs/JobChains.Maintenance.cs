@@ -68,9 +68,21 @@ public static partial class JobChains
     /// <summary>How many chains listed by an earlier build one maintenance run gives a place in the index, at most.</summary>
     internal const int MaxIndexedPerRun = 500;
 
+    /// <summary>
+    /// How many chains past the place where the run before stopped the list is read again. A chain listed
+    /// meanwhile below that place (listed again where its record says it was created, or by a client whose clock is
+    /// behind) moves the chains above it up by one: without this, the chain that was to come next would be
+    /// skipped for good.
+    /// </summary>
+    internal const int IndexOverlap = 100;
+
     private const int IndexWriteSize = 100;
     private const string IndexedField = "Listed";
     private const string IndexedDone = "done";
+
+    // What the hash says once a chain listed by a process of an earlier build turned up without a place after the
+    // list was gone through: the list is gone through again, from the end
+    private const string IndexedAgain = "again";
     private const string ConditionNotMetReason = "Continuation condition was not met";
 
     // The set in which an earlier build listed the chains with a step that waits for several steps
@@ -142,12 +154,23 @@ public static partial class JobChains
             int placed = 0;
             bool moreToIndex = false;
 
+            try
+            {
+                // A process of an earlier build still running lists the chains it watches in a set of its own
+                placed = PlaceWatchedByEarlierBuild(storage, connection, ref indexed, out moreToIndex);
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                Logger.WarnException("The chains a process of an earlier build watches couldn't be given a place among the chains to look at; the next maintenance run tries again.", ex);
+            }
+
             if (!indexed)
             {
                 try
                 {
-                    indexed = IndexListed(storage, connection, out placed);
-                    moreToIndex = !indexed;
+                    indexed = IndexListed(storage, connection, out int indexedNow);
+                    placed += indexedNow;
+                    moreToIndex |= !indexed;
                 }
                 catch (Exception ex) when (ex.IsCatchableExceptionType())
                 {
@@ -193,6 +216,77 @@ public static partial class JobChains
     }
 
     /// <summary>
+    /// Gives a place among the chains to look at to the chains a process of an earlier build watches
+    /// (<c>chains:joins</c>), and empties that set, up to <see cref="MaxIndexedPerRun"/> a run: such a process
+    /// may still be running beside this build, and list chains after the list was gone through. One small read a
+    /// run while the set is empty. A chain that had no place shows that such a process listed chains the list
+    /// wasn't gone through for: the list is gone through again (<see cref="GoThroughTheListAgain"/>).
+    /// </summary>
+    /// <returns>How many chains were given a place.</returns>
+    private static int PlaceWatchedByEarlierBuild(JobStorage storage, IStorageConnection connection, ref bool indexed, out bool more)
+    {
+        double until = JobHelper.ToTimestamp(JobClock.UtcNow.AddYears(10));
+        bool canTell = connection is JobStorageConnection && storage.HasFeature(JobStorageFeatures.Connection.GetSetContains);
+        bool unplaced = false;
+        int placed = 0;
+        int taken = 0;
+
+        foreach (string chainId in TakeDue(storage, connection, LegacyWatchSetKey, until, MaxIndexedPerRun))
+        {
+            taken++;
+            bool hasPlace = canTell && HasPlace((JobStorageConnection)connection, chainId);
+
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            if (!hasPlace)
+            {
+                transaction.AddToSet(DueSetKey, chainId, JobHelper.ToTimestamp(JobClock.UtcNow));
+                placed++;
+            }
+
+            transaction.RemoveFromSet(LegacyWatchSetKey, chainId);
+            transaction.Commit();
+
+            unplaced |= canTell && !hasPlace;
+        }
+
+        if (unplaced)
+        {
+            GoThroughTheListAgain(storage, connection);
+            indexed = false;
+        }
+
+        more = taken >= MaxIndexedPerRun;
+        return placed;
+    }
+
+    private static bool HasPlace(JobStorageConnection connection, string chainId)
+    {
+        return connection.GetSetContains(DueSetKey, chainId) || connection.GetSetContains(ExpirySetKey, chainId);
+    }
+
+    /// <summary>
+    /// Has the list of chains gone through again, from the end, by whichever server maintains the chains next:
+    /// a chain listed by a process of an earlier build turned up without a place. Nothing changes while the list
+    /// is still being gone through. A server that knew it was done reads it again within
+    /// <see cref="JobChainMaintenanceProcess.IndexCheckInterval"/>.
+    /// </summary>
+    internal static void GoThroughTheListAgain(JobStorage storage, IStorageConnection connection)
+    {
+        string? left = connection is JobStorageConnection ranged && storage.HasFeature(JobStorageFeatures.ExtendedApi)
+            ? ranged.GetValueFromHash(IndexKey, IndexedField)
+            : connection.GetAllEntriesFromHash(IndexKey)?.GetValueOrDefault(IndexedField);
+
+        if (left != IndexedDone)
+        {
+            return;
+        }
+
+        using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+        transaction.SetRangeInHash(IndexKey, new Dictionary<string, string> { [IndexedField] = IndexedAgain });
+        transaction.Commit();
+    }
+
+    /// <summary>
     /// Gives the chains listed by a build that kept no index of them a look by a server, now: up to
     /// <see cref="MaxIndexedPerRun"/> a run, from the newest to the oldest, writing in the storage how many are left
     /// to go through (<see cref="IndexKey"/>). So it is done once for a storage, by whichever servers maintain the
@@ -219,12 +313,13 @@ public static partial class JobChains
 
         if (ranged != null)
         {
-            // By position, from the end of the list: the chains recorded meanwhile come after, with their place
+            // By position, from the end of the list: the chains recorded meanwhile come after, with their place.
+            // A little past where the run before stopped, for the chains listed below it meanwhile.
             long position = long.TryParse(left, NumberStyles.None, CultureInfo.InvariantCulture, out long parsed) ? parsed : ranged.GetSetCount(SetKey);
             int take = (int)Math.Min(position, MaxIndexedPerRun);
             remaining = position - take;
 
-            chains = take > 0 ? ranged.GetRangeFromSet(SetKey, (int)remaining, (int)(position - 1)) : [];
+            chains = take > 0 ? ranged.GetRangeFromSet(SetKey, (int)remaining, (int)Math.Min(position - 1 + IndexOverlap, int.MaxValue)) : [];
 
             // A storage that can't look a chain up gives each a look, the ones that have their place too
             if (storage.HasFeature(JobStorageFeatures.Connection.GetSetContains))
@@ -252,18 +347,15 @@ public static partial class JobChains
                 transaction.AddToSet(DueSetKey, chains[written], now);
             }
 
-            // How far it came is written with the last chains, so chains that couldn't be written are gone through again
+            // How far it came is written with the last chains, so chains that couldn't be written are gone through
+            // again. The set an earlier build watched chains in is emptied entry by entry, each given its place
+            // (PlaceWatchedByEarlierBuild), never at once: a process of that build may still add to it.
             if (written == chains.Count)
             {
                 transaction.SetRangeInHash(IndexKey, new Dictionary<string, string>
                 {
                     [IndexedField] = remaining > 0 ? remaining.ToString(CultureInfo.InvariantCulture) : IndexedDone,
                 });
-
-                if (remaining == 0 && ranged != null && transaction is JobStorageTransaction storageTransaction)
-                {
-                    storageTransaction.RemoveSet(LegacyWatchSetKey);
-                }
             }
 
             transaction.Commit();
