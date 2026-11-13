@@ -202,13 +202,62 @@ public sealed class EfDatabaseClockFacts : IDisposable
     }
 
     [Fact]
-    public void StatementThatFails_AnswersWithTheProcessClock_FromTheFirstRead_AndWarnsOnce()
+    public void OneTransientErrorAtTheFirstRead_Surfaces_AndTheNextReadAnswersTheDatabasesClock()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        Fails busy = new(SqliteNow, times: 1, static () => new SqliteException("SQLite Error 5: 'database is locked'.", 5));
+        _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(
+            () => new ClockContext(new DbContextOptionsBuilder<ClockContext>().UseSqlite(_database.ConnectionString).AddInterceptors(busy).Options, null),
+            new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+
+        // This process's clock is seven minutes ahead of the database's (inside the 30 minutes that are tolerated)
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
+
+        // The first read meets a busy database, once: it fails as a read does, and decides nothing
+        Assert.Throws<SqliteException>(() => ReadClock(storage));
+        Assert.Equal(1, busy.Failed);
+
+        AssertReadsTheMachinesTime(storage);
+        Assert.Empty(logs.AboutTheClock());
+    }
+
+    [Fact]
+    public void ErrorsThatStop_NeverMakeTheProcessClockTheAnswer_HoweverLongTheyLasted()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        Fails busy = new(SqliteNow, times: EfDatabaseClock.FailuresBeforeGivingUp - 1, static () => new SqliteException("SQLite Error 5: 'database is locked'.", 5));
+        _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(
+            () => new ClockContext(new DbContextOptionsBuilder<ClockContext>().UseSqlite(_database.ConnectionString).AddInterceptors(busy).Options, null),
+            new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        storage.Clock.GiveUpAfter = TimeSpan.Zero;
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
+
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp - 1; i++)
+        {
+            Assert.Throws<SqliteException>(() => ReadClock(storage));
+        }
+
+        AssertReadsTheMachinesTime(storage);
+        Assert.Empty(logs.AboutTheClock());
+    }
+
+    [Fact]
+    public void StatementTheDatabaseKeepsRefusing_Surfaces_ThenIsTakenForWrong_AndWarnsOnce()
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select no_such_function()" });
+        storage.Clock.GiveUpAfter = TimeSpan.Zero;
+        storage.Clock.RetryEvery = TimeSpan.FromDays(1);
         JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
 
         Assert.True(storage.HasFeature(Feature));
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp - 1; i++)
+        {
+            Assert.Throws<SqliteException>(() => ReadClock(storage));
+        }
+
         Assert.Empty(logs.AboutTheClock());
 
         AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
@@ -219,20 +268,109 @@ public sealed class EfDatabaseClockFacts : IDisposable
         Assert.Equal(LogLevel.Warn, level);
         Assert.Contains("select no_such_function()", message, StringComparison.Ordinal);
         Assert.Contains("DatabaseClockSql", message, StringComparison.Ordinal);
+        Assert.Contains("asked again", message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void StatementThatFails_OnSqlServer_AnswersWithTheProcessClock_AndWarnsOnce()
+    public void StatementTheDatabaseRefuses_IsNotTakenForWrong_BeforeItWasRefusedForLongEnough()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select no_such_function()" });
+
+        // Many refusals within a moment are one trouble of the database, not a wrong statement
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp * 3; i++)
+        {
+            Assert.Throws<SqliteException>(() => ReadClock(storage));
+        }
+
+        Assert.Empty(logs.AboutTheClock());
+    }
+
+    [Fact]
+    public void StatementTheDatabaseKeepsRefusing_OnSqlServer_IsTakenForWrong_AndWarnsOnce()
     {
         using RecordingLogs logs = RecordingLogs.Use();
         EntityFrameworkCoreStorage storage = SqlServerDatabase.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select dbo.no_such_function()" });
+        storage.Clock.GiveUpAfter = TimeSpan.Zero;
+        storage.Clock.RetryEvery = TimeSpan.FromDays(1);
         JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(7));
+
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp - 1; i++)
+        {
+            Assert.ThrowsAny<DbException>(() => ReadClock(storage));
+        }
 
         AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
         AssertReadsTheProcessClock(storage, TimeSpan.FromMinutes(7));
 
         (LogLevel level, string _) = Assert.Single(logs.AboutTheClock());
         Assert.Equal(LogLevel.Warn, level);
+    }
+
+    [Fact]
+    public void SqlServersOwnStatement_IsNeverGivenUpOn_HoweverOftenItFails()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        string connectionString = SqlServerDatabase.ConnectionString("Storage");
+        SqlServerDatabase.CreateStorage();
+        Fails failing = new("select sysutcdatetime()", times: EfDatabaseClock.FailuresBeforeGivingUp * 2, static () => new DatabaseTrouble());
+        EntityFrameworkCoreStorage storage = new(o => o.UseSqlServer(connectionString).AddInterceptors(failing));
+        storage.Clock.GiveUpAfter = TimeSpan.Zero;
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromDays(3));
+
+        for (int i = 0; i < EfDatabaseClock.FailuresBeforeGivingUp * 2; i++)
+        {
+            Assert.Throws<DatabaseTrouble>(() => ReadClock(storage));
+        }
+
+        AssertReadsTheMachinesTime(storage);
+        Assert.Empty(logs.AboutTheClock());
+    }
+
+    [Fact]
+    public void StatementTakenForWrong_IsAskedAgain_AndTheDatabasesClockIsTakenUpForGood_OnceItAnswers()
+    {
+        using RecordingLogs logs = RecordingLogs.Use();
+        EntityFrameworkCoreStorage storage = _database.CreateStorage(new EntityFrameworkCoreStorageOptions { DatabaseClockSql = SqliteNow });
+        storage.Clock.RetryEvery = TimeSpan.Zero;
+
+        // This process's clock is three hours off: the statement's answer can't be told from local time
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromHours(3));
+        AssertReadsTheProcessClock(storage, TimeSpan.FromHours(3));
+        AssertReadsTheProcessClock(storage, TimeSpan.FromHours(3));
+        Assert.Equal(LogLevel.Warn, Assert.Single(logs.AboutTheClock()).Level);
+
+        // The clock is set right: the next read finds the statement answering the UTC time
+        JobClock.TimeProvider = TimeProvider.System;
+        AssertReadsTheMachinesTime(storage);
+
+        (LogLevel level, string message) = logs.AboutTheClock()[^1];
+        Assert.Equal(2, logs.AboutTheClock().Count);
+        Assert.Equal(LogLevel.Info, level);
+        Assert.Contains("again", message, StringComparison.Ordinal);
+
+        // And from here on the database's clock is the answer, whatever this process's clock does
+        JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromHours(3));
+        AssertReadsTheMachinesTime(storage);
+        Assert.Equal(2, logs.AboutTheClock().Count);
+    }
+
+    [Fact]
+    public void StatementTakenForWrong_IsNotRun_UntilItIsDueAgain()
+    {
+        CountingFactory factory = new(_database.ConnectionString);
+        _database.CreateStorage();
+        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select 42" });
+
+        ReadClock(storage);
+        int afterTheFirstRead = factory.Created;
+        ReadClock(storage);
+        ReadClock(storage);
+        Assert.Equal(afterTheFirstRead, factory.Created);
+
+        storage.Clock.RetryEvery = TimeSpan.Zero;
+        AssertReadsTheProcessClock(storage, TimeSpan.Zero);
+        Assert.Equal(afterTheFirstRead + 1, factory.Created);
     }
 
     [Theory]
@@ -267,21 +405,6 @@ public sealed class EfDatabaseClockFacts : IDisposable
         ReadClock(storage);
         ReadClock(storage);
         Assert.Equal(created + 3, factory.Created);
-    }
-
-    [Fact]
-    public void FailedStatement_IsNotRunAgain()
-    {
-        CountingFactory factory = new(_database.ConnectionString);
-        _database.CreateStorage();
-        EntityFrameworkCoreStorage storage = new(factory.Create, new EntityFrameworkCoreStorageOptions { DatabaseClockSql = "select no_such_function()" });
-
-        ReadClock(storage);
-        int afterTheCheck = factory.Created;
-        ReadClock(storage);
-        ReadClock(storage);
-
-        Assert.Equal(afterTheCheck, factory.Created);
     }
 
     [Fact]
@@ -600,6 +723,27 @@ public sealed class EfDatabaseClockFacts : IDisposable
     private sealed class ShiftedClock(TimeSpan shift) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + shift;
+    }
+
+    /// <summary>An error of a database or its driver that passes: a busy database, a lost deadlock, a failover.</summary>
+    private sealed class DatabaseTrouble() : DbException("The database is busy.");
+
+    /// <summary>Fails the first executions of a statement as a database in trouble does, then lets it through.</summary>
+    private sealed class Fails(string sql, int times, Func<Exception> error) : DbCommandInterceptor
+    {
+        private int _failed;
+
+        public int Failed => Volatile.Read(ref _failed);
+
+        public override InterceptionResult<object> ScalarExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
+        {
+            if (command.CommandText == sql && Interlocked.Increment(ref _failed) <= times)
+            {
+                throw error();
+            }
+
+            return result;
+        }
     }
 
     /// <summary>Creates an application's contexts, on a database that can be changed, and counts them.</summary>
