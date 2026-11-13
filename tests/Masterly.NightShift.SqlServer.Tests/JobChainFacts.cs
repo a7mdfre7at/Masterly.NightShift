@@ -17,6 +17,9 @@ namespace Masterly.NightShift.SqlServer.Tests;
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public class JobChainFacts
 {
+    private const string DueSet = "chains:due";
+    private const string ExpirySet = "chains:expiring";
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentQueue<string> Log = new();
     private static readonly ConcurrentDictionary<string, string> Parents = new();
@@ -605,59 +608,260 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
-    public async Task Server_RemovesChainsWhoseRecordExpired_FromTheList_PastTheOldOnesStillRecorded()
+    public async Task Server_KeepsAChainWithAFailedStep_AndUnlistsAChainThatFinished_WhoseRecordIsPastItsTime()
     {
         SqlServerStorage storage = CreateStorage();
-        long old = JobHelper.ToTimestamp(DateTime.UtcNow - JobChain.RecordRetention - TimeSpan.FromDays(10));
+        BackgroundJobClient client = new(storage);
+        Log.Clear();
+        _failures = 1;
+
+        JobChainResult failed = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client);
+        JobChainResult finished = JobChain.StartWith(() => Record("x")).Then(() => Record("y")).Enqueue(client);
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, failed!.ChainId);
+            await WaitUntilSettledAsync(storage, finished!.ChainId);
+        }
+
+        Assert.Equal(["x", "y"], Log);
+
+        // As when nobody touched them for weeks: both records expire in three days, and both chains are due for
+        // a look by a server
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            ((JobStorageTransaction)transaction).ExpireHash(JobChains.GetKey(failed.ChainId), TimeSpan.FromDays(3));
+            ((JobStorageTransaction)transaction).ExpireHash(JobChains.GetKey(finished.ChainId), TimeSpan.FromDays(3));
+            transaction.AddToSet(DueSet, failed.ChainId, 0);
+            transaction.AddToSet(DueSet, finished.ChainId, 0);
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => RecordTimeToLive(storage, failed.ChainId) > TimeSpan.FromDays(29.9), "The record of the chain with a failed step wasn't kept longer.");
+            await WaitUntilAsync(() => SetItems(storage, ExpirySet).Contains(finished.ChainId), "The chain that finished wasn't left to expire.");
+        }
+
+        Assert.InRange(RecordTimeToLive(storage, finished.ChainId), TimeSpan.FromDays(2.9), TimeSpan.FromDays(3));
+        Assert.Contains(failed.ChainId, SetItems(storage, DueSet));
+        Assert.DoesNotContain(finished.ChainId, SetItems(storage, DueSet));
+
+        // The record of the chain that finished is past its time. SQL Server still holds it, until its
+        // expiration manager comes by: the chain leaves the list all the same.
+        using (DbConnection sql = ConnectionUtils.CreateConnection())
+        {
+            sql.Execute(
+                $"update [{Constants.DefaultSchema}].Hash set ExpireAt = dateadd(minute, -5, getutcdate()) where [Key] = @key",
+                new { key = JobChains.GetKey(finished.ChainId) });
+        }
 
         using (IStorageConnection connection = storage.GetConnection())
         using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
         {
-            // More old chains still recorded (retried, scheduled far ahead) than a page of the list holds
-            for (int i = 0; i < 120; i++)
-            {
-                transaction.AddToSet(JobChains.SetKey, $"kept-{i:000}", old + i);
-                transaction.SetRangeInHash(JobChains.GetKey($"kept-{i:000}"), new Dictionary<string, string>
-                {
-                    ["Jobs"] = "{}",
-                    ["CreatedAt"] = JobHelper.SerializeDateTime(JobHelper.FromTimestamp(old + i)),
-                });
-            }
-
-            for (int i = 0; i < 20; i++)
-            {
-                transaction.AddToSet(JobChains.SetKey, $"expired-{i:00}", old + 1000 + i);
-            }
-
+            transaction.AddToSet(ExpirySet, finished.ChainId, 0);
             transaction.Commit();
         }
 
-        JobChainResult chain = JobChain.StartWith(() => Record("a")).Schedule(new BackgroundJobClient(storage), TimeSpan.FromHours(1));
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => !SetItems(storage, JobChains.SetKey).Contains(finished.ChainId), "The chain whose record expired didn't leave the list.");
+        }
+
+        Assert.Empty(SetItems(storage, ExpirySet));
+        Assert.Equal(failed.ChainId, Assert.Single(SetItems(storage, JobChains.SetKey)));
+
+        // The failed chain can still be read and run again from the step that failed
+        Assert.Equal(1, storage.GetChain(failed.ChainId)?.FailedCount);
+        JobChainResult retried = storage.RetryChainFrom(failed.RootId);
 
         using (CreateServer(storage))
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            while (true)
-            {
-                using IStorageConnection connection = storage.GetConnection();
-                if (!connection.GetAllItemsFromSet(JobChains.SetKey).Any(static x => x.StartsWith("expired", StringComparison.Ordinal)))
-                {
-                    break;
-                }
-
-                if (stopwatch.Elapsed > Timeout)
-                {
-                    throw new TimeoutException("The expired chains didn't leave the list.");
-                }
-
-                await Task.Delay(100, TestContext.Current.CancellationToken);
-            }
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(retried.Steps["1.0"], Timeout, TestContext.Current.CancellationToken)).Name);
         }
 
-        using IStorageConnection reader = storage.GetConnection();
-        HashSet<string> listed = reader.GetAllItemsFromSet(JobChains.SetKey);
-        Assert.Equal(121, listed.Count);
-        Assert.Contains(chain!.ChainId, listed);
+        Assert.Equal(["x", "y", "a", "b"], Log);
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Step_AfterASingleStep_ThatWasNeverToldToStart_IsStartedByAServer_WithTheResultOfTheStepBeforeIt()
+    {
+        // A chain without any group, with results passed to continuations (UseResultsInContinuations)
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        List<object> before = [.. GlobalJobFilters.Filters.Select(static x => x.Instance)];
+        GlobalConfiguration.Configuration.UseResultsInContinuations();
+
+        try
+        {
+            JobChainResult chain = JobChain.StartWith(() => Produce("p")).Then(() => Consume("consumed", 0)).Enqueue(new BackgroundJobClient(storage));
+
+            // What a process leaves that stops between the commit of a step's state and the start of the step
+            // after it: the state is stored, and nobody is told
+            using (IStorageConnection connection = storage.GetConnection())
+            using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+            {
+                transaction.SetJobState(chain!.RootId, new SucceededState(42, 0, 0));
+                transaction.Commit();
+            }
+
+            Assert.Equal(AwaitingState.StateName, StateName(storage, chain.Steps["1.0"]));
+
+            // Later nobody is about to start it any more, and a server does, handing it what its parent returned
+            JobClock.TimeProvider = new ShiftedClock(TimeSpan.FromMinutes(6));
+            using (CreateServer(storage))
+            {
+                Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(chain.Steps["1.0"], Timeout, TestContext.Current.CancellationToken)).Name);
+            }
+
+            Assert.Equal(["consumed 42"], Log);
+        }
+        finally
+        {
+            JobClock.TimeProvider = TimeProvider.System;
+            foreach (object filter in GlobalJobFilters.Filters.Select(static x => x.Instance).Except(before).ToList())
+            {
+                GlobalJobFilters.Filters.Remove(filter);
+            }
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Chain_IsLookedAtSoon_WhenAStepLeavesTheStateItFinishedIn_HoweverFarOffItsNextLookWas()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        Log.Clear();
+        _failures = 1;
+
+        JobChainResult failed = JobChain.StartWith(() => FailOnce("a")).Then(() => Record("b")).Enqueue(client);
+        JobChainResult finished = JobChain.StartWith(() => Record("x")).Enqueue(client);
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, failed!.ChainId);
+            await WaitUntilSettledAsync(storage, finished!.ChainId);
+        }
+
+        // As after the looks of a server: the failed chain is looked at again in ten days, the other left to expire
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.AddToSet(DueSet, failed.ChainId, JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(10)));
+            transaction.RemoveFromSet(DueSet, finished.ChainId);
+            transaction.AddToSet(ExpirySet, finished.ChainId, JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(30)));
+            transaction.Commit();
+        }
+
+        // Somebody requeues the failed step, and the step of the chain that had finished
+        Assert.True(client.ChangeState(failed.RootId, new EnqueuedState(), FailedState.StateName));
+        Assert.True(client.ChangeState(finished.RootId, new EnqueuedState(), SucceededState.StateName));
+
+        Assert.True(IsDueWithin(storage, failed.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromMinutes(4)));
+        Assert.True(IsDueWithin(storage, finished.ChainId, TimeSpan.FromMinutes(5)));
+        Assert.Empty(SetItems(storage, ExpirySet));
+
+        // A state change of a step that runs writes nothing there
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.AddToSet(DueSet, failed.ChainId, JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(10)));
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, failed.ChainId);
+        }
+
+        Assert.Equal(SucceededState.StateName, StateName(storage, failed.Steps["1.0"]));
+        Assert.False(IsDueWithin(storage, failed.ChainId, TimeSpan.FromDays(9)));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Server_GivesTheChainsListedByAnEarlierBuild_ALook_AndRemembersThatItDid()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+
+        // As an earlier build left them: listed, and only the one with a step after a group among the chains to
+        // look at, in a set of its own
+        JobChainResult line = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Schedule(client, TimeSpan.FromDays(1));
+        JobChainResult joined = JobChain.StartWith(() => Record("a"))
+            .ThenMany(branches => branches.Branch(() => Record("b")).Branch(() => Record("c")))
+            .ThenAfterAll(() => Record("d"))
+            .Schedule(client, TimeSpan.FromDays(1));
+
+        using (IStorageConnection connection = storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveFromSet(DueSet, line!.ChainId);
+            transaction.RemoveFromSet(DueSet, joined!.ChainId);
+            transaction.AddToSet("chains:joins", joined.ChainId, JobHelper.ToTimestamp(DateTime.UtcNow));
+            transaction.Commit();
+        }
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through.");
+            await WaitUntilAsync(
+                () => !IsDueWithin(storage, line.ChainId, TimeSpan.FromMinutes(4)) && !IsDueWithin(storage, joined.ChainId, TimeSpan.FromMinutes(4)),
+                "The chains listed by an earlier build weren't looked at.");
+        }
+
+        Assert.Equal(new[] { line.ChainId, joined.ChainId }.Order(StringComparer.Ordinal), SetItems(storage, DueSet).Order(StringComparer.Ordinal));
+        Assert.Empty(SetItems(storage, "chains:joins"));
+        Assert.Equal(2, SetItems(storage, JobChains.SetKey).Count);
+
+        // Each was looked at, and is again a while later
+        Assert.True(IsDueWithin(storage, line.ChainId, TimeSpan.FromMinutes(11)));
+        Assert.True(IsDueWithin(storage, joined.ChainId, TimeSpan.FromMinutes(11)));
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Record_IsKeptForTheTimeTheProcessIsSetTo_AndItsStepsGoByThatTime_WhateverTheServerIsSetTo()
+    {
+        SqlServerStorage storage = CreateStorage();
+        BackgroundJobClient client = new(storage);
+        Log.Clear();
+        JobChainResult short7;
+        JobChainResult long30;
+
+        try
+        {
+            // A client that keeps the records of chains for a week
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(7));
+            short7 = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Schedule(client, TimeSpan.FromDays(1));
+
+            Assert.InRange(RecordTimeToLive(storage, short7!.ChainId), TimeSpan.FromDays(7.9), TimeSpan.FromDays(8) + TimeSpan.FromSeconds(5));
+            Assert.Equal("604800", Parameter(storage, short7.RootId, JobChains.ChainRecordedParameter));
+        }
+        finally
+        {
+            GlobalConfiguration.Configuration.UseChainRetention(TimeSpan.FromDays(30));
+        }
+
+        // And one that keeps them for thirty days, as the server does
+        long30 = JobChain.StartWith(() => Record("x")).Then(() => Record("y")).Schedule(client, TimeSpan.FromDays(1));
+        Assert.Equal("2592000", Parameter(storage, long30!.RootId, JobChains.ChainRecordedParameter));
+
+        // Nine days later both chains have no record. The first one's expired, for all the server knows: its steps
+        // run. The second one's can't have expired: the chain was deleted, and its steps don't run.
+        RemoveRecord(storage, short7.ChainId);
+        RemoveRecord(storage, long30.ChainId);
+        Backdate(9, short7.RootId, short7.Steps["1.0"], long30.RootId, long30.Steps["1.0"]);
+        Assert.True(client.ChangeState(short7.RootId, new EnqueuedState(), ScheduledState.StateName));
+        Assert.True(client.ChangeState(long30.RootId, new EnqueuedState(), ScheduledState.StateName));
+
+        using (CreateServer(storage))
+        {
+            Assert.Equal(SucceededState.StateName, (await storage.WaitForCompletionAsync(short7.Steps["1.0"], Timeout, TestContext.Current.CancellationToken)).Name);
+            Assert.Equal(DeletedState.StateName, (await storage.WaitForCompletionAsync(long30.RootId, Timeout, TestContext.Current.CancellationToken)).Name);
+        }
+
+        Assert.Equal(["a", "b"], Log);
     }
 
     [Fact, CleanDatabase]
@@ -753,8 +957,9 @@ public class JobChainFacts
 
         // Every step is marked once the chain is recorded (right after the record here: this storage can't
         // write a job parameter in a transaction)
-        Assert.Equal("true", Parameter(storage, chain!.RootId, JobChains.ChainRecordedParameter));
-        Assert.Equal("true", Parameter(storage, chain.Steps["1.0"], JobChains.ChainRecordedParameter));
+        // The mark says how long the record is kept, in seconds
+        Assert.Equal("2592000", Parameter(storage, chain!.RootId, JobChains.ChainRecordedParameter));
+        Assert.Equal("2592000", Parameter(storage, chain.Steps["1.0"], JobChains.ChainRecordedParameter));
 
         // Long after: the record expired, and the steps are still to run
         RemoveRecord(storage, chain.ChainId);
@@ -959,6 +1164,47 @@ public class JobChainFacts
         }
     }
 
+    private static HashSet<string> SetItems(SqlServerStorage storage, string key)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.GetAllItemsFromSet(key);
+    }
+
+    private static string HashField(SqlServerStorage storage, string key, string field)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.GetAllEntriesFromHash(key)?.GetValueOrDefault(field);
+    }
+
+    private static string StateName(SqlServerStorage storage, string jobId)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return connection.GetStateData(jobId)?.Name;
+    }
+
+    /// <summary>Whether a server is to look at a chain within a time from now.</summary>
+    private static bool IsDueWithin(SqlServerStorage storage, string chainId, TimeSpan time)
+    {
+        using IStorageConnection connection = storage.GetConnection();
+        return ((JobStorageConnection)connection)
+            .GetFirstByLowestScoreFromSet(DueSet, 0, JobHelper.ToTimestamp(DateTime.UtcNow + time), 1000)
+            .Contains(chainId);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string message)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (stopwatch.Elapsed > Timeout)
+            {
+                throw new TimeoutException(message);
+            }
+
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
+
     private static TimeSpan RecordTimeToLive(SqlServerStorage storage, string chainId)
     {
         using IStorageConnection connection = storage.GetConnection();
@@ -1096,6 +1342,10 @@ public class JobChainFacts
 
         Log.Enqueue(name);
     }
+
+    public static int Produce(string name) => name.Length + 41;
+
+    public static void Consume(string name, [FromResult] int value) => Log.Enqueue($"{name} {value}");
 
     public static void RecordParent(string name, PerformContext context)
     {
