@@ -9,6 +9,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private const string ExpirySet = "chains:expiring";
     private const string SoonSet = "chains:soon";
     private const string IndexHash = "chains:index";
+    private const string LostSet = "chains:lost";
 
     private readonly Mock<JobStorage> _storage = new();
     private readonly Mock<JobStorageConnection> _connection = new();
@@ -978,13 +979,32 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
         Assert.Equal(["lost-early"], Listed());
         Assert.Empty(Set(DueSet));
-        Assert.InRange(Assert.Single(Set(ExpirySet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
+        Assert.Empty(Set(ExpirySet));
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
 
-        Set(ExpirySet)[0] = (0, "lost-early");
+        Set(LostSet)[0] = (0, "lost-early");
         Maintain();
 
         Assert.Empty(Listed());
+        Assert.Empty(Set(LostSet));
+    }
+
+    [Fact]
+    public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_WhenALookIsAskedFor()
+    {
+        // Found without record before, and kept listed; a step of it is requeued, which asks for a look
+        Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
+        Set(LostSet).Add((After(TimeSpan.FromDays(29)), "lost-early"));
+        Set(SoonSet).Add((1, "lost-early|asked"));
+
+        Maintain();
+
+        // Its steps still run: it is listed for as long as a record is kept, from now
+        Assert.Equal(["lost-early"], Listed());
+        Assert.Empty(Set(SoonSet));
         Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Set(DueSet));
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
     }
 
     [Fact]
@@ -1195,7 +1215,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Maintain();
 
         Assert.True(_indexed);
-        Assert.DoesNotContain(Listed(), chainId => !Set(DueSet).Concat(Set(ExpirySet)).Any(x => x.Value == chainId));
+        Assert.DoesNotContain(Listed(), chainId => !Placed().Contains(chainId));
     }
 
     [Fact]
@@ -1246,15 +1266,15 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.True(first.MoreToDo);
         Assert.False(_indexed);
         Assert.Equal("20", _hashes[IndexHash]["Listed"]);
-        Assert.Equal(JobChains.MaxIndexedPerRun, Set(DueSet).Count + Set(ExpirySet).Count);
-        Assert.DoesNotContain(Set(DueSet).Concat(Set(ExpirySet)), static x => x.Value == "old-0000");
+        Assert.Equal(JobChains.MaxIndexedPerRun, Placed().Count);
+        Assert.DoesNotContain("old-0000", Placed());
 
         bool otherServer = false;
         JobChains.Maintain(_storage.Object, _client.Object, ref otherServer, TestContext.Current.CancellationToken);
 
         Assert.True(otherServer);
         Assert.Equal("done", _hashes[IndexHash]["Listed"]);
-        Assert.Equal(JobChains.MaxIndexedPerRun + 20, Set(DueSet).Count + Set(ExpirySet).Count);
+        Assert.Equal(JobChains.MaxIndexedPerRun + 20, Placed().Count);
     }
 
     [Fact]
@@ -1604,6 +1624,9 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private IEnumerable<(double Score, string Value)> Ordered(string key) => Set(key).OrderBy(static x => x.Score).ThenBy(static x => x.Value, StringComparer.Ordinal);
 
     private List<string> Listed() => [.. Ordered(JobChains.SetKey).Select(static x => x.Value)];
+
+    // The chains that have a place: among the chains to look at, left to expire, or kept while their record is lost
+    private List<string> Placed() => [.. Set(DueSet).Concat(Set(ExpirySet)).Concat(Set(LostSet)).Select(static x => x.Value)];
 
     // A step "second" that waits for the step "first", which finished twenty minutes ago in the state given
     private JobChainInfo LineOfTwo(StateData first, JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)

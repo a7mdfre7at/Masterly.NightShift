@@ -44,9 +44,22 @@ public static partial class JobChains
     /// <summary>
     /// The set of the chains left to expire, scored by the time they leave the list of chains: nothing of them is
     /// left to run or to run again, so their record expires, or their record is gone before its time. Only on a
-    /// storage that expires records, where a listed chain is in this set or in <see cref="DueSetKey"/>.
+    /// storage that expires records, where a listed chain is in this set, in <see cref="DueSetKey"/> or in
+    /// <see cref="LostSetKey"/>.
     /// </summary>
     internal const string ExpirySetKey = "chains:expiring";
+
+    /// <summary>
+    /// The set of the chains whose record the storage lost before its time (an eviction, a cap on expiry times),
+    /// scored by the time they leave the list of chains: for as long as a record is kept, from the last look. Their
+    /// steps still run while they are listed (<see cref="JobChainStepFilter"/>), so a look asked for by one of
+    /// them keeps them listed; only a chain left to expire (<see cref="ExpirySetKey"/>) leaves the list when such a
+    /// look finds its record gone. Only on a storage that expires records.
+    /// </summary>
+    internal const string LostSetKey = "chains:lost";
+
+    // Where a chain can have its place, one of them at a time
+    private static readonly string[] PlacementSets = [DueSetKey, ExpirySetKey, LostSetKey];
 
     /// <summary>
     /// The hash that says how far the chains listed by a build without <see cref="DueSetKey"/> have been given a
@@ -191,6 +204,8 @@ public static partial class JobChains
             bool moreAsked = LookAtAsked(storage, client, connection, looks, stopping);
             bool moreExpiring = storage.HasFeature(JobStorageFeatures.ExtendedApi) &&
                                 LookAtDue(storage, client, connection, ExpirySetKey, MaxExpiringPerRun, looks, stopping);
+            moreExpiring |= storage.HasFeature(JobStorageFeatures.ExtendedApi) &&
+                            LookAtDue(storage, client, connection, LostSetKey, MaxExpiringPerRun, looks, stopping);
             bool moreDue = LookAtDue(storage, client, connection, DueSetKey, MaxLooksPerRun, looks, stopping);
 
             if (looks.Lost > 0)
@@ -265,7 +280,9 @@ public static partial class JobChains
 
     private static bool HasPlace(JobStorageConnection connection, string chainId)
     {
-        return connection.GetSetContains(DueSetKey, chainId) || connection.GetSetContains(ExpirySetKey, chainId);
+        return connection.GetSetContains(DueSetKey, chainId) ||
+               connection.GetSetContains(ExpirySetKey, chainId) ||
+               connection.GetSetContains(LostSetKey, chainId);
     }
 
     /// <summary>
@@ -328,7 +345,7 @@ public static partial class JobChains
             // A storage that can't look a chain up gives each a look, the ones that have their place too
             if (storage.HasFeature(JobStorageFeatures.Connection.GetSetContains))
             {
-                chains.RemoveAll(chainId => ranged.GetSetContains(DueSetKey, chainId) || ranged.GetSetContains(ExpirySetKey, chainId));
+                chains.RemoveAll(chainId => HasPlace(ranged, chainId));
             }
         }
         else
@@ -524,11 +541,12 @@ public static partial class JobChains
             {
                 using (connection.AcquireDistributedLock(GetLockResource(chainId), TimeSpan.Zero))
                 {
-                    placement = Look(storage, client, connection, chainId, leftToExpire: setKey == ExpirySetKey, now, looks);
+                    // A chain whose turn to leave the list came: left to expire, or kept while its record was lost
+                    placement = Look(storage, client, connection, chainId, leftToExpire: setKey is ExpirySetKey or LostSetKey, now, looks);
 
                     // Still under the lock: a retry or a replacement of the chain, which gives the chain its
                     // place too, comes before the look read the chain or after the look wrote, never in between
-                    placed = Place(connection, chainId, setKey, placement);
+                    placed = Place(connection, chainId, [setKey], placement);
                 }
             }
             catch (DistributedLockTimeoutException)
@@ -542,7 +560,7 @@ public static partial class JobChains
                 placed = null;
             }
 
-            placed ??= Place(connection, chainId, setKey, placement);
+            placed ??= Place(connection, chainId, [setKey], placement);
             if (placed.Value && placement.Unlisted)
             {
                 looks.Unlisted++;
@@ -605,9 +623,9 @@ public static partial class JobChains
             {
                 placement = Look(storage, client, connection, chainId, leftToExpire: false, now, looks);
 
-                // The chain may be among the chains to look at or among the ones left to expire: it leaves the
-                // one it doesn't go to. Under the lock, as for any look.
-                placed = Place(connection, chainId, placement.Set == DueSetKey ? ExpirySetKey : DueSetKey, placement);
+                // The chain may have its place in any of the sets: it leaves the ones it doesn't go to. Under the
+                // lock, as for any look.
+                placed = Place(connection, chainId, PlacementSets, placement);
             }
 
             if (!placed)
@@ -672,7 +690,8 @@ public static partial class JobChains
         if (info == null)
         {
             // Left to expire, its record expired: a look asked for (a step that left the state it had finished in)
-            // finds it gone as the chain's own look would, a moment later
+            // finds it gone as the chain's own look would, a moment later. Not a chain whose record was lost and
+            // that is kept listed meanwhile (LostSetKey): its steps run only while it is listed.
             if (expiring == null || leftToExpire || !IsListed(storage, connection, chainId) || IsLeftToExpire(storage, connection, chainId))
             {
                 return ChainPlacement.Unlist;
@@ -680,7 +699,7 @@ public static partial class JobChains
 
             looks.Lost++;
             looks.FirstLost ??= chainId;
-            return new ChainPlacement(ExpirySetKey, now + JobChain.RecordRetention);
+            return new ChainPlacement(LostSetKey, now + JobChain.RecordRetention);
         }
 
         int redriven = RedriveLostDecisions(client, connection, info, out int failed);
@@ -833,8 +852,12 @@ public static partial class JobChains
     /// Writes where a look leaves a chain: its new place and time, and that it left the place it was in, or the
     /// list of chains. Best effort: a chain that couldn't be written comes up again as it is.
     /// </summary>
+    /// <param name="connection">The connection that writes it.</param>
+    /// <param name="chainId">The chain.</param>
+    /// <param name="from">The sets the chain may be in: it leaves those it doesn't go to.</param>
+    /// <param name="placement">Where the look leaves the chain.</param>
     /// <returns>Whether it was written.</returns>
-    private static bool Place(IStorageConnection connection, string chainId, string from, ChainPlacement placement)
+    private static bool Place(IStorageConnection connection, string chainId, IReadOnlyList<string> from, ChainPlacement placement)
     {
         try
         {
@@ -845,15 +868,18 @@ public static partial class JobChains
                 transaction.AddToSet(placement.Set, chainId, JobHelper.ToTimestamp(placement.At));
             }
 
-            if (placement.Set != from)
+            // A chain that leaves the list leaves every set
+            foreach (string set in placement.Unlisted ? PlacementSets : from)
             {
-                transaction.RemoveFromSet(from, chainId);
+                if (set != placement.Set)
+                {
+                    transaction.RemoveFromSet(set, chainId);
+                }
             }
 
             if (placement.Unlisted)
             {
                 transaction.RemoveFromSet(SetKey, chainId);
-                transaction.RemoveFromSet(from == DueSetKey ? ExpirySetKey : DueSetKey, chainId);
             }
             else if (placement.ListedAt is { } createdAt)
             {

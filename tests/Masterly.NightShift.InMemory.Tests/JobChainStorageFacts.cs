@@ -2377,6 +2377,55 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Steps_OfAChainWhoseRecordTheStorageLost_StillRun_WhenTheyAreRequeued_AfterTheChainWasLookedAt()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Enqueue(_client)!;
+        string a = chain.RootId;
+        string b = chain.Steps["1.0"];
+
+        // The first step fails for good, and the storage drops the record early (an eviction, a cap on expiry
+        // times): the chain is still listed, so its steps still run
+        Fail(a);
+        using (IStorageConnection connection = _storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            transaction.RemoveHash(JobChains.GetKey(chain.ChainId));
+            transaction.Commit();
+        }
+
+        // The failed step is requeued, which asks for a look: a server finds the chain without record, and keeps
+        // it listed for as long as a record is kept
+        Assert.True(_client.ChangeState(a, new EnqueuedState(), FailedState.StateName));
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (MaintenanceOnly())
+        {
+            WaitUntil(() => SetItems(SoonSet).Count == 0, "the look asked for");
+        }
+
+        Assert.Contains(chain.ChainId, SetItems(JobChains.SetKey));
+
+        // It succeeds; the next step fails for good and is requeued in turn, which asks for another look
+        Succeed(a);
+        Assert.Equal(EnqueuedState.StateName, StateOf(b));
+        Fail(b);
+        Assert.True(_client.ChangeState(b, new EnqueuedState(), FailedState.StateName));
+        MoveClock(TimeSpan.FromMinutes(6));
+        using (MaintenanceOnly())
+        {
+            WaitUntil(() => SetItems(SoonSet).Count == 0, "the look asked for");
+        }
+
+        // The chain is still listed, and a worker runs the requeued step
+        Assert.Contains(chain.ChainId, SetItems(JobChains.SetKey));
+        using (CreateServer())
+        {
+            WaitUntil(() => StateOf(b) != EnqueuedState.StateName && StateOf(b) != ProcessingState.StateName, "the requeued step to be taken");
+        }
+
+        Assert.Equal(SucceededState.StateName, StateOf(b));
+    }
+
+    [Fact]
     public void DeleteChain_DeletesEveryStep_AndTheRecord()
     {
         JobChainResult chain = JobChain.StartWith(() => Step("a"))
@@ -2388,6 +2437,12 @@ public sealed class JobChainStorageFacts : IDisposable
 
         Assert.All(chain.Steps.Values, id => Assert.Equal(DeletedState.StateName, StateOf(id)));
         Assert.Null(_storage.GetChain(chain.ChainId));
+    }
+
+    // A server that runs the chain maintenance and no job of these tests
+    private BackgroundJobServer MaintenanceOnly()
+    {
+        return new BackgroundJobServer(new BackgroundJobServerOptions { WorkerCount = 1, Queues = ["elsewhere"], SchedulePollingInterval = TimeSpan.FromMinutes(1) }, _storage);
     }
 
     private void Succeed(string jobId) => Assert.True(_client.ChangeState(jobId, new SucceededState(null, 0, 0), null));
