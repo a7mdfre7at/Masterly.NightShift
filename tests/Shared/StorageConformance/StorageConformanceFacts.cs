@@ -762,9 +762,9 @@ public abstract class StorageConformanceFacts : IDisposable
     [Fact]
     public void Requeue_MakesTheJobFetchableAgainAtOnce_InItsQueue_AndLeavesTheJobAsItWas()
     {
-        // What a worker does with a job it gives back without having changed it (the first step of a chain that
-        // is still being created): as often as it takes, the job comes back, where it was, and nothing about it
-        // says that it was ever taken
+        // What a worker does with a job it must give up without having changed it (a server that stops while the
+        // worker waits for the chain of a first step to be recorded): the job comes back, where it was, as often
+        // as it takes, and nothing about it says that it was ever taken
         string id = Enqueue("critical");
         Connection(x => x.SetJobParameter(id, "Note", "\"kept\""));
         IMonitoringApi monitoring = Storage.GetMonitoringApi();
@@ -1267,7 +1267,7 @@ public abstract class StorageConformanceFacts : IDisposable
 
             await WaitUntilAsync(() => Storage.GetChain(chain.ChainId) is { IsSettled: true }, $"Chain {chain.ChainId} didn't settle.");
 
-            // It went back to its queue each time, with nothing written: its history is that of any job
+            // The worker waited with it, with nothing written: its history is that of any job
             IMonitoringApi monitoring = Storage.GetMonitoringApi();
             Assert.Equal(
                 [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],

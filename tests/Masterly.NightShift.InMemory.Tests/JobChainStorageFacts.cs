@@ -124,7 +124,7 @@ public sealed class JobChainStorageFacts : IDisposable
         JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
         WaitUntilSettled(chain.ChainId);
 
-        // The step was given back to its queue, not held: its history reads like any job's, and it was neither
+        // The worker waited with the step, which wasn't held: its history reads like any job's, and it was neither
         // counted as picked up again nor given a queue to go back to
         Assert.Equal(["a", "b", "c"], Ran);
         Assert.Equal(
@@ -172,7 +172,7 @@ public sealed class JobChainStorageFacts : IDisposable
         _filter.PauseOn = "c";
         _filter.WhilePaused = () =>
         {
-            // Seconds pass, by the clock the lease is read with: the first step no longer goes back to its queue
+            // Seconds pass, by the clock the lease is read with: the worker no longer waits with the first step
             string first = _filter.Created.Single(static x => x.Name == "a").Id;
             Thread.Sleep(300);
             Assert.Equal(EnqueuedState.StateName, StateOf(first));
