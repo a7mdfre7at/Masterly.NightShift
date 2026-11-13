@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using Masterly.NightShift.Client;
 using Microsoft.Data.SqlClient;
@@ -19,6 +20,9 @@ namespace Masterly.NightShift.SqlServer.Tests;
 [SuppressMessage("Usage", "xUnit1013:Public method should be marked as test", Justification = "Job methods must be public")]
 public class JobChainMarkFacts
 {
+    // What a recorded step is marked with: how long its record is kept at least, in seconds
+    private static string RecordedMark => ((long)JobChain.RecordRetention.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     // How long a record is watched for listing its steps while one of their marks can't be written
@@ -145,8 +149,8 @@ public class JobChainMarkFacts
             // Every step that exists is marked, and nothing is written for the one that is gone
             using DbConnection reader = ConnectionUtils.CreateConnection();
             List<long> marked = [.. reader.Query<long>(
-                $"select JobId from [{Constants.DefaultSchema}].JobParameter where Name = @name and Value = N'true' order by JobId",
-                new { name = JobChains.ChainRecordedParameter })];
+                $"select JobId from [{Constants.DefaultSchema}].JobParameter where Name = @name and Value = @mark order by JobId",
+                new { name = JobChains.ChainRecordedParameter, mark = RecordedMark })];
 
             Assert.Equal(listed.Where(id => id != gone).Order(), marked);
             Assert.Equal(0, reader.ExecuteScalar<int>($"select count(*) from [{Constants.DefaultSchema}].Job where Id = @id", new { id = gone }));
@@ -252,8 +256,8 @@ public class JobChainMarkFacts
 
         using DbConnection sql = ConnectionUtils.CreateConnection();
         HashSet<long> marked = [.. sql.Query<long>(
-            $"select JobId from [{Constants.DefaultSchema}].JobParameter with (readpast) where Name = @name and Value = N'true'",
-            new { name = JobChains.ChainRecordedParameter })];
+            $"select JobId from [{Constants.DefaultSchema}].JobParameter with (readpast) where Name = @name and Value = @mark",
+            new { name = JobChains.ChainRecordedParameter, mark = RecordedMark })];
 
         Assert.DoesNotContain(listed, id => !marked.Contains(id));
     }

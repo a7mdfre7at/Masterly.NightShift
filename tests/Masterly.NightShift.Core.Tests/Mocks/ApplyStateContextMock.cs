@@ -29,7 +29,8 @@ public class ApplyStateContextMock
                 StateMachine.Object,
                 CustomData)
             {
-                JobExpirationTimeout = JobExpirationTimeout
+                JobExpirationTimeout = JobExpirationTimeout,
+                GiveBack = GiveBack
             });
     }
 
@@ -43,6 +44,7 @@ public class ApplyStateContextMock
     public TimeSpan JobExpirationTimeout { get; set; }
     public Mock<IStateMachine> StateMachine { get; set; }
     public IReadOnlyDictionary<string, object> CustomData { get; set; }
+    internal JobGiveBack GiveBack { get; set; }
 
     public ApplyStateContext Object => _context.Value;
 }

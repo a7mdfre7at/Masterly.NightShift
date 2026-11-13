@@ -179,6 +179,13 @@ public sealed class ActivityFeedFilter : JobFilterAttribute, IApplyStateFilter
             return;
         }
 
+        // A step put back into the state it was in (a retry of its chain that failed or was abandoned) didn't
+        // fail or succeed again: the feed told about it when it reached the state the first time
+        if (context.NewState is JobChains.RestoredState)
+        {
+            return;
+        }
+
         ActivityEntry entry = ActivityFeed.Create(context.BackgroundJob, context.NewState, context.OldStateName);
         JobStorage storage = context.Storage;
 

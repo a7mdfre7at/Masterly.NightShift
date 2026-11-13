@@ -28,9 +28,9 @@ namespace Masterly.NightShift;
 /// <para>
 /// Retries and timeouts of a step come from its method's attributes (<see cref="AutomaticRetryAttribute"/>,
 /// <see cref="JobTimeoutAttribute"/>), as for any job. Each step carries the <c>ChainId</c> and <c>ChainStep</c> job
-/// parameters, and the chain is recorded in the storage hash <c>chain:{id}</c>, kept until
-/// <see cref="RecordRetention"/> after its steps last changed state, so it can be read (<c>GetChain</c>), run again
-/// from a step (<c>RetryChainFrom</c>), replaced before it starts (<c>ReplaceChain</c>) or deleted
+/// parameters, and the chain is recorded in the storage hash <c>chain:{id}</c>, kept for as long as a step is left to
+/// run or failed for good, and for <see cref="RecordRetention"/> after that, so it can be read (<c>GetChain</c>), run
+/// again from a step (<c>RetryChainFrom</c>), replaced before it starts (<c>ReplaceChain</c>) or deleted
 /// (<c>DeleteChain</c>).
 /// </para>
 /// <para>
@@ -51,11 +51,23 @@ public sealed partial class JobChain
     /// <summary>The most levels (the first step, each <c>Then</c>, each group of branches or of joins) a chain may have.</summary>
     public const int MaxLevels = 50;
 
+    /// <summary>The shortest time <see cref="RecordRetention"/> can be set to: a day.</summary>
+    public static readonly TimeSpan MinRecordRetention = TimeSpan.FromDays(1);
+
+    private static long _recordRetentionTicks = TimeSpan.FromDays(30).Ticks;
+
     /// <summary>
-    /// How long the record of a chain is kept after its steps last changed state, or after the time a scheduled
-    /// step is due: 30 days, on storages that expire hashes. The jobs themselves expire as usual.
+    /// How long the record of a chain is kept once none of its steps is left to run or to run again, on storages
+    /// that expire hashes: 30 days unless <c>UseChainRetention</c> sets another time. It counts from the last state
+    /// change of a step, or from the time a scheduled step is due. While the job of a step still exists in a state
+    /// other than Succeeded or Deleted (a step that failed for good and is kept, a step that waits), the record is
+    /// kept, however long that lasts. The jobs themselves expire as usual.
     /// </summary>
-    public static readonly TimeSpan RecordRetention = TimeSpan.FromDays(30);
+    public static TimeSpan RecordRetention
+    {
+        get => new(Volatile.Read(ref _recordRetentionTicks));
+        internal set => Volatile.Write(ref _recordRetentionTicks, value.Ticks);
+    }
 
     private readonly List<ChainLevel> _levels = [];
 

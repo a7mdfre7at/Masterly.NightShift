@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
 
@@ -17,11 +18,28 @@ namespace Masterly.NightShift;
 /// </para>
 /// <list type="bullet">
 /// <item><description>
-/// The record says the chain is being created, retried or replaced: the client that does it wrote so before it
-/// created or changed the first job, and says it again while it works. The job, listed or not, goes to the Scheduled
-/// state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time, and is checked again; that isn't a
-/// retry. The client enqueues a first step held that way as soon as the chain is recorded. A client that stops in
-/// the middle stops saying so, and two minutes later the record counts as it stands.
+/// The record says the chain is being created and lists no step yet, and that began less than
+/// <see cref="QuietTime"/> ago: the creation of a chain takes milliseconds, and a worker that is idle fetches
+/// the first step in the middle of it. Nothing is stored about the job: the worker keeps it for a moment (as long
+/// as the creation has lasted, between <see cref="MinGiveBackPause"/> and <see cref="MaxGiveBackPause"/>), gives
+/// it back to its queue, and it is fetched again, by then usually with the record that lists it. The step's
+/// history shows nothing of it. Only for a job in the Enqueued state that a worker fetched; and not where the
+/// clocks disagree about when the creation began.
+/// </description></item>
+/// <item><description>
+/// The record says the chain is being created for longer than that, or being retried or replaced: the client that
+/// does it wrote so before it created or changed the first job, and says it again while it works. The job, listed
+/// or not, goes to the Scheduled state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time,
+/// and is checked again; that isn't a retry. The client enqueues a first step held that way as soon as the chain
+/// is recorded. A client that stops in the middle stops saying so, and two minutes later the record counts as it
+/// stands.
+/// </description></item>
+/// <item><description>
+/// The job was held for a retry of its chain (it carries <see cref="JobChains.ChainRetryParameter"/>), no client
+/// says any more that it is at it, and the record still has the generation the retry started from: the retry was
+/// never recorded. The job is put back into the state it was in before the retry, with its data
+/// (<see cref="JobChains.RetryAbandonedReasonFormat"/>), and doesn't run: a retry happens completely or not at
+/// all. Once the retry is recorded, the record's generation is past that one, and the job runs.
 /// </description></item>
 /// <item><description>The record lists the job for its step: it runs.</description></item>
 /// <item><description>
@@ -32,11 +50,12 @@ namespace Masterly.NightShift;
 /// <item><description>
 /// The record lists no step at all (the creation of the chain stopped halfway), or there is no record and the chain
 /// isn't in the list of chains (it was deleted): the job is deleted (<see cref="NotRecordedReasonFormat"/>). On a
-/// storage that expires records, a job without record runs instead when its chain's record expired: the job is
-/// older than <see cref="JobChain.RecordRetention"/> and carries the mark of a step that was recorded
-/// (<see cref="JobChains.ChainRecordedParameter"/>), which a job of a chain that was never completely created
-/// doesn't. So does a job whose chain is still listed, because the storage dropped the record before its time
-/// (a cap on expiration times, an eviction).
+/// storage that expires records, a job without record runs instead when its chain's record expired: the job
+/// carries the mark of a step that was recorded (<see cref="JobChains.ChainRecordedParameter"/>), which a job of a
+/// chain that was never completely created doesn't, and is older than the time the mark says its record was kept
+/// (the <see cref="JobChain.RecordRetention"/> of the process that wrote the record, not of this one). So does a
+/// job whose chain is still listed, because the storage dropped the record before its time (a cap on expiration
+/// times, an eviction).
 /// </description></item>
 /// </list>
 /// <para>
@@ -57,10 +76,18 @@ namespace Masterly.NightShift;
 /// <see cref="DrainModeFilter"/>, registered by default too, puts it back there when the hold ends.
 /// </para>
 /// <para>
+/// The filter also keeps the note of a retry on the step the retry holds: it writes it with the state that holds
+/// the step, where the storage writes a job parameter with a state, and takes it off when the step leaves the hold
+/// any other way than towards a worker (it is deleted, put back, or finishes), so it never decides for a job that
+/// isn't held for that retry any more. That costs a dictionary lookup at a state change, on storages that load
+/// the job's parameters with the job.
+/// </para>
+/// <para>
 /// Each state change of a step also keeps the chain's record for <see cref="JobChain.RecordRetention"/> longer (from
 /// the time a Scheduled step is due), after the state change is committed. A process does it about once an hour
 /// for a chain, not at all for a step created within the last hour (its record is new), and only on storages that
-/// load the job's parameters with the job.
+/// load the job's parameters with the job. A step that leaves the state it had finished in (a failed step that is
+/// requeued, say) has a server look at its chain a few minutes later, also after the commit.
 /// </para>
 /// </remarks>
 public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
@@ -85,10 +112,30 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobChainStepFilter));
 
+    /// <summary>
+    /// How long after the creation of a chain began a worker that fetches its first step gives it back to its
+    /// queue without a trace (see <see cref="JobGiveBack"/>) rather than holding it in the Scheduled state. Past
+    /// it, the creation takes unusually long or its client has stopped, and the step is held as a step of a chain
+    /// that is being changed is. Replaceable for tests.
+    /// </summary>
+    internal static TimeSpan QuietTime { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The shortest time a worker keeps a step it gives back before the step can be fetched again.</summary>
+    internal static readonly TimeSpan MinGiveBackPause = TimeSpan.FromMilliseconds(10);
+
+    /// <summary>The longest time a worker keeps a step it gives back before the step can be fetched again.</summary>
+    internal static readonly TimeSpan MaxGiveBackPause = TimeSpan.FromMilliseconds(250);
+
     private static readonly TimeSpan MinHoldDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxHoldDelay = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan MinUnreadableDelay = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan MaxUnreadableDelay = TimeSpan.FromMinutes(15);
+
+    // The jobs a retry is holding in the state change in progress: the election saw the state that holds them,
+    // whatever state a later filter made of it (a schedule policy that moves it on), so the filter doesn't take
+    // the note off that the same state change writes
+    private static readonly ConditionalWeakTable<BackgroundJob, object> HeldNow = [];
+    private static readonly object HeldMarker = new();
 
     // How many times in a row this process couldn't read the chain of a job: the job waits longer each time
     private static readonly ConcurrentDictionary<string, int> Unreadable = new(StringComparer.Ordinal);
@@ -108,6 +155,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // A retry takes its step out of the state it finished in: what the retry started from goes on the job in
+        // the same write, where the storage can
+        if (context.CandidateState is JobChains.RetryHold retryHold)
+        {
+            HeldNow.AddOrUpdate(context.BackgroundJob, HeldMarker);
+            JobChains.MarkHeld(context, retryHold);
+            return;
+        }
+
         // Only a job about to run. A step held here is put back in its queue by DrainModeFilter, after the filters
         // that may still schedule it again: restoring the queue here, first, would forget it for those.
         if (context.CandidateState is not ProcessingState)
@@ -117,6 +173,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         BackgroundJob job = context.BackgroundJob;
         string? chainId = null;
+        JobChains.RetryMarker? retry = null;
         Verdict verdict;
         TimeSpan holdDelay;
 
@@ -127,7 +184,16 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 return;
             }
 
-            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey, out holdDelay);
+            // A step held for a retry of its chain says so. Only on its way from the hold to a worker: on a job
+            // picked up again while it was processing, the note is one that couldn't be taken off, and stale.
+            if (IsOnTheWayToAWorker(context.CurrentState))
+            {
+                retry = JobChains.RetryMarker.Parse(ReadParameter(job, context.Connection, JobChains.ChainRetryParameter));
+            }
+
+            // Without a trace only for a job that waits in its queue and that a worker can put back there
+            bool quietly = context.CanGiveBack && EnqueuedState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase);
+            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey, quietly, retry, out holdDelay);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -154,9 +220,29 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             Unreadable.TryRemove(job.Id, out _);
         }
 
+        // The step waits: whatever it says about a retry is decided when it comes up again
+        if (verdict is Verdict.GiveBack or Verdict.Wait)
+        {
+            retry = null;
+        }
+
         switch (verdict)
         {
             case Verdict.Run:
+                break;
+
+            case Verdict.PutBack:
+                // Only for a step with the note of a retry
+                PutBack(context, chainId, retry!);
+                break;
+
+            case Verdict.GiveBack:
+                // Nothing is written, here or by the filters after this one, which don't run
+                if (!context.TryGiveBack(holdDelay))
+                {
+                    Hold(context, WaitingReason(chainId), MinHoldDelay);
+                }
+
                 break;
 
             case Verdict.Wait:
@@ -173,6 +259,37 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 context.CandidateState = new DeletedState { Reason = string.Format(CultureInfo.InvariantCulture, NotRecordedReasonFormat, chainId) };
                 break;
         }
+
+        // The retry is decided: its note goes with this state change. Where the job's parameters are loaded
+        // with the job, OnStateApplied does it, for whatever state is applied in the end; a step that is put
+        // back had it done above.
+        if (retry != null && verdict != Verdict.PutBack && job.ParametersSnapshot == null)
+        {
+            JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, beforeCommit: false);
+        }
+    }
+
+    // The step goes back into the state it was in before the retry, and doesn't run. The note of the retry stays
+    // until that is committed: a state change that fails is tried again, and decided the same way.
+    private static void PutBack(ElectStateContext context, string chainId, JobChains.RetryMarker retry)
+    {
+        string jobId = context.BackgroundJob.Id;
+
+        Logger.Warn($"Background job '{jobId}' doesn't run: it was held for a retry of chain '{chainId}' that was never recorded. The client that retried the chain stopped, or didn't confirm for {JobChains.LeaseTime.TotalSeconds:0} seconds that it was still at it. The job is put back into the {retry.State} state it was in, and the chain is as it was before the retry; retry it again if it is still wanted.");
+
+        // Not by way of the Processing state: the job's history must not say that it ran
+        context.ReplaceCandidateState(JobChains.RestoreAbandoned(retry, chainId));
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, jobId, beforeCommit: false);
+
+        // What the retry had created waits for this job and is listed nowhere: it is deleted, once this is
+        // stored. Not before: a state change that fails leaves the step held, for a client that may still wake up.
+        if (context.AfterCommit != null)
+        {
+            JobStorage storage = context.Storage;
+            IStorageConnection connection = context.Connection;
+            int generation = retry.Generation;
+            context.AfterCommit.Add(() => JobChains.DeleteAbandoned(storage, connection, chainId, jobId, generation));
+        }
     }
 
     /// <inheritdoc />
@@ -180,15 +297,40 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // A job being created: its chain is recorded once every step is. And without work after the commit (the
-        // transaction is the caller's), the next state change does it.
-        if (context.OldStateName == null || context.AfterCommit == null)
+        // A job being created: its chain is recorded once every step is
+        if (context.OldStateName == null)
         {
             return;
         }
 
-        // Only with the parameters at hand: this runs at every state change of every job
+        // A step put back into a state in which its job expires goes on expiring when it was to: the retention
+        // filters, which ran before, would keep it for a whole retention from now, as a job that just finished
+        if (context.NewState is JobChains.RestoredState { ExpireAt: { } expireAt } && context.JobExpires)
+        {
+            TimeSpan left = expireAt - JobClock.UtcNow;
+            context.JobExpirationTimeout = left > JobChains.RestoredState.MinLifetime ? left : JobChains.RestoredState.MinLifetime;
+        }
+
         IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
+
+        if (parameters != null && parameters.TryGetValue(JobChains.ChainRetryParameter, out string? retry) && !string.IsNullOrEmpty(retry))
+        {
+            KeepRetryMarkerWhileHeld(context, transaction);
+        }
+
+        // Without work after the commit (the transaction is the caller's), the next state change does the rest
+        if (context.AfterCommit == null)
+        {
+            return;
+        }
+
+        // A step that leaves the state it had finished in moves its chain on: a server looks at the chain soon
+        if (JobChains.LeavesFinishedState(context.OldStateName, context.NewState))
+        {
+            JobChains.LookSoonAfterCommit(context, parameters);
+        }
+
+        // Only with the parameters at hand: this runs at every state change of every job
         if (parameters == null || !parameters.TryGetValue(JobChains.ChainIdParameter, out string? serialized))
         {
             return;
@@ -233,10 +375,53 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
     }
 
-    private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey, out TimeSpan holdDelay)
+    /// <summary>
+    /// The note of a retry stays on a job only while the job goes from the retry's hold towards a worker: between
+    /// the Scheduled and the Enqueued state. Any other state change takes it off, so it never decides for a job
+    /// that somebody deleted, requeued or finished since. A note on a job that isn't in one of the two states was
+    /// never followed by a hold, or was left behind: it is stale whatever becomes of this state change, and goes
+    /// at once. A note on a job that leaves the two states goes with the state change, and stays when that fails.
+    /// </summary>
+    private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction)
+    {
+        // The state that holds the step wrote the note, also over an older one
+        if (context.NewState is JobChains.RetryHold || HeldNow.TryGetValue(context.BackgroundJob, out _))
+        {
+            return;
+        }
+
+        bool wasHeld = IsOnTheWayToAWorker(context.OldStateName);
+        if (wasHeld && IsOnTheWayToAWorker(context.NewState.Name))
+        {
+            return;
+        }
+
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, transaction, context.AfterCommit, context.BackgroundJob.Id, beforeCommit: !wasHeld);
+    }
+
+    private static bool IsOnTheWayToAWorker(string? stateName)
+    {
+        return ScheduledState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase) ||
+               EnqueuedState.StateName.Equals(stateName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Verdict Check(
+        JobStorage storage,
+        IStorageConnection connection,
+        BackgroundJob job,
+        string chainId,
+        string stepKey,
+        bool quietly,
+        JobChains.RetryMarker? retry,
+        out TimeSpan holdDelay)
     {
         holdDelay = TimeSpan.Zero;
-        JobChains.StepRecord record = JobChains.ReadStep(storage, connection, chainId, stepKey);
+        int? generation = null;
+
+        // With the note of a retry, the record's generation decides too: both are read in one go
+        JobChains.StepRecord record = retry == null
+            ? JobChains.ReadStep(storage, connection, chainId, stepKey)
+            : JobChains.ReadStepAndGeneration(connection, chainId, stepKey, out generation);
 
         if (record.Lease is { } lease)
         {
@@ -245,6 +430,17 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             DateTime now = JobChains.StorageUtcNow(storage, connection);
             if (lease.IsLive(now))
             {
+                // A chain that is being created, for a moment only: its first step goes back to its queue as it
+                // is. Not a chain that is being retried or replaced (its record lists steps), which lasts longer
+                // and has jobs of the old and of the new steps coming due; and not when the lease began in the
+                // future, by the clock it is read with: then the clocks disagree, and nothing bounds the wait.
+                TimeSpan lasted = now - lease.Since;
+                if (quietly && !record.HasSteps && lasted >= TimeSpan.Zero && lasted < QuietTime)
+                {
+                    holdDelay = GiveBackPause(lasted);
+                    return Verdict.GiveBack;
+                }
+
                 holdDelay = HoldDelay(lease, now);
                 return Verdict.Wait;
             }
@@ -253,6 +449,14 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             {
                 Logger.Warn($"The record of chain '{chainId}' says the chain is being changed until {lease.Until:u}, much later than a change is ever announced for: it is taken for damaged, and the chain isn't held for it.");
             }
+        }
+
+        // Nobody is changing the chain (any more), and its record is the one the retry that held this step
+        // started from: that retry was never recorded. Had it been, the generation would be past it; and a record
+        // that is gone, or was written anew, decides as for any step.
+        if (retry != null && record.HasSteps && generation == retry.Generation)
+        {
+            return Verdict.PutBack;
         }
 
         if (string.Equals(record.JobId, job.Id, StringComparison.Ordinal))
@@ -272,11 +476,12 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return Verdict.NotRecorded;
         }
 
-        // A record outlives the steps it lists by RecordRetention at least: without one, a job that old is a step
-        // of a chain whose record expired, and runs as it always did. Only a job that was listed once: it is
-        // marked when the record that lists it is written, so a job of a chain that was never completely created
-        // (scheduled far ahead, say, by a client that stopped) doesn't run for being old.
-        if (JobClock.UtcNow - job.CreatedAt > JobChain.RecordRetention && IsMarkedRecorded(job, connection))
+        // A record outlives the steps it lists by the retention it was written with at least: without one, a job
+        // that old is a step of a chain whose record expired, and runs as it always did. Only a job that was
+        // listed once: it is marked when the record that lists it is written, so a job of a chain that was never
+        // completely created (scheduled far ahead, say, by a client that stopped) doesn't run for being old. The
+        // mark says that retention, so this process's own setting doesn't decide for a record another one wrote.
+        if (JobChains.MarkedRetention(ReadMark(job, connection)) is { } retention && JobClock.UtcNow - job.CreatedAt > retention)
         {
             return Verdict.Run;
         }
@@ -309,11 +514,24 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         return delay;
     }
 
-    private static bool IsMarkedRecorded(BackgroundJob job, IStorageConnection connection)
+    // As long as the creation has lasted so far, within bounds: the step is looked at again after about twice
+    // the time, so a creation that takes a few milliseconds costs one or two looks, and one that takes seconds a
+    // few each second until QuietTime has passed
+    private static TimeSpan GiveBackPause(TimeSpan lasted)
+    {
+        return lasted < MinGiveBackPause ? MinGiveBackPause : lasted > MaxGiveBackPause ? MaxGiveBackPause : lasted;
+    }
+
+    private static string? ReadMark(BackgroundJob job, IStorageConnection connection)
+    {
+        return ReadParameter(job, connection, JobChains.ChainRecordedParameter);
+    }
+
+    private static string? ReadParameter(BackgroundJob job, IStorageConnection connection, string name)
     {
         return job.ParametersSnapshot != null
-            ? job.ParametersSnapshot.ContainsKey(JobChains.ChainRecordedParameter)
-            : !string.IsNullOrEmpty(connection.GetJobParameter(job.Id, JobChains.ChainRecordedParameter));
+            ? job.ParametersSnapshot.GetValueOrDefault(name)
+            : connection.GetJobParameter(job.Id, name);
     }
 
     // Twice as long at each attempt in a row, as far as this process remembers them
@@ -407,7 +625,9 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private enum Verdict
     {
         Run,
+        GiveBack,
         Wait,
+        PutBack,
         NotCurrent,
         NotRecorded,
     }

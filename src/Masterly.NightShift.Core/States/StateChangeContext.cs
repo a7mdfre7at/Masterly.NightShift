@@ -150,4 +150,11 @@ public class StateChangeContext
     /// the job up since (see <see cref="StaleJobFilter"/>).
     /// </summary>
     internal string? LeaseHolder { get; init; }
+
+    /// <summary>
+    /// Set by a worker for the state change that moves a fetched job to Processing: lets an election filter have
+    /// the job put back in its queue instead, with nothing stored (see <see cref="JobGiveBack"/>). <c>null</c> for
+    /// every other state change. Not honoured with a transaction of the caller's or with the filters disabled.
+    /// </summary>
+    internal JobGiveBack? GiveBack { get; init; }
 }

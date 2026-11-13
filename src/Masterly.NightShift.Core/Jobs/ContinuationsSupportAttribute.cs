@@ -28,6 +28,9 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 {
     internal static readonly HashSet<string> KnownFinalStates = [DeletedState.StateName, SucceededState.StateName];
 
+    /// <summary>The job parameter that lists the continuations of a job.</summary>
+    internal const string ContinuationsParameter = "Continuations";
+
     private static readonly TimeSpan AddJobLockTimeout = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ContinuationStateFetchTimeout = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ContinuationInvalidTimeout = TimeSpan.FromMinutes(15);
@@ -198,10 +201,9 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
             if (currentState != null && !_knownFinalStates.Contains(currentState.Name) &&
                 ShouldStartContinuation(currentState.Name, awaitingState.Options, addedLate: true))
             {
-                if (PushResults && FailedState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase) &&
-                    TryGetFailedException(currentState.Data, out string? failedException))
+                if (PushResults)
                 {
-                    context.Connection.SetJobParameter(context.BackgroundJob.Id, "AntecedentException", failedException);
+                    HandOver(context.Connection, context.BackgroundJob.Id, currentState);
                 }
 
                 context.CandidateState = awaitingState.NextState;
@@ -212,22 +214,7 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
 
                 if (PushResults && startImmediately)
                 {
-                    if (SucceededState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (currentState.Data.TryGetValue("Result", out string? antecedentResult))
-                        {
-                            context.Connection.SetJobParameter(context.BackgroundJob.Id, "AntecedentResult", antecedentResult);
-                        }
-                    }
-                    else if (DeletedState.StateName.Equals(currentState.Name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (!currentState.Data.TryGetValue("Exception", out string? antecedentException))
-                        {
-                            antecedentException = JobParameterInjectionFilter.DefaultException;
-                        }
-
-                        context.Connection.SetJobParameter(context.BackgroundJob.Id, "AntecedentException", antecedentException);
-                    }
+                    HandOver(context.Connection, context.BackgroundJob.Id, currentState);
                 }
 
                 context.CandidateState = startImmediately
@@ -396,6 +383,37 @@ public class ContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilt
         }
 
         return currentState;
+    }
+
+    /// <summary>
+    /// Hands the outcome of a parent to a continuation that is about to start, from the parent's stored state: the
+    /// result of a parent that succeeded (<c>AntecedentResult</c>), the exception of one that was deleted or failed
+    /// (<c>AntecedentException</c>). For a continuation started after its parent finished: one added late, or one
+    /// that was never told to start and is started by a server later.
+    /// </summary>
+    internal static void HandOver(IStorageConnection connection, string continuationId, StateData parent)
+    {
+        if (SucceededState.StateName.Equals(parent.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            if (parent.Data.TryGetValue("Result", out string? antecedentResult))
+            {
+                connection.SetJobParameter(continuationId, "AntecedentResult", antecedentResult);
+            }
+        }
+        else if (DeletedState.StateName.Equals(parent.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!parent.Data.TryGetValue("Exception", out string? antecedentException))
+            {
+                antecedentException = JobParameterInjectionFilter.DefaultException;
+            }
+
+            connection.SetJobParameter(continuationId, "AntecedentException", antecedentException);
+        }
+        else if (FailedState.StateName.Equals(parent.Name, StringComparison.OrdinalIgnoreCase) &&
+                 TryGetFailedException(parent.Data, out string? failedException))
+        {
+            connection.SetJobParameter(continuationId, "AntecedentException", failedException);
+        }
     }
 
     // A failed parent's exception, as [FromException] reads it

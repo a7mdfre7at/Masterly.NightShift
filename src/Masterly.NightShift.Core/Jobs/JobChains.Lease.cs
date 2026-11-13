@@ -192,7 +192,8 @@ public static partial class JobChains
                     }
 
                     transaction.RemoveFromSet(SetKey, _chainId);
-                    transaction.RemoveFromSet(WatchSetKey, _chainId);
+                    transaction.RemoveFromSet(DueSetKey, _chainId);
+                    transaction.RemoveFromSet(ExpirySetKey, _chainId);
                 }
 
                 transaction.Commit();

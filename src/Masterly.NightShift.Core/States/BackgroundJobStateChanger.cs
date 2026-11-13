@@ -49,6 +49,11 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
 
     public IState? ChangeState(StateChangeContext context)
     {
+        // Only where everything written here can be dropped (the transaction is this method's own) and the
+        // filters run: a filter that asks otherwise is told no, and holds the job another way
+        JobGiveBack? giveBack = context.Transaction == null && !context.DisableFilters ? context.GiveBack : null;
+        giveBack?.Reset();
+
         // To ensure that job state will be changed only from one of the
         // specified states, we need to ensure that other users/workers
         // are not able to change the state of the job during the
@@ -148,7 +153,8 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                         context.CustomData)
                     {
                         // Only when the commit happens here; a transaction passed in is committed later by its owner
-                        AfterCommit = afterCommit = context.Transaction == null ? new PostCommitActions() : null
+                        AfterCommit = afterCommit = context.Transaction == null ? new PostCommitActions() : null,
+                        GiveBack = giveBack
                     };
 
                     // State changing process can fail due to an exception in state filters themselves,
@@ -161,24 +167,30 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     IStateMachine stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
                     appliedState = stateMachine.ApplyState(applyContext);
 
-                    if (context.CompleteJob != null)
+                    // The first election filter had the job given back to its queue (see JobGiveBack): the
+                    // transaction is dropped, the job isn't acknowledged, and its state is what it was. The lock
+                    // is released before the worker waits.
+                    if (giveBack is not { Requested: true })
                     {
-                        if (transaction is JobStorageTransaction jobStorageTransaction)
+                        if (context.CompleteJob != null)
                         {
-                            jobStorageTransaction.RemoveFromQueue(context.CompleteJob);
+                            if (transaction is JobStorageTransaction jobStorageTransaction)
+                            {
+                                jobStorageTransaction.RemoveFromQueue(context.CompleteJob);
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Storage transaction class must inherit the " + nameof(JobStorageTransaction) + " class to use transactional acknowledge");
+                            }
                         }
-                        else
+
+                        if (context.Transaction == null)
                         {
-                            throw new InvalidOperationException("Storage transaction class must inherit the " + nameof(JobStorageTransaction) + " class to use transactional acknowledge");
+                            transaction.Commit();
                         }
-                    }
 
-                    if (context.Transaction == null)
-                    {
-                        transaction.Commit();
+                        context.ProcessedJob = backgroundJob;
                     }
-
-                    context.ProcessedJob = backgroundJob;
                 }
             }
         }
@@ -188,6 +200,13 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
             // retried state change wouldn't do it again
             afterCommit?.RunAfterFailure();
             throw;
+        }
+
+        if (giveBack is { Requested: true })
+        {
+            // Nothing was committed: only the work about something already stored on its own runs
+            afterCommit?.RunAfterFailure();
+            return null;
         }
 
         // Not reached when applying or committing threw, so a retried state change runs them once. Run after
