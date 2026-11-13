@@ -30,6 +30,11 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     private readonly SqlServerStorage _storage;
     private readonly SqlServerConnection _connection;
 
+    // Job parameters are written before everything else, in the order of their job and name. Outside a
+    // transaction, SqlServerConnection.SetJobParameter locks the parameter's row and then reads the job's row
+    // (the foreign key of a new parameter). A transaction that locked the job's row first (a state, an expiration)
+    // and the parameter's row second would deadlock with it.
+    private readonly SortedDictionary<(long JobId, string Name), List<Func<DbConnection, DbCommand>>> _parameterCommands = new(ParameterOrder);
     private readonly SortedDictionary<long, List<Func<DbConnection, DbCommand>>> _jobCommands = [];
     private readonly SortedDictionary<string, List<Func<DbConnection, DbCommand>>> _counterCommands = [];
     private readonly SortedDictionary<string, List<Func<DbConnection, DbCommand>>> _hashCommands = [];
@@ -43,9 +48,11 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     private readonly SortedSet<string> _lockedResources = [];
 
     // A transaction that only moves jobs to Processing doesn't have to wait for the disk: if it is lost, the
-    // jobs are fetched and run again, as after any failure before their final state is stored
+    // jobs are fetched and run again, as after any failure before their final state is stored. A job parameter
+    // is not written again that way, so a transaction that writes one waits, as the write outside a transaction does
     private bool _movesToProcessing;
     private bool _hasOtherStateOrQueueChanges;
+    private bool _writesJobParameters;
 
     public SqlServerWriteOnlyTransaction([NotNull] SqlServerConnection connection)
     {
@@ -55,6 +62,12 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     }
 
     public bool Committed { get; private set; }
+
+    /// <summary>
+    /// Whether the commit may return before the transaction is on the disk, where the database allows it
+    /// (<see cref="SqlServerStorage.UseDelayedDurability"/>): only when all it does is move jobs to Processing.
+    /// </summary>
+    internal bool CommitsWithoutWaitingForTheDisk => _movesToProcessing && !_hasOtherStateOrQueueChanges && !_writesJobParameters;
 
     public override void Commit()
     {
@@ -93,7 +106,8 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     }
 
     // Small transactions that take no locks, such as the first state of a new job. A transaction with locks
-    // stays on its own: merged with others it would hold them longer and in an order nobody chose.
+    // stays on its own: merged with others it would hold them longer and in an order nobody chose. A job
+    // parameter takes no such lock, only its row, like a state: a transaction that writes one can be merged.
     private bool CanCommitTogether()
     {
         if (_storage.Options.MaxConcurrentWriters <= 0 ||
@@ -103,12 +117,12 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
             _lockedResources.Count > 0 ||
             _lockCommands.Count > 0 ||
             _acquiredLocks.Count > 0 ||
-            (_movesToProcessing && !_hasOtherStateOrQueueChanges))
+            CommitsWithoutWaitingForTheDisk)
         {
             return false;
         }
 
-        int commandCount = Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
+        int commandCount = Count(_parameterCommands) + Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
             Count(_listCommands) + Count(_setCommands) + Count(_queueCommands);
 
         return commandCount is > 0 and <= MaxCommandsToCommitTogether;
@@ -126,6 +140,21 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
             try
             {
+                // The job parameters of every transaction first, in one order, as in a transaction on its own
+                SortedDictionary<(long JobId, string Name), List<Func<DbConnection, DbCommand>>> parameterCommands = new(ParameterOrder);
+                foreach (SqlServerWriteOnlyTransaction transaction in transactions)
+                {
+                    foreach (KeyValuePair<(long JobId, string Name), List<Func<DbConnection, DbCommand>>> pair in transaction._parameterCommands)
+                    {
+                        foreach (Func<DbConnection, DbCommand> command in pair.Value)
+                        {
+                            AddCommand(parameterCommands, pair.Key, command);
+                        }
+                    }
+                }
+
+                CreateCommands(parameterCommands, connection, commands);
+
                 foreach (SqlServerWriteOnlyTransaction transaction in transactions)
                 {
                     CreateCommands(transaction._jobCommands, connection, commands);
@@ -207,6 +236,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                     .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
             }
 
+            AppendBatch(ctx._parameterCommands, commandBatch);
             AppendBatch(ctx._jobCommands, commandBatch);
             AppendBatch(ctx._counterCommands, commandBatch);
             AppendBatch(ctx._hashCommands, commandBatch);
@@ -259,7 +289,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
 
         // A large transaction, such as the states of a group of jobs, is cheaper as a batch of commands
         int commandCount = _lockedResources.Count + _lockCommands.Count +
-            Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
+            Count(_parameterCommands) + Count(_jobCommands) + Count(_counterCommands) + Count(_hashCommands) +
             Count(_listCommands) + Count(_setCommands) + Count(_queueCommands);
 
         if (commandCount > MaxCommandsInOneCommand)
@@ -281,6 +311,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                         .AddParameter("@resource", SqlServerLimits.GetLockResource(lockedResource), DbType.String, size: SqlServerLimits.LockResourceLength));
                 }
 
+                CreateCommands(ctx._parameterCommands, connection, commands);
                 CreateCommands(ctx._jobCommands, connection, commands);
                 CreateCommands(ctx._counterCommands, connection, commands);
                 CreateCommands(ctx._hashCommands, connection, commands);
@@ -336,7 +367,7 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
                     releaseResults.Add(new KeyValuePair<DbParameter, string>(result, lockCommand.Item3));
                 }
 
-                text.Append(storage.UseDelayedDurability && ctx._movesToProcessing && !ctx._hasOtherStateOrQueueChanges
+                text.Append(storage.UseDelayedDurability && ctx.CommitsWithoutWaitingForTheDisk
                     ? "commit tran with (delayed_durability = on);"
                     : "commit tran;");
                 merged.CommandText = text.ToString();
@@ -409,6 +440,13 @@ internal sealed class SqlServerWriteOnlyTransaction : JobStorageTransaction
     }
 
     private static readonly ConcurrentDictionary<(string Text, int Index), string> RenamedTexts = new();
+
+    // By job, then by name. Names that differ only in case share an entry, so that on a database that takes them
+    // for one name (a case-insensitive collation) their writes stay in the order they were made.
+    private static readonly Comparer<(long JobId, string Name)> ParameterOrder = Comparer<(long JobId, string Name)>.Create(
+        static (x, y) => x.JobId != y.JobId
+            ? x.JobId.CompareTo(y.JobId)
+            : StringComparer.OrdinalIgnoreCase.Compare(x.Name, y.Name));
 
     private static void CreateCommands<TKey>(
         SortedDictionary<TKey, List<Func<DbConnection, DbCommand>>> collection,
@@ -547,6 +585,57 @@ $@"update J set ExpireAt = NULL from [{schemaName}].Job J with (forceseek) where
 
         AddCommand(_jobCommands, longId, batch => batch.Create(query)
             .AddParameter("@id", longId, DbType.Int64));
+    }
+
+    public override void SetJobParameter(string jobId, string name, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(jobId);
+        ArgumentNullException.ThrowIfNull(name);
+        SqlServerLimits.EnsureJobParameterNameFits(name);
+
+        // The upsert of SqlServerConnection.SetJobParameter: an update, an insert when there was nothing to update,
+        // and the update again when another session inserted the parameter in between. What differs is what a
+        // transaction needs. XACT_ABORT is off while it runs, or the duplicate key would end the transaction, and
+        // on again after it, for the commands that follow in the same command. Any other error is thrown again
+        // with THROW, which ends the command: after RAISERROR the commands that follow, and the commit, would run.
+        // And no variable is declared, as a command may hold this text several times.
+        //
+        // The parameter of a job that doesn't exist (any more) is not written, and the rest of the transaction is:
+        // the job expired or was purged, which is no reason to lose a state change or a chain's record. So the
+        // insert looks for the job, a read of the row the foreign key reads anyway, and a job deleted between that
+        // read and the insert (the foreign key's error, 547) is skipped like one that was gone before.
+        string query = _storage.GetQueryFromTemplate(static schemaName => $"""
+            set xact_abort off;
+            begin try
+              update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
+              if @@ROWCOUNT = 0
+                insert into [{schemaName}].JobParameter (JobId, Name, Value)
+                select @jobId, @name, @value
+                where exists (select * from [{schemaName}].Job with (forceseek) where Id = @jobId);
+            end try
+            begin catch
+              if ERROR_NUMBER() not in (2601, 2627, 547)
+              begin
+                set xact_abort on;
+                throw;
+              end
+              if ERROR_NUMBER() <> 547
+                update [{schemaName}].JobParameter set Value = @value where JobId = @jobId and Name = @name;
+            end catch
+            set xact_abort on;
+            """);
+
+        if (!SqlServerConnection.TryParseJobId(jobId, out long longId))
+        {
+            return;
+        }
+
+        _writesJobParameters = true;
+
+        AddCommand(_parameterCommands, (longId, name), batch => batch.Create(query)
+            .AddParameter("@jobId", longId, DbType.Int64)
+            .AddParameter("@name", name, DbType.String, size: SqlServerLimits.JobParameterNameLength)
+            .AddParameter("@value", (object?)value ?? DBNull.Value, DbType.String, size: -1));
     }
 
     public override void SetJobState(string jobId, IState state)

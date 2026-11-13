@@ -13,4 +13,10 @@ public class SqlServerConformanceFacts : StorageConformanceFacts
     {
         return new SqlServerStorage(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions { PrepareSchemaIfNecessary = false });
     }
+
+    protected override Action<IWriteOnlyTransaction> PrepareWriteThatFailsTheCommit()
+    {
+        // A state for a job that doesn't exist breaks the foreign key
+        return static x => x.SetJobState("987654321", new EnqueuedState());
+    }
 }

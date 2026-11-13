@@ -134,6 +134,170 @@ public abstract class StorageConformanceFacts : IDisposable
     }
 
     [Fact]
+    public void SetJobParameter_InATransaction_IsNotWritten_WhenTheTransactionIsNotCommitted()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        string id = CreateJob("x");
+
+        using (IStorageConnection connection = Storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            ((JobStorageTransaction)transaction).SetJobParameter(id, "Owner", "tests");
+            ((JobStorageTransaction)transaction).SetJobParameter(id, "Culture", "fr-FR");
+        }
+
+        Assert.Null(Connection(x => x.GetJobParameter(id, "Owner")));
+        Assert.Equal("en-US", Connection(x => x.GetJobParameter(id, "Culture")));
+    }
+
+    [Fact]
+    public void SetJobParameter_InATransaction_Overwrites_AndNullReadsBackAsNull()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        string id = CreateJob("x");
+        Connection(x => x.SetJobParameter(id, "Retries", "1"));
+        Connection(x => x.SetJobParameter(id, "Cleared", "value"));
+
+        Write(x =>
+        {
+            JobStorageTransaction transaction = (JobStorageTransaction)x;
+
+            // A parameter the job was created with, one set later, and one written twice by this transaction
+            transaction.SetJobParameter(id, "Culture", "fr-FR");
+            transaction.SetJobParameter(id, "Retries", "2");
+            transaction.SetJobParameter(id, "Twice", "first");
+            transaction.SetJobParameter(id, "Twice", "second");
+            transaction.SetJobParameter(id, "Cleared", null);
+            transaction.SetJobParameter(id, "Empty", null);
+        });
+
+        Assert.Equal("fr-FR", Connection(x => x.GetJobParameter(id, "Culture")));
+        Assert.Equal("2", Connection(x => x.GetJobParameter(id, "Retries")));
+        Assert.Equal("second", Connection(x => x.GetJobParameter(id, "Twice")));
+        Assert.Null(Connection(x => x.GetJobParameter(id, "Cleared")));
+        Assert.Null(Connection(x => x.GetJobParameter(id, "Empty")));
+
+        // And a write outside a transaction replaces what a transaction wrote
+        Connection(x => x.SetJobParameter(id, "Twice", "third"));
+        Assert.Equal("third", Connection(x => x.GetJobParameter(id, "Twice")));
+    }
+
+    [Fact]
+    public void SetJobParameter_InATransaction_IsWrittenWithTheOtherWritesOfTheTransaction()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        string id = CreateJob("x");
+        string other = CreateJob("y");
+
+        Write(x =>
+        {
+            // The state first: a storage is free to write the parameter before it
+            x.SetJobState(id, new ScheduledState(TimeSpan.FromHours(1)));
+            x.AddToSet("with-parameter", id);
+            ((JobStorageTransaction)x).SetJobParameter(id, "Owner", "tests");
+            ((JobStorageTransaction)x).SetJobParameter(other, "Owner", "others");
+            x.IncrementCounter("with-parameter");
+        });
+
+        Assert.Equal("tests", Connection(x => x.GetJobParameter(id, "Owner")));
+        Assert.Equal("others", Connection(x => x.GetJobParameter(other, "Owner")));
+        Assert.Equal(ScheduledState.StateName, Connection(x => x.GetStateData(id))?.Name);
+        Assert.Equal([id], Connection(x => x.GetAllItemsFromSet("with-parameter")));
+        Assert.Equal(1, ExtendedConnection(x => x.GetCounter("with-parameter")));
+        Assert.Equal("en-US", Connection(x => x.GetJobParameter(id, "Culture")));
+    }
+
+    [Fact]
+    public void SetJobParameter_InATransaction_WritesAThousandParameters_OfSeveralJobs()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+
+        // More than a storage sends in one command or one round trip (SQL Server: 64 commands, 2000 parameters);
+        // the chain of a thousand steps marks every step in the transaction that records it
+        string[] ids = [CreateJob("a"), CreateJob("b"), CreateJob("c"), CreateJob("d")];
+        const int parametersPerJob = 250;
+
+        Write(x =>
+        {
+            JobStorageTransaction transaction = (JobStorageTransaction)x;
+            for (int i = 0; i < parametersPerJob; i++)
+            {
+                foreach (string id in ids)
+                {
+                    transaction.SetJobParameter(id, $"P{i:D3}", $"{id}:{i}");
+                }
+            }
+
+            x.AddToSet("with-many-parameters", "value");
+        });
+
+        foreach (string id in ids)
+        {
+            Assert.Equal($"{id}:0", Connection(x => x.GetJobParameter(id, "P000")));
+            Assert.Equal($"{id}:127", Connection(x => x.GetJobParameter(id, "P127")));
+            Assert.Equal($"{id}:249", Connection(x => x.GetJobParameter(id, "P249")));
+
+            // The parameters written here and the one the job was created with
+            Assert.Equal(parametersPerJob + 1, Storage.GetMonitoringApi().JobDetails(id)?.Properties.Count);
+        }
+
+        Assert.Equal(["value"], Connection(x => x.GetAllItemsFromSet("with-many-parameters")));
+    }
+
+    [Fact]
+    public void SetJobParameter_InATransaction_OfAJobThatDoesNotExist_IsIgnored_AndTheOtherWritesAreCommitted()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        string id = CreateJob("x");
+
+        Write(x =>
+        {
+            // A job that is gone (expired, purged) by the time the transaction is committed: its parameter has
+            // nowhere to go, and what else the transaction writes is still wanted
+            JobStorageTransaction transaction = (JobStorageTransaction)x;
+            transaction.SetJobParameter("987654321", "Owner", "nobody");
+            transaction.SetJobParameter(id, "Owner", "tests");
+            transaction.SetJobParameter("987654321", "Culture", "fr-FR");
+            x.SetJobState(id, new ScheduledState(TimeSpan.FromHours(1)));
+            x.AddToSet("with-a-missing-job", "value");
+            x.IncrementCounter("with-a-missing-job");
+        });
+
+        Assert.Null(Connection(x => x.GetJobParameter("987654321", "Owner")));
+        Assert.Null(Connection(x => x.GetJobData("987654321")));
+        Assert.Null(Storage.GetMonitoringApi().JobDetails("987654321"));
+        Assert.Equal("tests", Connection(x => x.GetJobParameter(id, "Owner")));
+        Assert.Equal(ScheduledState.StateName, Connection(x => x.GetStateData(id))?.Name);
+        Assert.Equal(["value"], Connection(x => x.GetAllItemsFromSet("with-a-missing-job")));
+        Assert.Equal(1, ExtendedConnection(x => x.GetCounter("with-a-missing-job")));
+    }
+
+    [Fact]
+    public void SetJobParameter_InATransaction_WhoseCommitFails_IsNotWritten()
+    {
+        Assert.SkipUnless(Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter), "The storage doesn't set parameters in transactions.");
+        Action<IWriteOnlyTransaction>? failing = PrepareWriteThatFailsTheCommit();
+        Assert.SkipWhen(failing == null, "No write fails the storage's commits.");
+        string id = CreateJob("x");
+        Connection(x => x.SetJobParameter(id, "Retries", "1"));
+
+        using (IStorageConnection connection = Storage.GetConnection())
+        using (IWriteOnlyTransaction transaction = connection.CreateWriteTransaction())
+        {
+            ((JobStorageTransaction)transaction).SetJobParameter(id, "Owner", "tests");
+            ((JobStorageTransaction)transaction).SetJobParameter(id, "Retries", "2");
+            transaction.AddToSet("with-parameter", "a");
+            failing(transaction);
+
+            Assert.ThrowsAny<Exception>(transaction.Commit);
+        }
+
+        Assert.Null(Connection(x => x.GetJobParameter(id, "Owner")));
+        Assert.Equal("1", Connection(x => x.GetJobParameter(id, "Retries")));
+        Assert.Empty(Connection(x => x.GetAllItemsFromSet("with-parameter")));
+    }
+
+    [Fact]
     public void SetJobState_MakesTheStateCurrent_WithItsReasonAndData()
     {
         string id = CreateJob("x");
