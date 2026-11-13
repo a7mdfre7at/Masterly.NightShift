@@ -236,17 +236,23 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
             ArgumentNullException.ThrowIfNull(stateChanger);
         }
 
-        processes.Add(new Worker(_options.Queues, performer, stateChanger).UseBackgroundPool(_options.WorkerCount, _options.WorkerThreadConfigurationAction));
+        // With deployment fencing, the workers take no job before the first check has decided whether this server
+        // is fenced. Nothing has paused the server until then, so it would run the jobs it fetched
+        DeploymentFencingProcess? fencing = DeploymentFencing.DeploymentId is { } deploymentId
+            ? new DeploymentFencingProcess(deploymentId)
+            : null;
+
+        processes.Add(UseWorkerPool(new Worker(_options.Queues, performer, stateChanger), _options.WorkerCount, fencing));
 
         // A pool of its own for [LongRunning] jobs, so they never take every worker from the short ones
         if (_options.LongRunningWorkerCount > 0)
         {
-            processes.Add(new Worker([LongRunningAttribute.Queue], performer, stateChanger).UseBackgroundPool(_options.LongRunningWorkerCount, _options.WorkerThreadConfigurationAction));
+            processes.Add(UseWorkerPool(new Worker([LongRunningAttribute.Queue], performer, stateChanger), _options.LongRunningWorkerCount, fencing));
         }
 
-        if (DeploymentFencing.DeploymentId is { } deploymentId)
+        if (fencing != null)
         {
-            processes.Add(new DeploymentFencingProcess(deploymentId).UseBackgroundPool(1));
+            processes.Add(fencing.UseBackgroundPool(1));
         }
 
         // Checks the job monitors, one server at a time across the cluster. Always added, because monitors can be
@@ -277,6 +283,21 @@ public class BackgroundJobServer : IBackgroundProcessingServer, IAsyncDisposable
         }
 
         return processes;
+    }
+
+    private IBackgroundProcessDispatcherBuilder UseWorkerPool(Worker worker, int threadCount, DeploymentFencingProcess? fencing)
+    {
+        Action<Thread>? threadConfig = _options.WorkerThreadConfigurationAction;
+        if (fencing == null)
+        {
+            return worker.UseBackgroundPool(threadCount, threadConfig);
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+
+        // The threads keep the names they have without fencing: "Worker #1"
+        return new GatedWorker(worker, fencing.Gate).UseBackgroundPool(
+            (_, threadStart) => BackgroundProcessExtensions.DefaultThreadFactory(threadCount, nameof(Worker), threadStart, threadConfig));
     }
 
     private BackgroundProcessingServerOptions GetProcessingServerOptions()

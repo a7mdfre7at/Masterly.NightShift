@@ -1,3 +1,4 @@
+using Masterly.NightShift.Server;
 using LogLevel = Masterly.NightShift.Logging.LogLevel;
 
 namespace Masterly.NightShift.Core.Tests;
@@ -946,6 +947,104 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.Equal([true, true, true, false], fenced);
     }
 
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_KeepsAWorkerFromRunning_UntilTheFirstCheckHasPausedTheFencedServer()
+    {
+        Check(new DeploymentFencingProcess("v2", 2), "new-server", 0);
+        DeploymentFencingProcess older = new("v1", 1);
+        bool? pausedWhenTheWorkerRan = null;
+        Mock<IBackgroundProcess> worker = new();
+        worker
+            .Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>()))
+            .Callback(() => pausedWhenTheWorkerRan = DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+        GatedWorker gated = new(worker.Object, older.Gate);
+
+        // The server is stopping, so the wait ends at once: a worker that didn't wait would have run
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
+        bool openBeforeTheCheck = older.Gate.IsOpen;
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+
+        bool fenced = Check(older, "old-server", 5);
+        gated.Execute(Context("old-server", CancellationToken.None));
+
+        Assert.False(openBeforeTheCheck);
+        Assert.True(fenced);
+        Assert.True(older.Gate.IsOpen);
+        Assert.True(pausedWhenTheWorkerRan);
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_StaysClosed_WhileTheFirstCheckFails_AndOpensWithTheFirstCheckThatSucceeds()
+    {
+        bool storageDown = true;
+        _storage.Connection.When(() => storageDown).Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("storage down"));
+        _storage.Hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>
+        {
+            ["Current"] = "v2",
+            ["Seen:v2"] = DeploymentFencing.FormatSeen(Now, 7, TimeSpan.FromSeconds(15)),
+            ["Seen:v1"] = DeploymentFencing.FormatSeen(Now, 3, TimeSpan.FromSeconds(15)),
+        };
+        DeploymentFencingProcess started = new("v1");
+        Mock<IBackgroundProcess> worker = new();
+        GatedWorker gated = new(worker.Object, started.Gate);
+
+        // The check reads the hash, then fails: it has decided nothing, and the server isn't paused
+        Assert.Throws<InvalidOperationException>(() => Check(started, "old-server", 0));
+        bool openAfterTheFailure = started.Gate.IsOpen;
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+
+        storageDown = false;
+        bool fenced = Check(started, "old-server", 1);
+
+        Assert.False(openAfterTheFailure);
+        Assert.True(fenced);
+        Assert.True(started.Gate.IsOpen);
+        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_Opens_ForAServerOfTheCurrentDeployment_AndStaysOpen()
+    {
+        DeploymentFencingProcess current = new("v1");
+        Mock<IBackgroundProcess> worker = new();
+        GatedWorker gated = new(worker.Object, current.Gate);
+
+        Assert.False(Check(current, "server-1", 0));
+        gated.Execute(Context("server-1", CancellationToken.None));
+
+        // Fenced later by a newer deployment: the pause holds its jobs from then on, the gate isn't closed again
+        Check(new DeploymentFencingProcess("v2"), "new-server", 5);
+        Assert.True(Check(current, "server-1", 15));
+        gated.Execute(Context("server-1", CancellationToken.None));
+
+        Assert.True(current.Gate.IsOpen);
+        Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("new-server"));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Exactly(2));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the log provider")]
+    public void Gate_SaysOnce_ThatTheServerWaitsForItsFirstCheck()
+    {
+        RecordingLogProvider recording = new();
+        DeploymentFencingGate gate = new("v1");
+
+        using (recording.Use())
+        {
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
+            gate.Open();
+            gate.Wait(Context("server-1", CancellationToken.None));
+        }
+
+        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries);
+        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.Equal(
+            "Server 'server-1' takes no jobs until its first deployment check has decided whether deployment 'v1' is fenced.",
+            entry.Message);
+    }
+
     [Fact, StaticLock]
     public void UseDeploymentFencing_WithAnOrder_SetsBoth_AndTheProcessTakesTheOrder()
     {
@@ -1011,6 +1110,18 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     private Dictionary<string, string> Hash => _storage.Hashes[DeploymentFencing.HashKey];
+
+    private BackgroundProcessContext Context(string serverId, CancellationToken stoppingToken)
+    {
+        return new BackgroundProcessContext(
+            serverId,
+            _storage.Object,
+            new Dictionary<string, object>(),
+            Guid.NewGuid(),
+            stoppingToken,
+            CancellationToken.None,
+            CancellationToken.None);
+    }
 
     // One check of a server, so many seconds after the start. The server's wall clock may be ahead of or behind the
     // others, and its monotonic clock counts the same seconds from an origin of its own

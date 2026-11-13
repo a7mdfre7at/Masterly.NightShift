@@ -33,6 +33,10 @@ namespace Masterly.NightShift;
 /// processor time) therefore never takes over: after three such checks in a row it logs a warning that says so,
 /// and repeats it at most once an hour. Raising <see cref="CheckInterval"/>, and <see cref="TakeOverAfter"/> with
 /// it, or making the storage answer faster resolves it.</para>
+/// <para>A server takes no job before its first check: its workers wait until the check has decided whether the
+/// server's deployment is fenced and, when it is, has paused the server. Without that, a server of a fenced
+/// deployment that starts would run the jobs it fetched before its first check. While the first check fails (the
+/// storage is down), the server keeps taking no jobs, logs a warning, and tries the check again.</para>
 /// <para>A deployment order (<see cref="DeploymentOrder"/>, the second argument of <c>UseDeploymentFencing</c>)
 /// tells versions apart: a number that grows with each deploy, kept in the <c>Order:{id}</c> field. When this
 /// deployment and the current one both have an order, the higher one wins: a deployment with a higher order takes
@@ -273,6 +277,9 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     // The newer deployment this one was last reported fenced by, so the warning is logged once, not at every check
     private string? _fencedByNewer;
 
+    // Whether the warning that the server takes no jobs because its first check failed was logged
+    private bool _warnedOfFirstCheck;
+
     // What the warnings about the configuration were last logged for, so each is logged once
     private (long? Given, long? Stored)? _warnedOrders;
     private (TimeSpan TakeOverAfter, TimeSpan CheckInterval)? _warnedTimes;
@@ -291,16 +298,41 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
     /// <summary>The order this server was started with. The one that applies is the highest given to the id.</summary>
     public long? DeploymentOrder { get; } = deploymentOrder;
 
+    /// <summary>
+    /// Opened by the first check that went all the way. The workers of the server wait for it before they take
+    /// their first job, see <see cref="GatedWorker"/>.
+    /// </summary>
+    public DeploymentFencingGate Gate { get; } = new(deploymentId);
+
     public void Execute(BackgroundProcessContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        using (IStorageConnection connection = context.Storage.GetConnection())
+        try
         {
+            using IStorageConnection connection = context.Storage.GetConnection();
             Check(connection, context.ServerId, JobClock.UtcNow, Stopwatch.GetElapsedTime(Started));
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            WarnOnceThatTheServerTakesNoJobs(context);
+            throw;
         }
 
         context.Wait(DeploymentFencing.CheckInterval);
+    }
+
+    // The error itself is logged by the loop that runs this process and tries it again. This says what it means
+    // while no check has succeeded yet: the workers wait, so nothing runs on a server that may be fenced
+    private void WarnOnceThatTheServerTakesNoJobs(BackgroundProcessContext context)
+    {
+        if (Gate.IsOpen || _warnedOfFirstCheck || context.IsStopping)
+        {
+            return;
+        }
+
+        _warnedOfFirstCheck = true;
+        Logger.Warn($"The first deployment check of server '{context.ServerId}' failed, so it isn't known whether deployment '{DeploymentId}' is fenced: the server takes no jobs until a check succeeds. The check is tried again.");
     }
 
     /// <summary>Records this deployment, claims the cluster when it may, and pauses or resumes the server. Returns whether it is fenced.</summary>
@@ -397,6 +429,9 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
         // Only a check that went all the way counts: one that failed leaves the gap open
         _lastCheck = uptime;
+
+        // A fenced server is paused by now, so the jobs its workers fetch from here on are handed back
+        Gate.Open();
         return fenced;
     }
 
@@ -724,4 +759,54 @@ internal sealed class DeploymentFencingProcess(string deploymentId, long? deploy
 
     // Since: this server's monotonic time when it first read the value
     private readonly record struct Observation(string Value, TimeSpan Since, bool SawChange);
+}
+
+/// <summary>
+/// What the workers of a server with deployment fencing wait for before they take their first job: the first check
+/// of the server, which decides whether its deployment is fenced and pauses the server when it is. Until then
+/// nothing has paused the server, so a worker that fetched a job would run it, also on a server of a deployment
+/// that a newer one has replaced. Once open it stays open: later checks pause and resume the server.
+/// </summary>
+internal sealed class DeploymentFencingGate(string deploymentId)
+{
+    private static readonly ILog Logger = LogProvider.GetLogger(typeof(DeploymentFencingGate));
+
+    private readonly TaskCompletionSource _decided = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _waitLogged;
+
+    public bool IsOpen => _decided.Task.IsCompleted;
+
+    public void Open() => _decided.TrySetResult();
+
+    /// <summary>Returns once the gate is open.</summary>
+    /// <exception cref="OperationCanceledException">The server is stopping.</exception>
+    public void Wait(BackgroundProcessContext context)
+    {
+        if (IsOpen)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _waitLogged, 1) == 0)
+        {
+            Logger.Debug($"Server '{context.ServerId}' takes no jobs until its first deployment check has decided whether deployment '{deploymentId}' is fenced.");
+        }
+
+        _decided.Task.Wait(context.StoppingToken);
+    }
+}
+
+/// <summary>
+/// A worker of a server with deployment fencing: it fetches nothing before the server's first check has decided,
+/// see <see cref="DeploymentFencingGate"/>. After that it costs one read of a flag for each job.
+/// </summary>
+internal sealed class GatedWorker(IBackgroundProcess worker, DeploymentFencingGate gate) : IBackgroundProcess
+{
+    public void Execute(BackgroundProcessContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        gate.Wait(context);
+        worker.Execute(context);
+    }
 }
