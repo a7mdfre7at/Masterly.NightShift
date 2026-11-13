@@ -37,11 +37,13 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
     public const string HeldQueueParameter = "HeldQueue";
 
     /// <summary>
-    /// The job parameter with the time a job was held because the server that fetched it was paused on its own or
-    /// fenced: the milliseconds so far, and, while such a hold lasts, a <c>|</c> and the Unix time in milliseconds
-    /// at which it began. <see cref="PerformContext.Lateness"/> leaves that time out, so
-    /// <see cref="SkipIfLateAttribute"/> and <c>SkipAfter</c> don't skip a job for it. The holds of the
-    /// cluster-wide switch and of a paused queue aren't kept: they count as lateness.
+    /// The job parameter with the times a job was held because the server that fetched it was paused on its own or
+    /// fenced: the holds, oldest first and separated by <c>;</c>, each the Unix time in milliseconds at which it
+    /// began, a <c>-</c>, and the time it ended, missing while it lasts. A hold ends when the job leaves the
+    /// Scheduled state it was held in, whatever state follows. <see cref="PerformContext.Lateness"/> leaves out the
+    /// part of the holds after the moment the job was meant to run, so <see cref="SkipIfLateAttribute"/> and
+    /// <c>SkipAfter</c> don't skip a job for it. The holds of the cluster-wide switch and of a paused queue aren't
+    /// kept: they count as lateness.
     /// </summary>
     public const string ServerHoldParameter = "ServerHold";
 
@@ -53,28 +55,35 @@ public sealed class DrainModeFilter : JobFilterAttribute, IElectStateFilter
         if (context.CandidateState is EnqueuedState enqueuedState)
         {
             HeldQueue.Restore(context, enqueuedState);
-            ServerHold.End(context);
-            return;
         }
 
-        if (context.CandidateState is not ProcessingState processingState)
+        string? reason = null;
+        string? queue = null;
+        bool byPausedServer = false;
+        if (context.CandidateState is ProcessingState processingState)
         {
-            return;
+            reason = GetHoldReason(context, processingState, out queue, out byPausedServer);
         }
 
-        string? reason = GetHoldReason(context, processingState, out string? queue, out bool byPausedServer);
+        // Only this server is in the way: the others could have run the job, so it isn't late for the hold. In
+        // every other case the job leaves the Scheduled state a paused server may have held it in, whatever
+        // follows: enqueued again, moved by its schedule policy (which runs before this filter), deleted, taken by
+        // a server, or held by the cluster-wide switch
+        if (byPausedServer)
+        {
+            ServerHold.Begin(context);
+        }
+        else
+        {
+            ServerHold.End(context);
+        }
+
         if (reason == null)
         {
             return;
         }
 
         HeldQueue.Remember(context, queue);
-
-        // Only this server is in the way: the others could have run the job, so it isn't late for the hold
-        if (byPausedServer)
-        {
-            ServerHold.Begin(context);
-        }
 
         context.CandidateState = new ScheduledState(DrainMode.HoldInterval) { Reason = reason };
     }
