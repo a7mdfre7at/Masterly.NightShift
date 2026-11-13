@@ -260,7 +260,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         // A step whose method can't be loaded, held for a retry: it waits while the retry is prepared, and is put
         // back when the retry was abandoned, as any held step. Otherwise the retry is recorded, or the record
         // lists another job: the step fails, as a job that can't be loaded does, and takes its note with it
-        if (!processing && verdict is not (Verdict.PutBack or Verdict.Wait or Verdict.GiveBack))
+        if (!processing && verdict is not (Verdict.PutBack or Verdict.Wait or Verdict.LookAgain))
         {
             verdict = Verdict.Run;
         }
