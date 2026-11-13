@@ -468,11 +468,13 @@ public static partial class JobChains
                 return ChainPlacement.Leave;
             }
 
-            TimeSpan timeToLive = expiring.GetHashTtl(GetKey(chainId));
+            string key = GetKey(chainId);
+            TimeSpan timeToLive = expiring.GetHashTtl(key);
 
-            // A record that doesn't expire (a storage answers so with -1 second) would stay for good: it is given
-            // the time a record is kept, and the chain leaves the list after that
-            if (timeToLive == NoTimeToLive)
+            // A record that doesn't expire would stay for good: it is given the time a record is kept, and the
+            // chain leaves the list after that. A storage answers -1 second for it, and also for a record that
+            // is gone, which this one may be since it was read: only one that is still there counts.
+            if (timeToLive == NoTimeToLive && expiring.GetHashCount(key) > 0)
             {
                 DateTime? expireAt = ExtendRecord(storage, connection, chainId, now, recorded: true);
                 return new ChainPlacement(ExpirySetKey, expireAt.HasValue ? expireAt.Value + ExpiryLookDelay : now + MaxWatchInterval);

@@ -484,6 +484,28 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_UnlistsAChain_WhoseRecordExpiredWhileItWasLookedAt()
+    {
+        // The storage removes the record between the read of the chain and the read of its time to live, and then
+        // answers as for a record that doesn't expire: the chain isn't kept for it
+        Line("c", TimeSpan.FromDays(31), ("a", Finished(SucceededState.StateName, TimeSpan.FromDays(31))));
+        Set(DueSet).Clear();
+        Set(ExpirySet).Add((1, "c"));
+        _connection.Setup(x => x.GetHashTtl(JobChains.GetKey("c")))
+            .Returns(() =>
+            {
+                _hashes.Remove(JobChains.GetKey("c"));
+                return TimeSpan.FromSeconds(-1);
+            });
+
+        Maintain();
+
+        Assert.Empty(Listed());
+        Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Set(DueSet));
+    }
+
+    [Fact]
     public void Maintain_LooksAgainAtAChainLeftToExpire_WhenAStepOfItRunsAgain()
     {
         // Somebody requeued a step after the chain had finished, and it failed for good: the record is kept
