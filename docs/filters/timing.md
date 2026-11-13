@@ -212,11 +212,13 @@ When the run starts more than the window after the moment the job was meant to r
 | `windowInSeconds` (constructor) | `int` | required | The same in seconds; it must be positive. |
 | `Window` | `TimeSpan` | | The window. |
 
-Related member: `SkipIfLateAttribute.CheckedParameter` (`"LateStartChecked"`).
+Related members: `SkipIfLateAttribute.CheckedParameter` (`"LateStartChecked"`) and `SkipIfLateAttribute.WaitedForPolicyParameter` (`"WaitedForPolicy"`).
 
 "Meant to run" is [`PerformContext.ScheduledFor`](../jobs/job-arguments.md#the-runs-scheduled-time-and-lateness): the time a delayed job was scheduled for, or the occurrence of a recurring job. A continuation (a fan-in continuation or a chain step too) is measured from the moment its parents let it leave the Awaiting state, not from its creation, so the time its parents waited and ran doesn't make it late. Any other job without it, such as a fire-and-forget job, is measured from its creation, so the attribute also skips a job that waited too long in its queue.
 
 How it works: a server filter. Just before the job method would run, it compares `PerformContext.Lateness` with the window and records the check in the `LateStartChecked` job parameter, so each job is checked once. A retry of a job that passed the check runs however late it is, and so does a job requeued by hand after it was skipped, from the dashboard or with `Requeue`. The check costs one parameter write per job that has the attribute; when that write fails, a warning is logged and the job still runs (a retry is then checked again). A job that also has a `SkipAfter` window (`RecurringJobOptions.SkipAfter` or `ScheduleOptions.SkipAfter`) is checked against the stricter of the two, and the check is recorded once.
+
+A job that is late because it waited for a [schedule policy that couldn't be evaluated](../jobs/schedule-policies.md#jobs-that-wait-for-their-policy) is skipped all the same: the window is the job's own rule, whatever made the job late. Its reason says what did, `Skipped: started 3 h late: waited for policy 'business-hours', which couldn't be evaluated`, and one warning with the policy's name is logged. The reason has at most 99 characters, so a long policy name is shortened in it. The same goes for a run of a recurring job that was due while the recurring job waited for its policy: the scheduler gives such a run the `WaitedForPolicy` job parameter, the policy's name.
 
 `SkipIfLate` and [`LatencyTimeout`](#latencytimeoutattribute) differ in what they count from: `LatencyTimeout` counts from the job's creation and checks every run, so it can't be used on a delayed or recurring job whose wait is planned; `SkipIfLate` counts from the moment the job was meant to run, and checks once.
 

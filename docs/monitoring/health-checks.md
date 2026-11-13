@@ -41,7 +41,7 @@ app.Run();
 
 ### The health check
 
-`AddNightShift()` registers a check named `nightshift`. Each run makes one storage query, the list of servers with their last heartbeat, and compares the heartbeats with `HeartbeatTimeout` (one minute by default; servers send one every 30 seconds).
+`AddNightShift()` registers a check named `nightshift`. Each run makes one storage query, the list of servers with their last heartbeat, and compares the heartbeats with `HeartbeatTimeout` (one minute by default; servers send one every 30 seconds). The heartbeats are compared with the storage's clock where the storage has one, as the dashboard's pages do (see [Which clock](#which-clock)): one more read per run.
 
 | Scope | Healthy when | Unhealthy (or `failureStatus`) when |
 |---|---|---|
@@ -97,9 +97,13 @@ The result's `Data` has the numbers: `servers` and `alive` for the cluster, `ser
 | `processing` | | Processing, a queue or a server is paused from the dashboard. |
 | `recurring` | | A recurring job is more than a minute late: its next run, or the retry the scheduler set after an error, was due more than a minute ago and nobody started it (the Recurring Jobs page marks the same jobs as late). Or a recurring job is disabled by errors (no next run, with an error). The detail lists up to five ids. When the recurring jobs can't be read, the detail says so and the error is logged. |
 
-**Cost.** The report needs the statistics, the servers, the queues and the drain-mode hash. Late recurring jobs are found from the scores of the `recurring-jobs` set, which hold each job's next run: one query for the jobs due more than a minute ago, one for the jobs without a next run, and one hash field per job without a next run, at most 500 of each. A storage that can't query a set by score (it lacks `JobStorageFeatures.ExtendedApi` or `JobStorageFeatures.Connection.BatchedGetFirstByLowest`) falls back to reading every recurring job. A report is kept for 5 seconds per storage and `ServerPossiblyAbortedThreshold` (the only option it depends on), so probes that ask every second, several Prometheus servers, `/metrics` and the dashboard share one set of queries, even when `MapNightShiftHealth`, `MapNightShiftMetrics` and the dashboard are mapped with different `DashboardOptions` objects.
+**Cost.** The report needs the statistics, the servers, the queues and the drain-mode hash. Late recurring jobs are found from the scores of the `recurring-jobs` set, which hold each job's next run: one query for the jobs due more than a minute ago, one for the jobs without a next run, and one hash field per job without a next run, at most 500 of each. A storage that can't query a set by score (it lacks `JobStorageFeatures.ExtendedApi` or `JobStorageFeatures.Connection.BatchedGetFirstByLowest`) falls back to reading every recurring job. A report is kept for 5 seconds per storage and `ServerPossiblyAbortedThreshold` (the only option it depends on), so probes that ask every second, several Prometheus servers, `/metrics` and the dashboard share one set of queries, even when `MapNightShiftHealth`, `MapNightShiftMetrics` and the dashboard are mapped with different `DashboardOptions` objects. A request served from a kept report still reads the storage's clock once, where the storage has one.
 
 `/ping` answers `pong` without touching the storage: use it for a probe that only needs to know the web app is up.
+
+### Which clock
+
+A storage with a clock of its own writes server heartbeats with it: SQL Server, Redis, MongoDB, and the Entity Framework Core storage on [a database it reads the clock of](../storage/entity-framework-core.md#the-databases-clock). `/health`, `/metrics` and the health check compare heartbeats, and the next runs of recurring jobs, with that clock, read once per request or run. So a process whose clock is ahead of the storage's doesn't report that no server is alive, and one whose clock is behind notices a stopped server on time. On a storage without a clock they use the process's clock, without asking the storage. When the storage doesn't answer for its clock, `/health` and `/metrics` make the report with the process's clock, and the health check reports that the storage did not answer.
 
 ### `MapNightShiftHealth` and `MapNightShiftMetrics`
 
@@ -163,7 +167,7 @@ builder.Services.AddHealthChecks()
 - **The process scope needs servers started by `AddNightShiftServer`.** A `BackgroundJobServer` you create yourself doesn't run the container's `IBackgroundProcess` services, and neither does `AddNightShiftServer` when you pass it your own list of additional processes. The check then reports that no server runs in this process.
 - **Before the server starts, the process check is unhealthy.** Give the liveness probe an initial delay longer than the server's start, or use a startup probe.
 - **A stopped server is not alive.** During a graceful shutdown the server stops, so the process check turns unhealthy; that is what a liveness probe should see.
-- **The checks run synchronously.** Each run makes one storage query (the server list). Probes every few seconds cost little; the dashboard's `/health` report is heavier and is cached instead.
+- **The checks run synchronously.** Each run makes one storage query (the server list) and, where the storage has a clock, one read of it. Probes every few seconds cost little; the dashboard's `/health` report is heavier and is cached instead.
 
 ## See also
 

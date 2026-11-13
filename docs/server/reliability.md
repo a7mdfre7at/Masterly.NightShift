@@ -39,6 +39,8 @@ A server that stops gracefully also puts its running jobs back, after its stop t
 
 When a job is picked up again, the worker that takes it over records itself in the job's `Lease` parameter. If the former owner wasn't dead after all (a long garbage collection, a network partition) and finishes late, its state change is refused: the job keeps the outcome of the run that replaced it, and the late result is dropped. Nothing is written for a job that was never picked up again, so normal processing costs nothing. The check reads the parameters the storage loads with the job; SQL Server loads them, on another storage the check is skipped.
 
+`StaleRestarts` and `Lease` are written in the transaction of the state change they belong to, where the storage sets job parameters in a transaction, as every storage of this project does. A state change that fails leaves the old values, and the new ones are visible only once it is committed.
+
 ## Deployment fencing
 
 During a rolling deployment, old and new servers run side by side, and an old server can pick up a job created for the new code. `UseDeploymentFencing()` keeps servers of an older deployment from taking jobs once a newer one runs:
@@ -54,6 +56,8 @@ GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3", 42); // with
 3. A server of any other deployment pauses itself, as [drain mode](drain-mode.md) pauses a server, with the reason `Fenced: deployment '...' was replaced by '...'`. Jobs it picks up are held and taken by the current servers; its running jobs finish.
 4. A deployment seen before (an old version restarted by its orchestrator, a rollback) takes over only once the current deployment has been silent for 30 seconds (`DeploymentFencing.TakeOverAfter`): no server of it has checked in for that long. So a crash-looping old server doesn't fence the new ones. To roll back on purpose, deploy with a new id.
 
+A server with fencing takes no job until its first check has succeeded: its workers wait until the check has decided whether the server's deployment is fenced and, when it is, has paused the server. So a server of a replaced deployment that starts never runs a job before it finds out. When the first check fails (the storage can't be reached), the server keeps taking no jobs, logs one warning and tries the check again. A server without fencing starts as before, with no extra storage call.
+
 A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The default id is the entry assembly's informational version, so make sure it changes with every release.
 
 ### When a deployment is silent
@@ -64,7 +68,7 @@ A server that has just started hasn't watched anything yet, so it takes the curr
 
 Silence only counts while the watching server itself was checking. When more than one and a half times `CheckInterval` passed since the start of its last check that succeeded (the storage was down, the process was suspended), the server saw nothing of that time, and the servers of the current deployment may not have been able to check either. It then drops what it watched and starts watching again, as a server that has just started does, and logs that at the information level. So after a storage outage a fenced deployment waits the whole `TakeOverAfter` again, and doesn't take over from a deployment whose servers are alive. A check that failed doesn't count as a check. A deployment never seen, or one with a higher order, still takes over at once.
 
-The time between two checks is `CheckInterval` plus the time the first of them took, the wait for the lock included. A server whose checks regularly take more than half of `CheckInterval` therefore starts watching again at every check, and never finds the current deployment silent, so it stays fenced when the servers of that deployment are gone: keep `CheckInterval` well above the time a check takes.
+The time between two checks is `CheckInterval` plus the time the first of them took, the wait for the lock included. A server whose checks regularly take more than half of `CheckInterval` therefore starts watching again at every check, and never finds the current deployment silent, so it stays fenced when the servers of that deployment are gone: keep `CheckInterval` well above the time a check takes. After three such checks in a row, a fenced server logs a warning that says it can't judge whether the current deployment is silent and won't take over while this lasts, and repeats it at most once an hour. Raise `DeploymentFencing.CheckInterval`, and `TakeOverAfter` with it, or fix the storage's latency, so that a check takes less than half a check interval.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -98,7 +102,13 @@ A server fenced because its order is lower is paused with the reason `Fenced: de
 
 The state is kept in the storage hash `nightshift:deployment`: the field `Current` names the current deployment, `Seen:{id}` holds the sign of life of each deployment and `Order:{id}` its order. A `Seen` value changes at every check: it holds the date of the check, the number of checks of the deployment so far and the check interval. Only the change counts; the date is a hint, by the clock of the server that wrote it. Checks hold the lock `lock:nightshift:deployment`.
 
-So the hash doesn't grow with every release, a check removes the fields of a deployment that isn't the current one, shows no sign of life and, by that date, was last seen more than seven days ago. Such a deployment counts as never seen when it comes back: without orders that decide, it takes over at once.
+So the hash doesn't grow with every release, a check removes the fields of a deployment that isn't the current one, shows no sign of life and, by that date, was last seen more than seven days ago. Such a deployment counts as never seen when it comes back: without orders that decide, it takes over at once. Its order is removed with its other fields and written again from the order its servers are started with, so nothing needs doing.
+
+### Limits
+
+- **A server fenced later takes jobs until its next check.** When a newer deployment becomes the current one, a running server of the older one learns it at its next check, up to `CheckInterval` later, and takes jobs until then. The jobs it started finish.
+- **Only the server's own worker pools wait for the first check:** the workers of `WorkerCount` and `LongRunningWorkerCount`. A `Worker` you add yourself as an additional process starts at once, and can run a job before the server knows whether it is fenced. Once the server is paused, the jobs such a worker picks up are held like the others.
+- **A deployment gone for more than seven days is forgotten,** as described above: it counts as never seen when it comes back.
 
 ## Starting and stopping servers from code
 
