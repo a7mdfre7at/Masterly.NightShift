@@ -17,11 +17,21 @@ namespace Masterly.NightShift;
 /// </para>
 /// <list type="bullet">
 /// <item><description>
-/// The record says the chain is being created, retried or replaced: the client that does it wrote so before it
-/// created or changed the first job, and says it again while it works. The job, listed or not, goes to the Scheduled
-/// state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time, and is checked again; that isn't a
-/// retry. The client enqueues a first step held that way as soon as the chain is recorded. A client that stops in
-/// the middle stops saying so, and two minutes later the record counts as it stands.
+/// The record says the chain is being created and lists no step yet, and that began less than
+/// <see cref="QuietTime"/> ago: the creation of a chain takes milliseconds, and a worker that is idle fetches
+/// the first step in the middle of it. Nothing is stored about the job: the worker keeps it for a moment (as long
+/// as the creation has lasted, between <see cref="MinGiveBackPause"/> and <see cref="MaxGiveBackPause"/>), gives
+/// it back to its queue, and it is fetched again, by then usually with the record that lists it. The step's
+/// history shows nothing of it. Only for a job in the Enqueued state that a worker fetched; and not where the
+/// clocks disagree about when the creation began.
+/// </description></item>
+/// <item><description>
+/// The record says the chain is being created for longer than that, or being retried or replaced: the client that
+/// does it wrote so before it created or changed the first job, and says it again while it works. The job, listed
+/// or not, goes to the Scheduled state for a few seconds (<see cref="WaitingReasonFormat"/>), longer each time,
+/// and is checked again; that isn't a retry. The client enqueues a first step held that way as soon as the chain
+/// is recorded. A client that stops in the middle stops saying so, and two minutes later the record counts as it
+/// stands.
 /// </description></item>
 /// <item><description>The record lists the job for its step: it runs.</description></item>
 /// <item><description>
@@ -87,6 +97,20 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobChainStepFilter));
 
+    /// <summary>
+    /// How long after the creation of a chain began a worker that fetches its first step gives it back to its
+    /// queue without a trace (see <see cref="JobGiveBack"/>) rather than holding it in the Scheduled state. Past
+    /// it, the creation takes unusually long or its client has stopped, and the step is held as a step of a chain
+    /// that is being changed is. Replaceable for tests.
+    /// </summary>
+    internal static TimeSpan QuietTime { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The shortest time a worker keeps a step it gives back before the step can be fetched again.</summary>
+    internal static readonly TimeSpan MinGiveBackPause = TimeSpan.FromMilliseconds(10);
+
+    /// <summary>The longest time a worker keeps a step it gives back before the step can be fetched again.</summary>
+    internal static readonly TimeSpan MaxGiveBackPause = TimeSpan.FromMilliseconds(250);
+
     private static readonly TimeSpan MinHoldDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxHoldDelay = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan MinUnreadableDelay = TimeSpan.FromSeconds(15);
@@ -129,7 +153,9 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 return;
             }
 
-            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey, out holdDelay);
+            // Without a trace only for a job that waits in its queue and that a worker can put back there
+            bool quietly = context.CanGiveBack && EnqueuedState.StateName.Equals(context.CurrentState, StringComparison.OrdinalIgnoreCase);
+            verdict = Check(context.Storage, context.Connection, job, chainId, stepKey, quietly, out holdDelay);
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
@@ -159,6 +185,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         switch (verdict)
         {
             case Verdict.Run:
+                break;
+
+            case Verdict.GiveBack:
+                // Nothing is written, here or by the filters after this one, which don't run
+                if (!context.TryGiveBack(holdDelay))
+                {
+                    Hold(context, WaitingReason(chainId), MinHoldDelay);
+                }
+
                 break;
 
             case Verdict.Wait:
@@ -242,7 +277,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     {
     }
 
-    private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey, out TimeSpan holdDelay)
+    private static Verdict Check(JobStorage storage, IStorageConnection connection, BackgroundJob job, string chainId, string stepKey, bool quietly, out TimeSpan holdDelay)
     {
         holdDelay = TimeSpan.Zero;
         JobChains.StepRecord record = JobChains.ReadStep(storage, connection, chainId, stepKey);
@@ -254,6 +289,17 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             DateTime now = JobChains.StorageUtcNow(storage, connection);
             if (lease.IsLive(now))
             {
+                // A chain that is being created, for a moment only: its first step goes back to its queue as it
+                // is. Not a chain that is being retried or replaced (its record lists steps), which lasts longer
+                // and has jobs of the old and of the new steps coming due; and not when the lease began in the
+                // future, by the clock it is read with: then the clocks disagree, and nothing bounds the wait.
+                TimeSpan lasted = now - lease.Since;
+                if (quietly && !record.HasSteps && lasted >= TimeSpan.Zero && lasted < QuietTime)
+                {
+                    holdDelay = GiveBackPause(lasted);
+                    return Verdict.GiveBack;
+                }
+
                 holdDelay = HoldDelay(lease, now);
                 return Verdict.Wait;
             }
@@ -317,6 +363,14 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         }
 
         return delay;
+    }
+
+    // As long as the creation has lasted so far, within bounds: the step is looked at again after about twice
+    // the time, so a creation that takes a few milliseconds costs one or two looks, and one that takes seconds a
+    // few each second until QuietTime has passed
+    private static TimeSpan GiveBackPause(TimeSpan lasted)
+    {
+        return lasted < MinGiveBackPause ? MinGiveBackPause : lasted > MaxGiveBackPause ? MaxGiveBackPause : lasted;
     }
 
     private static string? ReadMark(BackgroundJob job, IStorageConnection connection)
@@ -417,6 +471,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     private enum Verdict
     {
         Run,
+        GiveBack,
         Wait,
         NotCurrent,
         NotRecorded,
