@@ -1330,6 +1330,16 @@ public sealed class JobChainStorageFacts : IDisposable
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Then(() => Once("c")).Enqueue(_client)!;
         Succeed(chain.Steps["0.0"]);
         Fail(chain.Steps["1.0"]);
+
+        // The step failed by hand left its place in the queue behind: a server finds nothing to run there, and
+        // clears it. Left there, a worker would take the held step from it while the server releases the step
+        // into its queue once more, and two workers would run it (an older hazard of moving a job by hand while
+        // it is enqueued)
+        using (CreateServer())
+        {
+            WaitUntil(() => _storage.GetMonitoringApi().EnqueuedCount("default") == 0, "the queue to be cleared");
+        }
+
         _deletions.CrashWithReason = "Replaced by a retry of the chain";
 
         Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(chain.Steps["1.0"]));
