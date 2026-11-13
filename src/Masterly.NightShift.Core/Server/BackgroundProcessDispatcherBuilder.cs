@@ -21,16 +21,30 @@ internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDis
 {
     private readonly IBackgroundProcess _process;
     private readonly Func<ThreadStart, IEnumerable<Thread>> _threadFactory;
+    private readonly string _name;
 
     public BackgroundProcessDispatcherBuilder(
         [NotNull] IBackgroundProcess process,
         [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory)
+        : this(process, threadFactory, null)
+    {
+    }
+
+    /// <summary>
+    /// A builder whose dispatcher goes by <paramref name="name"/> in the logs instead of the name of the process's
+    /// type: for a process that wraps another one and stands for it.
+    /// </summary>
+    public BackgroundProcessDispatcherBuilder(
+        [NotNull] IBackgroundProcess process,
+        [NotNull] Func<ThreadStart, IEnumerable<Thread>> threadFactory,
+        [CanBeNull] string? name)
     {
         ArgumentNullException.ThrowIfNull(process);
         ArgumentNullException.ThrowIfNull(threadFactory);
 
         _process = process;
         _threadFactory = threadFactory;
+        _name = name ?? process.GetType().Name;
     }
 
     public IBackgroundDispatcher Create(BackgroundServerContext context, BackgroundProcessingServerOptions options)
@@ -41,7 +55,7 @@ internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDis
         BackgroundExecution execution = new(
             new BackgroundExecutionOptions
             {
-                Name = _process.GetType().Name,
+                Name = _name,
                 RetryDelay = options.RetryDelay
             },
             context.StoppingToken);
@@ -55,7 +69,7 @@ internal sealed class BackgroundProcessDispatcherBuilder : IBackgroundProcessDis
 
     public override string ToString()
     {
-        return _process.GetType().Name;
+        return _name;
     }
 
     private static void ExecuteProcess(Guid executionId, object? state)

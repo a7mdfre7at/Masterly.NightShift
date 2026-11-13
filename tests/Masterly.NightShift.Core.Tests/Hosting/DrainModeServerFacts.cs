@@ -206,6 +206,114 @@ public class DrainModeServerFacts : IDisposable
     }
 
     // Server ids are "{name}:{process id}:{guid}", see BackgroundServerProcess
+    [Fact, GlobalLock(Reason = "Changes the clock and uses the drain mode cache")]
+    public void Filter_NotesWhenAPausedServerHoldsAJob_AndAddsToTheTimeItWasHeldBefore()
+    {
+        DateTime now = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        string nowText = JobHelper.ToMillisecondTimestamp(now).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        DrainMode.PauseServer(_connection.Object, "web-1");
+        ElectStateContextMock first = Elect("1", "web-1");
+        first.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+        ElectStateContextMock again = Elect("2", "web-1");
+        again.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = "\"5000\"" };
+
+        WithClock(now, () =>
+        {
+            new DrainModeFilter().OnStateElection(first.Object);
+            new DrainModeFilter().OnStateElection(again.Object);
+        });
+
+        Assert.IsType<ScheduledState>(first.Object.CandidateState);
+        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, $"\"0|{nowText}\""), Times.Once);
+        _connection.Verify(x => x.SetJobParameter("2", DrainModeFilter.ServerHoldParameter, $"\"5000|{nowText}\""), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Filter_NotesNoHold_ForTheClusterWideSwitch_OrAPausedQueue()
+    {
+        // Nothing could have run these jobs meanwhile, so they are as late as the hold makes them
+        DrainMode.PauseQueue(_connection.Object, "default");
+        _connection.Setup(x => x.GetStateData("1")).Returns(new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string> { ["Queue"] = "default" } });
+        ElectStateContextMock byQueue = Elect("1", "web-1");
+        byQueue.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+        new DrainModeFilter().OnStateElection(byQueue.Object);
+
+        DrainMode.Enable(_connection.Object);
+        ElectStateContextMock bySwitch = Elect("2", "web-1");
+        bySwitch.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+        new DrainModeFilter().OnStateElection(bySwitch.Object);
+
+        Assert.Equal("Held: queue 'default' is paused", Assert.IsType<ScheduledState>(byQueue.Object.CandidateState).Reason);
+        Assert.Equal(DrainModeFilter.HeldReason, Assert.IsType<ScheduledState>(bySwitch.Object.CandidateState).Reason);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), DrainModeFilter.ServerHoldParameter, It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Changes the clock")]
+    public void Filter_EndsTheHoldOfAPausedServer_WhenTheJobIsEnqueuedAgain()
+    {
+        DateTime heldAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        string heldAtText = JobHelper.ToMillisecondTimestamp(heldAt).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        ElectStateContextMock context = Enqueue("1", ScheduledState.StateName, $"\"5000|{heldAtText}\"");
+
+        // The hold was for 30 seconds, and the scheduler enqueued the job a second after that
+        WithClock(heldAt.AddSeconds(31), () => new DrainModeFilter().OnStateElection(context.Object));
+
+        Assert.IsType<EnqueuedState>(context.Object.CandidateState);
+        _connection.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, "\"36000\""), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Scheduled", null)]
+    [InlineData("Scheduled", "\"36000\"")]
+    [InlineData("Failed", "\"5000|1763000000000\"")]
+    public void Filter_WritesNothing_WhenAJobIsEnqueuedThatNoPausedServerHolds(string currentState, string hold)
+    {
+        ElectStateContextMock context = Enqueue("1", currentState, hold);
+
+        new DrainModeFilter().OnStateElection(context.Object);
+
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Filter_WritesTheHoldInTheTransactionOfTheStateChange_WhenTheStorageCan()
+    {
+        DrainMode.PauseServer(_connection.Object, "web-1");
+        Mock<JobStorageTransaction> transaction = new();
+        ElectStateContextMock context = Elect("1", "web-1");
+        context.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+        context.ApplyContext.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Transaction.SetJobParameter)).Returns(true);
+        context.ApplyContext.Transaction = transaction.As<IWriteOnlyTransaction>();
+
+        new DrainModeFilter().OnStateElection(context.Object);
+
+        transaction.Verify(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, It.Is<string>(value => value.StartsWith("\"0|", StringComparison.Ordinal))), Times.Once);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), DrainModeFilter.ServerHoldParameter, It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Filter_HoldsTheJob_WhenTheHoldCanNotBeNoted_OrTheStorageLoadsNoParametersWithTheJob()
+    {
+        DrainMode.PauseServer(_connection.Object, "web-1");
+        _connection.Setup(x => x.SetJobParameter("1", DrainModeFilter.ServerHoldParameter, It.IsAny<string>())).Throws(new InvalidOperationException("storage down"));
+        ElectStateContextMock failing = Elect("1", "web-1");
+        failing.ApplyContext.BackgroundJob.ParametersSnapshot = new Dictionary<string, string>();
+        ElectStateContextMock withoutParameters = Elect("2", "web-1");
+
+        new DrainModeFilter().OnStateElection(failing.Object);
+        new DrainModeFilter().OnStateElection(withoutParameters.Object);
+
+        Assert.IsType<ScheduledState>(failing.Object.CandidateState);
+        Assert.IsType<ScheduledState>(withoutParameters.Object.CandidateState);
+        _connection.Verify(x => x.SetJobParameter("2", It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void ServerHoldParameter_FitsTheLengthOfAJobParameterName()
+    {
+        Assert.True(DrainModeFilter.ServerHoldParameter.Length <= 40);
+    }
+
     private const string PausedServerId = "web-1:4242:0f8fad5b-d9cb-469f-a165-70867728950e";
     private const string OtherServerId = "web-1:4242:7c9e6679-7425-40de-944b-e07fc1f90ae7";
     private const string LongServerId = "orders-api-worker-deployment-7d9f8b6c5d-x2k4p-production-west-europe:1:0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -219,6 +327,42 @@ public class DrainModeServerFacts : IDisposable
         storage.Setup(x => x.GetConnection()).Returns(_connection.Object);
         storage.Setup(x => x.GetMonitoringApi()).Returns(monitoring.Object);
         return storage;
+    }
+
+    // The election of the Enqueued state for a job in the given state, with the hold its parameters record
+    private ElectStateContextMock Enqueue(string jobId, string currentState, string hold)
+    {
+        Dictionary<string, string> parameters = [];
+        if (hold != null)
+        {
+            parameters[DrainModeFilter.ServerHoldParameter] = hold;
+        }
+
+        ElectStateContextMock context = new();
+        context.ApplyContext.BackgroundJob.Id = jobId;
+        context.ApplyContext.BackgroundJob.ParametersSnapshot = parameters;
+        context.ApplyContext.Connection = _connection;
+        context.ApplyContext.OldStateName = currentState;
+        context.ApplyContext.NewStateObject = new EnqueuedState();
+        return context;
+    }
+
+    private static void WithClock(DateTime now, Action action)
+    {
+        JobClock.TimeProvider = new FixedClock(new DateTimeOffset(now));
+        try
+        {
+            action();
+        }
+        finally
+        {
+            JobClock.TimeProvider = TimeProvider.System;
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private ElectStateContextMock Elect(string jobId, string serverId)
