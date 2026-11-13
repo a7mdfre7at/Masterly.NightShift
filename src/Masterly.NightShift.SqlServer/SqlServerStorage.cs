@@ -15,6 +15,9 @@
 
 using System.Collections.Concurrent;
 using System.Text;
+using Transaction = System.Transactions.Transaction;
+using TransactionScope = System.Transactions.TransactionScope;
+using TransactionScopeOption = System.Transactions.TransactionScopeOption;
 using Masterly.NightShift.Dashboard;
 using Masterly.NightShift.Logging;
 using Masterly.NightShift.Server;
@@ -536,9 +539,16 @@ public class SqlServerStorage : JobStorage
         return CreateAndOpenConnection(clearPoolOnOpenFailure: false);
     }
 
+    // Every connection the storage uses is opened here. None joins the caller's ambient transaction
+    // (TransactionScope): the storage writes through connections of its own, so a job created inside a caller's
+    // transaction exists whether that transaction commits or not, and the writes of other callers, which a
+    // caller may commit as a group (WriteCoalescer), never depend on it. SqlClient enlists a connection when it
+    // is opened, so the ambient transaction is suppressed around the connection factory, which may open the
+    // connection itself, and around Open. A connection handed in already open is used as it is.
     private DbConnection CreateAndOpenConnection(bool clearPoolOnOpenFailure)
     {
         using (Options.ImpersonationFunc?.Invoke())
+        using (SuppressAmbientTransaction())
         {
             DbConnection? connection = null;
 
@@ -565,6 +575,14 @@ public class SqlServerStorage : JobStorage
                 throw;
             }
         }
+    }
+
+    // Nothing to suppress, and nothing allocated, outside a caller's transaction. The scope is created and
+    // disposed on this thread, around synchronous calls, so it needs no async flow; inside a scope that flows
+    // with async calls, a scope of this thread still takes precedence while it lasts.
+    private static TransactionScope? SuppressAmbientTransaction()
+    {
+        return Transaction.Current != null ? new TransactionScope(TransactionScopeOption.Suppress) : null;
     }
 
     internal bool IsExistingConnection(IDbConnection connection)
