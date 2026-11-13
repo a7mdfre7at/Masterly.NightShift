@@ -211,14 +211,15 @@ $@"insert into [{schemaName}].JobQueue (JobId, Queue) values (@jobId, @queue)");
         DbTransaction transaction,
         DbDataReader reader)
     {
-        Tuple<long, string>? row = ReadSingleRow(reader, static current => Tuple.Create(
+        Tuple<long, long, string>? row = ReadSingleRow(reader, static current => Tuple.Create(
+            Convert.ToInt64(current.GetValue(current.GetOrdinal("Id")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
             Convert.ToInt64(current.GetValue(current.GetOrdinal("JobId")), CultureInfo.InvariantCulture), // Can be Int32 in older schemas
             current.GetString(current.GetOrdinal("Queue"))));
 
         // Created only once the reader is consumed, so a broken connection can't leave its keep-alive timer running
         return row == null
             ? null
-            : new SqlServerTransactionJob(storage, connection, transaction, row.Item1.ToString(CultureInfo.InvariantCulture), row.Item2);
+            : new SqlServerTransactionJob(storage, connection, transaction, row.Item2.ToString(CultureInfo.InvariantCulture), row.Item3) { Id = row.Item1 };
     }
 
     private static T? ReadSingleRow<T>(DbDataReader reader, Func<DbDataReader, T> readRow) where T : class

@@ -73,6 +73,7 @@ public class SqlServerStorage : JobStorage
             { JobStorageFeatures.Connection.GetUtcDateTime, true },
             { JobStorageFeatures.Connection.GetSetContains, true },
             { JobStorageFeatures.Connection.LimitedGetSetCount, true },
+            { JobStorageFeatures.Connection.GetQueueEntryId, true },
             { JobStorageFeatures.Transaction.AcquireDistributedLock, true },
             { JobStorageFeatures.Transaction.CreateJob, false },
             { JobStorageFeatures.Transaction.SetJobParameter, true },

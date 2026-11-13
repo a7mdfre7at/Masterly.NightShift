@@ -156,6 +156,13 @@ internal sealed class MongoConnection(MongoStorage storage) : JobStorageConnecti
         return StorageValues.FormatJobId(id);
     }
 
+    /// <inheritdoc />
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob)
+    {
+        ArgumentNullException.ThrowIfNull(fetchedJob);
+        return fetchedJob is MongoFetchedJob ours ? ours.EntryId.ToString() : null;
+    }
+
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);

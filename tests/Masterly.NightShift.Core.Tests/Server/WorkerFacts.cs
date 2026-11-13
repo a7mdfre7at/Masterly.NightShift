@@ -186,6 +186,66 @@ public class WorkerFacts
         Assert.Null(contexts[0].LeaseHolder);
     }
 
+    [Theory]
+    [InlineData("7")]
+    [InlineData(null)]
+    public void Execute_NamesTheQueueEntryItTookTheJobFrom_WhenTheStorageTellsIt(string entry)
+    {
+        Mock<JobStorageConnection> connection = UseStorageConnection();
+        _context.Storage.Setup(x => x.HasFeature(JobStorageFeatures.Connection.GetQueueEntryId)).Returns(true);
+        connection.Setup(x => x.GetQueueEntryId(_fetchedJob.Object)).Returns(entry);
+        List<StateChangeContext> contexts = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Callback<StateChangeContext>(contexts.Add)
+            .Returns<StateChangeContext>(ctx => ctx.NewState);
+
+        CreateWorker().Execute(_context.Object);
+
+        // In the Processing state, and for the check of the change to it; not for the final state change
+        ProcessingState processing = Assert.IsType<ProcessingState>(contexts[0].NewState);
+        Assert.Equal(entry, processing.QueueEntry);
+        Assert.Equal(entry, contexts[0].QueueEntry);
+        Assert.Null(Assert.Single(contexts, ctx => ctx.NewState is SucceededState).QueueEntry);
+    }
+
+    [Fact]
+    public void Execute_DoesNotAskForTheQueueEntry_WhenTheStorageCannotTellIt()
+    {
+        Mock<JobStorageConnection> connection = UseStorageConnection();
+        List<StateChangeContext> contexts = [];
+        _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
+            .Callback<StateChangeContext>(contexts.Add)
+            .Returns<StateChangeContext>(ctx => ctx.NewState);
+
+        CreateWorker().Execute(_context.Object);
+
+        connection.Verify(x => x.GetQueueEntryId(It.IsAny<IFetchedJob>()), Times.Never);
+        Assert.Null(Assert.IsType<ProcessingState>(contexts[0].NewState).QueueEntry);
+        Assert.Null(contexts[0].QueueEntry);
+    }
+
+    [Fact]
+    public void Execute_RemovesTheEntryFromTheQueue_WhenTheJobIsRunFromAnotherEntry()
+    {
+        // The state changer refuses the change to Processing: another worker runs the job from another entry
+        _stateChanger.Setup(x => x.ChangeState(It.Is<StateChangeContext>(ctx => ctx.NewState is ProcessingState))).Returns((IState)null);
+
+        CreateWorker().Execute(_context.Object);
+
+        _fetchedJob.Verify(x => x.RemoveFromQueue(), Times.Once);
+        _fetchedJob.Verify(x => x.Requeue(), Times.Never);
+        _performer.Verify(x => x.Perform(It.IsAny<PerformContext>()), Times.Never);
+    }
+
+    private Mock<JobStorageConnection> UseStorageConnection()
+    {
+        Mock<JobStorageConnection> connection = new();
+        connection.Setup(x => x.FetchNextJob(_queues, It.IsNotNull<CancellationToken>())).Returns(_fetchedJob.Object);
+        connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { Job = Job.FromExpression(() => Method()) });
+        _context.Storage.Setup(x => x.GetConnection()).Returns(connection.Object);
+        return connection;
+    }
+
     [Fact]
     public void Execute_ProcessesOnlyJobs_InEnqueued_Scheduled_AndProcessingStates()
     {

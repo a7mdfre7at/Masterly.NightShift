@@ -785,6 +785,67 @@ public class BackgroundJobStateChangerFacts
     }
 
     [Fact]
+    public void ChangeState_RefusesTheChange_WhenTheJobIsProcessingUnderAnotherQueueEntry()
+    {
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = ProcessingState.StateName, Job = _job });
+        _connection.Setup(x => x.GetStateData(JobId)).Returns(ProcessingUnder("12"));
+        _context.ExpectedStates = [EnqueuedState.StateName, ProcessingState.StateName];
+        _context.QueueEntry = "13";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.Null(result);
+        _stateMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()), Times.Never);
+        _transaction.Verify(x => x.Commit(), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("12")]
+    [InlineData(null)]
+    [InlineData("")]
+    public void ChangeState_AppliesTheChange_WhenTheJobIsProcessingUnderTheSameQueueEntry_OrNoneIsKnown(string running)
+    {
+        // The worker put the entry back, or the storage handed it out again after the invisibility timeout: a
+        // restart. A Processing state that names no entry was written before workers recorded it.
+        _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = ProcessingState.StateName, Job = _job });
+        _connection.Setup(x => x.GetStateData(JobId)).Returns(ProcessingUnder(running));
+        _context.ExpectedStates = [EnqueuedState.StateName, ProcessingState.StateName];
+        _context.QueueEntry = "12";
+
+        IState result = CreateStateChanger().ChangeState(_context.Object);
+
+        Assert.NotNull(result);
+    }
+
+    [Theory]
+    [InlineData(false, "12")]
+    [InlineData(true, null)]
+    public void ChangeState_DoesNotReadTheState_WhenTheJobIsNotProcessing_OrTheWorkerKnowsNoEntry(bool processing, string entry)
+    {
+        if (processing)
+        {
+            _connection.Setup(x => x.GetJobData(JobId)).Returns(new JobData { State = ProcessingState.StateName, Job = _job });
+            _context.ExpectedStates = [ProcessingState.StateName];
+        }
+
+        _context.QueueEntry = entry;
+
+        Assert.NotNull(CreateStateChanger().ChangeState(_context.Object));
+        _connection.Verify(x => x.GetStateData(It.IsAny<string>()), Times.Never);
+    }
+
+    private static StateData ProcessingUnder(string queueEntry)
+    {
+        Dictionary<string, string> data = new() { ["ServerId"] = "server", ["WorkerId"] = "worker" };
+        if (queueEntry != null)
+        {
+            data[ProcessingState.QueueEntryKey] = queueEntry;
+        }
+
+        return new StateData { Name = ProcessingState.StateName, Data = data };
+    }
+
+    [Fact]
     public void ChangeState_StoresNothing_AndDoesNotAcknowledgeTheJob_WhenAFilterAsksTheWorkerToLookAgain()
     {
         JobLookAgain lookAgain = new();

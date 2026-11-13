@@ -34,6 +34,9 @@ public class ProcessingState : IState
     /// </remarks>
     public static readonly string StateName = "Processing";
 
+    /// <summary>The key of the state data that names the queue entry the worker took the job from.</summary>
+    internal const string QueueEntryKey = "QueueEntry";
+
     internal ProcessingState(string serverId, string workerId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverId);
@@ -62,6 +65,14 @@ public class ProcessingState : IState
     /// process an <i>enqueued</i> background job.
     /// </summary>
     public string WorkerId { get; }
+
+    /// <summary>
+    /// The queue entry the worker took the job from, when the storage tells it
+    /// (<see cref="Storage.JobStorageConnection.GetQueueEntryId"/>): a worker that takes another entry of the job
+    /// while it is Processing leaves the job to this run.
+    /// </summary>
+    [JsonIgnore]
+    internal string? QueueEntry { get; init; }
 
     /// <inheritdoc />
     /// <remarks>
@@ -128,11 +139,18 @@ public class ProcessingState : IState
     /// </remarks>
     public Dictionary<string, string> SerializeData()
     {
-        return new Dictionary<string, string>
+        Dictionary<string, string> data = new()
         {
             { "StartedAt", JobHelper.SerializeDateTime(StartedAt) },
             { "ServerId", ServerId },
             { "WorkerId", WorkerId }
         };
+
+        if (QueueEntry != null)
+        {
+            data[QueueEntryKey] = QueueEntry;
+        }
+
+        return data;
     }
 }

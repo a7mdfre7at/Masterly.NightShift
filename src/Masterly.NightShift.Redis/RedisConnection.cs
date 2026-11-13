@@ -46,6 +46,13 @@ internal sealed class RedisConnection(RedisStorage storage) : JobStorageConnecti
         return ((long)storage.Evaluate(RedisScripts.CreateJob, [.. arguments])).ToString(CultureInfo.InvariantCulture);
     }
 
+    /// <inheritdoc />
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob)
+    {
+        ArgumentNullException.ThrowIfNull(fetchedJob);
+        return fetchedJob is RedisFetchedJob ours ? ours.Entry : null;
+    }
+
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);

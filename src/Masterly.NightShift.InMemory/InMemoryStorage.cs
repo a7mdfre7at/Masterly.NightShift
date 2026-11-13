@@ -155,6 +155,13 @@ internal sealed class InMemoryConnection(InMemoryStorage storage) : JobStorageCo
         return StorageValues.FormatJobId(_database.CreateJob(job, parameters, createdAt, expireIn));
     }
 
+    /// <inheritdoc />
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob)
+    {
+        ArgumentNullException.ThrowIfNull(fetchedJob);
+        return fetchedJob is InMemoryFetchedJob ours ? StorageValues.FormatJobId(ours.EntryId) : null;
+    }
+
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);

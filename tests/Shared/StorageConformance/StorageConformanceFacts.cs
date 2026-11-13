@@ -1228,6 +1228,108 @@ public abstract class StorageConformanceFacts : IDisposable
         Assert.Equal(1, Storage.GetMonitoringApi().GetStatistics().Recurring);
     }
 
+    // A job sitting in its queue keeps its entry there when it leaves the Enqueued state by hand (deleted, failed,
+    // scheduled), and a requeue adds another: whichever entry a worker takes first runs the job, and the others
+    // are dropped, though the job is Processing when a worker takes them (as after a crash)
+    [Fact]
+    public async Task Server_RunsAJobOnce_ThatWasDeletedWhileEnqueued_AndRequeued()
+    {
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+
+        string id = client.Enqueue(() => ConformanceJobs.RecordSlowly(key))!;
+        Assert.True(client.ChangeState(id, new DeletedState(), EnqueuedState.StateName));
+        Assert.True(client.ChangeState(id, new EnqueuedState(), DeletedState.StateName));
+
+        await RunUntilTheQueueIsEmptyAsync(id, workers: 2);
+
+        Assert.Equal((1, 1), (ConformanceJobs.Runs(key), ConformanceJobs.MostRunsAtOnce(key)));
+    }
+
+    [Fact]
+    public async Task Server_RunsAJobOnce_ThatWasRequeuedTwiceWhileEnqueued()
+    {
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+
+        // As the Requeue button of the job's page, twice, which names no state the job must be in
+        string id = client.Enqueue(() => ConformanceJobs.RecordSlowly(key))!;
+        Assert.True(client.ChangeState(id, new EnqueuedState()));
+        Assert.True(client.ChangeState(id, new EnqueuedState()));
+
+        await RunUntilTheQueueIsEmptyAsync(id, workers: 3);
+
+        Assert.Equal((1, 1), (ConformanceJobs.Runs(key), ConformanceJobs.MostRunsAtOnce(key)));
+    }
+
+    // The other way a job is Processing when a worker takes it: its own entry, put back by the worker that ran it
+    // (here because its server stopped). That run is over, so the job runs again.
+    [Fact]
+    public async Task Server_RunsAJobAgain_ThatItsWorkerPutBackInTheQueue_WhenItsServerStopped()
+    {
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+        string id = client.Enqueue(() => ConformanceJobs.RunUntilStopped(key, CancellationToken.None))!;
+
+        using (CreateServer())
+        {
+            await WaitUntilAsync(() => ConformanceJobs.Runs(key) == 1, $"Job {id} didn't start.");
+        }
+
+        Assert.Equal(ProcessingState.StateName, Connection(x => x.GetStateData(id))?.Name);
+
+        using (CreateServer(workers: 2))
+        {
+            await WaitForStateAsync(id, SucceededState.StateName);
+        }
+
+        Assert.Equal(2, ConformanceJobs.Runs(key));
+    }
+
+    // And as after a crash: a worker that stopped keeping its job alive (it died) lets the storage hand the same
+    // entry to another worker once the invisibility timeout has passed. The job runs again, as a restart.
+    [Fact]
+    public async Task Server_RunsAJobAgain_WhoseEntryCameBack_AfterTheInvisibilityTimeout()
+    {
+        Assert.SkipUnless(UseStorage(CreateStorageWithoutKeepAlive(TimeSpan.FromSeconds(2))), "The storage can't let a fetch go stale.");
+        string key = NewKey();
+        BackgroundJobClient client = new(Storage);
+        string id = client.Enqueue(() => ConformanceJobs.BlockFirstRun(key))!;
+
+        try
+        {
+            using (CreateServer(workers: 2))
+            {
+                await WaitForStateAsync(id, SucceededState.StateName);
+
+                // The first run ends now, and its result is refused: the job isn't Processing any more
+                ConformanceJobs.Release(key);
+            }
+        }
+        finally
+        {
+            ConformanceJobs.Release(key);
+        }
+
+        Assert.Equal(2, ConformanceJobs.Runs(key));
+        Assert.Equal("1", Connection(x => x.GetJobParameter(id, StaleJobFilter.RestartsParameter)));
+    }
+
+    /// <summary>
+    /// Runs a server until the job succeeded and its queue is empty: every entry it had was taken by a worker,
+    /// and run or dropped.
+    /// </summary>
+    private async Task RunUntilTheQueueIsEmptyAsync(string id, int workers)
+    {
+        using (CreateServer(workers))
+        {
+            await WaitForStateAsync(id, SucceededState.StateName);
+            await WaitUntilAsync(
+                () => Storage.GetMonitoringApi() is { } monitoring && monitoring.EnqueuedCount(EnqueuedState.DefaultQueue) == 0 && monitoring.FetchedCount(EnqueuedState.DefaultQueue) == 0,
+                $"The queue of job {id} wasn't emptied.");
+        }
+    }
+
     [Fact]
     public async Task Server_RunsAChain_ToTheEnd()
     {
@@ -1561,6 +1663,9 @@ public abstract class StorageConformanceFacts : IDisposable
 public static class ConformanceJobs
 {
     private static readonly ConcurrentDictionary<string, int> RunCounts = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, int> RunningCounts = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, int> MostRunning = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, ManualResetEventSlim> Releases = new(StringComparer.Ordinal);
 
     public static void Record(string key) => RunCounts.AddOrUpdate(key, 1, static (_, count) => count + 1);
 
@@ -1568,4 +1673,43 @@ public static class ConformanceJobs
     public static void Fail(string message) => throw new InvalidOperationException(message);
 
     public static int Runs(string key) => RunCounts.GetValueOrDefault(key);
+
+    /// <summary>Records the run and takes a second, counting how many runs of the same key run at once.</summary>
+    [AutomaticRetry(Attempts = 0)]
+    public static void RecordSlowly(string key)
+    {
+        Record(key);
+        int running = RunningCounts.AddOrUpdate(key, 1, static (_, count) => count + 1);
+        MostRunning.AddOrUpdate(key, running, (_, most) => Math.Max(most, running));
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+        RunningCounts.AddOrUpdate(key, 0, static (_, count) => count - 1);
+    }
+
+    /// <summary>How many runs of the key ran at the same time, at most.</summary>
+    public static int MostRunsAtOnce(string key) => MostRunning.GetValueOrDefault(key);
+
+    /// <summary>The first run lasts until its server stops; the next ones return at once.</summary>
+    [AutomaticRetry(Attempts = 0)]
+    public static void RunUntilStopped(string key, CancellationToken cancellationToken)
+    {
+        Record(key);
+        if (Runs(key) == 1)
+        {
+            cancellationToken.WaitHandle.WaitOne();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+    }
+
+    /// <summary>The first run lasts until <see cref="Release"/>; the next ones return at once.</summary>
+    [AutomaticRetry(Attempts = 0)]
+    public static void BlockFirstRun(string key)
+    {
+        Record(key);
+        if (Runs(key) == 1)
+        {
+            Releases.GetOrAdd(key, static _ => new ManualResetEventSlim()).Wait(TimeSpan.FromMinutes(1));
+        }
+    }
+
+    public static void Release(string key) => Releases.GetOrAdd(key, static _ => new ManualResetEventSlim()).Set();
 }

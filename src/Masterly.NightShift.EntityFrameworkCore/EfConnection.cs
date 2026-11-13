@@ -63,6 +63,13 @@ internal sealed class EfConnection(EntityFrameworkCoreStorage storage, Func<DbCo
         return StorageValues.FormatJobId(row.Id);
     }
 
+    /// <inheritdoc />
+    public override string? GetQueueEntryId(IFetchedJob fetchedJob)
+    {
+        ArgumentNullException.ThrowIfNull(fetchedJob);
+        return fetchedJob is EfFetchedJob ours ? StorageValues.FormatJobId(ours.EntryId) : null;
+    }
+
     public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queues);

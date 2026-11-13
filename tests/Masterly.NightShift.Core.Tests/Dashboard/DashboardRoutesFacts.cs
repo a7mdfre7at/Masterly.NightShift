@@ -228,12 +228,46 @@ public class DashboardRoutesFacts
     [Fact]
     public async Task JobRequeueRoute_DecodesAnEncodedSlashInTheJobId()
     {
+        _connection.Setup(x => x.GetStateData("tenant/42")).Returns(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() });
+        _client.Setup(x => x.ChangeState("tenant/42", It.IsAny<IState>(), FailedState.StateName)).Returns(true);
         DashboardContextStub context = Create("/jobs/actions/requeue/tenant%2F42");
 
         await Dispatch(context);
 
         Assert.Equal(204, context.Response.StatusCode);
-        _client.Verify(x => x.ChangeState("tenant/42", It.IsAny<EnqueuedState>(), null), Times.Once);
+        _client.Verify(x => x.ChangeState("tenant/42", It.IsAny<EnqueuedState>(), FailedState.StateName), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Processing")]
+    [InlineData("Succeeded")]
+    [InlineData("Deleted")]
+    public async Task JobRequeueRoute_RequeuesTheJob_OnlyFromTheStateItIsIn(string state)
+    {
+        // Two clicks in a row requeue it once: the second finds it Enqueued
+        _connection.Setup(x => x.GetStateData("42")).Returns(new StateData { Name = state, Data = new Dictionary<string, string>() });
+        _client.Setup(x => x.ChangeState("42", It.IsAny<IState>(), state)).Returns(true);
+
+        await Dispatch(Create("/jobs/actions/requeue/42"));
+
+        _client.Verify(x => x.ChangeState("42", It.IsAny<EnqueuedState>(), state), Times.Once);
+        _client.Verify(x => x.ChangeState("42", It.IsAny<IState>(), It.Is<string>(s => s != state)), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("Enqueued")]
+    [InlineData(null)]
+    public async Task JobRequeueRoute_LeavesAJobThatWaitsInItsQueue_OrHasNoState(string state)
+    {
+        // An Enqueued job is in its queue already: requeued, it would get a second entry there
+        _connection.Setup(x => x.GetStateData("42")).Returns(state == null ? null : new StateData { Name = state, Data = new Dictionary<string, string>() });
+        DashboardContextStub context = Create("/jobs/actions/requeue/42");
+
+        await Dispatch(context);
+
+        Assert.NotEqual(204, context.Response.StatusCode);
+        _client.Verify(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
