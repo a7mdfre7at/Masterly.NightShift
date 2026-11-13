@@ -76,7 +76,11 @@ public static partial class JobChains
         [JsonPropertyName("data")]
         public Dictionary<string, string> Data { get; set; } = [];
 
-        public static RetryMarker For(int generation, StateData state)
+        /// <summary>When the job was to expire before the retry held it, if it was and that could be read.</summary>
+        [JsonPropertyName("expireAt")]
+        public DateTime? ExpireAt { get; set; }
+
+        public static RetryMarker For(int generation, StateData state, DateTime? expireAt)
         {
             return new RetryMarker
             {
@@ -85,6 +89,7 @@ public static partial class JobChains
                 State = state.Name,
                 Reason = state.Reason,
                 Data = state.Data == null ? [] : new Dictionary<string, string>(state.Data, StringComparer.Ordinal),
+                ExpireAt = expireAt,
             };
         }
 
@@ -120,7 +125,24 @@ public static partial class JobChains
     {
         StateData state = marker.ToStateData();
         state.Reason = RetryAbandonedReason(chainId);
-        return Restore(state);
+        return Restore(state, marker.ExpireAt);
+    }
+
+    /// <summary>
+    /// When a job is to expire, or <c>null</c> when it isn't, or when that can't be read: a step that is put back
+    /// then expires as any job that reaches its state, a whole retention from then.
+    /// </summary>
+    private static DateTime? ReadExpiry(JobStorage storage, string jobId)
+    {
+        try
+        {
+            return storage.GetMonitoringApi()?.JobDetails(jobId)?.ExpireAt;
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"The time background job '{jobId}' expires couldn't be read; should it be put back into its state, it is kept as long as a job that reaches that state.", ex);
+            return null;
+        }
     }
 
     /// <summary>
@@ -381,9 +403,9 @@ public static partial class JobChains
     /// behind). A step that left the hold another way (a server put it back already, somebody changed it) is
     /// left as it is.
     /// </summary>
-    private static void PutBack(IBackgroundJobClient client, IStorageConnection connection, string jobId, StateData stepState, string chainId)
+    private static void PutBack(IBackgroundJobClient client, IStorageConnection connection, string jobId, StateData stepState, DateTime? expireAt, string chainId)
     {
-        IState state = Restore(stepState);
+        IState state = Restore(stepState, expireAt);
 
         try
         {

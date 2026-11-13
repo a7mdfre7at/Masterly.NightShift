@@ -7,8 +7,12 @@ public static partial class JobChains
     /// <summary>A state that takes a step out of the state it finished in, so nothing reacts to that state, while a retry is prepared.</summary>
     private static ScheduledState Hold(string reason) => new(JobClock.UtcNow + HoldTime) { Reason = reason };
 
-    /// <summary>The state a held step goes back to when the change fails: the one it was in.</summary>
-    private static IState Restore(StateData state)
+    /// <summary>
+    /// The state a held step goes back to when the change fails: the one it was in. With
+    /// <paramref name="expireAt"/>, the time its job was to expire before it was held, the job expires then again,
+    /// not a whole retention later.
+    /// </summary>
+    private static IState Restore(StateData state, DateTime? expireAt = null)
     {
         if (EnqueuedState.StateName.Equals(state.Name, StringComparison.OrdinalIgnoreCase))
         {
@@ -20,7 +24,7 @@ public static partial class JobChains
             return new ScheduledState(JobHelper.DeserializeDateTime(enqueueAt)) { Reason = state.Reason };
         }
 
-        return new RestoredState(state);
+        return new RestoredState(state) { ExpireAt = expireAt };
     }
 
     // Creates the steps of the levels from 'from' on that 'include' selects, level by level. 'jobs' has the job of
@@ -260,6 +264,19 @@ public static partial class JobChains
     /// </summary>
     internal sealed class RestoredState(StateData state) : IState
     {
+        /// <summary>
+        /// How long a job that is put back shortly before, or after, the time it was to expire is kept at least:
+        /// long enough to see what became of it.
+        /// </summary>
+        internal static readonly TimeSpan MinLifetime = TimeSpan.FromMinutes(1);
+
+        /// <summary>
+        /// When the job was to expire before it left this state, if it was: it expires then again
+        /// (<see cref="JobChainStepFilter"/> sets the time left), where it would otherwise be kept for a whole
+        /// retention from now, as a job that finishes is.
+        /// </summary>
+        public DateTime? ExpireAt { get; init; }
+
         public string Name { get; } = state.Name;
 
         public string? Reason { get; } = state.Reason;

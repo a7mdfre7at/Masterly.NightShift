@@ -1009,6 +1009,7 @@ public sealed class JobChainStepFilterFacts : IDisposable
 
         // The state it was in, with its data and a reason that says why it is there again; not a new failure
         JobChains.RestoredState restored = Assert.IsType<JobChains.RestoredState>(_context.Object.CandidateState);
+        Assert.Equal(new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), restored.ExpireAt);
         Assert.Equal(FailedState.StateName, restored.Name);
         Assert.Equal($"The retry of chain {ChainId} was abandoned", restored.Reason);
         Assert.False(restored.IsFinal);
@@ -1171,6 +1172,60 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Theory]
+    [InlineData("Succeeded", 180, 179, 180)]
+    [InlineData("Deleted", 180, 179, 180)]
+    [InlineData("Succeeded", 0, 1, 1)]
+    [InlineData("Succeeded", -500, 1, 1)]
+    public void OnStateApplied_LetsAStepThatIsPutBack_ExpireWhenItWasTo_NotARetentionLater(string state, int expiresInMinutes, int atLeastMinutes, int atMostMinutes)
+    {
+        // The filters that set how long a finished job is kept ran before, and said a day from now
+        ApplyStateContextMock mock = ApplyMock(new JobChains.RestoredState(new StateData { Name = state, Data = new Dictionary<string, string>() })
+        {
+            ExpireAt = DateTime.UtcNow.AddMinutes(expiresInMinutes),
+        });
+        mock.OldStateName = ScheduledState.StateName;
+        mock.JobExpirationTimeout = TimeSpan.FromDays(1);
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        Assert.InRange(mock.Object.JobExpirationTimeout, TimeSpan.FromMinutes(atLeastMinutes), TimeSpan.FromMinutes(atMostMinutes));
+    }
+
+    [Fact]
+    public void OnStateApplied_LeavesTheRetentionAlone_ForAStepPutBackIntoAStateInWhichItsJobDoesNotExpire_OrWhoseExpiryIsNotKnown()
+    {
+        ApplyStateContextMock failed = ApplyMock(new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() })
+        {
+            ExpireAt = DateTime.UtcNow.AddMinutes(30),
+        });
+        failed.JobExpirationTimeout = TimeSpan.FromDays(1);
+        ApplyStateContextMock unknown = ApplyMock(new JobChains.RestoredState(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() }));
+        unknown.JobExpirationTimeout = TimeSpan.FromDays(1);
+
+        _filter.OnStateApplied(failed.Object, failed.Object.Transaction);
+        _filter.OnStateApplied(unknown.Object, unknown.Object.Transaction);
+
+        Assert.Equal(TimeSpan.FromDays(1), failed.Object.JobExpirationTimeout);
+        Assert.Equal(TimeSpan.FromDays(1), unknown.Object.JobExpirationTimeout);
+    }
+
+    [Fact]
+    public void OnStateApplied_LetsAFailedStepThatIsPutBack_ExpireWhenItWasTo_WhenFailedJobsExpire()
+    {
+        // With a retention for failed jobs, a filter says the failed job expires although its state isn't final
+        ApplyStateContextMock mock = ApplyMock(new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() })
+        {
+            ExpireAt = DateTime.UtcNow.AddMinutes(30),
+        });
+        mock.JobExpirationTimeout = TimeSpan.FromDays(7);
+        mock.Object.ExpireInNonFinalState = true;
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+
+        Assert.InRange(mock.Object.JobExpirationTimeout, TimeSpan.FromMinutes(29), TimeSpan.FromMinutes(30));
+    }
+
+    [Theory]
     [InlineData("Scheduled", "Enqueued")]
     [InlineData("Enqueued", "Scheduled")]
     [InlineData("Scheduled", "Scheduled")]
@@ -1298,7 +1353,15 @@ public sealed class JobChainStepFilterFacts : IDisposable
 
     private static string Note(int generation, string state = "Failed", Dictionary<string, string> data = null)
     {
-        return new JobChains.RetryMarker { Id = "0123456789abcdef", Generation = generation, State = state, Reason = "The old reason", Data = data ?? [] }.Serialize();
+        return new JobChains.RetryMarker
+        {
+            Id = "0123456789abcdef",
+            Generation = generation,
+            State = state,
+            Reason = "The old reason",
+            Data = data ?? [],
+            ExpireAt = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc),
+        }.Serialize();
     }
 
     // The step carries the note of a retry of its chain that held it

@@ -780,7 +780,7 @@ public sealed class JobChainStorageFacts : IDisposable
         StateData succeeded = StateData(step)!;
         long counted = Counter("stats:succeeded");
         int states = History(chain.Steps["2.0"]).Count;
-        Assert.NotNull(ExpiresAt(step));
+        DateTime expiresAt = ExpiresAt(step)!.Value;
         _filter.CrashOn = "c";
 
         // Held for a retry that stops before it created anything: the job is kept while it is held
@@ -799,10 +799,36 @@ public sealed class JobChainStorageFacts : IDisposable
         StateData restored = StateData(step)!;
         Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
         Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
-        Assert.NotNull(ExpiresAt(step));
+        Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
         Assert.Equal(counted, Counter("stats:succeeded"));
         Assert.Equal(states, History(chain.Steps["2.0"]).Count);
         Assert.Equal(["a", "b", "c"], Ran);
+        Assert.Null(Parameter(step, "ChainRetry"));
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatFails_PutsASucceededStepBack_ToExpireWhenItWasTo()
+    {
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
+        string step = chain.Steps["1.0"];
+
+        using (CreateServer())
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        // Two hours later, a retry that can't create its new step: the step goes back to Succeeded
+        DateTime expiresAt = ExpiresAt(step)!.Value;
+        long counted = Counter("stats:succeeded");
+        MoveClock(TimeSpan.FromHours(2));
+        _filter.ThrowOn = "c";
+
+        Assert.ThrowsAny<Exception>(() => _storage.RetryChainFrom(step));
+
+        // As it was: not kept for a whole day from now, and not counted again
+        Assert.Equal(SucceededState.StateName, StateOf(step));
+        Assert.InRange(ExpiresAt(step)!.Value, expiresAt.AddSeconds(-5), expiresAt.AddSeconds(5));
+        Assert.Equal(counted, Counter("stats:succeeded"));
         Assert.Null(Parameter(step, "ChainRetry"));
     }
 

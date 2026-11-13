@@ -652,6 +652,60 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task RetryChainFrom_ASucceededStep_ThatIsAbandoned_PutsItBackAsSucceeded_ToExpireWhenItWasTo()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(["a", "b", "c"], Log);
+        DateTime expiresAt = storage.GetMonitoringApi().JobDetails(step).ExpireAt.Value;
+        StateData succeeded;
+        using (IStorageConnection connection = storage.GetConnection())
+        {
+            succeeded = connection.GetStateData(step);
+        }
+
+        // Held for a retry that stops before it created anything: the job is kept while it is held
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(step));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+
+        Assert.Equal(ScheduledState.StateName, StateName(storage, step));
+        Assert.Null(storage.GetMonitoringApi().JobDetails(step).ExpireAt);
+        LapseLease(storage, chain.ChainId);
+        Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromSeconds(1)) { Reason = "Chain retried from this step" }, ScheduledState.StateName));
+
+        using (CreateServer(storage))
+        {
+            StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == SucceededState.StateName);
+            Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
+            Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+        }
+
+        // Succeeded as it was: it expires when it was to, and the step after it isn't started again
+        Assert.InRange(storage.GetMonitoringApi().JobDetails(step).ExpireAt.Value, expiresAt.AddSeconds(-10), expiresAt.AddSeconds(10));
+        Assert.Equal(["a", "b", "c"], Log);
+        Assert.Equal(SucceededState.StateName, StateName(storage, chain.Steps["2.0"]));
+    }
+
+    [Fact, CleanDatabase]
     public async Task Step_RequeuedByHand_Runs_ThoughARetryThatStoppedBeforeItHeldTheStep_LeftItsNoteOnTheJob()
     {
         SqlServerStorage storage = CreateStorage();

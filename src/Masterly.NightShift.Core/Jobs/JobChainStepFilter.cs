@@ -303,6 +303,14 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
+        // A step put back into a state in which its job expires goes on expiring when it was to: the retention
+        // filters, which ran before, would keep it for a whole retention from now, as a job that just finished
+        if (context.NewState is JobChains.RestoredState { ExpireAt: { } expireAt } && context.JobExpires)
+        {
+            TimeSpan left = expireAt - JobClock.UtcNow;
+            context.JobExpirationTimeout = left > JobChains.RestoredState.MinLifetime ? left : JobChains.RestoredState.MinLifetime;
+        }
+
         IReadOnlyDictionary<string, string>? parameters = context.BackgroundJob.ParametersSnapshot;
 
         if (parameters != null && parameters.TryGetValue(JobChains.ChainRetryParameter, out string? retry) && !string.IsNullOrEmpty(retry))

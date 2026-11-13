@@ -235,7 +235,8 @@ public static partial class JobChains
 
             // What the step says about this retry while it is held: the generation the retry starts from, and the
             // state to put the step back into should the retry never be recorded
-            RetryMarker? marker = stepState == null ? null : RetryMarker.For(record.Generation, stepState);
+            DateTime? stepExpiry = stepState == null ? null : ReadExpiry(storage, stepJobId);
+            RetryMarker? marker = stepState == null ? null : RetryMarker.For(record.Generation, stepState, stepExpiry);
 
             // From here no step of the chain starts until the retry is recorded or given up. Should this process
             // stop before, the lease lapses and the record still lists the old steps: nothing is lost.
@@ -318,7 +319,7 @@ public static partial class JobChains
                 bool nothingLeft = DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
                 if (heldId != null)
                 {
-                    nothingLeft &= TakeBackHeld(client, connection, chainId, heldId, stepState);
+                    nothingLeft &= TakeBackHeld(client, connection, chainId, heldId, stepState, stepExpiry);
                 }
 
                 lease.GiveUp(nothingLeft);
@@ -337,7 +338,7 @@ public static partial class JobChains
                 // goes back into its state, unless a server did that already.
                 lease.GiveUp(nothingLeft: false);
                 DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
-                TakeBackHeld(client, connection, chainId, heldId!, stepState); // Set before the record is written
+                TakeBackHeld(client, connection, chainId, heldId!, stepState, stepExpiry); // Set before the record is written
 
                 throw new InvalidOperationException(
                     $"Chain '{chainId}' wasn't retried: this process was frozen while it recorded the retry, for so long that a server took the retry for abandoned" +
@@ -406,14 +407,14 @@ public static partial class JobChains
 
     // Undoes the hold of a retry that isn't recorded: the step goes back into the state it was in, and a job that
     // was created again for it is deleted. Returns whether nothing of the retry is left in that job.
-    private static bool TakeBackHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string heldId, StateData? stepState)
+    private static bool TakeBackHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string heldId, StateData? stepState, DateTime? stepExpiry)
     {
         if (stepState == null)
         {
             return DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
         }
 
-        PutBack(client, connection, heldId, stepState, chainId);
+        PutBack(client, connection, heldId, stepState, stepExpiry, chainId);
         return true;
     }
 
