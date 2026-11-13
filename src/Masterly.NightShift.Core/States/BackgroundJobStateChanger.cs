@@ -167,9 +167,9 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     IStateMachine stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
                     appliedState = stateMachine.ApplyState(applyContext);
 
-                    // A filter had the job given back to its queue (see JobGiveBack): the transaction is dropped
-                    // with whatever the filters before it put in it, the job isn't acknowledged, and its state is
-                    // what it was. The lock is released before the worker waits.
+                    // The first election filter had the job given back to its queue (see JobGiveBack): the
+                    // transaction is dropped, the job isn't acknowledged, and its state is what it was. The lock
+                    // is released before the worker waits.
                     if (giveBack is not { Requested: true })
                     {
                         if (context.CompleteJob != null)
