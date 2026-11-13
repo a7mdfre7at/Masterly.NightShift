@@ -410,12 +410,17 @@ public static partial class JobChains
 
             taken++;
             ChainPlacement placement = new(setKey, now + DecisionWindow);
+            bool? placed = null;
 
             try
             {
                 using (connection.AcquireDistributedLock(GetLockResource(chainId), TimeSpan.Zero))
                 {
                     placement = Look(storage, client, connection, chainId, leftToExpire: setKey == ExpirySetKey, now, looks);
+
+                    // Still under the lock: a retry or a replacement of the chain, which gives the chain its
+                    // place too, comes before the look read the chain or after the look wrote, never in between
+                    placed = Place(connection, chainId, setKey, placement);
                 }
             }
             catch (DistributedLockTimeoutException)
@@ -426,9 +431,11 @@ public static partial class JobChains
             {
                 Logger.WarnException($"Chain '{chainId}' couldn't be looked at (for steps that were never told to start, and to keep its record); a later maintenance run tries again.", ex);
                 placement = new ChainPlacement(setKey, now + MaxWatchInterval);
+                placed = null;
             }
 
-            if (Place(connection, chainId, setKey, placement) && placement.Unlisted)
+            placed ??= Place(connection, chainId, setKey, placement);
+            if (placed.Value && placement.Unlisted)
             {
                 looks.Unlisted++;
             }
@@ -484,14 +491,18 @@ public static partial class JobChains
         try
         {
             ChainPlacement placement;
+            bool placed;
+
             using (connection.AcquireDistributedLock(GetLockResource(chainId), TimeSpan.Zero))
             {
                 placement = Look(storage, client, connection, chainId, leftToExpire: false, now, looks);
+
+                // The chain may be among the chains to look at or among the ones left to expire: it leaves the
+                // one it doesn't go to. Under the lock, as for any look.
+                placed = Place(connection, chainId, placement.Set == DueSetKey ? ExpirySetKey : DueSetKey, placement);
             }
 
-            // The chain may be among the chains to look at or among the ones left to expire: it leaves the one
-            // it doesn't go to
-            if (!Place(connection, chainId, placement.Set == DueSetKey ? ExpirySetKey : DueSetKey, placement))
+            if (!placed)
             {
                 return now;
             }

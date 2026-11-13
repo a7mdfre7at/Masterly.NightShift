@@ -341,6 +341,41 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     }
 
     [Fact]
+    public void Maintain_WritesWhereAChainGoesNext_WhileItStillHoldsTheChainsLock()
+    {
+        // A retry or a replacement of the chain gives the chain its place too, under the same lock: it can't come
+        // between what the look read and what the look writes
+        Line("c", TimeSpan.FromDays(10), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("b", Awaiting("a")));
+        Set(SoonSet).Add((After(TimeSpan.FromMinutes(-1)), "d|1"));
+        Line("d", TimeSpan.FromDays(10), ("x", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("y", Awaiting("x")));
+        Set(DueSet).RemoveAll(static x => x.Value == "d");
+
+        HashSet<string> held = [];
+        List<(string Chain, bool Locked)> writes = [];
+        _connection.Setup(x => x.AcquireDistributedLock(It.IsAny<string>(), It.IsAny<TimeSpan>()))
+            .Returns((string resource, TimeSpan _) =>
+            {
+                held.Add(resource);
+                Mock<IDisposable> handle = new();
+                handle.Setup(x => x.Dispose()).Callback(() => held.Remove(resource));
+                return handle.Object;
+            });
+        _connection.Setup(x => x.CreateWriteTransaction()).Returns(() =>
+        {
+            Mock<JobStorageTransaction> transaction = new();
+            transaction.Setup(x => x.AddToSet(DueSet, It.IsAny<string>(), It.IsAny<double>()))
+                .Callback((string _, string chain, double _) => writes.Add((chain, held.Contains($"lock:chain:{chain}"))));
+            return transaction.Object;
+        });
+
+        Maintain();
+
+        Assert.Contains(("c", true), writes);
+        Assert.Contains(("d", true), writes);
+        Assert.DoesNotContain(writes, static x => !x.Locked);
+    }
+
+    [Fact]
     public void Maintain_LooksOnce_AtAChainAskedForSeveralTimes_AndForgetsWhatWasAsked()
     {
         Line("c", TimeSpan.FromDays(10), ("a", Finished(FailedState.StateName, TimeSpan.FromDays(10))), ("b", Awaiting("a")));
