@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Masterly.NightShift.Client;
 using Masterly.NightShift.Server;
+using Masterly.NightShift.Storage.Monitoring;
 using ReferencedDapper::Dapper;
 
 namespace Masterly.NightShift.SqlServer.Tests;
@@ -654,7 +655,8 @@ public class JobChainFacts
                 // Back in the state it was in, with its data: the retry never happened
                 StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == FailedState.StateName);
                 Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-                Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+                Assert.Equal(failed.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+                Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
 
                 // What the retry had created is deleted, and the note of the retry goes
                 string created = hooks.Created.Single(static x => x.Name == "c").Id;
@@ -741,6 +743,129 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task RetryChainFrom_WhoseClientWakesUpAfterItsStepWasPutBack_LeavesAStepThatWasScheduledAgainSince()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+        Assert.True(client.ChangeState(chain.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(step, new FailedState(new InvalidOperationException("failed")), null));
+
+        using BackgroundJobServer server = CreateServer(storage);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+
+        ChainHooks hooks = new()
+        {
+            PauseOnCreating = "d",
+            WhilePaused = () =>
+            {
+                // The client stalls: a server takes the retry for abandoned and puts the step back
+                LapseLease(storage, chain.ChainId);
+                Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromSeconds(1)) { Reason = "Chain retried from this step" }, ScheduledState.StateName));
+                WaitForState(storage, step, FailedState.StateName);
+                Assert.Null(Parameter(storage, step, "ChainRetry"));
+
+                // Then somebody schedules the failed step to run again in an hour
+                Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromHours(1)) { Reason = "Rescheduled by an operator" }, FailedState.StateName));
+            },
+        };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // It wakes up, and finds that the step is no longer held for it
+            Assert.Throws<InvalidOperationException>(() => storage.RetryChainFrom(step));
+
+            // The step isn't this retry's any more: it stays scheduled
+            using IStorageConnection connection = storage.GetConnection();
+            StateData state = connection.GetStateData(step);
+            Assert.Equal((ScheduledState.StateName, "Rescheduled by an operator"), (state.Name, state.Reason));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task RetryChainFrom_ASucceededStep_ThatIsAbandoned_PutsItBack_AlsoWhenTheServerCanNotLoadItsMethod()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+
+        using (CreateServer(storage))
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(SucceededState.StateName, StateName(storage, step));
+        long failedBefore = storage.GetMonitoringApi().GetStatistics().Failed;
+
+        ChainHooks hooks = new() { CrashOnCreating = "c" };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // The retry stops before it is recorded
+            Assert.Throws<OutOfMemoryException>(() => storage.RetryChainFrom(step));
+            Assert.Equal(ScheduledState.StateName, StateName(storage, step));
+
+            // The servers run a build in which the step's method is gone; the lease lapses and the hold ends
+            using (DbConnection sql = ConnectionUtils.CreateConnection())
+            {
+                Assert.Equal(1, sql.Execute(
+                    $"update [{Constants.DefaultSchema}].Job set InvocationData = replace(InvocationData, 'RecordWithoutRetries', 'GoneWithoutRetries') where Id = @id",
+                    new { id = long.Parse(step) }));
+                Assert.Equal(1, sql.Execute(
+                    $"update [{Constants.DefaultSchema}].[Set] set Score = 0 where [Key] = 'schedule' and Value = @id",
+                    new { id = step }));
+            }
+
+            LapseLease(storage, chain.ChainId);
+
+            using BackgroundJobServer server = CreateServer(storage);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            string reason = null;
+            string state = ScheduledState.StateName;
+            while (stopwatch.Elapsed < Timeout)
+            {
+                using (IStorageConnection connection = storage.GetConnection())
+                {
+                    StateData data = connection.GetStateData(step);
+                    state = data.Name;
+                    reason = data.Reason;
+                }
+
+                if (reason != "Chain retried from this step")
+                {
+                    break;
+                }
+
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
+
+            // The retry never happened: the step is Succeeded as it was. Putting it back needs none of its code.
+            Assert.Equal((SucceededState.StateName, $"The retry of chain {chain.ChainId} was abandoned"), (state, reason));
+
+            // Nothing says it failed: no Failed state in its history, no automatic retry, no failure counted
+            IList<StateHistoryDto> history = storage.GetMonitoringApi().JobDetails(step).History;
+            Assert.DoesNotContain(history, static x => x.StateName == FailedState.StateName);
+            Assert.DoesNotContain(history, static x => x.Reason?.StartsWith("Retry attempt", StringComparison.Ordinal) == true);
+            Assert.Equal(failedBefore, storage.GetMonitoringApi().GetStatistics().Failed);
+            Assert.Null(Parameter(storage, step, "ChainRetry"));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
     public void RetryChainFrom_ThatFails_PutsItsStepBack_AndTakesItsNoteOff()
     {
         SqlServerStorage storage = CreateStorage();
@@ -812,7 +937,8 @@ public class JobChainFacts
         {
             StateData restored = await WaitForStateAsync(storage, step, static x => x.Name == SucceededState.StateName);
             Assert.Equal($"The retry of chain {chain.ChainId} was abandoned", restored.Reason);
-            Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.OrderBy(static x => x.Key, StringComparer.Ordinal));
+            Assert.Equal(succeeded.Data.OrderBy(static x => x.Key, StringComparer.Ordinal), restored.Data.Where(static x => x.Key != "AbandonedRetry").OrderBy(static x => x.Key, StringComparer.Ordinal));
+            Assert.True(restored.Data.ContainsKey("AbandonedRetry"));
             await Task.Delay(1000, TestContext.Current.CancellationToken);
         }
 

@@ -114,6 +114,12 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     // How many jobs whose chain couldn't be read a process remembers at most; past it, they are all forgotten
     private const int MaxUnreadable = 10_000;
 
+    // How the reason begins of the Failed state the state changer makes of a state it can't apply, because the
+    // job's method can't be loaded (BackgroundJobStateChanger: "Can not change the state to 'Enqueued': ..."),
+    // for the two states a job goes to a worker by
+    private const string CanNotEnqueueReasonPrefix = "Can not change the state to 'Enqueued'";
+    private const string CanNotProcessReasonPrefix = "Can not change the state to 'Processing'";
+
     private static readonly ILog Logger = LogProvider.GetLogger(typeof(JobChainStepFilter));
 
     /// <summary>
@@ -163,15 +169,33 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        // Only a job about to run. A step held here is put back in its queue by DrainModeFilter, after the filters
-        // that may still schedule it again: restoring the queue here, first, would forget it for those.
-        if (context.CandidateState is not ProcessingState)
+        // The client of a retry that failed puts its step back: only while the step is still held for that retry.
+        // Otherwise the state change fails, here, under the job's lock (the one case in which this filter throws)
+        if (context.CandidateState is JobChains.RestoredState { HeldFor: { } heldFor })
+        {
+            JobChains.EnsureHeldFor(context, heldFor);
+            return;
+        }
+
+        // The hold of a retry ends: that isn't a schedule coming due, so no schedule policy decides the step
+        if (context.CandidateState is EnqueuedState { IsDue: true } due)
+        {
+            EnqueueHeldStepAsItIs(context, due);
+            return;
+        }
+
+        // Only a job about to run; or one that can't even be loaded for it, which matters for a step held for a
+        // retry. A step held here is put back in its queue by DrainModeFilter, after the filters that may still
+        // schedule it again: restoring the queue here, first, would forget it for those.
+        bool processing = context.CandidateState is ProcessingState;
+        if (!processing && !CameUpButCanNotBeLoaded(context))
         {
             return;
         }
 
         BackgroundJob job = context.BackgroundJob;
         string? chainId = null;
+        string? note = null;
         JobChains.RetryMarker? retry = null;
         Verdict verdict;
         TimeSpan holdDelay;
@@ -187,7 +211,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             // picked up again while it was processing, the note is one that couldn't be taken off, and stale.
             if (IsOnTheWayToAWorker(context.CurrentState))
             {
-                retry = JobChains.RetryMarker.Parse(ReadParameter(job, context.Connection, JobChains.ChainRetryParameter));
+                note = ReadParameter(job, context.Connection, JobChains.ChainRetryParameter);
+                retry = JobChains.RetryMarker.Parse(note);
+            }
+
+            // A job whose method can't be loaded fails as any such job does, whatever its chain says; unless it
+            // is held for a retry, whose outcome needs none of the job's code
+            if (!processing && retry == null)
+            {
+                return;
             }
 
             // Without a trace only for a job that waited in its queue, and that a worker offers to look at again
@@ -210,7 +242,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 Logger.DebugException(message, ex);
             }
 
-            Hold(context, string.Format(CultureInfo.InvariantCulture, UnreadableReasonFormat, chainId ?? "?"), delay);
+            Hold(context, string.Format(CultureInfo.InvariantCulture, UnreadableReasonFormat, chainId ?? "?"), delay, quietly: !processing);
             return;
         }
 
@@ -225,6 +257,14 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             retry = null;
         }
 
+        // A step whose method can't be loaded, held for a retry: it waits while the retry is prepared, and is put
+        // back when the retry was abandoned, as any held step. Otherwise the retry is recorded, or the record
+        // lists another job: the step fails, as a job that can't be loaded does, and takes its note with it
+        if (!processing && verdict is not (Verdict.PutBack or Verdict.Wait or Verdict.LookAgain))
+        {
+            verdict = Verdict.Run;
+        }
+
         switch (verdict)
         {
             case Verdict.Run:
@@ -232,7 +272,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
             case Verdict.PutBack:
                 // Only for a step with the note of a retry
-                PutBack(context, chainId, retry!);
+                PutBack(context, chainId, retry!, note);
                 break;
 
             case Verdict.LookAgain:
@@ -246,7 +286,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
                 break;
 
             case Verdict.Wait:
-                Hold(context, WaitingReason(chainId), holdDelay);
+                Hold(context, WaitingReason(chainId), holdDelay, quietly: !processing);
                 break;
 
             case Verdict.NotCurrent:
@@ -265,13 +305,44 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         // back had it done above.
         if (retry != null && verdict != Verdict.PutBack && job.ParametersSnapshot == null)
         {
-            JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, beforeCommit: false);
+            JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, note, beforeCommit: false);
         }
+    }
+
+    // The delayed job scheduler enqueues a job that carries the note of a retry: the hold of the retry ended, or a
+    // hold of this filter that followed it. Nothing was scheduled, so nothing is due: the job goes to its queue
+    // as one enqueued by hand does, where no schedule policy skips it or moves it on, and the worker that takes
+    // it decides by the record. The note stays, as on any step on its way from the hold to a worker.
+    private static void EnqueueHeldStepAsItIs(ElectStateContext context, EnqueuedState due)
+    {
+        try
+        {
+            BackgroundJob job = context.BackgroundJob;
+            if (JobChains.RetryMarker.Parse(ReadParameter(job, context.Connection, JobChains.ChainRetryParameter)) == null)
+            {
+                return;
+            }
+
+            context.ReplaceCandidateState(new EnqueuedState(due.Queue) { Reason = due.Reason });
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"Whether background job '{context.BackgroundJob.Id}' is held for a retry of its chain couldn't be read when its hold ended; its schedule policy, if it has one, is asked as for a job that is due.", ex);
+        }
+    }
+
+    // The state changer couldn't load the job's method, on the job's way to a worker (the delayed job scheduler
+    // enqueues it, or a worker is about to process it), and made a Failed state of the state that was asked for
+    private static bool CameUpButCanNotBeLoaded(ElectStateContext context)
+    {
+        return context.BackgroundJob.Job == null &&
+               context.CandidateState is FailedState { Reason: { } reason } &&
+               (reason.StartsWith(CanNotProcessReasonPrefix, StringComparison.Ordinal) || reason.StartsWith(CanNotEnqueueReasonPrefix, StringComparison.Ordinal));
     }
 
     // The step goes back into the state it was in before the retry, and doesn't run. The note of the retry stays
     // until that is committed: a state change that fails is tried again, and decided the same way.
-    private static void PutBack(ElectStateContext context, string chainId, JobChains.RetryMarker retry)
+    private static void PutBack(ElectStateContext context, string chainId, JobChains.RetryMarker retry, string? note)
     {
         string jobId = context.BackgroundJob.Id;
 
@@ -279,7 +350,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         // Not by way of the Processing state: the job's history must not say that it ran
         context.ReplaceCandidateState(JobChains.RestoreAbandoned(retry, chainId));
-        JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, jobId, beforeCommit: false);
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, jobId, note, beforeCommit: false);
 
         // What the retry had created waits for this job and is listed nowhere: it is deleted, once this is
         // stored. Not before: a state change that fails leaves the step held, for a client that may still wake up.
@@ -315,7 +386,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         if (parameters != null && parameters.TryGetValue(JobChains.ChainRetryParameter, out string? retry) && !string.IsNullOrEmpty(retry))
         {
-            KeepRetryMarkerWhileHeld(context, transaction);
+            KeepRetryMarkerWhileHeld(context, transaction, retry);
         }
 
         // Without work after the commit (the transaction is the caller's), the next state change does the rest
@@ -385,7 +456,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     /// never followed by a hold, or was left behind: it is stale whatever becomes of this state change, and goes
     /// at once. A note on a job that leaves the two states goes with the state change, and stays when that fails.
     /// </summary>
-    private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction)
+    private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction, string note)
     {
         // The state that holds the step wrote the note, also over an older one
         if (context.NewState is JobChains.RetryHold || HeldNow.TryGetValue(context.BackgroundJob, out _))
@@ -399,7 +470,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        JobChains.ForgetRetryMarker(context.Storage, context.Connection, transaction, context.AfterCommit, context.BackgroundJob.Id, beforeCommit: !wasHeld);
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, transaction, context.AfterCommit, context.BackgroundJob.Id, note, beforeCommit: !wasHeld);
     }
 
     private static bool IsOnTheWayToAWorker(string? stateName)
@@ -553,8 +624,9 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     }
 
     // Never throws: the step is held whether or not its queue could be kept. A step whose queue was given only by
-    // its Enqueued state then goes to the default queue when the hold ends, which is logged.
-    private static void Hold(ElectStateContext context, string reason, TimeSpan delay)
+    // its Enqueued state then goes to the default queue when the hold ends, which is logged. Quietly, the state
+    // that was the candidate isn't written to the job's history: the Failed state of a job that can't be loaded.
+    private static void Hold(ElectStateContext context, string reason, TimeSpan delay, bool quietly = false)
     {
         try
         {
@@ -565,7 +637,15 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             Logger.WarnException($"The queue of background job '{context.BackgroundJob.Id}' couldn't be kept while the job is held: unless the job has a queue of its own, it goes to the default queue when the hold ends.", ex);
         }
 
-        context.CandidateState = new ScheduledState(JobClock.UtcNow + delay) { Reason = reason };
+        ScheduledState held = new(JobClock.UtcNow + delay) { Reason = reason };
+        if (quietly)
+        {
+            context.ReplaceCandidateState(held);
+        }
+        else
+        {
+            context.CandidateState = held;
+        }
     }
 
     /// <summary>

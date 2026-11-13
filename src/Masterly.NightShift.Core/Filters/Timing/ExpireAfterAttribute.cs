@@ -79,6 +79,15 @@ public sealed class ExpireAfterAttribute : JobFilterAttribute, IApplyStateFilter
     /// <inheritdoc />
     public void OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // A step put back into the state it was in goes on expiring when it was to: JobChainStepFilter, which ran
+        // before, set the time left, and a whole duration from now would outlive it
+        if (context.NewState is JobChains.RestoredState { ExpireAt: not null })
+        {
+            return;
+        }
+
         // Normally already done in OnStateUnapplied; repeated for callers that only invoke OnStateApplied.
         SetExpiration(context);
     }
