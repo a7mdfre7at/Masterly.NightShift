@@ -2,7 +2,6 @@ extern alias ReferencedDapper;
 
 using System.Collections.Concurrent;
 using System.Data.Common;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Data.SqlClient;
 using ReferencedDapper::Dapper;
@@ -402,7 +401,7 @@ public class TransactionalJobParameterFacts
             transaction.SetJobParameter(first, "Shared", "transaction");
             transaction.Commit();
         }, TestContext.Current.CancellationToken);
-        WaitForSessionsThatWait(1);
+        LockWaits.WaitForSessionsThatWait(1);
 
         // Meanwhile the same parameter is written outside a transaction: it waits for the transaction
         Task outside = Task.Run(() =>
@@ -410,7 +409,7 @@ public class TransactionalJobParameterFacts
             using IStorageConnection connection = storage.GetConnection();
             connection.SetJobParameter(first, "Shared", "connection");
         }, TestContext.Current.CancellationToken);
-        WaitForSessionsThatWait(2);
+        LockWaits.WaitForSessionsThatWait(2);
 
         held.Rollback();
 
@@ -470,31 +469,6 @@ public class TransactionalJobParameterFacts
             // The other tests run with the setting a new database has
             using DbConnection sql = ConnectionUtils.CreateConnection();
             sql.Execute("alter database current set delayed_durability = disabled");
-        }
-    }
-
-    /// <summary>
-    /// Waits until that many sessions wait for a lock in the test database, so a test goes on once the sessions
-    /// it started are where it wants them. Where the locks can't be listed, it waits a moment instead.
-    /// </summary>
-    private static void WaitForSessionsThatWait(int count)
-    {
-        using DbConnection sql = ConnectionUtils.CreateConnection();
-        Stopwatch stopwatch = Stopwatch.StartNew();
-
-        try
-        {
-            while (sql.ExecuteScalar<int>(
-                "select count(distinct request_session_id) from sys.dm_tran_locks where request_status = N'WAIT' and resource_database_id = db_id()") < count)
-            {
-                Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"{count} sessions should be waiting for a lock.");
-                Thread.Sleep(20);
-            }
-        }
-        catch (SqlException)
-        {
-            // No permission to see the locks
-            Thread.Sleep(TimeSpan.FromSeconds(2));
         }
     }
 

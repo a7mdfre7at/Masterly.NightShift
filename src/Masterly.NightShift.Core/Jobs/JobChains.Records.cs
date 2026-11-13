@@ -77,6 +77,47 @@ public static partial class JobChains
         return state.Name != null && IsSettledState(state.Name) ? DateTime.MinValue : null;
     }
 
+    /// <summary>
+    /// What the steps a waiting step waits for wrote on it when they finished, read only where it decides
+    /// something: for a step that waits for several steps, one of whose jobs is gone. <c>null</c> otherwise.
+    /// <paramref name="before"/> are the steps of the levels before it, which the level it waits for is one of.
+    /// </summary>
+    private static Dictionary<string, string>? ReadOutcomes(IStorageConnection connection, string jobId, StateData? state, List<JobChainStepInfo> before, int parentLevel)
+    {
+        if (!IsAwaiting(state?.Name))
+        {
+            return null;
+        }
+
+        int parents = 0;
+        bool gone = false;
+
+        foreach (JobChainStepInfo step in before)
+        {
+            if (step.Level == parentLevel)
+            {
+                parents++;
+                gone |= step.State == null;
+            }
+        }
+
+        if (parents < 2 || !gone)
+        {
+            return null;
+        }
+
+        try
+        {
+            return FanInContinuationsSupportAttribute.ReadOutcomes(connection, jobId);
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            // The chain is still read: the steps that are gone count as not finished
+            Logger.DebugException($"What the steps before background job '{jobId}' finished as couldn't be read.", ex);
+            return null;
+        }
+    }
+
     /// <summary>When a step in the Scheduled state is due, or <c>null</c> for another state or a time nobody can read.</summary>
     private static DateTime? ReadDueAt(StateData? state)
     {
@@ -350,6 +391,7 @@ public static partial class JobChains
                         LevelKind = levelDefinition.Kind,
                         FinishedAt = ReadFinishedAt(state),
                         DueAt = ReadDueAt(state),
+                        Outcomes = ReadOutcomes(connection, jobId, state, steps, levelDefinition.Parent),
                     });
                 }
             }
