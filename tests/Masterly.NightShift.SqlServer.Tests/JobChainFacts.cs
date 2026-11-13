@@ -259,10 +259,11 @@ public class JobChainFacts
             transaction.Commit();
         }
 
+        // The server runs their steps too: a chain that finished first is left to expire, which is its place then
         using (CreateServer(storage))
         {
-            await WaitUntilAsync(() => SetItems(storage, DueSet).Contains(line.ChainId), "The chain nobody watched wasn't given a place.");
-            await WaitUntilAsync(() => SetItems(storage, DueSet).Contains(joined.ChainId), "The watched chain wasn't given a place.");
+            await WaitUntilAsync(() => HasPlace(storage, line.ChainId), "The chain nobody watched wasn't given a place.");
+            await WaitUntilAsync(() => HasPlace(storage, joined.ChainId), "The watched chain wasn't given a place.");
             await WaitUntilAsync(() => HashField(storage, "chains:index", "Listed") == "done", "The chains listed weren't gone through again.");
         }
 
@@ -1568,6 +1569,12 @@ public class JobChainFacts
         transaction.RemoveHash(JobChains.GetKey(chainId));
         transaction.RemoveFromSet(JobChains.SetKey, chainId);
         transaction.Commit();
+    }
+
+    /// <summary>Whether a chain has its place among the chains to look at, or among the ones left to expire.</summary>
+    private static bool HasPlace(SqlServerStorage storage, string chainId)
+    {
+        return SetItems(storage, DueSet).Contains(chainId) || SetItems(storage, ExpirySet).Contains(chainId);
     }
 
     /// <summary>Removes a job, its state and its parameters, as the expiration manager does once it expired.</summary>
