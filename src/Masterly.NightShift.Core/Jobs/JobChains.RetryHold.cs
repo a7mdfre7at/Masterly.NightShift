@@ -375,9 +375,11 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Puts the step of a retry that failed back into the state it was in, from its hold: the Scheduled state, or
-    /// the Enqueued state when the hold ended and no worker took the step yet. A step that left the hold another
-    /// way (a server put it back already, somebody changed it) is left as it is.
+    /// Puts the step of a retry that failed back into the state it was in, from its hold. A step whose hold ended
+    /// meanwhile waits in its queue with the note of the retry: it is left there, and the worker that takes it
+    /// puts it back, because the retry isn't recorded (moved from here, it would leave its place in the queue
+    /// behind). A step that left the hold another way (a server put it back already, somebody changed it) is
+    /// left as it is.
     /// </summary>
     private static void PutBack(IBackgroundJobClient client, IStorageConnection connection, string jobId, StateData stepState, string chainId)
     {
@@ -386,13 +388,22 @@ public static partial class JobChains
         try
         {
             string? current = connection.GetStateData(jobId)?.Name;
-            bool held = ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase) ||
-                        EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase);
 
-            if (held && client.ChangeState(jobId, state, current))
+            if (ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
             {
-                // Also where no filter did it with the state change
-                ForgetRetryMarker(connection, jobId);
+                if (client.ChangeState(jobId, state, ScheduledState.StateName))
+                {
+                    // Also where no filter did it with the state change
+                    ForgetRetryMarker(connection, jobId);
+                    return;
+                }
+
+                current = connection.GetStateData(jobId)?.Name;
+            }
+
+            if (EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.Info($"The hold of background job '{jobId}' of chain '{chainId}' ended while the retry was at it: the job waits in its queue, and the worker that takes it moves it back to {state.Name} instead of running it.");
                 return;
             }
 

@@ -1126,9 +1126,10 @@ public class JobChainFacts : IDisposable
     }
 
     [Fact]
-    public void RetryChainFrom_ThatFails_PutsItsStepBack_FromTheQueueToo_WhenItsHoldEndedMeanwhile_AndTakesItsNoteOff()
+    public void RetryChainFrom_ThatFails_LeavesItsStepToTheWorkerThatTakesIt_WhenItsHoldEndedMeanwhile()
     {
-        // The hold ended and no worker took the step yet: it still carries the note, and nothing decided it
+        // The hold ended and no worker took the step yet: it waits in its queue with the note of the retry.
+        // Moved from here, it would leave its place in the queue behind; the worker that takes it puts it back.
         RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")), ["root", "next", "last"]);
         _storage.Connection.Setup(x => x.GetJobParameter("next", JobChains.ChainIdParameter)).Returns("\"c\"");
         _storage.Connection.Setup(x => x.GetStateData("root")).Returns(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() });
@@ -1138,10 +1139,34 @@ public class JobChainFacts : IDisposable
 
         Assert.ThrowsAny<Exception>(() => JobChains.Retry(_storage.Object, _client.Object, "next"));
 
-        _client.Verify(x => x.ChangeState("next", It.Is<JobChains.RestoredState>(state => state.Name == FailedState.StateName), EnqueuedState.StateName), Times.Once);
+        _client.Verify(x => x.ChangeState("next", It.IsAny<JobChains.RestoredState>(), It.IsAny<string>()), Times.Never);
+        Assert.DoesNotContain("forget", order);
+        Assert.NotNull(_notes["next"]);
+        Assert.Equal("1", _storage.Hashes[JobChains.GetKey("c")].GetValueOrDefault("Generation", "1"));
+        Assert.DoesNotContain("changing", _storage.Hashes[JobChains.GetKey("c")]["Jobs"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RetryChainFrom_ThatFails_PutsItsStepBack_FromItsHold_AndTakesItsNoteOff()
+    {
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")), ["root", "next", "last"]);
+        _storage.Connection.Setup(x => x.GetJobParameter("next", JobChains.ChainIdParameter)).Returns("\"c\"");
+        _storage.Connection.Setup(x => x.GetStateData("root")).Returns(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("last")).Returns(new StateData { Name = AwaitingState.StateName, Data = new Dictionary<string, string>() });
+        List<string> order = HoldsWhenAsked("next", FailedState.StateName, new Dictionary<string, string> { ["FailedAt"] = "2026-01-01T00:00:00.0000000Z" }, "It broke");
+        _client.Setup(x => x.Create(It.IsAny<Job>(), It.IsAny<IState>(), It.IsAny<IDictionary<string, object>>())).Throws(new InvalidOperationException("The storage is down."));
+
+        Assert.ThrowsAny<Exception>(() => JobChains.Retry(_storage.Object, _client.Object, "next"));
+
+        // The state it was in, with its reason and its data, while the lease still keeps a worker from it
+        _client.Verify(
+            x => x.ChangeState(
+                "next",
+                It.Is<JobChains.RestoredState>(state => state.Name == FailedState.StateName && state.Reason == "It broke" && state.SerializeData()["FailedAt"] == "2026-01-01T00:00:00.0000000Z"),
+                ScheduledState.StateName),
+            Times.Once);
         Assert.Equal("forget", order[^1]);
         Assert.Null(_notes["next"]);
-        Assert.Equal("1", _storage.Hashes[JobChains.GetKey("c")]["Generation"]);
     }
 
     // The notes of retries on jobs, as the storage keeps them
