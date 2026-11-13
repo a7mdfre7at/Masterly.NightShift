@@ -42,9 +42,24 @@ public class JobDetailsPageFacts
         Assert.Contains("data-method=\"Work\"", html);
         Assert.Contains("js-copy-code\" data-code=\"", html);
         Assert.Contains("<span class=\"comment\">// " + H(Strings.QueuesPage_Table_Queue) + ": critical</span>", html);
-        Assert.Contains("data-ajax=\"/jobs/actions/requeue/1\"", html);
+        Assert.DoesNotContain("data-ajax=\"/jobs/actions/requeue/1\"", html);
         Assert.Contains("data-ajax=\"/jobs/actions/delete/1\"", html);
         Assert.Contains("id=\"catalogRunner\"", html);
+    }
+
+    [Theory]
+    [InlineData("Failed")]
+    [InlineData("Processing")]
+    [InlineData("Succeeded")]
+    [InlineData("Deleted")]
+    [InlineData("Scheduled")]
+    public void Render_ShowsRequeue_ForAJobThatDoesNotWaitInItsQueue(string state)
+    {
+        SetupJob(Details(state));
+
+        string html = _renderer.Render(new JobDetailsPage(JobId));
+
+        Assert.Contains("data-ajax=\"/jobs/actions/requeue/1\"", html);
     }
 
     [Fact]

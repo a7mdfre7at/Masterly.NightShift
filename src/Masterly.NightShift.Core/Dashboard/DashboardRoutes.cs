@@ -250,12 +250,22 @@ public static class DashboardRoutes
         Routes.AddClientBatchCommand("/jobs/awaiting/delete", static (client, jobId) => client.ChangeState(
             jobId, CreateDeletedState(), AwaitingState.StateName));
 
+        // From the state the job is in, so two clicks requeue it once; and never a job that waits in its queue
+        // already, which would get a second entry there
         Routes.AddCommand(
             "/jobs/actions/requeue/(?<JobId>.+)",
             static context =>
             {
-                IBackgroundJobClient client = context.GetBackgroundJobClient();
-                return client.ChangeState(RouteValues.Get(context, "JobId"), CreateEnqueuedState());
+                string jobId = RouteValues.Get(context, "JobId");
+                string? state;
+                using (IStorageConnection connection = context.Storage.GetConnection())
+                {
+                    state = connection.GetStateData(jobId)?.Name;
+                }
+
+                return state != null
+                    && !EnqueuedState.StateName.Equals(state, StringComparison.OrdinalIgnoreCase)
+                    && context.GetBackgroundJobClient().ChangeState(jobId, CreateEnqueuedState(), state);
             });
 
         Routes.AddCommand(

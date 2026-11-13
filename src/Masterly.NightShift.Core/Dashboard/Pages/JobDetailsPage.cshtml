@@ -551,7 +551,8 @@
                 @if (job.History.Count > 1)
                 {
                     <span class="job-snippet-buttons pull-right">
-                        @if (!IsReadOnly)
+                        @* A job that waits in its queue is enqueued already *@
+                        @if (!IsReadOnly && job.History[0].StateName != EnqueuedState.StateName)
                         {
                             <button class="btn btn-sm btn-default"
                                     data-ajax="@Url.To("/jobs/actions/requeue/" + JobId)"
