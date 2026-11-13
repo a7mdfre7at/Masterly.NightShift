@@ -32,7 +32,7 @@ public class StateChangeContextMock
                 CustomData)
             {
                 LeaseHolder = LeaseHolder,
-                GiveBack = GiveBack,
+                LookAgain = LookAgain,
             });
     }
 
@@ -48,7 +48,7 @@ public class StateChangeContextMock
     public string ServerId { get; set; }
     public IReadOnlyDictionary<string, object> CustomData { get; set; }
     public string LeaseHolder { get; set; }
-    internal JobGiveBack GiveBack { get; set; }
+    internal JobLookAgain LookAgain { get; set; }
 
     public StateChangeContext Object => _context.Value;
 }

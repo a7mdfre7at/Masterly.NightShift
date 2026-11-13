@@ -157,17 +157,17 @@ public class StateMachineFacts
     }
 
     [Fact]
-    public void ApplyState_StopsAtTheFilterThatGivesTheJobBack_AndWritesNothing()
+    public void ApplyState_StopsAtTheFilterThatAsksTheWorkerToLookAgain_AndWritesNothing()
     {
         // What a worker offers for the job it fetched
-        _context.GiveBack = new JobGiveBack();
+        _context.LookAgain = new JobLookAgain();
 
         Mock<IElectStateFilter> first = CreateFilter<IElectStateFilter>();
         first.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
             .Callback<ElectStateContext>(static context =>
             {
-                Assert.True(context.CanGiveBack);
-                Assert.True(context.TryGiveBack(TimeSpan.FromMilliseconds(20)));
+                Assert.True(context.CanLookAgain);
+                Assert.True(context.TryLookAgain(TimeSpan.FromMilliseconds(20)));
             });
         Mock<IElectStateFilter> second = CreateFilter<IElectStateFilter>();
         Mock<IElectStateFilter> third = CreateFilter<IElectStateFilter>();
@@ -183,16 +183,16 @@ public class StateMachineFacts
         apply.Verify(x => x.OnStateApplied(It.IsAny<ApplyStateContext>(), It.IsAny<IWriteOnlyTransaction>()), Times.Never);
         _innerMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()), Times.Never);
         Assert.Empty(_transaction.Invocations);
-        Assert.True(_context.GiveBack.Requested);
-        Assert.Equal(TimeSpan.FromMilliseconds(20), _context.GiveBack.Pause);
+        Assert.True(_context.LookAgain.Requested);
+        Assert.Equal(TimeSpan.FromMilliseconds(20), _context.LookAgain.Pause);
     }
 
     [Fact]
-    public void ApplyState_OffersToGiveTheJobBack_ToTheFirstElectionFilterOnly()
+    public void ApplyState_OffersToLookAgain_ToTheFirstElectionFilterOnly()
     {
-        // Once a filter has seen the job about to change state, the job isn't given back any more: nothing tells
+        // Once a filter has seen the job about to change state, the worker doesn't wait any more: nothing tells
         // that filter that the state change didn't happen
-        _context.GiveBack = new JobGiveBack();
+        _context.LookAgain = new JobLookAgain();
         bool? offered = null;
         bool? given = null;
 
@@ -201,20 +201,20 @@ public class StateMachineFacts
         second.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
             .Callback<ElectStateContext>(context =>
             {
-                offered = context.CanGiveBack;
-                given = context.TryGiveBack(TimeSpan.FromMilliseconds(20));
+                offered = context.CanLookAgain;
+                given = context.TryLookAgain(TimeSpan.FromMilliseconds(20));
             });
 
         CreateStateMachine().ApplyState(_context.Object);
 
         Assert.False(offered);
         Assert.False(given);
-        Assert.False(_context.GiveBack.Requested);
+        Assert.False(_context.LookAgain.Requested);
         _innerMachine.Verify(x => x.ApplyState(It.IsAny<ApplyStateContext>()), Times.Once);
     }
 
     [Fact]
-    public void ApplyState_TellsAFilterItCanNotGiveTheJobBack_WhenNoWorkerOfferedIt()
+    public void ApplyState_TellsAFilterTheWorkerWillNotLookAgain_WhenNoWorkerOfferedIt()
     {
         bool? given = null;
         bool? offered = null;
@@ -222,8 +222,8 @@ public class StateMachineFacts
         filter.Setup(x => x.OnStateElection(It.IsNotNull<ElectStateContext>()))
             .Callback<ElectStateContext>(context =>
             {
-                offered = context.CanGiveBack;
-                given = context.TryGiveBack(TimeSpan.FromMilliseconds(20));
+                offered = context.CanLookAgain;
+                given = context.TryLookAgain(TimeSpan.FromMilliseconds(20));
             });
 
         CreateStateMachine().ApplyState(_context.Object);

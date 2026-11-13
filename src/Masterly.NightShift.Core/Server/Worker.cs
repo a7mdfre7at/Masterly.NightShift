@@ -49,8 +49,15 @@ public class Worker : IBackgroundProcess
     /// </summary>
     internal const string DisposeAfterStateChangeItem = "X_NS_DisposeAfterStateChange";
 
+    // How often a job that this worker must give up is put back in its queue before that is left to the storage
+    private const int RequeueAttempts = 3;
+    private static readonly TimeSpan RequeueRetryDelay = TimeSpan.FromMilliseconds(200);
+
     private readonly TimeSpan _jobInitializationWaitTimeout;
     private readonly int _maxStateChangeAttempts;
+
+    // Shared by the threads that run this worker, a pool: what their waiting with a job in hand may cost it
+    private readonly WorkerWaits _waits;
 
     private readonly ILog _logger = LogProvider.For<Worker>();
 
@@ -83,6 +90,17 @@ public class Worker : IBackgroundProcess
         [NotNull] IBackgroundJobStateChanger stateChanger,
         TimeSpan jobInitializationTimeout,
         int maxStateChangeAttempts)
+        : this(queues, performer, stateChanger, jobInitializationTimeout, maxStateChangeAttempts, new WorkerWaits())
+    {
+    }
+
+    internal Worker(
+        [NotNull] IEnumerable<string> queues,
+        [NotNull] IBackgroundJobPerformer performer,
+        [NotNull] IBackgroundJobStateChanger stateChanger,
+        TimeSpan jobInitializationTimeout,
+        int maxStateChangeAttempts,
+        [NotNull] WorkerWaits waits)
     {
         ArgumentNullException.ThrowIfNull(queues);
         ArgumentNullException.ThrowIfNull(performer);
@@ -96,6 +114,7 @@ public class Worker : IBackgroundProcess
 
         _jobInitializationWaitTimeout = jobInitializationTimeout;
         _maxStateChangeAttempts = maxStateChangeAttempts;
+        _waits = waits ?? throw new ArgumentNullException(nameof(waits));
 
         _profiler = new SlowLogProfiler(_logger);
     }
@@ -106,7 +125,8 @@ public class Worker : IBackgroundProcess
         ArgumentNullException.ThrowIfNull(context);
 
         using IStorageConnection connection = context.Storage.GetConnection();
-        using IFetchedJob fetchedJob = connection.FetchNextJob([.. _queues], context.StoppingToken);
+        IFetchedJob fetchedJob = Fetch(connection, context.StoppingToken);
+        using FetchedJobScope fetched = new(fetchedJob);
         bool requeueOnException = true;
         List<IDisposable> disposeAfterStateChange = [];
 
@@ -123,32 +143,14 @@ public class Worker : IBackgroundProcess
                 context.StoppingToken,
                 timeoutCts.Token))
             {
-                ProcessingState processingState = new(context.ServerId, workerId);
-                JobGiveBack giveBack = new();
+                IState? appliedState = StartProcessing(context, connection, fetchedJob.JobId, workerId, linkedCts.Token, out backgroundJob, out bool stopped);
 
-                IState? appliedState = TryChangeState(
-                    context,
-                    connection,
-                    fetchedJob.JobId,
-                    processingState,
-                    null,
-                    EligibleWorkerStates,
-                    null,
-                    out backgroundJob,
-                    linkedCts.Token,
-                    context.StoppingToken,
-                    giveBack: giveBack);
-
-                // A filter said "not now" (see JobGiveBack): nothing was stored about the job, and its lock is
-                // released. This thread waits a moment with the job still invisible, so no other worker takes it
-                // meanwhile only to give it back too, and then returns it to its queue, where it is fetched again.
-                // The wait ends at once when the server stops.
-                if (appliedState == null && giveBack.Requested)
+                // The server stops while this worker waited to look at the job again: nothing was stored about
+                // the job, so it goes back to its queue as it was, for the next server
+                if (stopped)
                 {
-                    context.StoppingToken.Wait(giveBack.Pause);
-
                     requeueOnException = false;
-                    Requeue(fetchedJob);
+                    fetched.Disposed = PutBack(fetchedJob, context);
                     return;
                 }
 
@@ -220,6 +222,174 @@ public class Worker : IBackgroundProcess
         }
     }
 
+    private IFetchedJob Fetch(IStorageConnection connection, CancellationToken stoppingToken)
+    {
+        // While this thread looks for a job, the waits of the other threads of the pool cost the pool nothing
+        _waits.EnterFetch();
+
+        try
+        {
+            return connection.FetchNextJob([.. _queues], stoppingToken);
+        }
+        finally
+        {
+            _waits.LeaveFetch();
+        }
+    }
+
+    /// <summary>
+    /// Moves the fetched job to the Processing state. A filter may answer "not now, look again in a moment" (see
+    /// <see cref="JobLookAgain"/>): nothing is stored then, the job's lock is released, and this thread keeps the
+    /// job, waits and changes the state again. The job stays fetched meanwhile, invisible to the other workers
+    /// and kept so by the storage as while it runs: it isn't put back in its queue and fetched again at each
+    /// look. The worker offers that only while its pool can afford the wait and the job hasn't been waited for
+    /// for too long (<see cref="WorkerWaits"/>); otherwise the filter decides another way. <c>stopped</c> says
+    /// that the server stopped while this thread waited: the job is as it was.
+    /// </summary>
+    private IState? StartProcessing(
+        BackgroundProcessContext context,
+        IStorageConnection connection,
+        string jobId,
+        string workerId,
+        CancellationToken initializeToken,
+        out BackgroundJob? backgroundJob,
+        out bool stopped)
+    {
+        ProcessingState processingState = new(context.ServerId, workerId);
+        JobLookAgain lookAgain = new();
+        long began = 0;
+        TimeSpan waited = TimeSpan.Zero;
+        bool keeping = false;
+        stopped = false;
+
+        try
+        {
+            while (true)
+            {
+                // While it keeps the job, the pool counts the time, the looks included: offered while the budget
+                // lasts and the job hasn't been kept too long
+                bool offered = waited < _waits.MaxPerJob && _waits.CanWait;
+
+                IState? appliedState = TryChangeState(
+                    context,
+                    connection,
+                    jobId,
+                    processingState,
+                    null,
+                    EligibleWorkerStates,
+                    null,
+                    out backgroundJob,
+                    initializeToken,
+                    context.StoppingToken,
+                    lookAgain: offered ? lookAgain : null);
+
+                if (appliedState != null || !offered || !lookAgain.Requested)
+                {
+                    return appliedState;
+                }
+
+                if (!keeping)
+                {
+                    // Refused when the budget ran out since: the next look comes without the offer
+                    keeping = _waits.Enter();
+                    began = Stopwatch.GetTimestamp();
+                }
+
+                // Told how long by the pool: not at all when its budget was used up meanwhile
+                TimeSpan pause = keeping ? _waits.Allow(Pause(lookAgain.Pause, waited, _waits.MaxPerJob)) : TimeSpan.Zero;
+                if (pause > TimeSpan.Zero)
+                {
+                    // Ends at once when the server stops
+                    context.StoppingToken.Wait(pause);
+                }
+
+                if (context.StoppingToken.IsCancellationRequested)
+                {
+                    stopped = true;
+                    return null;
+                }
+
+                // By the clock of the machine: the application's clock may stand still
+                waited = keeping ? Stopwatch.GetElapsedTime(began) : _waits.MaxPerJob;
+            }
+        }
+        finally
+        {
+            if (keeping)
+            {
+                _waits.Leave();
+            }
+        }
+    }
+
+    // As long as the filter asked for, and no shorter than this job has been waited for so far: so the looks get
+    // rarer whatever the filter goes by. Within bounds, and not past the time one job is waited for.
+    private static TimeSpan Pause(TimeSpan asked, TimeSpan waited, TimeSpan maxPerJob)
+    {
+        TimeSpan pause = asked > waited ? asked : waited;
+        pause = pause < WorkerWaits.MinPause ? WorkerWaits.MinPause : pause > WorkerWaits.MaxPause ? WorkerWaits.MaxPause : pause;
+
+        TimeSpan left = maxPerJob - waited;
+        return pause > left ? left : pause;
+    }
+
+    /// <summary>
+    /// Puts back in its queue a job this worker waited for and whose state it didn't change, because the server
+    /// stops. Tried a few times: a job that stays fetched is invisible until the storage's invisibility timeout
+    /// has passed, half an hour by default on most storages. Never throws: an exception here would send this
+    /// thread into the delay of a process that failed, for a job that didn't.
+    /// </summary>
+    /// <returns>Whether the fetched job was disposed here, as the last attempt: it isn't disposed again.</returns>
+    private bool PutBack(IFetchedJob fetchedJob, BackgroundProcessContext context)
+    {
+        for (int attempt = 1; attempt <= RequeueAttempts; attempt++)
+        {
+            try
+            {
+                fetchedJob.Requeue();
+                return false;
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                _logger.WarnException($"Could not put background job '{fetchedJob.JobId}' back in its queue while the server stops (attempt {attempt} of {RequeueAttempts}).", ex);
+            }
+
+            // The server is stopping already: the wait goes by the token that says it must be gone
+            if (attempt < RequeueAttempts)
+            {
+                context.ShutdownToken.Wait(RequeueRetryDelay * attempt);
+            }
+        }
+
+        // Disposing the fetched job puts it back too, on the storages that can: done here, so that what it
+        // throws doesn't leave Execute
+        try
+        {
+            fetchedJob.Dispose();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException($"Background job '{fetchedJob.JobId}' could not be put back in its queue: it is fetched again once the storage's invisibility timeout has passed.", ex);
+        }
+
+        return true;
+    }
+
+    /// <summary>Disposes the fetched job when the worker is done with it, unless that was done already.</summary>
+    private sealed class FetchedJobScope(IFetchedJob fetchedJob) : IDisposable
+    {
+        public bool Disposed { get; set; }
+
+        public void Dispose()
+        {
+            if (!Disposed)
+            {
+                Disposed = true;
+                fetchedJob.Dispose();
+            }
+        }
+    }
+
     /// <summary>The id of the worker running in <paramref name="context"/>, the same string on every call.</summary>
     private static string GetWorkerId(BackgroundProcessContext context)
     {
@@ -256,7 +426,7 @@ public class Worker : IBackgroundProcess
         CancellationToken initializeToken,
         CancellationToken abortToken,
         string? leaseHolder = null,
-        JobGiveBack? giveBack = null)
+        JobLookAgain? lookAgain = null)
     {
         Exception? exception = null;
 
@@ -284,7 +454,7 @@ public class Worker : IBackgroundProcess
                     customData)
                 {
                     LeaseHolder = leaseHolder,
-                    GiveBack = giveBack,
+                    LookAgain = lookAgain,
                 };
 
                 IState? resultingState = _stateChanger.ChangeState(stateChangeContext);
@@ -307,6 +477,10 @@ public class Worker : IBackgroundProcess
         _logger.ErrorException(
             $"{_maxStateChangeAttempts} state change attempt(s) failed due to an exception, moving job to the FailedState",
             exception);
+
+        // What the last attempt asked before it threw doesn't hold for the state change of last resort, which
+        // offers nothing
+        lookAgain?.Reset();
 
         StateChangeContext failedStateContext = new(
             context.Storage,

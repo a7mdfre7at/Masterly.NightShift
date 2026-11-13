@@ -1,4 +1,5 @@
 using Masterly.NightShift.Logging;
+using Masterly.NightShift.Server;
 
 namespace Masterly.NightShift.Core.Tests;
 
@@ -125,17 +126,17 @@ public sealed class JobChainStepFilterFacts : IDisposable
     }
 
     [Fact]
-    public void OnStateElection_GivesTheStepBack_WithoutWritingAnything_WhileItsChainIsBeingCreated_ForAMoment()
+    public void OnStateElection_AsksTheWorkerToLookAgain_WithoutWritingAnything_WhileItsChainIsBeingCreated_ForAMoment()
     {
         // A worker fetched the first step a few milliseconds after the client began to create the chain
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(Lease(since: TimeSpan.FromMilliseconds(40), until: TimeSpan.FromSeconds(119)));
 
         _filter.OnStateElection(_context.Object);
 
-        // No state, no queue to remember, no write at all: the worker puts the job back as it is
-        Assert.True(giveBack.Requested);
+        // No state, no queue to remember, no write at all: the worker keeps the job as it is, and looks again
+        Assert.True(lookAgain.Requested);
         Assert.IsType<ProcessingState>(_context.Object.CandidateState);
         Assert.Empty(_context.Object.TraversedStates);
         _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
@@ -149,30 +150,30 @@ public sealed class JobChainStepFilterFacts : IDisposable
     [InlineData(60, 60, 200)]
     [InlineData(1000, 250, 250)]
     [InlineData(4000, 250, 250)]
-    public void OnStateElection_KeepsAStepItGivesBack_ForAsLongAsTheCreationHasLasted_WithinBounds(int lastedMs, int atLeastMs, int atMostMs)
+    public void OnStateElection_AsksTheWorkerToWait_ForAsLongAsTheCreationHasLasted_WithinBounds(int lastedMs, int atLeastMs, int atMostMs)
     {
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(Lease(since: TimeSpan.FromMilliseconds(lastedMs), until: TimeSpan.FromSeconds(100)));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.True(giveBack.Requested);
-        Assert.InRange(giveBack.Pause, TimeSpan.FromMilliseconds(atLeastMs), TimeSpan.FromMilliseconds(atMostMs));
-        Assert.InRange(giveBack.Pause, JobChainStepFilter.MinGiveBackPause, JobChainStepFilter.MaxGiveBackPause);
+        Assert.True(lookAgain.Requested);
+        Assert.InRange(lookAgain.Pause, TimeSpan.FromMilliseconds(atLeastMs), TimeSpan.FromMilliseconds(atMostMs));
+        Assert.InRange(lookAgain.Pause, WorkerWaits.MinPause, WorkerWaits.MaxPause);
     }
 
     [Fact]
     public void OnStateElection_HoldsTheStep_OnceTheCreationOfItsChainTakesUnusuallyLong()
     {
         // Longer than a creation ever takes: the client is slow, or has stopped
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(Lease(since: JobChainStepFilter.QuietTime + TimeSpan.FromSeconds(1), until: TimeSpan.FromSeconds(100)));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         ScheduledState held = Assert.IsType<ScheduledState>(_context.Object.CandidateState);
         Assert.Equal($"Waiting for chain {ChainId} to be recorded", held.Reason);
     }
@@ -181,18 +182,18 @@ public sealed class JobChainStepFilterFacts : IDisposable
     public void OnStateElection_HoldsTheStep_OfAChainThatIsBeingRetriedOrReplaced_HoweverShortlyThatBegan()
     {
         // The record lists steps: not a creation
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(("0.0", JobId), Lease(since: TimeSpan.FromMilliseconds(40), until: TimeSpan.FromSeconds(119)));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         Assert.IsType<ScheduledState>(_context.Object.CandidateState);
     }
 
     [Fact]
-    public void OnStateElection_HoldsTheStep_WhenTheStateChangeDoesNotComeFromAWorkerThatCanGiveItBack()
+    public void OnStateElection_HoldsTheStep_WhenTheStateChangeDoesNotComeFromAWorkerThatOffersToLookAgain()
     {
         Step("0.0");
         Record(Lease(since: TimeSpan.FromMilliseconds(40), until: TimeSpan.FromSeconds(119)));
@@ -209,14 +210,14 @@ public sealed class JobChainStepFilterFacts : IDisposable
     {
         // Picked up again after its server stopped, or fetched from a queue it was left in: not the first step of
         // a chain that is being created
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         _context.ApplyContext.OldStateName = currentState;
         Step("0.0");
         Record(Lease(since: TimeSpan.FromMilliseconds(40), until: TimeSpan.FromSeconds(119)));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         Assert.IsType<ScheduledState>(_context.Object.CandidateState);
     }
 
@@ -225,26 +226,26 @@ public sealed class JobChainStepFilterFacts : IDisposable
     {
         // The clocks of the client and of the server disagree (a storage without a clock of its own): nothing
         // would bound how long the step goes back and forth
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(Lease(since: TimeSpan.FromSeconds(-30), until: TimeSpan.FromSeconds(150)));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         Assert.IsType<ScheduledState>(_context.Object.CandidateState);
     }
 
     [Fact]
-    public void OnStateElection_LetsTheStepRun_OnceTheRecordListsIt_AlsoForAWorkerThatCouldGiveItBack()
+    public void OnStateElection_LetsTheStepRun_OnceTheRecordListsIt_AlsoForAWorkerThatOffersToLookAgain()
     {
-        JobGiveBack giveBack = FetchedByAWorker();
+        JobLookAgain lookAgain = FetchedByAWorker();
         Step("0.0");
         Record(("0.0", JobId));
 
         _filter.OnStateElection(_context.Object);
 
-        Assert.False(giveBack.Requested);
+        Assert.False(lookAgain.Requested);
         Assert.IsType<ProcessingState>(_context.Object.CandidateState);
     }
 
@@ -1654,12 +1655,12 @@ public sealed class JobChainStepFilterFacts : IDisposable
         });
     }
 
-    // The state change of a worker that fetched the job and can put it back in its queue
-    private JobGiveBack FetchedByAWorker()
+    // The state change of a worker that fetched the job and offers to look at it again in a moment
+    private JobLookAgain FetchedByAWorker()
     {
-        JobGiveBack giveBack = new();
-        _context.ApplyContext.GiveBack = giveBack;
-        return giveBack;
+        JobLookAgain lookAgain = new();
+        _context.ApplyContext.LookAgain = lookAgain;
+        return lookAgain;
     }
 
     private void Step(string key, bool recorded = false)
