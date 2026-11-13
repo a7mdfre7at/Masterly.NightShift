@@ -29,7 +29,7 @@ public sealed record JobChainStepInfo(string Key, string JobId, string? State, i
 
     /// <summary>
     /// For a step that waits for several steps, one of whose jobs is gone: what the steps it waits for finished
-    /// as, by job, as they wrote it on this step's job (<see cref="FanInContinuationsSupportAttribute.OutcomesParameterName"/>).
+    /// as, by job, as they wrote it for this step (<see cref="FanInContinuationsSupportAttribute.GetOutcomesKey"/>).
     /// </summary>
     internal IReadOnlyDictionary<string, string>? Outcomes { get; init; }
 }

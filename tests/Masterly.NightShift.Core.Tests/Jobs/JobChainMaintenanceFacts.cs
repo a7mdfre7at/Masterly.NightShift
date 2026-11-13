@@ -9,6 +9,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     private const string ExpirySet = "chains:expiring";
     private const string SoonSet = "chains:soon";
     private const string IndexHash = "chains:index";
+    private const string LostSet = "chains:lost";
 
     private readonly Mock<JobStorage> _storage = new();
     private readonly Mock<JobStorageConnection> _connection = new();
@@ -62,6 +63,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
             .Returns((string jobId, string name) => _parameters.GetValueOrDefault((jobId, name)));
         _connection.Setup(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Callback((string jobId, string name, string value) => _parameters[(jobId, name)] = value);
+        _connection.Setup(x => x.GetJobData(It.IsAny<string>()))
+            .Returns((string jobId) => _states.TryGetValue(jobId, out StateData state) ? new JobData { State = state.Name } : null);
         _connection.Setup(x => x.CreateWriteTransaction()).Returns(CreateTransaction);
 
         _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>()))
@@ -323,18 +326,19 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
         Maintain();
 
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("alert", "FanInOutcomes")]);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = SucceededState.StateName }, _hashes["fan-in:done"]);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = SucceededState.StateName }, _hashes["fan-in:alert"]);
         Assert.Equal(AwaitingState.StateName, _states["done"].Name);
-        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+
+        // Under the lock of the step that finished, once for each step that waits for it
+        _connection.Verify(x => x.AcquireDistributedLock("job:b:state-lock", It.IsAny<TimeSpan>()), Times.Exactly(2));
 
         // The next look finds it written: one read for each waiting step, and no write
         Set(DueSet).Clear();
         Set(DueSet).Add((1, "c"));
         Maintain();
 
-        _connection.Verify(x => x.AcquireDistributedLock("job:done:state-lock", It.IsAny<TimeSpan>()), Times.Once);
-        _connection.Verify(x => x.SetJobParameter("done", "FanInOutcomes", It.IsAny<string>()), Times.Once);
+        _connection.Verify(x => x.AcquireDistributedLock("job:b:state-lock", It.IsAny<TimeSpan>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -343,11 +347,11 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         // The branch failed for good, was requeued and succeeded, by a process that stopped before it wrote so
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states["c"] = State(ProcessingState.StateName);
-        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Failed\"}";
+        _hashes["fan-in:done"] = new Dictionary<string, string> { ["b"] = FailedState.StateName };
 
         Maintain();
 
-        Assert.Equal("{\"b\":\"Succeeded\"}", _parameters[("done", "FanInOutcomes")]);
+        Assert.Equal(SucceededState.StateName, _hashes["fan-in:done"]["b"]);
     }
 
     [Fact]
@@ -355,12 +359,12 @@ public sealed class JobChainMaintenanceFacts : IDisposable
     {
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states["c"] = State(ProcessingState.StateName);
-        _busyLocks.Add("job:done:state-lock");
-        _connection.Setup(x => x.GetJobParameter("alert", "FanInOutcomes")).Throws(new InvalidOperationException("Storage is down"));
+        _busyLocks.Add("job:b:state-lock");
+        _connection.Setup(x => x.GetAllEntriesFromHash("fan-in:alert")).Throws(new InvalidOperationException("Storage is down"));
 
         Assert.True(Maintain().Ran);
 
-        Assert.False(_parameters.ContainsKey(("done", "FanInOutcomes")));
+        Assert.False(_hashes.ContainsKey("fan-in:done"));
         Assert.True(IsLookedAtWithin("c", TimeSpan.FromMinutes(16)));
     }
 
@@ -371,8 +375,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         // second stopped before it started the steps after the group
         WatchedChain("c", TimeSpan.FromMinutes(20), SucceededState.StateName, SucceededState.StateName);
         _states.Remove("b");
-        _parameters[("done", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
-        _parameters[("alert", "FanInOutcomes")] = "{\"b\":\"Succeeded\"}";
+        _hashes["fan-in:done"] = new Dictionary<string, string> { ["b"] = SucceededState.StateName };
+        _hashes["fan-in:alert"] = new Dictionary<string, string> { ["b"] = SucceededState.StateName };
 
         Maintain();
 
@@ -978,13 +982,32 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
         Assert.Equal(["lost-early"], Listed());
         Assert.Empty(Set(DueSet));
-        Assert.InRange(Assert.Single(Set(ExpirySet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
+        Assert.Empty(Set(ExpirySet));
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
 
-        Set(ExpirySet)[0] = (0, "lost-early");
+        Set(LostSet)[0] = (0, "lost-early");
         Maintain();
 
         Assert.Empty(Listed());
+        Assert.Empty(Set(LostSet));
+    }
+
+    [Fact]
+    public void Maintain_KeepsAChainListed_WhoseRecordTheStorageLost_WhenALookIsAskedFor()
+    {
+        // Found without record before, and kept listed; a step of it is requeued, which asks for a look
+        Set(JobChains.SetKey).Add((JobHelper.ToTimestamp(DateTime.UtcNow.AddDays(-3)), "lost-early"));
+        Set(LostSet).Add((After(TimeSpan.FromDays(29)), "lost-early"));
+        Set(SoonSet).Add((1, "lost-early|asked"));
+
+        Maintain();
+
+        // Its steps still run: it is listed for as long as a record is kept, from now
+        Assert.Equal(["lost-early"], Listed());
+        Assert.Empty(Set(SoonSet));
         Assert.Empty(Set(ExpirySet));
+        Assert.Empty(Set(DueSet));
+        Assert.InRange(Assert.Single(Set(LostSet)).Score, After(TimeSpan.FromDays(29.9)), After(TimeSpan.FromDays(30.1)));
     }
 
     [Fact]
@@ -1195,7 +1218,7 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Maintain();
 
         Assert.True(_indexed);
-        Assert.DoesNotContain(Listed(), chainId => !Set(DueSet).Concat(Set(ExpirySet)).Any(x => x.Value == chainId));
+        Assert.DoesNotContain(Listed(), chainId => !Placed().Contains(chainId));
     }
 
     [Fact]
@@ -1246,15 +1269,15 @@ public sealed class JobChainMaintenanceFacts : IDisposable
         Assert.True(first.MoreToDo);
         Assert.False(_indexed);
         Assert.Equal("20", _hashes[IndexHash]["Listed"]);
-        Assert.Equal(JobChains.MaxIndexedPerRun, Set(DueSet).Count + Set(ExpirySet).Count);
-        Assert.DoesNotContain(Set(DueSet).Concat(Set(ExpirySet)), static x => x.Value == "old-0000");
+        Assert.Equal(JobChains.MaxIndexedPerRun, Placed().Count);
+        Assert.DoesNotContain("old-0000", Placed());
 
         bool otherServer = false;
         JobChains.Maintain(_storage.Object, _client.Object, ref otherServer, TestContext.Current.CancellationToken);
 
         Assert.True(otherServer);
         Assert.Equal("done", _hashes[IndexHash]["Listed"]);
-        Assert.Equal(JobChains.MaxIndexedPerRun + 20, Set(DueSet).Count + Set(ExpirySet).Count);
+        Assert.Equal(JobChains.MaxIndexedPerRun + 20, Placed().Count);
     }
 
     [Fact]
@@ -1605,6 +1628,9 @@ public sealed class JobChainMaintenanceFacts : IDisposable
 
     private List<string> Listed() => [.. Ordered(JobChains.SetKey).Select(static x => x.Value)];
 
+    // The chains that have a place: among the chains to look at, left to expire, or kept while their record is lost
+    private List<string> Placed() => [.. Set(DueSet).Concat(Set(ExpirySet)).Concat(Set(LostSet)).Select(static x => x.Value)];
+
     // A step "second" that waits for the step "first", which finished twenty minutes ago in the state given
     private JobChainInfo LineOfTwo(StateData first, JobContinuationOptions options = JobContinuationOptions.OnlyOnSucceededState)
     {
@@ -1717,6 +1743,8 @@ public sealed class JobChainMaintenanceFacts : IDisposable
                 Set(key).RemoveAll(x => x.Value == value);
                 Set(key).Add((score, value));
             }));
+        transaction.Setup(x => x.RemoveHash(It.IsAny<string>()))
+            .Callback((string key) => pending.Add(() => _hashes.Remove(key)));
         transaction.Setup(x => x.ExpireHash(It.IsAny<string>(), It.IsAny<TimeSpan>()))
             .Callback((string key, TimeSpan expireIn) => pending.Add(() => _timesToLive[key] = expireIn));
         transaction.Setup(x => x.SetRangeInHash(It.IsAny<string>(), It.IsAny<IEnumerable<KeyValuePair<string, string>>>()))

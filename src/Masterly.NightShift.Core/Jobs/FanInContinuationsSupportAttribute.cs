@@ -21,32 +21,37 @@ namespace Masterly.NightShift;
 /// state is committed.
 /// <para>
 /// A child may wait for longer than the jobs of the parents that finished first are kept. So a parent that
-/// finishes and leaves the child waiting writes its outcome on the child (the <c>FanInOutcomes</c> job parameter,
-/// a map from parent to state name), after its own commit and under the child's lock. A parent whose job is gone
-/// then counts as what it finished as: succeeded, deleted, or failed for good. While the job of a parent exists,
-/// its state decides, so a parent that was requeued counts as not finished, and replaces its outcome when it
-/// finishes again. Only a parent of which nothing was written counts as deleted once its job is gone, so it
-/// can't block the child forever.
+/// finishes (succeeds, is deleted, or fails for good) writes what it finished as for each of its children, in the
+/// transaction of that state change: one field, the parent's id, in the hash <c>fan-in:{child}</c>
+/// (<see cref="GetOutcomesKey"/>). That costs the same for each parent however many the child waits for, and is
+/// never lost while the state is stored. A parent whose job is gone then counts as what it finished as. While the
+/// job of a parent exists, its state decides, so a parent that was requeued counts as not finished, and replaces
+/// its field when it finishes again. Only a parent of which nothing was written counts as deleted once its job is
+/// gone, so it can't block the child forever. The hash goes with the state change that takes the child out of
+/// the Awaiting state, whoever makes it; a field a parent writes for a child decided meanwhile is removed by that
+/// parent once its state is committed.
 /// </para>
 /// </remarks>
-public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilter
+public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IElectStateFilter, IApplyStateFilter
 {
     /// <summary>The job parameter, on a parent, holding the identifiers of its fan-in children.</summary>
     public const string ParameterName = "FanInContinuations";
 
     /// <summary>
-    /// The job parameter, on a waiting child, holding the outcome of each parent that finished while the child
-    /// waited: a map from the parent's identifier to the name of the state it finished in.
+    /// The job parameter on a fan-in continuation that says what its parents finished as is kept, in the hash it
+    /// names (<see cref="GetOutcomesKey"/>): one field a parent, the parent's id, with the name of its state.
     /// </summary>
     public const string OutcomesParameterName = "FanInOutcomes";
+
+    private const string OutcomesKeyPrefix = "fan-in:";
 
     private const int MaxDecideAttempts = 3;
 
     private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ContinuationInvalidTimeout = TimeSpan.FromMinutes(15);
 
-    // How long the write of a parent's outcome waits for the child's lock at most. The child is locked only while
-    // its state changes or another parent writes its outcome.
+    // How long the write of what a parent finished as, for a child stored after it finished, waits for the
+    // parent's lock: a parent is locked only while its state changes, which writes it anyway
     private static readonly TimeSpan OutcomeLockTimeout = TimeSpan.FromSeconds(5);
 
     // What the states read in a round keep for a parent whose job is gone: what it counts as depends on the child
@@ -58,6 +63,9 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     // between retries included. It runs on the thread that changed the parent's state (a worker, usually), which
     // can't observe shutdown here, so it is kept short. Replaceable for tests.
     internal static TimeSpan DecisionRoundBudget { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Whether a parent writes what it finished as for its children. Replaceable for tests, which measure its cost.</summary>
+    internal static bool KeepsOutcomes { get; set; } = true;
     private static readonly TimeSpan ChildStatePollInterval = TimeSpan.FromMilliseconds(100);
 
     private readonly ILog _logger = LogProvider.For<FanInContinuationsSupportAttribute>();
@@ -159,6 +167,9 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             return;
         }
 
+        // It waits: what its parents finish as is kept for it, and goes with the state change that ends the wait
+        MarkKeepsOutcomes(context, childId);
+
         if (context.AfterCommit != null)
         {
             // A parent that finishes now, before this state is committed, may find this child without a state
@@ -167,6 +178,24 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
             // have gone through (a lost reply), and a retry finds the state stored and doesn't come back here.
             JobStorage storage = context.Storage;
             context.AfterCommit.AddRegardless(() => DecideChildAfterItsCommit(storage, connection, childId));
+        }
+    }
+
+    /// <summary>The hash that keeps what the parents of a fan-in continuation finished as, by parent.</summary>
+    internal static string GetOutcomesKey(string childId) => OutcomesKeyPrefix + childId;
+
+    // With the state that has the child wait, where the storage writes a parameter with a state
+    private static void MarkKeepsOutcomes(ElectStateContext context, string childId)
+    {
+        string key = GetOutcomesKey(childId);
+
+        if (context.Transaction is JobStorageTransaction transaction && context.Storage.HasFeature(JobStorageFeatures.Transaction.SetJobParameter))
+        {
+            transaction.SetJobParameter(childId, OutcomesParameterName, key);
+        }
+        else
+        {
+            context.Connection.SetJobParameter(childId, OutcomesParameterName, key);
         }
     }
 
@@ -211,7 +240,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
         if (decision == Decision.Undecided)
         {
-            if (finished != null)
+            if (finished != null && KeepsOutcomes)
             {
                 RecordOutcomes(connection, childId, finished, _knownFinalStates, OutcomeLockTimeout);
             }
@@ -271,7 +300,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
 
         foreach (string childId in children)
         {
-            DecideChild(storage, connection, parentId, childId, states, round, context.CandidateState.Name);
+            DecideChild(storage, connection, parentId, childId, states, round, afterCommit: false);
         }
     }
 
@@ -337,7 +366,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
     }
 
-    // 'uncommitted' is the state the parent is about to have, when the child is decided before the parent's commit
+    // 'afterCommit': the parent's state is committed, with what it finished as written for each of its children
     private void DecideChild(
         JobStorage storage,
         IStorageConnection connection,
@@ -345,11 +374,17 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         string childId,
         Dictionary<string, string?> states,
         Stopwatch round,
-        string? uncommitted = null)
+        bool afterCommit = true)
     {
-        StateData? childState = GetChildState(connection, parentId, childId, round);
+        StateData? childState = GetChildState(connection, parentId, childId, round, out bool childGone);
         if (childState == null || !AwaitingJobsState.StateName.Equals(childState.Name, StringComparison.OrdinalIgnoreCase))
         {
+            // Decided meanwhile, or gone: the field this parent wrote for it isn't removed by anything else
+            if (afterCommit && KeepsOutcomes && (childGone || childState != null))
+            {
+                ForgetOutcomes(connection, childId);
+            }
+
             return;
         }
 
@@ -363,11 +398,6 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         Decision decision = Evaluate(awaiting, id => recorded.StateOf(id, ReadParentState(connection, id, states)), parentId);
         if (decision == Decision.Undecided)
         {
-            // The child keeps waiting, maybe for longer than this parent's job is kept: what the parent finished
-            // as stays on the child
-            TimeSpan left = DecisionRoundBudget - round.Elapsed;
-            TimeSpan timeout = left >= OutcomeLockTimeout ? OutcomeLockTimeout : left > TimeSpan.Zero ? left : TimeSpan.Zero;
-            RecordOutcomes(connection, childId, [parentId], _knownFinalStates, timeout, uncommitted);
             return;
         }
 
@@ -432,7 +462,7 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     /// <summary>
     /// What a parent counts as for a caller that must not decide from what it doesn't know (a server that decides
     /// a waiting step of a chain again): the state of its job while the job exists; once it is gone, the outcome
-    /// the parent wrote on the child when it finished, which <paramref name="written"/> reads; and not finished
+    /// the parent wrote for the child when it finished, which <paramref name="written"/> reads; and not finished
     /// (<c>null</c>) when it wrote none.
     /// </summary>
     internal static string? GetKnownParentState(IStorageConnection connection, string parentId, Func<Dictionary<string, string>> written)
@@ -446,30 +476,11 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         return written().TryGetValue(parentId, out string? outcome) ? outcome : null;
     }
 
-    /// <summary>The outcomes the parents of a waiting child wrote on it, by parent; none when they can't be read.</summary>
+    /// <summary>What the parents of a waiting child finished as, as they wrote it, by parent.</summary>
     internal static Dictionary<string, string> ReadOutcomes(IStorageConnection connection, string childId)
     {
-        return ParseOutcomes(connection.GetJobParameter(childId, OutcomesParameterName));
-    }
-
-    internal static Dictionary<string, string> ParseOutcomes(string? serialized)
-    {
-        if (!string.IsNullOrEmpty(serialized))
-        {
-            try
-            {
-                if (SerializationHelper.Deserialize<Dictionary<string, string>>(serialized) is { } outcomes)
-                {
-                    return new Dictionary<string, string>(outcomes, StringComparer.Ordinal);
-                }
-            }
-            catch (Exception ex) when (ex.IsCatchableExceptionType())
-            {
-                Logger.DebugException("The outcomes of the parents of a fan-in continuation couldn't be read; they count as not written.", ex);
-            }
-        }
-
-        return new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string>? outcomes = connection.GetAllEntriesFromHash(GetOutcomesKey(childId));
+        return outcomes == null ? new Dictionary<string, string>(StringComparer.Ordinal) : new Dictionary<string, string>(outcomes, StringComparer.Ordinal);
     }
 
     /// <summary>Whether a state is one a parent finishes in: a final state, or a failure for good.</summary>
@@ -479,85 +490,148 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
     }
 
     /// <summary>
-    /// Writes on a waiting child what the given parents finished as, so the child can still be decided once their
-    /// jobs are gone. Under the child's lock, and from the state each parent has in the storage then: whoever
-    /// writes last writes the latest, and a parent that isn't finished (any more) is left out.
-    /// <paramref name="uncommitted"/> is the state the first of the parents is about to have, for a caller that
-    /// decides before that state is committed. Bookkeeping: never throws; without it, a parent whose job is gone
-    /// counts as deleted.
+    /// Writes what the given parents finished as for a child, for the ones that are finished: each under the
+    /// parent's lock, from the state it has then, one field each. For a child stored after some of its parents
+    /// finished, which their state changes didn't know of, and for a server that finds one missing. A parent
+    /// whose lock is busy is left out: it is changing state, and that change writes what it finishes as. Removes
+    /// the hash again when the child stopped waiting meanwhile. Bookkeeping: never throws.
     /// </summary>
-    /// <returns>Whether every outcome is written, or needn't be.</returns>
+    /// <returns>Whether every one that is finished was written.</returns>
     internal static bool RecordOutcomes(
         IStorageConnection connection,
         string childId,
         IReadOnlyList<string> parentIds,
         HashSet<string> knownFinalStates,
-        TimeSpan lockTimeout,
-        string? uncommitted = null)
+        TimeSpan lockTimeout)
     {
-        try
+        string key = GetOutcomesKey(childId);
+        bool all = true;
+
+        foreach (string parentId in parentIds)
         {
-            using (connection.AcquireDistributedJobLock(childId, lockTimeout))
+            try
             {
-                // Only on a child that still waits for these parents: one that was decided needs none
-                StateData? child = connection.GetStateData(childId);
-                if (child?.Data == null ||
-                    !AwaitingJobsState.StateName.Equals(child.Name, StringComparison.OrdinalIgnoreCase) ||
-                    !child.Data.TryGetValue("ParentIds", out string? waitsFor) || string.IsNullOrEmpty(waitsFor))
+                using (connection.AcquireDistributedJobLock(parentId, lockTimeout))
                 {
-                    return true;
-                }
-
-                HashSet<string> parents = new(waitsFor.Split(','), StringComparer.Ordinal);
-                Dictionary<string, string> outcomes = ReadOutcomes(connection, childId);
-                bool changed = false;
-
-                for (int i = 0; i < parentIds.Count; i++)
-                {
-                    string parentId = parentIds[i];
-                    if (!parents.Contains(parentId))
-                    {
-                        continue;
-                    }
-
                     string? state = ReadParentState(connection, parentId);
-                    if (i == 0 && uncommitted != null && state != null && !IsGone(state))
-                    {
-                        state = uncommitted;
-                    }
-
                     if (state == null || IsGone(state) || !IsOutcome(state, knownFinalStates))
                     {
                         continue;
                     }
 
-                    if (!outcomes.TryGetValue(parentId, out string? written) || !string.Equals(written, state, StringComparison.Ordinal))
-                    {
-                        outcomes[parentId] = state;
-                        changed = true;
-                    }
+                    using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+                    transaction.SetRangeInHash(key, [new KeyValuePair<string, string>(parentId, state)]);
+                    transaction.Commit();
                 }
+            }
+            catch (DistributedLockTimeoutException)
+            {
+                // The parent is changing state: that change writes what it finishes as
+            }
+            catch (Exception ex) when (ex.IsCatchableExceptionType())
+            {
+                all = false;
+                Logger.WarnException(
+                    $"What background job '{parentId}' finished as couldn't be written for fan-in continuation '{childId}'. Should the continuation still wait when the job is gone, it counts as deleted then; for a step of a chain, a server that looks at the chain writes it again.",
+                    ex);
+            }
+        }
 
-                if (changed)
-                {
-                    connection.SetJobParameter(childId, OutcomesParameterName, SerializationHelper.SerializeInternal(outcomes));
-                }
-
-                return true;
+        try
+        {
+            // Decided meanwhile: what was written goes, as with the state change that decided it
+            if (!AwaitingJobsState.StateName.Equals(connection.GetJobData(childId)?.State, StringComparison.OrdinalIgnoreCase))
+            {
+                ForgetOutcomes(connection, childId);
             }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
-            Logger.WarnException(
-                $"What the parents of fan-in continuation '{childId}' finished as couldn't be written on it. Should it still wait when their jobs are gone, they count as deleted then; for a step of a chain, a server that looks at the chain writes it again.",
-                ex);
-            return false;
+            Logger.DebugException($"Whether fan-in continuation '{childId}' still waits couldn't be read.", ex);
         }
+
+        return all;
+    }
+
+    // Removes what the parents of a child that doesn't wait any more wrote for it. Best effort.
+    private static void ForgetOutcomes(IStorageConnection connection, string childId)
+    {
+        try
+        {
+            using IWriteOnlyTransaction transaction = connection.CreateWriteTransaction();
+            transaction.RemoveHash(GetOutcomesKey(childId));
+            transaction.Commit();
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            Logger.DebugException($"What the parents of fan-in continuation '{childId}' finished as couldn't be removed.", ex);
+        }
+    }
+
+    /// <summary>
+    /// In the transaction of a state change: a parent that finishes writes what it finished as for each of its
+    /// children, and a child that stops waiting takes what its parents wrote with it. Bookkeeping: a write that
+    /// can't be queued is logged, never thrown.
+    /// </summary>
+    void IApplyStateFilter.OnStateApplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        try
+        {
+            string jobId = context.BackgroundJob.Id;
+
+            if (KeepsOutcomes && IsOutcome(context.NewState.Name, _knownFinalStates))
+            {
+                KeyValuePair<string, string>[] outcome = [new(jobId, context.NewState.Name)];
+                foreach (string childId in ReadChildren(context).Distinct(StringComparer.Ordinal))
+                {
+                    transaction.SetRangeInHash(GetOutcomesKey(childId), outcome);
+                }
+            }
+
+            if (AwaitingJobsState.StateName.Equals(context.OldStateName, StringComparison.OrdinalIgnoreCase) &&
+                !AwaitingJobsState.StateName.Equals(context.NewState.Name, StringComparison.OrdinalIgnoreCase) &&
+                KeepsOutcomesOf(context))
+            {
+                transaction.RemoveHash(GetOutcomesKey(jobId));
+            }
+        }
+        catch (Exception ex) when (ex.IsCatchableExceptionType())
+        {
+            _logger.WarnException($"What background job '{context.BackgroundJob.Id}' finished as couldn't be kept for its fan-in continuations, or theirs couldn't be removed.", ex);
+        }
+    }
+
+    void IApplyStateFilter.OnStateUnapplied(ApplyStateContext context, IWriteOnlyTransaction transaction)
+    {
+    }
+
+    // The children of a job, from the parameters loaded with it where the storage loads them
+    private static List<string> ReadChildren(ApplyStateContext context)
+    {
+        IReadOnlyDictionary<string, string>? snapshot = context.BackgroundJob.ParametersSnapshot;
+        if (snapshot != null)
+        {
+            return snapshot.TryGetValue(ParameterName, out string? serialized) ? Parse(serialized) : [];
+        }
+
+        return Parse(context.Connection.GetJobParameter(context.BackgroundJob.Id, ParameterName));
+    }
+
+    // Whether the job was registered as a fan-in continuation, whose parents keep what they finished as for it
+    private static bool KeepsOutcomesOf(ApplyStateContext context)
+    {
+        IReadOnlyDictionary<string, string>? snapshot = context.BackgroundJob.ParametersSnapshot;
+        return snapshot != null
+            ? snapshot.ContainsKey(OutcomesParameterName)
+            : !string.IsNullOrEmpty(context.Connection.GetJobParameter(context.BackgroundJob.Id, OutcomesParameterName));
     }
 
     private static bool IsGone(string? state) => ReferenceEquals(state, Gone);
 
-    /// <summary>The outcomes written on a waiting child, read once, and only when the job of a parent turns out to be gone.</summary>
+    /// <summary>What the parents of a waiting child wrote for it, read once, and only when the job of a parent turns out to be gone.</summary>
     private sealed class RecordedOutcomes(IStorageConnection connection, string childId)
     {
         private Dictionary<string, string>? _outcomes;
@@ -575,15 +649,18 @@ public sealed class FanInContinuationsSupportAttribute : JobFilterAttribute, IEl
         }
     }
 
-    private StateData? GetChildState(IStorageConnection connection, string parentId, string childId, Stopwatch round)
+    // 'gone' says that the child's job doesn't exist (any more)
+    private StateData? GetChildState(IStorageConnection connection, string parentId, string childId, Stopwatch round, out bool gone)
     {
         bool firstAttempt = true;
+        gone = false;
 
         while (true)
         {
             JobData? childData = connection.GetJobData(childId);
             if (childData == null)
             {
+                gone = true;
                 _logger.Warn($"Can not start fan-in continuation '{childId}' for background job '{parentId}': continuation does not exist.");
                 return null;
             }
