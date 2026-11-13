@@ -624,6 +624,53 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task RetryChainFrom_WhoseClientWakesUpAfterItsStepWasPutBack_LeavesAStepThatWasScheduledAgainSince()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+        JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => RecordWithoutRetries("b")).Then(() => Record("c")).Then(() => Record("d")).Enqueue(client);
+        string step = chain!.Steps["1.0"];
+        Assert.True(client.ChangeState(chain.Steps["0.0"], new SucceededState(null, 0, 0), null));
+        Assert.True(client.ChangeState(step, new FailedState(new InvalidOperationException("failed")), null));
+
+        using BackgroundJobServer server = CreateServer(storage);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+
+        ChainHooks hooks = new()
+        {
+            PauseOnCreating = "d",
+            WhilePaused = () =>
+            {
+                // The client stalls: a server takes the retry for abandoned and puts the step back
+                LapseLease(storage, chain.ChainId);
+                Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromSeconds(1)) { Reason = "Chain retried from this step" }, ScheduledState.StateName));
+                WaitForState(storage, step, FailedState.StateName);
+                Assert.Null(Parameter(storage, step, "ChainRetry"));
+
+                // Then somebody schedules the failed step to run again in an hour
+                Assert.True(client.ChangeState(step, new ScheduledState(TimeSpan.FromHours(1)) { Reason = "Rescheduled by an operator" }, FailedState.StateName));
+            },
+        };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            // It wakes up, and finds that the step is no longer held for it
+            Assert.Throws<InvalidOperationException>(() => storage.RetryChainFrom(step));
+
+            // The step isn't this retry's any more: it stays scheduled
+            using IStorageConnection connection = storage.GetConnection();
+            StateData state = connection.GetStateData(step);
+            Assert.Equal((ScheduledState.StateName, "Rescheduled by an operator"), (state.Name, state.Reason));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
     public void RetryChainFrom_ThatFails_PutsItsStepBack_AndTakesItsNoteOff()
     {
         SqlServerStorage storage = CreateStorage();

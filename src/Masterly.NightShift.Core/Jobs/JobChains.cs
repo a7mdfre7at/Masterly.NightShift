@@ -319,7 +319,7 @@ public static partial class JobChains
                 bool nothingLeft = DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
                 if (heldId != null)
                 {
-                    nothingLeft &= TakeBackHeld(client, connection, chainId, heldId, stepState, stepExpiry);
+                    nothingLeft &= TakeBackHeld(client, connection, chainId, heldId, stepState, stepExpiry, marker);
                 }
 
                 lease.GiveUp(nothingLeft);
@@ -338,7 +338,7 @@ public static partial class JobChains
                 // goes back into its state, unless a server did that already.
                 lease.GiveUp(nothingLeft: false);
                 DeleteCreated(client, connection, created, chainId, ChainRetryFailedReason);
-                TakeBackHeld(client, connection, chainId, heldId!, stepState, stepExpiry); // Set before the record is written
+                TakeBackHeld(client, connection, chainId, heldId!, stepState, stepExpiry, marker); // Set before the record is written
 
                 throw new InvalidOperationException(
                     $"Chain '{chainId}' wasn't retried: this process was frozen while it recorded the retry, for so long that a server took the retry for abandoned" +
@@ -405,16 +405,29 @@ public static partial class JobChains
         return recreated;
     }
 
-    // Undoes the hold of a retry that isn't recorded: the step goes back into the state it was in, and a job that
-    // was created again for it is deleted. Returns whether nothing of the retry is left in that job.
-    private static bool TakeBackHeld(IBackgroundJobClient client, IStorageConnection connection, string chainId, string heldId, StateData? stepState, DateTime? stepExpiry)
+    // Undoes the hold of a retry that isn't recorded: the step goes back into the state it was in, while it is
+    // still held for this retry (it carries the retry's note), and a job that was created again for it is deleted.
+    // Returns whether nothing of the retry is left in that job.
+    private static bool TakeBackHeld(
+        IBackgroundJobClient client,
+        IStorageConnection connection,
+        string chainId,
+        string heldId,
+        StateData? stepState,
+        DateTime? stepExpiry,
+        RetryMarker? marker)
     {
         if (stepState == null)
         {
             return DeleteCreated(client, connection, [heldId], chainId, ChainRetryFailedReason);
         }
 
-        PutBack(client, connection, heldId, stepState, stepExpiry, chainId);
+        // A step whose job exists is held with a note
+        if (marker != null)
+        {
+            PutBack(client, connection, heldId, stepState, stepExpiry, chainId, marker);
+        }
+
         return true;
     }
 

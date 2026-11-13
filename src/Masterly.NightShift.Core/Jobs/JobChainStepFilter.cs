@@ -165,6 +165,14 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
+        // The client of a retry that failed puts its step back: only while the step is still held for that retry.
+        // Otherwise the state change fails, here, under the job's lock (the one case in which this filter throws)
+        if (context.CandidateState is JobChains.RestoredState { HeldFor: { } heldFor })
+        {
+            JobChains.EnsureHeldFor(context, heldFor);
+            return;
+        }
+
         // Only a job about to run. A step held here is put back in its queue by DrainModeFilter, after the filters
         // that may still schedule it again: restoring the queue here, first, would forget it for those.
         if (context.CandidateState is not ProcessingState)
@@ -174,6 +182,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         BackgroundJob job = context.BackgroundJob;
         string? chainId = null;
+        string? note = null;
         JobChains.RetryMarker? retry = null;
         Verdict verdict;
         TimeSpan holdDelay;
@@ -189,7 +198,8 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             // picked up again while it was processing, the note is one that couldn't be taken off, and stale.
             if (IsOnTheWayToAWorker(context.CurrentState))
             {
-                retry = JobChains.RetryMarker.Parse(ReadParameter(job, context.Connection, JobChains.ChainRetryParameter));
+                note = ReadParameter(job, context.Connection, JobChains.ChainRetryParameter);
+                retry = JobChains.RetryMarker.Parse(note);
             }
 
             // Without a trace only for a job that waits in its queue and that a worker can put back there
@@ -234,7 +244,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
             case Verdict.PutBack:
                 // Only for a step with the note of a retry
-                PutBack(context, chainId, retry!);
+                PutBack(context, chainId, retry!, note);
                 break;
 
             case Verdict.GiveBack:
@@ -266,13 +276,13 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
         // back had it done above.
         if (retry != null && verdict != Verdict.PutBack && job.ParametersSnapshot == null)
         {
-            JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, beforeCommit: false);
+            JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, job.Id, note, beforeCommit: false);
         }
     }
 
     // The step goes back into the state it was in before the retry, and doesn't run. The note of the retry stays
     // until that is committed: a state change that fails is tried again, and decided the same way.
-    private static void PutBack(ElectStateContext context, string chainId, JobChains.RetryMarker retry)
+    private static void PutBack(ElectStateContext context, string chainId, JobChains.RetryMarker retry, string? note)
     {
         string jobId = context.BackgroundJob.Id;
 
@@ -280,7 +290,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         // Not by way of the Processing state: the job's history must not say that it ran
         context.ReplaceCandidateState(JobChains.RestoreAbandoned(retry, chainId));
-        JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, jobId, beforeCommit: false);
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, context.Transaction, context.AfterCommit, jobId, note, beforeCommit: false);
 
         // What the retry had created waits for this job and is listed nowhere: it is deleted, once this is
         // stored. Not before: a state change that fails leaves the step held, for a client that may still wake up.
@@ -316,7 +326,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
 
         if (parameters != null && parameters.TryGetValue(JobChains.ChainRetryParameter, out string? retry) && !string.IsNullOrEmpty(retry))
         {
-            KeepRetryMarkerWhileHeld(context, transaction);
+            KeepRetryMarkerWhileHeld(context, transaction, retry);
         }
 
         // Without work after the commit (the transaction is the caller's), the next state change does the rest
@@ -383,7 +393,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
     /// never followed by a hold, or was left behind: it is stale whatever becomes of this state change, and goes
     /// at once. A note on a job that leaves the two states goes with the state change, and stays when that fails.
     /// </summary>
-    private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction)
+    private static void KeepRetryMarkerWhileHeld(ApplyStateContext context, IWriteOnlyTransaction transaction, string note)
     {
         // The state that holds the step wrote the note, also over an older one
         if (context.NewState is JobChains.RetryHold || HeldNow.TryGetValue(context.BackgroundJob, out _))
@@ -397,7 +407,7 @@ public sealed class JobChainStepFilter : IElectStateFilter, IApplyStateFilter
             return;
         }
 
-        JobChains.ForgetRetryMarker(context.Storage, context.Connection, transaction, context.AfterCommit, context.BackgroundJob.Id, beforeCommit: !wasHeld);
+        JobChains.ForgetRetryMarker(context.Storage, context.Connection, transaction, context.AfterCommit, context.BackgroundJob.Id, note, beforeCommit: !wasHeld);
     }
 
     private static bool IsOnTheWayToAWorker(string? stateName)

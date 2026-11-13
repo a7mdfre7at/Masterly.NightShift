@@ -1165,7 +1165,8 @@ public class JobChainFacts : IDisposable
                 It.Is<JobChains.RestoredState>(state => state.Name == FailedState.StateName && state.Reason == "It broke" && state.SerializeData()["FailedAt"] == "2026-01-01T00:00:00.0000000Z"),
                 ScheduledState.StateName),
             Times.Once);
-        Assert.Equal("forget", order[^1]);
+        // Its own note, taken off under the job's lock
+        Assert.Equal(["lock", "forget", "unlock"], order[^3..]);
         Assert.Null(_notes["next"]);
     }
 

@@ -22,6 +22,11 @@ public static partial class JobChains
     // stopped at the start of the retry no longer counts as being at it, so the step is put back at once
     private const int HoldMarginSeconds = 15;
 
+    // How long the removal of a marker after a commit waits for the job's lock, on the thread that changed the
+    // job's state: a job is locked only while its state changes. Past it the marker stays, and goes at the job's
+    // next state change.
+    private static readonly TimeSpan ForgetLockTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// How long the step a retry starts from stays out of its state before a server looks at it: as long as the
     /// retry's lease, and a little more. It doesn't bound the retry: a step that comes up while its retry is still
@@ -166,7 +171,9 @@ public static partial class JobChains
     /// Takes the marker of a retry off a job, with a state change of that job: in its transaction where the storage
     /// can. Elsewhere right away (<paramref name="beforeCommit"/>: the marker is stale whatever becomes of the
     /// state change), or once the state change is committed (the marker must outlive a state change that fails);
-    /// without anything to run after the commit it is left, and goes at the job's next state change. Never throws.
+    /// without anything to run after the commit it is left, and goes at the job's next state change. After the
+    /// commit the job's lock is released, and a new retry may hold the job again by then: the marker goes only
+    /// while it is still <paramref name="decidedOn"/>, the one the state change saw. Never throws.
     /// </summary>
     internal static void ForgetRetryMarker(
         JobStorage storage,
@@ -174,6 +181,7 @@ public static partial class JobChains
         IWriteOnlyTransaction transaction,
         PostCommitActions? afterCommit,
         string jobId,
+        string? decidedOn,
         bool beforeCommit)
     {
         try
@@ -186,9 +194,9 @@ public static partial class JobChains
             {
                 connection.SetJobParameter(jobId, ChainRetryParameter, null);
             }
-            else
+            else if (!string.IsNullOrEmpty(decidedOn))
             {
-                afterCommit?.Add(() => ForgetRetryMarker(connection, jobId));
+                afterCommit?.Add(() => ForgetRetryMarker(connection, jobId, decidedOn));
             }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
@@ -197,18 +205,71 @@ public static partial class JobChains
         }
     }
 
-    /// <summary>Takes the marker of a retry off a job, in a write of its own. Never throws.</summary>
-    private static void ForgetRetryMarker(IStorageConnection connection, string jobId)
+    /// <summary>
+    /// Takes the marker of a retry off a job, in a write of its own, under the job's lock and only while the job
+    /// still carries that marker (<paramref name="decidedOn"/>: the marker as it is stored, or the identifier of
+    /// its retry): a marker written since belongs to another retry, which holds the job now. Never throws.
+    /// </summary>
+    private static void ForgetRetryMarker(IStorageConnection connection, string jobId, string decidedOn)
     {
         try
         {
-            connection.SetJobParameter(jobId, ChainRetryParameter, null);
+            using (connection.AcquireDistributedJobLock(jobId, ForgetLockTimeout))
+            {
+                if (IsMarker(connection.GetJobParameter(jobId, ChainRetryParameter), decidedOn))
+                {
+                    connection.SetJobParameter(jobId, ChainRetryParameter, null);
+                }
+            }
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             Logger.DebugException($"The note of a retry of its chain couldn't be taken off background job '{jobId}'; it goes at the job's next state change.", ex);
         }
     }
+
+    /// <summary>
+    /// Whether the marker a job carries is the one a decision was taken on: the same text, or the marker of the
+    /// retry with that identifier.
+    /// </summary>
+    internal static bool IsMarker(string? stored, string decidedOn)
+    {
+        if (string.IsNullOrEmpty(stored))
+        {
+            return false;
+        }
+
+        return string.Equals(stored, decidedOn, StringComparison.Ordinal) ||
+               string.Equals(RetryMarker.Parse(stored)?.Id, RetryMarker.Parse(decidedOn)?.Id ?? decidedOn, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Checks, for the state that puts a step back from the hold of a retry (<see cref="RestoredState.HeldFor"/>),
+    /// that the job still carries the marker of that retry. Called while the state is elected, so under the job's
+    /// lock, with the job's parameters as they are then.
+    /// </summary>
+    /// <exception cref="RetryHoldLostException">
+    /// The job isn't held for that retry any more: the state change fails, and nothing of it is stored.
+    /// </exception>
+    internal static void EnsureHeldFor(ElectStateContext context, string retryId)
+    {
+        BackgroundJob job = context.BackgroundJob;
+        string? stored = job.ParametersSnapshot != null
+            ? job.ParametersSnapshot.GetValueOrDefault(ChainRetryParameter)
+            : context.Connection.GetJobParameter(job.Id, ChainRetryParameter);
+
+        if (!string.Equals(RetryMarker.Parse(stored)?.Id, retryId, StringComparison.Ordinal))
+        {
+            throw new RetryHoldLostException(job.Id);
+        }
+    }
+
+    /// <summary>
+    /// A step wasn't put back from the hold of a retry, because it isn't held for that retry any more: a server
+    /// put it back already, somebody changed it, or another retry holds it now.
+    /// </summary>
+    internal sealed class RetryHoldLostException(string jobId)
+        : InvalidOperationException($"Background job '{jobId}' is no longer held for the retry that tried to put it back.");
 
     /// <summary>
     /// Deletes the jobs an abandoned retry created for the steps right after the one it held: they wait for that
@@ -397,43 +458,63 @@ public static partial class JobChains
     }
 
     /// <summary>
-    /// Puts the step of a retry that failed back into the state it was in, from its hold. A step whose hold ended
-    /// meanwhile waits in its queue with the note of the retry: it is left there, and the worker that takes it
-    /// puts it back, because the retry isn't recorded (moved from here, it would leave its place in the queue
-    /// behind). A step that left the hold another way (a server put it back already, somebody changed it) is
-    /// left as it is.
+    /// Puts the step of a retry that failed back into the state it was in, from its hold, and only while the job
+    /// is still held for this retry: it carries the marker of this retry, read under the job's lock, and the state
+    /// change itself is refused, under that lock, when it doesn't any more (<see cref="RestoredState.HeldFor"/>).
+    /// A step that left the hold another way is left as it is: a server put it back already, somebody deleted,
+    /// requeued or scheduled it, it waits for its chain after it was requeued, or another retry holds it now. A
+    /// step whose hold ended meanwhile waits in its queue with the note of the retry: it is left there, and the
+    /// worker that takes it puts it back, because the retry isn't recorded (moved from here, it would leave its
+    /// place in the queue behind).
     /// </summary>
-    private static void PutBack(IBackgroundJobClient client, IStorageConnection connection, string jobId, StateData stepState, DateTime? expireAt, string chainId)
+    private static void PutBack(IBackgroundJobClient client, IStorageConnection connection, string jobId, StateData stepState, DateTime? expireAt, string chainId, RetryMarker marker)
     {
-        IState state = Restore(stepState, expireAt);
+        IState state = Restore(stepState, expireAt, marker.Id);
 
         try
         {
-            string? current = connection.GetStateData(jobId)?.Name;
+            string? current = ReadHeld(connection, jobId, marker, out bool held);
 
-            if (ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
+            if (held && ScheduledState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
             {
                 if (client.ChangeState(jobId, state, ScheduledState.StateName))
                 {
-                    // Also where no filter did it with the state change
-                    ForgetRetryMarker(connection, jobId);
+                    // Also where no filter did it with the state change; only this retry's own
+                    ForgetRetryMarker(connection, jobId, marker.Id);
                     return;
                 }
 
-                current = connection.GetStateData(jobId)?.Name;
+                current = ReadHeld(connection, jobId, marker, out held);
             }
 
-            if (EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
+            if (held && EnqueuedState.StateName.Equals(current, StringComparison.OrdinalIgnoreCase))
             {
                 Logger.Info($"The hold of background job '{jobId}' of chain '{chainId}' ended while the retry was at it: the job waits in its queue, and the worker that takes it moves it back to {state.Name} instead of running it.");
                 return;
             }
 
-            Logger.Warn($"Background job '{jobId}' of chain '{chainId}' left its hold meanwhile (it is in the {current ?? "expired"} state), so it wasn't moved back to {state.Name}.");
+            Logger.Warn($"Background job '{jobId}' of chain '{chainId}' left the hold of the retry meanwhile (it is in the {current ?? "expired"} state{(held ? string.Empty : ", and isn't held for this retry any more")}), so it wasn't moved back to {state.Name}.");
+        }
+        catch (BackgroundJobClientException ex) when (ex.InnerException is RetryHoldLostException)
+        {
+            // Between the read above and the state change: the state change saw it under the job's lock
+            Logger.Warn($"Background job '{jobId}' of chain '{chainId}' left the hold of the retry meanwhile, so it wasn't moved back to {state.Name}.");
         }
         catch (Exception ex) when (ex.IsCatchableExceptionType())
         {
             Logger.WarnException($"Background job '{jobId}' of chain '{chainId}' couldn't be moved back to {state.Name}; a server does it once its hold ends.", ex);
+        }
+    }
+
+    // The state of a job, and whether it still carries the marker of a retry, both read under the job's lock
+    private static string? ReadHeld(IStorageConnection connection, string jobId, RetryMarker marker, out bool held)
+    {
+        using (connection.AcquireDistributedJobLock(jobId, CommitLockTimeout))
+        {
+            string? state = connection.GetStateData(jobId)?.Name;
+            held = state != null &&
+                   string.Equals(RetryMarker.Parse(connection.GetJobParameter(jobId, ChainRetryParameter))?.Id, marker.Id, StringComparison.Ordinal);
+            return state;
         }
     }
 }

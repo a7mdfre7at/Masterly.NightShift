@@ -1059,6 +1059,7 @@ public sealed class JobChainStepFilterFacts : IDisposable
         Step("1.0");
         HeldForARetry(generation: 3, state: FailedState.StateName);
         Record(3, ("0.0", "41"), ("1.0", JobId));
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3));
         _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
 
         _filter.OnStateElection(_context.Object);
@@ -1068,6 +1069,106 @@ public sealed class JobChainStepFilterFacts : IDisposable
         _context.ApplyContext.Object.AfterCommit.Run();
 
         _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Fact]
+    public void OnStateElection_LeavesTheNoteOfANewRetry_ThatHeldTheStepAgain_BeforeTheNoteOfTheAbandonedOneWasTakenOff()
+    {
+        // A storage that can't write a parameter with a state: the note goes after the commit, when the job's
+        // lock is released. A new retry may have held the step by then, with a note of its own.
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
+        List<string> order = [];
+        _connection.Setup(x => x.AcquireDistributedLock($"job:{JobId}:state-lock", It.IsAny<TimeSpan>()))
+            .Returns(() =>
+            {
+                order.Add("lock");
+                Mock<IDisposable> handle = new();
+                handle.Setup(x => x.Dispose()).Callback(() => order.Add("unlock"));
+                return handle.Object;
+            });
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry"))
+            .Returns(() =>
+            {
+                order.Add("read");
+                return Note(generation: 3, id: "fedcba9876543210");
+            });
+
+        _filter.OnStateElection(_context.Object);
+        _context.ApplyContext.Object.AfterCommit.Run();
+
+        // Read under the job's lock, and left: it isn't the note the step was put back for
+        Assert.Equal(["lock", "read", "unlock"], order);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_LeavesTheNote_WhenTheJobsLockCanNotBeTaken_AfterTheStepWasPutBack()
+    {
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        Record(3, ("0.0", "41"), ("1.0", JobId));
+        _context.ApplyContext.Object.AfterCommit = new PostCommitActions();
+        _connection.Setup(x => x.AcquireDistributedLock($"job:{JobId}:state-lock", It.IsAny<TimeSpan>()))
+            .Throws(new DistributedLockTimeoutException("job"));
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3));
+
+        _filter.OnStateElection(_context.Object);
+        _context.ApplyContext.Object.AfterCommit.Run();
+
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_RefusesToPutAStepBackForARetry_ThatDoesNotHoldItAnyMore()
+    {
+        // The client of a retry that failed puts its step back, but the step carries the note of another retry
+        // by now: the state change fails, under the job's lock, and nothing of it is stored
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        _context.ApplyContext.NewStateObject = new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() }) { HeldFor = "fedcba9876543210" };
+
+        Assert.Throws<JobChains.RetryHoldLostException>(() => _filter.OnStateElection(_context.Object));
+
+        Assert.Empty(_expiring.Invocations);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void OnStateElection_RefusesToPutAStepBackForARetry_WhenTheStepCarriesNoNoteAnyMore()
+    {
+        Step("1.0");
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        _context.ApplyContext.NewStateObject = new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() }) { HeldFor = "0123456789abcdef" };
+
+        Assert.Throws<JobChains.RetryHoldLostException>(() => _filter.OnStateElection(_context.Object));
+    }
+
+    [Fact]
+    public void OnStateElection_PutsAStepBackForTheRetry_ThatStillHoldsIt()
+    {
+        Step("1.0");
+        HeldForARetry(generation: 3, state: FailedState.StateName);
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        JobChains.RestoredState restored = new(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() }) { HeldFor = "0123456789abcdef" };
+        _context.ApplyContext.NewStateObject = restored;
+
+        _filter.OnStateElection(_context.Object);
+
+        Assert.Same(restored, _context.Object.CandidateState);
+    }
+
+    [Fact]
+    public void OnStateElection_ReadsTheNoteAfresh_ToPutAStepBack_WhenTheStorageLoadsNoParameters()
+    {
+        _context.ApplyContext.Connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3, id: "fedcba9876543210"));
+        _context.ApplyContext.OldStateName = ScheduledState.StateName;
+        _context.ApplyContext.NewStateObject = new JobChains.RestoredState(new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() }) { HeldFor = "0123456789abcdef" };
+
+        Assert.Throws<JobChains.RetryHoldLostException>(() => _filter.OnStateElection(_context.Object));
     }
 
     [Fact]
@@ -1282,6 +1383,7 @@ public sealed class JobChainStepFilterFacts : IDisposable
     {
         // Were it taken off before, a state change that fails would leave a step held without its note
         ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: false);
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3));
 
         _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
 
@@ -1290,6 +1392,23 @@ public sealed class JobChainStepFilterFacts : IDisposable
         mock.Object.AfterCommit.Run();
 
         _connection.Verify(x => x.SetJobParameter(JobId, "ChainRetry", null), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("Enqueued", "Processing")]
+    [InlineData("Enqueued", "Failed")]
+    [InlineData("Scheduled", "Deleted")]
+    public void OnStateApplied_LeavesTheNoteOfANewRetry_ThatHeldTheStepSince_WhereTheStorageCanNotDoBothAtOnce(string from, string to)
+    {
+        // After the commit the job's lock is released: a retry that held the job since wrote a note of its own
+        ApplyStateContextMock mock = WithTheNoteOfARetry(from, to, transactional: false);
+        _connection.Setup(x => x.GetJobParameter(JobId, "ChainRetry")).Returns(Note(generation: 3, id: "fedcba9876543210"));
+
+        _filter.OnStateApplied(mock.Object, mock.Object.Transaction);
+        mock.Object.AfterCommit.Run();
+
+        _connection.Verify(x => x.AcquireDistributedLock($"job:{JobId}:state-lock", It.IsAny<TimeSpan>()), Times.Once);
+        _connection.Verify(x => x.SetJobParameter(It.IsAny<string>(), "ChainRetry", It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -1351,11 +1470,11 @@ public sealed class JobChainStepFilterFacts : IDisposable
         return mock;
     }
 
-    private static string Note(int generation, string state = "Failed", Dictionary<string, string> data = null)
+    private static string Note(int generation, string state = "Failed", Dictionary<string, string> data = null, string id = "0123456789abcdef")
     {
         return new JobChains.RetryMarker
         {
-            Id = "0123456789abcdef",
+            Id = id,
             Generation = generation,
             State = state,
             Reason = "The old reason",
