@@ -660,6 +660,13 @@ public class JobChainFacts
         JobChainResult chain = JobChain.StartWith(() => RecordWithoutRetries("a")).Then(() => Record("b")).Enqueue(client);
         Assert.True(client.ChangeState(chain!.RootId, new FailedState(new InvalidOperationException("failed")), null));
 
+        // The step failed by hand left its place in the queue behind: a server finds nothing to run there, and
+        // clears it
+        using (CreateServer(storage))
+        {
+            await Task.Delay(1000, TestContext.Current.CancellationToken);
+        }
+
         // SQL Server can't write a job parameter with a state: a retry notes what it starts from first, and one
         // whose process stops right there leaves the note on a step it never held
         using (IStorageConnection connection = storage.GetConnection())

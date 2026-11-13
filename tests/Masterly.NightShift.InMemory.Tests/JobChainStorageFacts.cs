@@ -745,11 +745,15 @@ public sealed class JobChainStorageFacts : IDisposable
         _filter.Created.Clear();
         _filter.CrashOn = "end";
 
+        // The steps moved by hand left their place in the queue behind: the server finds nothing to run there,
+        // and clears it, before the retry begins
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
+
         Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
         _filter.CrashOn = null;
         string alert = _filter.Created.Single(static x => x.Name == "alert").Id;
 
-        using BackgroundJobServer server = CreateServer();
         MoveClock(TimeSpan.FromMinutes(3));
 
         WaitUntil(() => StateOf(step) == FailedState.StateName, "the step to be put back");
@@ -825,11 +829,15 @@ public sealed class JobChainStorageFacts : IDisposable
 
             // Were its failure taken for a new one later, it would be retried: attempts are left again
             SetParameter(step, "RetryCount", "0");
+
+            // The step failed by hand left its place in the queue behind: the server finds nothing to run there,
+            // and clears it, before the retry begins
+            using BackgroundJobServer server = CreateServer();
+            Thread.Sleep(500);
             _filter.CrashOn = "c";
             Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(step));
             _filter.CrashOn = null;
 
-            using BackgroundJobServer server = CreateServer();
             MoveClock(TimeSpan.FromMinutes(3));
             WaitUntil(() => ReasonOf(step) == $"The retry of chain {chain.ChainId} was abandoned", "the step to be put back");
             WaitUntil(() => Feed().Any(x => x.JobId == step && x.State == EnqueuedState.StateName), "the feed to tell that the hold of the step ended");
@@ -857,14 +865,17 @@ public sealed class JobChainStorageFacts : IDisposable
         // between the two: the note of what it started from, on a step it never held
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
         Fail(chain.RootId);
+
+        // The step failed by hand left its place in the queue behind: the server finds nothing to run there, and
+        // clears it
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
         SetParameter(chain.RootId, "ChainRetry", "{\"id\":\"0123\",\"generation\":1,\"state\":\"Failed\",\"data\":{}}");
 
         // Somebody requeues the failed step: it must run, not be put back as the step of an abandoned retry
         Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), FailedState.StateName));
-        Assert.Null(Parameter(chain.RootId, "ChainRetry"));
-
-        using BackgroundJobServer server = CreateServer();
         WaitUntilSettled(chain.ChainId);
+        Assert.Null(Parameter(chain.RootId, "ChainRetry"));
 
         Assert.Equal(["a", "b"], Ran);
     }
@@ -874,6 +885,11 @@ public sealed class JobChainStorageFacts : IDisposable
     {
         JobChainResult chain = JobChain.StartWith(() => Once("a")).Then(() => Once("b")).Enqueue(_client)!;
         Fail(chain.RootId);
+
+        // The step failed by hand left its place in the queue behind: the server finds nothing to run there, and
+        // clears it, before the retry begins
+        using BackgroundJobServer server = CreateServer();
+        Thread.Sleep(500);
         _filter.CrashOn = "b";
         Assert.Throws<OutOfMemoryException>(() => _storage.RetryChainFrom(chain.RootId));
         _filter.CrashOn = null;
@@ -884,8 +900,9 @@ public sealed class JobChainStorageFacts : IDisposable
         MoveClock(TimeSpan.FromMinutes(3));
         Assert.True(_client.ChangeState(chain.RootId, new EnqueuedState(), DeletedState.StateName));
 
-        using BackgroundJobServer server = CreateServer();
-        WaitUntil(() => Ran.Contains("a"), "the requeued step to run");
+        // It runs, once; the step after it was skipped when it was deleted
+        WaitUntil(() => StateOf(chain.RootId) == SucceededState.StateName, "the requeued step to run");
+        Assert.Equal(["a"], Ran);
     }
 
     [Fact]
