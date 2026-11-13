@@ -948,64 +948,91 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
-    public void Gate_KeepsAWorkerFromRunning_UntilTheFirstCheckHasPausedTheFencedServer()
+    public void Gate_KeepsTheWorkersOfAFencedServerFromFetching_UntilItsDeploymentIsTheCurrentOne()
     {
         Check(new DeploymentFencingProcess("v2", 2), "new-server", 0);
         DeploymentFencingProcess older = new("v1", 1);
-        bool? pausedWhenTheWorkerRan = null;
         Mock<IBackgroundProcess> worker = new();
-        worker
-            .Setup(x => x.Execute(It.IsAny<BackgroundProcessContext>()))
-            .Callback(() => pausedWhenTheWorkerRan = DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
         GatedWorker gated = new(worker.Object, older.Gate);
 
-        // The server is stopping, so the wait ends at once: a worker that didn't wait would have run
-        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
-        bool openBeforeTheCheck = older.Gate.IsOpen;
-        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+        // No check has decided yet. The server is stopping, so the wait ends at once: a worker that didn't wait
+        // would have run
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", Stopping)));
 
+        // Fenced: paused, and its workers still don't fetch, however often they ask
         bool fenced = Check(older, "old-server", 5);
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", Stopping)));
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", Stopping)));
+        int runsWhileFenced = worker.Invocations.Count;
+        bool pausedWhileFenced = DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server");
+
+        // v2 shows no sign of life, and v1 takes over
+        bool[] later = [Check(older, "old-server", 20), Check(older, "old-server", 35), Check(older, "old-server", 50)];
         gated.Execute(Context("old-server", CancellationToken.None));
 
-        Assert.False(openBeforeTheCheck);
         Assert.True(fenced);
-        Assert.True(older.Gate.IsOpen);
-        Assert.True(pausedWhenTheWorkerRan);
+        Assert.True(pausedWhileFenced);
+        Assert.Equal(0, runsWhileFenced);
+        Assert.Equal([true, true, false], later);
         worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Once);
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
-    public void Gate_StaysClosed_WhileTheFirstCheckFails_AndOpensWithTheFirstCheckThatSucceeds()
+    public void Gate_IsDecidedForOneServerId_SoAServerWithANewIdWaitsForACheckOfItsOwn()
+    {
+        DeploymentFencingProcess current = new("v1");
+        Mock<IBackgroundProcess> worker = new();
+        GatedWorker gated = new(worker.Object, current.Gate);
+
+        Assert.False(Check(current, "server:1:old", 0));
+        gated.Execute(Context("server:1:old", CancellationToken.None));
+
+        // The heartbeat restarted the server: the same processes, a new id that no check has decided for
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("server:1:new", Stopping)));
+        bool decidedForTheNewId = current.Gate.IsDecided("server:1:new");
+
+        Assert.False(Check(current, "server:1:new", 1));
+        gated.Execute(Context("server:1:new", CancellationToken.None));
+
+        Assert.False(decidedForTheNewId);
+        Assert.True(current.Gate.IsDecided("server:1:new"));
+        worker.Verify(x => x.Execute(It.Is<BackgroundProcessContext>(context => context.ServerId == "server:1:old")), Times.Once);
+        worker.Verify(x => x.Execute(It.Is<BackgroundProcessContext>(context => context.ServerId == "server:1:new")), Times.Once);
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Gate_StaysClosed_WhileTheFirstCheckFails_AndFollowsTheFirstCheckThatSucceeds()
     {
         bool storageDown = true;
         _storage.Connection.When(() => storageDown).Setup(x => x.CreateWriteTransaction()).Throws(new InvalidOperationException("storage down"));
         _storage.Hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>
         {
-            ["Current"] = "v2",
-            ["Seen:v2"] = DeploymentFencing.FormatSeen(Now, 7, TimeSpan.FromSeconds(15)),
+            ["Current"] = "v1",
             ["Seen:v1"] = DeploymentFencing.FormatSeen(Now, 3, TimeSpan.FromSeconds(15)),
         };
         DeploymentFencingProcess started = new("v1");
         Mock<IBackgroundProcess> worker = new();
         GatedWorker gated = new(worker.Object, started.Gate);
 
-        // The check reads the hash, then fails: it has decided nothing, and the server isn't paused
-        Assert.Throws<InvalidOperationException>(() => Check(started, "old-server", 0));
-        bool openAfterTheFailure = started.Gate.IsOpen;
-        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("old-server", new CancellationToken(canceled: true))));
-        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Never);
+        // The check reads the hash, then fails: it has decided nothing
+        Assert.Throws<InvalidOperationException>(() => Check(started, "server-1", 0));
+        bool decidedAfterTheFailure = started.Gate.IsDecided("server-1");
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("server-1", Stopping)));
+        int runsAfterTheFailure = worker.Invocations.Count;
 
         storageDown = false;
-        bool fenced = Check(started, "old-server", 1);
+        bool fenced = Check(started, "server-1", 1);
+        gated.Execute(Context("server-1", CancellationToken.None));
 
-        Assert.False(openAfterTheFailure);
-        Assert.True(fenced);
-        Assert.True(started.Gate.IsOpen);
-        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("old-server"));
+        Assert.False(decidedAfterTheFailure);
+        Assert.Equal(0, runsAfterTheFailure);
+        Assert.False(fenced);
+        Assert.True(started.Gate.IsDecided("server-1"));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Once);
     }
 
     [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
-    public void Gate_Opens_ForAServerOfTheCurrentDeployment_AndStaysOpen()
+    public void Gate_ClosesAgain_WhenANewerDeploymentFencesTheServerLater()
     {
         DeploymentFencingProcess current = new("v1");
         Mock<IBackgroundProcess> worker = new();
@@ -1014,35 +1041,92 @@ public sealed class DeploymentFencingFacts : IDisposable
         Assert.False(Check(current, "server-1", 0));
         gated.Execute(Context("server-1", CancellationToken.None));
 
-        // Fenced later by a newer deployment: the pause holds its jobs from then on, the gate isn't closed again
+        // A deployment never seen takes over, and the next check of this server finds it fenced
         Check(new DeploymentFencingProcess("v2"), "new-server", 5);
         Assert.True(Check(current, "server-1", 15));
-        gated.Execute(Context("server-1", CancellationToken.None));
+        Assert.ThrowsAny<OperationCanceledException>(() => gated.Execute(Context("server-1", Stopping)));
 
-        Assert.True(current.Gate.IsOpen);
+        Assert.True(DrainMode.Read(_storage.Connection.Object).IsServerPaused("server-1"));
         Assert.False(DrainMode.Read(_storage.Connection.Object).IsServerPaused("new-server"));
-        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Exactly(2));
+        worker.Verify(x => x.Execute(It.IsAny<BackgroundProcessContext>()), Times.Once);
     }
 
-    [Fact, GlobalLock(Reason = "Uses the log provider")]
-    public void Gate_SaysOnce_ThatTheServerWaitsForItsFirstCheck()
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    public void Gate_SaysOnce_WhyTheServerTakesNoJobs()
     {
         RecordingLogProvider recording = new();
-        DeploymentFencingGate gate = new("v1");
+        WorkerGate gate = new("v1");
 
+        bool mayFetch;
         using (recording.Use())
         {
-            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
-            Assert.ThrowsAny<OperationCanceledException>(() => gate.Wait(Context("server-1", new CancellationToken(canceled: true))));
-            gate.Open();
-            gate.Wait(Context("server-1", CancellationToken.None));
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.WaitToFetch(Context("server-1", Stopping)));
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.WaitToFetch(Context("server-1", Stopping)));
+
+            gate.Decide("server-1", fenced: true);
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.WaitToFetch(Context("server-1", Stopping)));
+            Assert.ThrowsAny<OperationCanceledException>(() => gate.WaitToFetch(Context("server-1", Stopping)));
+
+            gate.Decide("server-1", fenced: false);
+            mayFetch = gate.WaitToFetch(Context("server-1", Stopping));
         }
 
-        RecordingLogProvider.LogEntry entry = Assert.Single(recording.Entries);
-        Assert.Equal(LogLevel.Debug, entry.Level);
+        Assert.True(mayFetch);
+        Assert.All(recording.Entries, static x => Assert.Equal(LogLevel.Debug, x.Level));
         Assert.Equal(
-            "Server 'server-1' takes no jobs until its first deployment check has decided whether deployment 'v1' is fenced.",
-            entry.Message);
+            [
+                "Server 'server-1' takes no jobs until its first deployment check has decided whether deployment 'v1' is fenced.",
+                "Server 'server-1' of deployment 'v1' is fenced: it takes no jobs until its deployment is the current one.",
+            ],
+            recording.Entries.Select(static x => x.Message));
+    }
+
+    [Theory, GlobalLock(Reason = "Uses the drain mode cache and the log provider")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Check_TakesIdsThatDifferOnlyByCase_ForOneDeployment_WhateverTheStorageDoesWithCase(bool storageIgnoresCase)
+    {
+        // SQL Server with a case-insensitive collation keeps one field for "Seen:release-7" and "Seen:Release-7",
+        // under the name it was first written with; the other storages keep two
+        _storage.Hashes[DeploymentFencing.HashKey] = new Dictionary<string, string>(
+            storageIgnoresCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        RecordingLogProvider recording = new();
+        DeploymentFencingProcess lower = new("release-7");
+        DeploymentFencingProcess upper = new("Release-7");
+
+        List<(bool LowerFenced, bool UpperFenced, string Current)> rounds;
+        using (recording.Use())
+        {
+            rounds = Simulate(8, round =>
+            (
+                Check(lower, "server-a", 15 * round),
+                Check(upper, "server-b", 5 + (15 * round)),
+                DeploymentFencing.GetCurrentDeployment(_storage.Object)
+            ));
+        }
+
+        Assert.All(rounds, static x => Assert.False(x.LowerFenced));
+        Assert.All(rounds, static x => Assert.False(x.UpperFenced));
+        Assert.All(rounds, static x => Assert.Equal("release-7", x.Current));
+        Assert.Equal(["Current", "Seen:release-7"], Hash.Keys.Order(StringComparer.Ordinal));
+        Assert.Empty(DrainMode.Read(_storage.Connection.Object).PausedServers);
+        Assert.DoesNotContain(recording.Entries, static x => x.Level == LogLevel.Warn);
+        Assert.Single(recording.Entries, static x => x.Message.Contains("is now the current one", StringComparison.Ordinal));
+    }
+
+    [Fact, GlobalLock(Reason = "Uses the drain mode cache")]
+    public void Check_KeepsOneOrder_ForIdsThatDifferOnlyByCase()
+    {
+        Check(new DeploymentFencingProcess("Release-7", 7), "server-a", 0);
+        Check(new DeploymentFencingProcess("release-7", 7), "server-b", 5);
+
+        // An older deployment is fenced by it under either spelling
+        bool fenced = Check(new DeploymentFencingProcess("release-6", 6), "server-c", 10);
+
+        Assert.True(fenced);
+        Assert.Equal("Release-7", DeploymentFencing.GetCurrentDeployment(_storage.Object));
+        Assert.Equal(7, DeploymentFencing.GetCurrentDeploymentOrder(_storage.Object));
+        Assert.Equal(["Current", "Order:release-6", "Order:release-7", "Seen:release-6", "Seen:release-7"], Hash.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact, StaticLock]
@@ -1087,6 +1171,7 @@ public sealed class DeploymentFencingFacts : IDisposable
     [InlineData("v1", 41L, "v2", 42L, "v1 (order 41) (v2, order 42)")]
     [InlineData("v1", null, "v2", 42L, "v1 (v2, order 42)")]
     [InlineData("v1", 41L, "v2", null, "v1 (order 41) (v2)")]
+    [InlineData("V2", 42L, "v2", 42L, "V2 (order 42)")]
     public void AboutPage_ShowsTheOrderWithTheDeployment(string deployment, long? order, string current, long? currentOrder, string expected)
     {
         Assert.Equal(expected, Masterly.NightShift.Dashboard.Pages.AboutPage.DescribeDeployment(deployment, order, current, currentOrder));
@@ -1110,6 +1195,9 @@ public sealed class DeploymentFencingFacts : IDisposable
     }
 
     private Dictionary<string, string> Hash => _storage.Hashes[DeploymentFencing.HashKey];
+
+    // The stopping token of a server that is stopping: a wait for it ends at once
+    private static CancellationToken Stopping => new(canceled: true);
 
     private BackgroundProcessContext Context(string serverId, CancellationToken stoppingToken)
     {

@@ -243,6 +243,30 @@ public class PerformContextFacts
         Assert.Equal(TimeSpan.FromSeconds(90), context.Lateness);
     }
 
+    [Theory, GlobalLock(Reason = "Changes the clock")]
+    [InlineData("\"30000\"", 15)]
+    [InlineData("\"10000|1795165220000\"", 10)]
+    [InlineData("\"0|1795165195000\"", 0)]
+    [InlineData("\"90000\"", 0)]
+    [InlineData("\"soon\"", 45)]
+    [InlineData("not json", 45)]
+    [InlineData(null, 45)]
+    public void Lateness_LeavesOutTheTimeAPausedServerHeldTheJob(string hold, int secondsLate)
+    {
+        // Created at 09:00:00 (1795165200000 in Unix milliseconds) and started at 09:00:45. Held for 30 seconds;
+        // for 10 and, in a hold that began at 09:00:20 and whose end wasn't written, 25 more; since before it was
+        // created; for longer than it exists; and by values that can't be read
+        DateTime createdAt = new(2026, 11, 20, 9, 0, 0, DateTimeKind.Utc);
+        _backgroundJob.CreatedAt = createdAt;
+        _backgroundJob.ParametersSnapshot = new Dictionary<string, string> { [DrainModeFilter.ServerHoldParameter] = hold };
+
+        PerformContext context = WithClock(createdAt.AddSeconds(45), CreateContext);
+
+        Assert.Equal(1795165200000, JobHelper.ToMillisecondTimestamp(createdAt));
+        Assert.Equal(TimeSpan.FromSeconds(secondsLate), context.Lateness);
+        _connection.Verify(x => x.GetJobParameter(It.IsAny<string>(), DrainModeFilter.ServerHoldParameter), Times.Never);
+    }
+
     [Fact, GlobalLock(Reason = "Changes the clock")]
     public void Lateness_IsNeverNegative()
     {

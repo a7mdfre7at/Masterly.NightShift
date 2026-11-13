@@ -163,10 +163,15 @@ public static class DrainMode
     }
 
     /// <summary>
-    /// Makes one server hold every job it picks up instead of running it: the job goes to the Scheduled state for
-    /// <see cref="HoldInterval"/>, and is enqueued again after that. Any server may pick it up then, including the
-    /// paused one, which holds it again, so a job can wait for more than one hold. The server's running jobs finish.
+    /// Makes one server stop taking jobs: its workers fetch nothing while it is paused, so the jobs stay in their
+    /// queues for the servers that may work, and its running jobs finish. The server notices within the time the
+    /// answer is cached (<see cref="CacheDuration"/>), and a resume within a few seconds more.
     /// </summary>
+    /// <remarks>
+    /// A worker that was waiting for a job when the server was paused takes one more: that job isn't run but goes
+    /// to the Scheduled state for <see cref="HoldInterval"/> and is enqueued again after that, for any server. The
+    /// time it was held doesn't count as lateness (<see cref="Server.DrainModeFilter.ServerHoldParameter"/>).
+    /// </remarks>
     /// <param name="connection">An open storage connection.</param>
     /// <param name="serverId">
     /// The full server ID, as shown on the dashboard's Servers page and in <c>IMonitoringApi.Servers()</c>:
@@ -300,13 +305,32 @@ public static class DrainMode
         return GetStatus(StorageCaches.GetValue(storage, static _ => new CacheSlot()), connection);
     }
 
+    /// <summary>
+    /// The status this process has cached for <paramref name="storage"/>, or <c>null</c> when it has none that is
+    /// still good: the storage isn't asked. For a check made before every fetch, which opens a connection only
+    /// when the answer must be read again.
+    /// </summary>
+    [CanBeNull]
+    internal static DrainModeStatus? GetCachedStatus([NotNull] JobStorage storage)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+
+        CacheEntry? cached = Volatile.Read(ref StorageCaches.GetValue(storage, static _ => new CacheSlot()).Entry);
+        return cached != null && IsGood(cached, Interlocked.Read(ref _cacheGeneration)) ? cached.Status : null;
+    }
+
+    private static bool IsGood(CacheEntry cached, long generation)
+    {
+        return cached.Generation == generation && CacheDuration > TimeSpan.Zero &&
+               Stopwatch.GetTimestamp() - cached.Timestamp < CacheDuration.TotalSeconds * Stopwatch.Frequency;
+    }
+
     private static DrainModeStatus GetStatus(CacheSlot slot, IStorageConnection connection)
     {
         long generation = Interlocked.Read(ref _cacheGeneration);
         CacheEntry? cached = Volatile.Read(ref slot.Entry);
 
-        if (cached != null && cached.Generation == generation && CacheDuration > TimeSpan.Zero &&
-            Stopwatch.GetTimestamp() - cached.Timestamp < CacheDuration.TotalSeconds * Stopwatch.Frequency)
+        if (cached != null && IsGood(cached, generation))
         {
             return cached.Status;
         }
