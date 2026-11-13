@@ -663,7 +663,7 @@ public sealed class EfDatabaseClockFacts : IDisposable
 
     private static void AssertStagedClientReadsTheClock(EntityFrameworkCoreStorage storage, DbContext context, bool hasTheFeature)
     {
-        StagingStorage staging = new(storage, context);
+        StagingStorage staging = new(storage, context, new StagingSubscription(storage));
         Assert.Equal(hasTheFeature, staging.HasFeature(Feature));
 
         using IStorageConnection connection = staging.GetConnection();

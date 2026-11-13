@@ -201,7 +201,8 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
         using (SuppressAmbientTransaction())
         using (DbContext context = CreateContext())
         {
-            Clock = new EfDatabaseClock(this, context.Database.ProviderName);
+            ProviderName = context.Database.ProviderName;
+            Clock = new EfDatabaseClock(this, ProviderName);
         }
 
         if (dedicated && options.PrepareSchemaIfNecessary)
@@ -214,6 +215,9 @@ public sealed class EntityFrameworkCoreStorage : JobStorage
     public EntityFrameworkCoreStorageOptions Options { get; }
 
     internal Task Enqueued => Volatile.Read(ref _enqueued).Task;
+
+    /// <summary>The name the provider of the storage's contexts gives itself (<c>DbContext.Database.ProviderName</c>).</summary>
+    internal string? ProviderName { get; }
 
     /// <summary>The clock the storage tells the database's time with. Replaceable for tests.</summary>
     internal EfDatabaseClock Clock { get; set; }
