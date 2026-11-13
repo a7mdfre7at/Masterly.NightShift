@@ -235,6 +235,116 @@ public class JobChainFacts
     }
 
     [Fact, CleanDatabase]
+    public async Task Chains_CreatedWhileWorkersAreIdle_NeverShowAStepWaitingForItsChain()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        BackgroundJobClient client = new(storage);
+
+        // Idle workers fetch a first step within milliseconds of its creation, before the chain is recorded
+        using BackgroundJobServer server = CreateServer(storage, workers: 4);
+        List<JobChainResult> chains = [];
+
+        for (int i = 0; i < 40; i++)
+        {
+            chains.Add(JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(client));
+        }
+
+        foreach (JobChainResult chain in chains)
+        {
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+        }
+
+        Assert.Equal(120, Log.Count);
+        IMonitoringApi monitoring = storage.GetMonitoringApi();
+
+        foreach (JobChainResult chain in chains)
+        {
+            // Not held, not enqueued a second time: the history of any job
+            Assert.Equal(
+                [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+                monitoring.JobDetails(chain.RootId).History.Reverse().Select(static x => x.StateName));
+            Assert.All(
+                chain.Steps.Values,
+                id => Assert.DoesNotContain(monitoring.JobDetails(id).History, static x => x.StateName == ScheduledState.StateName));
+            Assert.Null(Parameter(storage, chain.RootId, "StaleRestarts"));
+            Assert.Null(Parameter(storage, chain.RootId, "RetryCount"));
+        }
+    }
+
+    [Theory, CleanDatabase]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Chain_WhoseFirstStepAWorkerTakesWhileItIsCreated_StartsWithoutAnyTraceOfIt(bool slidingInvisibilityTimeout)
+    {
+        // Both ways a worker holds a fetched job: a row marked as fetched, or a transaction that is rolled back
+        SqlServerStorage storage = slidingInvisibilityTimeout
+            ? CreateStorage()
+            : new SqlServerStorage(ConnectionUtils.GetConnectionString(), new SqlServerStorageOptions { PrepareSchemaIfNecessary = false, SlidingInvisibilityTimeout = null });
+        Log.Clear();
+        ChainHooks hooks = new() { PauseOnCreating = "c", WhilePaused = static () => Thread.Sleep(700) };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            using BackgroundJobServer server = CreateServer(storage, workers: 2);
+
+            JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(new BackgroundJobClient(storage));
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+
+            Assert.Equal(["a", "b", "c"], Log);
+            Assert.Equal(
+                [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+                storage.GetMonitoringApi().JobDetails(chain.RootId).History.Reverse().Select(static x => x.StateName));
+            Assert.Null(Parameter(storage, chain.RootId, "StaleRestarts"));
+            Assert.Null(Parameter(storage, chain.RootId, "Lease"));
+            Assert.Null(Parameter(storage, chain.RootId, "HeldQueue"));
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
+    public async Task Chain_WhoseCreatorTakesUnusuallyLong_HasItsFirstStepHeld_AsBefore_AndStillRuns()
+    {
+        SqlServerStorage storage = CreateStorage();
+        Log.Clear();
+        string waiting = null;
+        ChainHooks hooks = new() { PauseOnCreating = "c" };
+        hooks.WhilePaused = () =>
+        {
+            // Seconds pass, by the clock of the database: the first step stops going back to its queue
+            string first = hooks.Created.Single(static x => x.Name == "a").Id;
+            Thread.Sleep(1000);
+            Assert.Equal(EnqueuedState.StateName, StateName(storage, first));
+            WaitForState(storage, first, ScheduledState.StateName);
+            using IStorageConnection connection = storage.GetConnection();
+            waiting = connection.GetStateData(first).Reason;
+        };
+        GlobalJobFilters.Filters.Add(hooks);
+
+        try
+        {
+            using BackgroundJobServer server = CreateServer(storage, workers: 2);
+
+            JobChainResult chain = JobChain.StartWith(() => Record("a")).Then(() => Record("b")).Then(() => Record("c")).Enqueue(new BackgroundJobClient(storage));
+            await WaitUntilSettledAsync(storage, chain.ChainId);
+
+            Assert.Equal($"Waiting for chain {chain.ChainId} to be recorded", waiting);
+            Assert.Equal(["a", "b", "c"], Log);
+            Assert.Contains(
+                storage.GetMonitoringApi().JobDetails(chain.RootId).History,
+                static x => x.StateName == EnqueuedState.StateName && x.Reason == "The chain is recorded");
+        }
+        finally
+        {
+            GlobalJobFilters.Filters.Remove(hooks);
+        }
+    }
+
+    [Fact, CleanDatabase]
     public async Task Chain_WhoseCreationStoppedHalfway_HasItsFirstStepHeld_ThenDeleted_AndNoneOfItsStepsRuns()
     {
         SqlServerStorage storage = CreateStorage();

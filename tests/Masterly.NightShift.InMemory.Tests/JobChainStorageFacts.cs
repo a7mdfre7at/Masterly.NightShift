@@ -108,6 +108,83 @@ public sealed class JobChainStorageFacts : IDisposable
     }
 
     [Fact]
+    public void Chain_WhoseFirstStepAWorkerTakesWhileItIsCreated_StartsWithoutAnyTraceOfIt()
+    {
+        // Idle workers take the first step while the client is still creating the others: for a moment, here made
+        // long enough to be sure of it
+        using BackgroundJobServer server = CreateServer();
+        _filter.PauseOn = "c";
+        _filter.WhilePaused = static () => Thread.Sleep(400);
+
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
+        WaitUntilSettled(chain.ChainId);
+
+        // The step was given back to its queue, not held: its history reads like any job's, and it was neither
+        // counted as picked up again nor given a queue to go back to
+        Assert.Equal(["a", "b", "c"], Ran);
+        Assert.Equal(
+            [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+            History(chain.RootId).Reverse().Select(static x => x.StateName));
+        Assert.Null(Parameter(chain.RootId, "HeldQueue"));
+        Assert.Null(Parameter(chain.RootId, "StaleRestarts"));
+        Assert.Null(Parameter(chain.RootId, "Lease"));
+        Assert.Null(Parameter(chain.RootId, "RetryCount"));
+    }
+
+    [Fact]
+    public void Chains_CreatedWhileWorkersAreIdle_NeverShowAStepWaitingForItsChain()
+    {
+        using BackgroundJobServer server = new(new BackgroundJobServerOptions { WorkerCount = 4, SchedulePollingInterval = TimeSpan.FromMilliseconds(100) }, _storage);
+        List<JobChainResult> chains = [];
+
+        for (int number = 0; number < 60; number++)
+        {
+            int current = number;
+            chains.Add(JobChain.StartWith(() => Run($"{current}:a")).Then(() => Run($"{current}:b")).Then(() => Run($"{current}:c")).Enqueue(_client)!);
+        }
+
+        foreach (JobChainResult chain in chains)
+        {
+            WaitUntilSettled(chain.ChainId);
+        }
+
+        Assert.Equal(180, Ran.Count);
+        Assert.All(
+            chains.SelectMany(static x => x.Steps.Values),
+            id => Assert.DoesNotContain(History(id), static x => x.StateName == ScheduledState.StateName));
+        Assert.All(
+            chains,
+            chain => Assert.Equal(
+                [EnqueuedState.StateName, ProcessingState.StateName, SucceededState.StateName],
+                History(chain.RootId).Reverse().Select(static x => x.StateName)));
+    }
+
+    [Fact]
+    public void Chain_WhoseCreatorTakesUnusuallyLong_HasItsFirstStepHeld_AsBefore_AndStillRuns()
+    {
+        using BackgroundJobServer server = CreateServer();
+        string? waiting = null;
+        _filter.PauseOn = "c";
+        _filter.WhilePaused = () =>
+        {
+            // Seconds pass, by the clock the lease is read with: the first step no longer goes back to its queue
+            string first = _filter.Created.Single(static x => x.Name == "a").Id;
+            Thread.Sleep(300);
+            Assert.Equal(EnqueuedState.StateName, StateOf(first));
+            MoveClock(TimeSpan.FromSeconds(6));
+            WaitUntil(() => StateOf(first) == ScheduledState.StateName, "the first step to be held");
+            waiting = ReasonOf(first);
+        };
+
+        JobChainResult chain = JobChain.StartWith(() => Run("a")).Then(() => Run("b")).Then(() => Run("c")).Enqueue(_client)!;
+        WaitUntilSettled(chain.ChainId);
+
+        Assert.Equal($"Waiting for chain {chain.ChainId} to be recorded", waiting);
+        Assert.Equal(["a", "b", "c"], Ran);
+        Assert.Contains(History(chain.RootId), static x => x.StateName == EnqueuedState.StateName && x.Reason == "The chain is recorded");
+    }
+
+    [Fact]
     public void Chain_WhoseCreationFailsMidway_LeavesNothingThatRuns_EvenWhenAWorkerTookItsFirstStep()
     {
         using BackgroundJobServer server = CreateServer();
@@ -155,6 +232,7 @@ public sealed class JobChainStorageFacts : IDisposable
         {
             // The first step waits meanwhile; the clock moves, less than the lease lasts, as often as it takes
             string first = _filter.Created.Single(static x => x.Name == "a").Id;
+            MoveClock(TimeSpan.FromSeconds(6));
             WaitUntil(() => StateOf(first) == ScheduledState.StateName, "the first step to be held");
             MoveClock(TimeSpan.FromSeconds(90));
             Thread.Sleep(300);
@@ -179,7 +257,9 @@ public sealed class JobChainStorageFacts : IDisposable
 
         using BackgroundJobServer server = CreateServer();
 
-        // While the client's lease lasts, the chain may still be recorded: the first step waits
+        // While the client's lease lasts, the chain may still be recorded: the first step waits, in its queue
+        // for the first seconds, then held
+        MoveClock(TimeSpan.FromSeconds(6));
         string waiting = $"Waiting for chain {chainId} to be recorded";
         WaitUntil(() => History(first).Any(x => x.StateName == ScheduledState.StateName && x.Reason == waiting), "the first step to be held");
         Assert.Empty(Ran);
