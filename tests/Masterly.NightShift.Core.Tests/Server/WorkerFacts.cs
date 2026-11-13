@@ -602,26 +602,40 @@ public class WorkerFacts
     [Fact]
     public void Execute_LooksLessAndLessOften_AtAJobItIsAlwaysAskedToLookAtAgainAtOnce()
     {
-        // A filter that goes by a clock that stands still asks for the shortest wait each time
-        int looks = 0;
-        WorkerWaits waits = new(TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), Stopwatch.GetTimestamp);
+        // A filter that goes by a clock that stands still asks for the shortest wait each time. The pool's clock
+        // is the test's: it moves by exactly the pauses the worker takes, and by nothing else.
+        long now = 0;
+        List<double> pauses = [];
+        List<bool> offers = [];
+        WorkerWaits waits = new(
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(1),
+            () => now,
+            (pause, _) =>
+            {
+                pauses.Add(Math.Round(pause.TotalMilliseconds));
+                now += (long)(pause.TotalSeconds * Stopwatch.Frequency);
+            });
         _stateChanger.Setup(x => x.ChangeState(It.IsAny<StateChangeContext>()))
             .Returns<StateChangeContext>(ctx =>
             {
+                offers.Add(ctx.LookAgain != null);
                 if (ctx.LookAgain == null)
                 {
                     return new ScheduledState(TimeSpan.FromSeconds(2));
                 }
 
-                looks++;
                 ctx.LookAgain.Request(TimeSpan.Zero);
                 return null;
             });
 
         CreateWorker(waits: waits).Execute(_context.Object);
 
-        // One second of looks ten milliseconds apart would be a hundred: each wait is as long as all before it
-        Assert.InRange(looks, 3, 20);
+        // Each pause is as long as all the ones before it, between 10 and 250 milliseconds, and the last one ends
+        // the second a job is kept: nine looks with the offer and one without, not a hundred ten milliseconds apart
+        Assert.Equal([10, 10, 20, 40, 80, 160, 250, 250, 180], pauses);
+        Assert.Equal([.. Enumerable.Repeat(true, 9), false], offers);
     }
 
     [Fact]
