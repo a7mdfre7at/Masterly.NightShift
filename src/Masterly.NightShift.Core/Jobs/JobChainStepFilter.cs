@@ -60,8 +60,9 @@ namespace Masterly.NightShift;
 /// </list>
 /// <para>
 /// Whether a job waits depends neither on its age nor on the clocks of the client and the server agreeing, where
-/// the storage has a clock: "being changed" is written and read with it. On a storage without one (EF Core), it
-/// is written and read with the clocks of the processes, which must agree to within the two minutes it lasts.
+/// the storage has a clock: "being changed" is written and read with it. On a storage without one (EF Core on
+/// SQLite, or a storage that doesn't advertise a clock), it is written and read with the clocks of the processes,
+/// which must agree to within the two minutes it lasts.
 /// </para>
 /// <para>
 /// A job that isn't a step of a chain costs a dictionary lookup when the storage loads the job's parameters with it
