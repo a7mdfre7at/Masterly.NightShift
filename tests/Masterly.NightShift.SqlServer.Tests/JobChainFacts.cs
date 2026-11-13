@@ -436,7 +436,7 @@ public class JobChainFacts
         ChainHooks hooks = new() { PauseOnCreating = "c" };
         hooks.WhilePaused = () =>
         {
-            // Seconds pass, by the clock of the database: the first step stops going back to its queue
+            // Seconds pass, by the clock of the database: the worker stops waiting with the first step
             string first = hooks.Created.Single(static x => x.Name == "a").Id;
             Thread.Sleep(1000);
             Assert.Equal(EnqueuedState.StateName, StateName(storage, first));

@@ -51,8 +51,8 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
     {
         // Only where everything written here can be dropped (the transaction is this method's own) and the
         // filters run: a filter that asks otherwise is told no, and holds the job another way
-        JobGiveBack? giveBack = context.Transaction == null && !context.DisableFilters ? context.GiveBack : null;
-        giveBack?.Reset();
+        JobLookAgain? lookAgain = context.Transaction == null && !context.DisableFilters ? context.LookAgain : null;
+        lookAgain?.Reset();
 
         // To ensure that job state will be changed only from one of the
         // specified states, we need to ensure that other users/workers
@@ -154,7 +154,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     {
                         // Only when the commit happens here; a transaction passed in is committed later by its owner
                         AfterCommit = afterCommit = context.Transaction == null ? new PostCommitActions() : null,
-                        GiveBack = giveBack
+                        LookAgain = lookAgain
                     };
 
                     // State changing process can fail due to an exception in state filters themselves,
@@ -167,10 +167,10 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
                     IStateMachine stateMachine = context.DisableFilters ? _stateMachine.InnerStateMachine : _stateMachine;
                     appliedState = stateMachine.ApplyState(applyContext);
 
-                    // The first election filter had the job given back to its queue (see JobGiveBack): the
-                    // transaction is dropped, the job isn't acknowledged, and its state is what it was. The lock
-                    // is released before the worker waits.
-                    if (giveBack is not { Requested: true })
+                    // The first election filter asked the worker to look at the job again in a moment (see
+                    // JobLookAgain): the transaction is dropped, the job isn't acknowledged, and its state is
+                    // what it was. The lock is released before the worker waits.
+                    if (lookAgain is not { Requested: true })
                     {
                         if (context.CompleteJob != null)
                         {
@@ -202,7 +202,7 @@ public class BackgroundJobStateChanger : IBackgroundJobStateChanger
             throw;
         }
 
-        if (giveBack is { Requested: true })
+        if (lookAgain is { Requested: true })
         {
             // Nothing was committed: only the work about something already stored on its own runs
             afterCommit?.RunAfterFailure();
