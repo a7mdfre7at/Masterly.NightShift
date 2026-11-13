@@ -7,8 +7,8 @@ namespace Masterly.NightShift.Storage;
 /// of the storage's finds every server silent, and one that runs behind doesn't notice a server that stopped.
 /// </summary>
 /// <remarks>
-/// Compiled into Masterly.NightShift.AspNetCore as well, for its health check, so it uses the public API only
-/// and names nothing outside this namespace and its parents.
+/// For the dashboard's <c>/health</c> and <c>/metrics</c>. The health check of Masterly.NightShift.AspNetCore
+/// can't see this class, and reads the storage's clock the same way through the public API.
 /// </remarks>
 internal static class StorageClock
 {
