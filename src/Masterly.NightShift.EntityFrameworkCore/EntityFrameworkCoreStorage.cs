@@ -59,11 +59,12 @@ public sealed class EntityFrameworkCoreStorageOptions
     /// these. On SQLite, whose clock is the process's own, it makes the storage ask SQLite instead.
     /// </summary>
     /// <remarks>
-    /// The first read of the clock checks the statement: its answer must be a time and, for every statement but
-    /// the built-in one of SQL Server, a time within 30 minutes of this process's clock (a statement that answers
-    /// local time instead of UTC is told that way). A statement that fails the check is logged once as a
-    /// warning, and the storage answers with this process's clock from then on. See the remarks of
-    /// <see cref="EntityFrameworkCoreStorage"/>.
+    /// The reads of the clock check the statement, until it has answered once: its answer must be a time and, for
+    /// every statement but the built-in one of SQL Server, a time within 30 minutes of this process's clock (a
+    /// statement that answers local time instead of UTC is told that way). A statement whose answer is wrong, or
+    /// that the database keeps refusing, is logged once as a warning; the storage answers with this process's
+    /// clock meanwhile, asks the statement again every 15 seconds, and takes the database's clock up once it
+    /// answers. See the remarks of <see cref="EntityFrameworkCoreStorage"/>.
     /// </remarks>
     public string? DatabaseClockSql { get; set; }
 }
@@ -91,10 +92,12 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// <c>Connection.GetUtcDateTime</c>) on the providers it knows a statement for: SQL Server, PostgreSQL (Npgsql),
 /// MySQL and MariaDB (Pomelo and Oracle's MySQL provider) and Oracle; for another provider, set
 /// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>. The schedulers, the dashboard, the health
-/// checks and the lease of a chain that is being created then go by that one clock, and server heartbeats are
-/// written and timed out with it, so the clocks of the processes that share the storage needn't agree for them.
-/// Each read is one more statement on a context of the storage. There, the time provider set with
-/// <c>UseTimeProvider</c> no longer drives the schedulers, as on the SQL Server storage.
+/// checks and the lease of a chain that is being created then go by that one clock; server heartbeats, the
+/// leases of distributed locks and the invisibility of fetched jobs are stamped and timed out with it. The clocks
+/// of the processes that share the storage needn't agree for any of them. Each read is one more statement on a
+/// context of the storage; a free lock still costs two statements to take, and fetching reads the clock once a
+/// second at most. There, the time provider set with <c>UseTimeProvider</c> no longer drives the schedulers, as
+/// on the SQL Server storage.
 /// </para>
 /// <para>
 /// SQLite runs inside the process and reads the machine's clock, which every process on that machine shares:
@@ -104,18 +107,21 @@ public sealed class EntityFrameworkCoreStorageOptions
 /// </para>
 /// <para>
 /// <see cref="HasFeature"/> answers from the configuration alone (the provider, or the option): it never asks
-/// the database. The statement is checked by the first read of the clock (see
-/// <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>). One that fails the check is logged once as
-/// a warning, and <c>GetUtcDateTime</c> answers with this process's clock for as long as the storage object
-/// lives, as callers got before the storage read the database's; that is decided before any time is handed out.
-/// While the database can't be asked (it is out of reach, or the statement never got to it), the read throws
-/// like any other read, and the next read checks again. Once the statement passed, a read that fails throws; the
-/// storage never goes back to the process's clock. A provider without a statement is logged once as information
-/// when the storage is created: the feature isn't advertised, and the process tells the time with its own clock.
+/// the database. A read of the clock that fails is never final. SQL Server's statement is never given up on: a
+/// read that fails throws like any other read, and the next read asks again. Any other statement is checked by
+/// the reads themselves (see <see cref="EntityFrameworkCoreStorageOptions.DatabaseClockSql"/>): until it has
+/// answered once, a read the database refuses throws too, and only a statement the database, in reach, refused
+/// three times over five seconds or more, or one whose answer isn't the UTC time, is taken for wrong. That is
+/// logged once as a warning, and the process tells the time with its own clock, as before the storage read the
+/// database's, while the statement is asked again every 15 seconds; once it answers, the database's clock is
+/// taken up, which is logged. From its first answer on, a read that fails throws: a process changes clocks at
+/// most once, from its own to the database's, and never back. A provider without a statement is logged once as
+/// information when the storage is created: the feature isn't advertised, and the process tells the time with
+/// its own clock.
 /// </para>
 /// <para>
-/// Fetched jobs' invisibility, the expiry of distributed locks and of rows, and the times written into states
-/// still go by the clock of the process that writes or compares them (<see cref="JobClock"/>).
+/// The expiry of rows and the times written into states still go by the clock of the process that writes or
+/// compares them (<see cref="JobClock"/>); they are counted in hours and days.
 /// </para>
 /// </remarks>
 public sealed class EntityFrameworkCoreStorage : JobStorage
