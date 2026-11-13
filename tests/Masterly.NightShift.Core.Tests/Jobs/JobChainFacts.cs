@@ -1152,6 +1152,29 @@ public class JobChainFacts : IDisposable
     }
 
     [Fact]
+    public void RetryChainFrom_Refuses_AStepRequeuedBetweenTheCheckThatTheChainIsSettled_AndTheReadOfItsState()
+    {
+        // The chain is read as settled; then somebody requeues the step, before the retry reads its state to hold
+        // it. Held from there, the step would keep its place in the queue, and be enqueued once more later.
+        RecordChain("c", JobChain.StartWith(() => Step("a")).Then(() => Step("b")).Then(() => Step("c")), ["root", "next", "last"]);
+        _storage.Connection.Setup(x => x.GetJobParameter("next", JobChains.ChainIdParameter)).Returns("\"c\"");
+        _storage.Connection.Setup(x => x.GetStateData("root")).Returns(new StateData { Name = SucceededState.StateName, Data = new Dictionary<string, string>() });
+        _storage.Connection.Setup(x => x.GetStateData("last")).Returns(new StateData { Name = AwaitingState.StateName, Data = new Dictionary<string, string>() });
+        int reads = 0;
+        _storage.Connection.Setup(x => x.GetStateData("next")).Returns(() => reads++ == 0
+            ? new StateData { Name = FailedState.StateName, Data = new Dictionary<string, string>() }
+            : new StateData { Name = EnqueuedState.StateName, Data = new Dictionary<string, string> { ["Queue"] = "default" } });
+        _client.Setup(x => x.ChangeState(It.IsAny<string>(), It.IsAny<IState>(), It.IsAny<string>())).Returns(true);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => JobChains.Retry(_storage.Object, _client.Object, "next"));
+
+        Assert.Contains("hasn't finished", exception.Message, StringComparison.Ordinal);
+        _client.Verify(x => x.ChangeState("next", It.IsAny<IState>(), It.IsAny<string>()), Times.Never);
+        Assert.Null(_storage.Hashes[JobChains.GetKey("c")].GetValueOrDefault("Generation"));
+        Assert.DoesNotContain("changing", _storage.Hashes[JobChains.GetKey("c")]["Jobs"], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RetryChainFrom_ThatFails_LeavesItsStep_AndItsNote_ToAnotherRetryThatHoldsItNow()
     {
         // On a storage whose chain lock is a lease, a client frozen for longer than the lease loses it: a server

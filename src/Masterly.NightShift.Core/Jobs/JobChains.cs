@@ -230,7 +230,14 @@ public static partial class JobChains
                 levels[next] = record.Definition.ReadLevel(next, chainId);
             }
 
+            // Read again: the step may have been requeued since the chain was read as settled. The hold expects the
+            // state read here, under the job's lock, so a requeue from here on makes the hold fail instead.
             StateData? stepState = connection.GetStateData(stepJobId);
+            if (stepState != null && !IsSettledState(stepState.Name))
+            {
+                throw new InvalidOperationException($"Chain '{chainId}' hasn't finished: its step '{stepKey}' is in the {stepState.Name} state.");
+            }
+
             Job? stepJob = stepState == null ? record.Definition.ReadJob(level, index, chainId) : null;
 
             // What the step says about this retry while it is held: the generation the retry starts from, and the
