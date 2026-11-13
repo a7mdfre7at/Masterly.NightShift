@@ -221,7 +221,7 @@ If the process dies between the capture and `MarkCaptured`, the job runs again, 
 
 ## Things to know
 
-- Creating a job inside your own database transaction (a `DbContext` transaction or a `SqlTransaction`) doesn't make it part of that transaction: the storage writes through its own connection. If your transaction rolls back, the job still exists. Create the job after you commit, or make the job check that its data exists.
+- Creating a job inside your own database transaction (a `DbContext` transaction, a `SqlTransaction` or a `TransactionScope`) doesn't make it part of that transaction: the storage writes through connections of its own, which never join a `TransactionScope`. The job exists when the call returns, and stays if your transaction rolls back; a storage write that fails doesn't doom your scope. Create the job after you commit, make the job check that its data exists, or, with the [Entity Framework Core storage](../storage/entity-framework-core.md#jobs-that-commit-with-your-data), stage it on your context with `NightShift()`, so it commits with your data.
 - Recurring jobs are not jobs: a recurring job is a schedule. Each time it fires it creates an ordinary job, which you'll find under **Jobs** in the dashboard.
 - Job IDs returned by `Enqueue`, `Schedule` and `ContinueJobWith` are `string?`: `null` means a client filter canceled the creation.
 - Time in Masterly.NightShift is UTC unless you say otherwise. Recurring jobs run in UTC unless you set `RecurringJobOptions.TimeZone` (see [Time zones and misfires](../recurring-jobs/time-zones-and-misfires.md)).

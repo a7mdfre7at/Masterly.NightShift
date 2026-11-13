@@ -53,12 +53,14 @@ GlobalConfiguration.Configuration.UseDeploymentFencing("2026.11.3", 42); // with
 
 1. Every server created after the call checks the deployment every 15 seconds (`DeploymentFencing.CheckInterval`), and leaves a sign of life for its deployment at each check.
 2. The first server of a deployment the cluster hasn't seen claims it: it becomes the current deployment.
-3. A server of any other deployment pauses itself, as [drain mode](drain-mode.md) pauses a server, with the reason `Fenced: deployment '...' was replaced by '...'`. Jobs it picks up are held and taken by the current servers; its running jobs finish.
+3. A server of any other deployment pauses itself, as [drain mode](drain-mode.md#a-paused-server-stops-fetching) pauses a server, with the reason `Fenced: deployment '...' was replaced by '...'`. Its workers stop fetching, so the jobs stay in their queues for the current servers; its running jobs finish.
 4. A deployment seen before (an old version restarted by its orchestrator, a rollback) takes over only once the current deployment has been silent for 30 seconds (`DeploymentFencing.TakeOverAfter`): no server of it has checked in for that long. So a crash-looping old server doesn't fence the new ones. To roll back on purpose, deploy with a new id.
 
-A server with fencing takes no job until its first check has succeeded: its workers wait until the check has decided whether the server's deployment is fenced and, when it is, has paused the server. So a server of a replaced deployment that starts never runs a job before it finds out. When the first check fails (the storage can't be reached), the server keeps taking no jobs, logs one warning and tries the check again. A server without fencing starts as before, with no extra storage call.
+A server with fencing takes no job until a check has succeeded for its current server id: its workers wait until the check has decided whether the server's deployment is fenced and, when it is, has paused the server. So a server of a replaced deployment that starts never runs a job before it finds out. The same holds when a server gets a new id, because its heartbeat found its entry removed or failed for longer than the server timeout: the pause of a fenced server is on the old id, so the server takes no job until a check has decided for the new one. When that check fails (the storage can't be reached), the server keeps taking no jobs, logs one warning and tries the check again. A server removes its own pause when it stops or gets a new id; one that dies leaves it to [`ClearStaleServerPauses`](drain-mode.md#clear-pauses-left-by-stopped-servers). A server without fencing doesn't wait for a check: before each fetch its workers only ask whether the server is paused, from the drain-mode state each process caches for 2 seconds.
 
-A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The default id is the entry assembly's informational version, so make sure it changes with every release.
+A worker that was already waiting for a job when its server was fenced takes one more, which is held for `DrainMode.HoldInterval` and then taken by the current servers. The time it is held doesn't count towards [`[SkipIfLate]`](../filters/timing.md#skipiflateattribute) or `SkipAfter` (the `ServerHold` job parameter).
+
+A server paused by fencing resumes by itself when its deployment becomes the current one again; a pause set by hand stays. Deployment ids that differ only by case (`Release-7`, `release-7`) are one deployment, on every storage. `DeploymentFencing.GetCurrentDeployment(storage)` reads the current deployment. The default id is the entry assembly's informational version, so make sure it changes with every release.
 
 ### When a deployment is silent
 
@@ -107,7 +109,7 @@ So the hash doesn't grow with every release, a check removes the fields of a dep
 ### Limits
 
 - **A server fenced later takes jobs until its next check.** When a newer deployment becomes the current one, a running server of the older one learns it at its next check, up to `CheckInterval` later, and takes jobs until then. The jobs it started finish.
-- **Only the server's own worker pools wait for the first check:** the workers of `WorkerCount` and `LongRunningWorkerCount`. A `Worker` you add yourself as an additional process starts at once, and can run a job before the server knows whether it is fenced. Once the server is paused, the jobs such a worker picks up are held like the others.
+- **Only the server's own worker pools wait:** the workers of `WorkerCount` and `LongRunningWorkerCount`. A `Worker` you add yourself as an additional process fetches at once and while the server is fenced, and can run a job before the server knows whether it is fenced. Once the server is paused, the jobs such a worker picks up are held for `DrainMode.HoldInterval`.
 - **A deployment gone for more than seven days is forgotten,** as described above: it counts as never seen when it comes back.
 
 ## Starting and stopping servers from code

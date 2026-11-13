@@ -92,6 +92,8 @@ Without the variable, the tests use `Server=.\;Database={0};Trusted_Connection=T
 
 Each target framework uses its own database (`Masterly.NightShift.SqlServer.Tests.net8_0`, `Masterly.NightShift.SqlServer.Tests.net10_0`), so they can run at once. The databases are created on demand with a case-sensitive collation, which catches queries that only work on a case-insensitive server. Set `NightShift_SqlServer_DatabaseName` to use another name; every framework then uses that one database, so run them one at a time.
 
+The Entity Framework Core tests run on SQL Server too when the template is set, in databases of their own, named after their use (such as `Storage`), the storage's schema version and the target framework: `Masterly.NightShift.EntityFrameworkCore.Tests.Storage.v{version}.net8_0` and so on. With `NightShift_SqlServer_DatabaseName` set, their names start with that name followed by `.EntityFrameworkCore`, so test runs given different names never share a database.
+
 A SQL Server container works too, for example on Linux or macOS:
 
 ```

@@ -212,7 +212,7 @@ A tag cloud and a table of tags with their job counts, in name order and a page 
 
 ### Servers
 
-- **Servers table**: name, workers, queues, start time and last heartbeat. Servers that missed their heartbeat for longer than `ServerPossiblyAbortedThreshold` are marked **Possibly aborted**; they are removed automatically after the server timeout. **Pause** a single server to make it hold the jobs it picks up: each goes to Scheduled for the hold interval and is enqueued again, when any server may take it (its running jobs finish), and **Resume** it.
+- **Servers table**: name, workers, queues, start time and last heartbeat. Servers that missed their heartbeat for longer than `ServerPossiblyAbortedThreshold` are marked **Possibly aborted**; they are removed automatically after the server timeout. **Pause** a single server to make it stop taking jobs: its workers stop fetching within a few seconds, the jobs stay in their queues for the other servers, and its running jobs finish (see [Drain mode](../server/drain-mode.md#a-paused-server-stops-fetching)); **Resume** it.
 - **Pauses left by stopped servers**: a server gets a new id every time it starts, so a pause outlives the server it was set on. Pauses whose server is no longer registered are listed here with **Clear**. They have no effect: the banner and `/health` ignore them.
 - **This process**: the process hosting the dashboard, its uptime, an IIS warning when it is hosted by IIS without keep-alive, and the [keep-alive](../server/keep-alive.md) status.
 - **Processing**: **Pause processing** for the whole cluster ([drain mode](../server/drain-mode.md)), with an optional reason, and **Resume processing**.

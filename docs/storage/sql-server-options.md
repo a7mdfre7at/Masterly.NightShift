@@ -67,7 +67,7 @@ All properties are on `Masterly.NightShift.SqlServer.SqlServerStorageOptions`.
 |---|---|---|---|
 | `InvisibilityTimeout` | `TimeSpan` | 30 minutes | Used only by the legacy transactional fetch (`SlidingInvisibilityTimeout = null`), to also take queue rows that were marked as fetched longer ago than this (for example by a server that used sliding invisibility before). No effect with sliding invisibility. |
 
-Hangfire's `TransactionIsolationLevel`, `UseRecommendedIsolationLevel`, `TransactionTimeout`, `DisableTransactionScope` and `UsePageLocksOnDequeue` are gone. Storage transactions always run as `READ COMMITTED`, which is what the default options did.
+Hangfire's `TransactionIsolationLevel`, `UseRecommendedIsolationLevel`, `TransactionTimeout`, `DisableTransactionScope` and `UsePageLocksOnDequeue` are gone. Storage transactions always run as `READ COMMITTED`, which is what the default options did, also on a pooled connection that the application left at another isolation level.
 
 ## More examples
 
@@ -87,7 +87,7 @@ var options = new SqlServerStorageOptions
 };
 ```
 
-In transactional mode every idle worker polls on its own, and `QueuePollInterval = Zero` means 1 second.
+In transactional mode every idle worker polls on its own, and `QueuePollInterval = Zero` means 1 second. A worker that waits before it runs a job it fetched, such as the first step of a [chain](../jobs/chains.md#the-first-step-of-a-chain-that-is-being-created) that is still being created, keeps that connection and transaction open while it waits, up to 5 seconds.
 
 ### Polling
 
@@ -209,6 +209,7 @@ var options = new SqlServerStorageOptions
 
 - **Your values win over auto-detection.** Setting `DisableGlobalLocks` or `UseIgnoreDupKeyOption` turns auto-detection off for that option, even when you set the default (`false`). Leave an option unset to let the schema version decide it.
 - **The options object shows what you set, not what is in effect.** After the storage is created, `DisableGlobalLocks`, `UseIgnoreDupKeyOption` and `DeleteExpiredBatchSize` still return your values or the defaults, not the values auto-detection chose.
+- **No ambient transaction.** No connection of the storage joins a `TransactionScope` of the caller, connections from your own factory (`UseSqlServerStorage(() => connection)`) included: the storage suppresses the ambient transaction while it opens them. A job created inside a scope exists when the call returns and stays if the scope rolls back, and a storage write that fails doesn't doom the scope. A connection your factory hands over already open is used as it is.
 - **Lightweight servers** (`BackgroundJobServerOptions.IsLightweightServer`) don't run the expiration manager and the counters aggregator, so the cleanup options have no effect on them. Run at least one regular server per storage.
 
 ## See also
